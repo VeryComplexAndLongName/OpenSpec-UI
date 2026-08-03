@@ -1,56 +1,56 @@
-## 1. Протокол выполнения
+## 1. Execution Protocol
 
-- [x] 1.1 Определить типы команд/событий (`packages/core/src/protocol.ts`)
-      — `Command`, `Event` discriminated unions, покрывающие
-      plan/implement/review/status/cancel и started/stdout/stderr/
-      progress/completed/failed/cancelled
-- [x] 1.2 Тест: сериализация/десериализация каждого варианта `Event` (это
-      контракт, который `server`/`extension` будут повторно использовать)
+- [x] 1.1 Define command/event types (`packages/core/src/protocol.ts`):
+      `Command` and `Event` discriminated unions covering
+      plan/implement/review/status/cancel and started/stdout/stderr/
+      progress/completed/failed/cancelled.
+- [x] 1.2 Test serialization/deserialization for every `Event` variant (this
+      is the contract reused by `server`/`extension`).
 
 ## 2. AgentRunner
 
-- [x] 2.1 Интерфейс `AgentRunner.run(command, cwd, context) →
-      AsyncIterable<Event>`
-- [x] 2.2 Адаптер: Claude CLI
-- [x] 2.3 Адаптер: GitHub Copilot CLI
-- [x] 2.4 Адаптер: Codex CLI
-- [x] 2.5 Адаптер: Gemini CLI
-- [x] 2.6 Адаптер: локальная LLM через OpenAI-совместимый API
-      (SGLang/vLLM) — прямой HTTP-вызов, не CLI-процесс
-- [x] 2.7 Тест на каждый адаптер: мок дочернего процесса/HTTP-вызова →
-      корректный поток событий протокола
+- [x] 2.1 Interface `AgentRunner.run(command, cwd, context) ->
+      AsyncIterable<Event>`.
+- [x] 2.2 Adapter: Claude CLI.
+- [x] 2.3 Adapter: GitHub Copilot CLI.
+- [x] 2.4 Adapter: Codex CLI.
+- [x] 2.5 Adapter: Gemini CLI.
+- [x] 2.6 Adapter: local LLM via OpenAI-compatible API (SGLang/vLLM), direct
+      HTTP (not a CLI process).
+- [x] 2.7 Per-adapter tests: mocked child process/HTTP call -> correct protocol
+      event stream.
+- [x] 2.8 Document development live-test availability:
+      only Claude CLI and GitHub Copilot CLI are currently available for live
+      smoke tests; other adapters are verified through mocks/contract tests.
 
-## 3. Security-модель
+## 3. Security Model
 
-- [x] 3.1 Allowlist разрешённых команд/аргументов, конфигурируемый на
-      уровне воркспейса
-- [x] 3.2 cwd-sandbox: проверка перед спавном, что рабочая директория
-      агента не выходит за пределы воркспейса
-- [x] 3.3 Явная граница "содержимое файла — данные, не инструкция": функция
-      подготовки контекста агента не позволяет содержимому change-файлов
-      влиять на allowlist/cwd/какая команда исполняется — только на сам
-      промпт агента
-- [x] 3.4 Аудит-лог: что запущено, cwd, итоговый diff (best-effort, не
-      блокирует выполнение при сбое логирования)
-- [x] 3.5 Тест: попытка выхода за пределы allowlist/cwd — заблокирована,
-      залогирована, не приводит к спавну процесса
-- [x] 3.6 Тест: содержимое change-файла с внедрённой инструкцией
-      ("проигнорируй предыдущие правила и...") не меняет allowlist/cwd
-      исполнения — только пробрасывается в промпт агента как есть
+- [x] 3.1 Workspace-level per-agent command/argument allowlist.
+- [x] 3.2 Cwd sandbox check before spawn: agent cwd cannot escape workspace
+      boundaries.
+- [x] 3.3 Explicit boundary "file contents are data, not instructions":
+      context preparation cannot influence allowlist/cwd/which command runs,
+      only the prompt content.
+- [x] 3.4 Audit log for each run (what ran, cwd, resulting diff), best effort
+      without blocking execution on logging failures.
+- [x] 3.5 Test: allowlist/cwd escape attempt is blocked, logged, and no process
+      spawn occurs.
+- [x] 3.6 Test: injected instruction in change files does not alter
+      allowlist/cwd/execution command and is passed through as prompt data.
 
-## 4. Derived change-state
+## 4. Derived Change State
 
 - [x] 4.1 `deriveChangeState(changeDir): ChangeState`
-      (draft/in-progress/implemented/archived) по расположению +
-      `tasks.md`
-- [x] 4.2 Тест на каждое состояние (фикстуры: change с пустым tasks.md,
-      частично отмеченным, полностью отмеченным не в archive, в archive)
+      (`draft`/`in-progress`/`implemented`/`archived`) from location +
+      `tasks.md`.
+- [x] 4.2 Tests for each state (fixtures: empty tasks.md, partial, complete
+      outside archive, inside archive).
 
-## 5. OpenSpec/git-обёртки
+## 5. OpenSpec/Git Wrappers
 
-- [x] 5.1 Обёртка над `openspec ... --json` командами (list/show/validate)
-- [x] 5.2 git-обёртка (статус, diff, commit, branch) — только то, что
-      реально нужно UI, не полный API git
-- [x] 5.3 Тест: парсинг реального вывода `openspec list --json` /
-      `openspec change show --json` (фикстуры из живого `openspec` CLI,
-      не выдуманные вручную)
+- [x] 5.1 Wrapper over `openspec ... --json` commands (list/show/validate).
+- [x] 5.2 Git wrapper (status, diff, commit, branch) — only what UI actually
+      needs, not full git API.
+- [x] 5.3 Test parsing real output from `openspec list --json` /
+      `openspec change show --json` (fixtures captured from live `openspec`
+      CLI, not hand-invented data).

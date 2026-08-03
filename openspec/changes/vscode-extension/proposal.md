@@ -1,40 +1,33 @@
 ## Why
 
-`docs/adr/0001-shared-core-two-delivery-targets.md` — вторая форма поставки,
-по прямому требованию заказчика. Максимизирует использование нативного
-VS Code API вместо переизобретения UI (diff-editor, TreeDataProvider,
-встроенный Git extension API, Tasks/Terminal API,
-`contributes.configuration`, опционально Chat Participant API) — решение,
-принятое явно, чтобы не конкурировать с уже зрелыми инструментами внутри
-самого VS Code.
+`docs/adr/0001-shared-core-two-delivery-targets.md` defines the second
+delivery form required by the customer. It maximizes native VS Code API usage
+instead of reinventing UI (diff editor, TreeDataProvider, built-in Git API,
+Tasks/Terminal API, `contributes.configuration`, optional Chat Participant
+API).
 
 ## What Changes
 
-- Добавляется `packages/extension` — регистрирует Commands (Command
-  Palette), `TreeDataProvider` для Changes/Archive/Specs, Webview-панель
-  только для того, что не покрывается нативными views (список changes с
-  кастомной фильтрацией, AI-панель).
-- Прямой импорт `execution-core` в extension host — `MessageBridgeTransport`
-  как основной путь получения данных Webview'ом (см. `docs/adr/0001-*.md`,
-  "Отклонённые альтернативы" — пересмотрено по итогам рецензии).
-- Опциональный режим: extension поднимает `packages/server` как дочерний
-  процесс, Webview указывает на `http://127.0.0.1:<port>` — только если
-  явно включено пользователем (полная идентичность UX со standalone важнее
-  отсутствия lifecycle-сложности порта).
-- Делегирование markdown-редактирования и diff нативным возможностям VS
-  Code (см. `shared-ui`'s design.md).
+- Add `packages/extension` with command registration (Command Palette),
+  `TreeDataProvider` for Changes/Archive/Specs, and Webview panel only where
+  native views are not sufficient (custom filtered list, AI panel).
+- Use direct `execution-core` import in extension host with
+  `MessageBridgeTransport` as primary data path for Webview.
+- Add optional mode: extension can spawn `packages/server` and point Webview to
+  `http://127.0.0.1:<port>` only when explicitly enabled by user.
+- Delegate markdown editing and diff to native VS Code features.
 
 ## Capabilities
 
 ### New Capabilities
-- `vscode-extension`: VS Code расширение с прямым доступом к
-  `execution-core`, нативным UI где возможно, Webview — где нет.
+- `vscode-extension`: VS Code extension with direct access to
+  `execution-core`, native UI where possible, Webview where needed.
 
 ### Modified Capabilities
-(нет)
+(none)
 
 ## Impact
 
-Новый код: `packages/extension/`. Зависит от `execution-core` (прямой
-import) и `shared-ui` (Webview-контент). Опционально — от `standalone-app`'s
-`packages/server`, если включён режим локального сервера.
+New code: `packages/extension/`. Depends on `execution-core` (direct import)
+and `shared-ui` (Webview content). Optionally depends on `standalone-app`
+`packages/server` when local-server mode is enabled.

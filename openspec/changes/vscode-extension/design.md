@@ -1,62 +1,38 @@
 ## Context
 
-См. proposal.md и `docs/adr/0001-*.md` целиком, особенно "Отклонённые
-альтернативы" (решение по режиму запуска пересмотрено по итогам внешней
-рецензии архитектуры).
+See proposal.md and `docs/adr/0001-*.md`, especially "Rejected
+Alternatives" (the extension runtime-mode decision was revised after external
+architecture review).
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Основной путь (прямой import + message bridge) работает без поднятия
-  сетевого порта вообще — устраняет lifecycle-риск (порты/коллизии между
-  окнами/cleanup), поднятый в рецензии, для самого частого сценария
-  использования.
-- Максимум нативного VS Code API вместо своего UI, по каждому пункту из
-  ADR.
+- Primary path (direct import + message bridge) works with no network server,
+  removing lifecycle risks (ports/collisions/cleanup) from default use.
+- Maximize native VS Code API usage as defined in ADR.
 
 **Non-Goals:**
-- Не реализует Chat Participant API в первой версии — оставлено как
-  возможное расширение AI-панели позже, не блокирует базовую
-  функциональность (Webview с AI-панелью из `shared-ui` работает
-  самостоятельно).
-- Не решает синхронизацию состояния между несколькими одновременно
-  открытыми окнами VS Code на одном репозитории — каждое окно работает
-  независимо в первой версии.
+- Chat Participant API is not required for first version.
+- No multi-window state synchronization for the same repo in first version.
 
 ## Decisions
 
-- **Прямой import `core` + message bridge — основной режим, локальный
-  сервер — опциональный флаг в настройках** (см. ADR 0001, "Отклонённые
-  альтернативы" за полным обоснованием пересмотра). Дефолт — без сервера:
-  ниже риск, ниже сложность для 95% пользователей, которые не нуждаются в
-  идентичном UX между Webview и отдельным standalone-инструментом
-  одновременно.
-- **TreeDataProvider для списков (Changes/Archive/Specs), Webview — только
-  для AI-панели и представлений с кастомной интерактивностью, не
-  покрываемых деревом**: разделение по тому, что нативно поддерживает VS
-  Code Tree API (иерархия, иконки, контекстное меню) против того, что
-  требует произвольной вёрстки (форма запуска агента, поток событий в
-  реальном времени).
-- **Diff — всегда через `vscode.diff`, никогда через собственный компонент
-  `shared-ui`**: см. `shared-ui`'s design.md, эта капабилити просто
-  потребляет то решение, не переопределяет его.
-- **Опциональный локальный сервер — тот же пакет `server`, что у
-  standalone, без форка**: если пользователь включает этот режим, extension
-  спавнит `server` как дочерний процесс с динамически выбранным свободным
-  портом и передаёт его Webview через `localResourceRoots`/CSP-настройку.
+- **Direct `core` import + message bridge is primary mode; local server is an
+  optional settings flag.** Default is serverless.
+- **TreeDataProvider for Changes/Archive/Specs; Webview only for AI panel and
+  custom interactive views not covered by tree UI.**
+- **Diff always uses `vscode.diff`, never a custom `shared-ui` component.**
+- **Optional local server reuses the same `server` package as standalone** with
+  dynamic free-port selection and proper lifecycle cleanup.
 
 ## Risks / Trade-offs
 
-- [Риск] Опциональный режим локального сервера всё равно требует решить
-  выбор порта/коллизии между окнами, если пользователь его включит →
-  Митигация: это уже опциональный, менее используемый путь — сложность не
-  исчезает полностью, но выведена из дефолтного сценария (см. Goals).
-- [Риск] Два режима (message bridge / локальный сервер) означают, что
-  `extension` тестируется в обеих конфигурациях, не в одной → Митигация:
-  contract test из `shared-ui` (один сценарий через оба `Transport`)
-  покрывает именно это на уровне компонентов; `extension`-специфичный тест
-  добавляется отдельно на переключение режима в настройках.
-- [Риск] Webview CSP по умолчанию блокирует произвольные сетевые запросы —
-  даже для опционального localhost-режима нужна явная настройка →
-  Принято как известная, документированная деталь реализации, не
-  архитектурный риск.
+- [Risk] Optional local-server mode still requires port selection and
+  multi-window collision handling when enabled.
+  Mitigation: keep this complexity off the default path.
+- [Risk] Two modes (message bridge vs local server) require testing both.
+  Mitigation: shared-ui contract tests run equivalent transport scenarios;
+  extension-specific mode-toggle tests are added.
+- [Risk] Webview CSP blocks arbitrary network by default, so localhost mode
+  needs explicit configuration.
+  Accepted as implementation detail, not architecture blocker.

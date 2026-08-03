@@ -1,57 +1,44 @@
 ## Context
 
-См. proposal.md и `docs/adr/0001-*.md`. `webui` не знает, работает ли оно
-в браузере (standalone) или в Webview (extension) — единственная
-осведомлённость об этом различии инкапсулирована в выборе `Transport`,
-переданном при инициализации.
+See proposal.md and `docs/adr/0001-*.md`. `webui` must not care whether it is
+running in browser standalone or VS Code Webview; the only environment-specific
+logic is encapsulated in selected `Transport`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Один код компонентов для обеих форм поставки.
-- Явная граница "что делает webui сам" vs "что делегируется хосту" —
-  особенно markdown-редактирование и diff (см. Decisions).
+- One component codebase for both delivery forms.
+- Clear boundary between responsibilities handled inside `webui` vs delegated
+  to host (especially markdown editing and diff rendering).
 
 **Non-Goals:**
-- Не реализует сам `Transport` (это `execution-core`/`standalone-app`/
-  `vscode-extension`) — только потребляет интерфейс.
-- Не редактирует markdown внутри себя для VS Code extension — редактирование
-  спек/proposal.md делегируется нативному редактору VS Code (открыть файл
-  как обычный документ), `webui` там только читает/отображает.
-- Не реализует git commit/branch/merge UI — по ADR это либо нативный Git
-  extension API (VS Code), либо остаётся вне первой версии standalone
-  (терминал/внешний git-клиент).
+- Does not implement transport infrastructure itself (`execution-core`,
+  `standalone-app`, `vscode-extension` do that); only consumes the interface.
+- Does not provide in-Webview markdown editing for VS Code extension;
+  editing is delegated to VS Code native editor.
+- Does not implement git commit/branch/merge UI.
 
 ## Decisions
 
-- **`Transport` — интерфейс с методами `send(command)` и
-  `subscribe(onEvent)`, не привязанный к REST/WS специфике**:
-  `FetchTransport` реализует его через `fetch` + `EventSource`/WebSocket,
-  `MessageBridgeTransport` — через `acquireVsCodeApi().postMessage`/
-  `window.addEventListener('message')`. Компоненты вызывают только
-  интерфейс, не знают о разнице.
-- **Markdown: read-only рендер внутри `webui`, редактирование — снаружи.**
-  Для VS Code — открыть файл нативным редактором (`vscode.open` команда).
-  Для standalone — минимальный текстовый редактор с превью (не полноценный
-  markdown IDE) — сознательно скромный, потому что стандартные редакторы
-  (сам VS Code как отдельное приложение) уже решают эту задачу лучше.
-- **Diff — используется свой рендер ТОЛЬКО когда хост его не предоставляет**
-  (standalone). Для extension — делегируется команде VS Code diff-editor
-  (`vscode.diff`), `webui`'s собственный diff-компонент в этом случае не
-  используется вовсе, а не дублируется поверх нативного.
-  - Отклонённая альтернатива: всегда использовать свой diff-рендер для
-    консистентности между формами — отклонено, у VS Code diff-editor
-    богаче функциональность (side-by-side, inline, word-diff), незачем
-    уступать пользователю UX ради формальной одинаковости.
+- **`Transport` interface with `send(command)` and `subscribe(onEvent)`**:
+  `FetchTransport` uses `fetch` + `EventSource`/WebSocket;
+  `MessageBridgeTransport` uses
+  `acquireVsCodeApi().postMessage` + `window` message events.
+  Components use only this interface.
+- **Markdown in `webui` is read-only; editing is delegated where host supports
+  it**: VS Code opens native files; standalone can use a minimal
+  editor+preview.
+- **Diff uses custom renderer only where host does not provide one**
+  (standalone). In extension mode, `vscode.diff` is used instead.
+  - Rejected alternative: always use one custom diff renderer for visual
+    uniformity. Rejected because VS Code diff UI is richer and users should get
+    native capabilities.
 
 ## Risks / Trade-offs
 
-- [Риск] Два `Transport`-адаптера могут разойтись по обработке ошибок
-  (например, `FetchTransport` теряет соединение иначе, чем
-  `MessageBridgeTransport`) → Митигация: contract test, гоняющий один и тот
-  же сценарий (включая обрыв соединения) через оба адаптера, ожидающий
-  одинаковый набор событий на выходе компонента.
-- [Риск] Делегирование diff/markdown-редактирования хосту означает, что
-  standalone и extension не выглядят пиксель-в-пиксель одинаково →
-  Осознанный trade-off (см. Decisions) — приоритет отдан качеству UX над
-  визуальной идентичностью.
+- [Risk] Two transport adapters may diverge in error handling behavior.
+  Mitigation: contract tests run same scenarios (including connection drop)
+  through both adapters and require equivalent observable events.
+- [Risk] Delegating diff/markdown editing to host means standalone and
+  extension are not pixel-identical.
+  Trade-off accepted in favor of better UX quality over strict visual parity.

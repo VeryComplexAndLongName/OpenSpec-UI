@@ -1,40 +1,34 @@
 ## Context
 
-См. proposal.md. `server` — единственный пакет, разрешённый принимать
-сетевые подключения в этом проекте (см. `vscode-extension`'s design.md —
-extension по умолчанию сети не поднимает).
+See proposal.md. `server` is the only package in this repository expected to
+accept network connections by default (in contrast to extension primary mode,
+which avoids network ports).
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Тонкий, легко аудируемый слой — вся логика уже в `execution-core`, здесь
-  только сериализация.
-- Bind только на localhost по умолчанию — сервер не предназначен для
-  доступа с других машин.
+- Keep `server` thin and auditable — all logic remains in `execution-core`,
+  this layer only serializes protocol traffic.
+- Bind localhost only by default.
 
 **Non-Goals:**
-- Не решает многопользовательский доступ/аутентификацию — однопользовательский
-  локальный инструмент, не SaaS.
-- Не реализует git commit/branch/merge UI (см. ADR 0001 — сознательно вне
-  скоупа, решается внешними git-инструментами).
+- No multi-user auth/session model (this is a local single-user tool, not a
+  SaaS backend).
+- No built-in git commit/branch/merge UI.
 
 ## Decisions
 
-- **Bind по умолчанию — `127.0.0.1`, не `0.0.0.0`**: сервер оркестрирует
-  запуск CLI-агентов с доступом к файловой системе пользователя — экспозиция
-  за пределы localhost без явного намерения пользователя недопустима.
-- **WebSocket для потока событий, обычный REST для разовых команд
-  (`status`)**: соответствует протоколу `execution-core` (event-driven для
-  долгих команд).
-- **Порт — конфигурируемый, с разумным default, без auto-discovery**:
-  standalone запускается пользователем явно (в отличие от extension, где
-  нужен auto-discovery между несколькими окнами — см. `vscode-extension`).
+- **Default bind: `127.0.0.1`, not `0.0.0.0`**.
+  The server orchestrates CLI agents with local filesystem access; exposing
+  beyond localhost without explicit user intent is not acceptable.
+- **WebSocket/event stream for long-running commands, REST for one-shot paths
+  such as `status`**.
+- **Port is configurable with a reasonable default, no auto-discovery in
+  standalone mode** (explicit user launch path).
 
 ## Risks / Trade-offs
 
-- [Риск] Локальный сервер без аутентификации — любой процесс на машине
-  пользователя может обратиться к нему, пока он запущен → Митигация:
-  bind на localhost ограничивает это локальной машиной; если нужна
-  дополнительная защита — добавить токен в будущей итерации, не блокирует
-  первую версию (однопользовательский локальный инструмент, тот же уровень
-  доверия, что и у localhost dev-серверов вообще).
+- [Risk] No authentication on localhost means any local process can call the
+  server while it is running.
+  Mitigation: localhost bind limits scope to local machine. Optional token
+  hardening can be added later if needed.
