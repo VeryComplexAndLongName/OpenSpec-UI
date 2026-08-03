@@ -1,6 +1,6 @@
 # OpenSpec UI
 
-Dashboard for [OpenSpec](https://github.com/openspec-ai/openspec) — a view
+Dashboard for [OpenSpec](https://github.com/Fission-AI/OpenSpec) — a view
 over Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
 GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
