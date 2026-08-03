@@ -54,6 +54,9 @@ rules:
 operations:
   apply:
     guidance:
+      - Use the runtime pinned in the root package.json (`volta` + `engines`)
+        for local and CI execution; do not run repository commands with
+        arbitrary global Node.js/npm versions.
       - Before completing apply, tsc (typecheck), eslint, and vitest must pass
         for the affected packages; for server/extension, a manual smoke test
         (a real run, not just unit tests) is also required before a task may be
