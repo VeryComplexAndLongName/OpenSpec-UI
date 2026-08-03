@@ -1,16 +1,25 @@
 {
   "name": "@openspec-ui/webui",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
     "@openspec-ui/core": "*",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "diff": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/jest-dom": "^7.0.0",
+    "jsdom": "^30.0.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src",
     "test": "vitest run"
   }
 }

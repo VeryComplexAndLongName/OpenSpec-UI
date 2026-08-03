@@ -60,13 +60,12 @@ operations:
         marked complete.
       - A version bump in the affected package's package.json is mandatory in
         sync with every externally visible behavior change.
-      - Versioning follows semver at the package level:
-        - patch: fixes, documentation, and refactoring without changing the
-          external contract.
-        - minor: new capabilities that remain compatible with the current
-          contract.
-        - major: breaking changes in public behavior, protocol, data format, or
-          promised UX.
+      - >-
+        Versioning follows semver at the package level: patch — fixes,
+        documentation, and refactoring without changing the external
+        contract; minor — new capabilities that remain compatible with the
+        current contract; major — breaking changes in public behavior,
+        protocol, data format, or promised UX.
       - Delivery forms may show an aggregated release version, but the source
         of truth for behavior versions is the package versions; show `core`
         separately if the UI exposes build information.

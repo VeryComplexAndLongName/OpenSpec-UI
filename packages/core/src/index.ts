@@ -14,3 +14,4 @@ export { CopilotCliAdapter } from "./agents/copilot.js";
 export { CodexCliAdapter } from "./agents/codex.js";
 export { GeminiCliAdapter } from "./agents/gemini.js";
 export { LocalLlmAdapter, type LocalLlmAdapterOptions } from "./agents/local-llm.js";
+export { AGENT_REGISTRY, type AgentDescriptor } from "./agents/registry.js";
