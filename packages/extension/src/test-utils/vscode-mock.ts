@@ -79,17 +79,23 @@ export function createVscodeMock() {
       showWarningMessage: vi.fn(),
       showErrorMessage: vi.fn(),
       showInformationMessage: vi.fn(),
+      showTextDocument: vi.fn(),
       withProgress: vi.fn(async (_options: unknown, task: (progress: unknown, token: unknown) => unknown) => {
         const token = { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) };
         return task({ report: vi.fn() }, token);
       }),
       registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
       createWebviewPanel: vi.fn(),
+      createTerminal: vi.fn(() => ({ show: vi.fn(), sendText: vi.fn(), dispose: vi.fn() })),
     },
     workspace: {
       workspaceFolders: undefined as { uri: Uri }[] | undefined,
       getConfiguration: vi.fn(() => ({ get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue) })),
       onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
+      openTextDocument: vi.fn(async ({ language, content }: { language: string; content: string }) => ({
+        uri: Uri.file(`/virtual/${language}.md`),
+        getText: () => content,
+      })),
     },
     commands: {
       registerCommand: vi.fn((id: string, handler: (...args: unknown[]) => unknown) => {

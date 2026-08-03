@@ -46,6 +46,18 @@ describe("AiPanel", () => {
     } satisfies Command);
   });
 
+  it("sends status when status is selected in the command picker", () => {
+    const { transport, send } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-status"} />);
+
+    fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "status" } });
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "status", runId: "run-status", cwd: "/repo" }),
+    );
+  });
+
   it("renders streamed events for the current run, in order", () => {
     const { transport, emit } = createFakeTransport();
     render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-1"} />);
@@ -113,6 +125,40 @@ describe("AiPanel", () => {
     });
 
     expect(screen.getByTestId("status-banner")).toHaveTextContent("Copilot CLI is blocked by policy settings");
+  });
+
+  it("renders checklist-shaped stdout as structured checklist rows", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-checklist"} />);
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    emit({
+      kind: "stdout",
+      runId: "run-checklist",
+      timestamp: "t",
+      chunk: "- [x] Implement parser\n- [ ] Add docs",
+    });
+
+    expect(screen.getByTestId("event-0-checklist")).toBeInTheDocument();
+    expect(screen.getByTestId("event-0-checklist")).toHaveTextContent("Implement parser");
+    expect(screen.getByTestId("event-0-checklist")).toHaveTextContent("Add docs");
+  });
+
+  it("renders key-value stdout as a structured block", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-kv"} />);
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    emit({
+      kind: "stdout",
+      runId: "run-kv",
+      timestamp: "t",
+      chunk: "Change: shared-ui\nStatus: in-progress",
+    });
+
+    expect(screen.getByTestId("event-0-kv")).toBeInTheDocument();
+    expect(screen.getByTestId("event-0-kv")).toHaveTextContent("Change");
+    expect(screen.getByTestId("event-0-kv")).toHaveTextContent("shared-ui");
   });
 
   it("shows a policy banner for the exact Copilot CLI denial message", () => {

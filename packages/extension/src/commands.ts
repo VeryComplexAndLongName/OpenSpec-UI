@@ -4,7 +4,17 @@
 
 import path from "node:path";
 import * as vscode from "vscode";
-import { listChanges, type AgentRunner, type Command, type CommandKind } from "@openspec-ui/core";
+import {
+  listChanges,
+  listSpecs,
+  showChange,
+  validateChange,
+  type AgentRunner,
+  type Command,
+  type CommandKind,
+  type OpenSpecShowResult,
+  type OpenSpecValidateResult,
+} from "@openspec-ui/core";
 import type { RunController } from "./run-controller.js";
 import type { ExtensionConfig } from "./config.js";
 import { describeEvent } from "./describe-event.js";
@@ -26,6 +36,70 @@ const RUNNABLE_COMMANDS: Record<string, CommandKind> = {
   "openspec-ui.review": "review",
   "openspec-ui.status": "status",
 };
+
+function formatShowMarkdown(result: OpenSpecShowResult): string {
+  const lines: string[] = [];
+  lines.push(`# Change: ${result.id}`);
+  lines.push("");
+  lines.push(`- **Title:** ${result.title}`);
+  lines.push(`- **Deltas:** ${result.deltaCount}`);
+  lines.push("");
+
+  for (const [index, delta] of result.deltas.entries()) {
+    lines.push(`## Delta ${index + 1}`);
+    lines.push("");
+    lines.push(`- **Spec:** ${delta.spec}`);
+    lines.push(`- **Operation:** ${delta.operation}`);
+    lines.push(`- **Description:** ${delta.description}`);
+
+    const requirements = delta.requirements ?? (delta.requirement ? [delta.requirement] : []);
+    if (requirements.length > 0) {
+      lines.push("");
+      lines.push("### Requirements");
+      for (const [reqIndex, req] of requirements.entries()) {
+        lines.push("");
+        lines.push(`${reqIndex + 1}. ${req.text}`);
+        for (const scenario of req.scenarios) {
+          lines.push(`   - Scenario: ${scenario.rawText}`);
+        }
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+function formatValidateMarkdown(changeName: string, result: OpenSpecValidateResult): string {
+  const lines: string[] = [];
+  lines.push(`# Validation: ${changeName}`);
+  lines.push("");
+  lines.push(`- **OpenSpec version:** ${result.version}`);
+  lines.push(`- **Items:** ${result.summary.totals.items}`);
+  lines.push(`- **Passed:** ${result.summary.totals.passed}`);
+  lines.push(`- **Failed:** ${result.summary.totals.failed}`);
+  lines.push("");
+
+  for (const item of result.items) {
+    lines.push(`## ${item.id} (${item.type})`);
+    lines.push("");
+    lines.push(`- **Valid:** ${item.valid ? "yes" : "no"}`);
+    lines.push(`- **Duration:** ${item.durationMs} ms`);
+    if (item.issues.length > 0) {
+      lines.push("- **Issues:**");
+      for (const issue of item.issues) {
+        lines.push(`  - ${issue.message}`);
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+async function openMarkdownDocument(title: string, markdown: string): Promise<void> {
+  const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: markdown });
+  await vscode.window.showTextDocument(doc, { preview: false });
+  void vscode.window.showInformationMessage(`OpenSpec UI: opened ${title}.`);
+}
 
 async function pickChange(workspaceRoot: string): Promise<{ name: string; changeDir: string } | undefined> {
   const result = await listChanges({ cwd: workspaceRoot });
@@ -104,6 +178,60 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }),
     );
   }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.openspecView", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const terminal = vscode.window.createTerminal({ name: "OpenSpec UI: openspec view", cwd: workspaceRoot });
+      terminal.show(true);
+      terminal.sendText("openspec view", true);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.showChangeDetails", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const selected = await pickChange(workspaceRoot);
+      if (!selected) return;
+      const result = await showChange(selected.name, { cwd: workspaceRoot });
+      await openMarkdownDocument(`change details for ${selected.name}`, formatShowMarkdown(result));
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.validateChangeStrict", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const selected = await pickChange(workspaceRoot);
+      if (!selected) return;
+      const result = await validateChange(selected.name, { cwd: workspaceRoot });
+      await openMarkdownDocument(`strict validation for ${selected.name}`, formatValidateMarkdown(selected.name, result));
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.listSpecsSummary", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const result = await listSpecs({ cwd: workspaceRoot });
+      const lines = ["# OpenSpec specs", "", ...result.specs.map((spec) => `- ${spec.id}: ${spec.requirementCount} requirements`)];
+      await openMarkdownDocument("spec summary", lines.join("\n"));
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.cancel", () => {

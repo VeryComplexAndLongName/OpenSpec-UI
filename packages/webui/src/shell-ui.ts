@@ -188,6 +188,66 @@ export const shellThemeCss = `
     word-break: break-word;
   }
 
+  .openspec-event pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .openspec-event-checklist,
+  .openspec-event-bullets {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .openspec-event-checklist li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .openspec-checkmark {
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 700;
+  }
+
+  .openspec-checkmark.is-checked {
+    background: #dff3ea;
+    color: #1f5d52;
+  }
+
+  .openspec-checkmark.is-open {
+    background: #f2e8d7;
+    color: #705634;
+  }
+
+  .openspec-event-kv {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .openspec-event-kv-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 180px) 1fr;
+    gap: 10px;
+  }
+
+  .openspec-event-kv dt {
+    color: var(--muted);
+  }
+
+  .openspec-event-kv dd {
+    margin: 0;
+    color: var(--ink);
+  }
+
   .openspec-event--failed,
   .openspec-event--stderr {
     border-color: color-mix(in srgb, var(--danger) 35%, var(--line) 65%);

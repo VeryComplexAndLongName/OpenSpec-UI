@@ -5,8 +5,14 @@ const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
 const listChangesMock = vi.fn();
+const listSpecsMock = vi.fn();
+const showChangeMock = vi.fn();
+const validateChangeMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   listChanges: (...args: unknown[]) => listChangesMock(...args),
+  listSpecs: (...args: unknown[]) => listSpecsMock(...args),
+  showChange: (...args: unknown[]) => showChangeMock(...args),
+  validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
 
 const openDiffAgainstHeadMock = vi.fn();
@@ -49,6 +55,10 @@ describe("registerCommands", () => {
         "openspec-ui.implement",
         "openspec-ui.review",
         "openspec-ui.status",
+        "openspec-ui.openspecView",
+        "openspec-ui.showChangeDetails",
+        "openspec-ui.validateChangeStrict",
+        "openspec-ui.listSpecsSummary",
         "openspec-ui.cancel",
         "openspec-ui.openAiPanel",
         "openspec-ui.reviewDiff",
@@ -134,5 +144,38 @@ describe("registerCommands", () => {
       expect.objectContaining({ fsPath: expect.stringContaining("tasks.md") }),
       expect.stringContaining("shared-ui"),
     );
+  });
+
+  it("openspec-ui.openspecView: opens terminal and runs openspec view", async () => {
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.openspecView")?.();
+
+    expect(vscodeMock.window.createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "OpenSpec UI: openspec view", cwd: "/workspace/repo" }),
+    );
+    const terminal = vscodeMock.window.createTerminal.mock.results[0]?.value;
+    expect(terminal.show).toHaveBeenCalled();
+    expect(terminal.sendText).toHaveBeenCalledWith("openspec view", true);
+  });
+
+  it("openspec-ui.validateChangeStrict: opens a parsed markdown summary", async () => {
+    listChangesMock.mockResolvedValue({
+      changes: [{ name: "shared-ui", completedTasks: 1, totalTasks: 17, lastModified: "t", status: "in-progress" }],
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+    vscodeMock.window.showQuickPick.mockResolvedValue({ label: "shared-ui", description: "1/17 — in-progress" });
+    validateChangeMock.mockResolvedValue({
+      items: [{ id: "shared-ui", type: "change", valid: true, issues: [], durationMs: 12 }],
+      summary: { totals: { items: 1, passed: 1, failed: 0 }, byType: { change: { items: 1, passed: 1, failed: 0 } } },
+      version: "1.2.3",
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.validateChangeStrict")?.();
+
+    expect(validateChangeMock).toHaveBeenCalledWith("shared-ui", { cwd: "/workspace/repo" });
+    expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalled();
+    expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
   });
 });
