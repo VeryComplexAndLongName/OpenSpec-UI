@@ -23,6 +23,10 @@ function isTerminal(event: Event): boolean {
 }
 
 function describeEvent(event: Event): string {
+  const policyError = detectPolicyError(event);
+  if (policyError) {
+    return `failed: ${policyError}`;
+  }
   switch (event.kind) {
     case "started":
       return `started (${event.command})`;
@@ -41,6 +45,21 @@ function describeEvent(event: Event): string {
   }
 }
 
+function detectPolicyError(event: Event): string | undefined {
+  if (event.kind !== "failed") return undefined;
+  const reason = event.reason.toLowerCase();
+  const policyIndicators = [
+    "access denied by policy settings",
+    "policy setting may be preventing access",
+    "your copilot cli policy setting may be preventing access",
+    "required policies have not been enabled",
+  ];
+  if (policyIndicators.some((indicator) => reason.includes(indicator))) {
+    return "Copilot CLI is blocked by policy settings for this account. Open GitHub settings, enable Copilot CLI access, then try again.";
+  }
+  return undefined;
+}
+
 export interface AiPanelProps {
   transport: Transport;
   cwd: string;
@@ -54,12 +73,18 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
   const [commandKind, setCommandKind] = useState<CommandKind>("plan");
   const [events, setEvents] = useState<Event[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
+  const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     return transport.subscribe((event) => {
       if (event.runId === runIdRef.current) {
         setEvents((prev) => [...prev, event]);
+        const policyError = detectPolicyError(event);
+        if (policyError) setStatusBanner(policyError);
+        if (event.kind === "completed" || event.kind === "cancelled") {
+          setStatusBanner(null);
+        }
       }
     });
   }, [transport]);
@@ -71,6 +96,7 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
     runIdRef.current = newRunId;
     setRunId(newRunId);
     setEvents([]);
+    setStatusBanner(null);
     const command: Command = {
       kind: commandKind,
       cwd,
@@ -88,6 +114,14 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
 
   return (
     <div className="openspec-ai-panel">
+      {statusBanner ? (
+        <div className="openspec-ai-panel-banner" role="alert" data-testid="status-banner">
+          <strong>Policy issue:</strong> {statusBanner}{" "}
+          <a href="https://github.com/settings/copilot" target="_blank" rel="noreferrer">
+            Open Copilot settings
+          </a>
+        </div>
+      ) : null}
       <div className="openspec-ai-panel-controls">
         <AgentPicker value={agentId} onChange={setAgentId} />
         <select

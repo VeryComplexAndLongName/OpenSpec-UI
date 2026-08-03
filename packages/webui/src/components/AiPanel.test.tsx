@@ -100,6 +100,52 @@ describe("AiPanel", () => {
     );
   });
 
+  it("shows a policy banner when the run fails with a Copilot policy error", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-policy"} />);
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    emit({
+      kind: "failed",
+      runId: "run-policy",
+      timestamp: "t",
+      reason: "Error: Access denied by policy settings (Request ID: E6DC:...)",
+    });
+
+    expect(screen.getByTestId("status-banner")).toHaveTextContent("Copilot CLI is blocked by policy settings");
+  });
+
+  it("shows a policy banner for the exact Copilot CLI denial message", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-policy-exact"} />);
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    emit({
+      kind: "failed",
+      runId: "run-policy-exact",
+      timestamp: "t",
+      reason:
+        "Error: Access denied by policy settings (Request ID: E9D3:322C95:74EAB40:89A40B6:6A70A29B) Your Copilot CLI policy setting may be preventing access. This can happen when: Your organization has restricted Copilot access. Your Copilot subscription does not include this feature. Required policies have not been enabled by your administrator.",
+    });
+
+    expect(screen.getByTestId("status-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("status-banner")).toHaveTextContent("Open Copilot settings");
+    expect(screen.getByTestId("event-0")).toHaveTextContent("failed: Copilot CLI is blocked by policy settings");
+    expect(screen.getByTestId("event-0")).not.toHaveTextContent("Access denied by policy settings");
+  });
+
+  it("clears the policy banner on the next run", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-policy"} />);
+    fireEvent.click(screen.getByTestId("run-button"));
+
+    emit({ kind: "failed", runId: "run-policy", timestamp: "t", reason: "Access denied by policy settings" });
+    expect(screen.getByTestId("status-banner")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("run-button"));
+    expect(screen.queryByTestId("status-banner")).toBeNull();
+  });
+
   it("unsubscribes from the transport on unmount", () => {
     const unsubscribe = vi.fn();
     const transport: Transport = { send: vi.fn(), subscribe: () => unsubscribe };

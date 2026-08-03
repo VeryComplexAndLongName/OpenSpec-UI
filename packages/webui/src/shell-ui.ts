@@ -119,6 +119,30 @@ export const shellThemeCss = `
     background: #fffdfa;
   }
 
+  .openspec-ai-panel-banner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line) 60%);
+    background: #fff3f1;
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .openspec-ai-panel-banner a {
+    color: var(--danger);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .openspec-ai-panel-banner a:hover {
+    text-decoration: underline;
+  }
+
   .openspec-ai-panel-controls {
     display: flex;
     flex-wrap: wrap;
