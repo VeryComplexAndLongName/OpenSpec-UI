@@ -1,20 +1,23 @@
 ## 1. Server
 
-- [ ] 1.1 REST-эндпоинты для разовых команд (`status`)
-- [ ] 1.2 WebSocket-канал для событийных команд (`plan`/`implement`/
-      `review`/`cancel`)
-- [ ] 1.3 Bind по умолчанию на `127.0.0.1`, порт конфигурируемый
-- [ ] 1.4 Contract test: `server` корректно сериализует/десериализует
-      каждый вариант `Event` из протокола `execution-core`
+- [ ] 1.1 REST endpoints for one-shot commands (`status`).
+- [ ] 1.2 WebSocket channel for event-driven commands
+      (`plan`/`implement`/`review`/`cancel`).
+- [ ] 1.3 Default bind on `127.0.0.1`; configurable port.
+- [ ] 1.4 Contract test: `server` correctly serializes/deserializes each
+      `Event` variant from `execution-core` protocol.
 
-## 2. Браузерная оболочка
+## 2. Browser Shell
 
-- [ ] 2.1 Точка входа `webui` с `FetchTransport`, обслуживаемая `server`
-- [ ] 2.2 Diff-рендер (используется только в этом контексте — см.
-      `shared-ui`'s design.md)
+- [ ] 2.1 `webui` entry point with `FetchTransport`, served by `server`.
+- [ ] 2.2 Diff renderer for standalone context only (see `shared-ui` design).
 
-## 3. Проверка
+## 3. Validation
 
-- [ ] 3.1 Живой smoke-тест: запустить `server`, открыть standalone в
-      браузере, выполнить реальную команду `plan` через реальный
-      CLI-агент, увидеть поток событий
+- [ ] 3.1 Live smoke test: start `server`, open standalone in browser,
+      execute a real `plan` command with a real CLI agent, and observe event
+      stream.
+- [ ] 3.2 Document current live-agent coverage in the smoke-test notes:
+      only Claude CLI and GitHub Copilot CLI are available for live testing in
+      this development phase; other adapters are validated through
+      mocks/contract tests.

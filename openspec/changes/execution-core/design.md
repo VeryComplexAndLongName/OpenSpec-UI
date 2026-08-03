@@ -1,70 +1,63 @@
 ## Context
 
-См. proposal.md — Why, и `docs/adr/0001-shared-core-two-delivery-targets.md`
-за полным архитектурным контекстом. `core` — Node-пакет без runtime-
-зависимости от Express/Fastify/`vscode` — импортируется напрямую
-`extension`'ом (Node extension host) и оборачивается тонким REST/WS слоем
-в `server` (для standalone/опционального режима extension).
+See proposal.md (Why) and
+`docs/adr/0001-shared-core-two-delivery-targets.md` for the full
+architecture context. `core` is a Node package with no runtime dependency on
+Express/Fastify/`vscode` — it is imported directly by `extension` and wrapped
+by a thin REST/WS layer in `server`.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Единый протокол команд/событий, от которого `server` и `extension`
-  строят свои тонкие адаптеры, не переизобретая логику запуска.
-- Security-модель, достаточная для запуска реальных CLI-агентов на реальном
-  репозитории пользователя без риска prompt injection через содержимое
-  change-файлов или произвольного выхода за пределы воркспейса.
-- Derived change-state, не требующий модификации формата OpenSpec.
+- One command/event protocol that both `server` and `extension` can adapt
+  without reimplementing execution logic.
+- A security model strong enough for real CLI-agent runs on real user
+  repositories without prompt injection via change-file contents and without
+  arbitrary cwd escape.
+- A derived change state machine that does not require modifying the OpenSpec
+  format.
 
 **Non-Goals:**
-- Не реализует сам REST/WS сервер (`standalone-app`) и не реализует
-  Webview/message-bridge адаптер (`vscode-extension`) — только протокол,
-  который они будут сериализовывать под свой транспорт.
-- Не решает UI-вопросы (как показать прогресс пользователю) — только
-  поток событий, который UI-слой обязан уметь отрисовать.
-- Не покрывает аутентификацию к самим CLI-агентам (Claude CLI/Copilot CLI
-  и т.д. — каждый со своей моделью авторизации) — предполагается, что они
-  уже авторизованы в окружении, где запускается `core` (как сессия
-  пользователя в терминале/VS Code).
+- Does not implement the REST/WS server (`standalone-app`) or Webview/message
+  bridge adapter (`vscode-extension`) — only the protocol they serialize.
+- Does not define UI behavior (how to visualize progress) — only the event
+  stream that UI must render.
+- Does not solve authentication for third-party CLI agents
+  (Claude/Copilot/etc.) — assumes agents are already authenticated in the
+  execution environment.
 
 ## Decisions
 
-- **Протокол — команды + поток событий, не запрос/ответ**: даже `status`
-  теоретически быстрый, но `plan`/`implement`/`review` — потенциально
-  долгие (реальные CLI-агенты, минуты выполнения) — единый event-driven
-  протокол проще, чем два разных стиля API (синхронный для быстрых команд,
-  стриминговый для медленных).
-  - Отклонённая альтернатива: отдельный синхронный REST для `status`,
-    WebSocket только для остальных — отклонено, лишняя развилка в
-    контракте ради минимальной экономии сложности для одной команды.
-- **AgentRunner — интерфейс с одним методом `run(command, cwd, context) →
-  AsyncIterable<Event>`, адаптер на CLI**: конкретные различия между Claude
-  CLI/Copilot CLI/Codex CLI/Gemini CLI/локальной LLM (флаги командной
-  строки, формат вывода) инкапсулируются внутри адаптера, наружу — всегда
-  одинаковый поток событий протокола.
-- **Security-модель — inline в `AgentRunner.run()`, не отдельный
-  опциональный middleware**: allowlist и cwd-sandbox проверяются ДО спавна
-  процесса, не после. Аудит-лог пишется независимо от результата (успех/
-  ошибка/отмена).
-  - Отклонённая альтернатива: security как опциональный флаг,
-    включаемый в конфигурации — отклонено, «безопасно по умолчанию» не
-    должно требовать явного включения.
-- **Derived state — чистая функция `deriveChangeState(changeDir): ChangeState`
-  без побочных эффектов**, вызываемая и `core`'ом для собственных нужд, и
-  экспортируемая для `webui` (через `server`/message bridge) — единственная
-  реализация, не переизобретаемая на фронтенде.
+- **Protocol = commands + event stream, not request/response**: `plan`,
+  `implement`, and `review` may run for minutes. A single event-driven
+  protocol is simpler than split API styles.
+  - Rejected alternative: synchronous REST for `status` and streaming only for
+    long commands. Rejected as an unnecessary contract split.
+- **`AgentRunner` interface with `run(command, cwd, context) ->
+  AsyncIterable<Event>` and per-agent adapters**: differences between
+  Claude/Copilot/Codex/Gemini/local LLM are encapsulated in adapters, while
+  output remains one protocol.
+- **Security model is inline in `AgentRunner.run()`, not optional middleware**:
+  allowlist and cwd checks happen before spawn; audit logging runs regardless
+  of outcome.
+  - Rejected alternative: security behind an optional config flag. Rejected to
+    keep secure-by-default behavior.
+- **Derived state is a pure function `deriveChangeState(changeDir):
+  ChangeState` with no side effects**, reused as a single implementation.
 
 ## Risks / Trade-offs
 
-- [Риск] Разные CLI-агенты могут менять формат вывода между версиями
-  (ломая парсинг адаптера) → Митигация: адаптер парсит консервативно,
-  неопознанный вывод передаётся как есть в событие `stdout`, не роняет
-  весь `run()`.
-- [Риск] Allowlist команд может оказаться слишком узким и мешать реальному
-  использованию → Митигация: allowlist конфигурируется на уровне
-  воркспейса (не хардкод в `core`), но default — restrictive, не permissive.
-- [Риск] Derived state — эвристика, может разойтись с тем, что пользователь
-  интуитивно считает статусом change'а (например, "approved" не имеет
-  прямого структурного признака в OpenSpec-файлах вообще) → Митигация:
-  явно задокументировать эвристику в README пакета `core`, не претендовать
-  на большую точность, чем она даёт.
+- [Risk] CLI output formats may change across versions and break strict parser
+  logic.
+  Mitigation: conservative parsing; unknown output is passed through as
+  `stdout` instead of failing the run.
+- [Risk] Allowlist defaults may be too restrictive for some workflows.
+  Mitigation: allowlist is workspace-configurable, with restrictive defaults.
+- [Risk] Derived state is heuristic and may not match user intuition in all
+  cases.
+  Mitigation: document the heuristic explicitly and avoid claiming stronger
+  semantics than available data supports.
+- [Constraint] During development, only Claude CLI and GitHub Copilot CLI are
+  available for live smoke tests.
+  Mitigation: Codex/Gemini/local-LLM adapters are validated through
+  deterministic mock/contract tests until live access is available.

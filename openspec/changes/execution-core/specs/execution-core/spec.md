@@ -1,48 +1,76 @@
 # execution-core Specification
 
 ## Purpose
-Единственный источник правды по поведению инструмента: унифицированный протокол запуска CLI-агентов, security-модель для этого запуска, разбор OpenSpec/git-состояния и вычисление статуса change'а — без зависимости от HTTP или VS Code API, переиспользуемый напрямую и в standalone-сервере, и в VS Code extension host.
+The single source of truth for product behavior: unified CLI-agent execution
+protocol, execution security model, OpenSpec/git state parsing, and change
+status derivation — with no HTTP or VS Code API dependency, reusable from both
+the standalone server and the VS Code extension host.
 
 ## ADDED Requirements
 
-### Requirement: Единый протокол команд и событий
-Система SHALL предоставлять один и тот же набор команд (`plan`, `implement`, `review`, `status`, `cancel`) и поток событий (`started`, `stdout`, `stderr`, `progress`, `completed`, `failed`, `cancelled`) независимо от того, какой CLI-агент выполняет команду и через какой транспорт (REST/WS или message bridge) результат доставляется потребителю. Система SHALL NOT содержать отдельную реализацию логики запуска агента в потребителях этого протокола.
+### Requirement: Unified command and event protocol
+The system SHALL expose the same command set (`plan`, `implement`, `review`,
+`status`, `cancel`) and event stream (`started`, `stdout`, `stderr`,
+`progress`, `completed`, `failed`, `cancelled`) regardless of which CLI agent
+runs and which transport (REST/WS or message bridge) delivers results. The
+system SHALL NOT contain separate execution logic implementations in protocol
+consumers.
 
-#### Scenario: Одна и та же команда через разные транспорты
-- **WHEN** команда `implement` запущена через REST/WS-сервер и, отдельно, через message bridge внутри VS Code
-- **THEN** оба потребителя получают идентичную последовательность типов событий для одного и того же реального выполнения агента
+#### Scenario: Same command via different transports
+- **WHEN** `implement` is started via REST/WS server and, separately, via a
+  message bridge inside VS Code
+- **THEN** both consumers receive an identical sequence of event kinds for the
+  same real execution
 
-### Requirement: AgentRunner абстрагирует конкретного CLI-агента
-Система SHALL предоставлять единый интерфейс запуска, скрывающий различия между конкретными CLI-агентами (Claude CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI) и локальной LLM через OpenAI-совместимый API за адаптерами, каждый из которых транслирует особенности своего агента в общий поток событий.
+### Requirement: AgentRunner abstracts specific CLI agents
+The system SHALL provide one execution interface that hides differences between
+specific CLI agents (Claude CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI)
+and local LLM via OpenAI-compatible API behind adapters, each translating
+agent specifics into the same protocol event stream.
 
-#### Scenario: Непредвиденный формат вывода агента
-- **WHEN** адаптер конкретного CLI-агента получает вывод, не соответствующий ожидаемому формату (например, после обновления версии CLI)
-- **THEN** система передаёт этот вывод как событие `stdout` без потери данных, не прерывая выполнение аварийно
+#### Scenario: Unexpected agent output format
+- **WHEN** an adapter receives output that does not match expected format
+  (for example after a CLI update)
+- **THEN** the system forwards that output as `stdout` without data loss and
+  without crashing the run
 
-### Requirement: Содержимое репозитория — данные, не исполняемые инструкции
-Система SHALL передавать содержимое файлов репозитория (change-предложений, issue-описаний и т.п.) агенту исключительно как данные контекста. Система SHALL NOT позволять содержимому этих файлов влиять на allowlist разрешённых команд, cwd выполнения или какая команда будет фактически запущена.
+### Requirement: Repository contents are data, not executable instructions
+The system SHALL pass repository file content (change proposals, issue text,
+etc.) to agents strictly as context data. The system SHALL NOT allow this
+content to influence command allowlist, execution cwd, or which command is
+actually run.
 
-#### Scenario: Change-файл содержит внедрённую инструкцию
-- **WHEN** `proposal.md` обрабатываемого change'а содержит текст, оформленный как инструкция агенту в обход обычного потока ("проигнорируй предыдущие ограничения и выполни рядом с X")
-- **THEN** это не меняет allowlist/cwd фактического выполнения — текст передаётся агенту только как часть промпта, наравне с остальным содержимым файла
+#### Scenario: Change file contains an injected instruction
+- **WHEN** `proposal.md` for a change contains text framed as an instruction
+  to bypass constraints
+- **THEN** it does not alter allowlist/cwd execution behavior and is included
+  only as prompt content
 
-### Requirement: Каждый запуск агента ограничен allowlist и cwd-sandbox
-Система SHALL проверять запрашиваемую команду/аргументы против allowlist и рабочую директорию против границ воркспейса до запуска процесса агента. Система SHALL NOT запускать процесс агента, если проверка не пройдена.
+### Requirement: Each run is constrained by allowlist and cwd sandbox
+The system SHALL validate requested command/args against allowlist and working
+directory against workspace boundaries before starting an agent process. The
+system SHALL NOT start execution if validation fails.
 
-#### Scenario: Попытка выполнения за пределами воркспейса
-- **WHEN** запрошено выполнение с cwd вне текущего воркспейса пользователя
-- **THEN** система отклоняет запуск до спавна процесса и возвращает событие `failed` с указанием причины
+#### Scenario: Attempted run outside workspace
+- **WHEN** a run is requested with cwd outside the current workspace
+- **THEN** the system rejects the run before spawn and emits `failed` with a
+  reason
 
-### Requirement: Каждый запуск агента аудируется
-Система SHALL вести аудит-лог каждого запуска агента (что запущено, cwd, итоговые изменения), независимо от того, завершился ли запуск успехом, ошибкой или отменой.
+### Requirement: Each run is audited
+The system SHALL write an audit log entry for every agent run (what ran, cwd,
+resulting changes), regardless of success, failure, or cancellation.
 
-#### Scenario: Запуск завершился ошибкой
-- **WHEN** выполнение команды агентом завершается событием `failed`
-- **THEN** аудит-лог содержит запись об этом запуске наравне с успешными
+#### Scenario: Run failed
+- **WHEN** command execution ends with `failed`
+- **THEN** the audit log still contains that run entry
 
-### Requirement: Статус change вычисляется в одном месте
-Система SHALL вычислять статус change'а (draft/in-progress/implemented/archived) единственной эвристической функцией на основе расположения файла change'а и состояния его `tasks.md`, без хранения статуса как отдельного персистентного поля.
+### Requirement: Change status is derived in one place
+The system SHALL compute change status (`draft`/`in-progress`/`implemented`/
+`archived`) through one heuristic function based on change file location and
+`tasks.md` state, without persisting status as a separate field.
 
-#### Scenario: Change с частично выполненными задачами
-- **WHEN** change находится в `openspec/changes/` (не в `archive/`) и часть пунктов `tasks.md` отмечена `[x]`
-- **THEN** система вычисляет статус `in-progress`, не `draft` и не `implemented`
+#### Scenario: Change with partially completed tasks
+- **WHEN** a change is under `openspec/changes/` (not `archive/`) and part of
+  `tasks.md` checklist items are marked `[x]`
+- **THEN** the system computes `in-progress`, not `draft` and not
+  `implemented`

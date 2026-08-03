@@ -1,20 +1,27 @@
 # standalone-app Specification
 
 ## Purpose
-Standalone web-инструмент (тонкий REST/WS сервер над `execution-core` + браузерная сборка `webui`) для пользователей без VS Code.
+Standalone web tool (thin REST/WS server over `execution-core` + browser build
+of `webui`) for users without VS Code.
 
 ## ADDED Requirements
 
-### Requirement: Сервер не содержит бизнес-логики
-Система SHALL реализовывать `server` исключительно как сериализацию протокола команд/событий `execution-core` под HTTP/WebSocket. Система SHALL NOT дублировать логику запуска агентов, security-проверки или вычисление статуса change'а внутри `server` — эти операции SHALL выполняться вызовом `execution-core`.
+### Requirement: Server contains no business logic
+The system SHALL implement `server` strictly as serialization of
+`execution-core` command/event protocol over HTTP/WebSocket. The system SHALL
+NOT duplicate agent-run logic, security checks, or change-state derivation in
+`server`; those operations SHALL be delegated to `execution-core`.
 
-#### Scenario: Изменение security-модели в execution-core
-- **WHEN** правило allowlist/cwd-sandbox меняется в `execution-core`
-- **THEN** поведение `server` меняется автоматически без правок в коде `server`
+#### Scenario: Security model changes in execution-core
+- **WHEN** allowlist/cwd-sandbox behavior changes in `execution-core`
+- **THEN** `server` behavior changes automatically without `server` logic
+  changes
 
-### Requirement: Сервер по умолчанию доступен только локально
-Система SHALL по умолчанию принимать подключения только с localhost. Система SHALL NOT принимать подключения с других интерфейсов без явного намеренного изменения конфигурации пользователем.
+### Requirement: Server is localhost-only by default
+The system SHALL accept connections from localhost only by default. The system
+SHALL NOT accept remote-interface connections unless user configuration is
+intentionally changed.
 
-#### Scenario: Запуск сервера без явной конфигурации сети
-- **WHEN** пользователь запускает `server` со значениями по умолчанию
-- **THEN** сервер недоступен с других машин в сети
+#### Scenario: Server started with default configuration
+- **WHEN** user launches `server` with defaults
+- **THEN** server is not reachable from other machines on the network

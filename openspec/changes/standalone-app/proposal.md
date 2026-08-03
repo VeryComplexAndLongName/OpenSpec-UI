@@ -1,34 +1,30 @@
 ## Why
 
-`docs/adr/0001-shared-core-two-delivery-targets.md` требует standalone-формы
-поставки для пользователей без VS Code. Зависит от `execution-core`
-(протокол/логика) и `shared-ui` (представления) — этот change добавляет
-только доставку: тонкий REST/WS сервер и браузерную оболочку.
+`docs/adr/0001-shared-core-two-delivery-targets.md` requires a standalone
+delivery form for users without VS Code. This change depends on
+`execution-core` (protocol/logic) and `shared-ui` (views) and adds only the
+delivery layer: thin REST/WS server + browser shell.
 
 ## What Changes
 
-- Добавляется `packages/server` — тонкий REST/WS слой, реализующий
-  `Transport`-совместимый API поверх `execution-core`. Не содержит
-  бизнес-логики — только (де)сериализацию протокола команд/событий под
-  HTTP/WebSocket.
-- Добавляется браузерная точка входа для `packages/webui` с
-  `FetchTransport`, обслуживаемая тем же `server`.
-- Добавляется собственный diff-рендер в `webui` для этого контекста (см.
-  `shared-ui`'s design.md — используется только там, где нет нативного
-  хоста с diff-editor).
+- Add `packages/server` as a thin REST/WS layer implementing a
+  `Transport`-compatible API over `execution-core`. No business logic — only
+  protocol command/event serialization and deserialization.
+- Add browser entry point for `packages/webui` with `FetchTransport`, served by
+  that same `server` package.
+- Add `webui` diff renderer for this context only (see `shared-ui` design;
+  used only when host-native diff UI is unavailable).
 
 ## Capabilities
 
 ### New Capabilities
-- `standalone-app`: standalone web-инструмент — `server` + браузерная
-  сборка `webui`.
+- `standalone-app`: standalone web tool (`server` + browser build of `webui`).
 
 ### Modified Capabilities
-(нет)
+(none)
 
 ## Impact
 
-Новый код: `packages/server/`, точка входа для standalone-сборки в
-`packages/webui` (или отдельный `packages/standalone`, если сборка
-браузерной точки входа требует своей конфигурации — решить при apply, не
-блокирует этот proposal).
+New code: `packages/server/` and standalone browser entry in `packages/webui`
+(or separate `packages/standalone` if build wiring needs dedicated config;
+decide during apply).

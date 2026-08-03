@@ -1,34 +1,39 @@
 # vscode-extension Specification
 
 ## Purpose
-VS Code расширение для OpenSpec UI — прямой доступ к `execution-core` без обязательной сети в основном режиме, максимум нативного VS Code API вместо собственного UI везде, где нативный аналог существует.
+VS Code extension as a thin host adapter over `execution-core`, using native
+VS Code UI capabilities first and Webview only where native APIs are
+insufficient.
 
 ## ADDED Requirements
 
-### Requirement: Основной режим не поднимает сетевой сервер
-Система SHALL по умолчанию использовать прямой импорт `execution-core` и message bridge для связи между extension host и Webview. Система SHALL NOT требовать запуска локального сетевого сервера для базовой функциональности.
+### Requirement: Primary mode is direct-core integration without local server
+The system SHALL run `vscode-extension` in primary mode without launching an
+internal HTTP server. The extension host SHALL call `execution-core` directly,
+and Webview communication SHALL use an in-process message bridge.
 
-#### Scenario: Расширение установлено со значениями по умолчанию
-- **WHEN** пользователь устанавливает расширение и не меняет настройки
-- **THEN** расширение не открывает сетевые порты для своей работы
+#### Scenario: User runs plan command in default extension configuration
+- **WHEN** user executes `openspec.plan` in Command Palette
+- **THEN** extension performs command through direct `execution-core` import
+- **AND** no localhost HTTP listener is required for this path
 
-### Requirement: Локальный сервер — явно включаемая опция
-Если пользователь включает режим локального сервера в настройках, система SHALL спавнить сервер с динамически выбранным свободным портом и SHALL корректно завершать процесс сервера при закрытии окна или отключении настройки.
+### Requirement: Localhost server mode is optional and opt-in
+The system MAY offer an optional mode where extension launches local
+`server` package and Webview communicates over localhost.
+This mode SHALL be disabled by default and SHALL be enabled only by explicit
+user configuration.
 
-#### Scenario: Два окна VS Code с включённым режимом сервера
-- **WHEN** пользователь открывает два окна VS Code на разных репозиториях с включённым режимом локального сервера
-- **THEN** оба сервера запускаются на разных портах без конфликта
+#### Scenario: User enables localhost mode in extension settings
+- **WHEN** user turns on `openspec.transport.localServer.enabled`
+- **THEN** extension launches/reuses local server with dynamic port selection
+- **AND** Webview points to that localhost endpoint
+- **AND** disabling the setting returns to default message-bridge mode
 
-### Requirement: Редактирование и diff используют нативный VS Code UI
-Система SHALL открывать markdown-файлы (specs/proposal/design) для редактирования в нативном редакторе VS Code и SHALL использовать `vscode.diff` для сравнения версий, а не собственные реализации внутри Webview.
+### Requirement: Native diff UI is used for review
+The system SHALL use VS Code native diff editor for file comparison and SHALL
+NOT render custom diff UI inside Webview for extension mode.
 
-#### Scenario: Пользователь открывает spec для редактирования
-- **WHEN** пользователь инициирует редактирование spec-файла из TreeView расширения
-- **THEN** файл открывается в обычной вкладке редактора VS Code, не во Webview-панели
-
-### Requirement: Списки представлены нативным деревом VS Code
-Система SHALL отображать списки Changes, Archive и Specs через `TreeDataProvider`, а не через собственный список внутри Webview, если функциональность полностью покрывается деревом.
-
-#### Scenario: Просмотр списка changes
-- **WHEN** пользователь открывает панель Changes расширения
-- **THEN** список отображается как нативное дерево VS Code (Explorer-style view), не как Webview-контент
+#### Scenario: User reviews generated changes
+- **WHEN** user triggers "Review diff" action
+- **THEN** extension opens `vscode.diff` with before/after document URIs
+- **AND** user can stage/discard through native VS Code and Git integrations

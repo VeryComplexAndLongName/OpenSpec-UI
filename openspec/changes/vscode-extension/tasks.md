@@ -1,38 +1,27 @@
-## 1. Основной режим (прямой import + message bridge)
+## 1. Extension Skeleton
 
-- [ ] 1.1 Extension host импортирует `execution-core` напрямую
-- [ ] 1.2 `MessageBridgeTransport` реализация на стороне extension (парная
-      к той, что в `shared-ui`)
-- [ ] 1.3 Webview-панель для AI-панели (из `shared-ui`), подключённая через
-      message bridge
-- [ ] 1.4 Тест: команда, запущенная через message bridge, даёт тот же
-      результат, что через `FetchTransport` в `standalone-app` (используя
-      contract test из `shared-ui`)
+- [ ] 1.1 Command registration (`openspec.plan`, `openspec.implement`, etc.).
+- [ ] 1.2 TreeDataProvider for Changes/Archive/Specs.
 
-## 2. Нативный VS Code UI
+## 2. Core Integration
 
-- [ ] 2.1 `TreeDataProvider` для Changes (статус — из derived state
-      `execution-core`)
-- [ ] 2.2 `TreeDataProvider` для Archive
-- [ ] 2.3 `TreeDataProvider` для Specs
-- [ ] 2.4 Открытие spec/proposal в нативном редакторе VS Code (не в
-      Webview) при запросе редактирования
-- [ ] 2.5 Diff между версиями change через `vscode.diff`
-- [ ] 2.6 Commands, зарегистрированные в Command Palette
-      (`openspec-ui.plan`, `.implement`, `.review`, `.status`, `.cancel`)
-- [ ] 2.7 Настройки через `contributes.configuration` (выбор агента по
-      умолчанию, включение опционального режима локального сервера)
+- [ ] 2.1 Direct import of `execution-core` in extension host.
+- [ ] 2.2 Message bridge between extension host and webview.
+- [ ] 2.3 Optional mode: launch local `server` + point webview to localhost
+      when setting enabled.
 
-## 3. Опциональный режим локального сервера
+## 3. Native UX
 
-- [ ] 3.1 Спавн `packages/server` как дочернего процесса с динамическим
-      портом при включении настройки
-- [ ] 3.2 Handshake extension → Webview с фактическим портом
-- [ ] 3.3 Cleanup дочернего процесса при закрытии окна/выключении настройки
-- [ ] 3.4 Тест: два одновременно открытых окна VS Code с включённым режимом
-      не конфликтуют по портам
+- [ ] 3.1 Open specs/docs with VS Code markdown editor commands.
+- [ ] 3.2 Open diffs using `vscode.diff`.
+- [ ] 3.3 Integrate built-in Git API for branch/commit actions where applicable.
 
-## 4. Проверка
+## 4. Validation
 
-- [ ] 4.1 Живой smoke-тест в обоих режимах (основной, опциональный
-      локальный сервер) — реальный запуск через реальный CLI-агент
+- [ ] 4.1 Live smoke test in VS Code: run `plan` and `implement` in primary
+      mode with a real CLI agent.
+- [ ] 4.2 Mode-toggle test: switch to localhost mode and verify same workflow.
+- [ ] 4.3 Document current live-agent coverage in test notes:
+      only Claude CLI and GitHub Copilot CLI are available for live testing in
+      this development phase; other adapters are validated through
+      mocks/contract tests.

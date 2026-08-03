@@ -1,34 +1,49 @@
 # shared-ui Specification
 
 ## Purpose
-Один набор React-компонентов для Changes/Archive/Specs/Tasks/AI-панели, работающий одинаково поверх любого транспорта — переиспользуется без изменений и в standalone-инструменте (браузер), и в VS Code extension (Webview).
+One React component set for Changes/Archive/Specs/Tasks/AI panel that works
+consistently over any transport, reused as-is in both standalone browser and
+VS Code extension Webview.
 
 ## ADDED Requirements
 
-### Requirement: Компоненты не зависят от конкретного транспорта
-Система SHALL взаимодействовать с `execution-core` исключительно через интерфейс `Transport`, не через прямые вызовы `fetch` или `postMessage` внутри компонентов представления. Система SHALL работать идентично независимо от того, какая реализация `Transport` передана при инициализации.
+### Requirement: Components are transport-agnostic
+The system SHALL interact with `execution-core` only via the `Transport`
+interface and SHALL NOT perform direct `fetch` or `postMessage` calls inside
+view components. The system SHALL behave identically regardless of the
+transport implementation provided at initialization.
 
-#### Scenario: Смена реализации Transport без изменения компонентов
-- **WHEN** одно и то же дерево компонентов инициализировано сначала с `FetchTransport`, затем с `MessageBridgeTransport`
-- **THEN** компоненты рендерят одинаковый результат для одинаковых данных, без изменений в их коде
+#### Scenario: Switch transport implementation without component changes
+- **WHEN** the same component tree is initialized first with `FetchTransport`
+  and then with `MessageBridgeTransport`
+- **THEN** components render equivalent output for equivalent data without code
+  changes in the component layer
 
-### Requirement: Статус change отображается из derived state, не пересчитывается в UI
-Система SHALL отображать статус change'а (draft/in-progress/implemented/archived), используя значение, вычисленное `execution-core`, и SHALL NOT реализовывать собственную логику вычисления этого статуса.
+### Requirement: Change status comes from derived state, not UI logic
+The system SHALL display change status
+(`draft`/`in-progress`/`implemented`/`archived`) using the value computed by
+`execution-core` and SHALL NOT implement status calculation logic in `webui`.
 
-#### Scenario: Расхождение эвристики
-- **WHEN** правило вычисления статуса change'а меняется в `execution-core`
-- **THEN** отображение в `webui` меняется автоматически, без правок в коде представления
+#### Scenario: Heuristic changes in execution-core
+- **WHEN** change-state derivation logic changes in `execution-core`
+- **THEN** `webui` display updates automatically without view-layer logic
+  changes
 
-### Requirement: Редактирование markdown делегируется хосту, где это возможно
-Система SHALL отображать содержимое spec/proposal в read-only режиме внутри собственных представлений и SHALL делегировать редактирование нативному редактору хоста, если он доступен (VS Code — открытие файла в редакторе VS Code).
+### Requirement: Markdown editing is delegated to host when available
+The system SHALL render spec/proposal markdown in read-only mode inside its
+views and SHALL delegate editing to native host editor where available (VS Code
+native editor in extension mode).
 
-#### Scenario: Пользователь хочет отредактировать spec внутри VS Code extension
-- **WHEN** пользователь инициирует редактирование spec-файла в контексте VS Code extension
-- **THEN** система открывает файл в нативном редакторе VS Code, а не в собственном редакторе внутри Webview
+#### Scenario: User edits spec in VS Code extension
+- **WHEN** user initiates spec-file editing in VS Code extension context
+- **THEN** system opens the file in native VS Code editor, not inside Webview
 
-### Requirement: AI-панель использует единый протокол независимо от агента
-Система SHALL предоставлять один и тот же интерфейс запуска команд (`plan`/`implement`/`review`) и отображения потока событий независимо от выбранного CLI-агента.
+### Requirement: AI panel uses one protocol independent of selected agent
+The system SHALL provide one command-launch interface
+(`plan`/`implement`/`review`) and one event-stream rendering approach
+independent of selected CLI agent.
 
-#### Scenario: Смена выбранного агента
-- **WHEN** пользователь переключает выбранного агента в AI-панели с одного CLI на другой
-- **THEN** форма запуска команд и способ отображения событий не меняются — меняется только то, какой `AgentRunner`-адаптер фактически выполняет команду
+#### Scenario: Selected agent changes
+- **WHEN** user switches selected agent from one CLI to another
+- **THEN** command form and event rendering stay the same; only the underlying
+  `AgentRunner` adapter changes
