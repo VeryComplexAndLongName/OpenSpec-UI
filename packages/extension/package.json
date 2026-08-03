@@ -1,0 +1,27 @@
+{
+  "name": "openspec-ui-vscode",
+  "private": true,
+  "version": "0.0.0",
+  "type": "commonjs",
+  "main": "dist/extension.js",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "contributes": {
+    "commands": [
+      { "command": "openspec-ui.plan", "title": "OpenSpec UI: Plan" },
+      { "command": "openspec-ui.implement", "title": "OpenSpec UI: Implement" },
+      { "command": "openspec-ui.review", "title": "OpenSpec UI: Review" },
+      { "command": "openspec-ui.status", "title": "OpenSpec UI: Status" },
+      { "command": "openspec-ui.cancel", "title": "OpenSpec UI: Cancel" }
+    ]
+  },
+  "dependencies": {
+    "@openspec-ui/core": "*",
+    "@openspec-ui/webui": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  }
+}
