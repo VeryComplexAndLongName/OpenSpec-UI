@@ -4,6 +4,8 @@
 - [x] 1.2 Implement structured event rendering for stdout/stderr/completed
       payloads (JSON, checklist, key-value, bullets, fallback text).
 - [x] 1.3 Add/adjust AI panel tests to verify parsing and rendering behavior.
+- [x] 1.4 Persist shell inputs (`Workspace root (cwd)` and `Change directory`)
+      across page reloads in standalone and extension webview entries.
 
 ## 2. vscode-extension: Utility command menu
 

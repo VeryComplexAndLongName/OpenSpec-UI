@@ -5,16 +5,45 @@
 // библиотечный код, переиспользуемый в extension.
 
 import { createRoot } from "react-dom/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 
+const STORAGE_KEYS = {
+  cwd: "openspec-ui:standalone:cwd",
+  changeDir: "openspec-ui:standalone:changeDir",
+};
+
+function readStoredValue(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures in restricted environments.
+  }
+}
+
 function StandaloneApp() {
-  const [cwd, setCwd] = useState("");
-  const [changeDir, setChangeDir] = useState("");
+  const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
+  const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin }), []);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.cwd, cwd);
+  }, [cwd]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.changeDir, changeDir);
+  }, [changeDir]);
 
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);

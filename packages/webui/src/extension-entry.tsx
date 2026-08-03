@@ -9,17 +9,46 @@
 // extension mode").
 
 import { createRoot } from "react-dom/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 
+const STORAGE_KEYS = {
+  cwd: "openspec-ui:extension:cwd",
+  changeDir: "openspec-ui:extension:changeDir",
+};
+
+function readStoredValue(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures in restricted environments.
+  }
+}
+
 declare function acquireVsCodeApi(): VsCodeApiLike;
 
 function ExtensionApp() {
-  const [cwd, setCwd] = useState("");
-  const [changeDir, setChangeDir] = useState("");
+  const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
+  const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.cwd, cwd);
+  }, [cwd]);
+
+  useEffect(() => {
+    writeStoredValue(STORAGE_KEYS.changeDir, changeDir);
+  }, [changeDir]);
 
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);
