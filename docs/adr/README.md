@@ -1,10 +1,11 @@
-# Архитектурные решения (ADR)
 
-Развилки между альтернативами и их обоснование — не текущее поведение
-конкретной capability (то живёт в `openspec/specs/` после первого
-`apply`/`archive`). Формат: Статус / Контекст / Решение / Отклонённые
-альтернативы / Последствия.
+# Architecture Decisions (ADR)
 
-| № | Заголовок | Статус |
+Decision branches between alternatives and their rationale are not the current
+behavior of a specific capability (that lives in `openspec/specs/` after the
+first `apply`/`archive`). Format: Status / Context / Decision / Rejected
+Alternatives / Consequences.
+
+| # | Title | Status |
 |---|---|---|
-| [0001](0001-shared-core-two-delivery-targets.md) | Общий core/webui-монорепозиторий, два способа поставки (standalone + VS Code extension) | Принято |
+| [0001](0001-shared-core-two-delivery-targets.md) | Shared core/webui monorepo, two delivery targets (standalone + VS Code extension) | Accepted |

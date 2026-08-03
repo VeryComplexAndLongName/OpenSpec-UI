@@ -1,10 +1,16 @@
-// Точка входа @openspec-ui/core.
-//
-// Реализация по openspec/changes/execution-core/tasks.md (см. корневой
-// openspec/README.md за порядком работы). Планируемый состав модулей —
-// protocol.ts (Command/Event), agent-runner.ts + agents/*.ts (адаптеры
-// CLI-агентов), security.ts (allowlist/cwd-sandbox/audit), change-state.ts
-// (derived state machine), openspec.ts/git.ts (обёртки).
-//
-// Пока не реализовано.
-export {};
+// Точка входа @openspec-ui/core — единственный источник правды по поведению
+// (см. docs/adr/0001-shared-core-two-delivery-targets.md). `server`/`extension`
+// импортируют отсюда, не лезут во внутренние модули напрямую.
+
+export * from "./protocol.js";
+export * from "./agent-runner.js";
+export * from "./security.js";
+export * from "./change-state.js";
+export * from "./openspec.js";
+export * from "./git.js";
+
+export { ClaudeCliAdapter } from "./agents/claude.js";
+export { CopilotCliAdapter } from "./agents/copilot.js";
+export { CodexCliAdapter } from "./agents/codex.js";
+export { GeminiCliAdapter } from "./agents/gemini.js";
+export { LocalLlmAdapter, type LocalLlmAdapterOptions } from "./agents/local-llm.js";

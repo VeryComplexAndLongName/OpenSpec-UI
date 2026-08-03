@@ -1,83 +1,102 @@
 # OpenSpec UI
 
-Дашборд для [OpenSpec](https://github.com/openspec-ai/openspec) — визуализация
-Changes/Archive/Specs/Tasks и запуск CLI-агентов (Claude CLI, GitHub Copilot
-CLI, Codex CLI, Gemini CLI, локальная LLM через OpenAI-совместимый API) для
-работы с change-предложениями, поставляется в двух формах с общим кодом:
-standalone web-инструмент и расширение VS Code.
+Dashboard for [OpenSpec](https://github.com/openspec-ai/openspec) — a view
+over Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
+GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
+OpenAI-compatible API) for working with change proposals. The product ships
+in two forms with shared code: a standalone web tool and a VS Code extension.
 
-## Статус
+## Status
 
-Планирование. Код ещё не написан — этот репозиторий сейчас содержит
-архитектурные решения (`docs/adr/`) и OpenSpec-предложения по каждой
-капабилити (`openspec/changes/`), достаточные, чтобы начать реализацию по
-`tasks.md` каждого change'а. См. `openspec/README.md` за тем, как продолжать
-работу.
+Planning. No application code has been written yet. This repository currently
+contains the architecture decisions (`docs/adr/`) and the OpenSpec proposals
+for each capability (`openspec/changes/`), which are enough to start
+implementation from each change's `tasks.md`. See `openspec/README.md` for
+the continuation workflow.
 
-## Почему не просто `openspec view`
+## Why not just `openspec view`
 
-У самого OpenSpec CLI уже есть `openspec view` — интерактивный дашборд
-specs/changes. Этот проект не переизобретает его: причина существования —
-(1) diff между версиями архивных changes (не покрыт `openspec view`), (2)
-запуск CLI-агентов прямо из UI с унифицированным протоколом команд/событий,
-(3) интеграция с VS Code как нативное расширение, а не отдельное окно.
-Перед реализацией любой capability — проверить, не появилось ли это в
-апстриме `openspec view`, чтобы не дублировать.
+OpenSpec CLI already has `openspec view` — an interactive dashboard for
+specs/changes. This project does not reinvent it: the reasons for existing are
+(1) diffs between versions of archived changes (not covered by `openspec
+view`), (2) launching CLI agents directly from the UI with a unified
+command/event protocol, and (3) VS Code integration as a native extension
+rather than a separate window.
 
-## Архитектура — коротко
+Before implementing any capability, check whether it has already appeared in
+upstream `openspec view` so we do not duplicate it.
 
-Общий код (`packages/core`, `packages/webui`) переиспользуется в двух
-формах поставки: standalone-инструмент (браузер + локальный REST/WS сервер)
-и расширение VS Code (Webview + прямой импорт `core` в extension host, без
-HTTP, где это возможно). См. `docs/adr/0001-shared-core-two-delivery-targets.md`
-за полным обоснованием и `openspec/specs/` (после первого `apply`) за
-детальным поведенческим контрактом каждой части.
+## Architecture at a Glance
+
+Shared code (`packages/core`, `packages/webui`) is reused in two delivery
+forms: a standalone tool (browser + local REST/WS server) and a VS Code
+extension (Webview + direct `core` import in the extension host, without HTTP
+where possible). See `docs/adr/0001-shared-core-two-delivery-targets.md` for
+the full rationale and `openspec/specs/` (after the first `apply`) for the
+detailed behavioral contract of each part.
 
 ```mermaid
 flowchart TD
-    EXT["openspec/, git, CLI-агенты<br/>Claude · Copilot · Codex · Gemini"] --> CORE
+    EXT["openspec/, git, CLI agents<br/>Claude · Copilot · Codex · Gemini"] --> CORE
 
-    subgraph MONO["Общий код (TS, монорепозиторий)"]
-        CORE["core<br/>execution engine · openspec-парсер · git · security"]
-        SRV["server<br/>тонкий REST/WS слой над core"]
-        WEBUI["webui<br/>общие React-компоненты, транспорт-агностичные"]
+    subgraph MONO["Shared code (TS monorepo)"]
+        CORE["core<br/>execution engine · OpenSpec parser · git · security"]
+        SRV["server<br/>thin REST/WS layer over core"]
+        WEBUI["webui<br/>shared React components, transport-agnostic"]
         CORE --> SRV
     end
 
-    SRV -- "REST / WS" --> STANDALONE["Standalone-инструмент<br/>браузер"]
-    SRV -. "REST / WS (localhost)<br/>опциональный режим" .-> WEBVIEW["Webview<br/>внутри VS Code"]
-    CORE -->|"прямой import + message bridge<br/>основной режим"| EXTHOST["Extension host<br/>команды, TreeView, git API, Chat Participant"]
+    SRV -- "REST / WS" --> STANDALONE["Standalone tool<br/>browser"]
+    SRV -. "REST / WS (localhost)<br/>optional mode" .-> WEBVIEW["Webview<br/>inside VS Code"]
+    CORE -->|"direct import + message bridge<br/>primary mode"| EXTHOST["Extension host<br/>commands, TreeView, git API, Chat Participant"]
     WEBUI --> STANDALONE
     WEBUI --> WEBVIEW
     WEBVIEW --- EXTHOST
 ```
 
-## Пакеты
+## Packages
 
-| Пакет | Назначение | Capability |
+| Package | Purpose | Capability |
 |---|---|---|
-| `packages/core` | Execution engine, openspec-парсер, git-обёртка, оркестрация CLI-агентов, security-модель, derived change-state machine | `execution-core` |
-| `packages/server` | Тонкий REST/WS слой над `core`, только для standalone | `standalone-app` |
-| `packages/webui` | Общие React-компоненты (Changes/Archive/Specs/Tasks/AI-панель), транспорт-агностичные | `shared-ui` |
-| `packages/extension` | VS Code расширение — TreeView/Commands/Settings/Chat Participant поверх нативного VS Code API + Webview для того, что нативно не покрывается | `vscode-extension` |
+| `packages/core` | Execution engine, OpenSpec parser, git wrapper, CLI-agent orchestration, security model, derived change-state machine | `execution-core` |
+| `packages/server` | Thin REST/WS layer over `core`, used only for standalone | `standalone-app` |
+| `packages/webui` | Shared React components (Changes/Archive/Specs/Tasks/AI panel), transport-agnostic | `shared-ui` |
+| `packages/extension` | VS Code extension — TreeView/Commands/Settings/Chat Participant on top of native VS Code API + Webview for what is not covered natively | `vscode-extension` |
 
-## Технологический стек
+## Technology Stack
 
-TypeScript, npm workspaces (монорепозиторий) — обоснование в
-`docs/adr/0001-shared-core-two-delivery-targets.md`. Тестирование —
-Vitest; contract tests между `webui` и `server` — обязательны перед
-архивацией `standalone-app` (см. `openspec/config.yaml`, `operations.archive.guidance`).
+TypeScript, npm workspaces (monorepo) — rationale in
+`docs/adr/0001-shared-core-two-delivery-targets.md`. Testing uses Vitest;
+contract tests between `webui` and `server` are required before archiving
+`standalone-app` (see `openspec/config.yaml`, `operations.archive.guidance`).
 
-## С чего начать реализацию
+## Versioning
 
-1. Прочитать `docs/adr/0001-*.md` — архитектурные решения и отклонённые
-   альтернативы.
-2. `openspec/changes/execution-core/` — начинать отсюда: `server`,
-   `webui`, `extension` зависят от контракта, определённого здесь
-   (унифицированный протокол команд/событий, security-модель).
-3. Далее — `shared-ui`, затем параллельно `standalone-app` и
-   `vscode-extension`.
-4. По каждому change: `openspec change validate --strict <id>` перед тем,
-   как отмечать задачи выполненными; `openspec archive <id> --yes` только
-   после живой проверки (см. `operations.archive.guidance` в
-   `openspec/config.yaml`) — не раньше.
+The project uses semver per package, not only at the standalone/extension
+delivery level.
+
+- `patch` — bug fixes, documentation, and refactoring without external
+  contract changes.
+- `minor` — new capabilities that remain compatible with the current contract.
+- `major` — breaking changes in public behavior, protocol, data format, or
+  promised UX.
+
+If a change is visibly user-facing, the affected package version in
+`package.json` must be bumped in the same change. For delivery forms, an
+aggregated release version is allowed, but package versions — especially
+`core` — remain the source of truth and should be shown separately when the UI
+displays build information.
+
+## Getting Started
+
+1. Read `docs/adr/0001-*.md` — the architecture decisions and rejected
+    alternatives.
+2. Start with `openspec/changes/execution-core/`: `server`, `webui`, and
+    `extension` depend on the contract defined there (the unified
+    command/event protocol and the security model).
+3. Then `shared-ui`, followed by `standalone-app` and `vscode-extension` in
+    parallel.
+4. For each change: run `openspec change validate --strict <id>` before
+    marking tasks done; run `openspec archive <id> --yes` only after a live
+    verification (see `operations.archive.guidance` in `openspec/config.yaml`) —
+    not earlier.

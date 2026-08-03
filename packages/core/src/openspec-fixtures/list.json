@@ -1,0 +1,36 @@
+{
+  "changes": [
+    {
+      "name": "vscode-extension",
+      "completedTasks": 0,
+      "totalTasks": 16,
+      "lastModified": "2026-08-03T08:39:05.014Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "standalone-app",
+      "completedTasks": 0,
+      "totalTasks": 7,
+      "lastModified": "2026-08-03T08:37:52.201Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "shared-ui",
+      "completedTasks": 0,
+      "totalTasks": 17,
+      "lastModified": "2026-08-03T08:36:54.945Z",
+      "status": "in-progress"
+    },
+    {
+      "name": "execution-core",
+      "completedTasks": 0,
+      "totalTasks": 20,
+      "lastModified": "2026-08-03T08:35:35.471Z",
+      "status": "in-progress"
+    }
+  ],
+  "root": {
+    "path": "C:\\Prog\\OpenSpec-UI",
+    "source": "nearest"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm: typecheck",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "typecheck", "--workspaces", "--if-present"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: lint",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "lint", "--workspaces", "--if-present"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: test",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test", "--workspaces", "--if-present"],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

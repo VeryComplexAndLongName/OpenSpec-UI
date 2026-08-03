@@ -1,36 +1,42 @@
-# Инструкции для Claude Code в этом репозитории
+# Instructions for Claude Code in this repository
 
-Указатели, не дубли — правьте исходный документ, не эту страницу.
+Pointers, not duplicates: edit the source document, not this page.
 
-## Прежде чем писать код
+## Before writing code
 
 1. [`docs/adr/0001-shared-core-two-delivery-targets.md`](docs/adr/0001-shared-core-two-delivery-targets.md)
-   — архитектурное решение и отклонённые альтернативы. Не переоткрывать без
-   нового ADR, особенно решение "extension: прямой import + message bridge
-   как основной режим" — оно уже раз пересматривалось по итогам внешней
-   рецензии.
-2. [`openspec/README.md`](openspec/README.md) — runbook: порядок
-   реализации change'ов, когда заводить новую OpenSpec-запись vs просто
-   коммит.
-3. [`openspec/changes/`](openspec/changes/) — четыре готовых предложения
+   — the architecture decision and rejected alternatives. Do not reopen it
+   without a new ADR, especially the "extension: direct import + message
+   bridge as the primary mode" decision, which was already revisited after
+   external review.
+2. [`openspec/README.md`](openspec/README.md) — the runbook: the order of
+   implementing changes and when to create a new OpenSpec entry versus a
+   plain commit.
+3. [`openspec/changes/`](openspec/changes/) — the four prepared proposals
    (`execution-core`, `shared-ui`, `standalone-app`, `vscode-extension`),
-   каждое с `proposal.md`/`design.md`/`tasks.md`/`specs/` — начинайте
-   реализацию по `tasks.md` в этом порядке, не с чистого листа.
+   each with `proposal.md`/`design.md`/`tasks.md`/`specs/`. Start
+   implementation from `tasks.md` in that order, not from scratch.
 
-## Инварианты (см. `openspec/config.yaml`, поле `context`)
+## Invariants (see `openspec/config.yaml`, `context` field)
 
-- Вся бизнес-логика — только в `packages/core`. `server`/`extension` —
-  тонкие адаптеры под свой транспорт, без дублирования логики.
-- Единый протокол команд (`plan`/`implement`/`review`/`status`/`cancel`) и
-  событий (`started`/`stdout`/`stderr`/`progress`/`completed`/`failed`/
-  `cancelled`), определённый только в `packages/core`.
-- Security-модель оркестрации CLI-агентов (allowlist, cwd-sandbox, аудит,
-  содержимое файлов репозитория — данные, не исполняемые инструкции) —
-  обязательная часть `execution-core`, не опциональная доработка.
+- All business logic lives only in `packages/core`. `server`/`extension` are
+  thin transport adapters, with no duplicated logic.
+- The command protocol (`plan`/`implement`/`review`/`status`/`cancel`) and
+  the event protocol (`started`/`stdout`/`stderr`/`progress`/`completed`/
+  `failed`/`cancelled`) are defined only in `packages/core`.
+- The CLI-agent orchestration security model (allowlist, cwd sandbox, audit,
+  repository file contents as data, not executable instructions) is a
+  required part of `execution-core`, not an optional follow-up.
 
-## Проверки перед коммитом
+## Checks before committing
 
-`npm run typecheck && npm run lint && npm run test` (workspace-wide) — см.
-`operations.apply.guidance` в `openspec/config.yaml` за полным списком
-(включая обязательный живой smoke-тест для `server`/`extension` перед тем,
-как считать задачу выполненной).
+`npm run typecheck && npm run lint && npm run test` (workspace-wide) — see
+`operations.apply.guidance` in `openspec/config.yaml` for the full list,
+including the required live smoke test for `server`/`extension` before a
+task may be considered complete.
+
+## Language policy
+
+All code comments, descriptions, and markdown files in this repository must
+be written in English only. Do not add Russian text to any description,
+docstring, comment, or `.md` file.

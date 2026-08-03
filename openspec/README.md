@@ -1,45 +1,46 @@
-# OpenSpec в этом репозитории — runbook
+# OpenSpec in this repository — runbook
 
-## Порядок реализации
+## Implementation Order
 
-Зависимости между change'ами — строго в этом порядке, `server`/`webui`/
-`extension` полагаются на протокол, определённый в `execution-core`:
+Dependencies between changes are strict; `server`/`webui`/`extension` rely
+on the protocol defined in `execution-core`:
 
-1. `openspec/changes/execution-core/` — сначала. Определяет протокол
-   команд/событий и security-модель, от которых зависит всё остальное.
-2. `openspec/changes/shared-ui/` — после `execution-core` (или параллельно,
-   если протокол уже зафиксирован в design.md и не будет меняться).
-3. `openspec/changes/standalone-app/` и `openspec/changes/vscode-extension/`
-   — параллельно, оба зависят от `execution-core` + `shared-ui`.
+1. `openspec/changes/execution-core/` first. It defines the command/event
+   protocol and the security model that everything else depends on.
+2. `openspec/changes/shared-ui/` after `execution-core` (or in parallel if the
+   protocol is already fixed in design.md and will not change).
+3. `openspec/changes/standalone-app/` and `openspec/changes/vscode-extension/`
+   in parallel; both depend on `execution-core` + `shared-ui`.
 
-## Когда заводить новую OpenSpec-запись vs просто коммит
+## When to create a new OpenSpec entry vs a plain commit
 
 ```
-Меняется контракт (`## Requirement`) в openspec/specs/*?
-├── Да  → propose (или update, если change ещё активен) → apply → archive
-└── Нет — багфикс/рефакторинг без изменения поведения
-      → просто git-коммит с подробным сообщением
+Does the contract (`## Requirement`) in openspec/specs/* change?
+├── Yes → propose (or update, if the change is still active) → apply → archive
+└── No — bug fix/refactor without behavior changes
+      → plain git commit with a detailed message
 ```
 
-## Какую команду/skill когда
+## Which command/skill to use when
 
-| Ситуация | Действие |
+| Situation | Action |
 |---|---|
-| Начать реализацию `execution-core`/`shared-ui`/`standalone-app`/`vscode-extension` | `openspec-apply-change` — идёт по `tasks.md` соответствующего change'а, уже созданного при планировании |
-| Новая capability сверх исходных четырёх | `openspec-propose` |
-| Change реализован и подтверждён (contract tests зелёные, ручной smoke-тест) | `openspec-archive-change` — см. `operations.archive.guidance` в `config.yaml` за тем, что обязано быть подтверждено перед архивацией |
-| Нужно скорректировать ещё не заархивированный change (новые вводные, ошибка в design.md) | `openspec-update-change` |
-| Правка формулировки в уже архивной спеке без полного цикла | `openspec-sync-specs` |
+| Start implementing `execution-core`/`shared-ui`/`standalone-app`/`vscode-extension` | `openspec-apply-change` — follows the `tasks.md` of the prepared change |
+| New capability beyond the original four | `openspec-propose` |
+| Change implemented and confirmed (green contract tests, manual smoke test) | `openspec-archive-change` — see `operations.archive.guidance` in `config.yaml` for what must be confirmed before archiving |
+| Adjust a change that is not archived yet (new information, mistake in design.md) | `openspec-update-change` |
+| Fix wording in an already archived spec without a full cycle | `openspec-sync-specs` |
 
-## Формат запроса к агенту
+## How to ask the agent
 
-- **Для apply**: «примени change `execution-core`» — агент читает
-  `tasks.md`, идёт по списку. Задачи security-модели (allowlist/cwd-sandbox/
-  аудит) не отмечаются выполненными без теста — см. `rules.tasks` в
-  `config.yaml`.
-- **Для archive**: только после того, как contract tests между `webui` и
-  `server`/`extension` реально прошли — не «выглядит готовым».
-- **Если меняется протокол команд/событий** (см. `context` в `config.yaml`
-  за списком) — явно скажите агенту, что это затрагивает уже реализованные
-  адаптеры, чтобы design.md зафиксировал обратную совместимость или
-  явный breaking change.
+- **For apply**: "apply change `execution-core`" — the agent reads
+  `tasks.md` and follows the list. Security-model tasks (allowlist/cwd
+  sandbox/audit) are not marked complete without a test — see `rules.tasks`
+  in `config.yaml`.
+- **For archive**: only after contract tests between `webui` and
+  `server`/`extension` have actually passed — not when it merely "looks
+  ready".
+- **If the command/event protocol changes** (see `context` in `config.yaml`
+  for the full list), explicitly tell the agent that already implemented
+  adapters are affected so that design.md captures backward compatibility or
+  an explicit breaking change.
