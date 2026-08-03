@@ -36,6 +36,7 @@ export interface AgentRunnerOptions {
   workspaceRoot: string;
   allowlist: AllowlistConfig;
   auditLog: AuditLog;
+  allowExternalCwd?: boolean;
 }
 
 export interface AgentRunner {
@@ -51,11 +52,11 @@ function* failedOnce(runId: string, reason: string): Iterable<Event> {
 }
 
 export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOptions): AgentRunner {
-  const { workspaceRoot, allowlist, auditLog } = options;
+  const { workspaceRoot, allowlist, auditLog, allowExternalCwd = false } = options;
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
-      const cwdDecision = checkCwdSandbox(command.cwd, workspaceRoot);
+      const cwdDecision = checkCwdSandbox(command.cwd, workspaceRoot, { allowExternalCwd });
       if (!cwdDecision.allowed) {
         auditLog.record({
           runId: command.runId,

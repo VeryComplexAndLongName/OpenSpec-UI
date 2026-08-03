@@ -17,6 +17,11 @@ export interface ServerOptions {
   port?: number;
   localLlmBaseUrl?: string;
   localLlmModel?: string;
+  /**
+   * Explicit opt-in: allow command cwd outside startup workspace root.
+   * Keep false by default.
+   */
+  allowExternalCwd?: boolean;
   auditLog?: AuditLog;
   /** Только для тестов: подмена реестра `AgentRunner` вместо реальных
    * CLI-адаптеров (см. server.test.ts) — не используется в проде. */

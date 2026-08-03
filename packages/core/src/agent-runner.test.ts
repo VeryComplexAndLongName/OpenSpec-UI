@@ -56,6 +56,31 @@ describe("createAgentRunner — cwd sandbox (task 3.5)", () => {
     expect(auditLog.entries).toHaveLength(1);
     expect(auditLog.entries[0]).toMatchObject({ outcome: "blocked" });
   });
+
+  it("allows cwd outside workspace when allowExternalCwd is explicitly enabled", async () => {
+    const { adapter, executeCalls } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, {
+      workspaceRoot,
+      allowlist,
+      auditLog,
+      allowExternalCwd: true,
+    });
+
+    const command: Command = {
+      kind: "implement",
+      cwd: "/etc",
+      runId: "run-1b",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    const events: Event[] = [];
+    for await (const e of runner.run(command)) events.push(e);
+
+    expect(events.some((e) => e.kind === "started")).toBe(true);
+    expect(executeCalls).toHaveLength(1);
+    expect(auditLog.entries.some((e) => e.outcome === "blocked")).toBe(false);
+  });
 });
 
 describe("createAgentRunner — allowlist (task 3.5)", () => {

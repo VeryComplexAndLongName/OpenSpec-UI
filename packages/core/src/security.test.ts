@@ -33,6 +33,10 @@ describe("checkCwdSandbox", () => {
     // является его поддиректорией — граница должна проверяться по сегментам пути.
     expect(checkCwdSandbox("/workspace/repo-evil", workspaceRoot).allowed).toBe(false);
   });
+
+  it("allows any absolute cwd when explicit opt-in is enabled", () => {
+    expect(checkCwdSandbox("/etc/passwd", workspaceRoot, { allowExternalCwd: true }).allowed).toBe(true);
+  });
 });
 
 describe("checkAllowlist", () => {

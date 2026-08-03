@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { useMemo, useState } from "react";
 import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
+import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 
 declare function acquireVsCodeApi(): VsCodeApiLike;
 
@@ -20,22 +21,40 @@ function ExtensionApp() {
   const [changeDir, setChangeDir] = useState("");
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
+  function handleCwdChange(nextCwd: string) {
+    setCwd(nextCwd);
+    setChangeDir(buildDefaultChangeDir(nextCwd));
+  }
+
   return (
     <div className="openspec-extension-app">
-      <h1>OpenSpec UI</h1>
-      <label>
-        Workspace root (cwd)
-        <input type="text" value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="C:\path\to\repo" />
-      </label>
-      <label>
-        Change directory
-        <input
-          type="text"
-          value={changeDir}
-          onChange={(e) => setChangeDir(e.target.value)}
-          placeholder="C:\path\to\repo\openspec\changes\my-change"
-        />
-      </label>
+      <style>{shellThemeCss}</style>
+      <header className="openspec-shell-headline">
+        <h1>OpenSpec UI</h1>
+        <p>VS Code webview runner for OpenSpec commands.</p>
+      </header>
+      <section className="openspec-shell-panel">
+        <div className="openspec-shell-grid">
+          <label className="openspec-shell-field">
+            Workspace root (cwd)
+            <input
+              type="text"
+              value={cwd}
+              onChange={(e) => handleCwdChange(e.target.value)}
+              placeholder="C:\\path\\to\\repo"
+            />
+          </label>
+          <label className="openspec-shell-field">
+            Change directory
+            <input
+              type="text"
+              value={changeDir}
+              onChange={(e) => setChangeDir(e.target.value)}
+              placeholder="C:\\path\\to\\repo\\openspec\\changes"
+            />
+          </label>
+        </div>
+      </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
         <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} />
       ) : (

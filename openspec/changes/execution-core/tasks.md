@@ -54,3 +54,12 @@
 - [x] 5.3 Test parsing real output from `openspec list --json` /
       `openspec change show --json` (fixtures captured from live `openspec`
       CLI, not hand-invented data).
+
+## 6. Workspace Scope Flexibility (Standalone Follow-up)
+
+- [x] 6.1 Add an explicit opt-in switch in runner security options to allow
+      commands with `cwd` outside the startup workspace root for standalone
+      server mode.
+- [x] 6.2 Keep secure default behavior unchanged: external `cwd` remains
+      blocked unless the new switch is enabled.
+- [x] 6.3 Add tests for both branches (default blocked, opt-in allowed).

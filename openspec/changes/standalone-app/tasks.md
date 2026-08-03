@@ -21,3 +21,16 @@
       only Claude CLI and GitHub Copilot CLI are available for live testing in
       this development phase; other adapters are validated through
       mocks/contract tests.
+
+## 4. Standalone UX and Workspace Flexibility Follow-up
+
+- [x] 4.1 Add server startup opt-in for external `cwd` usage outside the
+      startup workspace root (for users who intentionally work across
+      repositories/folders).
+- [x] 4.2 Update standalone launch docs with the new external-`cwd` flag and
+      the related security implication.
+- [x] 4.3 In standalone browser shell, auto-update `Change directory` when
+      `Workspace root (cwd)` changes by appending `openspec/changes`.
+- [x] 4.4 Add a non-trivial standalone visual theme (layout, typography,
+      spacing, controls, event log readability) without changing the
+      transport/protocol behavior.

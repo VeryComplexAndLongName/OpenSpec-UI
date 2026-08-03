@@ -66,10 +66,22 @@ export interface CwdDecision {
   reason?: string;
 }
 
+export interface CwdSandboxOptions {
+  /**
+   * Explicit opt-in for hosts that intentionally need to work across folders
+   * outside the startup workspace root (for example, standalone local tooling).
+   * Secure default remains false.
+   */
+  allowExternalCwd?: boolean;
+}
+
 /** Проверяет, что `cwd` находится внутри `workspaceRoot` (или совпадает с ним).
  * Сравнение выполняется по разрешённым (path.resolve) абсолютным путям, поэтому
  * `..`-сегменты и относительные пути не позволяют выйти за пределы воркспейса. */
-export function checkCwdSandbox(cwd: string, workspaceRoot: string): CwdDecision {
+export function checkCwdSandbox(cwd: string, workspaceRoot: string, options: CwdSandboxOptions = {}): CwdDecision {
+  if (options.allowExternalCwd) {
+    return { allowed: true };
+  }
   const resolvedRoot = path.resolve(workspaceRoot);
   const resolvedCwd = path.resolve(cwd);
   const rootWithSep = resolvedRoot.endsWith(path.sep) ? resolvedRoot : resolvedRoot + path.sep;

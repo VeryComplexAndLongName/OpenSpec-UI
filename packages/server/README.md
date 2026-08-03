@@ -34,4 +34,13 @@ npm run build   # собирает браузерный бандл в dist/app.j
 npm run start -- <workspaceRoot> <port>   # по умолчанию: cwd процесса, порт 4317
 ```
 
+Optional (explicit opt-in): allow commands to use `cwd` outside startup
+`workspaceRoot`.
+
+```bash
+npm run start -- <workspaceRoot> <port> --allow-external-cwd
+```
+
+Use this only when you intentionally work across multiple folders/repositories.
+
 Открыть `http://127.0.0.1:<port>` в браузере.

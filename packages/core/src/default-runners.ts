@@ -22,6 +22,7 @@ export interface DefaultRunnersConfig {
   localLlmBaseUrl?: string;
   localLlmModel?: string;
   auditLog?: AuditLog;
+  allowExternalCwd?: boolean;
 }
 
 export const DEFAULT_AGENT_ID = "claude-cli";
@@ -46,7 +47,12 @@ export function buildDefaultAllowlist(): AllowlistConfig {
 export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<string, AgentRunner> {
   const allowlist = buildDefaultAllowlist();
   const auditLog = config.auditLog ?? new InMemoryAuditLog();
-  const runnerOptions = { workspaceRoot: config.workspaceRoot, allowlist, auditLog };
+  const runnerOptions = {
+    workspaceRoot: config.workspaceRoot,
+    allowlist,
+    auditLog,
+    allowExternalCwd: config.allowExternalCwd,
+  };
 
   const adapters = {
     "claude-cli": new ClaudeCliAdapter(),

@@ -5,9 +5,15 @@ import { DEFAULT_HOST, DEFAULT_PORT, createServer } from "./server.js";
 
 const workspaceRoot = process.argv[2] ?? process.cwd();
 const port = process.argv[3] ? Number(process.argv[3]) : DEFAULT_PORT;
+const allowExternalCwd = process.argv.includes("--allow-external-cwd");
 
-const server = createServer({ workspaceRoot, host: DEFAULT_HOST, port });
+const server = createServer({
+  workspaceRoot,
+  host: DEFAULT_HOST,
+  port,
+  allowExternalCwd,
+});
 const address = await server.listen();
 console.log(
-  `OpenSpec UI server listening on http://${DEFAULT_HOST}:${address.port} (workspaceRoot: ${workspaceRoot})`,
+  `OpenSpec UI server listening on http://${DEFAULT_HOST}:${address.port} (workspaceRoot: ${workspaceRoot}, allowExternalCwd: ${allowExternalCwd})`,
 );

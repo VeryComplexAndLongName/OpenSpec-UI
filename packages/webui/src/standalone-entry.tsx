@@ -9,36 +9,53 @@ import { useMemo, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
+import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 
 function StandaloneApp() {
   const [cwd, setCwd] = useState("");
   const [changeDir, setChangeDir] = useState("");
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin }), []);
 
+  function handleCwdChange(nextCwd: string) {
+    setCwd(nextCwd);
+    setChangeDir(buildDefaultChangeDir(nextCwd));
+  }
+
   return (
     <div className="openspec-standalone-app">
-      <h1>OpenSpec UI</h1>
+      <style>{shellThemeCss}</style>
 
-      <section>
+      <header className="openspec-shell-headline">
+        <h1>OpenSpec UI</h1>
+        <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
+      </header>
+
+      <section className="openspec-shell-panel">
         <h2>Run a command</h2>
-        <label>
-          Workspace root (cwd)
-          <input
-            type="text"
-            value={cwd}
-            onChange={(e) => setCwd(e.target.value)}
-            placeholder="C:\path\to\repo"
-          />
-        </label>
-        <label>
-          Change directory
-          <input
-            type="text"
-            value={changeDir}
-            onChange={(e) => setChangeDir(e.target.value)}
-            placeholder="C:\path\to\repo\openspec\changes\my-change"
-          />
-        </label>
+        <div className="openspec-shell-grid">
+          <label className="openspec-shell-field">
+            Workspace root (cwd)
+            <input
+              type="text"
+              value={cwd}
+              onChange={(e) => handleCwdChange(e.target.value)}
+              placeholder="C:\\path\\to\\repo"
+            />
+          </label>
+          <label className="openspec-shell-field">
+            Change directory
+            <input
+              type="text"
+              value={changeDir}
+              onChange={(e) => setChangeDir(e.target.value)}
+              placeholder="C:\\path\\to\\repo\\openspec\\changes"
+            />
+          </label>
+        </div>
+        <p className="openspec-shell-note">
+          Tip: changing <strong>Workspace root (cwd)</strong> auto-fills <strong>Change directory</strong> as
+          <code> openspec/changes</code>.
+        </p>
         {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
           <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} />
         ) : (
@@ -46,7 +63,7 @@ function StandaloneApp() {
         )}
       </section>
 
-      <section>
+      <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
         <p>
           Standalone-only rendering (see <code>shared-ui</code> design — extension delegates this to{" "}
