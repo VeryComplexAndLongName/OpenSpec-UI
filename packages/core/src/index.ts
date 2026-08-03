@@ -15,3 +15,11 @@ export { CodexCliAdapter } from "./agents/codex.js";
 export { GeminiCliAdapter } from "./agents/gemini.js";
 export { LocalLlmAdapter, type LocalLlmAdapterOptions } from "./agents/local-llm.js";
 export { AGENT_REGISTRY, type AgentDescriptor } from "./agents/registry.js";
+
+export {
+  DEFAULT_AGENT_ID,
+  buildDefaultAllowlist,
+  buildDefaultAgentRunners,
+  resolveRunner,
+  type DefaultRunnersConfig,
+} from "./default-runners.js";

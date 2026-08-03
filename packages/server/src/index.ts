@@ -1,9 +1,12 @@
-// Точка входа @openspec-ui/server.
-//
-// Реализация по openspec/changes/standalone-app/tasks.md, раздел 1.
-// Планируемый состав: rest.ts (эндпоинт status), ws.ts (канал событий для
-// plan/implement/review/cancel) — оба только сериализуют @openspec-ui/core,
-// логики внутри не содержат (см. design.md, "Decisions").
-//
-// Пока не реализовано.
-export {};
+// Точка входа @openspec-ui/server — тонкий REST/WS слой над
+// @openspec-ui/core. Бизнес-логики здесь нет (см.
+// openspec/changes/standalone-app/spec.md).
+
+export { createServer, DEFAULT_HOST, DEFAULT_PORT, type OpenSpecUiServer, type ServerOptions } from "./server.js";
+export {
+  buildDefaultAllowlist,
+  buildDefaultAgentRunners,
+  resolveRunner,
+  DEFAULT_AGENT_ID,
+} from "@openspec-ui/core";
+export { isCommandLike } from "./wire.js";

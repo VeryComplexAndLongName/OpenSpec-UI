@@ -6,10 +6,39 @@
 // `openspec-fixtures/*.json`, снятые с живого CLI этого репозитория —
 // не придуманы вручную, см. tasks.md 5.3).
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import crossSpawn from "cross-spawn";
 
-const execFileAsync = promisify(execFile);
+// `cross-spawn`, а не `node:child_process.execFile`: на Windows `openspec`
+// (как и `copilot`, см. agents/shared.ts) устанавливается как `.cmd`-шим —
+// голый `execFile` не находит его без `shell: true` (`ENOENT`), что и
+// показал живой прогон vscode-extension (см. tasks.md 4.1,
+// openspec/changes/vscode-extension/TEST-NOTES.md). `cross-spawn` резолвит
+// `.cmd`/`.bat` на Windows корректно, экранируя аргументы по отдельности.
+function execFileAsync(
+  binary: string,
+  args: string[],
+  options: { cwd: string; windowsHide?: boolean },
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = crossSpawn(binary, args, options);
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`${binary} ${args.join(" ")} exited with code ${code ?? "unknown"}: ${stderr}`));
+      }
+    });
+  });
+}
 
 export interface OpenSpecCliOptions {
   cwd: string;
@@ -32,6 +61,16 @@ export interface OpenSpecChangeListItem {
 
 export interface OpenSpecListResult {
   changes: OpenSpecChangeListItem[];
+  root: OpenSpecRoot;
+}
+
+export interface OpenSpecSpecListItem {
+  id: string;
+  requirementCount: number;
+}
+
+export interface OpenSpecListSpecsResult {
+  specs: OpenSpecSpecListItem[];
   root: OpenSpecRoot;
 }
 
@@ -90,6 +129,10 @@ async function runJson<T>(args: string[], options: OpenSpecCliOptions): Promise<
 
 export async function listChanges(options: OpenSpecCliOptions): Promise<OpenSpecListResult> {
   return runJson<OpenSpecListResult>(["list", "--json"], options);
+}
+
+export async function listSpecs(options: OpenSpecCliOptions): Promise<OpenSpecListSpecsResult> {
+  return runJson<OpenSpecListSpecsResult>(["list", "--specs", "--json"], options);
 }
 
 export async function showChange(changeName: string, options: OpenSpecCliOptions): Promise<OpenSpecShowResult> {

@@ -1,21 +1,33 @@
+import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 
-// `child_process.execFile` имеет собственную [util.promisify.custom]-реализацию,
-// возвращающую {stdout, stderr}. Мок должен предоставлять тот же символ, иначе
-// generic-promisify резолвится не так, как в реальном Node (см. openspec.ts,
-// который делает `promisify(execFile)`).
-const execFileAsyncMock = vi.fn();
-function fakeExecFile(): void {
-  throw new Error("fakeExecFile вызван напрямую, минуя promisify — не ожидается в этих тестах");
+// `openspec` резолвится в `.cmd`-шим на Windows — openspec.ts спавнит его
+// через `cross-spawn` (см. комментарий там), не голый `execFile`. Мок
+// эмулирует дочерний процесс тем же паттерном, что и agents/shared.test.ts.
+class FakeChildProcess extends EventEmitter {
+  stdout = new EventEmitter();
+  stderr = new EventEmitter();
 }
-(fakeExecFile as unknown as Record<symbol, unknown>)[promisify.custom] = execFileAsyncMock;
 
-vi.mock("node:child_process", () => ({ execFile: fakeExecFile }));
+const spawnMock = vi.fn();
+vi.mock("cross-spawn", () => ({
+  default: (...args: unknown[]) => spawnMock(...args),
+}));
 
-const { listChanges, showChange, validateChange } = await import("./openspec.js");
+const { listChanges, listSpecs, showChange, validateChange } = await import("./openspec.js");
+
+/** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
+ * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
+function mockSuccessfulSpawn(stdout: string): void {
+  const child = new FakeChildProcess();
+  spawnMock.mockReturnValueOnce(child);
+  queueMicrotask(() => {
+    child.stdout.emit("data", Buffer.from(stdout, "utf8"));
+    child.emit("close", 0);
+  });
+}
 
 const FIXTURES_DIR = path.join(import.meta.dirname, "openspec-fixtures");
 
@@ -25,12 +37,11 @@ async function loadFixture(name: string): Promise<string> {
 
 describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
   it("listChanges parses real `openspec list --json` output", async () => {
-    const raw = await loadFixture("list.json");
-    execFileAsyncMock.mockResolvedValueOnce({ stdout: raw, stderr: "" });
+    mockSuccessfulSpawn(await loadFixture("list.json"));
 
     const result = await listChanges({ cwd: "C:\\Prog\\OpenSpec-UI" });
 
-    expect(execFileAsyncMock).toHaveBeenCalledWith("openspec", ["list", "--json"], {
+    expect(spawnMock).toHaveBeenCalledWith("openspec", ["list", "--json"], {
       cwd: "C:\\Prog\\OpenSpec-UI",
       windowsHide: true,
     });
@@ -44,12 +55,11 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
   });
 
   it("showChange parses real `openspec show --json --type change` output", async () => {
-    const raw = await loadFixture("show.json");
-    execFileAsyncMock.mockResolvedValueOnce({ stdout: raw, stderr: "" });
+    mockSuccessfulSpawn(await loadFixture("show.json"));
 
     const result = await showChange("execution-core", { cwd: "C:\\Prog\\OpenSpec-UI" });
 
-    expect(execFileAsyncMock).toHaveBeenCalledWith(
+    expect(spawnMock).toHaveBeenCalledWith(
       "openspec",
       ["show", "execution-core", "--json", "--type", "change"],
       { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
@@ -61,13 +71,27 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(result.deltas[0]?.requirement?.scenarios.length).toBeGreaterThan(0);
   });
 
+  it("listSpecs parses real `openspec list --specs --json` output", async () => {
+    mockSuccessfulSpawn(await loadFixture("list-specs.json"));
+
+    const result = await listSpecs({ cwd: "C:\\Prog\\DocsAI" });
+
+    expect(spawnMock).toHaveBeenCalledWith("openspec", ["list", "--specs", "--json"], {
+      cwd: "C:\\Prog\\DocsAI",
+      windowsHide: true,
+    });
+    expect(result.specs.length).toBeGreaterThan(0);
+    const spec = result.specs.find((s) => s.id === "response-verification");
+    expect(spec).toBeDefined();
+    expect(typeof spec?.requirementCount).toBe("number");
+  });
+
   it("validateChange parses real `openspec validate --json --strict` output", async () => {
-    const raw = await loadFixture("validate.json");
-    execFileAsyncMock.mockResolvedValueOnce({ stdout: raw, stderr: "" });
+    mockSuccessfulSpawn(await loadFixture("validate.json"));
 
     const result = await validateChange("execution-core", { cwd: "C:\\Prog\\OpenSpec-UI" });
 
-    expect(execFileAsyncMock).toHaveBeenCalledWith(
+    expect(spawnMock).toHaveBeenCalledWith(
       "openspec",
       ["validate", "execution-core", "--json", "--strict", "--type", "change"],
       { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
@@ -78,11 +102,32 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
   });
 
   it("uses a custom binary path when provided", async () => {
-    execFileAsyncMock.mockResolvedValueOnce({ stdout: '{"changes":[],"root":{"path":"x","source":"nearest"}}', stderr: "" });
+    mockSuccessfulSpawn('{"changes":[],"root":{"path":"x","source":"nearest"}}');
     await listChanges({ cwd: "/repo", binary: "/usr/local/bin/openspec" });
-    expect(execFileAsyncMock).toHaveBeenCalledWith("/usr/local/bin/openspec", ["list", "--json"], {
+    expect(spawnMock).toHaveBeenCalledWith("/usr/local/bin/openspec", ["list", "--json"], {
       cwd: "/repo",
       windowsHide: true,
     });
+  });
+
+  it("rejects when the process exits with a non-zero code", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
+      child.emit("close", 1);
+    });
+
+    await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/exited with code 1/);
+  });
+
+  it("rejects when the process itself errors (e.g. binary not found)", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.emit("error", new Error("ENOENT"));
+    });
+
+    await expect(listChanges({ cwd: "/repo" })).rejects.toThrow("ENOENT");
   });
 });

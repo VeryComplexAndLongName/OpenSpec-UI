@@ -2,130 +2,218 @@ import { describe, expect, it, vi } from "vitest";
 import type { Command } from "@openspec-ui/core";
 import { FetchTransport } from "./fetch-transport.js";
 
-class FakeEventSource extends EventTarget {
-  closed = false;
+class FakeWebSocket extends EventTarget {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+
+  readyState = FakeWebSocket.CONNECTING;
+  sent: string[] = [];
+
   constructor(public url: string) {
     super();
   }
-  close() {
-    this.closed = true;
+
+  send(data: string) {
+    this.sent.push(data);
   }
-  emit(data: string) {
+
+  open() {
+    this.readyState = FakeWebSocket.OPEN;
+    this.dispatchEvent(new Event("open"));
+  }
+
+  close() {
+    this.readyState = FakeWebSocket.CLOSED;
+    this.dispatchEvent(new Event("close"));
+  }
+
+  emitMessage(data: string) {
     this.dispatchEvent(new MessageEvent("message", { data }));
   }
 }
 
-function makeEventSourceCtor(): { ctor: typeof EventSource; instances: FakeEventSource[] } {
-  const instances: FakeEventSource[] = [];
+function makeWebSocketCtor(): { ctor: typeof WebSocket; instances: FakeWebSocket[] } {
+  const instances: FakeWebSocket[] = [];
   const ctor = vi.fn((url: string) => {
-    const instance = new FakeEventSource(url);
+    const instance = new FakeWebSocket(url);
     instances.push(instance);
     return instance;
-  }) as unknown as typeof EventSource;
+  }) as unknown as typeof WebSocket;
+  Object.assign(ctor, {
+    CONNECTING: FakeWebSocket.CONNECTING,
+    OPEN: FakeWebSocket.OPEN,
+    CLOSING: FakeWebSocket.CLOSING,
+    CLOSED: FakeWebSocket.CLOSED,
+  });
   return { ctor, instances };
 }
 
-const command: Command = {
-  kind: "implement",
+const planCommand: Command = {
+  kind: "plan",
   cwd: "/workspace/repo",
   runId: "run-1",
   context: { changeDir: "/workspace/repo/openspec/changes/x" },
 };
 
-describe("FetchTransport", () => {
-  it("send() POSTs the command as JSON to /api/commands", () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    const { ctor } = makeEventSourceCtor();
+const statusCommand: Command = {
+  kind: "status",
+  cwd: "/workspace/repo",
+  runId: "run-status",
+  context: { changeDir: "/workspace/repo/openspec/changes/x" },
+};
+
+describe("FetchTransport — status (REST)", () => {
+  it("POSTs the status command to /api/status and dispatches the returned events", async () => {
+    const events = [
+      { kind: "started", runId: "run-status", timestamp: "t", command: "status", cwd: "/workspace/repo" },
+      { kind: "completed", runId: "run-status", timestamp: "t", summary: "up to date" },
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events }) });
+    const { ctor } = makeWebSocketCtor();
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: fetchMock as unknown as typeof fetch,
-      eventSourceCtor: ctor,
+      webSocketCtor: ctor,
     });
 
-    transport.send(command);
+    const received: unknown[] = [];
+    transport.subscribe((e) => received.push(e));
+    transport.send(statusCommand);
+    await new Promise((r) => setImmediate(r));
 
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/commands", {
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/status", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(command),
+      body: JSON.stringify(statusCommand),
     });
+    expect(received).toEqual(events);
   });
 
-  it("logs but does not throw when the POST rejects", async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
-    const { ctor } = makeEventSourceCtor();
+  it("does not open a WebSocket for a status-only command", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events: [] }) });
+    const { ctor, instances } = makeWebSocketCtor();
+    const transport = new FetchTransport({
+      baseUrl: "http://localhost:4000",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      webSocketCtor: ctor,
+    });
+    transport.send(statusCommand);
+    await new Promise((r) => setImmediate(r));
+    expect(instances).toHaveLength(0);
+  });
+
+  it("logs but does not throw on a failed status request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: "Internal Server Error" });
+    const { ctor } = makeWebSocketCtor();
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: fetchMock as unknown as typeof fetch,
-      eventSourceCtor: ctor,
+      webSocketCtor: ctor,
     });
-
-    expect(() => transport.send(command)).not.toThrow();
+    expect(() => transport.send(statusCommand)).not.toThrow();
     await new Promise((r) => setImmediate(r));
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });
+});
 
-  it("subscribe() opens an EventSource at /api/events and decodes protocol Events", () => {
-    const { ctor, instances } = makeEventSourceCtor();
+describe("FetchTransport — event-driven commands (WebSocket)", () => {
+  it("opens a WebSocket to /api/ws and sends the command once open", () => {
+    const { ctor, instances } = makeWebSocketCtor();
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: vi.fn() as unknown as typeof fetch,
-      eventSourceCtor: ctor,
+      webSocketCtor: ctor,
     });
 
-    const received: unknown[] = [];
-    transport.subscribe((e) => received.push(e));
+    transport.send(planCommand);
 
-    expect(instances[0]?.url).toBe("http://localhost:4000/api/events");
-    instances[0]?.emit(JSON.stringify({ kind: "started", runId: "r1", timestamp: "t", command: "plan", cwd: "/x" }));
-    expect(received).toEqual([{ kind: "started", runId: "r1", timestamp: "t", command: "plan", cwd: "/x" }]);
+    expect(instances[0]?.url).toBe("ws://localhost:4000/api/ws");
+    expect(instances[0]?.sent).toHaveLength(0); // ещё не открыт
+    instances[0]?.open();
+    expect(instances[0]?.sent).toEqual([JSON.stringify(planCommand)]);
   });
 
-  it("ignores malformed SSE payloads without throwing", () => {
-    const { ctor, instances } = makeEventSourceCtor();
+  it("sends immediately when the socket is already open", () => {
+    const { ctor, instances } = makeWebSocketCtor();
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: vi.fn() as unknown as typeof fetch,
-      eventSourceCtor: ctor,
+      webSocketCtor: ctor,
+    });
+
+    transport.send(planCommand);
+    instances[0]?.open();
+    transport.send({ ...planCommand, kind: "cancel" });
+
+    expect(instances).toHaveLength(1); // переиспользует то же соединение
+    expect(instances[0]?.sent).toHaveLength(2);
+  });
+
+  it("decodes protocol Events arriving over the WebSocket", () => {
+    const { ctor, instances } = makeWebSocketCtor();
+    const transport = new FetchTransport({
+      baseUrl: "http://localhost:4000",
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      webSocketCtor: ctor,
     });
 
     const received: unknown[] = [];
     transport.subscribe((e) => received.push(e));
+    transport.send(planCommand);
+    instances[0]?.open();
 
-    expect(() => instances[0]?.emit("not json at all")).not.toThrow();
-    expect(() => instances[0]?.emit(JSON.stringify({ kind: "not-a-real-kind" }))).not.toThrow();
+    instances[0]?.emitMessage(
+      JSON.stringify({ kind: "started", runId: "run-1", timestamp: "t", command: "plan", cwd: "/x" }),
+    );
+    expect(received).toEqual([{ kind: "started", runId: "run-1", timestamp: "t", command: "plan", cwd: "/x" }]);
+  });
+
+  it("ignores malformed WebSocket payloads without throwing", () => {
+    const { ctor, instances } = makeWebSocketCtor();
+    const transport = new FetchTransport({
+      baseUrl: "http://localhost:4000",
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      webSocketCtor: ctor,
+    });
+    const received: unknown[] = [];
+    transport.subscribe((e) => received.push(e));
+    transport.send(planCommand);
+    instances[0]?.open();
+
+    expect(() => instances[0]?.emitMessage("not json")).not.toThrow();
+    expect(() => instances[0]?.emitMessage(JSON.stringify({ kind: "bogus" }))).not.toThrow();
     expect(received).toHaveLength(0);
   });
 
-  it("unsubscribe() closes the EventSource and stops delivering events", () => {
-    const { ctor, instances } = makeEventSourceCtor();
+  it("closes the socket once the last subscriber unsubscribes", () => {
+    const { ctor, instances } = makeWebSocketCtor();
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: vi.fn() as unknown as typeof fetch,
-      eventSourceCtor: ctor,
+      webSocketCtor: ctor,
     });
+    const unsubscribe = transport.subscribe(() => {});
+    transport.send(planCommand);
+    instances[0]?.open();
 
-    const received: unknown[] = [];
-    const unsubscribe = transport.subscribe((e) => received.push(e));
     unsubscribe();
-
-    expect(instances[0]?.closed).toBe(true);
-    instances[0]?.emit(JSON.stringify({ kind: "cancelled", runId: "r1", timestamp: "t" }));
-    expect(received).toHaveLength(0);
+    expect(instances[0]?.readyState).toBe(FakeWebSocket.CLOSED);
   });
 
-  it("throws a clear error when EventSource is unavailable and not injected", () => {
-    const withEventSource = globalThis as { EventSource?: typeof EventSource };
-    const original = withEventSource.EventSource;
-    delete withEventSource.EventSource;
+  it("throws a clear error when WebSocket is unavailable and not injected", () => {
+    const withWs = globalThis as { WebSocket?: typeof WebSocket };
+    const original = withWs.WebSocket;
+    delete withWs.WebSocket;
     try {
       expect(
         () => new FetchTransport({ baseUrl: "http://localhost:4000", fetchImpl: vi.fn() as unknown as typeof fetch }),
-      ).toThrow(/EventSource/);
+      ).toThrow(/WebSocket/);
     } finally {
-      withEventSource.EventSource = original;
+      withWs.WebSocket = original;
     }
   });
 });

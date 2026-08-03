@@ -42,15 +42,30 @@ describe("CopilotCliAdapter", () => {
     }
 
     expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "completed"]);
-    expect(spawnAndStreamMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        executable: "copilot",
-        args: ["-p", "--allow-all-tools"],
-        cwd: "/workspace/repo",
-        runId: "run-2",
-        commandKind: "review",
-        stdin: expect.stringContaining("FILE CONTENT HERE"),
-      }),
-    );
+    expect(spawnAndStreamMock).toHaveBeenCalledWith({
+      executable: "copilot",
+      args: ["-p", expect.stringContaining("FILE CONTENT HERE"), "--allow-all-tools"],
+      cwd: "/workspace/repo",
+      runId: "run-2",
+      commandKind: "review",
+    });
+  });
+
+  it("embeds the prompt as a positional argument, not via stdin (unlike claude/codex/gemini)", async () => {
+    async function* fakeEvents(): AsyncGenerator<Event> {
+      yield { kind: "completed", runId: "run-2", timestamp: "t" };
+    }
+    spawnAndStreamMock.mockReturnValue(fakeEvents());
+
+    const adapter = new CopilotCliAdapter();
+    const invocation = adapter.buildInvocation(command);
+    for await (const _ of adapter.execute(invocation, command, "prompt body")) {
+      // drain
+    }
+
+    const call = spawnAndStreamMock.mock.calls[0]?.[0] as { args: string[]; stdin?: string };
+    expect(call.args[0]).toBe("-p");
+    expect(call.args[2]).toBe("--allow-all-tools");
+    expect(call.stdin).toBeUndefined();
   });
 });

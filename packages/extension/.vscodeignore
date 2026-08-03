@@ -1,0 +1,7 @@
+src/**
+scripts/**
+tsconfig.json
+tsconfig.tsbuildinfo
+vitest.config.ts
+.vscode-test/**
+dist/test-suite/**

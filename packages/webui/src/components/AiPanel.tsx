@@ -8,7 +8,7 @@
 // "AI-панель использует единый протокол независимо от агента").
 
 import { useEffect, useRef, useState } from "react";
-import { AGENT_REGISTRY, type Command, type CommandKind, type Event } from "@openspec-ui/core";
+import { AGENT_REGISTRY, type Command, type CommandKind, type Event } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import { AgentPicker } from "./AgentPicker.js";
 

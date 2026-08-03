@@ -14,9 +14,16 @@ Markdown-редактирование и diff делегируются хост�
 
 ## Модули
 
-- `transport/` — `Transport` интерфейс, `FetchTransport` (REST + SSE),
-  `MessageBridgeTransport` (VS Code `postMessage`). `transport/contract.test.ts`
-  проверяет, что оба дают одинаковый поток событий для одного сценария.
+- `transport/` — `Transport` интерфейс, `FetchTransport`, `MessageBridgeTransport`
+  (VS Code `postMessage`). `transport/contract.test.ts` проверяет, что оба дают
+  одинаковый поток событий для одного сценария.
+  `FetchTransport`'s проводной протокол (v0.2.0+, согласован с
+  `openspec/changes/standalone-app/design.md`): `status` — REST
+  (`POST /api/status`, синхронный ответ со списком событий; команда быстрая,
+  WS ради нее избыточен), `plan`/`implement`/`review`/`cancel` — одно
+  WebSocket-соединение (`/api/ws`) на команду и её события. `FetchTransportOptions`
+  теперь принимает `webSocketCtor` вместо `eventSourceCtor` (breaking для кода
+  вне этого репозитория — на момент этого изменения таких потребителей не было).
 - `components/ChangesList`, `ArchiveList`, `ChangeDiff`, `ChangeRelations` —
   Changes/Archive. Статус берётся из уже вычисленного `ChangeSummary.state`
   (`@openspec-ui/core`'s derived state), компоненты его не пересчитывают.

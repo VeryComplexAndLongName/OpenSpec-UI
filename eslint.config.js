@@ -3,6 +3,7 @@
 // so we do not require a single repo-wide tsconfig.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import globals from "globals";
 
 export default tseslint.config(
   { ignores: ["**/dist/**", "**/node_modules/**"] },
@@ -14,6 +15,14 @@ export default tseslint.config(
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+    },
+  },
+  {
+    // Node-скрипты сборки/тестов (build.mjs, run.mjs и т.п.) — не браузерный
+    // код, нужны Node-глобалы (console/process/__dirname).
+    files: ["**/*.mjs", "**/*.cjs", "**/scripts/**/*.js"],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
 );

@@ -6,8 +6,19 @@
 // Если версия CLI поменяет формат вывода, поток событий не ломается — просто
 // не даёт `progress`, только `stdout` (см. spec.md, "Непредвиденный формат
 // вывода агента").
-
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+//
+// `cross-spawn`, а не голый `node:child_process.spawn`: на Windows многие
+// CLI (в т.ч. `copilot`) устанавливаются как `.cmd`-шимы, которые
+// `spawn(executable, args)` без `shell: true` не находит (`ENOENT`) — см.
+// openspec/changes/standalone-app/tasks.md 3.1, живой smoke-тест. Включать
+// `shell: true` напрямую небезопасно: промпт (данные из содержимого
+// change-файлов) передаётся некоторым адаптерам как argv-аргумент, и голый
+// `shell: true` был бы прямой shell-инъекцией через этот аргумент.
+// `cross-spawn` решает именно резолюцию `.cmd`/`.bat` на Windows, экранируя
+// каждый аргумент по отдельности, не интерпретируя итоговую командную строку
+// в шелле.
+import crossSpawn from "cross-spawn";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { CommandKind, Event } from "../protocol.js";
 
 function nowIso(): string {
@@ -47,7 +58,7 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
 
   let child: ChildProcessWithoutNullStreams;
   try {
-    child = spawn(executable, args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    child = crossSpawn(executable, args, { cwd, stdio: ["pipe", "pipe", "pipe"] }) as ChildProcessWithoutNullStreams;
   } catch (err) {
     yield {
       kind: "failed",

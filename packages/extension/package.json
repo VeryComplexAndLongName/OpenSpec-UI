@@ -1,27 +1,102 @@
 {
   "name": "openspec-ui-vscode",
-  "private": true,
-  "version": "0.0.0",
+  "displayName": "OpenSpec UI",
+  "description": "Run OpenSpec-driven CLI agents (Claude, Copilot, Codex, Gemini, local LLM) from VS Code — Changes/Archive/Specs tree views, native diff/Git integration, and an AI panel for plan/implement/review.",
+  "publisher": "openspec-ui",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI.git",
+    "directory": "packages/extension"
+  },
+  "categories": ["Other", "Machine Learning"],
+  "keywords": ["openspec", "spec-driven", "ai-agents", "claude", "copilot"],
   "type": "commonjs",
   "main": "dist/extension.js",
   "engines": {
     "vscode": "^1.90.0"
   },
+  "activationEvents": [],
   "contributes": {
     "commands": [
       { "command": "openspec-ui.plan", "title": "OpenSpec UI: Plan" },
       { "command": "openspec-ui.implement", "title": "OpenSpec UI: Implement" },
       { "command": "openspec-ui.review", "title": "OpenSpec UI: Review" },
       { "command": "openspec-ui.status", "title": "OpenSpec UI: Status" },
-      { "command": "openspec-ui.cancel", "title": "OpenSpec UI: Cancel" }
-    ]
+      { "command": "openspec-ui.cancel", "title": "OpenSpec UI: Cancel" },
+      { "command": "openspec-ui.openAiPanel", "title": "OpenSpec UI: Open AI Panel", "icon": "$(sparkle)" },
+      { "command": "openspec-ui.refresh", "title": "OpenSpec UI: Refresh", "icon": "$(refresh)" },
+      { "command": "openspec-ui.reviewDiff", "title": "OpenSpec UI: Review Diff (tasks.md vs HEAD)", "icon": "$(diff)" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "openspec-ui", "title": "OpenSpec UI", "icon": "media/icon.svg" }
+      ]
+    },
+    "views": {
+      "openspec-ui": [
+        { "id": "openspecUiChanges", "name": "Changes" },
+        { "id": "openspecUiArchive", "name": "Archive" },
+        { "id": "openspecUiSpecs", "name": "Specs" }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        { "command": "openspec-ui.refresh", "when": "view == openspecUiChanges || view == openspecUiArchive || view == openspecUiSpecs", "group": "navigation" },
+        { "command": "openspec-ui.openAiPanel", "when": "view == openspecUiChanges", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "openspec-ui.reviewDiff", "when": "viewItem == openspec-ui.change", "group": "inline" }
+      ]
+    },
+    "configuration": {
+      "title": "OpenSpec UI",
+      "properties": {
+        "openspec-ui.transport.localServer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run an optional local REST/WS server (same package as the standalone tool) and point the AI panel webview at it instead of the default in-process message bridge."
+        },
+        "openspec-ui.agent.defaultId": {
+          "type": "string",
+          "default": "claude-cli",
+          "enum": ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"],
+          "description": "Which registered AgentRunner adapter to use for Plan/Implement/Review/Status commands."
+        },
+        "openspec-ui.agent.localLlm.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for the local LLM OpenAI-compatible endpoint (SGLang/vLLM). Only used when agent.defaultId is local-llm."
+        },
+        "openspec-ui.agent.localLlm.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name for the local LLM endpoint."
+        }
+      }
+    }
   },
   "dependencies": {
     "@openspec-ui/core": "*",
-    "@openspec-ui/webui": "*"
+    "@openspec-ui/webui": "*",
+    "@openspec-ui/server": "*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.28.0",
+    "@vscode/test-electron": "^3.1.0",
+    "mocha": "^11.8.0",
+    "@types/mocha": "^10.0.10",
+    "glob": "^13.0.0",
+    "@vscode/vsce": "^3.9.2"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "lint": "eslint src",
+    "test": "vitest run",
+    "build": "node scripts/build.mjs",
+    "test:integration": "node src/test/run.mjs",
+    "package": "npm run build && vsce package --no-dependencies"
   }
 }
