@@ -115,3 +115,12 @@ displays build information.
     marking tasks done; run `openspec archive <id> --yes` only after a live
     verification (see `operations.archive.guidance` in `openspec/config.yaml`) —
     not earlier.
+
+## Change Governance
+
+Every repository modification must go through an OpenSpec change entry in
+`openspec/changes/<id>/`. This includes code, tests, docs, and tooling.
+Direct ad-hoc commits without a change entry are out of process.
+
+All architecture-level changes must be documented through ADR files in
+`docs/adr/`, and the related OpenSpec change must reference that ADR.

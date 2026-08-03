@@ -54,6 +54,12 @@ rules:
 operations:
   apply:
     guidance:
+      - All repository modifications must belong to an active OpenSpec change
+        entry in `openspec/changes/<id>/`; do not bypass the change workflow
+        with ad-hoc direct commits.
+      - Architecture-impacting modifications require an ADR in `docs/adr/`
+        linked from the related OpenSpec change before the implementation can
+        be considered complete.
       - Use the runtime pinned in the root package.json (`volta` + `engines`)
         for local and CI execution; do not run repository commands with
         arbitrary global Node.js/npm versions.
