@@ -1,81 +1,82 @@
 schema: spec-driven
 
 context: |
-  Дашборд для OpenSpec с запуском CLI-агентов, в двух формах поставки
-  (standalone web-инструмент, VS Code extension) на общем коде. TypeScript
-  монорепозиторий, npm workspaces: packages/core (execution engine,
-  openspec-парсер, git, security-модель — единственный источник правды по
-  поведению), packages/server (тонкий REST/WS слой над core, только для
-  standalone), packages/webui (общие React-компоненты, транспорт-агностичные
-  — интерфейс Transport с FetchTransport/MessageBridgeTransport),
-  packages/extension (VS Code расширение — максимум нативного API вместо
-  своего UI: TreeDataProvider, diff-editor, встроенный Git API, Tasks API,
-  contributes.configuration, опционально Chat Participant API).
-  Полное архитектурное обоснование — docs/adr/0001-shared-core-two-delivery-
-  targets.md, включая отклонённые альтернативы. Не переоткрывайте решение
-  "extension: прямой import + message bridge как основной режим, локальный
-  сервер — опциональный" без веской новой причины — это скорректированное
-  по итогам внешней рецензии решение, не первый черновик.
-  Ключевые инварианты, не подлежащие нарушению без нового ADR: (1) вся
-  бизнес-логика — только в core, server/extension — тонкие адаптеры под
-  свой транспорт; (2) единый протокол команд (plan/implement/review/status/
-  cancel) и событий (started/stdout/stderr/progress/completed/failed/
-  cancelled), определённый только в core; (3) security-модель оркестрации
-  CLI-агентов (allowlist команд, cwd-sandbox, аудит, содержимое файлов
-  репозитория — данные, не исполняемые инструкции для самого UI) —
-  обязательная часть первого change'а, не опциональная доработка.
-  Тестирование — Vitest. Contract tests между webui и server — обязательны
-  перед архивацией любого change'а, затрагивающего протокол между ними.
+  Dashboard for OpenSpec with CLI-agent execution, delivered in two forms
+  (standalone web tool and VS Code extension) on shared code. TypeScript
+  monorepo, npm workspaces: packages/core (execution engine, OpenSpec parser,
+  git, security model — the single source of truth for behavior),
+  packages/server (thin REST/WS layer over core, used only for standalone),
+  packages/webui (shared React components, transport-agnostic — Transport
+  interface with FetchTransport/MessageBridgeTransport), packages/extension
+  (VS Code extension — maximum use of native API instead of custom UI:
+  TreeDataProvider, diff editor, built-in Git API, Tasks API,
+  contributes.configuration, optionally Chat Participant API).
+  The full architectural rationale is in
+  docs/adr/0001-shared-core-two-delivery-targets.md, including the rejected
+  alternatives. Do not reopen the "extension: direct import + message bridge
+  as the primary mode, local server optional" decision without a strong new
+  reason — this is the revised decision after external review, not the first
+  draft.
+  Key invariants that must not be violated without a new ADR: (1) all business
+  logic lives only in core; server/extension are thin adapters for their own
+  transport; (2) the unified command protocol (plan/implement/review/status/
+  cancel) and event protocol (started/stdout/stderr/progress/completed/failed/
+  cancelled) are defined only in core; (3) the CLI-agent orchestration
+  security model (command allowlist, cwd sandbox, audit, repository file
+  contents as data, not executable instructions for the UI) is a required part
+  of the first change, not an optional follow-up.
+  Testing uses Vitest. Contract tests between webui and server are required
+  before archiving any change that touches their protocol.
 
 rules:
   proposal:
-    - Секция "Why" ссылается на конкретное архитектурное решение из
-      docs/adr/ или на конкретный риск, поднятый в рецензии — не на
-      абстрактное "нужна эта фича".
-    - Секция "Capabilities" всегда явно указывает и New, и Modified, даже
-      когда один из разделов пуст.
+    - The "Why" section must reference a specific architecture decision from
+      docs/adr/ or a specific risk raised in review — not an abstract "we need
+      this feature".
+    - The "Capabilities" section must always explicitly list both New and
+      Modified, even when one of them is empty.
   design:
-    - Обязательна секция "Non-Goals".
-    - Секция "Decisions" перечисляет отклонённые альтернативы и причину
-      отказа — не только выбранное решение.
-    - Секция "Risks / Trade-offs" обязательна всегда.
-    - Если change касается протокола команд/событий (см. context выше) —
-      явно перечислить, какие команды/события добавлены/изменены, и
-      подтвердить обратную совместимость с уже реализованными адаптерами
-      (server/extension), если они уже существуют на момент change'а.
+    - A "Non-Goals" section is required.
+    - The "Decisions" section must list rejected alternatives and the reason
+      for rejecting them, not just the chosen solution.
+    - A "Risks / Trade-offs" section is always required.
+    - If the change touches the command/event protocol (see the context
+      above), explicitly list which commands/events are added or changed, and
+      confirm backward compatibility with the already implemented adapters
+      (server/extension), if they exist at the time of the change.
   tasks:
-    - Каждая задача — проверяемая (конкретный файл/тест), не абстрактное
-      "улучшить X".
-    - Задачи в execution-core, реализующие security-модель (allowlist,
-      cwd-sandbox, аудит), не могут быть отмечены выполненными без
-      соответствующего теста в tasks — это не декоративная секция.
+    - Every task must be verifiable (a specific file/test), not an abstract
+      "improve X".
+    - Tasks in execution-core that implement the security model (allowlist,
+      cwd sandbox, audit) cannot be marked complete without the corresponding
+      test in tasks — this is not a decorative section.
 
 operations:
   apply:
     guidance:
-      - Перед завершением apply — tsc (typecheck), eslint, vitest проходят
-        для затронутых пакетов; для server/extension — дополнительно ручной
-        smoke-тест (реальный запуск, не только юнит-тесты) перед тем, как
-        отмечать задачу выполненной.
-      - Version bump в package.json затронутого пакета обязателен синхронно
-        с каждым внешне видимым изменением поведения.
-      - >-
-        Версионирование — semver на уровне каждого пакета: patch —
-        исправления, документация и рефакторинг без изменения внешнего
-        контракта; minor — новые возможности, совместимые с текущим
-        контрактом; major — breaking changes в публичном поведении,
-        протоколе, формате данных или обещанном UX.
-      - Для delivery-форм можно показывать агрегированную версию релиза,
-        но источник правды по версии поведения — версии пакетов; версию
-        `core` показывать отдельно, если UI выводит сведения о сборке.
+      - Before completing apply, tsc (typecheck), eslint, and vitest must pass
+        for the affected packages; for server/extension, a manual smoke test
+        (a real run, not just unit tests) is also required before a task may be
+        marked complete.
+      - A version bump in the affected package's package.json is mandatory in
+        sync with every externally visible behavior change.
+      - Versioning follows semver at the package level:
+        - patch: fixes, documentation, and refactoring without changing the
+          external contract.
+        - minor: new capabilities that remain compatible with the current
+          contract.
+        - major: breaking changes in public behavior, protocol, data format, or
+          promised UX.
+      - Delivery forms may show an aggregated release version, but the source
+        of truth for behavior versions is the package versions; show `core`
+        separately if the UI exposes build information.
   archive:
     guidance:
-      - Перед архивацией proposal.md/design.md должны явно отражать, какие
-        contract tests между webui и server реально прошли (не "должны
-        проходить"), и какие риски остаются открытыми со ссылкой на
-        конкретную задачу.
-      - Не архивировать change, если хотя бы один сценарий из specs/ не был
-        реально проверен тестом в коде.
-      - Change, добавляющий или меняющий команду/событие в протоколе
-        (см. context) — не архивировать без обновлённого contract test,
-        покрывающего именно это изменение.
+      - Before archiving, proposal.md/design.md must explicitly state which
+        contract tests between webui and server actually passed (not "should
+        pass"), and which risks remain open, with a link to the specific task.
+      - Do not archive a change if even one scenario from specs/ was not
+        actually verified by a test in code.
+      - Do not archive a change that adds or changes a command/event in the
+        protocol (see the context) without an updated contract test that covers
+        that exact change.

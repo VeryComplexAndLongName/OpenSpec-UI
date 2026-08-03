@@ -23,6 +23,8 @@ All code comments, descriptions, and markdown files in this repository must
 be written in English only. Do not add Russian text to any description,
 docstring, comment, or `.md` file.
 
+Commit messages must be written in English only.
+
 ## Versioning
 
 Follow semver per package:

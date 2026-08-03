@@ -35,6 +35,8 @@ Pointers, not duplicates: edit the source document, not this page.
 including the required live smoke test for `server`/`extension` before a
 task may be considered complete.
 
+Commit messages must be written in English only.
+
 ## Language policy
 
 All code comments, descriptions, and markdown files in this repository must
