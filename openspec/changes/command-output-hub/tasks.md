@@ -18,8 +18,5 @@
 
 ## 3. Verification
 
-- [ ] 3.1 `npm run test --workspace @openspec-ui/webui`
-      Blocked in current environment by upstream dependency/runtime error:
-      `ERR_REQUIRE_ESM` in `html-encoding-sniffer` -> `@exodus/bytes` during
-      Vitest/jsdom bootstrap.
+- [x] 3.1 `npm run test --workspace @openspec-ui/webui`
 - [x] 3.2 `npm run test --workspace openspec-ui-vscode`
