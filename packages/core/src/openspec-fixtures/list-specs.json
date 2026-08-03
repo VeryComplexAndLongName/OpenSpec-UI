@@ -1,0 +1,32 @@
+{
+  "specs": [
+    {
+      "id": "actuality-check",
+      "requirementCount": 3
+    },
+    {
+      "id": "drawing-compliance-check",
+      "requirementCount": 4
+    },
+    {
+      "id": "language-check",
+      "requirementCount": 4
+    },
+    {
+      "id": "normokontrol-review",
+      "requirementCount": 4
+    },
+    {
+      "id": "reranker-infrastructure",
+      "requirementCount": 4
+    },
+    {
+      "id": "response-verification",
+      "requirementCount": 5
+    }
+  ],
+  "root": {
+    "path": "C:\\Prog\\DocsAI",
+    "source": "nearest"
+  }
+}

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AGENT_REGISTRY } from "@openspec-ui/core";
+import { AGENT_REGISTRY } from "@openspec-ui/core/browser";
 import { AgentPicker } from "./AgentPicker.js";
 
 describe("AgentPicker", () => {

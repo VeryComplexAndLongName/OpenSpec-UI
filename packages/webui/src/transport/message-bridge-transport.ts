@@ -3,7 +3,7 @@
 // через `acquireVsCodeApi().postMessage`/`window.addEventListener('message')`
 // (см. ADR 0001, п.2).
 
-import { type Command, type Event, isEvent } from "@openspec-ui/core";
+import { type Command, type Event, isEvent } from "@openspec-ui/core/browser";
 import type { Transport, Unsubscribe } from "./types.js";
 
 /** Минимальный интерфейс объекта, возвращаемого `acquireVsCodeApi()`. Хост

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Command, Event } from "@openspec-ui/core";
-import { AGENT_REGISTRY } from "@openspec-ui/core";
+import { AGENT_REGISTRY } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import { AiPanel } from "./AiPanel.js";
 

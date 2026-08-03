@@ -2,7 +2,7 @@
 // AgentRunner-адаптеров (`AGENT_REGISTRY`), не собственный захардкоженный
 // список.
 
-import { AGENT_REGISTRY, type AgentDescriptor } from "@openspec-ui/core";
+import { AGENT_REGISTRY, type AgentDescriptor } from "@openspec-ui/core/browser";
 
 export interface AgentPickerProps {
   agents?: readonly AgentDescriptor[];

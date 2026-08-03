@@ -2,11 +2,11 @@ import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.fn();
-vi.mock("node:child_process", () => ({
-  spawn: (...args: unknown[]) => spawnMock(...args),
+vi.mock("cross-spawn", () => ({
+  default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-// Импортируется после vi.mock, чтобы использовать замоканный node:child_process.
+// Импортируется после vi.mock, чтобы использовать замоканный cross-spawn.
 const { spawnAndStream } = await import("./shared.js");
 
 class FakeChildProcess extends EventEmitter {

@@ -1,14 +1,23 @@
 {
   "name": "@openspec-ui/server",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.3",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
-    "@openspec-ui/core": "*"
+    "@openspec-ui/core": "*",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.23.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "lint": "eslint src",
+    "test": "vitest run",
+    "build": "node scripts/build-client.mjs",
+    "start": "tsx src/cli.ts"
   }
 }

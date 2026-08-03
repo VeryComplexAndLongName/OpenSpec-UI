@@ -70,6 +70,21 @@ TypeScript, npm workspaces (monorepo) — rationale in
 contract tests between `webui` and `server` are required before archiving
 `standalone-app` (see `openspec/config.yaml`, `operations.archive.guidance`).
 
+## Runtime Environment (Node.js)
+
+This repository uses npm workspaces and pins the local runtime with Volta in
+the root `package.json` (`volta` + `engines` fields).
+
+For Windows setup:
+
+1. Install Volta: `winget install Volta.Volta`
+2. Open a new terminal in the repository root.
+3. Install dependencies: `npm install`
+4. Verify pinned runtime: `volta list`
+
+After that, regular project commands (`npm run typecheck`, `npm run lint`,
+`npm run test`) use the pinned Node.js/npm versions automatically.
+
 ## Versioning
 
 The project uses semver per package, not only at the standalone/extension
