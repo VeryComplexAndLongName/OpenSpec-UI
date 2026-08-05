@@ -5,8 +5,11 @@
 // openspec/changes/standalone-app/design.md, "Decisions").
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  createChange,
+  initOpenSpec,
   listChanges,
   listSpecs,
   showChange,
@@ -43,6 +46,13 @@ interface OverviewResponse {
   root: OpenSpecRoot;
   changes: OpenSpecChangeListItem[];
   specs: OpenSpecSpecListItem[];
+  initialization: OpenSpecInitialization;
+}
+
+interface OpenSpecInitialization {
+  hasOpenSpecDir: boolean;
+  hasInitializationArtifacts: boolean;
+  canInitialize: boolean;
 }
 
 function isOverviewRequest(value: unknown): value is OverviewRequest {
@@ -53,6 +63,285 @@ function isOverviewRequest(value: unknown): value is OverviewRequest {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+interface ChangeEditorReadRequest {
+  cwd: string;
+  changeName: string;
+}
+
+interface ChangeEditorSaveRequest extends ChangeEditorReadRequest {
+  files: {
+    proposal: string;
+    design: string;
+    tasks: string;
+    spec: string;
+  };
+}
+
+interface ChangeEditorCreateRequest {
+  cwd: string;
+  changeName: string;
+  description?: string;
+}
+
+interface OpenSpecInitRequest {
+  cwd: string;
+  tools: string[];
+}
+
+const SUPPORTED_INIT_TOOLS = new Set([
+  "amazon-q",
+  "antigravity",
+  "auggie",
+  "bob",
+  "claude",
+  "cline",
+  "codeartsagent",
+  "codex",
+  "devin",
+  "forgecode",
+  "codebuddy",
+  "continue",
+  "costrict",
+  "crush",
+  "cursor",
+  "factory",
+  "gemini",
+  "github-copilot",
+  "hermes",
+  "iflow",
+  "junie",
+  "kilocode",
+  "kimi",
+  "kiro",
+  "lingma",
+  "vibe",
+  "oh-my-pi",
+  "opencode",
+  "pi",
+  "qoder",
+  "qwen",
+  "roocode",
+  "trae",
+  "zcode",
+]);
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isChangeName(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9-]*$/i.test(value);
+}
+
+function resolveChangeRoot(cwd: string, changeName: string): string {
+  const changesRoot = path.resolve(cwd, "openspec", "changes");
+  const changeRoot = path.resolve(changesRoot, changeName);
+  const rootWithSep = `${changesRoot}${path.sep}`;
+  if (!(changeRoot === changesRoot || changeRoot.startsWith(rootWithSep))) {
+    throw new Error("change path is outside openspec/changes root");
+  }
+  return changeRoot;
+}
+
+function isChangeEditorReadRequest(value: unknown): value is ChangeEditorReadRequest {
+  if (!isObjectRecord(value)) return false;
+  return isNonEmptyString(value.cwd) && isChangeName(value.changeName);
+}
+
+function isChangeEditorCreateRequest(value: unknown): value is ChangeEditorCreateRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd) || !isChangeName(value.changeName)) return false;
+  return value.description === undefined || typeof value.description === "string";
+}
+
+function isChangeEditorSaveRequest(value: unknown): value is ChangeEditorSaveRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd) || !isChangeName(value.changeName)) return false;
+  if (!isObjectRecord(value.files)) return false;
+  const files = value.files;
+  return (
+    typeof files.proposal === "string" &&
+    typeof files.design === "string" &&
+    typeof files.tasks === "string" &&
+    typeof files.spec === "string"
+  );
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeRequestedTools(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return [...new Set(normalized)];
+}
+
+function isOpenSpecInitRequest(value: unknown): value is OpenSpecInitRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd)) return false;
+  const tools = normalizeRequestedTools(value.tools);
+  if (tools.length === 0) return false;
+  return tools.every((tool) => SUPPORTED_INIT_TOOLS.has(tool));
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function detectOpenSpecInitialization(cwd: string): Promise<OpenSpecInitialization> {
+  const openspecDir = path.resolve(cwd, "openspec");
+  const [hasOpenSpecDir, hasConfigYaml, hasChangesDir, hasSpecsDir] = await Promise.all([
+    pathExists(openspecDir),
+    pathExists(path.join(openspecDir, "config.yaml")),
+    pathExists(path.join(openspecDir, "changes")),
+    pathExists(path.join(openspecDir, "specs")),
+  ]);
+
+  const hasInitializationArtifacts = hasConfigYaml || hasChangesDir || hasSpecsDir;
+  return {
+    hasOpenSpecDir,
+    hasInitializationArtifacts,
+    canInitialize: !hasInitializationArtifacts,
+  };
+}
+
+async function readFileIfExists(filePath: string): Promise<string> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+export async function handleChangeEditorCreateRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "invalid JSON body" });
+    return;
+  }
+
+  if (!isChangeEditorCreateRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
+    return;
+  }
+
+  try {
+    await createChange(parsed.changeName, { cwd: parsed.cwd }, { description: parsed.description });
+    sendJson(res, 200, { ok: true, changeName: parsed.changeName });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to create change: ${message}` });
+  }
+}
+
+export async function handleChangeEditorReadRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "invalid JSON body" });
+    return;
+  }
+
+  if (!isChangeEditorReadRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
+    return;
+  }
+
+  try {
+    const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
+    const specPath = path.join(changeRoot, "specs", parsed.changeName, "spec.md");
+    const [proposal, design, tasks, spec] = await Promise.all([
+      readFileIfExists(path.join(changeRoot, "proposal.md")),
+      readFileIfExists(path.join(changeRoot, "design.md")),
+      readFileIfExists(path.join(changeRoot, "tasks.md")),
+      readFileIfExists(specPath),
+    ]);
+
+    sendJson(res, 200, {
+      changeName: parsed.changeName,
+      files: { proposal, design, tasks, spec },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read change files: ${message}` });
+  }
+}
+
+export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "invalid JSON body" });
+    return;
+  }
+
+  if (!isChangeEditorSaveRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd/changeName/files" });
+    return;
+  }
+
+  try {
+    const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
+    const specDir = path.join(changeRoot, "specs", parsed.changeName);
+    await mkdir(specDir, { recursive: true });
+
+    await Promise.all([
+      writeFile(path.join(changeRoot, "proposal.md"), parsed.files.proposal, "utf8"),
+      writeFile(path.join(changeRoot, "design.md"), parsed.files.design, "utf8"),
+      writeFile(path.join(changeRoot, "tasks.md"), parsed.files.tasks, "utf8"),
+      writeFile(path.join(specDir, "spec.md"), parsed.files.spec, "utf8"),
+    ]);
+
+    sendJson(res, 200, { ok: true, changeName: parsed.changeName });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to save change files: ${message}` });
+  }
+}
+
+export async function handleOpenSpecInitRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { error: "invalid JSON body" });
+    return;
+  }
+
+  if (!isOpenSpecInitRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and supported tools[]" });
+    return;
+  }
+
+  try {
+    const initialization = await detectOpenSpecInitialization(parsed.cwd);
+    if (!initialization.canInitialize) {
+      sendJson(res, 409, { error: "OpenSpec initialization artifacts already exist in this workspace" });
+      return;
+    }
+
+    await initOpenSpec({ cwd: parsed.cwd }, { tools: normalizeRequestedTools(parsed.tools) });
+    const nextInitialization = await detectOpenSpecInitialization(parsed.cwd);
+    sendJson(res, 200, { ok: true, initialization: nextInitialization });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to initialize OpenSpec: ${message}` });
+  }
 }
 
 export async function handleStatusRequest(
@@ -104,6 +393,18 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
   const cwd = parsed.cwd;
 
   try {
+    const initialization = await detectOpenSpecInitialization(cwd);
+    if (!initialization.hasInitializationArtifacts) {
+      const payload: OverviewResponse = {
+        root: { path: cwd, source: initialization.hasOpenSpecDir ? "openspec-dir" : "cwd" },
+        changes: [],
+        specs: [],
+        initialization,
+      };
+      sendJson(res, 200, payload);
+      return;
+    }
+
     const [changesResult, specsResult] = await Promise.all([
       listChanges({ cwd }),
       listSpecs({ cwd }),
@@ -113,6 +414,7 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
       root: changesResult.root,
       changes: changesResult.changes,
       specs: specsResult.specs,
+      initialization,
     };
     sendJson(res, 200, payload);
   } catch (error) {

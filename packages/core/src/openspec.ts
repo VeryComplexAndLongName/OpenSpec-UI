@@ -153,6 +153,24 @@ export interface OpenSpecStatusResult {
   [key: string]: unknown;
 }
 
+export interface CreateChangeOptions {
+  description?: string;
+  goal?: string;
+}
+
+export interface OpenSpecCreateChangeResult {
+  [key: string]: unknown;
+}
+
+export interface OpenSpecInitOptions {
+  tools: string[];
+}
+
+export interface OpenSpecInitResult {
+  stdout: string;
+  stderr: string;
+}
+
 async function runJson<T>(args: string[], options: OpenSpecCliOptions): Promise<T> {
   const binary = options.binary ?? "openspec";
   const { stdout } = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
@@ -183,4 +201,32 @@ export async function validateChange(
 
 export async function statusChange(changeName: string, options: OpenSpecCliOptions): Promise<OpenSpecStatusResult> {
   return runJson<OpenSpecStatusResult>(["status", "--change", changeName, "--json"], options);
+}
+
+export async function createChange(
+  changeName: string,
+  options: OpenSpecCliOptions,
+  createOptions: CreateChangeOptions = {},
+): Promise<OpenSpecCreateChangeResult> {
+  const args = ["new", "change", changeName, "--json"];
+  if (createOptions.description) {
+    args.push("--description", createOptions.description);
+  }
+  if (createOptions.goal) {
+    args.push("--goal", createOptions.goal);
+  }
+  return runJson<OpenSpecCreateChangeResult>(args, options);
+}
+
+export async function initOpenSpec(
+  options: OpenSpecCliOptions,
+  initOptions: OpenSpecInitOptions,
+): Promise<OpenSpecInitResult> {
+  const tools = initOptions.tools.map((tool) => tool.trim()).filter((tool) => tool.length > 0);
+  if (tools.length === 0) {
+    throw new Error("initOpenSpec requires at least one tool");
+  }
+  const binary = options.binary ?? "openspec";
+  const args = ["init", "--tools", tools.join(",")];
+  return execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
 }

@@ -16,7 +16,7 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const { listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
+const { createChange, initOpenSpec, listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
 
 /** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
  * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
@@ -114,6 +114,52 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(result.changeName).toBe("command-output-hub");
     expect(result.progress.total).toBeGreaterThan(0);
     expect(result.artifacts.length).toBeGreaterThan(0);
+  });
+
+  it("createChange calls `openspec new change --json` with optional metadata", async () => {
+    mockSuccessfulSpawn('{"ok":true}');
+
+    await createChange(
+      "new-editor-change",
+      { cwd: "C:\\Prog\\OpenSpec-UI" },
+      { description: "Create editor MVP", goal: "Improve authoring" },
+    );
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openspec",
+      [
+        "new",
+        "change",
+        "new-editor-change",
+        "--json",
+        "--description",
+        "Create editor MVP",
+        "--goal",
+        "Improve authoring",
+      ],
+      { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
+    );
+  });
+
+  it("initOpenSpec calls `openspec init --tools` with selected tools", async () => {
+    mockSuccessfulSpawn("initialized");
+
+    await initOpenSpec(
+      { cwd: "C:\\Prog\\OpenSpec-UI" },
+      { tools: ["github-copilot", "codex", "cline"] },
+    );
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openspec",
+      ["init", "--tools", "github-copilot,codex,cline"],
+      { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
+    );
+  });
+
+  it("initOpenSpec rejects when no tools are provided", async () => {
+    await expect(initOpenSpec({ cwd: "/repo" }, { tools: [] })).rejects.toThrow(
+      "initOpenSpec requires at least one tool",
+    );
   });
 
   it("uses a custom binary path when provided", async () => {

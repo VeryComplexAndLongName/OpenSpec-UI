@@ -89,6 +89,8 @@ export const shellThemeCss = `
   }
 
   .openspec-shell-field input,
+  .openspec-shell-field textarea,
+  .openspec-shell-field select,
   .openspec-ai-panel-controls select,
   .openspec-ai-panel-controls button {
     border: 1px solid var(--line);
@@ -100,6 +102,8 @@ export const shellThemeCss = `
   }
 
   .openspec-shell-field input:focus,
+  .openspec-shell-field textarea:focus,
+  .openspec-shell-field select:focus,
   .openspec-ai-panel-controls select:focus,
   .openspec-ai-panel-controls button:focus {
     outline: 2px solid color-mix(in srgb, var(--primary) 65%, white 35%);
@@ -515,8 +519,108 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
+  .openspec-editor-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+
+  .openspec-editor-tabs button {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--ink);
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .openspec-editor-tabs button.is-active {
+    background: var(--primary);
+    color: var(--primary-ink);
+    border-color: transparent;
+  }
+
+  .openspec-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .openspec-editor-textarea {
+    min-height: 320px;
+    resize: vertical;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+  }
+
+  .openspec-md-preview {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px;
+    min-height: 320px;
+    overflow: auto;
+    font-size: 13px;
+  }
+
+  .openspec-md-preview p,
+  .openspec-md-preview ul,
+  .openspec-md-preview ol,
+  .openspec-md-preview pre,
+  .openspec-md-preview blockquote,
+  .openspec-md-preview table,
+  .openspec-md-preview h2,
+  .openspec-md-preview h3,
+  .openspec-md-preview h4 {
+    margin: 0 0 8px;
+  }
+
+  .openspec-md-preview ul,
+  .openspec-md-preview ol {
+    padding-left: 20px;
+  }
+
+  .openspec-md-preview pre {
+    background: #f8f3e8;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px;
+    overflow: auto;
+  }
+
+  .openspec-md-preview code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+  }
+
+  .openspec-md-preview blockquote {
+    border-left: 3px solid var(--line);
+    padding-left: 10px;
+    color: var(--muted);
+  }
+
+  .openspec-md-preview table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .openspec-md-preview th,
+  .openspec-md-preview td {
+    border: 1px solid var(--line);
+    padding: 6px 8px;
+    text-align: left;
+  }
+
+  .openspec-md-preview thead th {
+    background: var(--surface-2);
+  }
+
   @media (max-width: 760px) {
     .openspec-shell-grid { grid-template-columns: 1fr; }
+    .openspec-editor-grid { grid-template-columns: 1fr; }
     .openspec-standalone-app,
     .openspec-extension-app { margin: 10px auto; padding: 10px; }
   }
