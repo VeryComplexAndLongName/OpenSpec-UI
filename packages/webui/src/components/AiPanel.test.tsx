@@ -114,6 +114,98 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.getByTestId("event-0-status")).toHaveTextContent("blocked");
     });
 
+    it("renders status JSON card even when progress is omitted", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-status-no-progress"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "stdout",
+            runId: "run-status-no-progress",
+            timestamp: "t",
+            chunk: JSON.stringify({
+                changeName: "direct-openspec-mode",
+                schemaName: "spec-driven",
+                isComplete: true,
+                nextSteps: ["All planning artifacts are complete; review tasks before implementation."],
+                artifacts: [
+                    { id: "proposal", outputPath: "proposal.md", status: "done", requires: [] },
+                    { id: "tasks", outputPath: "tasks.md", status: "done", requires: ["design"] },
+                ],
+            }),
+        });
+
+        expect(screen.getByTestId("event-0-status")).toBeInTheDocument();
+        expect(screen.getByTestId("event-0-status")).toHaveTextContent("direct-openspec-mode");
+        expect(screen.getByTestId("event-0-status")).toHaveTextContent("Progress: 2/2");
+    });
+
+    it("renders list JSON as a structured changes card", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-list-json"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "stdout",
+            runId: "run-list-json",
+            timestamp: "t",
+            chunk: JSON.stringify({
+                changes: [
+                    { name: "direct-openspec-mode", completedTasks: 14, totalTasks: 14, status: "complete" },
+                    { name: "command-output-hub", completedTasks: 20, totalTasks: 20, status: "complete" },
+                ],
+            }),
+        });
+
+        expect(screen.getByTestId("event-0-list")).toHaveTextContent("OpenSpec Changes");
+        expect(screen.getByTestId("event-0-list")).toHaveTextContent("direct-openspec-mode");
+    });
+
+    it("renders show JSON as a structured card", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-show"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "stdout",
+            runId: "run-show",
+            timestamp: "t1",
+            chunk: JSON.stringify({
+                id: "direct-openspec-mode",
+                title: "Direct mode",
+                deltaCount: 2,
+                deltas: [
+                    { spec: "command-output", operation: "add", description: "add command-json endpoint" },
+                ],
+            }),
+        });
+
+        expect(screen.getByTestId("event-0-show")).toHaveTextContent("direct-openspec-mode");
+        expect(screen.getByTestId("event-0-show")).toHaveTextContent("2 deltas");
+    });
+
+    it("renders validate JSON as a structured card", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-validate"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "stdout",
+            runId: "run-validate",
+            timestamp: "t2",
+            chunk: JSON.stringify({
+                items: [
+                    { id: "spec-1", type: "spec", valid: true },
+                    { id: "spec-2", type: "spec", valid: false },
+                ],
+                summary: { totals: { items: 2, passed: 1, failed: 1 } },
+            }),
+        });
+
+        expect(screen.getByTestId("event-0-validate")).toHaveTextContent("1/2 passed");
+        expect(screen.getByTestId("event-0-validate")).toHaveTextContent("spec-2");
+    });
+
     it("toggles run button state while status run is in progress", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-1"} />);
@@ -154,5 +246,18 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             runId: "run-select",
             context: { changeDir: "/repo/openspec/changes/direct-openspec-mode", promptContext: undefined },
         } satisfies Command);
+    });
+
+    it("shows explicit loading and failure status labels", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-status-line"} />);
+
+        expect(screen.getByTestId("run-status-label")).toHaveTextContent("Idle");
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        expect(screen.getByTestId("run-status-label")).toHaveTextContent("Loading...");
+
+        emit({ kind: "failed", runId: "run-status-line", timestamp: "t", reason: "network down" });
+        expect(screen.getByTestId("run-status-label")).toHaveTextContent("Failed: network down");
     });
 });

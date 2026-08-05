@@ -59,7 +59,12 @@ export class RunController {
           }
           const status = await statusChange(changeName, { cwd: command.cwd });
           result = status;
-          summary = `${status.progress.complete}/${status.progress.total} tasks complete`;
+          const progress = status.progress;
+          if (progress && typeof progress.complete === "number" && typeof progress.total === "number") {
+            summary = `${progress.complete}/${progress.total} tasks complete`;
+          } else {
+            summary = `status loaded for ${status.changeName}`;
+          }
           break;
         }
         case "list": {

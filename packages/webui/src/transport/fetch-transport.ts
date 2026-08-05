@@ -35,7 +35,11 @@ export class FetchTransport implements Transport {
 
   constructor(options: FetchTransportOptions) {
     this.baseUrl = options.baseUrl;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    if (options.fetchImpl) {
+      this.fetchImpl = options.fetchImpl;
+    } else {
+      this.fetchImpl = fetch.bind(globalThis) as typeof fetch;
+    }
     const ctor = options.webSocketCtor ?? (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
     if (!ctor) {
       throw new Error("FetchTransport: WebSocket недоступен в этом окружении и не передан явно");
@@ -52,6 +56,14 @@ export class FetchTransport implements Transport {
   }
 
   private sendDirectOverRest(command: Command): void {
+    this.dispatchIfValid({
+      kind: "started",
+      runId: command.runId,
+      timestamp: new Date().toISOString(),
+      command: command.kind,
+      cwd: command.cwd,
+    });
+
     this.fetchImpl(`${this.baseUrl}/api/command-json`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -64,10 +76,25 @@ export class FetchTransport implements Transport {
         const data = (await res.json()) as { events?: unknown };
         const events = Array.isArray(data.events) ? data.events : [];
         for (const raw of events) {
+          if (
+            typeof raw === "object" &&
+            raw !== null &&
+            (raw as { kind?: unknown }).kind === "started" &&
+            (raw as { runId?: unknown }).runId === command.runId
+          ) {
+            continue;
+          }
           this.dispatchIfValid(raw);
         }
       })
       .catch((err: unknown) => {
+        const reason = err instanceof Error ? err.message : String(err);
+        this.dispatchIfValid({
+          kind: "failed",
+          runId: command.runId,
+          timestamp: new Date().toISOString(),
+          reason: `direct command ${command.kind} failed: ${reason}`,
+        });
         console.error(`[FetchTransport] failed to execute direct command ${command.kind}:`, err);
       });
   }

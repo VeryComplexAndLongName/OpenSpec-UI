@@ -3,6 +3,8 @@
 This change keeps OpenSpec as the source of truth and removes user-facing
 reliance on external AI agent CLIs for command execution paths.
 
+Architecture reference: ADR 0002 (`docs/adr/0002-direct-openspec-mode-no-agent-orchestration.md`).
+
 ## Decisions
 
 - Extension command palette keeps `status` and utility commands

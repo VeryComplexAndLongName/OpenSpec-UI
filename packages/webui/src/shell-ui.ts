@@ -150,6 +150,12 @@ export const shellThemeCss = `
     margin-bottom: 10px;
   }
 
+  .openspec-run-status {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
   .openspec-run-insights {
     margin: 0 0 10px;
     padding: 10px 12px;
@@ -308,6 +314,47 @@ export const shellThemeCss = `
   .openspec-status-pill.is-failed {
     background: #fbe3e3;
     color: #9d2f2f;
+  }
+
+  .openspec-data-card {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+  }
+
+  .openspec-data-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .openspec-data-card-head span,
+  .openspec-data-card-note,
+  .openspec-data-card-secondary {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .openspec-data-card-list {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+
+  .openspec-data-card-list li {
+    display: grid;
+    gap: 2px;
+  }
+
+  .openspec-data-card-primary {
+    color: var(--ink);
   }
 
   .openspec-event-checklist,
