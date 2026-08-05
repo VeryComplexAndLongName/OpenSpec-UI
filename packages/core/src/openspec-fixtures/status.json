@@ -1,0 +1,60 @@
+{
+    "changeName": "command-output-hub",
+    "schemaName": "spec-driven",
+    "progress": {
+        "total": 16,
+        "complete": 16,
+        "remaining": 0
+    },
+    "artifacts": [
+        {
+            "id": "proposal",
+            "outputPath": "proposal.md",
+            "status": "done",
+            "requires": []
+        },
+        {
+            "id": "specs",
+            "outputPath": "specs/**/*.md",
+            "status": "done",
+            "requires": [
+                "proposal"
+            ]
+        },
+        {
+            "id": "design",
+            "outputPath": "design.md",
+            "status": "done",
+            "requires": [
+                "proposal"
+            ]
+        },
+        {
+            "id": "tasks",
+            "outputPath": "tasks.md",
+            "status": "done",
+            "requires": [
+                "specs",
+                "design"
+            ]
+        }
+    ],
+    "tasks": [
+        {
+            "id": "1",
+            "description": "1.1 Extend AI panel command picker to include status.",
+            "done": true
+        },
+        {
+            "id": "2",
+            "description": "1.2 Implement structured event rendering for stdout/stderr/completed payloads.",
+            "done": true
+        }
+    ],
+    "state": "all_done",
+    "instruction": "All tasks are complete.",
+    "root": {
+        "path": "C:\\Prog\\OpenSpec-UI",
+        "source": "nearest"
+    }
+}

@@ -11,6 +11,15 @@ back to the source of truth instead of duplicating the rule.
 2. Read `openspec/README.md` for the change-order runbook.
 3. Read `openspec/changes/*/tasks.md` before implementing a capability.
 
+## Governance (mandatory)
+
+- Every repository change must be tracked in an OpenSpec change entry under
+   `openspec/changes/<id>/`.
+- Do not apply direct ad-hoc changes outside OpenSpec, including docs/tests/
+   tooling updates.
+- All architecture-impacting changes must be documented via ADR in
+   `docs/adr/`, and the OpenSpec change must reference that ADR.
+
 ## Architecture rules
 
 - Keep business logic in `packages/core`.

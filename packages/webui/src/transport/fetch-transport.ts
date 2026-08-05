@@ -44,15 +44,15 @@ export class FetchTransport implements Transport {
   }
 
   send(command: Command): void {
-    if (command.kind === "status") {
-      this.sendStatusOverRest(command);
+    if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
+      this.sendDirectOverRest(command);
       return;
     }
     this.sendOverWebSocket(command);
   }
 
-  private sendStatusOverRest(command: Command): void {
-    this.fetchImpl(`${this.baseUrl}/api/status`, {
+  private sendDirectOverRest(command: Command): void {
+    this.fetchImpl(`${this.baseUrl}/api/command-json`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command),
@@ -68,7 +68,7 @@ export class FetchTransport implements Transport {
         }
       })
       .catch((err: unknown) => {
-        console.error("[FetchTransport] не удалось выполнить status:", err);
+        console.error(`[FetchTransport] failed to execute direct command ${command.kind}:`, err);
       });
   }
 

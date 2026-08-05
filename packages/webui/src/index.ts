@@ -37,5 +37,4 @@ export {
 
 export { TasksChecklist, type TasksChecklistProps } from "./components/TasksChecklist.js";
 
-export { AgentPicker, type AgentPickerProps } from "./components/AgentPicker.js";
 export { AiPanel, type AiPanelProps } from "./components/AiPanel.js";

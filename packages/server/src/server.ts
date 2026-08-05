@@ -4,8 +4,8 @@
 import { type Server as HttpServer, createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocketServer } from "ws";
-import { buildDefaultAgentRunners, type AgentRunner, type AuditLog } from "@openspec-ui/core";
-import { handleStatusRequest } from "./rest.js";
+import { type AgentRunner, type AuditLog } from "@openspec-ui/core";
+import { handleOverviewRequest, handleStatusJsonRequest, handleStatusRequest } from "./rest.js";
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
 
@@ -41,11 +41,19 @@ export interface OpenSpecUiServer {
 }
 
 export function createServer(options: ServerOptions): OpenSpecUiServer {
-  const runners = options.runners ?? buildDefaultAgentRunners(options);
+  const runners = options.runners ?? new Map<string, AgentRunner>();
 
   const httpServer = createHttpServer((req, res) => {
     if (req.method === "POST" && req.url === "/api/status") {
       void handleStatusRequest(req, res, runners);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/overview") {
+      void handleOverviewRequest(req, res);
+      return;
+    }
+    if (req.method === "POST" && (req.url === "/api/status-json" || req.url === "/api/command-json")) {
+      void handleStatusJsonRequest(req, res);
       return;
     }
     if (req.method === "GET" && req.url) {

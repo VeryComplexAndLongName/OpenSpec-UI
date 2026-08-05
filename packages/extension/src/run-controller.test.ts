@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
+import { vi } from "vitest";
+
+const statusChangeMock = vi.fn();
+const listChangesMock = vi.fn();
+const showChangeMock = vi.fn();
+const validateChangeMock = vi.fn();
+vi.mock("@openspec-ui/core", async () => {
+  const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+  return {
+    ...actual,
+    statusChange: (...args: unknown[]) => statusChangeMock(...args),
+    listChanges: (...args: unknown[]) => listChangesMock(...args),
+    showChange: (...args: unknown[]) => showChangeMock(...args),
+    validateChange: (...args: unknown[]) => validateChangeMock(...args),
+  };
+});
+
 import { RunController } from "./run-controller.js";
 
 function fakeRunner(events: Event[]): AgentRunner {
@@ -100,5 +117,57 @@ describe("RunController", () => {
     );
 
     expect(received).toHaveLength(0);
+  });
+
+  it("uses openspec status --json flow for status commands", async () => {
+    statusChangeMock.mockResolvedValueOnce({
+      changeName: "x",
+      schemaName: "spec-driven",
+      progress: { total: 2, complete: 1, remaining: 1 },
+      artifacts: [],
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+
+    const controller = new RunController();
+    const received: Event[] = [];
+    controller.onEvent((e) => received.push(e));
+
+    const statusCommand: Command = {
+      kind: "status",
+      cwd: "/workspace/repo",
+      runId: "run-status",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    await controller.run(fakeRunner([]), statusCommand);
+
+    expect(statusChangeMock).toHaveBeenCalledWith("x", { cwd: "/workspace/repo" });
+    expect(received[0]).toMatchObject({ kind: "started", runId: "run-status" });
+    expect(received[1]).toMatchObject({ kind: "stdout", runId: "run-status" });
+    expect(received[2]).toMatchObject({ kind: "completed", runId: "run-status" });
+  });
+
+  it("uses openspec list --json flow for list commands", async () => {
+    listChangesMock.mockResolvedValueOnce({
+      changes: [{ name: "x", completedTasks: 1, totalTasks: 1, lastModified: "2026-08-05T00:00:00Z", status: "complete" }],
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+
+    const controller = new RunController();
+    const received: Event[] = [];
+    controller.onEvent((e) => received.push(e));
+
+    const listCommand: Command = {
+      kind: "list",
+      cwd: "/workspace/repo",
+      runId: "run-list",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    await controller.run(fakeRunner([]), listCommand);
+
+    expect(listChangesMock).toHaveBeenCalledWith({ cwd: "/workspace/repo" });
+    expect(received[0]).toMatchObject({ kind: "started", runId: "run-list", command: "list" });
+    expect(received[2]).toMatchObject({ kind: "completed", runId: "run-list" });
   });
 });

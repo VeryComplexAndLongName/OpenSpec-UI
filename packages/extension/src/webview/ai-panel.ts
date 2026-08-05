@@ -33,7 +33,7 @@ export interface AiPanelDeps {
 export class AiPanel {
   private panel: vscode.WebviewPanel | undefined;
 
-  constructor(private readonly deps: AiPanelDeps) {}
+  constructor(private readonly deps: AiPanelDeps) { }
 
   reveal(): void {
     if (this.panel) {
@@ -65,6 +65,12 @@ export class AiPanel {
     const messageSub = panel.webview.onDidReceiveMessage((message: unknown) => {
       if (!isBridgeCommandMessage(message)) return;
       const command = message.command;
+
+      if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
+        void this.deps.runController.run(undefined, command);
+        return;
+      }
+
       const runner = this.deps.resolveRunner(command.agentId);
       if (!runner) {
         void panel.webview.postMessage({
@@ -73,7 +79,7 @@ export class AiPanel {
             kind: "failed",
             runId: command.runId,
             timestamp: new Date().toISOString(),
-            reason: `unknown agentId: ${String(command.agentId)}`,
+            reason: "AI agent execution is disabled in direct OpenSpec mode.",
           },
         });
         return;

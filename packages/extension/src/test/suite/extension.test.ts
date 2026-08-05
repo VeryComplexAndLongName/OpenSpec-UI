@@ -1,7 +1,5 @@
-// Живой прогон внутри реального VS Code (Extension Development Host, не
-// мок) — tasks.md 4.1 (primary mode, plan/implement с реальным CLI-агентом)
-// и 4.2 (переключение на локальный сервер). Результаты и покрытие живыми
-// агентами — см. TEST-NOTES.md.
+// Live run inside real VS Code (Extension Development Host) for direct
+// OpenSpec mode and optional local-server toggle.
 
 import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
@@ -24,11 +22,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   test("activates and registers all contributed commands", async () => {
     const commands = await vscode.commands.getCommands(true);
     for (const id of [
-      "openspec-ui.plan",
-      "openspec-ui.implement",
-      "openspec-ui.review",
       "openspec-ui.status",
-      "openspec-ui.cancel",
       "openspec-ui.openAiPanel",
       "openspec-ui.refresh",
       "openspec-ui.reviewDiff",
@@ -37,26 +31,16 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     }
   });
 
-  test("runners are built for the direct-import (primary) mode", () => {
+  test("runners are not required in direct OpenSpec mode", () => {
     const runners = api.getRunners();
-    assert.ok(runners, "runners map was not created — no workspace open?");
-    for (const id of ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]) {
-      assert.ok(runners.has(id), `expected runner "${id}" to be registered`);
-    }
+    assert.ok(runners === undefined || runners.size === 0);
   });
 
   test("optional local server is NOT running by default (primary mode is serverless)", () => {
     assert.equal(api.optionalServer?.isRunning ?? false, false);
   });
 
-  test("runs a real `plan` command through copilot-cli and observes a real event stream", async function () {
-    // GitHub Copilot CLI — единственный реально авторизованный агент в этом
-    // окружении на момент теста (см. TEST-NOTES.md, standalone-app's
-    // smoke-test-notes.md за тем же наблюдением). Claude CLI установлен, но
-    // не авторизован здесь.
-    const config = vscode.workspace.getConfiguration("openspec-ui");
-    await config.update("agent.defaultId", "copilot-cli", vscode.ConfigurationTarget.Global);
-
+  test("runs a real `status` command and observes a terminal event stream", async function () {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
 
@@ -71,11 +55,10 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     });
 
     try {
-      await vscode.commands.executeCommand("openspec-ui.plan");
+      await vscode.commands.executeCommand("openspec-ui.status");
     } finally {
       unsubscribe();
       vscode.window.showQuickPick = originalShowQuickPick;
-      await config.update("agent.defaultId", undefined, vscode.ConfigurationTarget.Global);
     }
 
     assert.ok(events.includes("started"), `expected a "started" event, got: ${events.join(", ")}`);

@@ -3,9 +3,8 @@
 // п.2 и openspec/changes/vscode-extension/design.md).
 
 import * as vscode from "vscode";
-import { resolveRunner as resolveFromRegistry, type AgentRunner } from "@openspec-ui/core";
+import type { AgentRunner } from "@openspec-ui/core";
 import { getWorkspaceRoot, readConfig } from "./config.js";
-import { createRunnersForWorkspace } from "./agent-runners.js";
 import { RunController } from "./run-controller.js";
 import { registerCommands } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
@@ -33,8 +32,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionTestApi {
 
   const workspaceRoot = getWorkspaceRoot();
   if (workspaceRoot) {
-    runners = createRunnersForWorkspace(workspaceRoot, readConfig());
-
     const changesTree = new ChangesTreeProvider(workspaceRoot);
     const archiveTree = new ArchiveTreeProvider(workspaceRoot);
     const specsTree = new SpecsTreeProvider(workspaceRoot);
@@ -60,14 +57,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionTestApi {
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
     runController,
-    resolveRunner: (agentId) => (runners ? resolveFromRegistry(runners, agentId) : undefined),
+    resolveRunner: () => undefined,
     getLocalServerUrl: () => optionalServer?.baseUrl,
   });
 
   registerCommands(context, {
     getWorkspaceRoot,
-    getRunners: () => runners,
-    getConfig: readConfig,
     runController,
     outputChannel,
     revealAiPanel: () => aiPanel.reveal(),

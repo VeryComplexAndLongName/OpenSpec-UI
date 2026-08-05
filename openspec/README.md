@@ -12,14 +12,35 @@ on the protocol defined in `execution-core`:
 3. `openspec/changes/standalone-app/` and `openspec/changes/vscode-extension/`
    in parallel; both depend on `execution-core` + `shared-ui`.
 
-## When to create a new OpenSpec entry vs a plain commit
+## Change Governance (mandatory)
 
-```
-Does the contract (`## Requirement`) in openspec/specs/* change?
-├── Yes → propose (or update, if the change is still active) → apply → archive
-└── No — bug fix/refactor without behavior changes
-      → plain git commit with a detailed message
-```
+All repository changes must be implemented through an OpenSpec change entry.
+Do not bypass OpenSpec with direct ad-hoc commits, even for documentation,
+tests, tooling, or refactoring.
+
+Required flow for every change:
+
+1. Create or update a change in `openspec/changes/<id>/`.
+2. Keep implementation scoped to `tasks.md` for that change.
+3. Validate with `openspec change validate --strict <id>`.
+4. Archive only after all required verification is complete.
+
+Reason: this keeps a full audit trail, supports safer rollback decisions, and
+preserves implementation history in a single structured process.
+
+## Architecture Changes via ADR (mandatory)
+
+Any architecture-impacting modification must be documented via ADR in
+`docs/adr/` before the implementation is considered complete.
+
+Examples include:
+
+- Delivery model changes (standalone vs extension responsibilities)
+- Protocol changes (commands/events, transport behavior)
+- Security model changes (allowlist, cwd sandbox, audit boundaries)
+- Moving business logic across package boundaries
+
+The related OpenSpec change must reference the ADR decision.
 
 ## Which command/skill to use when
 

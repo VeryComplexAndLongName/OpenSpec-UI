@@ -5,7 +5,15 @@
 // (`server`, `extension`) сериализуют эти же значения под свой транспорт
 // (REST/WS, message bridge) и не должны переопределять свои варианты.
 
-export type CommandKind = "plan" | "implement" | "review" | "status" | "cancel";
+export type CommandKind =
+  | "plan"
+  | "implement"
+  | "review"
+  | "status"
+  | "list"
+  | "show"
+  | "validate"
+  | "cancel";
 
 export interface CommandContext {
   /** Абсолютный путь к change'у OpenSpec, к которому относится команда. */

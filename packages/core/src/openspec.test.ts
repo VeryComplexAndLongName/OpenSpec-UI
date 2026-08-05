@@ -16,7 +16,7 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const { listChanges, listSpecs, showChange, validateChange } = await import("./openspec.js");
+const { listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
 
 /** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
  * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
@@ -99,6 +99,21 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.valid).toBe(true);
     expect(result.summary.totals.passed).toBe(1);
+  });
+
+  it("statusChange parses real `openspec status --change --json` output", async () => {
+    mockSuccessfulSpawn(await loadFixture("status.json"));
+
+    const result = await statusChange("command-output-hub", { cwd: "C:\\Prog\\OpenSpec-UI" });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openspec",
+      ["status", "--change", "command-output-hub", "--json"],
+      { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
+    );
+    expect(result.changeName).toBe("command-output-hub");
+    expect(result.progress.total).toBeGreaterThan(0);
+    expect(result.artifacts.length).toBeGreaterThan(0);
   });
 
   it("uses a custom binary path when provided", async () => {

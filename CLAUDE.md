@@ -17,6 +17,15 @@ Pointers, not duplicates: edit the source document, not this page.
    each with `proposal.md`/`design.md`/`tasks.md`/`specs/`. Start
    implementation from `tasks.md` in that order, not from scratch.
 
+## Governance (mandatory)
+
+- Every repository change must be performed through an OpenSpec change in
+   `openspec/changes/<id>/`.
+- Do not implement ad-hoc direct changes outside a tracked OpenSpec change,
+   including docs/tests/tooling updates.
+- Architecture changes must go through ADR in `docs/adr/` and be referenced by
+   the related OpenSpec change.
+
 ## Invariants (see `openspec/config.yaml`, `context` field)
 
 - All business logic lives only in `packages/core`. `server`/`extension` are

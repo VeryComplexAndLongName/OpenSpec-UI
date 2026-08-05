@@ -48,6 +48,12 @@ export function commandInstruction(kind: CommandKind): string {
       return "Проверь текущую реализацию описанного ниже change'а на соответствие спецификации.";
     case "status":
       return "Опиши текущий статус реализации описанного ниже change'а.";
+    case "list":
+      return "Show available OpenSpec changes.";
+    case "show":
+      return "Show details for the selected OpenSpec change.";
+    case "validate":
+      return "Run strict validation for the selected OpenSpec change.";
     case "cancel":
       return "Останови текущее выполнение для описанного ниже change'а.";
   }
