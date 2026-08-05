@@ -11,7 +11,7 @@ export {
 } from "./transport/message-bridge-transport.js";
 
 export type { ChangeSummary, TaskItem } from "./types.js";
-export { renderInlineMarkdown } from "./markdown.js";
+export { renderInlineMarkdown, renderMarkdown } from "./markdown.js";
 
 export { ChangesList, type ChangesListProps } from "./components/ChangesList.js";
 export { ChangeDiff, type ChangeDiffProps } from "./components/ChangeDiff.js";

@@ -5,7 +5,15 @@ import { type Server as HttpServer, createServer as createHttpServer } from "nod
 import type { AddressInfo } from "node:net";
 import { WebSocketServer } from "ws";
 import { type AgentRunner, type AuditLog } from "@openspec-ui/core";
-import { handleOverviewRequest, handleStatusJsonRequest, handleStatusRequest } from "./rest.js";
+import {
+  handleChangeEditorCreateRequest,
+  handleChangeEditorReadRequest,
+  handleChangeEditorSaveRequest,
+  handleOpenSpecInitRequest,
+  handleOverviewRequest,
+  handleStatusJsonRequest,
+  handleStatusRequest,
+} from "./rest.js";
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
 
@@ -54,6 +62,22 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && (req.url === "/api/status-json" || req.url === "/api/command-json")) {
       void handleStatusJsonRequest(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-editor/create") {
+      void handleChangeEditorCreateRequest(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-editor/read") {
+      void handleChangeEditorReadRequest(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-editor/save") {
+      void handleChangeEditorSaveRequest(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/openspec/init") {
+      void handleOpenSpecInitRequest(req, res);
       return;
     }
     if (req.method === "GET" && req.url) {

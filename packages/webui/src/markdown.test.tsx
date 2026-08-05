@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderInlineMarkdown } from "./markdown.js";
+import { renderInlineMarkdown, renderMarkdown } from "./markdown.js";
 
 function renderText(text: string) {
   const { container } = render(<>{renderInlineMarkdown(text)}</>);
@@ -30,5 +30,25 @@ describe("renderInlineMarkdown", () => {
     expect(container).toHaveTextContent("just plain text");
     expect(container.querySelector("strong")).toBeNull();
     expect(container.querySelector("code")).toBeNull();
+  });
+});
+
+describe("renderMarkdown", () => {
+  it("renders heading, task list and fenced code block", () => {
+    const md = [
+      "# Title",
+      "",
+      "- [x] done",
+      "- [ ] todo",
+      "",
+      "```ts",
+      "const x = 1;",
+      "```",
+    ].join("\n");
+
+    const { container } = render(<>{renderMarkdown(md)}</>);
+    expect(container.querySelector("h1")).toHaveTextContent("Title");
+    expect(container.querySelectorAll("input[type='checkbox']").length).toBe(2);
+    expect(container.querySelector("pre code")).toHaveTextContent("const x = 1;");
   });
 });

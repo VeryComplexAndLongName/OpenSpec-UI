@@ -4,6 +4,8 @@
 // и богатый рендер делегируются хосту (см. design.md, "Decisions").
 
 import type { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const TOKEN_RE = /\*\*(.+?)\*\*|`(.+?)`/g;
 
@@ -28,4 +30,8 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
     nodes.push(text.slice(lastIndex));
   }
   return nodes;
+}
+
+export function renderMarkdown(text: string): ReactNode {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>;
 }

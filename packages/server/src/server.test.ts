@@ -5,18 +5,23 @@
 // за отдельным живым smoke-тестом с реальным агентом).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import WebSocket from "ws";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
 const listChangesMock = vi.fn();
+const initOpenSpecMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
     ...actual,
     statusChange: (...args: unknown[]) => statusChangeMock(...args),
     listChanges: (...args: unknown[]) => listChangesMock(...args),
+    initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   };
 });
 
@@ -57,6 +62,13 @@ const statusCommand: Command = {
 let server: OpenSpecUiServer;
 let baseUrl: string;
 let wsUrl: string;
+const tempDirs: string[] = [];
+
+async function createTempWorkspace(): Promise<string> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-server-test-"));
+  tempDirs.push(dir);
+  return dir;
+}
 
 async function startServer(runners: Map<string, AgentRunner>) {
   server = createServer({ workspaceRoot: "/workspace/repo", host: "127.0.0.1", port: 0, runners });
@@ -66,7 +78,11 @@ async function startServer(runners: Map<string, AgentRunner>) {
 }
 
 afterEach(async () => {
+  statusChangeMock.mockReset();
+  listChangesMock.mockReset();
+  initOpenSpecMock.mockReset();
   await server?.close();
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe("server — REST /api/status", () => {
@@ -164,6 +180,67 @@ describe("server — REST /api/status", () => {
     expect(body.events[0]).toMatchObject({ kind: "started", runId: statusCommand.runId, command: "list" });
     expect(body.events[1]).toMatchObject({ kind: "stdout", runId: statusCommand.runId });
     expect(body.events[2]).toMatchObject({ kind: "completed", runId: statusCommand.runId });
+  });
+
+  it("returns overview with canInitialize=true for workspace without OpenSpec artifacts", async () => {
+    const cwd = await createTempWorkspace();
+
+    const res = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      changes: unknown[];
+      specs: unknown[];
+      initialization: { hasOpenSpecDir: boolean; hasInitializationArtifacts: boolean; canInitialize: boolean };
+    };
+    expect(body.changes).toEqual([]);
+    expect(body.specs).toEqual([]);
+    expect(body.initialization).toEqual({
+      hasOpenSpecDir: false,
+      hasInitializationArtifacts: false,
+      canInitialize: true,
+    });
+  });
+
+  it("initializes OpenSpec when tools are provided", async () => {
+    const cwd = await createTempWorkspace();
+    initOpenSpecMock.mockImplementationOnce(async () => {
+      await mkdir(path.join(cwd, "openspec", "changes"), { recursive: true });
+      await mkdir(path.join(cwd, "openspec", "specs"), { recursive: true });
+      await writeFile(path.join(cwd, "openspec", "config.yaml"), "# test\n", "utf8");
+      return { stdout: "ok", stderr: "" };
+    });
+
+    const res = await fetch(`${baseUrl}/api/openspec/init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, tools: ["github-copilot", "codex"] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(initOpenSpecMock).toHaveBeenCalledWith({ cwd }, { tools: ["github-copilot", "codex"] });
+    const body = (await res.json()) as {
+      initialization: { hasOpenSpecDir: boolean; hasInitializationArtifacts: boolean; canInitialize: boolean };
+    };
+    expect(body.initialization.hasInitializationArtifacts).toBe(true);
+    expect(body.initialization.canInitialize).toBe(false);
+  });
+
+  it("rejects init request with unsupported tools", async () => {
+    const cwd = await createTempWorkspace();
+
+    const res = await fetch(`${baseUrl}/api/openspec/init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, tools: ["unknown-tool"] }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(initOpenSpecMock).not.toHaveBeenCalled();
   });
 });
 

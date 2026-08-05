@@ -10,6 +10,7 @@ import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
+import { renderMarkdown } from "./markdown.js";
 
 interface OverviewChange {
   name: string;
@@ -33,6 +34,68 @@ interface OpenSpecOverview {
   root: OverviewRoot;
   changes: OverviewChange[];
   specs: OverviewSpec[];
+  initialization: {
+    hasOpenSpecDir: boolean;
+    hasInitializationArtifacts: boolean;
+    canInitialize: boolean;
+  };
+}
+
+const SUPPORTED_INIT_TOOLS = [
+  "amazon-q",
+  "antigravity",
+  "auggie",
+  "bob",
+  "claude",
+  "cline",
+  "codeartsagent",
+  "codex",
+  "devin",
+  "forgecode",
+  "codebuddy",
+  "continue",
+  "costrict",
+  "crush",
+  "cursor",
+  "factory",
+  "gemini",
+  "github-copilot",
+  "hermes",
+  "iflow",
+  "junie",
+  "kilocode",
+  "kimi",
+  "kiro",
+  "lingma",
+  "vibe",
+  "oh-my-pi",
+  "opencode",
+  "pi",
+  "qoder",
+  "qwen",
+  "roocode",
+  "trae",
+  "zcode",
+] as const;
+
+interface ChangeEditorFiles {
+  proposal: string;
+  design: string;
+  tasks: string;
+  spec: string;
+}
+
+type EditorTab = keyof ChangeEditorFiles;
+
+const EMPTY_EDITOR_FILES: ChangeEditorFiles = {
+  proposal: "",
+  design: "",
+  tasks: "",
+  spec: "",
+};
+
+function MarkdownPreview({ content }: { content: string }) {
+  return <div className="openspec-md-preview" data-testid="change-editor-preview">{renderMarkdown(content)}</div>;
 }
 
 const STORAGE_KEYS = {
@@ -62,6 +125,18 @@ function StandaloneApp() {
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [editorChangeName, setEditorChangeName] = useState("");
+  const [editorFiles, setEditorFiles] = useState<ChangeEditorFiles>(EMPTY_EDITOR_FILES);
+  const [editorTab, setEditorTab] = useState<EditorTab>("proposal");
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [editorCreating, setEditorCreating] = useState(false);
+  const [newChangeName, setNewChangeName] = useState("");
+  const [newChangeDescription, setNewChangeDescription] = useState("");
+  const [editorMessage, setEditorMessage] = useState<string | null>(null);
+  const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
+  const [initLoading, setInitLoading] = useState(false);
+  const [initMessage, setInitMessage] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin }), []);
 
   useEffect(() => {
@@ -109,6 +184,140 @@ function StandaloneApp() {
     }
   }
 
+  async function loadChangeEditor(changeName: string) {
+    if (cwd.trim().length === 0) {
+      setEditorMessage("Enter workspace root first.");
+      return;
+    }
+    setEditorLoading(true);
+    setEditorMessage(null);
+    try {
+      const response = await fetch(`${window.location.origin}/api/change-editor/read`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cwd, changeName }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+      }
+      const payload = (await response.json()) as { files: ChangeEditorFiles };
+      setEditorFiles(payload.files ?? EMPTY_EDITOR_FILES);
+      setEditorChangeName(changeName);
+      setEditorMessage(`Loaded ${changeName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setEditorMessage(`Load failed: ${message}`);
+    } finally {
+      setEditorLoading(false);
+    }
+  }
+
+  async function handleCreateChange() {
+    if (cwd.trim().length === 0) {
+      setEditorMessage("Enter workspace root first.");
+      return;
+    }
+    const changeName = newChangeName.trim();
+    if (!/^[a-z0-9][a-z0-9-]*$/i.test(changeName)) {
+      setEditorMessage("Change id must match [a-z0-9-].");
+      return;
+    }
+
+    setEditorCreating(true);
+    setEditorMessage(null);
+    try {
+      const response = await fetch(`${window.location.origin}/api/change-editor/create`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          cwd,
+          changeName,
+          description: newChangeDescription.trim().length > 0 ? newChangeDescription : undefined,
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+      }
+
+      setNewChangeName("");
+      setNewChangeDescription("");
+      await handleLoadOverview();
+      await loadChangeEditor(changeName);
+      setEditorMessage(`Created ${changeName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setEditorMessage(`Create failed: ${message}`);
+    } finally {
+      setEditorCreating(false);
+    }
+  }
+
+  async function handleSaveEditor() {
+    if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) {
+      setEditorMessage("Select and load a change first.");
+      return;
+    }
+
+    setEditorSaving(true);
+    setEditorMessage(null);
+    try {
+      const response = await fetch(`${window.location.origin}/api/change-editor/save`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cwd, changeName: editorChangeName, files: editorFiles }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+      }
+
+      await handleLoadOverview();
+      setEditorMessage(`Saved ${editorChangeName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setEditorMessage(`Save failed: ${message}`);
+    } finally {
+      setEditorSaving(false);
+    }
+  }
+
+  async function handleInitializeOpenSpec() {
+    if (cwd.trim().length === 0) {
+      setInitMessage("Enter workspace root first.");
+      return;
+    }
+    if (initTools.length === 0) {
+      setInitMessage("Select at least one AI tool.");
+      return;
+    }
+
+    setInitLoading(true);
+    setInitMessage(null);
+    try {
+      const response = await fetch(`${window.location.origin}/api/openspec/init`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cwd, tools: initTools }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+      }
+
+      await handleLoadOverview();
+      setInitMessage("OpenSpec initialized successfully.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setInitMessage(`Initialization failed: ${message}`);
+    } finally {
+      setInitLoading(false);
+    }
+  }
+
+  const canInitialize = Boolean(overview?.initialization?.canInitialize);
+
   return (
     <div className="openspec-standalone-app">
       <style>{shellThemeCss}</style>
@@ -127,6 +336,7 @@ function StandaloneApp() {
               type="text"
               value={cwd}
               onChange={(e) => handleCwdChange(e.target.value)}
+              onBlur={() => void handleLoadOverview()}
               placeholder="C:\\path\\to\\repo"
             />
           </label>
@@ -144,6 +354,37 @@ function StandaloneApp() {
           Tip: changing <strong>Workspace root (cwd)</strong> auto-fills <strong>Change directory</strong> as
           <code> openspec/changes</code>.
         </p>
+        {canInitialize ? (
+          <div className="openspec-shell-panel">
+            <p className="openspec-shell-note">
+              OpenSpec initialization artifacts were not found in this workspace. Select AI tools and initialize.
+            </p>
+            <label className="openspec-shell-field">
+              AI tools for OpenSpec init
+              <select
+                multiple
+                size={8}
+                value={initTools}
+                onChange={(e) => {
+                  const selected = Array.from(e.currentTarget.selectedOptions).map((option) => option.value);
+                  setInitTools(selected);
+                }}
+              >
+                {SUPPORTED_INIT_TOOLS.map((tool) => (
+                  <option key={tool} value={tool}>
+                    {tool}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="openspec-ai-panel-controls">
+              <button type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
+                {initLoading ? "Initializing..." : "Initialize OpenSpec"}
+              </button>
+            </div>
+            {initMessage ? <p className="openspec-shell-note">{initMessage}</p> : null}
+          </div>
+        ) : null}
         {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
           <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} />
         ) : (
@@ -239,6 +480,104 @@ function StandaloneApp() {
             ) : null}
           </div>
         ) : null}
+      </section>
+
+      <section className="openspec-shell-panel">
+        <h2>Change Editor</h2>
+        <p className="openspec-shell-note">
+          Create and edit change markdown artifacts before implementation.
+        </p>
+
+        <div className="openspec-shell-grid">
+          <label className="openspec-shell-field">
+            New change id
+            <input
+              type="text"
+              value={newChangeName}
+              onChange={(e) => setNewChangeName(e.target.value)}
+              placeholder="my-new-change"
+            />
+          </label>
+          <label className="openspec-shell-field">
+            Description
+            <input
+              type="text"
+              value={newChangeDescription}
+              onChange={(e) => setNewChangeDescription(e.target.value)}
+              placeholder="Short change description"
+            />
+          </label>
+        </div>
+
+        <div className="openspec-ai-panel-controls">
+          <button type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
+            {editorCreating ? "Creating..." : "Create change"}
+          </button>
+
+          <select
+            value={editorChangeName}
+            onChange={(e) => setEditorChangeName(e.target.value)}
+            disabled={overview?.changes.length === 0}
+          >
+            <option value="">Select change</option>
+            {(overview?.changes ?? []).map((change) => (
+              <option key={change.name} value={change.name}>{change.name}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => void loadChangeEditor(editorChangeName)}
+            disabled={editorLoading || editorChangeName.trim().length === 0}
+          >
+            {editorLoading ? "Loading..." : "Load change"}
+          </button>
+        </div>
+
+        {editorMessage ? <p className="openspec-shell-note">{editorMessage}</p> : null}
+
+        <div className="openspec-editor-tabs">
+          {(["proposal", "design", "tasks", "spec"] as EditorTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={tab === editorTab ? "is-active" : ""}
+              onClick={() => setEditorTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="openspec-editor-grid">
+          <label className="openspec-shell-field">
+            Markdown ({editorTab})
+            <textarea
+              className="openspec-editor-textarea"
+              value={editorFiles[editorTab]}
+              onChange={(e) => {
+                const value = e.target.value;
+                setEditorFiles((prev) => ({ ...prev, [editorTab]: value }));
+              }}
+              placeholder="Write markdown content"
+            />
+          </label>
+
+          <div>
+            <p className="openspec-shell-note">Preview</p>
+            <MarkdownPreview content={editorFiles[editorTab]} />
+          </div>
+        </div>
+
+        <div className="openspec-ai-panel-controls">
+          <button
+            type="button"
+            onClick={handleSaveEditor}
+            disabled={editorSaving || editorChangeName.trim().length === 0}
+          >
+            {editorSaving ? "Saving..." : "Save markdown"}
+          </button>
+        </div>
       </section>
     </div>
   );
