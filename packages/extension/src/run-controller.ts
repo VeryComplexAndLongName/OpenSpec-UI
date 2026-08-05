@@ -4,7 +4,7 @@
 // один и тот же поток событий и могли отменить один и тот же запуск.
 
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
-import { statusChange } from "@openspec-ui/core";
+import { listChanges, showChange, statusChange, validateChange } from "@openspec-ui/core";
 
 export type EventListener = (event: Event) => void;
 export type Unsubscribe = () => void;
@@ -33,29 +33,63 @@ export class RunController {
     return new Date().toISOString();
   }
 
-  private async runStatusFromJson(command: Command): Promise<void> {
+  private resolveChangeName(command: Command): string {
+    const segments = command.context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0);
+    return segments[segments.length - 1] ?? "";
+  }
+
+  private async runDirectOpenSpecCommand(command: Command): Promise<void> {
     this.emit({
       kind: "started",
       runId: command.runId,
       timestamp: this.nowIso(),
-      command: "status",
+      command: command.kind,
       cwd: command.cwd,
     });
 
-    const segments = command.context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0);
-    const changeName = segments[segments.length - 1] ?? "";
-    if (!changeName) {
-      this.emit({
-        kind: "failed",
-        runId: command.runId,
-        timestamp: this.nowIso(),
-        reason: "failed to resolve change name from command.context.changeDir",
-      });
-      return;
-    }
-
     try {
-      const result = await statusChange(changeName, { cwd: command.cwd });
+      const changeName = this.resolveChangeName(command);
+      let result: unknown;
+      let summary = "completed";
+
+      switch (command.kind) {
+        case "status": {
+          if (!changeName) {
+            throw new Error("failed to resolve change name from command.context.changeDir");
+          }
+          const status = await statusChange(changeName, { cwd: command.cwd });
+          result = status;
+          summary = `${status.progress.complete}/${status.progress.total} tasks complete`;
+          break;
+        }
+        case "list": {
+          const list = await listChanges({ cwd: command.cwd });
+          result = list;
+          summary = `${list.changes.length} changes listed`;
+          break;
+        }
+        case "show": {
+          if (!changeName) {
+            throw new Error("failed to resolve change name from command.context.changeDir");
+          }
+          const shown = await showChange(changeName, { cwd: command.cwd });
+          result = shown;
+          summary = `${shown.deltaCount} deltas in ${shown.id}`;
+          break;
+        }
+        case "validate": {
+          if (!changeName) {
+            throw new Error("failed to resolve change name from command.context.changeDir");
+          }
+          const validation = await validateChange(changeName, { cwd: command.cwd });
+          result = validation;
+          summary = `${validation.summary.totals.passed}/${validation.summary.totals.items} passed`;
+          break;
+        }
+        default:
+          throw new Error(`unsupported direct OpenSpec command: ${command.kind}`);
+      }
+
       this.emit({
         kind: "stdout",
         runId: command.runId,
@@ -66,7 +100,7 @@ export class RunController {
         kind: "completed",
         runId: command.runId,
         timestamp: this.nowIso(),
-        summary: `${result.progress.complete}/${result.progress.total} tasks complete`,
+        summary,
       });
     } catch (error) {
       this.emit({
@@ -82,8 +116,8 @@ export class RunController {
     this.activeCommand = command;
     this.activeRunner = runner;
     try {
-      if (command.kind === "status") {
-        await this.runStatusFromJson(command);
+      if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
+        await this.runDirectOpenSpecCommand(command);
         return;
       }
 

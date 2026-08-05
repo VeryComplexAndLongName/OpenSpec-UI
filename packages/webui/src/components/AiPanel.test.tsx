@@ -28,28 +28,33 @@ function createFakeTransport() {
 }
 
 describe("AiPanel (direct OpenSpec mode)", () => {
-    it("sends a status command with generated runId", () => {
+    it("sends a list command with generated runId", () => {
         const { transport, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-fixed"} />);
 
         fireEvent.click(screen.getByTestId("run-button"));
 
         expect(send).toHaveBeenCalledWith({
-            kind: "status",
+            kind: "list",
             cwd: "/repo",
             runId: "run-fixed",
-            context: { changeDir: "/repo/openspec/changes/x", promptContext: undefined },
+            context: { changeDir: "/repo/openspec/changes", promptContext: undefined },
         } satisfies Command);
     });
 
-    it("shows only status in command picker", () => {
+    it("shows direct OpenSpec commands in command picker", () => {
         const { transport } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
 
         const picker = screen.getByTestId("command-picker");
         const options = picker.querySelectorAll("option");
-        expect(options).toHaveLength(1);
-        expect(options[0]?.textContent).toBe("status");
+        expect(options).toHaveLength(4);
+        expect(Array.from(options).map((option) => option.textContent)).toEqual([
+            "status",
+            "list",
+            "show",
+            "validate",
+        ]);
     });
 
     it("renders events only for the active runId", () => {
@@ -120,5 +125,34 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         emit({ kind: "completed", runId: "run-1", timestamp: "t" });
         expect(screen.getByTestId("run-button")).not.toBeDisabled();
+    });
+
+    it("requires loading and selecting change before status command", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-select"} />);
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "status" } });
+        expect(screen.getByTestId("run-button")).toBeDisabled();
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-select",
+            timestamp: "t",
+            chunk: JSON.stringify({
+                changes: [{ name: "direct-openspec-mode" }],
+            }),
+        });
+        emit({ kind: "completed", runId: "run-select", timestamp: "t" });
+
+        expect(screen.getByTestId("run-button")).not.toBeDisabled();
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "status",
+            cwd: "/repo",
+            runId: "run-select",
+            context: { changeDir: "/repo/openspec/changes/direct-openspec-mode", promptContext: undefined },
+        } satisfies Command);
     });
 });

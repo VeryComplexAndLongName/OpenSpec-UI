@@ -52,7 +52,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       void handleOverviewRequest(req, res);
       return;
     }
-    if (req.method === "POST" && req.url === "/api/status-json") {
+    if (req.method === "POST" && (req.url === "/api/status-json" || req.url === "/api/command-json")) {
       void handleStatusJsonRequest(req, res);
       return;
     }

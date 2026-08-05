@@ -13,14 +13,23 @@ OpenSpec commands and utility actions.
 - **AND** direct OpenSpec commands (status/view/show/validate/spec summary)
   remain available
 
-### Requirement: Status command is JSON-native
-The system SHALL execute status via `openspec status --json` and SHALL render
-its result using structured UI elements.
+### Requirement: Direct JSON command set is non-interactive
+The system SHALL execute status/list/show/validate via OpenSpec JSON commands
+without interactive prompts and SHALL render their outputs in the panel.
+
+#### Scenario: User runs direct command from UI panel
+- **WHEN** command is one of status/list/show/validate
+- **THEN** host resolves it through OpenSpec JSON CLI wrappers
+- **AND** UI receives started/stdout/completed events without waiting for agent transport
+
+#### Scenario: User needs a change-scoped command
+- **WHEN** user selects status/show/validate
+- **THEN** UI requires loading changes via list and selecting a change before run
+- **AND** command context uses the selected change path
 
 #### Scenario: User runs status from UI panel
-- **WHEN** command is executed
-- **THEN** host resolves status with OpenSpec JSON
-- **AND** UI displays progress/artifact state as status card, not raw text
+- **WHEN** command is status
+- **THEN** UI displays progress/artifact state as status card, not raw text
 
 ### Requirement: Standalone server does not require AI runners by default
 The standalone server SHALL run with OpenSpec-direct capabilities without

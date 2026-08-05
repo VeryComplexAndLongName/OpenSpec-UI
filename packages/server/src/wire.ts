@@ -5,7 +5,16 @@
 
 import type { Command, CommandKind } from "@openspec-ui/core";
 
-const COMMAND_KINDS: readonly CommandKind[] = ["plan", "implement", "review", "status", "cancel"];
+const COMMAND_KINDS: readonly CommandKind[] = [
+  "plan",
+  "implement",
+  "review",
+  "status",
+  "list",
+  "show",
+  "validate",
+  "cancel",
+];
 
 export function isCommandLike(value: unknown): value is Command {
   if (typeof value !== "object" || value === null) return false;

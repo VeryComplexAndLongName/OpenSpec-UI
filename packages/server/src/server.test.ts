@@ -10,11 +10,13 @@ import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
+const listChangesMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
     ...actual,
     statusChange: (...args: unknown[]) => statusChangeMock(...args),
+    listChanges: (...args: unknown[]) => listChangesMock(...args),
   };
 });
 
@@ -133,6 +135,33 @@ describe("server — REST /api/status", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { events: Event[] };
     expect(body.events[0]).toMatchObject({ kind: "started", runId: statusCommand.runId });
+    expect(body.events[1]).toMatchObject({ kind: "stdout", runId: statusCommand.runId });
+    expect(body.events[2]).toMatchObject({ kind: "completed", runId: statusCommand.runId });
+  });
+
+  it("returns synthesized protocol events for /api/command-json list", async () => {
+    listChangesMock.mockResolvedValueOnce({
+      changes: [
+        {
+          name: "direct-openspec-mode",
+          completedTasks: 1,
+          totalTasks: 1,
+          lastModified: "2026-08-05T00:00:00.000Z",
+          status: "complete",
+        },
+      ],
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+
+    const res = await fetch(`${baseUrl}/api/command-json`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...statusCommand, kind: "list" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { events: Event[] };
+    expect(body.events[0]).toMatchObject({ kind: "started", runId: statusCommand.runId, command: "list" });
     expect(body.events[1]).toMatchObject({ kind: "stdout", runId: statusCommand.runId });
     expect(body.events[2]).toMatchObject({ kind: "completed", runId: statusCommand.runId });
   });

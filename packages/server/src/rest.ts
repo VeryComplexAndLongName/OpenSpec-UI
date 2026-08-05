@@ -9,7 +9,9 @@ import path from "node:path";
 import {
   listChanges,
   listSpecs,
+  showChange,
   statusChange,
+  validateChange,
   type AgentRunner,
   type Command,
   type Event,
@@ -134,25 +136,59 @@ export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerR
   }
 
   const command = parsed as Command;
-  const changeName = path.basename(command.context.changeDir);
-
-  if (!changeName) {
-    sendJson(res, 400, { error: "failed to resolve change name from changeDir" });
-    return;
-  }
-
   const events: Event[] = [
     {
       kind: "started",
       runId: command.runId,
       timestamp: nowIso(),
-      command: "status",
+      command: command.kind,
       cwd: command.cwd,
     },
   ];
 
   try {
-    const result = await statusChange(changeName, { cwd: command.cwd });
+    const changeName = path.basename(command.context.changeDir);
+    let result: unknown;
+    let summary = "completed";
+
+    switch (command.kind) {
+      case "status": {
+        if (!changeName) {
+          throw new Error("failed to resolve change name from changeDir");
+        }
+        const status = await statusChange(changeName, { cwd: command.cwd });
+        result = status;
+        summary = `${status.progress.complete}/${status.progress.total} tasks complete`;
+        break;
+      }
+      case "list": {
+        const listed = await listChanges({ cwd: command.cwd });
+        result = listed;
+        summary = `${listed.changes.length} changes listed`;
+        break;
+      }
+      case "show": {
+        if (!changeName) {
+          throw new Error("failed to resolve change name from changeDir");
+        }
+        const shown = await showChange(changeName, { cwd: command.cwd });
+        result = shown;
+        summary = `${shown.deltaCount} deltas in ${shown.id}`;
+        break;
+      }
+      case "validate": {
+        if (!changeName) {
+          throw new Error("failed to resolve change name from changeDir");
+        }
+        const validation = await validateChange(changeName, { cwd: command.cwd });
+        result = validation;
+        summary = `${validation.summary.totals.passed}/${validation.summary.totals.items} passed`;
+        break;
+      }
+      default:
+        throw new Error(`unsupported direct OpenSpec command: ${command.kind}`);
+    }
+
     events.push({
       kind: "stdout",
       runId: command.runId,
@@ -163,7 +199,7 @@ export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerR
       kind: "completed",
       runId: command.runId,
       timestamp: nowIso(),
-      summary: `${result.progress.complete}/${result.progress.total} tasks complete`,
+      summary,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -66,7 +66,7 @@ export class AiPanel {
       if (!isBridgeCommandMessage(message)) return;
       const command = message.command;
 
-      if (command.kind === "status") {
+      if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
         void this.deps.runController.run(undefined, command);
         return;
       }

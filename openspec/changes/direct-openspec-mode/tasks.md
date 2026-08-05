@@ -13,8 +13,8 @@
 ## 3. Shared UI
 
 - [x] 3.1 Remove agent picker from run panel.
-- [x] 3.2 Restrict run panel command set to `status`.
-- [x] 3.3 Keep structured status JSON rendering card.
+- [x] 3.2 Expose direct command set `status`/`list`/`show`/`validate` in run panel.
+- [x] 3.3 Keep structured status JSON rendering card while rendering other JSON outputs safely.
 
 ## 4. Verification
 

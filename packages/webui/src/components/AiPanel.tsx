@@ -11,7 +11,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Command, type CommandKind, type Event } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 
-const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status"];
+const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate"];
+const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate"];
 
 interface ChecklistItem {
   checked: boolean;
@@ -214,6 +215,42 @@ function collapseStreamEvents(events: Event[]): Event[] {
 
 function normalizeSentence(value: string): string {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function extractChangeNames(value: unknown): string[] | null {
+  if (!isObjectRecord(value) || !Array.isArray(value.changes)) return null;
+
+  const names = value.changes
+    .map((item) => {
+      if (!isObjectRecord(item) || typeof item.name !== "string") return null;
+      return item.name;
+    })
+    .filter((name): name is string => name !== null);
+
+  return names;
+}
+
+function parseChangeNamesFromStdout(raw: string): string[] | null {
+  const text = raw.trim();
+  if (!text.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return extractChangeNames(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function resolveChangesRoot(changeDir: string): string {
+  const normalized = changeDir.replace(/[\\/]+$/, "");
+  if (/[\\/]changes$/i.test(normalized)) return normalized;
+  const scopedMatch = normalized.match(/^(.*[\\/]changes)[\\/][^\\/]+$/i);
+  return scopedMatch?.[1] ?? normalized;
+}
+
+function joinPath(base: string, segment: string): string {
+  const separator = base.includes("\\") ? "\\" : "/";
+  return `${base.replace(/[\\/]+$/, "")}${separator}${segment}`;
 }
 
 function isIgnorableWarning(text: string): boolean {
@@ -490,14 +527,31 @@ export interface AiPanelProps {
 }
 
 export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunId = defaultRunId }: AiPanelProps) {
-  const [commandKind, setCommandKind] = useState<CommandKind>("status");
+  const [commandKind, setCommandKind] = useState<CommandKind>("list");
+  const [availableChanges, setAvailableChanges] = useState<string[]>([]);
+  const [selectedChange, setSelectedChange] = useState<string>("");
+  const [selectionHint, setSelectionHint] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
+  const changesRoot = useMemo(() => resolveChangesRoot(changeDir), [changeDir]);
 
   useEffect(() => {
     return transport.subscribe((event) => {
       if (event.runId === runIdRef.current) {
+        if (event.kind === "stdout") {
+          const names = parseChangeNamesFromStdout(event.chunk);
+          if (names !== null) {
+            setAvailableChanges(names);
+            setSelectedChange((current) => {
+              if (current.length > 0 && names.includes(current)) {
+                return current;
+              }
+              return names[0] ?? "";
+            });
+            setSelectionHint(names.length > 0 ? null : "No OpenSpec changes found. Create a change first.");
+          }
+        }
         setEvents((prev) => [...prev, event]);
       }
     });
@@ -507,24 +561,65 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);
 
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
+  const requiresSelectedChange = CHANGE_REQUIRED_COMMANDS.includes(commandKind);
+  const canRunCommand = !isRunning && (!requiresSelectedChange || selectedChange.length > 0);
 
-  function handleRun() {
+  function runCommand(kind: CommandKind) {
+    if (CHANGE_REQUIRED_COMMANDS.includes(kind) && selectedChange.length === 0) {
+      setSelectionHint("Run list and choose a change before this command.");
+      return;
+    }
+
+    const effectiveChangeDir = kind === "list" ? changesRoot : joinPath(changesRoot, selectedChange);
+
     const newRunId = generateRunId();
     runIdRef.current = newRunId;
     setRunId(newRunId);
     setEvents([]);
+    if (kind === "list") {
+      setSelectionHint(null);
+    }
+
     const command: Command = {
-      kind: commandKind,
+      kind,
       cwd,
       runId: newRunId,
-      context: { changeDir, promptContext },
+      context: { changeDir: effectiveChangeDir, promptContext },
     };
     transport.send(command);
+  }
+
+  function handleRun() {
+    runCommand(commandKind);
+  }
+
+  function handleLoadChanges() {
+    runCommand("list");
   }
 
   return (
     <div className="openspec-ai-panel">
       <div className="openspec-ai-panel-controls">
+        <button type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
+          Load changes
+        </button>
+        <select
+          aria-label="Select OpenSpec change"
+          data-testid="change-picker"
+          value={selectedChange}
+          onChange={(e) => {
+            setSelectedChange(e.target.value);
+            setSelectionHint(null);
+          }}
+          disabled={availableChanges.length === 0 || isRunning}
+        >
+          <option value="">Select change</option>
+          {availableChanges.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
         <select
           aria-label="Select command"
           data-testid="command-picker"
@@ -537,10 +632,11 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
             </option>
           ))}
         </select>
-        <button type="button" data-testid="run-button" onClick={handleRun} disabled={isRunning}>
+        <button type="button" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
           Run
         </button>
       </div>
+      {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
       {collapsedEvents.length > 0 ? (
         <section className="openspec-run-insights" data-testid="run-insights">
           <h3>Run analysis</h3>
