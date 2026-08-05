@@ -4,6 +4,7 @@
 // один и тот же поток событий и могли отменить один и тот же запуск.
 
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
+import { statusChange } from "@openspec-ui/core";
 
 export type EventListener = (event: Event) => void;
 export type Unsubscribe = () => void;
@@ -24,12 +25,80 @@ export class RunController {
     return this.activeCommand !== undefined;
   }
 
-  async run(runner: AgentRunner, command: Command): Promise<void> {
+  private emit(event: Event): void {
+    for (const listener of this.listeners) listener(event);
+  }
+
+  private nowIso(): string {
+    return new Date().toISOString();
+  }
+
+  private async runStatusFromJson(command: Command): Promise<void> {
+    this.emit({
+      kind: "started",
+      runId: command.runId,
+      timestamp: this.nowIso(),
+      command: "status",
+      cwd: command.cwd,
+    });
+
+    const segments = command.context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0);
+    const changeName = segments[segments.length - 1] ?? "";
+    if (!changeName) {
+      this.emit({
+        kind: "failed",
+        runId: command.runId,
+        timestamp: this.nowIso(),
+        reason: "failed to resolve change name from command.context.changeDir",
+      });
+      return;
+    }
+
+    try {
+      const result = await statusChange(changeName, { cwd: command.cwd });
+      this.emit({
+        kind: "stdout",
+        runId: command.runId,
+        timestamp: this.nowIso(),
+        chunk: JSON.stringify(result),
+      });
+      this.emit({
+        kind: "completed",
+        runId: command.runId,
+        timestamp: this.nowIso(),
+        summary: `${result.progress.complete}/${result.progress.total} tasks complete`,
+      });
+    } catch (error) {
+      this.emit({
+        kind: "failed",
+        runId: command.runId,
+        timestamp: this.nowIso(),
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async run(runner: AgentRunner | undefined, command: Command): Promise<void> {
     this.activeCommand = command;
     this.activeRunner = runner;
     try {
+      if (command.kind === "status") {
+        await this.runStatusFromJson(command);
+        return;
+      }
+
+      if (!runner) {
+        this.emit({
+          kind: "failed",
+          runId: command.runId,
+          timestamp: this.nowIso(),
+          reason: "AI agent execution is disabled in direct OpenSpec mode.",
+        });
+        return;
+      }
+
       for await (const event of runner.run(command)) {
-        for (const listener of this.listeners) listener(event);
+        this.emit(event);
       }
     } finally {
       if (this.activeCommand?.runId === command.runId) {

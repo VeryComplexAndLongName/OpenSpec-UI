@@ -150,6 +150,45 @@ export const shellThemeCss = `
     margin-bottom: 10px;
   }
 
+  .openspec-run-insights {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line) 75%);
+    background: #f4fbf8;
+    display: grid;
+    gap: 8px;
+  }
+
+  .openspec-run-insights h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .openspec-run-insights-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .openspec-run-insights-steps,
+  .openspec-run-insights-warnings {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .openspec-run-insights-highlight {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid var(--line);
+    font-size: 12px;
+  }
+
   .openspec-ai-panel-controls button {
     cursor: pointer;
     background: var(--primary);
@@ -194,12 +233,108 @@ export const shellThemeCss = `
     word-break: break-word;
   }
 
+  .openspec-status-card {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+  }
+
+  .openspec-status-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .openspec-status-card-meta,
+  .openspec-status-card-instruction {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .openspec-status-meter {
+    height: 7px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #ece4d4;
+  }
+
+  .openspec-status-meter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1f5d52 0%, #3e8c7f 100%);
+  }
+
+  .openspec-status-artifacts {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+
+  .openspec-status-artifacts li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .openspec-status-artifact-id {
+    color: var(--ink);
+  }
+
+  .openspec-status-pill {
+    font-size: 10px;
+    letter-spacing: 0.2px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: #efe8d7;
+    color: #6f665b;
+  }
+
+  .openspec-status-pill.is-done,
+  .openspec-status-pill.is-complete {
+    background: #dff3ea;
+    color: #1f5d52;
+  }
+
+  .openspec-status-pill.is-blocked,
+  .openspec-status-pill.is-failed {
+    background: #fbe3e3;
+    color: #9d2f2f;
+  }
+
   .openspec-event-checklist,
-  .openspec-event-bullets {
+  .openspec-event-bullets,
+  .openspec-event-steps {
     margin: 0;
     padding-left: 18px;
     display: grid;
     gap: 6px;
+  }
+
+  .openspec-event-step {
+    display: grid;
+    gap: 4px;
+  }
+
+  .openspec-event-step-title {
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .openspec-event-step-details {
+    margin: 0;
+    padding-left: 16px;
+    color: var(--muted);
+    display: grid;
+    gap: 2px;
   }
 
   .openspec-event-checklist li {
@@ -283,6 +418,55 @@ export const shellThemeCss = `
 
   .openspec-diff-line--added { color: #15643f; }
   .openspec-diff-line--removed { color: #9c2d2d; }
+
+  .openspec-overview {
+    display: grid;
+    gap: 12px;
+  }
+
+  .openspec-overview-meta {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-overview-block h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+
+  .openspec-overview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #fffdfa;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .openspec-overview-table th,
+  .openspec-overview-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-overview-table thead th {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .openspec-overview-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .openspec-overview-error {
+    margin: 0;
+    color: var(--danger);
+    font-size: 12px;
+  }
 
   @media (max-width: 760px) {
     .openspec-shell-grid { grid-template-columns: 1fr; }

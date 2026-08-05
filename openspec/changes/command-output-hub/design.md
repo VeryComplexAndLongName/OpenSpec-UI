@@ -24,6 +24,12 @@ layer.
 - **Structured event rendering in AI panel:**
   detect and render common payload shapes (JSON, checklists, key-value blocks,
   bullet lists) with dedicated UI blocks instead of one plain text line.
+- **Chunk coalescing before render:**
+  merge adjacent fragmented stdout/stderr/progress chunks so transport-level
+  fragmentation does not leak into user-visible text.
+- **Run analysis summary:**
+  compute a lightweight run-level summary (steps, warnings, terminal result)
+  that complements chronological event log.
 - **Include `status` in AI panel picker:**
   keeps one command-launch surface for all protocol commands users expect to
   run directly from UI.
@@ -33,6 +39,9 @@ layer.
 - **`openspec view` via terminal handoff:**
   command launches integrated terminal with `openspec view` instead of trying
   to reimplement the interactive CLI inside Webview.
+- **Parsed `openspec view` companion summaries:**
+  provide table-based summaries from typed wrappers (`listChanges`/`listSpecs`)
+  in both extension (markdown document) and standalone (REST-backed panel).
 
 Rejected alternatives:
 - Reimplement full `openspec view` in custom Webview UI.

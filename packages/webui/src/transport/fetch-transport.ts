@@ -52,7 +52,7 @@ export class FetchTransport implements Transport {
   }
 
   private sendStatusOverRest(command: Command): void {
-    this.fetchImpl(`${this.baseUrl}/api/status`, {
+    this.fetchImpl(`${this.baseUrl}/api/status-json`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command),

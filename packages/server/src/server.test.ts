@@ -4,10 +4,19 @@
 // чтобы не требовать реальных CLI-агентов для этого теста (см. tasks.md 3.1
 // за отдельным живым smoke-тестом с реальным агентом).
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import { createServer, type OpenSpecUiServer } from "./server.js";
+
+const statusChangeMock = vi.fn();
+vi.mock("@openspec-ui/core", async () => {
+  const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+  return {
+    ...actual,
+    statusChange: (...args: unknown[]) => statusChangeMock(...args),
+  };
+});
 
 function fakeRunner(events: Event[]): AgentRunner {
   return {
@@ -95,6 +104,37 @@ describe("server — REST /api/status", () => {
   it("binds to 127.0.0.1 by default, not 0.0.0.0", () => {
     const address = server.httpServer.address();
     expect(address && typeof address === "object" ? address.address : address).toBe("127.0.0.1");
+  });
+
+  it("returns 400 for malformed /api/overview request body", async () => {
+    const res = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd: "" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns synthesized protocol events for /api/status-json", async () => {
+    statusChangeMock.mockResolvedValueOnce({
+      changeName: "x",
+      schemaName: "spec-driven",
+      progress: { total: 3, complete: 2, remaining: 1 },
+      artifacts: [],
+      root: { path: "/workspace/repo", source: "nearest" },
+    });
+
+    const res = await fetch(`${baseUrl}/api/status-json`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(statusCommand),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { events: Event[] };
+    expect(body.events[0]).toMatchObject({ kind: "started", runId: statusCommand.runId });
+    expect(body.events[1]).toMatchObject({ kind: "stdout", runId: statusCommand.runId });
+    expect(body.events[2]).toMatchObject({ kind: "completed", runId: statusCommand.runId });
   });
 });
 

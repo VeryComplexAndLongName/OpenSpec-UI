@@ -121,6 +121,38 @@ export interface OpenSpecValidateResult {
   root: OpenSpecRoot;
 }
 
+export interface OpenSpecStatusArtifact {
+  id: string;
+  outputPath: string;
+  status: string;
+  requires: string[];
+  missingDeps?: string[];
+}
+
+export interface OpenSpecStatusTask {
+  id: string;
+  description: string;
+  done: boolean;
+}
+
+export interface OpenSpecStatusProgress {
+  total: number;
+  complete: number;
+  remaining: number;
+}
+
+export interface OpenSpecStatusResult {
+  changeName: string;
+  schemaName: string;
+  progress: OpenSpecStatusProgress;
+  artifacts: OpenSpecStatusArtifact[];
+  tasks?: OpenSpecStatusTask[];
+  state?: string;
+  instruction?: string;
+  root: OpenSpecRoot;
+  [key: string]: unknown;
+}
+
 async function runJson<T>(args: string[], options: OpenSpecCliOptions): Promise<T> {
   const binary = options.binary ?? "openspec";
   const { stdout } = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
@@ -147,4 +179,8 @@ export async function validateChange(
     ["validate", changeName, "--json", "--strict", "--type", "change"],
     options,
   );
+}
+
+export async function statusChange(changeName: string, options: OpenSpecCliOptions): Promise<OpenSpecStatusResult> {
+  return runJson<OpenSpecStatusResult>(["status", "--change", changeName, "--json"], options);
 }

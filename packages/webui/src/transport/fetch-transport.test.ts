@@ -65,7 +65,7 @@ const statusCommand: Command = {
 };
 
 describe("FetchTransport — status (REST)", () => {
-  it("POSTs the status command to /api/status and dispatches the returned events", async () => {
+  it("POSTs the status command to /api/status-json and dispatches the returned events", async () => {
     const events = [
       { kind: "started", runId: "run-status", timestamp: "t", command: "status", cwd: "/workspace/repo" },
       { kind: "completed", runId: "run-status", timestamp: "t", summary: "up to date" },
@@ -83,7 +83,7 @@ describe("FetchTransport — status (REST)", () => {
     transport.send(statusCommand);
     await new Promise((r) => setImmediate(r));
 
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/status", {
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/status-json", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(statusCommand),
@@ -107,7 +107,7 @@ describe("FetchTransport — status (REST)", () => {
   it("logs but does not throw on a failed status request", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: "Internal Server Error" });
     const { ctor } = makeWebSocketCtor();
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => { });
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
       fetchImpl: fetchMock as unknown as typeof fetch,
@@ -196,7 +196,7 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
       fetchImpl: vi.fn() as unknown as typeof fetch,
       webSocketCtor: ctor,
     });
-    const unsubscribe = transport.subscribe(() => {});
+    const unsubscribe = transport.subscribe(() => { });
     transport.send(planCommand);
     instances[0]?.open();
 
