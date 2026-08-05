@@ -9,3 +9,4 @@ Alternatives / Consequences.
 | # | Title | Status |
 |---|---|---|
 | [0001](0001-shared-core-two-delivery-targets.md) | Shared core/webui monorepo, two delivery targets (standalone + VS Code extension) | Accepted |
+| [0002](0002-direct-openspec-mode-no-agent-orchestration.md) | Direct OpenSpec mode for user command execution | Accepted |

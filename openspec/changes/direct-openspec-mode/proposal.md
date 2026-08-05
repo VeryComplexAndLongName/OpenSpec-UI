@@ -21,3 +21,5 @@ fast workflow based on native OpenSpec JSON commands.
 - `packages/webui`: direct command picker (`status`/`list`/`show`/`validate`) and
   non-blocking JSON output rendering.
 - `packages/core`: typed wrappers used for direct JSON command execution.
+
+Architecture decision: ADR 0002 (`docs/adr/0002-direct-openspec-mode-no-agent-orchestration.md`).

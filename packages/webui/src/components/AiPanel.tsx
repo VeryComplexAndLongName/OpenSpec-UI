@@ -34,7 +34,7 @@ interface StatusTaskItem {
 interface StatusPayload {
   changeName: string;
   schemaName: string;
-  progress: {
+  progress?: {
     total: number;
     complete: number;
     remaining: number;
@@ -43,6 +43,49 @@ interface StatusPayload {
   tasks?: StatusTaskItem[];
   state?: string;
   instruction?: string;
+  isComplete?: boolean;
+  nextSteps?: string[];
+}
+
+interface ListChangeItem {
+  name: string;
+  status?: string;
+  completedTasks?: number;
+  totalTasks?: number;
+}
+
+interface ListPayload {
+  changes: ListChangeItem[];
+}
+
+interface ShowDeltaItem {
+  spec?: string;
+  operation?: string;
+  description?: string;
+}
+
+interface ShowPayload {
+  id: string;
+  title?: string;
+  deltaCount: number;
+  deltas: ShowDeltaItem[];
+}
+
+interface ValidateTotals {
+  items: number;
+  passed: number;
+  failed: number;
+}
+
+interface ValidateItem {
+  id: string;
+  type?: string;
+  valid: boolean;
+}
+
+interface ValidatePayload {
+  summary: { totals: ValidateTotals };
+  items: ValidateItem[];
 }
 
 interface StepItem {
@@ -61,6 +104,9 @@ type StructuredText =
   | { kind: "plain"; text: string }
   | { kind: "json"; value: unknown }
   | { kind: "status"; value: StatusPayload }
+  | { kind: "list"; value: ListPayload }
+  | { kind: "show"; value: ShowPayload }
+  | { kind: "validate"; value: ValidatePayload }
   | { kind: "checklist"; items: ChecklistItem[] }
   | { kind: "keyValues"; pairs: Array<{ key: string; value: string }> }
   | { kind: "bullets"; items: string[] }
@@ -122,13 +168,15 @@ function isStatusPayload(value: unknown): value is StatusPayload {
   if (typeof value.changeName !== "string" || typeof value.schemaName !== "string") return false;
 
   const progress = value.progress;
-  if (!isObjectRecord(progress)) return false;
-  if (
-    typeof progress.total !== "number" ||
-    typeof progress.complete !== "number" ||
-    typeof progress.remaining !== "number"
-  ) {
-    return false;
+  if (progress !== undefined) {
+    if (!isObjectRecord(progress)) return false;
+    if (
+      typeof progress.total !== "number" ||
+      typeof progress.complete !== "number" ||
+      typeof progress.remaining !== "number"
+    ) {
+      return false;
+    }
   }
 
   if (!Array.isArray(value.artifacts)) return false;
@@ -156,6 +204,33 @@ function isStatusPayload(value: unknown): value is StatusPayload {
   }
 
   return true;
+}
+
+function isListPayload(value: unknown): value is ListPayload {
+  if (!isObjectRecord(value) || !Array.isArray(value.changes)) return false;
+  return value.changes.every((item) => isObjectRecord(item) && typeof item.name === "string");
+}
+
+function isShowPayload(value: unknown): value is ShowPayload {
+  if (!isObjectRecord(value)) return false;
+  if (typeof value.id !== "string" || typeof value.deltaCount !== "number") return false;
+  if (!Array.isArray(value.deltas)) return false;
+  return value.deltas.every((item) => isObjectRecord(item));
+}
+
+function isValidatePayload(value: unknown): value is ValidatePayload {
+  if (!isObjectRecord(value) || !Array.isArray(value.items)) return false;
+  const summary = value.summary;
+  if (!isObjectRecord(summary) || !isObjectRecord(summary.totals)) return false;
+  const totals = summary.totals;
+  if (
+    typeof totals.items !== "number" ||
+    typeof totals.passed !== "number" ||
+    typeof totals.failed !== "number"
+  ) {
+    return false;
+  }
+  return value.items.every((item) => isObjectRecord(item) && typeof item.id === "string" && typeof item.valid === "boolean");
 }
 
 function extractStepItems(text: string): StepItem[] {
@@ -338,6 +413,15 @@ function parseStructuredText(raw: string): StructuredText {
       if (isStatusPayload(parsed)) {
         return { kind: "status", value: parsed };
       }
+      if (isListPayload(parsed)) {
+        return { kind: "list", value: parsed };
+      }
+      if (isShowPayload(parsed)) {
+        return { kind: "show", value: parsed };
+      }
+      if (isValidatePayload(parsed)) {
+        return { kind: "validate", value: parsed };
+      }
       return { kind: "json", value: parsed };
     } catch {
       // Fallback to plain text when JSON parsing fails.
@@ -413,19 +497,26 @@ function renderStructuredText(raw: string, index: number): ReactNode {
 
   switch (structured.kind) {
     case "status": {
-      const progressTotal = Math.max(structured.value.progress.total, 1);
-      const progressPercent = Math.round((structured.value.progress.complete / progressTotal) * 100);
+      const derivedTotal = structured.value.artifacts.length;
+      const derivedComplete = structured.value.artifacts.filter((artifact) => {
+        const status = artifact.status.toLowerCase();
+        return status === "done" || status === "complete";
+      }).length;
+      const progressTotal = Math.max(structured.value.progress?.total ?? derivedTotal, 1);
+      const progressComplete = structured.value.progress?.complete ?? derivedComplete;
+      const progressPercent = Math.round((progressComplete / progressTotal) * 100);
       const doneTasks = structured.value.tasks?.filter((task) => task.done).length ?? 0;
       const totalTasks = structured.value.tasks?.length ?? 0;
+      const nextStep = structured.value.nextSteps?.[0];
 
       return (
         <section className="openspec-status-card" data-testid={`event-${index}-status`}>
           <div className="openspec-status-card-head">
             <strong>{structured.value.changeName}</strong>
-            <span>{structured.value.state ?? "status"}</span>
+            <span>{structured.value.state ?? (structured.value.isComplete ? "complete" : "status")}</span>
           </div>
           <p className="openspec-status-card-meta">
-            Schema: {structured.value.schemaName} | Progress: {structured.value.progress.complete}/{structured.value.progress.total}
+            Schema: {structured.value.schemaName} | Progress: {progressComplete}/{progressTotal}
             {totalTasks > 0 ? ` | Tasks: ${doneTasks}/${totalTasks}` : ""}
           </p>
           <div className="openspec-status-meter" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
@@ -442,6 +533,75 @@ function renderStructuredText(raw: string, index: number): ReactNode {
             </ul>
           ) : null}
           {structured.value.instruction ? <p className="openspec-status-card-instruction">{structured.value.instruction}</p> : null}
+          {!structured.value.instruction && nextStep ? <p className="openspec-status-card-instruction">{nextStep}</p> : null}
+        </section>
+      );
+    }
+    case "list":
+      return (
+        <section className="openspec-data-card" data-testid={`event-${index}-list`}>
+          <div className="openspec-data-card-head">
+            <strong>OpenSpec Changes</strong>
+            <span>{structured.value.changes.length}</span>
+          </div>
+          {structured.value.changes.length > 0 ? (
+            <ul className="openspec-data-card-list">
+              {structured.value.changes.slice(0, 12).map((change) => (
+                <li key={change.name}>
+                  <span className="openspec-data-card-primary">{change.name}</span>
+                  <span className="openspec-data-card-secondary">
+                    {typeof change.completedTasks === "number" && typeof change.totalTasks === "number"
+                      ? `${change.completedTasks}/${change.totalTasks}`
+                      : ""}
+                    {change.status ? (typeof change.completedTasks === "number" ? ` | ${change.status}` : change.status) : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="openspec-data-card-note">No changes found.</p>
+          )}
+        </section>
+      );
+    case "show":
+      return (
+        <section className="openspec-data-card" data-testid={`event-${index}-show`}>
+          <div className="openspec-data-card-head">
+            <strong>{structured.value.id}</strong>
+            <span>{structured.value.deltaCount} deltas</span>
+          </div>
+          {structured.value.title ? <p className="openspec-data-card-note">{structured.value.title}</p> : null}
+          {structured.value.deltas.length > 0 ? (
+            <ul className="openspec-data-card-list">
+              {structured.value.deltas.slice(0, 8).map((delta, deltaIndex) => (
+                <li key={`${delta.spec ?? "spec"}-${deltaIndex}`}>
+                  <span className="openspec-data-card-primary">{delta.operation ?? "update"} {delta.spec ?? "spec"}</span>
+                  <span className="openspec-data-card-secondary">{delta.description ?? ""}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      );
+    case "validate": {
+      const failedItems = structured.value.items.filter((item) => !item.valid);
+      return (
+        <section className="openspec-data-card" data-testid={`event-${index}-validate`}>
+          <div className="openspec-data-card-head">
+            <strong>Validation</strong>
+            <span>{structured.value.summary.totals.passed}/{structured.value.summary.totals.items} passed</span>
+          </div>
+          <p className="openspec-data-card-note">Failed: {structured.value.summary.totals.failed}</p>
+          {failedItems.length > 0 ? (
+            <ul className="openspec-data-card-list">
+              {failedItems.slice(0, 8).map((item) => (
+                <li key={item.id}>
+                  <span className="openspec-data-card-primary">{item.id}</span>
+                  <span className="openspec-data-card-secondary">{item.type ?? "item"}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       );
     }
@@ -563,6 +723,14 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const requiresSelectedChange = CHANGE_REQUIRED_COMMANDS.includes(commandKind);
   const canRunCommand = !isRunning && (!requiresSelectedChange || selectedChange.length > 0);
+  const latestEvent = collapsedEvents[collapsedEvents.length - 1];
+  const statusLabel = isRunning
+    ? "Loading..."
+    : latestEvent?.kind === "failed"
+      ? `Failed: ${latestEvent.reason}`
+      : latestEvent?.kind === "completed"
+        ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
+        : "Idle";
 
   function runCommand(kind: CommandKind) {
     if (CHANGE_REQUIRED_COMMANDS.includes(kind) && selectedChange.length === 0) {
@@ -636,6 +804,9 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
           Run
         </button>
       </div>
+      <p className="openspec-run-status" data-testid="run-status-label">
+        {statusLabel}
+      </p>
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
       {collapsedEvents.length > 0 ? (
         <section className="openspec-run-insights" data-testid="run-insights">

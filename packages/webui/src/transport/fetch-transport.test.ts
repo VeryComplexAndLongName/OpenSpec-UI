@@ -67,7 +67,6 @@ const statusCommand: Command = {
 describe("FetchTransport — direct OpenSpec commands (REST)", () => {
   it("POSTs the status command to /api/command-json and dispatches the returned events", async () => {
     const events = [
-      { kind: "started", runId: "run-status", timestamp: "t", command: "status", cwd: "/workspace/repo" },
       { kind: "completed", runId: "run-status", timestamp: "t", summary: "up to date" },
     ];
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events }) });
@@ -88,7 +87,8 @@ describe("FetchTransport — direct OpenSpec commands (REST)", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(statusCommand),
     });
-    expect(received).toEqual(events);
+    expect(received[0]).toMatchObject({ kind: "started", runId: "run-status", command: "status", cwd: "/workspace/repo" });
+    expect(received[1]).toEqual(events[0]);
   });
 
   it("does not open a WebSocket for direct commands", async () => {
@@ -113,9 +113,13 @@ describe("FetchTransport — direct OpenSpec commands (REST)", () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
       webSocketCtor: ctor,
     });
+    const received: unknown[] = [];
+    transport.subscribe((e) => received.push(e));
     expect(() => transport.send(statusCommand)).not.toThrow();
     await new Promise((r) => setImmediate(r));
     expect(consoleError).toHaveBeenCalled();
+    expect(received[0]).toMatchObject({ kind: "started", runId: "run-status" });
+    expect(received[1]).toMatchObject({ kind: "failed", runId: "run-status" });
     consoleError.mockRestore();
   });
 
