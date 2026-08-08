@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Initialized Process Dashboard workspace and change-directory fields from the
+  active VS Code workspace instead of stale browser storage.
+- Updated an already-open dashboard when it is revealed with new change
+  context.
+- Added extension-only styling based on VS Code semantic theme variables for
+  light, dark, high-contrast, and custom themes.
+
 ## 0.3.0
 
 - Added a workspace-local, versioned run journal with atomic updates.

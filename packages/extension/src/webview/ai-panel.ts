@@ -9,6 +9,12 @@ import type { RunController } from "../run-controller.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
 const EVENT_MESSAGE_TYPE = "openspec-ui/event";
+const CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
+
+export interface AiPanelContext {
+  cwd: string;
+  changeDir: string;
+}
 
 interface BridgeCommandMessage {
   type: typeof COMMAND_MESSAGE_TYPE;
@@ -32,12 +38,17 @@ export interface AiPanelDeps {
 
 export class AiPanel {
   private panel: vscode.WebviewPanel | undefined;
+  private panelContext: AiPanelContext | undefined;
 
   constructor(private readonly deps: AiPanelDeps) { }
 
-  reveal(): void {
+  reveal(panelContext?: AiPanelContext): void {
+    if (panelContext) this.panelContext = { ...panelContext };
     if (this.panel) {
       this.panel.reveal();
+      if (panelContext) {
+        void this.panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: panelContext });
+      }
       return;
     }
 
@@ -56,7 +67,7 @@ export class AiPanel {
     const localServerUrl = this.deps.getLocalServerUrl();
     panel.webview.html = localServerUrl
       ? this.getLocalServerHtml(localServerUrl)
-      : this.getBridgeHtml(panel.webview);
+      : this.getBridgeHtml(panel.webview, panelContext);
 
     const unsubscribeEvents = this.deps.runController.onEvent((event) => {
       void panel.webview.postMessage({ type: EVENT_MESSAGE_TYPE, event });
@@ -94,9 +105,15 @@ export class AiPanel {
     });
   }
 
-  private getBridgeHtml(webview: vscode.Webview): string {
+  getContext(): AiPanelContext | undefined {
+    return this.panelContext ? { ...this.panelContext } : undefined;
+  }
+
+  private getBridgeHtml(webview: vscode.Webview, panelContext?: AiPanelContext): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "webview.js"));
     const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
+    const cwd = escapeHtmlAttribute(panelContext?.cwd ?? "");
+    const changeDir = escapeHtmlAttribute(panelContext?.changeDir ?? "");
     return `<!doctype html>
 <html>
   <head>
@@ -105,7 +122,7 @@ export class AiPanel {
     <title>OpenSpec UI</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;
@@ -129,4 +146,12 @@ export class AiPanel {
   </body>
 </html>`;
   }
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }

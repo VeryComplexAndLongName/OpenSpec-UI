@@ -40,6 +40,18 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.equal(api.optionalServer?.isRunning ?? false, false);
   });
 
+  test("opens the context-aware Process Dashboard webview", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    await vscode.commands.executeCommand("openspec-ui.openAiPanel");
+    const dashboardContext = api.getDashboardContext();
+    assert.equal(dashboardContext?.cwd, workspaceFolder.uri.fsPath);
+    assert.equal(
+      dashboardContext?.changeDir,
+      vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes").fsPath,
+    );
+  });
+
   test("runs a real `status` command and observes a terminal event stream", async function () {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");

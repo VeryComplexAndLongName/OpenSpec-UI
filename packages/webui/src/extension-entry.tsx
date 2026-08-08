@@ -12,7 +12,12 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useState } from "react";
 import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
-import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
+import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
+import {
+  isDashboardContextMessage,
+  resolveInitialDashboardContext,
+  type DashboardContext,
+} from "./extension-context.js";
 
 const STORAGE_KEYS = {
   cwd: "openspec-ui:extension:cwd",
@@ -37,9 +42,9 @@ function writeStoredValue(key: string, value: string): void {
 
 declare function acquireVsCodeApi(): VsCodeApiLike;
 
-function ExtensionApp() {
-  const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
-  const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
+function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) {
+  const [cwd, setCwd] = useState(initialContext.cwd);
+  const [changeDir, setChangeDir] = useState(initialContext.changeDir);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
   useEffect(() => {
@@ -50,6 +55,16 @@ function ExtensionApp() {
     writeStoredValue(STORAGE_KEYS.changeDir, changeDir);
   }, [changeDir]);
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (!isDashboardContextMessage(event.data)) return;
+      setCwd(event.data.context.cwd);
+      setChangeDir(event.data.context.changeDir);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);
     setChangeDir(buildDefaultChangeDir(nextCwd));
@@ -57,7 +72,7 @@ function ExtensionApp() {
 
   return (
     <div className="openspec-extension-app">
-      <style>{shellThemeCss}</style>
+      <style>{`${shellThemeCss}\n${vscodeThemeCss}`}</style>
       <header className="openspec-shell-headline">
         <h1>OpenSpec UI</h1>
         <p>VS Code webview runner for OpenSpec commands.</p>
@@ -97,4 +112,5 @@ const container = document.getElementById("root");
 if (!container) {
   throw new Error("extension-entry: #root element not found");
 }
-createRoot(container).render(<ExtensionApp />);
+const initialContext = resolveInitialDashboardContext(container, (key) => readStoredValue(STORAGE_KEYS[key]));
+createRoot(container).render(<ExtensionApp initialContext={initialContext} />);
