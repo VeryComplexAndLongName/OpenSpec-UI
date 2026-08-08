@@ -1,17 +1,8 @@
-// 1.2 TreeDataProvider для Archive. `openspec list --json` не гарантированно
-// перечисляет заархивированные changes (это история, не текущая работа) —
-// поэтому здесь напрямую читается `openspec/changes/archive/`, а состояние
-// каждого элемента подтверждается через `readChangeState` (тот же источник
-// правды, что и для Changes).
-
-import path from "node:path";
-import { readdir } from "node:fs/promises";
-import type { Dirent } from "node:fs";
 import * as vscode from "vscode";
-import { readChangeState } from "@openspec-ui/core";
-import { ChangeTreeItem } from "./changes-tree.js";
+import { discoverOpenSpecWorkspace } from "@openspec-ui/core";
+import { ArtifactTreeItem, ChangeTreeItem, EmptyTreeItem, type WorkbenchTreeItem } from "./changes-tree.js";
 
-export class ArchiveTreeProvider implements vscode.TreeDataProvider<ChangeTreeItem> {
+export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -21,26 +12,32 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<ChangeTreeIt
     this.onDidChangeTreeDataEmitter.fire();
   }
 
-  getTreeItem(element: ChangeTreeItem): vscode.TreeItem {
+  getTreeItem(element: WorkbenchTreeItem): vscode.TreeItem {
     return element;
   }
 
-  async getChildren(): Promise<ChangeTreeItem[]> {
-    const archiveDir = path.join(this.workspaceRoot, "openspec", "changes", "archive");
-    let entries: Dirent<string>[];
-    try {
-      entries = await readdir(archiveDir, { withFileTypes: true, encoding: "utf8" });
-    } catch {
-      return [];
+  async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {
+    if (element instanceof ChangeTreeItem) {
+      return element.artifacts.map(
+        (artifact) => new ArtifactTreeItem(
+          artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
+          artifact.path,
+          artifact.exists,
+        ),
+      );
     }
-
-    const items: ChangeTreeItem[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const changeDir = path.join(archiveDir, entry.name);
-      const state = await readChangeState(changeDir);
-      items.push(new ChangeTreeItem(entry.name, changeDir, state));
+    if (element) return [];
+    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
+    if (workspace.archivedChanges.length === 0) {
+      return [
+        new EmptyTreeItem(
+          "No archived changes",
+          workspace.archiveExists ? "Archive is empty" : "Created after the first archive",
+        ),
+      ];
     }
-    return items;
+    return workspace.archivedChanges.map(
+      (change) => new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, true),
+    );
   }
 }

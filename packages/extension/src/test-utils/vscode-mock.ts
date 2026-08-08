@@ -76,6 +76,7 @@ export function createVscodeMock() {
         dispose: vi.fn(),
       })),
       showQuickPick: vi.fn(),
+      showInputBox: vi.fn(),
       showWarningMessage: vi.fn(),
       showErrorMessage: vi.fn(),
       showInformationMessage: vi.fn(),

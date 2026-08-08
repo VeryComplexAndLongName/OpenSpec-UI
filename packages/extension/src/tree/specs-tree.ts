@@ -1,8 +1,7 @@
-// 1.2 TreeDataProvider для Specs.
-
 import path from "node:path";
 import * as vscode from "vscode";
 import { listSpecs } from "@openspec-ui/core";
+import { EmptyTreeItem } from "./changes-tree.js";
 
 export class SpecTreeItem extends vscode.TreeItem {
   constructor(
@@ -22,7 +21,7 @@ export class SpecTreeItem extends vscode.TreeItem {
   }
 }
 
-export class SpecsTreeProvider implements vscode.TreeDataProvider<SpecTreeItem> {
+export class SpecsTreeProvider implements vscode.TreeDataProvider<SpecTreeItem | EmptyTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -32,12 +31,15 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SpecTreeItem> 
     this.onDidChangeTreeDataEmitter.fire();
   }
 
-  getTreeItem(element: SpecTreeItem): vscode.TreeItem {
+  getTreeItem(element: SpecTreeItem | EmptyTreeItem): vscode.TreeItem {
     return element;
   }
 
-  async getChildren(): Promise<SpecTreeItem[]> {
+  async getChildren(): Promise<Array<SpecTreeItem | EmptyTreeItem>> {
     const result = await listSpecs({ cwd: this.workspaceRoot });
+    if (result.specs.length === 0) {
+      return [new EmptyTreeItem("No canonical specs", "Specs are created when changes are archived")];
+    }
     return result.specs.map(
       (spec) =>
         new SpecTreeItem(

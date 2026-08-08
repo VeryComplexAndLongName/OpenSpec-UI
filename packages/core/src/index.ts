@@ -8,6 +8,9 @@ export * from "./security.js";
 export * from "./change-state.js";
 export * from "./openspec.js";
 export * from "./git.js";
+export * from "./workbench.js";
+export * from "./process-scheduler.js";
+export * from "./checkpoint.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

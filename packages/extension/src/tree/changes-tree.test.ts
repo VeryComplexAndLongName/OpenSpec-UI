@@ -4,11 +4,9 @@ import { createVscodeMock } from "../test-utils/vscode-mock.js";
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
-const listChangesMock = vi.fn();
-const readChangeStateMock = vi.fn();
+const discoverOpenSpecWorkspaceMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
-  listChanges: (...args: unknown[]) => listChangesMock(...args),
-  readChangeState: (...args: unknown[]) => readChangeStateMock(...args),
+  discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
 }));
 
 const { ChangesTreeProvider } = await import("./changes-tree.js");
@@ -18,52 +16,65 @@ afterEach(() => {
 });
 
 describe("ChangesTreeProvider", () => {
-  it("lists non-archived changes with their derived state as description", async () => {
-    listChangesMock.mockResolvedValue({
+  it("lists config and collapsible changes with their derived state", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
       changes: [
-        { name: "execution-core", completedTasks: 20, totalTasks: 20, lastModified: "t", status: "implemented" },
-        { name: "shared-ui", completedTasks: 4, totalTasks: 17, lastModified: "t", status: "in-progress" },
+        { name: "execution-core", path: "/changes/execution-core", state: "implemented", artifacts: [] },
+        { name: "shared-ui", path: "/changes/shared-ui", state: "in-progress", artifacts: [] },
       ],
-      root: { path: "/workspace/repo", source: "nearest" },
     });
-    readChangeStateMock.mockImplementation((changeDir: string) =>
-      Promise.resolve(changeDir.includes("execution-core") ? "implemented" : "in-progress"),
-    );
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items).toHaveLength(2);
-    expect(items[0]?.changeName).toBe("execution-core");
-    expect(items[0]?.description).toBe("implemented");
-    expect(items[1]?.description).toBe("in-progress");
+    expect(items).toHaveLength(3);
+    expect(items[0]?.contextValue).toBe("openspec-ui.config");
+    expect(items[1]?.label).toBe("execution-core");
+    expect(items[1]?.description).toBe("implemented");
+    expect(items[2]?.description).toBe("in-progress");
   });
 
-  it("excludes changes whose derived state is archived (belongs to the Archive tree)", async () => {
-    listChangesMock.mockResolvedValue({
-      changes: [{ name: "old-change", completedTasks: 5, totalTasks: 5, lastModified: "t", status: "archived" }],
-      root: { path: "/workspace/repo", source: "nearest" },
+  it("shows standard and delta artifacts under a change", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [{
+        name: "shared-ui",
+        path: "/changes/shared-ui",
+        state: "draft",
+        artifacts: [
+          { id: "proposal", kind: "proposal", label: "Proposal", path: "/changes/shared-ui/proposal.md", exists: true },
+          { id: "design", kind: "design", label: "Design", path: "/changes/shared-ui/design.md", exists: false },
+          { id: "delta-spec:x", kind: "delta-spec", label: "x", path: "/changes/shared-ui/specs/x/spec.md", exists: true },
+        ],
+      }],
     });
-    readChangeStateMock.mockResolvedValue("archived");
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const change = roots[1];
+    const artifacts = await provider.getChildren(change);
+
+    expect(artifacts.map((item) => item.label)).toEqual(["Proposal", "Design", "Spec: x"]);
+    expect(artifacts[1]?.description).toBe("missing");
+    expect(artifacts[0]?.command?.command).toBe("vscode.open");
+  });
+
+  it("offers initialization when the workspace has no OpenSpec artifacts", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      initialized: false,
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: false,
+      changes: [],
+    });
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items).toHaveLength(0);
-  });
-
-  it("wires the tree item's click command to open proposal.md", async () => {
-    listChangesMock.mockResolvedValue({
-      changes: [{ name: "shared-ui", completedTasks: 1, totalTasks: 1, lastModified: "t", status: "draft" }],
-      root: { path: "/workspace/repo", source: "nearest" },
-    });
-    readChangeStateMock.mockResolvedValue("draft");
-
-    const provider = new ChangesTreeProvider("/workspace/repo");
-    const [item] = await provider.getChildren();
-
-    expect(item?.command?.command).toBe("vscode.open");
-    expect((item?.command?.arguments?.[0] as { fsPath: string }).fsPath).toContain("proposal.md");
+    expect(items[1]?.label).toBe("Initialize OpenSpec");
+    expect(items[1]?.command?.command).toBe("openspec-ui.initialize");
   });
 
   it("refresh() fires onDidChangeTreeData", () => {
