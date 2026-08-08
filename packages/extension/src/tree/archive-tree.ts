@@ -6,7 +6,7 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-  constructor(private readonly workspaceRoot: string) {}
+  constructor(private readonly workspaceRoot: string) { }
 
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();

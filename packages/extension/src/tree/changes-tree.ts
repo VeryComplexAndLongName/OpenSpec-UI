@@ -68,7 +68,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-  constructor(private readonly workspaceRoot: string) {}
+  constructor(private readonly workspaceRoot: string) { }
 
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();
@@ -108,10 +108,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       items.push(workspace.initialized
         ? new EmptyTreeItem("No active changes", "Create an OpenSpec change to begin")
         : new EmptyTreeItem(
-            "Initialize OpenSpec",
-            "Set up this workspace",
-            { command: "openspec-ui.initialize", title: "Initialize OpenSpec" },
-          ));
+          "Initialize OpenSpec",
+          "Set up this workspace",
+          { command: "openspec-ui.initialize", title: "Initialize OpenSpec" },
+        ));
     }
     return items;
   }

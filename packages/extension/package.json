@@ -149,11 +149,26 @@
         "description": "Plan, implement, review, inspect, and validate OpenSpec changes.",
         "isSticky": true,
         "commands": [
-          { "name": "plan", "description": "Plan an active OpenSpec change" },
-          { "name": "implement", "description": "Implement with a checkpointed VS Code Agent session" },
-          { "name": "review", "description": "Review implementation readiness and risks" },
-          { "name": "status", "description": "Show deterministic OpenSpec status" },
-          { "name": "validate", "description": "Run strict OpenSpec validation" }
+          {
+            "name": "plan",
+            "description": "Plan an active OpenSpec change"
+          },
+          {
+            "name": "implement",
+            "description": "Implement with a checkpointed VS Code Agent session"
+          },
+          {
+            "name": "review",
+            "description": "Review implementation readiness and risks"
+          },
+          {
+            "name": "status",
+            "description": "Show deterministic OpenSpec status"
+          },
+          {
+            "name": "validate",
+            "description": "Run strict OpenSpec validation"
+          }
         ]
       }
     ],

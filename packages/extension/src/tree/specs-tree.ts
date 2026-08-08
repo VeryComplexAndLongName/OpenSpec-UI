@@ -25,7 +25,7 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SpecTreeItem |
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-  constructor(private readonly workspaceRoot: string) {}
+  constructor(private readonly workspaceRoot: string) { }
 
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();

@@ -9,7 +9,7 @@ export class OptionalServerManager {
   constructor(
     private readonly workspaceRoot: string,
     private readonly distDir = path.resolve("dist"),
-  ) {}
+  ) { }
 
   get isRunning(): boolean {
     return this.server !== undefined;

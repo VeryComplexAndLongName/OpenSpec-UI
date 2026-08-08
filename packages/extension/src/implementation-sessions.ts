@@ -19,7 +19,7 @@ interface ImplementationSession {
 export class ImplementationSessionManager {
   private readonly sessions = new Map<string, ImplementationSession>();
 
-  constructor(private readonly scheduler: WorkbenchProcessScheduler) {}
+  constructor(private readonly scheduler: WorkbenchProcessScheduler) { }
 
   async start(root: string, changeName: string): Promise<string> {
     const checkpoint = await captureCheckpoint(root);
