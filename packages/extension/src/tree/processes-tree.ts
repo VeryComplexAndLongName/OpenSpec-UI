@@ -8,6 +8,7 @@ function iconForState(state: WorkbenchProcess["state"]): string {
     case "completed": return "pass-filled";
     case "failed": return "error";
     case "cancelled": return "circle-slash";
+    case "interrupted": return "debug-pause";
     case "rolled-back": return "discard";
   }
 }
@@ -22,11 +23,13 @@ export class ProcessTreeItem extends vscode.TreeItem {
     if (process.operation === "implement") {
       this.contextValue = active
         ? "openspec-ui.implementationProcess"
-        : process.state === "completed"
+        : process.state === "completed" || process.state === "failed" || process.state === "interrupted"
           ? "openspec-ui.rollbackableProcess"
           : "openspec-ui.finishedProcess";
     } else {
-      this.contextValue = active ? "openspec-ui.cancellableProcess" : "openspec-ui.finishedProcess";
+      this.contextValue = process.mutating && ["completed", "failed", "interrupted"].includes(process.state)
+        ? "openspec-ui.rollbackableProcess"
+        : "openspec-ui.finishedProcess";
     }
   }
 }

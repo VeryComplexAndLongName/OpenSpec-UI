@@ -42,17 +42,11 @@ async function showCommandError(action: string, error: unknown): Promise<void> {
 }
 
 async function runTrackedProcess(
-  scheduler: WorkbenchProcessScheduler,
+  sessions: ImplementationSessionManager,
+  workspaceRoot: string,
   options: Omit<StartProcessOptions, "execute"> & { execute: () => Promise<string | void> },
 ): Promise<void> {
-  const handle = scheduler.start({
-    ...options,
-    execute: async ({ report }) => {
-      report("Running");
-      return options.execute();
-    },
-  });
-  const process = await handle.completion;
+  const process = await sessions.run(workspaceRoot, options);
   if (process.state === "failed") throw new Error(process.error ?? `${process.operation} failed`);
 }
 
@@ -197,7 +191,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
       if (!selected || selected.length === 0) return;
       try {
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "initialize",
           mutating: true,
           execute: async () => { await initOpenSpec({ cwd: workspaceRoot }, { tools: selected }); },
@@ -224,7 +218,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       });
       if (!changeName) return;
       try {
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "create",
           changeName,
           mutating: true,
@@ -241,7 +235,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot || !item) return;
       try {
         let result: Awaited<ReturnType<typeof validateChange>> | undefined;
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "validate",
           changeName: item.changeName,
           mutating: false,
@@ -266,7 +260,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
       if (answer !== "Archive") return;
       try {
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "archive",
           changeName: item.changeName,
           mutating: true,
@@ -288,7 +282,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
       if (answer !== "Unarchive") return;
       try {
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "unarchive",
           changeName: item.changeName,
           mutating: true,
@@ -310,7 +304,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
       if (answer !== "Delete") return;
       try {
-        await runTrackedProcess(deps.scheduler, {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "delete",
           changeName: item.changeName,
           mutating: true,
@@ -360,7 +354,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
       const answer = await vscode.window.showWarningMessage(
         `Rollback ${delta.length} file change${delta.length === 1 ? "" : "s"}?`,
-        { modal: true, detail: delta.map((entry) => `${entry.kind}: ${entry.path}`).join("\n") },
+        {
+          modal: true,
+          detail: [
+            ...delta.map((entry) => `${entry.kind}: ${entry.path}`),
+            ...(deps.implementationSessions.getCoverage(processId)?.skippedFiles ?? [])
+              .map((filePath) => `not covered: ${filePath}`),
+            ...((deps.implementationSessions.getCoverage(processId)?.excludedDirectories.length ?? 0) > 0
+              ? [`excluded directory classes: ${deps.implementationSessions.getCoverage(processId)?.excludedDirectories.join(", ")}`]
+              : []),
+          ].join("\n"),
+        },
         "Rollback",
       );
       if (answer !== "Rollback") return;

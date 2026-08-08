@@ -4,6 +4,7 @@ export type WorkbenchProcessState =
   | "completed"
   | "failed"
   | "cancelled"
+  | "interrupted"
   | "rolled-back";
 
 export interface WorkbenchProcess {
@@ -50,8 +51,20 @@ export class WorkbenchProcessScheduler {
   private readonly processes = new Map<string, WorkbenchProcess>();
   private readonly pending = new Map<string, PendingProcess>();
   private readonly queue: string[] = [];
-  private readonly changeLocks = new Set<string>();
+  private mutationLocked = false;
   private readonly listeners = new Set<(processes: WorkbenchProcess[]) => void>();
+
+  constructor(initialProcesses: WorkbenchProcess[] = []) {
+    for (const initial of initialProcesses) {
+      const process = { ...initial };
+      if (process.state === "queued" || process.state === "running") {
+        process.state = "interrupted";
+        process.finishedAt = new Date().toISOString();
+        process.error = "Workbench host stopped before this process completed";
+      }
+      this.processes.set(process.id, process);
+    }
+  }
 
   onDidChange(listener: (processes: WorkbenchProcess[]) => void): () => void {
     this.listeners.add(listener);
@@ -64,9 +77,17 @@ export class WorkbenchProcessScheduler {
 
   markRolledBack(id: string, summary?: string): boolean {
     const process = this.processes.get(id);
-    if (!process || process.state !== "completed") return false;
+    if (!process || !["completed", "failed", "interrupted"].includes(process.state)) return false;
     process.state = "rolled-back";
     process.summary = summary ?? process.summary;
+    this.emit();
+    return true;
+  }
+
+  updateSummary(id: string, summary: string): boolean {
+    const process = this.processes.get(id);
+    if (!process) return false;
+    process.summary = summary;
     this.emit();
     return true;
   }
@@ -113,7 +134,7 @@ export class WorkbenchProcessScheduler {
   }
 
   private canRun(process: WorkbenchProcess): boolean {
-    return !process.mutating || !process.changeName || !this.changeLocks.has(process.changeName);
+    return !process.mutating || !this.mutationLocked;
   }
 
   private drain(): void {
@@ -127,7 +148,7 @@ export class WorkbenchProcessScheduler {
 
   private async run(pending: PendingProcess): Promise<void> {
     const process = pending.process;
-    if (process.mutating && process.changeName) this.changeLocks.add(process.changeName);
+    if (process.mutating) this.mutationLocked = true;
     process.state = "running";
     process.startedAt = new Date().toISOString();
     this.emit();
@@ -142,7 +163,7 @@ export class WorkbenchProcessScheduler {
       if (pending.controller.signal.aborted) {
         this.finish(pending, "cancelled");
       } else {
-        process.summary = summary ?? undefined;
+        if (summary !== undefined) process.summary = summary;
         this.finish(pending, "completed");
       }
     } catch (error) {
@@ -153,7 +174,7 @@ export class WorkbenchProcessScheduler {
         this.finish(pending, "failed");
       }
     } finally {
-      if (process.mutating && process.changeName) this.changeLocks.delete(process.changeName);
+      if (process.mutating) this.mutationLocked = false;
       this.drain();
     }
   }

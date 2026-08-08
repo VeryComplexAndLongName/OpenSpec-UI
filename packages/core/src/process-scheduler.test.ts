@@ -8,7 +8,7 @@ function deferred<T>() {
 }
 
 describe("WorkbenchProcessScheduler", () => {
-  it("queues conflicting mutations for the same change", async () => {
+  it("serializes workspace mutations across different changes", async () => {
     const scheduler = new WorkbenchProcessScheduler();
     const firstGate = deferred<void>();
     const order: string[] = [];
@@ -22,7 +22,7 @@ describe("WorkbenchProcessScheduler", () => {
     const second = scheduler.start({
       id: "second",
       operation: "archive",
-      changeName: "demo",
+      changeName: "other",
       mutating: true,
       execute: async () => { order.push("second:start"); },
     });
@@ -34,16 +34,22 @@ describe("WorkbenchProcessScheduler", () => {
     expect(order).toEqual(["first:start", "first:end", "second:start"]);
   });
 
-  it("runs mutations for different changes and read-only work concurrently", async () => {
+  it("runs read-only work concurrently while a second mutation waits", async () => {
     const scheduler = new WorkbenchProcessScheduler();
     const gate = deferred<void>();
     const started = vi.fn();
-    const handles = ["one", "two"].map((changeName) => scheduler.start({
+    const first = scheduler.start({
       operation: "implement",
-      changeName,
+      changeName: "one",
       mutating: true,
-      execute: async () => { started(changeName); await gate.promise; },
-    }));
+      execute: async () => { started("one"); await gate.promise; },
+    });
+    const second = scheduler.start({
+      operation: "implement",
+      changeName: "two",
+      mutating: true,
+      execute: async () => { started("two"); },
+    });
     const status = scheduler.start({
       operation: "status",
       changeName: "one",
@@ -52,9 +58,11 @@ describe("WorkbenchProcessScheduler", () => {
     });
 
     await status.completion;
-    expect(started).toHaveBeenCalledTimes(3);
+    expect(started).toHaveBeenCalledTimes(2);
+    expect(scheduler.list().find((process) => process.id === second.id)?.state).toBe("queued");
     gate.resolve();
-    await Promise.all(handles.map((handle) => handle.completion));
+    await Promise.all([first.completion, second.completion]);
+    expect(started).toHaveBeenCalledTimes(3);
   });
 
   it("reports progress and cancels queued work", async () => {
@@ -92,5 +100,23 @@ describe("WorkbenchProcessScheduler", () => {
 
     expect(scheduler.markRolledBack(handle.id, "one file restored")).toBe(true);
     expect(scheduler.list()[0]).toMatchObject({ state: "rolled-back", summary: "one file restored" });
+  });
+
+  it("restores unfinished processes as interrupted", () => {
+    const scheduler = new WorkbenchProcessScheduler([{
+      id: "active",
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      state: "running",
+      createdAt: "2026-08-08T10:00:00.000Z",
+      startedAt: "2026-08-08T10:00:01.000Z",
+    }]);
+
+    expect(scheduler.list()[0]).toMatchObject({
+      id: "active",
+      state: "interrupted",
+      error: "Workbench host stopped before this process completed",
+    });
   });
 });

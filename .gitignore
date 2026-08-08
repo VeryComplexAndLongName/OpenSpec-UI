@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vscode-test/
+.openspec-ui/
 *.vsix
 .env
 .DS_Store

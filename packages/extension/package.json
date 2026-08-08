@@ -1,9 +1,9 @@
 {
   "name": "openspec-ui-vscode",
-  "displayName": "OpenSpec UI",
-  "description": "OpenSpec-first VS Code workflow: Changes/Archive/Specs tree views, native diff/Git integration, and structured OpenSpec command output.",
+  "displayName": "OpenSpec Workbench",
+  "description": "Native OpenSpec workflow with lifecycle controls, VS Code Chat, persistent processes, checkpoints, and conflict-safe rollback.",
   "publisher": "openspec-ui",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {

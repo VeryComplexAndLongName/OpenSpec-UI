@@ -8,11 +8,9 @@ in two forms with shared code: a standalone web tool and a VS Code extension.
 
 ## Status
 
-Planning. No application code has been written yet. This repository currently
-contains the architecture decisions (`docs/adr/`) and the OpenSpec proposals
-for each capability (`openspec/changes/`), which are enough to start
-implementation from each change's `tasks.md`. See `openspec/README.md` for
-the continuation workflow.
+Active development. The repository contains a working standalone application,
+shared core and web UI packages, and a native VS Code OpenSpec Workbench. See
+`openspec/README.md` for the governed change workflow.
 
 ## Why not just `openspec view`
 
@@ -57,7 +55,7 @@ flowchart TD
 ## Packages
 
 | Package | Purpose | Capability |
-|---|---|---|
+| --- | --- | --- |
 | `packages/core` | Execution engine, OpenSpec parser, git wrapper, CLI-agent orchestration, security model, derived change-state machine | `execution-core` |
 | `packages/server` | Thin REST/WS layer over `core`, used only for standalone | `standalone-app` |
 | `packages/webui` | Shared React components (Changes/Archive/Specs/Tasks/AI panel), transport-agnostic | `shared-ui` |
@@ -101,6 +99,32 @@ If a change is visibly user-facing, the affected package version in
 aggregated release version is allowed, but package versions — especially
 `core` — remain the source of truth and should be shown separately when the UI
 displays build information.
+
+The private root package remains `0.0.0`; it is a workspace container, not a
+release artifact. Current release versions are:
+
+| Package | Version | Release role |
+| --- | ---: | --- |
+| `@openspec-ui/core` | 0.7.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.3.0 | VS Code delivery |
+| `@openspec-ui/server` | 0.1.3 | Standalone server delivery |
+| `@openspec-ui/webui` | 0.2.0 | Shared browser UI |
+
+## Delivery Capability Matrix
+
+| Capability | Standalone | VS Code |
+| --- | --- | --- |
+| Browse changes, archive, specs, and tasks | Yes | Yes |
+| Create and edit change artifacts | Yes | Yes, through native editors |
+| Deterministic OpenSpec status and validation | Yes | Yes |
+| Shared command/event protocol | Yes | Yes |
+| Native VS Code Chat and Agent handoff | Not applicable | Yes |
+| Processes view and checkpoint rollback | Not yet exposed | Yes |
+| Persistent run journal engine | Available in core, adapter pending | Yes |
+
+Host-specific UX is allowed to differ, but business behavior must remain in
+`packages/core`. Standalone process/recovery parity is explicit follow-up work,
+not an implied capability. See ADR 0004.
 
 ## Getting Started
 
