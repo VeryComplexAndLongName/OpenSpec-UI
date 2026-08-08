@@ -25,12 +25,13 @@ import { describeEvent } from "./describe-event.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import type { ChangeTreeItem } from "./tree/changes-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
+import type { AiPanelContext } from "./webview/ai-panel.js";
 
 export interface CommandsDeps {
   getWorkspaceRoot: () => string | undefined;
   runController: RunController;
   outputChannel: vscode.OutputChannel;
-  revealAiPanel: () => void;
+  revealAiPanel: (context?: AiPanelContext) => void;
   refreshTrees: () => void;
   scheduler: WorkbenchProcessScheduler;
   implementationSessions: ImplementationSessionManager;
@@ -80,6 +81,13 @@ function formatShowMarkdown(result: OpenSpecShowResult): string {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+function dashboardContext(workspaceRoot: string, changeDir?: string): AiPanelContext {
+  return {
+    cwd: workspaceRoot,
+    changeDir: changeDir ?? path.join(workspaceRoot, "openspec", "changes"),
+  };
 }
 
 function formatValidateMarkdown(changeName: string, result: OpenSpecValidateResult): string {
@@ -340,7 +348,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.finishImplementation", async (item?: { process?: { id?: string } }) => {
       const processId = item?.process?.id;
       if (processId && deps.implementationSessions.finish(processId)) {
-        deps.revealAiPanel();
+        const workspaceRoot = deps.getWorkspaceRoot();
+        if (workspaceRoot) deps.revealAiPanel(dashboardContext(workspaceRoot));
         void vscode.window.showInformationMessage("OpenSpec UI: finalizing checkpoint for review.");
       }
     }),
@@ -402,7 +411,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
 
       deps.outputChannel.clear();
       deps.outputChannel.show(true);
-      deps.revealAiPanel();
+      deps.revealAiPanel(dashboardContext(workspaceRoot, selected.changeDir));
 
       await vscode.window.withProgress(
         {
@@ -491,8 +500,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.openAiPanel", () => {
-      deps.revealAiPanel();
+    vscode.commands.registerCommand("openspec-ui.openAiPanel", (item?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      deps.revealAiPanel(dashboardContext(workspaceRoot, item?.changeDir));
     }),
   );
 

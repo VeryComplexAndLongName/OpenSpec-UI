@@ -625,3 +625,122 @@ export const shellThemeCss = `
     .openspec-extension-app { margin: 10px auto; padding: 10px; }
   }
 `;
+
+export const vscodeThemeCss = `
+  :root {
+    color-scheme: light dark;
+    --bg: var(--vscode-editor-background);
+    --bg-accent: var(--vscode-editor-background);
+    --surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    --surface-2: var(--vscode-input-background, var(--vscode-editorWidget-background));
+    --ink: var(--vscode-editor-foreground);
+    --muted: var(--vscode-descriptionForeground);
+    --primary: var(--vscode-button-background);
+    --primary-ink: var(--vscode-button-foreground);
+    --danger: var(--vscode-errorForeground);
+    --line: var(--vscode-panel-border, var(--vscode-contrastBorder, transparent));
+    --radius: 4px;
+    --shadow: none;
+  }
+
+  body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-editor-foreground);
+    background: var(--vscode-editor-background);
+  }
+
+  .openspec-extension-app {
+    max-width: none;
+    margin: 0 auto;
+    padding: 14px;
+  }
+
+  .openspec-extension-app .openspec-shell-headline,
+  .openspec-extension-app .openspec-shell-panel,
+  .openspec-extension-app .openspec-ai-panel,
+  .openspec-extension-app .openspec-status-card,
+  .openspec-extension-app .openspec-data-card,
+  .openspec-extension-app .openspec-diff-body,
+  .openspec-extension-app .openspec-overview-table,
+  .openspec-extension-app .openspec-md-preview,
+  .openspec-extension-app .openspec-run-insights-highlight {
+    background: var(--surface);
+  }
+
+  .openspec-extension-app input,
+  .openspec-extension-app textarea,
+  .openspec-extension-app select {
+    color: var(--vscode-input-foreground);
+    background: var(--vscode-input-background);
+    border-color: var(--vscode-input-border, var(--line));
+  }
+
+  .openspec-extension-app input::placeholder,
+  .openspec-extension-app textarea::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+  }
+
+  .openspec-extension-app input:focus,
+  .openspec-extension-app textarea:focus,
+  .openspec-extension-app select:focus,
+  .openspec-extension-app button:focus {
+    outline-color: var(--vscode-focusBorder);
+  }
+
+  .openspec-extension-app .openspec-ai-panel-controls button,
+  .openspec-extension-app .openspec-editor-tabs button.is-active {
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+  }
+
+  .openspec-extension-app .openspec-ai-panel-controls button:hover,
+  .openspec-extension-app .openspec-editor-tabs button.is-active:hover {
+    background: var(--vscode-button-hoverBackground);
+  }
+
+  .openspec-extension-app .openspec-ai-panel-banner,
+  .openspec-extension-app .openspec-event--failed,
+  .openspec-extension-app .openspec-event--stderr {
+    color: var(--vscode-inputValidation-errorForeground, var(--ink));
+    background: var(--vscode-inputValidation-errorBackground, var(--surface-2));
+    border-color: var(--vscode-inputValidation-errorBorder, var(--danger));
+  }
+
+  .openspec-extension-app .openspec-run-insights,
+  .openspec-extension-app .openspec-event--completed {
+    background: color-mix(in srgb, var(--vscode-testing-iconPassed) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 45%, var(--line));
+  }
+
+  .openspec-extension-app .openspec-status-meter {
+    background: var(--vscode-progressBar-background);
+    opacity: 0.35;
+  }
+
+  .openspec-extension-app .openspec-status-meter-fill {
+    background: var(--vscode-progressBar-background);
+    opacity: 1;
+  }
+
+  .openspec-extension-app .openspec-event,
+  .openspec-extension-app .openspec-diff-body,
+  .openspec-extension-app .openspec-editor-textarea,
+  .openspec-extension-app .openspec-md-preview code {
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+  }
+
+  .openspec-extension-app ::selection {
+    color: var(--vscode-editor-selectionForeground);
+    background: var(--vscode-editor-selectionBackground);
+  }
+
+  @media (forced-colors: active) {
+    .openspec-extension-app .openspec-shell-headline,
+    .openspec-extension-app .openspec-shell-panel,
+    .openspec-extension-app .openspec-ai-panel {
+      border-color: CanvasText;
+    }
+  }
+`;

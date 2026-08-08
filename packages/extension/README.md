@@ -20,6 +20,10 @@ notifications while keeping lifecycle and security behavior in
   VS Code Agent implementation sessions, finish them for review, and roll back
   only files changed by a run. Rollback refuses to overwrite later edits and
   discloses files omitted by checkpoint size limits.
+- Open the Process Dashboard with Workspace root and Change directory filled
+  from the current VS Code workspace. The default message-bridge dashboard
+  follows the active VS Code color theme, including dark and high-contrast
+  themes.
 - Open native markdown and diff editors instead of custom replacements.
 
 ## Requirements
@@ -56,7 +60,9 @@ active change id:
 
 - `openspec-ui.transport.localServer.enabled`: use the optional standalone
   REST/WS shell inside the dashboard. The default extension path imports core
-  directly and uses an in-process message bridge.
+  directly and uses an in-process message bridge. Because the optional
+  localhost shell is a cross-origin iframe, it retains the standalone palette
+  instead of inheriting VS Code theme variables.
 
 ## Development
 

@@ -15,6 +15,7 @@ import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
+import type { AiPanelContext } from "./webview/ai-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 
 let runners: Map<string, AgentRunner> | undefined;
@@ -26,6 +27,7 @@ export interface ExtensionTestApi {
   getRunners: () => Map<string, AgentRunner> | undefined;
   runController: RunController;
   optionalServer: OptionalServerManager | undefined;
+  getDashboardContext: () => AiPanelContext | undefined;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
@@ -120,7 +122,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     getWorkspaceRoot,
     runController,
     outputChannel,
-    revealAiPanel: () => aiPanel.reveal(),
+    revealAiPanel: (panelContext) => aiPanel.reveal(panelContext),
     refreshTrees: () => {
       changesTree?.refresh();
       archiveTree?.refresh();
@@ -142,7 +144,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     }),
   );
 
-  return { getRunners: () => runners, runController, optionalServer };
+  return {
+    getRunners: () => runners,
+    runController,
+    optionalServer,
+    getDashboardContext: () => aiPanel.getContext(),
+  };
 }
 
 export async function deactivate(): Promise<void> {

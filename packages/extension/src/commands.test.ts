@@ -208,6 +208,33 @@ describe("registerCommands", () => {
     expect(openDiffAgainstHeadMock).not.toHaveBeenCalled();
   });
 
+  it("opens the process dashboard with workspace context", async () => {
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.openAiPanel")?.();
+
+    expect(deps.revealAiPanel).toHaveBeenCalledWith({
+      cwd: "/workspace/repo",
+      changeDir: expect.stringMatching(/workspace[\\/]repo[\\/]openspec[\\/]changes$/),
+    });
+  });
+
+  it("opens the process dashboard with a selected change directory", async () => {
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.openAiPanel")?.({
+      changeName: "shared-ui",
+      changeDir: "/workspace/repo/openspec/changes/shared-ui",
+    });
+
+    expect(deps.revealAiPanel).toHaveBeenCalledWith({
+      cwd: "/workspace/repo",
+      changeDir: "/workspace/repo/openspec/changes/shared-ui",
+    });
+  });
+
   it("openspec-ui.reviewDiff: diffs tasks.md for the given change item", async () => {
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
     const item = { changeName: "shared-ui", changeDir: "/workspace/repo/openspec/changes/shared-ui" };
