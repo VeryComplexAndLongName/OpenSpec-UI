@@ -1,55 +1,68 @@
-# OpenSpec UI (VS Code)
+# OpenSpec Workbench for VS Code
 
-VS Code расширение поверх `@openspec-ui/core`. Основной режим — прямой
-импорт `core` в extension host + in-process message bridge к Webview (без
-сети). Опциональный режим — локальный `@openspec-ui/server` как дочерний
-процесс на динамическом порту, включается настройкой. Списки
-(Changes/Archive/Specs) — через `TreeDataProvider`, редактирование markdown
-и diff — делегируются нативному VS Code UI (`vscode.open`/`vscode.diff` +
-встроенный Git extension). См. `openspec/changes/vscode-extension/design.md`
-за полным обоснованием и `docs/adr/0001-*.md` за тем, почему это не "сервер
-всегда".
+OpenSpec Workbench brings the complete OpenSpec change workflow into VS Code.
+It uses native tree views, markdown editors, diffs, Source Control, Chat, and
+notifications while keeping lifecycle and security behavior in
+`@openspec-ui/core`.
 
-Реализовано по `openspec/changes/vscode-extension/tasks.md`. Живой прогон
-внутри реального VS Code (`@vscode/test-electron`) и найденные баги — см.
-`openspec/changes/vscode-extension/TEST-NOTES.md`.
+## Features
 
-**Только для локального/внутреннего использования** — не публикуется в
-публичный VS Code Marketplace (см. CHANGELOG.md).
+- Navigate `config.yaml`, active changes, archived changes, canonical specs,
+  and every proposal, design, task list, and delta spec.
+- Create, validate, archive, unarchive, and delete changes from contextual
+  actions with confirmation for destructive operations.
+- See queued, running, completed, failed, and cancelled operations in the
+  Processes view. Mutations for the same change are serialized while work on
+  independent changes may run concurrently.
+- Use `@openspec` in VS Code Chat with `/plan`, `/implement`, `/review`,
+  `/status`, and `/validate`.
+- Start checkpointed VS Code Agent implementation sessions, finish them for
+  review, and roll back only the files changed by that session. Rollback refuses
+  to overwrite files edited after the run.
+- Open native markdown and diff editors instead of custom replacements.
 
-## Команды
+## Requirements
 
-`Ctrl+Shift+P` → `OpenSpec UI: ...`:
+- VS Code 1.90 or newer.
+- OpenSpec CLI available as `openspec` on `PATH`.
+- A workspace containing `openspec/config.yaml`, or initialize OpenSpec from
+  the CLI before using the Workbench.
+- VS Code Chat and an available language model for `/plan`, `/implement`, and
+  `/review`. Deterministic lifecycle, status, and validation actions do not
+  require AI.
 
-- **Plan / Implement / Review / Status** — выбор change из списка, запуск
-  через сконфигурированного агента (`openspec-ui.agent.defaultId`).
-- **Cancel** — отменяет текущий активный запуск, если он есть.
-- **Open AI Panel** — открывает Webview-панель с выбором агента/команды и
-  потоком событий.
-- **Refresh** — обновляет все три дерева (Changes/Archive/Specs).
-- **Review Diff (tasks.md vs HEAD)** — из контекстного меню элемента дерева
-  Changes/Archive: `vscode.diff` между рабочей версией `tasks.md` и `HEAD`.
+## Workflow
 
-## Настройки
+1. Open the OpenSpec activity-bar container.
+2. Create or expand a change in **Changes**.
+3. Edit Proposal, Design, Tasks, and delta Specs in native editors.
+4. Run Validate, then choose **Implement with VS Code Agent**.
+5. Follow the run in **Processes**. When Agent work is done, choose
+   **Finish Implementation & Review**.
+6. Review native diffs, roll back the checkpoint if needed, or archive the
+   completed change. Archiving creates or updates canonical specs.
 
-- `openspec-ui.transport.localServer.enabled` (по умолчанию `false`) —
-  опциональный локальный сервер вместо message bridge.
-- `openspec-ui.agent.defaultId` (по умолчанию `claude-cli`) — какой
-  зарегистрированный `AgentRunner`-адаптер использовать.
-- `openspec-ui.agent.localLlm.baseUrl` / `.model` — только для
-  `agent.defaultId: "local-llm"`.
+## Chat
 
-## Сборка и локальная установка
+Enter `@openspec` and choose a slash command. The first argument must be an
+active change id:
 
-```bash
-npm run build              # extension.js + webview.js + standalone-ассеты
-npx @vscode/vsce package   # openspec-ui-vscode-<version>.vsix
-code --install-extension openspec-ui-vscode-<version>.vsix
+```text
+@openspec /review openspec-workbench focus on rollback safety
 ```
 
-## Разработка
+## Settings
+
+- `openspec-ui.transport.localServer.enabled`: use the optional standalone
+  REST/WS shell inside the dashboard. The default extension path imports core
+  directly and uses an in-process message bridge.
+
+## Development
 
 ```bash
-npm run typecheck && npm run lint && npm run test   # юнит-тесты (vitest, мок vscode)
-npm run test:integration                             # живой прогон в реальном VS Code
+npm run typecheck --workspace openspec-ui-vscode
+npm run lint --workspace openspec-ui-vscode
+npm run test --workspace openspec-ui-vscode
+npm run build --workspace openspec-ui-vscode
+npm run test:integration --workspace openspec-ui-vscode
 ```

@@ -8,10 +8,20 @@ const listChangesMock = vi.fn();
 const listSpecsMock = vi.fn();
 const showChangeMock = vi.fn();
 const validateChangeMock = vi.fn();
+const archiveChangeMock = vi.fn();
+const createChangeMock = vi.fn();
+const deleteChangeMock = vi.fn();
+const unarchiveChangeMock = vi.fn();
+const initOpenSpecMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
+  archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
+  createChange: (...args: unknown[]) => createChangeMock(...args),
+  deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
+  initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
+  unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
 
@@ -32,11 +42,31 @@ function makeContext() {
 function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {}) {
   const runController = new RunController();
   const outputChannel = { appendLine: vi.fn(), clear: vi.fn(), show: vi.fn() };
+  const scheduler = {
+    start: vi.fn((options: { execute: (context: { signal: AbortSignal; report: (value: string) => void }) => Promise<unknown> }) => ({
+      id: "test-process",
+      cancel: vi.fn(),
+      completion: options.execute({ signal: new AbortController().signal, report: vi.fn() })
+        .then((summary) => ({ state: "completed", summary }))
+        .catch((error: unknown) => ({ state: "failed", error: error instanceof Error ? error.message : String(error) })),
+    })),
+    cancel: vi.fn(),
+  };
+  const implementationSessions = {
+    start: vi.fn(async () => "implementation-process"),
+    finish: vi.fn(() => true),
+    cancel: vi.fn(() => true),
+    getDelta: vi.fn(() => undefined),
+    rollback: vi.fn(),
+  };
   return {
     getWorkspaceRoot: () => "/workspace/repo",
     runController,
     outputChannel: outputChannel as unknown as import("vscode").OutputChannel,
     revealAiPanel: vi.fn(),
+    refreshTrees: vi.fn(),
+    scheduler: scheduler as unknown as import("@openspec-ui/core").WorkbenchProcessScheduler,
+    implementationSessions: implementationSessions as unknown as import("./implementation-sessions.js").ImplementationSessionManager,
     ...overrides,
   };
 }
@@ -50,6 +80,12 @@ describe("registerCommands", () => {
     expect(registered).toEqual(
       expect.arrayContaining([
         "openspec-ui.status",
+        "openspec-ui.initialize",
+        "openspec-ui.createChange",
+        "openspec-ui.validateSelectedChange",
+        "openspec-ui.archiveChange",
+        "openspec-ui.unarchiveChange",
+        "openspec-ui.deleteChange",
         "openspec-ui.openspecView",
         "openspec-ui.showChangeDetails",
         "openspec-ui.validateChangeStrict",
@@ -58,6 +94,49 @@ describe("registerCommands", () => {
         "openspec-ui.reviewDiff",
       ]),
     );
+  });
+
+  it("creates a change and refreshes all trees", async () => {
+    vscodeMock.window.showInputBox.mockResolvedValue("new-workbench-change");
+    createChangeMock.mockResolvedValue({ ok: true });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.createChange")?.();
+
+    expect(createChangeMock).toHaveBeenCalledWith("new-workbench-change", { cwd: "/workspace/repo" });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("archives a confirmed active change and refreshes", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
+    archiveChangeMock.mockResolvedValue({ ok: true });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
+      changeName: "done-change",
+      archived: false,
+    });
+
+    expect(archiveChangeMock).toHaveBeenCalledWith("done-change", { cwd: "/workspace/repo" });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("unarchives and deletes only after explicit confirmation", async () => {
+    vscodeMock.window.showWarningMessage
+      .mockResolvedValueOnce("Unarchive")
+      .mockResolvedValueOnce("Delete");
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+    const archivedItem = { changeName: "old-change", archived: true };
+
+    await vscodeMock._registeredCommands.get("openspec-ui.unarchiveChange")?.(archivedItem);
+    await vscodeMock._registeredCommands.get("openspec-ui.deleteChange")?.(archivedItem);
+
+    expect(unarchiveChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change");
+    expect(deleteChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change", "archive");
+    expect(deps.refreshTrees).toHaveBeenCalledTimes(2);
   });
 
   it("openspec-ui.status: picks a change, runs direct OpenSpec status flow, and reveals the panel", async () => {

@@ -171,6 +171,14 @@ export interface OpenSpecInitResult {
   stderr: string;
 }
 
+export interface OpenSpecArchiveResult {
+  [key: string]: unknown;
+}
+
+export interface ArchiveChangeOptions {
+  skipSpecs?: boolean;
+}
+
 async function runJson<T>(args: string[], options: OpenSpecCliOptions): Promise<T> {
   const binary = options.binary ?? "openspec";
   const { stdout } = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
@@ -216,6 +224,16 @@ export async function createChange(
     args.push("--goal", createOptions.goal);
   }
   return runJson<OpenSpecCreateChangeResult>(args, options);
+}
+
+export async function archiveChange(
+  changeName: string,
+  options: OpenSpecCliOptions,
+  archiveOptions: ArchiveChangeOptions = {},
+): Promise<OpenSpecArchiveResult> {
+  const args = ["archive", changeName, "--yes", "--json"];
+  if (archiveOptions.skipSpecs) args.push("--skip-specs");
+  return runJson<OpenSpecArchiveResult>(args, options);
 }
 
 export async function initOpenSpec(

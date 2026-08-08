@@ -34,4 +34,15 @@ describe("SpecsTreeProvider", () => {
     expect(items[0]?.command?.command).toBe("vscode.open");
     expect((items[0]?.command?.arguments?.[0] as { fsPath: string }).fsPath).toContain("execution-core");
   });
+
+  it("explains that canonical specs are produced by archive", async () => {
+    listSpecsMock.mockResolvedValue({ specs: [], root: { path: "/workspace/repo", source: "nearest" } });
+
+    const provider = new SpecsTreeProvider("/workspace/repo");
+    const items = await provider.getChildren();
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.label).toBe("No canonical specs");
+    expect(items[0]?.description).toContain("archived");
+  });
 });

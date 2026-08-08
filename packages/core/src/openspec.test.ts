@@ -16,7 +16,7 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const { createChange, initOpenSpec, listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
+const { archiveChange, createChange, initOpenSpec, listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
 
 /** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
  * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
@@ -137,6 +137,18 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
         "--goal",
         "Improve authoring",
       ],
+      { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
+    );
+  });
+
+  it("archiveChange calls deterministic non-interactive archive", async () => {
+    mockSuccessfulSpawn('{"ok":true}');
+
+    await archiveChange("completed-change", { cwd: "C:\\Prog\\OpenSpec-UI" }, { skipSpecs: true });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openspec",
+      ["archive", "completed-change", "--yes", "--json", "--skip-specs"],
       { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
     );
   });

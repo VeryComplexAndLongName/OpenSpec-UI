@@ -22,7 +22,7 @@ export class EventEmitter<T> {
   private listeners: Array<(e: T) => void> = [];
   readonly event = (listener: (e: T) => void) => {
     this.listeners.push(listener);
-    return { dispose: () => {} };
+    return { dispose: () => { } };
   };
   fire(value: T): void {
     for (const listener of this.listeners) listener(value);
@@ -30,7 +30,7 @@ export class EventEmitter<T> {
 }
 
 export class ThemeIcon {
-  constructor(public readonly id: string) {}
+  constructor(public readonly id: string) { }
 }
 
 export class TreeItem {
@@ -45,7 +45,7 @@ export class TreeItem {
 }
 
 export class Uri {
-  private constructor(public readonly fsPath: string) {}
+  private constructor(public readonly fsPath: string) { }
   static file(fsPath: string): Uri {
     return new Uri(fsPath);
   }
@@ -76,6 +76,7 @@ export function createVscodeMock() {
         dispose: vi.fn(),
       })),
       showQuickPick: vi.fn(),
+      showInputBox: vi.fn(),
       showWarningMessage: vi.fn(),
       showErrorMessage: vi.fn(),
       showInformationMessage: vi.fn(),
