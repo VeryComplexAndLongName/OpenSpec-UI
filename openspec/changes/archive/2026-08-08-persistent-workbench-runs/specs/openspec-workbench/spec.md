@@ -1,47 +1,6 @@
-# openspec-workbench Specification
+# OpenSpec Workbench Delta
 
-## Purpose
-
-Define integrated OpenSpec workspace navigation, lifecycle control, native VS
-Code AI workflows, process visibility, and conflict-safe rollback.
-
-## Requirements
-
-### Requirement: Workbench exposes the complete OpenSpec workspace
-
-The system SHALL provide hierarchical navigation to configuration, active and
-archived changes, canonical specs, and proposal, design, tasks, and delta spec
-artifacts without requiring users to locate files manually.
-
-#### Scenario: User expands an active change
-
-- **WHEN** the user expands a change in the Workbench
-- **THEN** proposal, design, tasks, and delta specs are shown
-- **AND** selecting an artifact opens it in a native VS Code editor
-
-#### Scenario: A collection does not exist
-
-- **WHEN** archive or canonical specs have not been created
-- **THEN** the view explains why it is empty
-- **AND** offers an applicable lifecycle or documentation action
-
-### Requirement: Users control the complete change lifecycle
-
-The system SHALL support create, edit, validate, archive, unarchive, and guarded
-delete workflows while keeping OpenSpec and repository files as the source of
-truth.
-
-#### Scenario: User archives a valid completed change
-
-- **WHEN** the user previews and confirms archive
-- **THEN** core invokes the deterministic OpenSpec archive operation
-- **AND** active, archived, and canonical spec views refresh
-
-#### Scenario: User requests a destructive operation
-
-- **WHEN** the user requests delete, unarchive, or rollback
-- **THEN** the Workbench shows the affected paths or diff
-- **AND** no mutation occurs without explicit confirmation
+## MODIFIED Requirements
 
 ### Requirement: Workbench visualizes concurrent processes
 
@@ -70,24 +29,6 @@ available.
 - **WHEN** the Workbench host reloads
 - **THEN** persisted terminal processes remain visible
 - **AND** unfinished processes are shown as interrupted rather than running
-
-### Requirement: AI workflows use explicit native VS Code Chat integration
-
-The system SHALL register an OpenSpec Chat participant for plan, implement, and
-review workflows, while direct OpenSpec commands remain available without AI.
-
-#### Scenario: User starts implementation from Chat
-
-- **WHEN** the user explicitly invokes the OpenSpec participant for a change
-- **THEN** VS Code controls model selection and authorization
-- **AND** the Workbench provides bounded repository context and typed actions
-- **AND** repository content cannot grant additional tool or path permissions
-
-#### Scenario: No language model is available
-
-- **WHEN** the user invokes an AI workflow without an available model
-- **THEN** deterministic lifecycle commands continue to work
-- **AND** the Workbench presents a clear fallback instruction
 
 ### Requirement: Mutating runs support scoped rollback
 

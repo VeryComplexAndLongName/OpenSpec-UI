@@ -4,7 +4,7 @@
 
 import * as vscode from "vscode";
 import type { AgentRunner } from "@openspec-ui/core";
-import { WorkbenchProcessScheduler } from "@openspec-ui/core";
+import { WorkbenchProcessScheduler, WorkbenchRunJournal } from "@openspec-ui/core";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { registerCommands } from "./commands.js";
@@ -28,13 +28,38 @@ export interface ExtensionTestApi {
   optionalServer: OptionalServerManager | undefined;
 }
 
-export function activate(context: vscode.ExtensionContext): ExtensionTestApi {
+export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   const outputChannel = vscode.window.createOutputChannel("OpenSpec UI");
   context.subscriptions.push(outputChannel);
 
   const runController = new RunController();
-  const scheduler = new WorkbenchProcessScheduler();
-  const implementationSessions = new ImplementationSessionManager(scheduler);
+  const workspaceRoot = getWorkspaceRoot();
+  let journal: WorkbenchRunJournal | undefined;
+  let restoredRuns = { processes: [], checkpointSessions: [] } as Awaited<ReturnType<WorkbenchRunJournal["load"]>>;
+  if (workspaceRoot) {
+    journal = new WorkbenchRunJournal(workspaceRoot);
+    try {
+      restoredRuns = await journal.load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      outputChannel.appendLine(`Run recovery disabled: ${message}`);
+      void vscode.window.showErrorMessage(`OpenSpec UI: run recovery disabled (${message}).`);
+      journal = undefined;
+    }
+  }
+  const scheduler = new WorkbenchProcessScheduler(restoredRuns.processes);
+  const persistRuns = () => {
+    if (!journal) return;
+    void journal.save({
+      processes: scheduler.list(),
+      checkpointSessions: implementationSessions.exportPersisted(),
+    }).catch((error: unknown) => {
+      outputChannel.appendLine(`Run journal write failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  };
+  const implementationSessions = new ImplementationSessionManager(scheduler, persistRuns);
+  context.subscriptions.push({ dispose: scheduler.onDidChange(persistRuns) });
+  await implementationSessions.restore(restoredRuns.checkpointSessions);
   const processesTree = new ProcessesTreeProvider(scheduler);
   context.subscriptions.push(
     processesTree,
@@ -44,7 +69,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionTestApi {
   let changesTree: ChangesTreeProvider | undefined;
   let archiveTree: ArchiveTreeProvider | undefined;
   let specsTree: SpecsTreeProvider | undefined;
-  const workspaceRoot = getWorkspaceRoot();
   if (workspaceRoot) {
     changesTree = new ChangesTreeProvider(workspaceRoot);
     archiveTree = new ArchiveTreeProvider(workspaceRoot);

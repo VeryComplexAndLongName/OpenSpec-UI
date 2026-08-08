@@ -2,7 +2,13 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { captureCheckpoint, finalizeCheckpoint, rollbackCheckpoint } from "./checkpoint.js";
+import {
+  captureCheckpoint,
+  deserializeCheckpoint,
+  finalizeCheckpoint,
+  rollbackCheckpoint,
+  serializeCheckpoint,
+} from "./checkpoint.js";
 
 const roots: string[] = [];
 
@@ -67,5 +73,23 @@ describe("Workbench checkpoints", () => {
     const checkpoint = await captureCheckpoint(root, { maxFileBytes: 16 });
 
     expect([...checkpoint.before.keys()]).toEqual(["tracked.txt"]);
+    expect(checkpoint.coverage.skippedFiles).toEqual(["large.bin"]);
+    expect(checkpoint.coverage.excludedDirectories).toContain("node_modules");
+  });
+
+  it("round-trips persisted checkpoints and rejects unsafe paths", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, "work.txt"), "before");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(path.join(root, "work.txt"), "after");
+    await finalizeCheckpoint(checkpoint);
+
+    const serialized = serializeCheckpoint(checkpoint);
+    const restored = deserializeCheckpoint(JSON.parse(JSON.stringify(serialized)));
+    expect(restored.delta).toEqual(checkpoint.delta);
+    expect(restored.before.get("work.txt")?.content.toString()).toBe("before");
+
+    serialized.before[0]!.path = "../outside.txt";
+    expect(() => deserializeCheckpoint(serialized)).toThrow("Invalid checkpoint path");
   });
 });

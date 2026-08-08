@@ -24,6 +24,11 @@ interface FileSnapshot {
   content: Buffer;
 }
 
+export interface CheckpointCoverage {
+  excludedDirectories: string[];
+  skippedFiles: string[];
+}
+
 export interface CheckpointDelta {
   path: string;
   kind: "added" | "modified" | "deleted";
@@ -38,6 +43,24 @@ export interface WorkbenchCheckpoint {
   before: Map<string, FileSnapshot>;
   after?: Map<string, FileSnapshot>;
   delta?: CheckpointDelta[];
+  coverage: CheckpointCoverage;
+}
+
+export interface SerializedWorkbenchCheckpoint {
+  version: 1;
+  id: string;
+  root: string;
+  createdAt: string;
+  before: SerializedFileSnapshot[];
+  after?: SerializedFileSnapshot[];
+  delta?: CheckpointDelta[];
+  coverage: CheckpointCoverage;
+}
+
+interface SerializedFileSnapshot {
+  path: string;
+  hash: string;
+  content: string;
 }
 
 export interface RollbackResult {
@@ -49,8 +72,14 @@ function hash(content: Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): Promise<Map<string, FileSnapshot>> {
+interface WorkspaceScan {
+  files: Map<string, FileSnapshot>;
+  skippedFiles: string[];
+}
+
+async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): Promise<WorkspaceScan> {
   const files = new Map<string, FileSnapshot>();
+  const skippedFiles: string[] = [];
   let totalBytes = 0;
 
   async function visit(directory: string): Promise<void> {
@@ -64,18 +93,21 @@ async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): 
       }
       if (!entry.isFile()) continue;
       const content = await readFile(absolutePath);
-      if (content.byteLength > limits.maxFileBytes) continue;
+      const relativePath = path.relative(root, absolutePath);
+      if (content.byteLength > limits.maxFileBytes) {
+        skippedFiles.push(relativePath);
+        continue;
+      }
       totalBytes += content.byteLength;
       if (files.size >= limits.maxFiles || totalBytes > limits.maxBytes) {
         throw new Error("Workbench checkpoint exceeds configured size limits");
       }
-      const relativePath = path.relative(root, absolutePath);
       files.set(relativePath, { hash: hash(content), content });
     }
   }
 
   await visit(root);
-  return files;
+  return { files, skippedFiles };
 }
 
 function resolvedLimits(limits: CheckpointLimits): Required<CheckpointLimits> {
@@ -91,11 +123,16 @@ export async function captureCheckpoint(
   limits: CheckpointLimits = {},
 ): Promise<WorkbenchCheckpoint> {
   const resolvedRoot = path.resolve(root);
+  const scan = await scanWorkspace(resolvedRoot, resolvedLimits(limits));
   return {
     id: randomUUID(),
     root: resolvedRoot,
     createdAt: new Date().toISOString(),
-    before: await scanWorkspace(resolvedRoot, resolvedLimits(limits)),
+    before: scan.files,
+    coverage: {
+      excludedDirectories: [...DEFAULT_EXCLUDED_DIRECTORIES].sort(),
+      skippedFiles: scan.skippedFiles.sort(),
+    },
   };
 }
 
@@ -103,7 +140,12 @@ export async function finalizeCheckpoint(
   checkpoint: WorkbenchCheckpoint,
   limits: CheckpointLimits = {},
 ): Promise<CheckpointDelta[]> {
-  const after = await scanWorkspace(checkpoint.root, resolvedLimits(limits));
+  const scan = await scanWorkspace(checkpoint.root, resolvedLimits(limits));
+  const after = scan.files;
+  checkpoint.coverage.skippedFiles = [...new Set([
+    ...checkpoint.coverage.skippedFiles,
+    ...scan.skippedFiles,
+  ])].sort();
   const paths = new Set([...checkpoint.before.keys(), ...after.keys()]);
   const delta: CheckpointDelta[] = [];
   for (const relativePath of [...paths].sort()) {
@@ -120,6 +162,62 @@ export async function finalizeCheckpoint(
   checkpoint.after = after;
   checkpoint.delta = delta;
   return delta;
+}
+
+function serializeFiles(files: Map<string, FileSnapshot>): SerializedFileSnapshot[] {
+  return [...files.entries()].map(([filePath, snapshot]) => ({
+    path: filePath,
+    hash: snapshot.hash,
+    content: snapshot.content.toString("base64"),
+  }));
+}
+
+function assertSafeRelativePath(filePath: string): void {
+  if (!filePath || path.isAbsolute(filePath) || filePath.split(/[\\/]/).includes("..")) {
+    throw new Error(`Invalid checkpoint path: ${filePath}`);
+  }
+}
+
+function deserializeFiles(files: SerializedFileSnapshot[]): Map<string, FileSnapshot> {
+  return new Map(files.map((file) => {
+    assertSafeRelativePath(file.path);
+    const content = Buffer.from(file.content, "base64");
+    if (hash(content) !== file.hash) throw new Error(`Checkpoint content hash mismatch: ${file.path}`);
+    return [file.path, { hash: file.hash, content }];
+  }));
+}
+
+export function serializeCheckpoint(checkpoint: WorkbenchCheckpoint): SerializedWorkbenchCheckpoint {
+  return {
+    version: 1,
+    id: checkpoint.id,
+    root: checkpoint.root,
+    createdAt: checkpoint.createdAt,
+    before: serializeFiles(checkpoint.before),
+    after: checkpoint.after ? serializeFiles(checkpoint.after) : undefined,
+    delta: checkpoint.delta?.map((item) => ({ ...item })),
+    coverage: {
+      excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+      skippedFiles: [...checkpoint.coverage.skippedFiles],
+    },
+  };
+}
+
+export function deserializeCheckpoint(serialized: SerializedWorkbenchCheckpoint): WorkbenchCheckpoint {
+  if (serialized.version !== 1) throw new Error(`Unsupported checkpoint version: ${String(serialized.version)}`);
+  for (const item of serialized.delta ?? []) assertSafeRelativePath(item.path);
+  return {
+    id: serialized.id,
+    root: path.resolve(serialized.root),
+    createdAt: serialized.createdAt,
+    before: deserializeFiles(serialized.before),
+    after: serialized.after ? deserializeFiles(serialized.after) : undefined,
+    delta: serialized.delta?.map((item) => ({ ...item })),
+    coverage: {
+      excludedDirectories: [...serialized.coverage.excludedDirectories],
+      skippedFiles: [...serialized.coverage.skippedFiles],
+    },
+  };
 }
 
 async function currentHash(filePath: string): Promise<string | undefined> {

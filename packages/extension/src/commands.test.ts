@@ -53,10 +53,19 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     cancel: vi.fn(),
   };
   const implementationSessions = {
+    run: vi.fn(async (_root: string, options: { execute: () => Promise<unknown> }) => {
+      try {
+        const summary = await options.execute();
+        return { state: "completed", summary };
+      } catch (error) {
+        return { state: "failed", error: error instanceof Error ? error.message : String(error) };
+      }
+    }),
     start: vi.fn(async () => "implementation-process"),
     finish: vi.fn(() => true),
     cancel: vi.fn(() => true),
     getDelta: vi.fn(() => undefined),
+    getCoverage: vi.fn(() => undefined),
     rollback: vi.fn(),
   };
   return {

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Added a workspace-local, versioned run journal with atomic updates.
+- Added recovery of process history and interrupted implementation checkpoints
+  after extension reload.
+- Added persisted rollback for deterministic lifecycle mutations, including
+  failed operations.
+- Serialized all workspace mutations to prevent cross-change checkpoint
+  contamination while preserving concurrent read-only work.
+- Added explicit checkpoint coverage for files omitted by size limits.
+- Renamed the Marketplace display name to OpenSpec Workbench.
+
 ## 0.2.0
 
 - Added hierarchical navigation for configuration, change artifacts, delta

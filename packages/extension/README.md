@@ -11,14 +11,15 @@ notifications while keeping lifecycle and security behavior in
   and every proposal, design, task list, and delta spec.
 - Create, validate, archive, unarchive, and delete changes from contextual
   actions with confirmation for destructive operations.
-- See queued, running, completed, failed, and cancelled operations in the
-  Processes view. Mutations for the same change are serialized while work on
-  independent changes may run concurrently.
+- See queued, running, completed, failed, cancelled, interrupted, and
+  rolled-back operations in the Processes view. Read-only work can run in
+  parallel; workspace mutations are serialized to keep checkpoints isolated.
 - Use `@openspec` in VS Code Chat with `/plan`, `/implement`, `/review`,
   `/status`, and `/validate`.
-- Start checkpointed VS Code Agent implementation sessions, finish them for
-  review, and roll back only the files changed by that session. Rollback refuses
-  to overwrite files edited after the run.
+- Recover process history and checkpointed runs after extension reload. Start
+  VS Code Agent implementation sessions, finish them for review, and roll back
+  only files changed by a run. Rollback refuses to overwrite later edits and
+  discloses files omitted by checkpoint size limits.
 - Open native markdown and diff editors instead of custom replacements.
 
 ## Requirements
