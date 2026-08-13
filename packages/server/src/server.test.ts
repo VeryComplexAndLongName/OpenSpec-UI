@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import type { AgentRunner, Command, Event } from "@openspec-ui/core";
+import { WorkbenchRunJournal, type AgentRunner, type Command, type Event } from "@openspec-ui/core";
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
@@ -296,6 +296,37 @@ describe("server — REST /api/status", () => {
       body: JSON.stringify({ cwd: "/workspace/repo", padding: "x".repeat(128) }),
     });
     expect(oversized.status).toBe(413);
+  });
+
+  it("loads persisted process history and cleanup through the recovery adapter", async () => {
+    const cwd = await createTempWorkspace();
+    await new WorkbenchRunJournal(cwd).save({
+      processes: [{
+        id: "persisted-run",
+        operation: "review",
+        mutating: false,
+        state: "completed",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      }],
+      checkpointSessions: [],
+    });
+
+    const listed = await fetch(`${baseUrl}/api/processes/list`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual([expect.objectContaining({ id: "persisted-run", state: "completed" })]);
+
+    const cleaned = await fetch(`${baseUrl}/api/processes/cleanup`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, cutoff: "2026-07-01T00:00:00.000Z" }),
+    });
+    expect(cleaned.status).toBe(200);
+    expect(await cleaned.json()).toEqual({ removed: 1, retained: 0 });
+    expect((await new WorkbenchRunJournal(cwd).load()).processes).toEqual([]);
   });
 });
 

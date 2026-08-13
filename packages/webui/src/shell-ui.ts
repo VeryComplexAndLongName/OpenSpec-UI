@@ -513,6 +513,17 @@ export const shellThemeCss = `
     border-bottom: none;
   }
 
+  .openspec-process-details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-process-details h3,
+  .openspec-process-details h4 {
+    margin: 8px 0;
+  }
+
   .openspec-overview-error {
     margin: 0;
     color: var(--danger);

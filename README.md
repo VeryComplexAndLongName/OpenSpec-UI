@@ -105,10 +105,10 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.7.0 | Shared behavior and persistence contract |
+| `@openspec-ui/core` | 0.8.0 | Shared behavior and persistence contract |
 | `openspec-ui-vscode` | 0.4.1 | VS Code delivery |
-| `@openspec-ui/server` | 1.0.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.0.0 | Shared browser UI |
+| `@openspec-ui/server` | 1.1.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.1.0 | Shared browser UI |
 
 ## Delivery Capability Matrix
 
@@ -119,12 +119,12 @@ release artifact. Current release versions are:
 | Deterministic OpenSpec status and validation | Yes | Yes |
 | Shared command/event protocol | Yes | Yes |
 | Native VS Code Chat and Agent handoff | Not applicable | Yes |
-| Processes view and checkpoint rollback | Not yet exposed | Yes |
-| Persistent run journal engine | Available in core, adapter pending | Yes |
+| Processes view and checkpoint rollback | Yes | Yes |
+| Persistent run journal engine | Yes | Yes |
 
 Host-specific UX is allowed to differ, but business behavior must remain in
-`packages/core`. Standalone process/recovery parity is explicit follow-up work,
-not an implied capability. See ADR 0004.
+`packages/core`. Both delivery targets expose the same core recovery behavior
+through host-specific interfaces. See ADR 0004.
 
 ## Getting Started
 
