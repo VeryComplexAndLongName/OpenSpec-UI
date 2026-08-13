@@ -1,4 +1,3 @@
-
 # Architecture Decisions (ADR)
 
 Decision branches between alternatives and their rationale are not the current
@@ -12,3 +11,6 @@ Alternatives / Consequences.
 | [0002](0002-direct-openspec-mode-no-agent-orchestration.md) | Direct OpenSpec mode for user command execution | Accepted |
 | [0003](0003-native-vscode-openspec-workbench.md) | Native VS Code OpenSpec Workbench | Accepted |
 | [0004](0004-persistent-workbench-runs.md) | Persistent Workbench runs and delivery parity | Accepted |
+| [0005](0005-authenticated-local-transport.md) | Authenticated local REST and WebSocket transport | Accepted |
+
+New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

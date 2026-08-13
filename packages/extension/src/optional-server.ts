@@ -19,8 +19,15 @@ export class OptionalServerManager {
     return this.address ? `http://127.0.0.1:${this.address.port}` : undefined;
   }
 
+  get launchUrl(): string | undefined {
+    const baseUrl = this.baseUrl;
+    return baseUrl && this.server
+      ? `${baseUrl}/#token=${encodeURIComponent(this.server.accessToken)}`
+      : undefined;
+  }
+
   async start(): Promise<string> {
-    if (this.server && this.address) return this.baseUrl as string;
+    if (this.server && this.address) return this.launchUrl as string;
     const { createServer } = await import("@openspec-ui/server");
     this.server = createServer({
       workspaceRoot: this.workspaceRoot,
@@ -33,7 +40,7 @@ export class OptionalServerManager {
       },
     });
     this.address = await this.server.listen();
-    return this.baseUrl as string;
+    return this.launchUrl as string;
   }
 
   async stop(): Promise<void> {

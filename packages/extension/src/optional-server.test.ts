@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 const listenMock = vi.fn();
 const closeMock = vi.fn();
-const createServerMock = vi.fn((..._args: unknown[]) => ({ listen: listenMock, close: closeMock }));
+const createServerMock = vi.fn((..._args: unknown[]) => ({
+  listen: listenMock,
+  close: closeMock,
+  accessToken: "optional-server-test-token",
+}));
 
 vi.mock("@openspec-ui/server", () => ({
   createServer: (...args: unknown[]) => createServerMock(...args),
@@ -28,9 +32,10 @@ describe("OptionalServerManager", () => {
         }),
       }),
     );
-    expect(baseUrl).toBe("http://127.0.0.1:54321");
+    expect(baseUrl).toBe("http://127.0.0.1:54321/#token=optional-server-test-token");
     expect(manager.isRunning).toBe(true);
     expect(manager.baseUrl).toBe("http://127.0.0.1:54321");
+    expect(manager.launchUrl).toBe("http://127.0.0.1:54321/#token=optional-server-test-token");
   });
 
   it("start() is idempotent — a second call reuses the running server", async () => {
@@ -42,7 +47,7 @@ describe("OptionalServerManager", () => {
     const secondUrl = await manager.start();
 
     expect(createServerMock).toHaveBeenCalledTimes(1);
-    expect(secondUrl).toBe("http://127.0.0.1:11111");
+    expect(secondUrl).toBe("http://127.0.0.1:11111/#token=optional-server-test-token");
   });
 
   it("stop() closes the server and resets state", async () => {

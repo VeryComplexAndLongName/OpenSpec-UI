@@ -77,6 +77,7 @@ function setUpFetchTransport(): { transport: Transport; drive: (event: Event) =>
 
   const transport = new FetchTransport({
     baseUrl: "http://localhost:4000",
+    accessToken: "contract-test-token",
     fetchImpl: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events: [] }) }) as unknown as typeof fetch,
     webSocketCtor: ctor,
   });

@@ -1,8 +1,10 @@
 // 1.3 Bind по умолчанию на `127.0.0.1`, порт конфигурируется (см. spec.md,
 // "Server is localhost-only by default").
 
-import { type Server as HttpServer, createServer as createHttpServer } from "node:http";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { type IncomingMessage, type Server as HttpServer, createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import path from "node:path";
 import { WebSocketServer } from "ws";
 import { type AgentRunner, type AuditLog } from "@openspec-ui/core";
 import {
@@ -37,47 +39,79 @@ export interface ServerOptions {
   /** Явные пути к index.html/app.js — нужны, когда `server` встроен в
    * забандленный CJS-хост (см. static.ts, `extension`'s optional-server.ts). */
   staticAssets?: StaticAssetPaths;
+  accessToken?: string;
+  maxPayloadBytes?: number;
 }
 
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 4317;
+export const DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
 
 export interface OpenSpecUiServer {
   listen(): Promise<AddressInfo>;
   close(): Promise<void>;
   readonly httpServer: HttpServer;
+  readonly accessToken: string;
 }
 
 export function createServer(options: ServerOptions): OpenSpecUiServer {
   const runners = options.runners ?? new Map<string, AgentRunner>();
+  const accessToken = options.accessToken ?? randomBytes(32).toString("base64url");
+  const maxPayloadBytes = options.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES;
+  const workspaceRoot = path.resolve(options.workspaceRoot);
+  const requestPolicy = {
+    maxPayloadBytes,
+    isCwdAllowed(cwd: string): boolean {
+      if (options.allowExternalCwd) return true;
+      const resolved = path.resolve(cwd);
+      return resolved === workspaceRoot || resolved.startsWith(`${workspaceRoot}${path.sep}`);
+    },
+  };
 
   const httpServer = createHttpServer((req, res) => {
+    if (req.url?.startsWith("/api/")) {
+      if (!hasValidToken(req, accessToken)) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+      if (!hasAllowedOrigin(req)) {
+        res.writeHead(403, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "origin is not allowed" }));
+        return;
+      }
+      if (req.method === "POST" && !req.headers["content-type"]?.toLowerCase().startsWith("application/json")) {
+        res.writeHead(415, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "content-type must be application/json" }));
+        return;
+      }
+    }
     if (req.method === "POST" && req.url === "/api/status") {
-      void handleStatusRequest(req, res, runners);
+      void handleStatusRequest(req, res, runners, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/overview") {
-      void handleOverviewRequest(req, res);
+      void handleOverviewRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && (req.url === "/api/status-json" || req.url === "/api/command-json")) {
-      void handleStatusJsonRequest(req, res);
+      void handleStatusJsonRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-editor/create") {
-      void handleChangeEditorCreateRequest(req, res);
+      void handleChangeEditorCreateRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-editor/read") {
-      void handleChangeEditorReadRequest(req, res);
+      void handleChangeEditorReadRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-editor/save") {
-      void handleChangeEditorSaveRequest(req, res);
+      void handleChangeEditorSaveRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {
-      void handleOpenSpecInitRequest(req, res);
+      void handleOpenSpecInitRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "GET" && req.url) {
@@ -93,8 +127,21 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     res.end(JSON.stringify({ error: "not found" }));
   });
 
-  const wss = new WebSocketServer({ server: httpServer, path: "/api/ws" });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: "/api/ws",
+    maxPayload: maxPayloadBytes,
+    handleProtocols(protocols) {
+      return protocols.has("openspec-ui") ? "openspec-ui" : false;
+    },
+    verifyClient(info, done) {
+      done(hasValidWebSocketToken(info.req, accessToken) && hasAllowedOrigin(info.req), 401, "Unauthorized");
+    },
+  });
   wss.on("connection", (socket) => {
+    socket.on("error", () => {
+      socket.close();
+    });
     socket.on("message", (raw) => {
       handleSocketMessage(socket, raw.toString(), runners);
     });
@@ -102,6 +149,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
 
   return {
     httpServer,
+    accessToken,
     listen(): Promise<AddressInfo> {
       return new Promise((resolve) => {
         httpServer.listen(options.port ?? DEFAULT_PORT, options.host ?? DEFAULT_HOST, () => {
@@ -117,4 +165,33 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       });
     },
   };
+}
+
+function safeTokenEquals(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function hasValidToken(req: IncomingMessage, expected: string): boolean {
+  const value = req.headers["x-openspec-ui-token"];
+  return safeTokenEquals(Array.isArray(value) ? value[0] : value, expected);
+}
+
+function hasValidWebSocketToken(req: IncomingMessage, expected: string): boolean {
+  const protocols = req.headers["sec-websocket-protocol"]?.split(",").map((value) => value.trim()) ?? [];
+  const tokenProtocol = protocols.find((value) => value.startsWith("openspec-ui-token."));
+  return safeTokenEquals(tokenProtocol?.slice("openspec-ui-token.".length), expected);
+}
+
+function hasAllowedOrigin(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.host === req.headers.host;
+  } catch {
+    return false;
+  }
 }

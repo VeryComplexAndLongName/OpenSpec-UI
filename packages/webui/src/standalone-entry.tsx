@@ -119,6 +119,22 @@ function writeStoredValue(key: string, value: string): void {
   }
 }
 
+function readAccessToken(): string {
+  return new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
+}
+
+const accessToken = readAccessToken();
+
+function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
+  return fetch(`${window.location.origin}${pathname}`, {
+    ...init,
+    headers: {
+      ...init.headers,
+      "x-openspec-ui-token": accessToken,
+    },
+  });
+}
+
 function StandaloneApp() {
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
@@ -137,7 +153,7 @@ function StandaloneApp() {
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
-  const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin }), []);
+  const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
@@ -161,7 +177,7 @@ function StandaloneApp() {
     setOverviewLoading(true);
     setOverviewError(null);
     try {
-      const response = await fetch(`${window.location.origin}/api/overview`, {
+      const response = await apiFetch("/api/overview", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cwd }),
@@ -192,7 +208,7 @@ function StandaloneApp() {
     setEditorLoading(true);
     setEditorMessage(null);
     try {
-      const response = await fetch(`${window.location.origin}/api/change-editor/read`, {
+      const response = await apiFetch("/api/change-editor/read", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cwd, changeName }),
@@ -227,7 +243,7 @@ function StandaloneApp() {
     setEditorCreating(true);
     setEditorMessage(null);
     try {
-      const response = await fetch(`${window.location.origin}/api/change-editor/create`, {
+      const response = await apiFetch("/api/change-editor/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -263,7 +279,7 @@ function StandaloneApp() {
     setEditorSaving(true);
     setEditorMessage(null);
     try {
-      const response = await fetch(`${window.location.origin}/api/change-editor/save`, {
+      const response = await apiFetch("/api/change-editor/save", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cwd, changeName: editorChangeName, files: editorFiles }),
@@ -296,7 +312,7 @@ function StandaloneApp() {
     setInitLoading(true);
     setInitMessage(null);
     try {
-      const response = await fetch(`${window.location.origin}/api/openspec/init`, {
+      const response = await apiFetch("/api/openspec/init", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cwd, tools: initTools }),
