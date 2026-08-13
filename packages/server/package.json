@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "@openspec-ui/core": "*",
-    "ws": "^8.21.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
