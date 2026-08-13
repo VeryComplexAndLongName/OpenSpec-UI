@@ -105,10 +105,10 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.11.0 | Shared behavior and persistence contract |
+| `@openspec-ui/core` | 0.11.1 | Shared behavior and persistence contract |
 | `openspec-ui-vscode` | 0.4.3 | VS Code delivery |
-| `@openspec-ui/server` | 1.2.2 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.2.1 | Shared browser UI |
+| `@openspec-ui/server` | 1.2.3 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.2.2 | Shared browser UI |
 
 ## Delivery Capability Matrix
 

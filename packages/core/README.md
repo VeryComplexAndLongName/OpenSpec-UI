@@ -1,51 +1,36 @@
 # @openspec-ui/core
 
-Execution engine, протокол команд/событий, security-модель, openspec/git-
-обёртки, derived change-state. Единственный источник правды по поведению —
-не зависит от HTTP-фреймворков или `vscode` API (юнит-тестируется в
-изоляции).
+The host-neutral source of truth for OpenSpec UI behavior. This package owns the
+command/event protocol, agent execution and security, OpenSpec and Git wrappers,
+change state, checkpoints, scheduling, persistence, and recovery. It has no HTTP
+framework or VS Code API dependency.
 
-Реализовано по `openspec/changes/execution-core/tasks.md` — см. корневой
-`openspec/README.md` за порядком работы. Спецификация поведения —
-`openspec/changes/execution-core/specs/execution-core/spec.md`.
+Implementation governance lives in `openspec/README.md`; the original capability
+is specified under `openspec/changes/execution-core/`.
 
-## Модули
+## Modules
 
-- `protocol.ts` — `Command`/`Event` discriminated unions: единственное
-  место, где определён протокол `plan`/`implement`/`review`/`status`/
-  `cancel` и поток событий `started`/`stdout`/`stderr`/`progress`/
-  `completed`/`failed`/`cancelled`.
-- `agent-runner.ts` — `AgentRunner`/`AgentAdapter`: security-проверки
-  (allowlist, cwd-sandbox) и аудит-лог выполняются здесь, inline, до того,
-  как управление передаётся конкретному адаптеру.
-- `security.ts` — `checkAllowlist`, `checkCwdSandbox`, `prepareAgentContext`
-  (граница "содержимое файла — данные, не инструкция"), `AuditLog`.
-- `agents/` — адаптеры: `claude.ts`, `copilot.ts`, `codex.ts`, `gemini.ts`
-  (дочерний процесс через `agents/shared.ts`) и `local-llm.ts` (HTTP,
-  OpenAI-совместимый API — SGLang/vLLM).
-- `change-state.ts` — `deriveChangeState` (чистая функция от расположения
-  директории change'а + содержимого `tasks.md`) и `readChangeState`
-  (обёртка с чтением файла).
-- `openspec.ts` — обёртка над `openspec ... --json` (list/show/validate).
-- `git.ts` — обёртка над `simple-git` (status/diff/commit/branch — только
-  то, что нужно UI).
+- `protocol.ts`: command and event discriminated unions.
+- `agent-runner.ts`: runner and adapter boundaries with inline security and audit checks.
+- `security.ts`: allowlist, workspace sandbox, context boundary, and audit log.
+- `agents/`: Claude, Copilot, Codex, Gemini, and OpenAI-compatible local adapters.
+- `change-state.ts`: derived draft, in-progress, implemented, and archived state.
+- `openspec.ts`: validated wrappers for structured OpenSpec CLI commands.
+- `git.ts`: the Git operations required by the workbench.
+- `checkpoint.ts`: capture, finalize, serialize, and conflict-safe rollback.
+- `process-scheduler.ts`: mutation scheduling and process lifecycle.
+- `workbench-run-journal.ts`: versioned, atomic persistent run state.
 
-## Allowlist по умолчанию
+## Security Defaults
 
-`security.ts` не содержит захардкоженного allowlist — конфигурация
-(`AllowlistConfig`) передаётся вызывающей стороной (`server`/`extension`)
-на уровне воркспейса. Агент, отсутствующий в конфиге, не разрешён ни для
-одной команды (restrictive default, см. design.md).
+Core does not hardcode an agent allowlist. Hosts provide `AllowlistConfig` for
+the active workspace. An absent agent or command is denied by default.
 
-## Эвристика derived change-state
+## Derived Change State
 
-- `archived` — директория change'а лежит под сегментом пути `archive`
-  (`openspec/changes/archive/...`), независимо от состояния `tasks.md`.
-- `draft` — `tasks.md` отсутствует, не содержит пунктов чеклиста, или ни
-  один пункт не отмечен `[x]`.
-- `in-progress` — отмечена часть пунктов.
-- `implemented` — отмечены все пункты.
+- `archived`: the change directory is under an `archive` path segment.
+- `draft`: `tasks.md` is absent, has no checklist items, or has no completed items.
+- `in-progress`: some checklist items are complete.
+- `implemented`: all checklist items are complete.
 
-Статус не хранится как явное поле — только вычисляется по требованию. Это
-эвристика, не более точная, чем позволяет структура OpenSpec (см. риски в
-`design.md`).
+State is computed on demand and is not written into the OpenSpec format.

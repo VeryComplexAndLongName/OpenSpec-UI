@@ -19,8 +19,10 @@
     "build": "npm run build --workspaces --if-present",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "lint": "npm run lint:english && npm run lint --workspaces --if-present",
+    "lint:english": "node scripts/check-english.mjs",
+    "test": "npm run test:english && npm run test --workspaces --if-present",
+    "test:english": "node --test scripts/check-english.test.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

@@ -1,53 +1,34 @@
 # @openspec-ui/webui
 
-Транспорт-агностичные React-компоненты (Changes/Archive/Specs/Tasks/AI-
-панель) — переиспользуются и в standalone (браузер), и в VS Code extension
-(Webview). Взаимодействие с `@openspec-ui/core` только через интерфейс
-`Transport` (`FetchTransport`/`MessageBridgeTransport`) — см.
-`openspec/changes/shared-ui/design.md`.
+Transport-neutral React components shared by the standalone browser application
+and the VS Code Webview. Components communicate through `Transport`, implemented
+by `FetchTransport` and `MessageBridgeTransport`; host-specific business behavior
+remains outside this package.
 
-Markdown-редактирование и diff делегируются хосту, где это возможно (не
-реализуются здесь для VS Code-контекста) — см. тот же design.md,
-"Decisions".
+The shared UI capability is governed under `openspec/changes/shared-ui/`.
 
-Реализовано по `openspec/changes/shared-ui/tasks.md`.
+## Modules
 
-## Модули
+- `transport/`: transport contract, fetch/WebSocket delivery, and VS Code message bridge.
+- `components/ChangesList`, `ArchiveList`, `ChangeDiff`, and `ChangeRelations`:
+  change and archive presentation using core-derived state.
+- `components/SpecsTree`, `RequirementView`, and `SpecsSearch`: read-only spec views.
+- `components/TasksChecklist`: task progress and host-provided task execution callback.
+- `components/AgentPicker` and `AiPanel`: command execution and event streaming.
+- `ProcessesView`: persisted process details, rollback, and retention controls.
 
-- `transport/` — `Transport` интерфейс, `FetchTransport`, `MessageBridgeTransport`
-  (VS Code `postMessage`). `transport/contract.test.ts` проверяет, что оба дают
-  одинаковый поток событий для одного сценария.
-  `FetchTransport`'s проводной протокол (v0.2.0+, согласован с
-  `openspec/changes/standalone-app/design.md`): `status` — REST
-  (`POST /api/status`, синхронный ответ со списком событий; команда быстрая,
-  WS ради нее избыточен), `plan`/`implement`/`review`/`cancel` — одно
-  WebSocket-соединение (`/api/ws`) на команду и её события. `FetchTransportOptions`
-  теперь принимает `webSocketCtor` вместо `eventSourceCtor` (breaking для кода
-  вне этого репозитория — на момент этого изменения таких потребителей не было).
-- `components/ChangesList`, `ArchiveList`, `ChangeDiff`, `ChangeRelations` —
-  Changes/Archive. Статус берётся из уже вычисленного `ChangeSummary.state`
-  (`@openspec-ui/core`'s derived state), компоненты его не пересчитывают.
-- `components/SpecsTree`, `RequirementView`, `SpecsSearch` — Specs. Рендер
-  read-only (`markdown.ts` — минимальный inline-рендер `**bold**`/`` `code` ``,
-  не полноценный markdown). Редактирование делегируется хосту.
-- `components/TasksChecklist` — чек-лист + прогресс; запуск отдельной задачи
-  — через callback `onRunTask`, хост подключает его к активному `Transport`.
-- `components/AgentPicker`, `AiPanel` — единственные компоненты, которым
-  `Transport` нужен напрямую (send/subscribe команд `plan`/`implement`/
-  `review`/`cancel` и поток событий). Список агентов — `AGENT_REGISTRY` из
-  `@openspec-ui/core`, не собственный список.
+## Presentation Boundary
 
-## Презентационная граница
+Changes, archive, specs, and tasks components receive prepared data through
+props. The host decides whether data came from REST or a direct core import.
+`AiPanel` directly requires `Transport` because command execution is inherently
+an event stream.
 
-Компоненты Changes/Archive/Specs/Tasks — презентационные: принимают уже
-полученные данные через props (кто и как их получает — REST в standalone,
-прямой импорт `@openspec-ui/core` в extension — решает хост, не `webui`).
-Единственное исключение — `AiPanel`, которому нужен `Transport` напрямую,
-поскольку исполнение команды неотделимо от потока её событий.
+## Agent Selection
 
-## Протокол: выбор агента
+`Command.agentId` tells the host which registered core adapter should execute a
+command. The UI reads available agents from the shared core registry rather than
+maintaining a separate list.
 
-`Command.agentId` (опциональное поле, добавлено в `@openspec-ui/core@0.3.0`)
-— то, как `AiPanel` сообщает хосту, какой зарегистрированный `AgentAdapter`
-должен выполнить команду. Без этого поля выбор агента в UI не имел бы
-эффекта на фактическое исполнение.
+Markdown editing and diff presentation are delegated to native host facilities
+where available, especially in VS Code.
