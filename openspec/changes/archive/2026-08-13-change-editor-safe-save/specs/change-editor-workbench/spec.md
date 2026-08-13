@@ -5,6 +5,15 @@ The system SHALL provide markdown editing for proposal, design, tasks, and spec
 files of a selected non-archived change while preventing partial saves and
 silent overwrites of newer disk content.
 
+#### Scenario: User loads a change in editor
+- **WHEN** user selects a change and loads editor
+- **THEN** UI shows current markdown content for editable artifacts
+
+#### Scenario: User saves edits
+- **WHEN** user modifies markdown and clicks save
+- **THEN** server writes updated markdown files to the change directory
+- **AND** UI reports successful save
+
 #### Scenario: User saves edits based on the loaded revision
 - **WHEN** the user saves all edited artifacts and their loaded revision still matches disk state
 - **THEN** the system replaces the complete editable artifact set
