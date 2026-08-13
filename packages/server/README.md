@@ -43,4 +43,8 @@ npm run start -- <workspaceRoot> <port> --allow-external-cwd
 
 Use this only when you intentionally work across multiple folders/repositories.
 
-Открыть `http://127.0.0.1:<port>` в браузере.
+Open the authenticated URL printed by the server. Its fragment contains an
+ephemeral token, for example
+`http://127.0.0.1:<port>/#token=<ephemeral-token>`. REST clients must send the
+token in `X-OpenSpec-UI-Token`; WebSocket clients must send it through the
+`openspec-ui-token.<token>` subprotocol.

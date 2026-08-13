@@ -115,7 +115,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     extensionUri: context.extensionUri,
     runController,
     resolveRunner: () => undefined,
-    getLocalServerUrl: () => optionalServer?.baseUrl,
+    getLocalServerUrl: () => optionalServer?.launchUrl,
   });
 
   registerCommands(context, {

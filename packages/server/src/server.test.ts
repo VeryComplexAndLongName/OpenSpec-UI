@@ -63,6 +63,11 @@ let server: OpenSpecUiServer;
 let baseUrl: string;
 let wsUrl: string;
 const tempDirs: string[] = [];
+const ACCESS_TOKEN = "server-test-token";
+const JSON_HEADERS = {
+  "content-type": "application/json",
+  "x-openspec-ui-token": ACCESS_TOKEN,
+};
 
 async function createTempWorkspace(): Promise<string> {
   const dir = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-server-test-"));
@@ -71,7 +76,14 @@ async function createTempWorkspace(): Promise<string> {
 }
 
 async function startServer(runners: Map<string, AgentRunner>) {
-  server = createServer({ workspaceRoot: "/workspace/repo", host: "127.0.0.1", port: 0, runners });
+  server = createServer({
+    workspaceRoot: "/workspace/repo",
+    host: "127.0.0.1",
+    port: 0,
+    runners,
+    accessToken: ACCESS_TOKEN,
+    allowExternalCwd: true,
+  });
   const address = await server.listen();
   baseUrl = `http://127.0.0.1:${address.port}`;
   wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
@@ -93,7 +105,7 @@ describe("server — REST /api/status", () => {
   it("returns every event variant produced by the resolved AgentRunner", async () => {
     const res = await fetch(`${baseUrl}/api/status`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify(statusCommand),
     });
     expect(res.status).toBe(200);
@@ -104,7 +116,7 @@ describe("server — REST /api/status", () => {
   it("returns 400 for a malformed body", async () => {
     const res = await fetch(`${baseUrl}/api/status`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ not: "a command" }),
     });
     expect(res.status).toBe(400);
@@ -113,7 +125,7 @@ describe("server — REST /api/status", () => {
   it("returns 400 for an unknown agentId", async () => {
     const res = await fetch(`${baseUrl}/api/status`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ...statusCommand, agentId: "does-not-exist" }),
     });
     expect(res.status).toBe(400);
@@ -127,7 +139,7 @@ describe("server — REST /api/status", () => {
   it("returns 400 for malformed /api/overview request body", async () => {
     const res = await fetch(`${baseUrl}/api/overview`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ cwd: "" }),
     });
     expect(res.status).toBe(400);
@@ -144,7 +156,7 @@ describe("server — REST /api/status", () => {
 
     const res = await fetch(`${baseUrl}/api/status-json`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify(statusCommand),
     });
 
@@ -171,7 +183,7 @@ describe("server — REST /api/status", () => {
 
     const res = await fetch(`${baseUrl}/api/command-json`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ ...statusCommand, kind: "list" }),
     });
 
@@ -187,7 +199,7 @@ describe("server — REST /api/status", () => {
 
     const res = await fetch(`${baseUrl}/api/overview`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ cwd }),
     });
 
@@ -217,7 +229,7 @@ describe("server — REST /api/status", () => {
 
     const res = await fetch(`${baseUrl}/api/openspec/init`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ cwd, tools: ["github-copilot", "codex"] }),
     });
 
@@ -235,12 +247,55 @@ describe("server — REST /api/status", () => {
 
     const res = await fetch(`${baseUrl}/api/openspec/init`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify({ cwd, tools: ["unknown-tool"] }),
     });
 
     expect(res.status).toBe(400);
     expect(initOpenSpecMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing authentication and a hostile browser Origin", async () => {
+    const missingToken = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd: "/workspace/repo" }),
+    });
+    expect(missingToken.status).toBe(401);
+
+    const hostileOrigin = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: { ...JSON_HEADERS, origin: "https://attacker.example" },
+      body: JSON.stringify({ cwd: "/workspace/repo" }),
+    });
+    expect(hostileOrigin.status).toBe(403);
+  });
+
+  it("rejects an external cwd by default and oversized request bodies", async () => {
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      maxPayloadBytes: 64,
+    });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const external = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/outside/repo" }),
+    });
+    expect(external.status).toBe(403);
+
+    const oversized = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/workspace/repo", padding: "x".repeat(128) }),
+    });
+    expect(oversized.status).toBe(413);
   });
 });
 
@@ -250,7 +305,7 @@ describe("server — WebSocket /api/ws", () => {
   });
 
   it("streams every event variant back over the same connection, in order", async () => {
-    const client = new WebSocket(wsUrl);
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
     await new Promise((resolve) => client.once("open", resolve));
 
     const received: Event[] = [];
@@ -269,7 +324,7 @@ describe("server — WebSocket /api/ws", () => {
   });
 
   it("ignores malformed messages without closing the connection", async () => {
-    const client = new WebSocket(wsUrl);
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
     await new Promise((resolve) => client.once("open", resolve));
 
     client.send("not json");
@@ -291,7 +346,7 @@ describe("server — WebSocket /api/ws", () => {
   });
 
   it("sends a failed event for an unknown agentId instead of crashing", async () => {
-    const client = new WebSocket(wsUrl);
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
     await new Promise((resolve) => client.once("open", resolve));
 
     const received: Event[] = [];
@@ -306,5 +361,42 @@ describe("server — WebSocket /api/ws", () => {
 
     expect(received).toEqual([expect.objectContaining({ kind: "failed", runId: "run-1" })]);
     client.close();
+  });
+
+  it("rejects unauthenticated and hostile-origin handshakes", async () => {
+    const unauthenticated = new WebSocket(wsUrl);
+    const unauthenticatedError = await new Promise<Error>((resolve) => {
+      unauthenticated.once("error", resolve);
+    });
+    expect(unauthenticatedError.message).toContain("401");
+
+    const hostileOrigin = new WebSocket(
+      wsUrl,
+      ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`],
+      { origin: "https://attacker.example" },
+    );
+    const hostileOriginError = await new Promise<Error>((resolve) => {
+      hostileOrigin.once("error", resolve);
+    });
+    expect(hostileOriginError.message).toContain("401");
+  });
+
+  it("closes a connection that exceeds the WebSocket payload limit", async () => {
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      maxPayloadBytes: 64,
+    });
+    const address = await server.listen();
+    wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const closed = new Promise<number>((resolve) => client.once("close", resolve));
+    client.send("x".repeat(128));
+    await expect(closed).resolves.toBe(1009);
   });
 });

@@ -18,6 +18,7 @@ import type { Transport, Unsubscribe } from "./types.js";
 export interface FetchTransportOptions {
   /** Базовый URL сервера, например http://localhost:4000. */
   baseUrl: string;
+  accessToken: string;
   fetchImpl?: typeof fetch;
   webSocketCtor?: typeof WebSocket;
 }
@@ -30,11 +31,13 @@ export class FetchTransport implements Transport {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
   private readonly WebSocketCtor: typeof WebSocket;
+  private readonly accessToken: string;
   private socket: WebSocket | null = null;
   private readonly listeners = new Set<(event: Event) => void>();
 
   constructor(options: FetchTransportOptions) {
     this.baseUrl = options.baseUrl;
+    this.accessToken = options.accessToken;
     if (options.fetchImpl) {
       this.fetchImpl = options.fetchImpl;
     } else {
@@ -66,7 +69,10 @@ export class FetchTransport implements Transport {
 
     this.fetchImpl(`${this.baseUrl}/api/command-json`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-openspec-ui-token": this.accessToken,
+      },
       body: JSON.stringify(command),
     })
       .then(async (res) => {
@@ -113,7 +119,10 @@ export class FetchTransport implements Transport {
     if (this.socket && this.socket.readyState !== this.WebSocketCtor.CLOSED) {
       return this.socket;
     }
-    const socket = new this.WebSocketCtor(toWebSocketUrl(this.baseUrl));
+    const socket = new this.WebSocketCtor(toWebSocketUrl(this.baseUrl), [
+      "openspec-ui",
+      `openspec-ui-token.${this.accessToken}`,
+    ]);
     socket.addEventListener("message", (message: MessageEvent) => {
       const data = typeof message.data === "string" ? message.data : String(message.data);
       this.dispatchIfValid(data);

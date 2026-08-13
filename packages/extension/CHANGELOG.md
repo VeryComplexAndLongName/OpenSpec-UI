@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Authenticated optional local-server sessions with an ephemeral token passed
+  to the embedded standalone UI through a URL fragment.
+
 ## 0.4.0
 
 - Initialized Process Dashboard workspace and change-directory fields from the

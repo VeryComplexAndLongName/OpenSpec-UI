@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Command } from "@openspec-ui/core";
-import { FetchTransport } from "./fetch-transport.js";
+import {
+  FetchTransport as ProductionFetchTransport,
+  type FetchTransportOptions,
+} from "./fetch-transport.js";
+
+const ACCESS_TOKEN = "transport-test-token";
+
+class FetchTransport extends ProductionFetchTransport {
+  constructor(options: Omit<FetchTransportOptions, "accessToken">) {
+    super({ ...options, accessToken: ACCESS_TOKEN });
+  }
+}
 
 class FakeWebSocket extends EventTarget {
   static readonly CONNECTING = 0;
@@ -11,7 +22,7 @@ class FakeWebSocket extends EventTarget {
   readyState = FakeWebSocket.CONNECTING;
   sent: string[] = [];
 
-  constructor(public url: string) {
+  constructor(public url: string, public protocols?: string | string[]) {
     super();
   }
 
@@ -36,8 +47,8 @@ class FakeWebSocket extends EventTarget {
 
 function makeWebSocketCtor(): { ctor: typeof WebSocket; instances: FakeWebSocket[] } {
   const instances: FakeWebSocket[] = [];
-  const ctor = vi.fn((url: string) => {
-    const instance = new FakeWebSocket(url);
+  const ctor = vi.fn((url: string, protocols?: string | string[]) => {
+    const instance = new FakeWebSocket(url, protocols);
     instances.push(instance);
     return instance;
   }) as unknown as typeof WebSocket;
@@ -84,7 +95,10 @@ describe("FetchTransport — direct OpenSpec commands (REST)", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/api/command-json", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-openspec-ui-token": ACCESS_TOKEN,
+      },
       body: JSON.stringify(statusCommand),
     });
     expect(received[0]).toMatchObject({ kind: "started", runId: "run-status", command: "status", cwd: "/workspace/repo" });
@@ -157,6 +171,10 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
     transport.send(planCommand);
 
     expect(instances[0]?.url).toBe("ws://localhost:4000/api/ws");
+    expect(instances[0]?.protocols).toEqual([
+      "openspec-ui",
+      `openspec-ui-token.${ACCESS_TOKEN}`,
+    ]);
     expect(instances[0]?.sent).toHaveLength(0); // ещё не открыт
     instances[0]?.open();
     expect(instances[0]?.sent).toEqual([JSON.stringify(planCommand)]);

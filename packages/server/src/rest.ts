@@ -25,10 +25,21 @@ import {
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+export interface RestRequestPolicy {
+  maxPayloadBytes: number;
+  isCwdAllowed(cwd: string): boolean;
+}
+
+class PayloadTooLargeError extends Error {}
+
+async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
   for await (const chunk of req) {
-    chunks.push(chunk as Buffer);
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > maxPayloadBytes) throw new PayloadTooLargeError();
+    chunks.push(buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
@@ -36,6 +47,20 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   res.writeHead(statusCode, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+function sendBodyError(res: ServerResponse, error: unknown): void {
+  if (error instanceof PayloadTooLargeError) {
+    sendJson(res, 413, { error: "request payload is too large" });
+  } else {
+    sendJson(res, 400, { error: "invalid JSON body" });
+  }
+}
+
+function authorizeCwd(res: ServerResponse, policy: RestRequestPolicy, cwd: string): boolean {
+  if (policy.isCwdAllowed(cwd)) return true;
+  sendJson(res, 403, { error: "cwd is outside the configured workspace" });
+  return false;
 }
 
 interface OverviewRequest {
@@ -224,12 +249,12 @@ async function readFileIfExists(filePath: string): Promise<string> {
   }
 }
 
-export async function handleChangeEditorCreateRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleChangeEditorCreateRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -237,6 +262,7 @@ export async function handleChangeEditorCreateRequest(req: IncomingMessage, res:
     sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
     return;
   }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
     await createChange(parsed.changeName, { cwd: parsed.cwd }, { description: parsed.description });
@@ -247,12 +273,12 @@ export async function handleChangeEditorCreateRequest(req: IncomingMessage, res:
   }
 }
 
-export async function handleChangeEditorReadRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleChangeEditorReadRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -260,6 +286,7 @@ export async function handleChangeEditorReadRequest(req: IncomingMessage, res: S
     sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
     return;
   }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
     const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
@@ -281,12 +308,12 @@ export async function handleChangeEditorReadRequest(req: IncomingMessage, res: S
   }
 }
 
-export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -294,6 +321,7 @@ export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: S
     sendJson(res, 400, { error: "body must contain cwd/changeName/files" });
     return;
   }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
     const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
@@ -314,12 +342,12 @@ export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: S
   }
 }
 
-export async function handleOpenSpecInitRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleOpenSpecInitRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -327,6 +355,7 @@ export async function handleOpenSpecInitRequest(req: IncomingMessage, res: Serve
     sendJson(res, 400, { error: "body must contain cwd and supported tools[]" });
     return;
   }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
     const initialization = await detectOpenSpecInitialization(parsed.cwd);
@@ -348,12 +377,13 @@ export async function handleStatusRequest(
   req: IncomingMessage,
   res: ServerResponse,
   runners: Map<string, AgentRunner>,
+  policy: RestRequestPolicy,
 ): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -362,6 +392,7 @@ export async function handleStatusRequest(
     return;
   }
   const command = parsed as Command;
+  if (!authorizeCwd(res, policy, command.cwd)) return;
 
   const runner = resolveRunner(runners, command.agentId);
   if (!runner) {
@@ -376,12 +407,12 @@ export async function handleStatusRequest(
   sendJson(res, 200, { events });
 }
 
-export async function handleOverviewRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleOverviewRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -391,6 +422,7 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
   }
 
   const cwd = parsed.cwd;
+  if (!authorizeCwd(res, policy, cwd)) return;
 
   try {
     const initialization = await detectOpenSpecInitialization(cwd);
@@ -423,12 +455,12 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
   }
 }
 
-export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
-    parsed = await readJsonBody(req);
-  } catch {
-    sendJson(res, 400, { error: "invalid JSON body" });
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
     return;
   }
 
@@ -438,6 +470,7 @@ export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerR
   }
 
   const command = parsed as Command;
+  if (!authorizeCwd(res, policy, command.cwd)) return;
   const events: Event[] = [
     {
       kind: "started",
