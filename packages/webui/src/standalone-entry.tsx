@@ -12,6 +12,12 @@ import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { renderMarkdown } from "./markdown.js";
+import {
+  ChangeEditorSaveConflictError,
+  loadChangeEditorDocument,
+  saveChangeEditorDocument,
+  type ChangeEditorFiles,
+} from "./change-editor-client.js";
 
 interface OverviewChange {
   name: string;
@@ -79,13 +85,6 @@ const SUPPORTED_INIT_TOOLS = [
   "zcode",
 ] as const;
 
-interface ChangeEditorFiles {
-  proposal: string;
-  design: string;
-  tasks: string;
-  spec: string;
-}
-
 type EditorTab = keyof ChangeEditorFiles;
 
 const EMPTY_EDITOR_FILES: ChangeEditorFiles = {
@@ -144,6 +143,7 @@ function StandaloneApp() {
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [editorChangeName, setEditorChangeName] = useState("");
   const [editorFiles, setEditorFiles] = useState<ChangeEditorFiles>(EMPTY_EDITOR_FILES);
+  const [editorRevision, setEditorRevision] = useState("");
   const [editorTab, setEditorTab] = useState<EditorTab>("proposal");
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorSaving, setEditorSaving] = useState(false);
@@ -227,17 +227,9 @@ function StandaloneApp() {
     setEditorLoading(true);
     setEditorMessage(null);
     try {
-      const response = await apiFetch("/api/change-editor/read", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd, changeName }),
-      });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
-      }
-      const payload = (await response.json()) as { files: ChangeEditorFiles };
+      const payload = await loadChangeEditorDocument(apiFetch, cwd, changeName);
       setEditorFiles(payload.files ?? EMPTY_EDITOR_FILES);
+      setEditorRevision(payload.revision);
       setEditorChangeName(changeName);
       setEditorMessage(`Loaded ${changeName}.`);
     } catch (error) {
@@ -290,7 +282,7 @@ function StandaloneApp() {
   }
 
   async function handleSaveEditor() {
-    if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) {
+    if (cwd.trim().length === 0 || editorChangeName.trim().length === 0 || editorRevision.length === 0) {
       setEditorMessage("Select and load a change first.");
       return;
     }
@@ -298,19 +290,20 @@ function StandaloneApp() {
     setEditorSaving(true);
     setEditorMessage(null);
     try {
-      const response = await apiFetch("/api/change-editor/save", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd, changeName: editorChangeName, files: editorFiles }),
+      const saved = await saveChangeEditorDocument(apiFetch, cwd, {
+        changeName: editorChangeName,
+        files: editorFiles,
+        revision: editorRevision,
       });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
-      }
+      setEditorRevision(saved.revision);
 
       await handleLoadOverview();
       setEditorMessage(`Saved ${editorChangeName}.`);
     } catch (error) {
+      if (error instanceof ChangeEditorSaveConflictError) {
+        setEditorMessage("Save conflict: files changed on disk. Your edits are preserved; reload before retrying.");
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       setEditorMessage(`Save failed: ${message}`);
     } finally {
@@ -557,7 +550,10 @@ function StandaloneApp() {
 
           <select
             value={editorChangeName}
-            onChange={(e) => setEditorChangeName(e.target.value)}
+            onChange={(e) => {
+              setEditorChangeName(e.target.value);
+              setEditorRevision("");
+            }}
             disabled={overview?.changes.length === 0}
           >
             <option value="">Select change</option>
@@ -614,7 +610,7 @@ function StandaloneApp() {
           <button
             type="button"
             onClick={handleSaveEditor}
-            disabled={editorSaving || editorChangeName.trim().length === 0}
+            disabled={editorSaving || editorChangeName.trim().length === 0 || editorRevision.length === 0}
           >
             {editorSaving ? "Saving..." : "Save markdown"}
           </button>

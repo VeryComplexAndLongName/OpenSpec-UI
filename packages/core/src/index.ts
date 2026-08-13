@@ -6,6 +6,7 @@ export * from "./protocol.js";
 export * from "./agent-runner.js";
 export * from "./security.js";
 export * from "./change-state.js";
+export * from "./change-editor-store.js";
 export * from "./openspec.js";
 export * from "./git.js";
 export * from "./workbench.js";

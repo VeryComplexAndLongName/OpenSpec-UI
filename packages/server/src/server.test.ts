@@ -298,6 +298,35 @@ describe("server — REST /api/status", () => {
     expect(oversized.status).toBe(413);
   });
 
+  it("saves Change Editor documents by revision and rejects stale edits", async () => {
+    const cwd = await createTempWorkspace();
+    const readResponse = await fetch(`${baseUrl}/api/change-editor/read`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "safe-save" }),
+    });
+    const loaded = (await readResponse.json()) as { revision: string; files: Record<string, string> };
+    expect(readResponse.status).toBe(200);
+    expect(loaded.revision).toMatch(/^[a-f0-9]{64}$/);
+
+    const files = { proposal: "proposal", design: "design", tasks: "tasks", spec: "spec" };
+    const saveResponse = await fetch(`${baseUrl}/api/change-editor/save`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "safe-save", files, revision: loaded.revision }),
+    });
+    const saved = (await saveResponse.json()) as { revision: string };
+    expect(saveResponse.status).toBe(200);
+    expect(saved.revision).not.toBe(loaded.revision);
+
+    const conflictResponse = await fetch(`${baseUrl}/api/change-editor/save`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "safe-save", files, revision: loaded.revision }),
+    });
+    expect(conflictResponse.status).toBe(409);
+  });
+
   it("loads persisted process history and cleanup through the recovery adapter", async () => {
     const cwd = await createTempWorkspace();
     await new WorkbenchRunJournal(cwd).save({

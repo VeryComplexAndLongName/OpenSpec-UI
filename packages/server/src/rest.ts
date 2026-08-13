@@ -5,13 +5,16 @@
 // openspec/changes/standalone-app/design.md, "Decisions").
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import path from "node:path";
 import {
+  ChangeEditorConflictError,
   createChange,
   initOpenSpec,
   listChanges,
   listSpecs,
+  readChangeEditorDocument,
+  saveChangeEditorDocument,
   showChange,
   statusChange,
   validateChange,
@@ -96,6 +99,7 @@ interface ChangeEditorReadRequest {
 }
 
 interface ChangeEditorSaveRequest extends ChangeEditorReadRequest {
+  revision: string;
   files: {
     proposal: string;
     design: string;
@@ -160,16 +164,6 @@ function isChangeName(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9-]*$/i.test(value);
 }
 
-function resolveChangeRoot(cwd: string, changeName: string): string {
-  const changesRoot = path.resolve(cwd, "openspec", "changes");
-  const changeRoot = path.resolve(changesRoot, changeName);
-  const rootWithSep = `${changesRoot}${path.sep}`;
-  if (!(changeRoot === changesRoot || changeRoot.startsWith(rootWithSep))) {
-    throw new Error("change path is outside openspec/changes root");
-  }
-  return changeRoot;
-}
-
 function isChangeEditorReadRequest(value: unknown): value is ChangeEditorReadRequest {
   if (!isObjectRecord(value)) return false;
   return isNonEmptyString(value.cwd) && isChangeName(value.changeName);
@@ -184,6 +178,7 @@ function isChangeEditorCreateRequest(value: unknown): value is ChangeEditorCreat
 function isChangeEditorSaveRequest(value: unknown): value is ChangeEditorSaveRequest {
   if (!isObjectRecord(value)) return false;
   if (!isNonEmptyString(value.cwd) || !isChangeName(value.changeName)) return false;
+  if (!isNonEmptyString(value.revision)) return false;
   if (!isObjectRecord(value.files)) return false;
   const files = value.files;
   return (
@@ -241,14 +236,6 @@ async function detectOpenSpecInitialization(cwd: string): Promise<OpenSpecInitia
   };
 }
 
-async function readFileIfExists(filePath: string): Promise<string> {
-  try {
-    return await readFile(filePath, "utf8");
-  } catch {
-    return "";
-  }
-}
-
 export async function handleChangeEditorCreateRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {
@@ -289,19 +276,7 @@ export async function handleChangeEditorReadRequest(req: IncomingMessage, res: S
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
-    const specPath = path.join(changeRoot, "specs", parsed.changeName, "spec.md");
-    const [proposal, design, tasks, spec] = await Promise.all([
-      readFileIfExists(path.join(changeRoot, "proposal.md")),
-      readFileIfExists(path.join(changeRoot, "design.md")),
-      readFileIfExists(path.join(changeRoot, "tasks.md")),
-      readFileIfExists(specPath),
-    ]);
-
-    sendJson(res, 200, {
-      changeName: parsed.changeName,
-      files: { proposal, design, tasks, spec },
-    });
+    sendJson(res, 200, await readChangeEditorDocument(parsed.cwd, parsed.changeName));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change files: ${message}` });
@@ -324,19 +299,18 @@ export async function handleChangeEditorSaveRequest(req: IncomingMessage, res: S
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const changeRoot = resolveChangeRoot(parsed.cwd, parsed.changeName);
-    const specDir = path.join(changeRoot, "specs", parsed.changeName);
-    await mkdir(specDir, { recursive: true });
-
-    await Promise.all([
-      writeFile(path.join(changeRoot, "proposal.md"), parsed.files.proposal, "utf8"),
-      writeFile(path.join(changeRoot, "design.md"), parsed.files.design, "utf8"),
-      writeFile(path.join(changeRoot, "tasks.md"), parsed.files.tasks, "utf8"),
-      writeFile(path.join(specDir, "spec.md"), parsed.files.spec, "utf8"),
-    ]);
-
-    sendJson(res, 200, { ok: true, changeName: parsed.changeName });
+    const saved = await saveChangeEditorDocument(
+      parsed.cwd,
+      parsed.changeName,
+      parsed.files,
+      parsed.revision,
+    );
+    sendJson(res, 200, { ok: true, ...saved });
   } catch (error) {
+    if (error instanceof ChangeEditorConflictError) {
+      sendJson(res, 409, { error: error.message });
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to save change files: ${message}` });
   }
