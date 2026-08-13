@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3
+
+- Added actionable compatibility diagnostics when OpenSpec CLI JSON output no
+  longer matches fields consumed by the workbench.
+
 ## 0.4.2
 
 - Added actionable, fail-closed diagnostics when persisted run journals or

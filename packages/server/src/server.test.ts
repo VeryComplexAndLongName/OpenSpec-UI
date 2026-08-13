@@ -9,11 +9,18 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { WorkbenchRunJournal, type AgentRunner, type Command, type Event } from "@openspec-ui/core";
+import {
+  OpenSpecCliCompatibilityError,
+  WorkbenchRunJournal,
+  type AgentRunner,
+  type Command,
+  type Event,
+} from "@openspec-ui/core";
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
 const listChangesMock = vi.fn();
+const listSpecsMock = vi.fn();
 const initOpenSpecMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
@@ -21,6 +28,7 @@ vi.mock("@openspec-ui/core", async () => {
     ...actual,
     statusChange: (...args: unknown[]) => statusChangeMock(...args),
     listChanges: (...args: unknown[]) => listChangesMock(...args),
+    listSpecs: (...args: unknown[]) => listSpecsMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   };
 });
@@ -92,6 +100,7 @@ async function startServer(runners: Map<string, AgentRunner>) {
 afterEach(async () => {
   statusChangeMock.mockReset();
   listChangesMock.mockReset();
+  listSpecsMock.mockReset();
   initOpenSpecMock.mockReset();
   await server?.close();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
@@ -215,6 +224,30 @@ describe("server — REST /api/status", () => {
       hasOpenSpecDir: false,
       hasInitializationArtifacts: false,
       canInitialize: true,
+    });
+  });
+
+  it("returns actionable guidance for incompatible OpenSpec CLI JSON", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec"), { recursive: true });
+    await writeFile(path.join(cwd, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    listChangesMock.mockRejectedValueOnce(new OpenSpecCliCompatibilityError(
+      "incompatible-output",
+      "list --json",
+      "changes[] and root",
+      '{"changes":{}}',
+    ));
+    listSpecsMock.mockResolvedValueOnce({ specs: [], root: { path: cwd, source: "nearest" } });
+
+    const response = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: expect.stringContaining("Update OpenSpec CLI or OpenSpec UI to compatible versions"),
     });
   });
 
