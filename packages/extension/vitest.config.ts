@@ -6,6 +6,6 @@ export default defineConfig({
     // (см. src/test/run.mjs), не юнит-тесты vitest. dist/** — собранные
     // esbuild-бандлы (в т.ч. скомпилированная копия src/test/**), не
     // исходники.
-    exclude: ["**/node_modules/**", "src/test/**", "dist/**"],
+    exclude: ["**/node_modules/**", ".vscode-test/**", "src/test/**", "dist/**"],
   },
 });
