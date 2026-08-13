@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
+import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { renderMarkdown } from "./markdown.js";
 
@@ -154,6 +155,24 @@ function StandaloneApp() {
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
+  const processesApi = useMemo<ProcessesApi>(() => {
+    async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
+      const response = await apiFetch(pathname, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cwd, ...body }),
+      });
+      const payload = await response.json().catch(() => ({})) as T & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+      return payload;
+    }
+    return {
+      list: () => request("/api/processes/list", {}),
+      details: (processId) => request("/api/processes/details", { processId }),
+      rollback: (processId) => request("/api/processes/rollback", { processId }),
+      cleanup: (cutoff) => request("/api/processes/cleanup", { cutoff }),
+    };
+  }, [cwd]);
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
@@ -406,6 +425,12 @@ function StandaloneApp() {
         ) : (
           <p>Enter cwd and change directory to enable the AI panel.</p>
         )}
+      </section>
+
+      <section className="openspec-shell-panel">
+        <h2>Processes and recovery</h2>
+        <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
+        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} /> : <p>Enter workspace root to load processes.</p>}
       </section>
 
       <section className="openspec-shell-panel">

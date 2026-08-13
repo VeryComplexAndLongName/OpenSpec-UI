@@ -12,6 +12,7 @@ export * from "./workbench.js";
 export * from "./process-scheduler.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";
+export * from "./workbench-recovery.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

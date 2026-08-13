@@ -6,7 +6,7 @@ import { type IncomingMessage, type Server as HttpServer, createServer as create
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WebSocketServer } from "ws";
-import { type AgentRunner, type AuditLog } from "@openspec-ui/core";
+import { type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
 import {
   handleChangeEditorCreateRequest,
   handleChangeEditorReadRequest,
@@ -18,6 +18,12 @@ import {
 } from "./rest.js";
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
+import {
+  handleProcessDetailsRequest,
+  handleProcessRollbackRequest,
+  handleProcessesCleanupRequest,
+  handleProcessesListRequest,
+} from "./recovery-rest.js";
 
 export interface ServerOptions {
   workspaceRoot: string;
@@ -67,6 +73,16 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       return resolved === workspaceRoot || resolved.startsWith(`${workspaceRoot}${path.sep}`);
     },
   };
+  const recoveryServices = new Map<string, Promise<WorkbenchRecoveryService>>();
+  const resolveRecoveryService = (cwd: string): Promise<WorkbenchRecoveryService> => {
+    const root = path.resolve(cwd);
+    let service = recoveryServices.get(root);
+    if (!service) {
+      service = WorkbenchRecoveryService.open(root);
+      recoveryServices.set(root, service);
+    }
+    return service;
+  };
 
   const httpServer = createHttpServer((req, res) => {
     if (req.url?.startsWith("/api/")) {
@@ -112,6 +128,22 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {
       void handleOpenSpecInitRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/list") {
+      void handleProcessesListRequest(req, res, requestPolicy, resolveRecoveryService);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/details") {
+      void handleProcessDetailsRequest(req, res, requestPolicy, resolveRecoveryService);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/rollback") {
+      void handleProcessRollbackRequest(req, res, requestPolicy, resolveRecoveryService);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/cleanup") {
+      void handleProcessesCleanupRequest(req, res, requestPolicy, resolveRecoveryService);
       return;
     }
     if (req.method === "GET" && req.url) {
