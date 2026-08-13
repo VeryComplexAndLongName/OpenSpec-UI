@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Run recovery fails closed for incompatible persisted formats
 The system SHALL reject unsupported journal and checkpoint versions without
