@@ -5,7 +5,7 @@
 // за отдельным живым smoke-тестом с реальным агентом).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
@@ -356,6 +356,26 @@ describe("server — REST /api/status", () => {
     expect(cleaned.status).toBe(200);
     expect(await cleaned.json()).toEqual({ removed: 1, retained: 0 });
     expect((await new WorkbenchRunJournal(cwd).load()).processes).toEqual([]);
+  });
+
+  it("returns actionable diagnostics without replacing a future run journal", async () => {
+    const cwd = await createTempWorkspace();
+    const journal = new WorkbenchRunJournal(cwd);
+    await journal.save({ processes: [], checkpointSessions: [] });
+    const futureJournal = JSON.stringify({ version: 99, processes: [], checkpointSessions: [] });
+    await writeFile(journal.filePath, futureJournal, "utf8");
+
+    const response = await fetch(`${baseUrl}/api/processes/list`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: expect.stringContaining("Upgrade OpenSpec UI to recover runs"),
+    });
+    expect(await readFile(journal.filePath, "utf8")).toBe(futureJournal);
   });
 });
 

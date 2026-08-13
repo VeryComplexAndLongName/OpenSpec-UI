@@ -17,6 +17,7 @@ import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
 import type { AiPanelContext } from "./webview/ai-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
+import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
 let runners: Map<string, AgentRunner> | undefined;
 let optionalServer: OptionalServerManager | undefined;
@@ -45,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       outputChannel.appendLine(`Run recovery disabled: ${message}`);
-      void vscode.window.showErrorMessage(`OpenSpec UI: run recovery disabled (${message}).`);
+      void vscode.window.showErrorMessage(recoveryDisabledMessage(error));
       journal = undefined;
     }
   }

@@ -28,6 +28,38 @@ export interface WorkbenchRunJournalOptions {
     maxProcesses?: number;
 }
 
+export type WorkbenchJournalLoadErrorCode =
+    | "invalid-json"
+    | "invalid-shape"
+    | "unsupported-journal-version"
+    | "unsupported-checkpoint-version"
+    | "invalid-checkpoint"
+    | "workspace-mismatch";
+
+export interface WorkbenchJournalLoadErrorDetails {
+    code: WorkbenchJournalLoadErrorCode;
+    journalPath: string;
+    foundVersion?: unknown;
+    supportedVersion?: number;
+    cause?: unknown;
+}
+
+export class WorkbenchJournalLoadError extends Error {
+    readonly code: WorkbenchJournalLoadErrorCode;
+    readonly journalPath: string;
+    readonly foundVersion?: unknown;
+    readonly supportedVersion?: number;
+
+    constructor(message: string, details: WorkbenchJournalLoadErrorDetails) {
+        super(message, { cause: details.cause });
+        this.name = "WorkbenchJournalLoadError";
+        this.code = details.code;
+        this.journalPath = details.journalPath;
+        this.foundVersion = details.foundVersion;
+        this.supportedVersion = details.supportedVersion;
+    }
+}
+
 function emptyJournal(): WorkbenchRunJournalData {
     return { processes: [], checkpointSessions: [] };
 }
@@ -58,21 +90,63 @@ export class WorkbenchRunJournal {
         let document: WorkbenchRunJournalDocument;
         try {
             document = JSON.parse(source) as WorkbenchRunJournalDocument;
-        } catch {
-            throw new Error(`Workbench run journal is not valid JSON: ${this.filePath}`);
+        } catch (error) {
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal is not valid JSON. Inspect or restore ${this.filePath}.`,
+                { code: "invalid-json", journalPath: this.filePath, cause: error },
+            );
         }
         if (document.version !== WORKBENCH_RUN_JOURNAL_VERSION) {
-            throw new Error(`Unsupported Workbench run journal version: ${String(document.version)}`);
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal version ${String(document.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                {
+                    code: "unsupported-journal-version",
+                    journalPath: this.filePath,
+                    foundVersion: document.version,
+                    supportedVersion: WORKBENCH_RUN_JOURNAL_VERSION,
+                },
+            );
         }
         if (!Array.isArray(document.processes) || !Array.isArray(document.checkpointSessions)) {
-            throw new Error(`Workbench run journal has an invalid shape: ${this.filePath}`);
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal has an invalid shape. Inspect or restore ${this.filePath}.`,
+                { code: "invalid-shape", journalPath: this.filePath },
+            );
         }
 
         const resolvedRoot = path.resolve(this.root);
         for (const session of document.checkpointSessions) {
-            const checkpoint = deserializeCheckpoint(session.checkpoint);
+            if (!session || typeof session !== "object" || !session.checkpoint || typeof session.checkpoint !== "object") {
+                throw new WorkbenchJournalLoadError(
+                    `Workbench run journal contains an invalid checkpoint session. Inspect or restore ${this.filePath}.`,
+                    { code: "invalid-shape", journalPath: this.filePath },
+                );
+            }
+            if (session.checkpoint.version !== 1) {
+                throw new WorkbenchJournalLoadError(
+                    `Workbench checkpoint version ${String(session.checkpoint.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                    {
+                        code: "unsupported-checkpoint-version",
+                        journalPath: this.filePath,
+                        foundVersion: session.checkpoint.version,
+                        supportedVersion: 1,
+                    },
+                );
+            }
+            let checkpoint;
+            try {
+                checkpoint = deserializeCheckpoint(session.checkpoint);
+            } catch (error) {
+                throw new WorkbenchJournalLoadError(
+                    `Workbench run journal contains an invalid checkpoint. Inspect or restore ${this.filePath}.`,
+                    { code: "invalid-checkpoint", journalPath: this.filePath, cause: error },
+                );
+            }
             if (checkpoint.root !== resolvedRoot) {
-                throw new Error(`Checkpoint root does not match journal workspace: ${checkpoint.root}`);
+                throw new WorkbenchJournalLoadError(
+                    `Checkpoint root ${checkpoint.root} does not match journal workspace ${resolvedRoot}. Open the journal from its original workspace.`,
+                    { code: "workspace-mismatch", journalPath: this.filePath },
+                );
             }
         }
         return {
