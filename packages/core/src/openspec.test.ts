@@ -16,7 +16,17 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const { archiveChange, createChange, initOpenSpec, listChanges, listSpecs, showChange, statusChange, validateChange } = await import("./openspec.js");
+const {
+  OpenSpecCliCompatibilityError,
+  archiveChange,
+  createChange,
+  initOpenSpec,
+  listChanges,
+  listSpecs,
+  showChange,
+  statusChange,
+  validateChange,
+} = await import("./openspec.js");
 
 /** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
  * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
@@ -116,6 +126,24 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(result.artifacts.length).toBeGreaterThan(0);
   });
 
+  it("normalizes current status output without progress from artifact completion", async () => {
+    mockSuccessfulSpawn(JSON.stringify({
+      changeName: "current-contract",
+      schemaName: "spec-driven",
+      artifacts: [
+        { id: "proposal", outputPath: "proposal.md", status: "done", requires: [] },
+        { id: "tasks", outputPath: "tasks.md", status: "blocked", requires: ["proposal"] },
+      ],
+      root: { path: "/repo", source: "nearest" },
+      additiveField: true,
+    }));
+
+    const result = await statusChange("current-contract", { cwd: "/repo" });
+
+    expect(result.progress).toEqual({ total: 2, complete: 1, remaining: 1 });
+    expect(result.additiveField).toBe(true);
+  });
+
   it("createChange calls `openspec new change --json` with optional metadata", async () => {
     mockSuccessfulSpawn('{"ok":true}');
 
@@ -181,6 +209,61 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       cwd: "/repo",
       windowsHide: true,
     });
+  });
+
+  it("rejects valid JSON with an incompatible command shape", async () => {
+    mockSuccessfulSpawn('{"changes":"not-an-array","root":{"path":"x","source":"nearest"}}');
+
+    const error = await listChanges({ cwd: "/repo" }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(OpenSpecCliCompatibilityError);
+    expect(error).toMatchObject({
+      code: "incompatible-output",
+      command: "list --json",
+      expectedContract: "changes[] and root",
+    });
+  });
+
+  it("rejects malformed JSON with a bounded output preview", async () => {
+    mockSuccessfulSpawn(`not-json-${"x".repeat(800)}`);
+
+    const error = await listChanges({ cwd: "/repo" }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: "invalid-json", command: "list --json" });
+    if (!(error instanceof OpenSpecCliCompatibilityError)) throw new Error("Expected compatibility error");
+    expect(error.outputPreview.length).toBeLessThanOrEqual(512);
+  });
+
+  it("accepts compatible output with additive unknown fields", async () => {
+    mockSuccessfulSpawn(JSON.stringify({
+      changes: [],
+      root: { path: "x", source: "nearest", futureRootField: true },
+      futureTopLevelField: { enabled: true },
+    }));
+
+    const result = await listChanges({ cwd: "/repo" });
+
+    expect(result).toMatchObject({ futureTopLevelField: { enabled: true } });
+  });
+
+  it("rejects incompatible output across every JSON wrapper family", async () => {
+    const cases: Array<{ output: string; invoke: () => Promise<unknown>; command: string }> = [
+      { output: '{"specs":{}}', invoke: () => listSpecs({ cwd: "/repo" }), command: "list --specs --json" },
+      { output: '{"id":"x","title":"x","deltaCount":0,"deltas":{}}', invoke: () => showChange("x", { cwd: "/repo" }), command: "show x --json --type change" },
+      { output: '{"items":[],"summary":{}}', invoke: () => validateChange("x", { cwd: "/repo" }), command: "validate x --json --strict --type change" },
+      { output: '{"changeName":"x","schemaName":"x","progress":{},"artifacts":[]}', invoke: () => statusChange("x", { cwd: "/repo" }), command: "status --change x --json" },
+      { output: '[]', invoke: () => createChange("x", { cwd: "/repo" }), command: "new change x --json" },
+      { output: '[]', invoke: () => archiveChange("x", { cwd: "/repo" }), command: "archive x --yes --json" },
+    ];
+
+    for (const contractCase of cases) {
+      mockSuccessfulSpawn(contractCase.output);
+      const error = await contractCase.invoke().catch((caught: unknown) => caught);
+      expect(error).toMatchObject({
+        code: "incompatible-output",
+        command: contractCase.command,
+      });
+    }
   });
 
   it("rejects when the process exits with a non-zero code", async () => {
