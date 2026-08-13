@@ -50,6 +50,30 @@ jobs:
           path: packages/extension/*.vsix
           if-no-files-found: error
 
+  browser-e2e:
+    name: Standalone browser and accessibility
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm install --global @fission-ai/openspec@1.7.0
+      - run: npm ci
+      - run: npm exec --workspace @openspec-ui/server playwright -- install --with-deps chromium
+      - run: npm run test:browser --workspace @openspec-ui/server
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: standalone-playwright-diagnostics
+          path: |
+            packages/server/playwright-report/
+            packages/server/test-results/
+          if-no-files-found: warn
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
