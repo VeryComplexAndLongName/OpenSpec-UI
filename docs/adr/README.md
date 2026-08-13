@@ -12,5 +12,6 @@ Alternatives / Consequences.
 | [0003](0003-native-vscode-openspec-workbench.md) | Native VS Code OpenSpec Workbench | Accepted |
 | [0004](0004-persistent-workbench-runs.md) | Persistent Workbench runs and delivery parity | Accepted |
 | [0005](0005-authenticated-local-transport.md) | Authenticated local REST and WebSocket transport | Accepted |
+| [0006](0006-fail-closed-journal-compatibility.md) | Fail-closed journal compatibility | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

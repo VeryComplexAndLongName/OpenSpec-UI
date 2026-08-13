@@ -3,7 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureCheckpoint, serializeCheckpoint } from "./checkpoint.js";
-import { WorkbenchRunJournal } from "./workbench-run-journal.js";
+import {
+    WorkbenchJournalLoadError,
+    WorkbenchRunJournal,
+} from "./workbench-run-journal.js";
 
 const roots: string[] = [];
 
@@ -81,7 +84,58 @@ describe("WorkbenchRunJournal", () => {
         const unsupported = JSON.stringify({ version: 99, processes: [], checkpointSessions: [] });
         await writeFile(journal.filePath, unsupported, "utf8");
 
-        await expect(journal.load()).rejects.toThrow("Unsupported Workbench run journal version: 99");
+        const error = await journal.load().catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(WorkbenchJournalLoadError);
+        expect(error).toMatchObject({
+            code: "unsupported-journal-version",
+            journalPath: journal.filePath,
+            foundVersion: 99,
+            supportedVersion: 1,
+        });
+        expect((error as Error).message).toContain("Upgrade OpenSpec UI");
         expect(await readFile(journal.filePath, "utf8")).toBe(unsupported);
+    });
+
+    it("distinguishes unsupported checkpoint versions without replacing the journal", async () => {
+        const root = await temporaryRoot();
+        const checkpoint = serializeCheckpoint(await captureCheckpoint(root));
+        const journal = new WorkbenchRunJournal(root);
+        await journal.save({ processes: [], checkpointSessions: [] });
+        const unsupported = JSON.stringify({
+            version: 1,
+            processes: [{ id: "run-1", operation: "implement", mutating: true, state: "interrupted" }],
+            checkpointSessions: [{
+                processId: "run-1",
+                checkpoint: { ...checkpoint, version: 99 },
+            }],
+        });
+        await writeFile(journal.filePath, unsupported, "utf8");
+
+        const error = await journal.load().catch((caught: unknown) => caught);
+        expect(error).toMatchObject({
+            code: "unsupported-checkpoint-version",
+            journalPath: journal.filePath,
+            foundVersion: 99,
+            supportedVersion: 1,
+        });
+        expect(await readFile(journal.filePath, "utf8")).toBe(unsupported);
+    });
+
+    it("reports workspace mismatches as structured diagnostics without replacing the journal", async () => {
+        const root = await temporaryRoot();
+        const otherRoot = await temporaryRoot();
+        const checkpoint = serializeCheckpoint(await captureCheckpoint(otherRoot));
+        const journal = new WorkbenchRunJournal(root);
+        await journal.save({ processes: [], checkpointSessions: [] });
+        const mismatched = JSON.stringify({
+            version: 1,
+            processes: [{ id: "run-1", operation: "implement", mutating: true, state: "interrupted" }],
+            checkpointSessions: [{ processId: "run-1", checkpoint }],
+        });
+        await writeFile(journal.filePath, mismatched, "utf8");
+
+        const error = await journal.load().catch((caught: unknown) => caught);
+        expect(error).toMatchObject({ code: "workspace-mismatch", journalPath: journal.filePath });
+        expect(await readFile(journal.filePath, "utf8")).toBe(mismatched);
     });
 });

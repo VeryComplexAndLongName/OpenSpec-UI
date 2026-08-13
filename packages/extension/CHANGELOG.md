@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Added actionable, fail-closed diagnostics when persisted run journals or
+  checkpoints require a newer OpenSpec UI version.
+
 ## 0.4.1
 
 - Authenticated optional local-server sessions with an ephemeral token passed
