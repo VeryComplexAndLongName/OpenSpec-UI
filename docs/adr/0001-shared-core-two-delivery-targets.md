@@ -1,116 +1,66 @@
-# 0001: общий core/webui-монорепозиторий, два способа поставки
+# 0001: Shared Core Monorepo with Two Delivery Targets
 
-Статус: Принято — 2026-08-03
+Status: Accepted
 
-## Контекст
+Date: 2026-08-03
 
-Инструмент должен существовать в двух формах: standalone (браузер +
-локальный сервер) и расширение VS Code — по прямому требованию заказчика.
-Обе формы решают одну и ту же задачу (визуализация Changes/Archive/Specs/
-Tasks, запуск CLI-агентов) над одними и теми же данными (`openspec/`, git,
-CLI-агенты) — писать логику дважды означало бы гарантированное расхождение
-поведения между формами со временем.
+## Context
 
-Решение обсуждалось в два прохода: первый — с автором этого ADR (Claude,
-архитектурный набросок), второй — независимая рецензия внешнего эксперта,
-скорректировавшая часть решений (см. "Отклонённые альтернативы" ниже —
-изначальная рекомендация по режиму запуска extension была пересмотрена по
-итогам рецензии).
+OpenSpec UI must ship as both a standalone browser application with a local
+server and a VS Code extension. Both targets visualize the same OpenSpec and Git
+data and execute the same workflows. Duplicating behavior would cause the two
+deliveries to diverge over time.
 
-## Решение
+The delivery model was reviewed independently after the initial architecture
+proposal. That review changed the extension transport recommendation while
+preserving a shared behavioral core.
 
-**1. Монорепозиторий с явным разделением слоёв**: `packages/core` (вся
-бизнес-логика — execution engine, openspec-парсер, git-обёртка,
-security-модель, derived change-state machine), `packages/webui` (общие
-React-компоненты, транспорт-агностичные), `packages/server` (тонкий REST/WS
-слой над `core`, только для standalone), `packages/extension` (VS Code
-расширение). `server` и `extension` не должны содержать бизнес-логику —
-только адаптацию `core` к своему транспорту/host API. Единственный источник
-правды по поведению (какая задача что делает, как считается статус change'а)
-— `core`; при расхождении между тем, что видит standalone и что видит
-extension, это баг в `core` или в тонком адаптере, никогда не "у каждого
-своя логика".
+## Decision
 
-**2. Extension: прямой импорт `core` + message bridge — основной режим,
-локальный сервер — опциональный.** Extension host уже Node-процесс — может
-импортировать `core` напрямую, без HTTP. Webview получает данные через
-`postMessage`/`acquireVsCodeApi`, а не через `fetch` к localhost. Локальный
-REST/WS сервер (тот же пакет `server`, что использует standalone) остаётся
-доступен как опциональный режим — для сценариев, где полностью совпадающий
-UX между Webview и standalone важнее, чем отсутствие lifecycle-сложности
-localhost-порта (см. "Отклонённые альтернативы").
+1. **Use a layered monorepo.** `packages/core` owns all business behavior,
+   including execution, OpenSpec and Git integration, security, persistence,
+   and derived change state. `packages/webui` owns transport-neutral React
+   components. `packages/server` and `packages/extension` are thin host adapters.
+2. **Use direct core imports and a message bridge as the extension default.**
+   The extension host already runs Node.js and does not need HTTP for normal
+   operation. An optional local server remains available when standalone UI
+   parity is more important than localhost lifecycle simplicity.
+3. **Define the command and event protocol only in core.** Commands are `plan`,
+   `implement`, `review`, `status`, and `cancel`. Events are `started`, `stdout`,
+   `stderr`, `progress`, `completed`, `failed`, and `cancelled`. Host adapters
+   serialize this protocol; they do not reimplement execution.
+4. **Keep the agent security model in core.** Repository file content is data,
+   never executable UI instructions. Every run is restricted to the workspace,
+   commands and arguments are allowlisted, and executions are audited.
+5. **Derive change state in core.** Draft, in-progress, implemented, and archived
+   states are inferred from location and `tasks.md`; they are not stored in a
+   custom OpenSpec field.
+6. **Prefer native VS Code UI.** The extension uses native diff, tree, Git,
+   terminal/task, configuration, and Chat APIs where they fit the workflow.
 
-**3. Унифицированный протокол команд/событий, определённый только в
-`core`.** Команды: `plan`, `implement`, `review`, `status`, `cancel`.
-События (поток, не единичный ответ): `started`, `stdout`, `stderr`,
-`progress`, `completed`, `failed`, `cancelled`. И REST/WS-адаптер
-(`server`), и message-bridge-адаптер (`extension`) — тонкие сериализаторы
-этого протокола под свой транспорт, не отдельные реализации логики запуска
-агента.
+## Rejected Alternatives
 
-**4. Security-модель для оркестрации CLI-агентов — обязательная часть
-`core`, не опция:**
-- Содержимое файлов репозитория (`proposal.md`/`design.md`/issue-описания
-  и т.п.) — ДАННЫЕ, передаваемые агенту как контекст, никогда не источник
-  исполняемых инструкций для самого UI/execution engine (защита от prompt
-  injection через change, пришедший из чужого PR/архива/шаринга).
-- cwd каждого запуска агента жёстко ограничен воркспейсом пользователя, без
-  возможности выйти за его пределы.
-- Allowlist разрешённых команд/аргументов на CLI-агента, не произвольная
-  командная строка.
-- Аудит-лог каждого запуска: что запущено, с каким cwd, какой diff получен
-  на выходе.
+### Always run the standalone server inside the extension
 
-**5. Derived state machine для статуса change (draft/in-progress/
-implemented/archived) — вычисляется в ОДНОМ месте (`core`), не хранится
-как явное поле.** Сам OpenSpec CLI такого поля не имеет (`.openspec.yaml`
-содержит только `schema`/`created`) — статус эвристический, выводится из
-факта расположения (`openspec/changes/` vs `openspec/changes/archive/`) и
-состояния `tasks.md` (доля отмеченных `[x]`). Эвристика специфицируется
-явно в `execution-core` (см. `openspec/changes/execution-core/design.md`),
-не оставляется на усмотрение реализации в `server`/`extension`.
+Rejected because dynamic ports, window collisions, authentication, and process
+cleanup would burden the most common extension workflow. The message bridge is
+the default; the local server remains optional.
 
-**6. Максимум VS Code API вместо своего UI**, где нативный аналог есть:
-diff-editor вместо своего diff-viewer, `TreeDataProvider` вместо своего
-дерева, встроенный Git extension API вместо своего git UI, Tasks/Terminal
-API вместо своей панели "Execution", `contributes.configuration` вместо
-своего экрана настроек, Chat Participant API (`vscode.chat.
-createChatParticipant`) как альтернативный/дополнительный интерфейс к
-AI-панели — тот же механизм, на котором работает сам Copilot Chat.
+### Implement agent execution independently in each host
 
-## Отклонённые альтернативы
+Rejected because streaming, cancellation, errors, and security behavior would
+diverge. Both hosts must adapt the same core protocol.
 
-- **Extension всегда поднимает тот же локальный сервер, что standalone
-  (единственный транспорт для `webui` — REST/WS всегда)**: первоначальная
-  рекомендация, чтобы `webui` не знал о двух транспортах. Отклонено по
-  итогам рецензии — цена НЕ в поддержке двух тонких транспорт-адаптеров
-  (это несколько методов интерфейса), а в реальной lifecycle-сложности
-  localhost-порта в extension: динамический выбор порта, коллизии между
-  несколькими одновременно открытыми окнами VS Code, cleanup процесса при
-  закрытии окна. Эта сложность возникала бы в САМОМ ЧАСТОМ сценарии
-  использования (просто открыть VS Code), а не только в редком. Решение:
-  message bridge как основной путь, сервер — опциональный режим для
-  случаев, где полная идентичность UX важнее.
-- **Одна реализация исполнения агента в каждом из `server`/`extension`
-  отдельно** (без единого протокола в `core`): отклонено сразу — гарантирует
-  расхождение поведения потоковой передачи/ошибок между Webview и
-  standalone, именно риск, который поднят в рецензии.
-- **Хранить статус change явным полем в `.openspec.yaml`**: отклонено —
-  требовало бы форкать/патчить сам формат OpenSpec, а не работать поверх
-  него; эвристика в `core` даёт то же самое без модификации чужого
-  формата.
+### Store change state in `.openspec.yaml`
 
-## Последствия
+Rejected because it would extend an external format. A documented core heuristic
+provides status without forking OpenSpec.
 
-- `core` становится единственным местом, где чинится любой баг поведения —
-  это обязывает держать его строго свободным от зависимостей на HTTP/VS
-  Code API (см. "Критерии качества" в будущем `.github`/`CLAUDE.md` этого
-  репозитория, по аналогии с `docsai-api`'s hexagonal architecture в
-  соседнем проекте DocsAI).
-- `webui` обязан абстрагировать транспорт (интерфейс `Transport` с двумя
-  реализациями — `FetchTransport`/`MessageBridgeTransport`), что чуть
-  увеличивает его сложность против "просто fetch везде", но устраняет
-  дублирование компонентов между standalone и Webview.
-- Security-модель CLI-агентов — не post-hoc доработка, а часть первого
-  change'а (`execution-core`) — если это отложить, риск получить рабочий
-  прототип, который небезопасно показывать кому-либо кроме автора.
+## Consequences
+
+- Behavioral defects are fixed in core, which remains independent of HTTP and
+  VS Code APIs.
+- Web UI components depend on a transport interface with fetch and message-bridge
+  implementations.
+- Host UX may differ, but shared behavior and protocol contracts remain testable.
+- Security is part of the initial execution architecture rather than a later add-on.

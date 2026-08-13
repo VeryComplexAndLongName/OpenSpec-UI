@@ -1,50 +1,37 @@
 # @openspec-ui/server
 
-Тонкий REST/WS слой над `@openspec-ui/core` — не содержит бизнес-логики,
-только сериализация протокола команд/событий под HTTP/WebSocket и отдача
-браузерного шелла `@openspec-ui/webui`. Bind по умолчанию на `127.0.0.1`.
+A thin authenticated REST/WebSocket adapter over `@openspec-ui/core`. It serves
+the standalone `@openspec-ui/webui` shell and binds to `127.0.0.1` by default.
+Business logic, execution security, recovery, and change state remain in core.
 
-Используется standalone-инструментом (`openspec/changes/standalone-app/`)
-и опционально VS Code extension'ом (`openspec/changes/vscode-extension/`,
-режим локального сервера).
+The standalone capability is governed under `openspec/changes/standalone-app/`.
+The VS Code extension may also launch this server as an optional transport mode.
 
-Реализовано по `openspec/changes/standalone-app/tasks.md`. Живой smoke-тест
-и найденные баги — `openspec/changes/standalone-app/smoke-test-notes.md`.
+## Transport
 
-## Проводной протокол
+- `POST /api/status`: synchronous `{ events: Event[] }` response for status.
+- `POST /api/command-json`: direct structured OpenSpec commands.
+- `GET /api/ws`: bidirectional command/event streaming.
+- `POST /api/change-editor/*`: conflict-aware Change Editor operations.
+- `POST /api/processes/*`: persistent process review, rollback, and cleanup.
+- `GET /` and `GET /app.js`: built standalone browser shell.
 
-- `POST /api/status` — REST, синхронный ответ `{ events: Event[] }` (команда
-  `status` обычно быстрая, WS ради неё избыточен).
-- `GET /api/ws` (WebSocket) — команда отправляется и её события приходят по
-  одному и тому же соединению; используется для `plan`/`implement`/
-  `review`/`cancel`.
-- `GET /` и `GET /app.js` — браузерный шелл (`packages/webui/src/standalone-entry.tsx`,
-  собранный `scripts/build-client.mjs` в `dist/app.js`).
+Every API request requires the ephemeral startup token. REST clients send
+`X-OpenSpec-UI-Token`; WebSocket clients use the
+`openspec-ui-token.<token>` subprotocol.
 
-Ни одна из этих ручек не содержит логики исполнения агента, allowlist/cwd-
-проверок или вычисления статуса change'а — всё это делегируется
-`@openspec-ui/core` (`buildDefaultAgentRunners`/`buildDefaultAllowlist` —
-готовая сборка реестра `AgentRunner`, переиспользуемая и `server`, и
-`extension`, не изобретаемая заново в каждом хосте).
-
-## Запуск
+## Run
 
 ```bash
-npm run build   # собирает браузерный бандл в dist/app.js
-npm run start -- <workspaceRoot> <port>   # по умолчанию: cwd процесса, порт 4317
+npm run build
+npm run start -- <workspaceRoot> <port>
 ```
 
-Optional (explicit opt-in): allow commands to use `cwd` outside startup
-`workspaceRoot`.
+The default port is `4317`. To intentionally permit API requests outside the
+startup workspace, use the explicit opt-in flag:
 
 ```bash
 npm run start -- <workspaceRoot> <port> --allow-external-cwd
 ```
 
-Use this only when you intentionally work across multiple folders/repositories.
-
-Open the authenticated URL printed by the server. Its fragment contains an
-ephemeral token, for example
-`http://127.0.0.1:<port>/#token=<ephemeral-token>`. REST clients must send the
-token in `X-OpenSpec-UI-Token`; WebSocket clients must send it through the
-`openspec-ui-token.<token>` subprotocol.
+Open the tokenized URL printed by the server after startup.
