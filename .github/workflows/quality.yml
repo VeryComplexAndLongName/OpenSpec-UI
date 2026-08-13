@@ -44,7 +44,7 @@ jobs:
       - run: npm ci
       - run: xvfb-run -a npm run test:integration --workspace openspec-ui-vscode
       - run: npm run package --workspace openspec-ui-vscode
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: openspec-ui-vsix
           path: packages/extension/*.vsix
@@ -65,7 +65,7 @@ jobs:
       - run: npm ci
       - run: npm exec --workspace @openspec-ui/server playwright -- install --with-deps chromium
       - run: npm run test:browser --workspace @openspec-ui/server
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: standalone-playwright-diagnostics
