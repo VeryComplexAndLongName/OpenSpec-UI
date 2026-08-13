@@ -5,7 +5,7 @@
 // Extension Development Host через `@vscode/test-electron`.
 
 import { build } from "esbuild";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,12 @@ async function buildAll() {
   await build(webviewBuildOptions());
   await build(standaloneAssetsBuildOptions());
   await build(testSuiteBuildOptions());
+  const standaloneDir = path.resolve(extensionRoot, "dist/standalone");
+  await mkdir(standaloneDir, { recursive: true });
+  await copyFile(
+    path.resolve(extensionRoot, "../server/public/index.html"),
+    path.join(standaloneDir, "index.html"),
+  );
 }
 
 async function createFixtureWorkspace() {

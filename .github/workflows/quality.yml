@@ -1,0 +1,64 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22.11.0
+  NPM_VERSION: 10.9.0
+
+jobs:
+  quality:
+    name: Typecheck, lint, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
+  extension-integration:
+    name: Extension integration and package
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm install --global @fission-ai/openspec@1.7.0
+      - run: npm ci
+      - run: xvfb-run -a npm run test:integration --workspace openspec-ui-vscode
+      - run: npm run package --workspace openspec-ui-vscode
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openspec-ui-vsix
+          path: packages/extension/*.vsix
+          if-no-files-found: error
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        continue-on-error: true
+        with:
+          fail-on-severity: high
