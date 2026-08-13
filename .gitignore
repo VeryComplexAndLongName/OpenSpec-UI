@@ -3,6 +3,8 @@ dist/
 *.tsbuildinfo
 .vscode-test/
 .openspec-ui/
+playwright-report/
+test-results/
 *.vsix
 .env
 .DS_Store

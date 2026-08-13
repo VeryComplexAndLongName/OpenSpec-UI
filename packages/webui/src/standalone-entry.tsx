@@ -549,6 +549,7 @@ function StandaloneApp() {
           </button>
 
           <select
+            aria-label="Change to edit"
             value={editorChangeName}
             onChange={(e) => {
               setEditorChangeName(e.target.value);

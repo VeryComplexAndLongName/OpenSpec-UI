@@ -108,7 +108,7 @@ release artifact. Current release versions are:
 | `@openspec-ui/core` | 0.9.0 | Shared behavior and persistence contract |
 | `openspec-ui-vscode` | 0.4.1 | VS Code delivery |
 | `@openspec-ui/server` | 1.2.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.2.0 | Shared browser UI |
+| `@openspec-ui/webui` | 1.2.1 | Shared browser UI |
 
 ## Delivery Capability Matrix
 
