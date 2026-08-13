@@ -14,4 +14,4 @@
 
 - [x] 3.1 Run the browser suite locally with managed Chromium.
 - [x] 3.2 Run workspace verify/build and strict OpenSpec validation.
-- [ ] 3.3 Confirm the browser job passes on the pull request.
+- [x] 3.3 Confirm the browser job passes on the pull request.
