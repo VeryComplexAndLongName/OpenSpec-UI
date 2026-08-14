@@ -60,7 +60,12 @@ async function serveFile(res: ServerResponse, filePath: string | undefined, cont
   }
 }
 
-/** Возвращает true, если запрос был обработан (статический путь распознан). */
+/** Returns true if the request was handled (a static path was recognized).
+ * Matches on `pathname` only, ignoring any query string — the VS Code
+ * extension embeds the standalone shell as `/?embed=vscode-local-server`
+ * (see openspec/changes/standalone-shell-host-aware-tabs/design.md,
+ * "Signal mechanism"), and that query parameter must not break serving
+ * index.html. */
 export async function tryServeStatic(
   url: string,
   res: ServerResponse,
@@ -70,16 +75,17 @@ export async function tryServeStatic(
   const indexHtmlPath = assetPaths.indexHtmlPath ?? defaults.indexHtmlPath;
   const appJsPath = assetPaths.appJsPath ?? defaults.appJsPath;
   const appJsMapPath = assetPaths.appJsMapPath ?? defaults.appJsMapPath;
+  const pathname = url.split("?")[0];
 
-  if (url === "/" || url === "/index.html") {
+  if (pathname === "/" || pathname === "/index.html") {
     await serveFile(res, indexHtmlPath, "text/html; charset=utf-8");
     return true;
   }
-  if (url === "/app.js") {
+  if (pathname === "/app.js") {
     await serveFile(res, appJsPath, "application/javascript; charset=utf-8");
     return true;
   }
-  if (url === "/app.js.map") {
+  if (pathname === "/app.js.map") {
     await serveFile(res, appJsMapPath, "application/json; charset=utf-8");
     return true;
   }

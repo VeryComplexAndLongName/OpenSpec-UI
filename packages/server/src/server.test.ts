@@ -203,6 +203,24 @@ describe("server — REST /api/status", () => {
     expect(body.events[2]).toMatchObject({ kind: "completed", runId: statusCommand.runId });
   });
 
+  it("lists archived change names in the overview, independent of listChanges", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec", "changes", "archive", "old-change"), { recursive: true });
+    await writeFile(path.join(cwd, "openspec", "config.yaml"), "schema: spec-driven\n");
+    listChangesMock.mockResolvedValueOnce({ changes: [], root: { path: cwd, source: "nearest" } });
+    listSpecsMock.mockResolvedValueOnce({ specs: [], root: { path: cwd, source: "nearest" } });
+
+    const res = await fetch(`${baseUrl}/api/overview`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { archivedChanges: string[] };
+    expect(body.archivedChanges).toEqual(["old-change"]);
+  });
+
   it("returns overview with canInitialize=true for workspace without OpenSpec artifacts", async () => {
     const cwd = await createTempWorkspace();
 
@@ -358,6 +376,35 @@ describe("server — REST /api/status", () => {
       body: JSON.stringify({ cwd, changeName: "safe-save", files, revision: loaded.revision }),
     });
     expect(conflictResponse.status).toBe(409);
+  });
+
+  it("returns an archived change's tasks as a checkbox-reset template", async () => {
+    const cwd = await createTempWorkspace();
+    const archived = path.join(cwd, "openspec", "changes", "archive", "old-change");
+    await mkdir(archived, { recursive: true });
+    await writeFile(path.join(archived, "tasks.md"), "## 1. Setup\n\n- [x] done\n- [ ] todo\n");
+
+    const response = await fetch(`${baseUrl}/api/change-editor/archive-tasks-template`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "old-change" }),
+    });
+    const body = (await response.json()) as { template: string };
+
+    expect(response.status).toBe(200);
+    expect(body.template).toBe("## 1. Setup\n\n- [ ] done\n- [ ] todo\n");
+  });
+
+  it("rejects a tasks-template request for a name that is not an archived change", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/change-editor/archive-tasks-template`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "does-not-exist" }),
+    });
+
+    expect(response.status).toBe(404);
   });
 
   it("loads persisted process history and cleanup through the recovery adapter", async () => {

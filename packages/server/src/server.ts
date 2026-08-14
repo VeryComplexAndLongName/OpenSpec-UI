@@ -8,6 +8,7 @@ import path from "node:path";
 import { WebSocketServer } from "ws";
 import { type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
 import {
+  handleArchiveTasksTemplateRequest,
   handleChangeEditorCreateRequest,
   handleChangeEditorReadRequest,
   handleChangeEditorSaveRequest,
@@ -124,6 +125,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-editor/save") {
       void handleChangeEditorSaveRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-editor/archive-tasks-template") {
+      void handleArchiveTasksTemplateRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {

@@ -11,6 +11,7 @@ import {
   initOpenSpec,
   listChanges,
   listSpecs,
+  readArchivedChangeTasksTemplate,
   showChange,
   unarchiveChange,
   validateChange,
@@ -300,6 +301,30 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage(`OpenSpec UI: unarchived ${item.changeName}.`);
       } catch (error) {
         await showCommandError("unarchive change", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.copyTasksAsTemplate", async (item?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item || !item.archived) return;
+      const target = await pickChange(workspaceRoot);
+      if (!target) return;
+      try {
+        const template = await readArchivedChangeTasksTemplate(workspaceRoot, item.changeName);
+        const tasksUri = vscode.Uri.file(path.join(target.changeDir, "tasks.md"));
+        const document = await vscode.workspace.openTextDocument(tasksUri);
+        const insertText = document.getText().trim().length > 0 ? `\n${template}` : template;
+        const endOfDocument = document.lineAt(document.lineCount - 1).range.end;
+
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(tasksUri, endOfDocument, insertText);
+        await vscode.workspace.applyEdit(edit);
+        await vscode.window.showTextDocument(document, { preview: false });
+
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: inserted tasks template from ${item.changeName} into ${target.name}.`,
+        );
+      } catch (error) {
+        await showCommandError("copy tasks as template", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.deleteChange", async (item?: ChangeTreeItem) => {

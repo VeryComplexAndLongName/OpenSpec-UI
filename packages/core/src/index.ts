@@ -10,6 +10,7 @@ export * from "./change-editor-store.js";
 export * from "./openspec.js";
 export * from "./git.js";
 export * from "./workbench.js";
+export * from "./task-templates.js";
 export * from "./process-scheduler.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";

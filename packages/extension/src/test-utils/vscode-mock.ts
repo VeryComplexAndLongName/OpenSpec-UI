@@ -57,8 +57,21 @@ export class Uri {
   }
 }
 
+/** Minimal in-memory document store backing `workspace.openTextDocument(uri)`
+ * and `WorkspaceEdit`/`applyEdit`, for commands that insert text into a
+ * file-backed document (e.g. `openspec-ui.copyTasksAsTemplate`) without a
+ * real VS Code host. Only supports end-of-document inserts — sufficient for
+ * what this codebase's commands actually do; not a general editor model. */
+export class WorkspaceEdit {
+  readonly _inserts: Array<{ uri: Uri; newText: string }> = [];
+  insert(uri: Uri, _position: unknown, newText: string): void {
+    this._inserts.push({ uri, newText });
+  }
+}
+
 export function createVscodeMock() {
   const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+  const documentContents = new Map<string, string>();
 
   const mock = {
     TreeItemCollapsibleState,
@@ -68,6 +81,7 @@ export function createVscodeMock() {
     ThemeIcon,
     TreeItem,
     Uri,
+    WorkspaceEdit,
     window: {
       createOutputChannel: vi.fn(() => ({
         appendLine: vi.fn(),
@@ -93,11 +107,29 @@ export function createVscodeMock() {
       workspaceFolders: undefined as { uri: Uri }[] | undefined,
       getConfiguration: vi.fn(() => ({ get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue) })),
       onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
-      openTextDocument: vi.fn(async ({ language, content }: { language: string; content: string }) => ({
-        uri: Uri.file(`/virtual/${language}.md`),
-        getText: () => content,
-      })),
+      openTextDocument: vi.fn(async (arg: Uri | { language: string; content: string }) => {
+        if (arg instanceof Uri) {
+          const uri = arg;
+          return {
+            uri,
+            getText: () => documentContents.get(uri.fsPath) ?? "",
+            get lineCount() {
+              return Math.max(1, (documentContents.get(uri.fsPath) ?? "").split("\n").length);
+            },
+            lineAt: (line: number) => ({ range: { end: { line, character: 0 } } }),
+          };
+        }
+        const { language, content } = arg;
+        return { uri: Uri.file(`/virtual/${language}.md`), getText: () => content };
+      }),
+      applyEdit: vi.fn(async (edit: WorkspaceEdit) => {
+        for (const { uri, newText } of edit._inserts) {
+          documentContents.set(uri.fsPath, (documentContents.get(uri.fsPath) ?? "") + newText);
+        }
+        return true;
+      }),
     },
+    _documentContents: documentContents,
     commands: {
       registerCommand: vi.fn((id: string, handler: (...args: unknown[]) => unknown) => {
         registeredCommands.set(id, handler);

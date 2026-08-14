@@ -128,10 +128,22 @@ export class AiPanel {
 </html>`;
   }
 
-  /** Опциональный режим (2.3): встраивает тот же браузерный шелл, что и
-   * standalone-инструмент, вместо моста postMessage. CSP ограничен именно
-   * этим localhost-адресом. */
+  /** Optional mode (2.3): embeds the same browser shell as the standalone
+   * tool, instead of the postMessage bridge. CSP is scoped to that exact
+   * localhost address.
+   *
+   * Marks the iframe `src` with the `embed=vscode-local-server` query
+   * parameter (see
+   * openspec/changes/standalone-shell-host-aware-tabs/design.md, "Signal
+   * mechanism") so the embedded standalone shell shows only the "Run a
+   * Command" tab — the other four are already covered by native VS Code
+   * UI (diff/tree/file editing). Built via `URL`, not string
+   * concatenation, so the parameter lands correctly ahead of the
+   * `#token=...` fragment already present in `baseUrl`. */
   private getLocalServerHtml(baseUrl: string): string {
+    const iframeUrl = new URL(baseUrl);
+    iframeUrl.searchParams.set("embed", "vscode-local-server");
+    const iframeSrc = iframeUrl.toString();
     const csp = `default-src 'none'; frame-src ${baseUrl};`;
     return `<!doctype html>
 <html>
@@ -142,7 +154,7 @@ export class AiPanel {
     <style>html, body, iframe { height: 100%; width: 100%; margin: 0; border: 0; }</style>
   </head>
   <body>
-    <iframe src="${baseUrl}"></iframe>
+    <iframe src="${iframeSrc}"></iframe>
   </body>
 </html>`;
   }

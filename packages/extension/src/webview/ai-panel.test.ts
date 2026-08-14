@@ -23,7 +23,7 @@ function createPanelFixture() {
     return panel;
 }
 
-function createAiPanel() {
+function createAiPanel(options: { getLocalServerUrl?: () => string | undefined } = {}) {
     return new AiPanel({
         extensionUri: vscodeMock.Uri.file("/extension") as never,
         runController: {
@@ -31,7 +31,7 @@ function createAiPanel() {
             run: vi.fn(),
         } as never,
         resolveRunner: () => undefined,
-        getLocalServerUrl: () => undefined,
+        getLocalServerUrl: options.getLocalServerUrl ?? (() => undefined),
     });
 }
 
@@ -58,5 +58,27 @@ describe("AiPanel context", () => {
             type: "openspec-ui/context",
             context: { cwd: "/two", changeDir: "/two/openspec/changes/demo" },
         });
+    });
+});
+
+describe("AiPanel local-server embed", () => {
+    it("marks the iframe src with the VS Code local-server embed signal, ahead of the token fragment", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel({ getLocalServerUrl: () => "http://127.0.0.1:4317/#token=abc123" });
+
+        aiPanel.reveal();
+
+        expect(panel.webview.html).toContain(
+            'src="http://127.0.0.1:4317/?embed=vscode-local-server#token=abc123"',
+        );
+    });
+
+    it("uses the message-bridge HTML (no iframe) when no local server is running", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal();
+
+        expect(panel.webview.html).not.toContain("<iframe");
     });
 });

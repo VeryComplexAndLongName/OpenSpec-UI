@@ -45,6 +45,14 @@ describe("server — static browser shell", () => {
     expect(body).toContain('src="/app.js"');
   });
 
+  it("serves index.html at / with a query string (VS Code local-server embed)", async () => {
+    const res = await fetch(`${baseUrl}/?embed=vscode-local-server`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const body = await res.text();
+    expect(body).toContain('<div id="root">');
+  });
+
   it("serves the bundled app.js", async () => {
     const res = await fetch(`${baseUrl}/app.js`);
     expect(res.status).toBe(200);
