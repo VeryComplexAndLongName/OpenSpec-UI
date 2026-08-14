@@ -40,6 +40,7 @@ test.afterAll(async () => {
 });
 
 test("loads, edits, and saves an accessible standalone change", async ({ page }) => {
+  test.setTimeout(60000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
 
@@ -47,19 +48,29 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   await expect(page.getByRole("heading", { name: "OpenSpec UI", level: 1 })).toBeVisible();
 
   await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
-  await page.getByRole("button", { name: "Load summary" }).click();
-  await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME);
 
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+  await page.getByRole("button", { name: "Load summary" }).click();
+  // Overview loading shells out to the `openspec` CLI (listChanges +
+  // listSpecs); this flow triggers it up to three times (tab navigation's
+  // extra steps mean more elapsed wall-clock time for a spawn to be slow),
+  // so the default 5s assertion timeout is too tight on a loaded/slow
+  // runner. Generous explicit timeouts here, not a app behavior change.
+  await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME, { timeout: 15000 });
+
+  await page.getByRole("tab", { name: "Change Editor" }).click();
   await page.locator("section", { has: page.getByRole("heading", { name: "Change Editor" }) })
     .getByRole("combobox")
     .selectOption(CHANGE_NAME);
   await page.getByRole("button", { name: "Load change", exact: true }).click();
-  await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible();
+  await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
 
   const proposalEditor = page.getByLabel("Markdown (proposal)");
   await proposalEditor.fill("## Why\n\nUpdated in Chromium.\n");
   await page.getByRole("button", { name: "Save markdown" }).click();
-  await expect(page.getByText(`Saved ${CHANGE_NAME}.`)).toBeVisible();
+  // Save internally reloads the overview too (see above) before showing
+  // this message.
+  await expect(page.getByText(`Saved ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
 
   const proposalPath = path.join(workspaceRoot, "openspec", "changes", CHANGE_NAME, "proposal.md");
   await expect.poll(() => readFile(proposalPath, "utf8")).toContain("Updated in Chromium.");
