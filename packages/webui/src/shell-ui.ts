@@ -61,6 +61,39 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  .openspec-page-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .openspec-page-tabs button {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    padding: 8px 14px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .openspec-page-tabs button.is-active {
+    background: var(--primary);
+    color: var(--primary-ink);
+    border-color: transparent;
+  }
+
+  .openspec-page-tab-panel {
+    display: grid;
+    gap: 14px;
+  }
+
+  .openspec-page-tab-panel[hidden] {
+    display: none;
+  }
+
   .openspec-shell-panel {
     background: var(--surface);
     border: 1px solid var(--line);

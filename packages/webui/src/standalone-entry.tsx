@@ -10,11 +10,15 @@ import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
+import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
+import { computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
+  loadArchivedTasksTemplate,
   loadChangeEditorDocument,
+  mergeTasksTemplate,
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
@@ -41,6 +45,7 @@ interface OpenSpecOverview {
   root: OverviewRoot;
   changes: OverviewChange[];
   specs: OverviewSpec[];
+  archivedChanges: string[];
   initialization: {
     hasOpenSpecDir: boolean;
     hasInitializationArtifacts: boolean;
@@ -125,6 +130,13 @@ function readAccessToken(): string {
 
 const accessToken = readAccessToken();
 
+// Host-aware tab visibility: computed once at module init (before first
+// render) from the `embed` query parameter — see ./host-embed.ts and
+// openspec/changes/standalone-shell-host-aware-tabs/design.md, "Signal
+// mechanism".
+const visibleTabs = computeVisibleTabs(readEmbedSignal(window.location.search));
+const visibleTabIds = new Set(visibleTabs.map((tab) => tab.id));
+
 function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
   return fetch(`${window.location.origin}${pathname}`, {
     ...init,
@@ -136,6 +148,7 @@ function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
 }
 
 function StandaloneApp() {
+  const [activeTab, setActiveTab] = useState<string>("run-a-command");
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
@@ -154,6 +167,9 @@ function StandaloneApp() {
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
+  const [archivedTemplateSource, setArchivedTemplateSource] = useState("");
+  const [archivedTemplateLoading, setArchivedTemplateLoading] = useState(false);
+  const [archivedTemplateMessage, setArchivedTemplateMessage] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
     async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
@@ -237,6 +253,30 @@ function StandaloneApp() {
       setEditorMessage(`Load failed: ${message}`);
     } finally {
       setEditorLoading(false);
+    }
+  }
+
+  async function handleInsertTasksTemplate() {
+    if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) {
+      setArchivedTemplateMessage("Load a non-archived change first.");
+      return;
+    }
+    if (archivedTemplateSource.trim().length === 0) {
+      setArchivedTemplateMessage("Select an archived change first.");
+      return;
+    }
+
+    setArchivedTemplateLoading(true);
+    setArchivedTemplateMessage(null);
+    try {
+      const template = await loadArchivedTasksTemplate(apiFetch, cwd, archivedTemplateSource);
+      setEditorFiles((prev) => ({ ...prev, tasks: mergeTasksTemplate(prev.tasks, template) }));
+      setArchivedTemplateMessage(`Inserted tasks template from ${archivedTemplateSource}. Review and save.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setArchivedTemplateMessage(`Insert failed: ${message}`);
+    } finally {
+      setArchivedTemplateLoading(false);
     }
   }
 
@@ -355,6 +395,9 @@ function StandaloneApp() {
         <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
       </header>
 
+      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
+
+      <TabPanel id="run-a-command" activeTab={activeTab}>
       <section className="openspec-shell-panel">
         <h2>Run a command</h2>
         <div className="openspec-shell-grid">
@@ -419,13 +462,20 @@ function StandaloneApp() {
           <p>Enter cwd and change directory to enable the AI panel.</p>
         )}
       </section>
+      </TabPanel>
 
+      {visibleTabIds.has("processes") && (
+      <TabPanel id="processes" activeTab={activeTab}>
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
         {cwd.trim().length > 0 ? <ProcessesView api={processesApi} /> : <p>Enter workspace root to load processes.</p>}
       </section>
+      </TabPanel>
+      )}
 
+      {visibleTabIds.has("diff-preview") && (
+      <TabPanel id="diff-preview" activeTab={activeTab}>
       <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
         <p>
@@ -439,7 +489,11 @@ function StandaloneApp() {
           afterLabel="after"
         />
       </section>
+      </TabPanel>
+      )}
 
+      {visibleTabIds.has("overview") && (
+      <TabPanel id="overview" activeTab={activeTab}>
       <section className="openspec-shell-panel">
         <h2>OpenSpec view summary</h2>
         <p className="openspec-shell-note">
@@ -515,7 +569,11 @@ function StandaloneApp() {
           </div>
         ) : null}
       </section>
+      </TabPanel>
+      )}
 
+      {visibleTabIds.has("change-editor") && (
+      <TabPanel id="change-editor" activeTab={activeTab}>
       <section className="openspec-shell-panel">
         <h2>Change Editor</h2>
         <p className="openspec-shell-note">
@@ -587,6 +645,36 @@ function StandaloneApp() {
           ))}
         </div>
 
+        {editorTab === "tasks" ? (
+          <div className="openspec-ai-panel-controls">
+            <select
+              aria-label="Copy tasks from archived change"
+              value={archivedTemplateSource}
+              onChange={(e) => setArchivedTemplateSource(e.target.value)}
+              disabled={(overview?.archivedChanges.length ?? 0) === 0}
+            >
+              <option value="">Select archived change</option>
+              {(overview?.archivedChanges ?? []).map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleInsertTasksTemplate()}
+              disabled={
+                archivedTemplateLoading ||
+                archivedTemplateSource.trim().length === 0 ||
+                editorChangeName.trim().length === 0
+              }
+            >
+              {archivedTemplateLoading ? "Inserting..." : "Insert as template"}
+            </button>
+          </div>
+        ) : null}
+        {editorTab === "tasks" && archivedTemplateMessage ? (
+          <p className="openspec-shell-note">{archivedTemplateMessage}</p>
+        ) : null}
+
         <div className="openspec-editor-grid">
           <label className="openspec-shell-field">
             Markdown ({editorTab})
@@ -617,6 +705,8 @@ function StandaloneApp() {
           </button>
         </div>
       </section>
+      </TabPanel>
+      )}
     </div>
   );
 }

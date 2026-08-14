@@ -8,11 +8,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import {
+  ArchivedChangeNotFoundError,
   ChangeEditorConflictError,
   createChange,
+  discoverOpenSpecWorkspace,
   initOpenSpec,
   listChanges,
   listSpecs,
+  readArchivedChangeTasksTemplate,
   readChangeEditorDocument,
   saveChangeEditorDocument,
   showChange,
@@ -74,6 +77,11 @@ interface OverviewResponse {
   root: OpenSpecRoot;
   changes: OpenSpecChangeListItem[];
   specs: OpenSpecSpecListItem[];
+  /** Names of archived changes — source list for "copy tasks as template"
+   * (see openspec/changes/archive-tasks-as-template/design.md). Populated
+   * via `discoverOpenSpecWorkspace`, independent of `listChanges` (the
+   * `openspec list` CLI wrapper), which never returns archived changes. */
+  archivedChanges: string[];
   initialization: OpenSpecInitialization;
 }
 
@@ -167,6 +175,16 @@ function isChangeName(value: unknown): value is string {
 function isChangeEditorReadRequest(value: unknown): value is ChangeEditorReadRequest {
   if (!isObjectRecord(value)) return false;
   return isNonEmptyString(value.cwd) && isChangeName(value.changeName);
+}
+
+// Same shape as `ChangeEditorReadRequest` (cwd + changeName), reused as a
+// distinct name/validator so the archive-template endpoint documents its
+// own contract independently — see
+// openspec/changes/archive-tasks-as-template/design.md.
+type ArchiveTasksTemplateRequest = ChangeEditorReadRequest;
+
+function isArchiveTasksTemplateRequest(value: unknown): value is ArchiveTasksTemplateRequest {
+  return isChangeEditorReadRequest(value);
 }
 
 function isChangeEditorCreateRequest(value: unknown): value is ChangeEditorCreateRequest {
@@ -280,6 +298,34 @@ export async function handleChangeEditorReadRequest(req: IncomingMessage, res: S
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change files: ${message}` });
+  }
+}
+
+export async function handleArchiveTasksTemplateRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isArchiveTasksTemplateRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const template = await readArchivedChangeTasksTemplate(parsed.cwd, parsed.changeName);
+    sendJson(res, 200, { template });
+  } catch (error) {
+    if (error instanceof ArchivedChangeNotFoundError) {
+      sendJson(res, 404, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read archived tasks template: ${message}` });
   }
 }
 
@@ -405,21 +451,24 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
         root: { path: cwd, source: initialization.hasOpenSpecDir ? "openspec-dir" : "cwd" },
         changes: [],
         specs: [],
+        archivedChanges: [],
         initialization,
       };
       sendJson(res, 200, payload);
       return;
     }
 
-    const [changesResult, specsResult] = await Promise.all([
+    const [changesResult, specsResult, workspace] = await Promise.all([
       listChanges({ cwd }),
       listSpecs({ cwd }),
+      discoverOpenSpecWorkspace(cwd),
     ]);
 
     const payload: OverviewResponse = {
       root: changesResult.root,
       changes: changesResult.changes,
       specs: specsResult.specs,
+      archivedChanges: workspace.archivedChanges.map((change) => change.name),
       initialization,
     };
     sendJson(res, 200, payload);

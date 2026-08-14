@@ -1,3 +1,4 @@
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createVscodeMock } from "./test-utils/vscode-mock.js";
 
@@ -13,6 +14,7 @@ const createChangeMock = vi.fn();
 const deleteChangeMock = vi.fn();
 const unarchiveChangeMock = vi.fn();
 const initOpenSpecMock = vi.fn();
+const readArchivedChangeTasksTemplateMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -20,6 +22,7 @@ vi.mock("@openspec-ui/core", () => ({
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
+  readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
@@ -33,6 +36,7 @@ const { RunController } = await import("./run-controller.js");
 
 afterEach(() => {
   vi.clearAllMocks();
+  vscodeMock._documentContents.clear();
 });
 
 function makeContext() {
@@ -289,5 +293,74 @@ describe("registerCommands", () => {
     expect(validateChangeMock).toHaveBeenCalledWith("shared-ui", { cwd: "/workspace/repo" });
     expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalled();
     expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+  });
+
+  describe("openspec-ui.copyTasksAsTemplate", () => {
+    it("inserts the archived change's tasks template into the picked target's tasks.md", async () => {
+      listChangesMock.mockResolvedValue({
+        changes: [{ name: "active-change", completedTasks: 0, totalTasks: 3, lastModified: "t", status: "draft" }],
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue({ label: "active-change", description: "0/3 — draft" });
+      readArchivedChangeTasksTemplateMock.mockResolvedValue("## 1. From archive\n\n- [ ] step\n");
+      const targetPath = path.join("/workspace/repo", "openspec", "changes", "active-change", "tasks.md");
+      vscodeMock._documentContents.set(targetPath, "## 1. Existing\n\n- [ ] already here\n");
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.copyTasksAsTemplate")?.({
+        changeName: "old-change",
+        archived: true,
+      });
+
+      expect(readArchivedChangeTasksTemplateMock).toHaveBeenCalledWith("/workspace/repo", "old-change");
+      expect(vscodeMock.workspace.applyEdit).toHaveBeenCalled();
+      expect(vscodeMock._documentContents.get(targetPath)).toBe(
+        "## 1. Existing\n\n- [ ] already here\n\n## 1. From archive\n\n- [ ] step\n",
+      );
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+    });
+
+    it("does nothing when invoked on a non-archived item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.copyTasksAsTemplate")?.({
+        changeName: "active-change",
+        archived: false,
+      });
+
+      expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+      expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("reports no valid target instead of offering an empty picker", async () => {
+      listChangesMock.mockResolvedValue({ changes: [], root: { path: "/workspace/repo", source: "nearest" } });
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.copyTasksAsTemplate")?.({
+        changeName: "old-change",
+        archived: true,
+      });
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining("no changes found"),
+      );
+      expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the user dismisses the target picker", async () => {
+      listChangesMock.mockResolvedValue({
+        changes: [{ name: "active-change", completedTasks: 0, totalTasks: 3, lastModified: "t", status: "draft" }],
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue(undefined);
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.copyTasksAsTemplate")?.({
+        changeName: "old-change",
+        archived: true,
+      });
+
+      expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
+    });
   });
 });

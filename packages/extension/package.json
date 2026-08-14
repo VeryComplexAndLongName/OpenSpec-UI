@@ -3,7 +3,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "Native OpenSpec workflow with lifecycle controls, VS Code Chat, persistent processes, checkpoints, and conflict-safe rollback.",
   "publisher": "openspec-ui",
-  "version": "0.4.3",
+  "version": "0.6.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
@@ -54,6 +54,11 @@
         "command": "openspec-ui.unarchiveChange",
         "title": "OpenSpec UI: Unarchive Change",
         "icon": "$(unarchive)"
+      },
+      {
+        "command": "openspec-ui.copyTasksAsTemplate",
+        "title": "OpenSpec UI: Copy Tasks as Template Into…",
+        "icon": "$(copy)"
       },
       {
         "command": "openspec-ui.deleteChange",
@@ -215,6 +220,11 @@
           "command": "openspec-ui.unarchiveChange",
           "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@1"
+        },
+        {
+          "command": "openspec-ui.copyTasksAsTemplate",
+          "when": "viewItem == openspec-ui.archivedChange",
+          "group": "openspec@2"
         },
         {
           "command": "openspec-ui.deleteChange",

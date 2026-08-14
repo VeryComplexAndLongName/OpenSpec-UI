@@ -36,5 +36,6 @@ export {
 } from "./components/SpecsSearch.js";
 
 export { TasksChecklist, type TasksChecklistProps } from "./components/TasksChecklist.js";
+export { Tabs, TabPanel, type TabDefinition, type TabsProps, type TabPanelProps } from "./components/Tabs.js";
 
 export { AiPanel, type AiPanelProps } from "./components/AiPanel.js";
