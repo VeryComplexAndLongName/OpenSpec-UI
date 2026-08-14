@@ -58,3 +58,35 @@ embedded webview — then open the printed local-server URL directly in an
 ordinary browser tab and confirm all five tabs are visible there. Marking
 task 4.3 as done on the strength of the two checks above; flagging this
 gap rather than silently treating it as fully covered.
+
+## Follow-up: CI failure after merge (2026-08-14, later same day)
+
+The `Quality` GitHub Actions workflow's "Standalone browser and
+accessibility" job (`packages/server/e2e/standalone.spec.ts`, a real
+Playwright/Chromium test, distinct from the manual check above) failed on
+push. Root cause: the existing E2E spec predates this change and drove the
+old single-scroll-page layout directly — `page.getByRole("button", { name:
+"Load summary" })` and the Change Editor's `<section>` are now inside
+inactive (`hidden`) `TabPanel`s by default, so Playwright's actionability
+checks correctly refused to click/select them.
+
+Fixed by adding explicit tab clicks
+(`page.getByRole("tab", { name: ... }).click()`) before interacting with
+the "OpenSpec view summary" and "Change Editor" panels, matching the new
+navigation.
+
+While fixing this, found the flow is also genuinely flakier than before at
+the default 5s Playwright assertion timeout: reproduced locally, ~2/3
+failure rate immediately after the tab-click fix, 0/10 failures with the
+same fix plus generous explicit timeouts (15s per assertion, 60s test
+timeout). Confirmed via a throwaway `git worktree` at the pre-change commit
+that the original single-page flow passed 4/4 without any timeout changes
+— so this is a real, if latent, sensitivity: this test's happy path calls
+`handleLoadOverview` (which shells out to the `openspec` CLI twice) up to
+three times, and the tab-navigation flow adds real wall-clock time/extra
+actions versus the old flow, giving occasional CLI-spawn latency spikes
+enough room to exceed 5s. Not a logic bug in the tab feature itself —
+addressed as test robustness (explicit timeouts), not a source change.
+
+Verified stable: 10/10 local runs after the fix, plus a full
+`npm run verify` pass at the repo root.
