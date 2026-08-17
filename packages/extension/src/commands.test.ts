@@ -383,7 +383,7 @@ describe("registerCommands", () => {
       },
     };
 
-    it("customizes a built-in template and refreshes the templates tree", async () => {
+    it("customizes a built-in template, refreshes the templates tree, and opens the created manifest", async () => {
       customizeTemplateMock.mockResolvedValue({});
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -392,6 +392,9 @@ describe("registerCommands", () => {
 
       expect(customizeTemplateMock).toHaveBeenCalledWith("/workspace/repo", "seed");
       expect(deps.refreshTemplatesTree).toHaveBeenCalled();
+      const manifestPath = path.join("/workspace/repo", "openspec", "templates", "seed", "template.json");
+      expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalledWith(expect.objectContaining({ fsPath: manifestPath }));
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
     });
 
     it("reports an already-customized template as a warning, not an error", async () => {
