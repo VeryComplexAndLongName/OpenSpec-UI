@@ -26,12 +26,15 @@ describe("OptionalServerManager", () => {
         workspaceRoot: "/workspace/repo",
         host: "127.0.0.1",
         port: 0,
+        runners: expect.any(Map),
         staticAssets: expect.objectContaining({
           indexHtmlPath: expect.stringContaining("standalone"),
           appJsPath: expect.stringContaining("standalone"),
         }),
       }),
     );
+    const passedOptions = createServerMock.mock.calls[0]?.[0] as { runners: Map<string, unknown> };
+    expect([...passedOptions.runners.keys()]).toContain("claude-cli");
     expect(baseUrl).toBe("http://127.0.0.1:54321/#token=optional-server-test-token");
     expect(manager.isRunning).toBe(true);
     expect(manager.baseUrl).toBe("http://127.0.0.1:54321");

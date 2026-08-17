@@ -8,11 +8,21 @@
 // "AI-панель использует единый протокол независимо от агента").
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { type Command, type CommandKind, type Event } from "@openspec-ui/core/browser";
+import {
+  AGENT_REGISTRY,
+  DEFAULT_AGENT_ID,
+  type Command,
+  type CommandKind,
+  type Event,
+} from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 
-const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate"];
-const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate"];
+const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "implement", "review"];
+const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "implement", "review"];
+/** Commands that actually run through an agent — the agent picker only
+ * matters for these; `status`/`list`/`show`/`validate` bypass the runner
+ * entirely (see fetch-transport.ts/message-bridge-transport.ts). */
+const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "implement", "review"];
 
 interface ChecklistItem {
   checked: boolean;
@@ -688,6 +698,7 @@ export interface AiPanelProps {
 
 export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunId = defaultRunId }: AiPanelProps) {
   const [commandKind, setCommandKind] = useState<CommandKind>("list");
+  const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
   const [availableChanges, setAvailableChanges] = useState<string[]>([]);
   const [selectedChange, setSelectedChange] = useState<string>("");
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
@@ -752,6 +763,7 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
       kind,
       cwd,
       runId: newRunId,
+      agentId: AGENT_COMMANDS.includes(kind) ? agentId : undefined,
       context: { changeDir: effectiveChangeDir, promptContext },
     };
     transport.send(command);
@@ -797,6 +809,19 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
           {RUNNABLE_COMMANDS.map((kind) => (
             <option key={kind} value={kind}>
               {kind}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Select agent"
+          data-testid="agent-picker"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          disabled={!AGENT_COMMANDS.includes(commandKind)}
+        >
+          {AGENT_REGISTRY.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.label}
             </option>
           ))}
         </select>

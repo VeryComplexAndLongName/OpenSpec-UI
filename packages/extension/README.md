@@ -16,6 +16,10 @@ notifications while keeping lifecycle and security behavior in
   parallel; workspace mutations are serialized to keep checkpoints isolated.
 - Use `@openspec` in VS Code Chat with `/plan`, `/implement`, `/review`,
   `/status`, and `/validate`.
+- Or run `plan`/`implement`/`review` directly from the Process Dashboard's
+  own agent picker (Claude CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI,
+  or a local OpenAI-compatible LLM) — a separate mechanism from VS Code
+  Chat, see "Agents" below.
 - Recover process history and checkpointed runs after extension reload. Start
   VS Code Agent implementation sessions, finish them for review, and roll back
   only files changed by a run. Rollback refuses to overwrite later edits and
@@ -55,6 +59,23 @@ active change id:
 ```text
 @openspec /review openspec-workbench focus on rollback safety
 ```
+
+## Agents
+
+The Process Dashboard's agent picker is independent of VS Code Chat: it
+runs `plan`/`implement`/`review` through this extension's own CLI-agent
+protocol (`@openspec-ui/core`'s `buildDefaultAgentRunners`), resolved at
+activation from the open workspace. Each listed CLI tool
+(`claude`/`copilot`/`codex`/`gemini`) must already be installed and
+authenticated on the machine separately — the extension never handles API
+keys itself. If a tool is missing, the run fails immediately with a clear
+error instead of hanging. This works the same way in both the default
+message-bridge dashboard and the optional local-server mode
+(`openspec-ui.transport.localServer.enabled`). None of these tools need a
+VS Code extension or any VS Code-specific setup — a plain CLI login is
+enough, the same as using it from a terminal. See the root repository
+`README.md`'s "Agent Selection" section for the full picture, including
+how this differs from the `@openspec` Chat Participant above.
 
 ## Settings
 

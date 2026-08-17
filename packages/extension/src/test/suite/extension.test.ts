@@ -26,14 +26,20 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       "openspec-ui.openAiPanel",
       "openspec-ui.refresh",
       "openspec-ui.reviewDiff",
+      "openspec-ui.copyTasksAsTemplate",
+      "openspec-ui.customizeTemplate",
+      "openspec-ui.insertTemplateIntoChange",
     ]) {
       assert.ok(commands.includes(id), `command ${id} was not registered`);
     }
   });
 
-  test("runners are not required in direct OpenSpec mode", () => {
+  test("runners are built from the default agent registry once a workspace is open", () => {
     const runners = api.getRunners();
-    assert.ok(runners === undefined || runners.size === 0);
+    assert.ok(runners, "expected a runners map once a workspace is open");
+    for (const id of ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]) {
+      assert.ok(runners.has(id), `expected a runner for ${id}`);
+    }
   });
 
   test("optional local server is NOT running by default (primary mode is serverless)", () => {

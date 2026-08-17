@@ -10,18 +10,26 @@ import path from "node:path";
 import {
   ArchivedChangeNotFoundError,
   ChangeEditorConflictError,
+  TemplateAlreadyExistsError,
+  UnknownBuiltInTemplateError,
   createChange,
+  customizeTemplate,
   discoverOpenSpecWorkspace,
+  findBuiltInTemplate,
   initOpenSpec,
+  listBuiltInTemplates,
   listChanges,
+  listProjectTemplates,
   listSpecs,
   readArchivedChangeTasksTemplate,
   readChangeEditorDocument,
+  renderTemplate,
   saveChangeEditorDocument,
   showChange,
   statusChange,
   validateChange,
   type AgentRunner,
+  type CatalogTemplate,
   type Command,
   type Event,
   type OpenSpecChangeListItem,
@@ -187,6 +195,38 @@ function isArchiveTasksTemplateRequest(value: unknown): value is ArchiveTasksTem
   return isChangeEditorReadRequest(value);
 }
 
+function isTemplateId(value: unknown): value is string {
+  // Matches core's `TEMPLATE_ID_PATTERN` exactly (template-catalog.ts) —
+  // lowercase-only, unlike `isChangeName`'s case-insensitive match.
+  return typeof value === "string" && /^[a-z0-9][a-z0-9-]*$/.test(value);
+}
+
+interface TemplatesCustomizeRequest {
+  cwd: string;
+  id: string;
+}
+
+function isTemplatesCustomizeRequest(value: unknown): value is TemplatesCustomizeRequest {
+  if (!isObjectRecord(value)) return false;
+  return isNonEmptyString(value.cwd) && isTemplateId(value.id);
+}
+
+interface TemplatesRenderRequest {
+  cwd: string;
+  origin: "built-in" | "project";
+  id: string;
+  variables: Record<string, string | boolean>;
+}
+
+function isTemplatesRenderRequest(value: unknown): value is TemplatesRenderRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd)) return false;
+  if (value.origin !== "built-in" && value.origin !== "project") return false;
+  if (!isTemplateId(value.id)) return false;
+  if (!isObjectRecord(value.variables)) return false;
+  return Object.values(value.variables).every((v) => typeof v === "string" || typeof v === "boolean");
+}
+
 function isChangeEditorCreateRequest(value: unknown): value is ChangeEditorCreateRequest {
   if (!isObjectRecord(value)) return false;
   if (!isNonEmptyString(value.cwd) || !isChangeName(value.changeName)) return false;
@@ -326,6 +366,98 @@ export async function handleArchiveTasksTemplateRequest(req: IncomingMessage, re
     }
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read archived tasks template: ${message}` });
+  }
+}
+
+export async function handleTemplatesListRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isOverviewRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const [builtIn, project] = await Promise.all([
+      Promise.resolve(listBuiltInTemplates()),
+      listProjectTemplates(parsed.cwd),
+    ]);
+    sendJson(res, 200, { builtIn, project });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to list templates: ${message}` });
+  }
+}
+
+export async function handleTemplatesCustomizeRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isTemplatesCustomizeRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and a valid template id" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const template = await customizeTemplate(parsed.cwd, parsed.id);
+    sendJson(res, 200, template);
+  } catch (error) {
+    if (error instanceof TemplateAlreadyExistsError) {
+      sendJson(res, 409, { error: error.message });
+      return;
+    }
+    if (error instanceof UnknownBuiltInTemplateError) {
+      sendJson(res, 404, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to customize template: ${message}` });
+  }
+}
+
+export async function handleTemplatesRenderRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isTemplatesRenderRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd, origin, id, and variables" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    let template: CatalogTemplate | undefined;
+    if (parsed.origin === "built-in") {
+      template = findBuiltInTemplate(parsed.id);
+    } else {
+      template = (await listProjectTemplates(parsed.cwd)).find((t) => t.manifest.id === parsed.id);
+    }
+    if (!template) {
+      sendJson(res, 404, { error: `Template not found: ${parsed.origin}/${parsed.id}` });
+      return;
+    }
+    sendJson(res, 200, renderTemplate(template, parsed.variables));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to render template: ${message}` });
   }
 }
 

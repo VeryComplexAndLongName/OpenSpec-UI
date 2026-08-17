@@ -105,10 +105,10 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.11.1 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.4.3 | VS Code delivery |
-| `@openspec-ui/server` | 1.2.3 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.2.2 | Shared browser UI |
+| `@openspec-ui/core` | 0.14.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.8.0 | VS Code delivery |
+| `@openspec-ui/server` | 1.5.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.6.0 | Shared browser UI |
 
 ## Delivery Capability Matrix
 
@@ -119,12 +119,57 @@ release artifact. Current release versions are:
 | Deterministic OpenSpec status and validation | Yes | Yes |
 | Shared command/event protocol | Yes | Yes |
 | Native VS Code Chat and Agent handoff | Not applicable | Yes |
+| Agent selection (plan/implement/review via this app's own protocol) | Yes | Yes |
 | Processes view and checkpoint rollback | Yes | Yes |
 | Persistent run journal engine | Yes | Yes |
 
 Host-specific UX is allowed to differ, but business behavior must remain in
 `packages/core`. Both delivery targets expose the same core recovery behavior
 through host-specific interfaces. See ADR 0004.
+
+## Agent Selection
+
+The AI panel (in both the standalone browser tab and the VS Code Webview,
+either transport mode) has an **agent picker** next to the command picker.
+Selecting `plan`, `implement`, or `review` sends the picked agent id as
+`Command.agentId`; the host resolves it to a real `AgentRunner` from
+`buildDefaultAgentRunners()` (`packages/core/src/default-runners.ts`) and
+streams events over the same protocol already used for
+`status`/`list`/`show`/`validate`. Available agents (see
+`packages/core/src/agents/registry.ts`):
+
+| Agent | Underlying CLI |
+| --- | --- |
+| Claude CLI | `claude` |
+| GitHub Copilot CLI | `copilot` |
+| Codex CLI | `codex` |
+| Gemini CLI | `gemini` |
+| Local LLM (OpenAI-compatible) | HTTP to `http://localhost:30000` by default |
+
+Each CLI tool must already be installed and authenticated on the machine
+running the server/extension — this app never handles API keys or
+credentials directly; it only shells out to (or, for the local LLM, sends
+HTTP requests to) a tool that manages its own login. If the selected
+tool is not installed, the run fails immediately with a clear `failed`
+event instead of hanging.
+
+**Convenience worth calling out explicitly: none of these agents need to
+be "installed in VS Code."** This picker talks to each tool's plain CLI
+binary on `PATH`, the same way a terminal would — not a VS Code extension,
+not a VS Code-specific integration. A CLI authenticated for one editor or
+none at all still works here. This holds for the standalone delivery too,
+which has no VS Code dependency whatsoever. Practically: install
+`claude`/`copilot`/`codex`/`gemini` however you'd normally install any CLI
+tool, log in once, and it becomes available in this picker in both hosts —
+no VS Code-specific setup step exists or is required.
+
+**This is a separate mechanism from VS Code's native Chat/Agent handoff**
+(the "Implement with VS Code Agent" command and the `@openspec` Chat
+Participant's `/plan`/`/implement`/`/review`), which opens VS Code's own
+Copilot Chat panel and uses whatever model the user has already selected
+there. Neither replaces the other: the native path is VS Code-only and
+uses VS Code's own model picker; the agent picker described here works
+identically in both hosts through this app's own CLI-runner protocol.
 
 ## Getting Started
 

@@ -10,5 +10,11 @@
 // openspec/changes/standalone-app/tasks.md 2.1).
 
 export * from "./protocol.js";
-export { AGENT_REGISTRY, type AgentDescriptor } from "./agents/registry.js";
+export { AGENT_REGISTRY, DEFAULT_AGENT_ID, type AgentDescriptor } from "./agents/registry.js";
 export type { ChangeState } from "./change-state.js";
+export type {
+  CatalogTemplate,
+  TemplateArtifacts,
+  TemplateManifest,
+  TemplateVariable,
+} from "./template-catalog.js";
