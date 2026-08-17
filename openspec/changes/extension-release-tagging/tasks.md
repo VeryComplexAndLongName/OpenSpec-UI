@@ -37,10 +37,16 @@
 
 ## 4. Ship and observe the real trigger
 
-- [ ] 4.1 Commit, push, PR, CI green, merge — same flow as
-  `agent-detection`/`ci-cli`.
-- [ ] 4.2 After merge, confirm for real: the `release-extension` job ran
+- [x] 4.1 Commit, push, PR, CI green, merge — same flow as
+  `agent-detection`/`ci-cli`. [PR #31](https://github.com/VeryComplexAndLongName/OpenSpec-UI/pull/31),
+  merged as `95538aa`.
+- [x] 4.2 After merge, confirm for real: the `release-extension` job ran
   on the merge commit, created tag `openspec-ui-vscode@<version>` for the
   current `packages/extension` version, and published a GitHub Release
   with the `.vsix` attached. Record the actual tag/release URL in
+  `smoke-test-notes.md`.
+  Confirmed via the GitHub API directly (not just the green check):
+  tag `openspec-ui-vscode@0.9.0` exists, release published at
+  <https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.9.0>
+  with `openspec-ui-vscode-0.9.0.vsix` attached. Full detail in
   `smoke-test-notes.md`.
