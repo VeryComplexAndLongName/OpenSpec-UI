@@ -53,9 +53,13 @@
 
 ## 3. Verification, versioning, and smoke test
 
-- [ ] 3.1 `npm run typecheck && npm run lint && npm run test` passes for
+- [x] 3.1 `npm run typecheck && npm run lint && npm run test` passes for
   `packages/core`, `packages/extension`. Re-run `npm run verify` after
   `git add`/commit of all new files.
+  Ran (post-`git add`) — 404 tests passing across all five workspaces,
+  clean typecheck, no new lint errors (one pre-existing unrelated
+  warning in `standalone-entry.tsx`). Confirmed independently by CI's
+  own "Typecheck, lint, test, and build" job.
 - [x] 3.2 Bump `package.json` versions (minor) for `@openspec-ui/core`,
   `openspec-ui-vscode`. core 0.17.0 → 0.18.0, extension 0.11.0 → 0.12.0.
   Also added a `packages/extension/CHANGELOG.md` 0.12.0 entry, extension
