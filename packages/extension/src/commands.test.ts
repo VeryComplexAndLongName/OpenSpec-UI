@@ -17,21 +17,27 @@ const initOpenSpecMock = vi.fn();
 const readArchivedChangeTasksTemplateMock = vi.fn();
 const customizeTemplateMock = vi.fn();
 const deleteProjectTemplateMock = vi.fn();
+const deleteTaskLineMock = vi.fn();
 const renderTemplateMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
 class UnknownProjectTemplateError extends Error {}
+class TaskListChangedError extends Error {}
+const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
   customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
   deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
+  deleteTaskLine: (...args: unknown[]) => deleteTaskLineMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
+  TASK_CHECKBOX_LINE_RE,
+  TaskListChangedError,
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
@@ -110,6 +116,8 @@ describe("registerCommands", () => {
         "openspec-ui.archiveChange",
         "openspec-ui.unarchiveChange",
         "openspec-ui.deleteChange",
+        "openspec-ui.revealTask",
+        "openspec-ui.deleteTask",
         "openspec-ui.openspecView",
         "openspec-ui.showChangeDetails",
         "openspec-ui.validateChangeStrict",
@@ -462,6 +470,103 @@ describe("registerCommands", () => {
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.(projectItem);
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(2);
+      expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.revealTask", () => {
+    const changeDir = path.join("/workspace/repo", "openspec", "changes", "active-change");
+    const tasksPath = path.join(changeDir, "tasks.md");
+    const taskItem = {
+      changeName: "active-change",
+      changeDir,
+      archived: false,
+      lineNumber: 2,
+      text: "1.1 First task",
+      done: false,
+    };
+
+    it("opens tasks.md and reveals the exact line when the stored line number is still correct", async () => {
+      vscodeMock._documentContents.set(tasksPath, "## 1. Setup\n\n- [ ] 1.1 First task\n- [ ] 1.2 Second task\n");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealTask")?.(taskItem);
+
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: expect.objectContaining({ fsPath: tasksPath }) }),
+        { preview: false },
+      );
+      const editor = await vscodeMock.window.showTextDocument.mock.results[0]?.value;
+      expect(editor.revealRange).toHaveBeenCalledWith(
+        expect.objectContaining({ start: { line: 2, character: 0 } }),
+        vscodeMock.TextEditorRevealType.InCenter,
+      );
+      expect(editor.selection).toBeInstanceOf(vscodeMock.Selection);
+    });
+
+    it("falls back to searching the whole file when the stored line number is stale", async () => {
+      // Text is on line 3 now, not the stored lineNumber 2 (e.g. a line was
+      // inserted above it since the tree was last refreshed).
+      vscodeMock._documentContents.set(tasksPath, "## 1. Setup\n\n- [ ] Unrelated\n- [ ] 1.1 First task\n");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealTask")?.(taskItem);
+
+      const editor = await vscodeMock.window.showTextDocument.mock.results[0]?.value;
+      expect(editor.revealRange).toHaveBeenCalledWith(
+        expect.objectContaining({ start: { line: 3, character: 0 } }),
+        vscodeMock.TextEditorRevealType.InCenter,
+      );
+    });
+  });
+
+  describe("openspec-ui.deleteTask", () => {
+    const activeItem = {
+      changeName: "active-change",
+      changeDir: path.join("/workspace/repo", "openspec", "changes", "active-change"),
+      archived: false,
+      lineNumber: 2,
+      text: "1.1 First task",
+      done: false,
+    };
+
+    it("deletes a task after confirmation and refreshes trees", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValue("Delete");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.(activeItem);
+
+      expect(deleteTaskLineMock).toHaveBeenCalledWith("/workspace/repo", "active-change", false, 2, "1.1 First task");
+      expect(deps.refreshTrees).toHaveBeenCalled();
+    });
+
+    it("does not delete when the confirmation is declined", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.(activeItem);
+
+      expect(deleteTaskLineMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing for an archived task, without even prompting", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.({ ...activeItem, archived: true });
+
+      expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      expect(deleteTaskLineMock).not.toHaveBeenCalled();
+    });
+
+    it("reports a stale task list as a warning, not an error", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Delete");
+      deleteTaskLineMock.mockRejectedValue(new TaskListChangedError("task list changed"));
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.(activeItem);
 
       expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(2);
       expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();

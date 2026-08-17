@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { discoverOpenSpecWorkspace } from "@openspec-ui/core";
-import { ArtifactTreeItem, ChangeTreeItem, EmptyTreeItem, type WorkbenchTreeItem } from "./changes-tree.js";
+import { ChangeTreeItem, EmptyTreeItem, getChangeChildren, type WorkbenchTreeItem } from "./changes-tree.js";
 
 export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -18,13 +18,7 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {
     if (element instanceof ChangeTreeItem) {
-      return element.artifacts.map(
-        (artifact) => new ArtifactTreeItem(
-          artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
-          artifact.path,
-          artifact.exists,
-        ),
-      );
+      return getChangeChildren(this.workspaceRoot, element);
     }
     if (element) return [];
     const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);

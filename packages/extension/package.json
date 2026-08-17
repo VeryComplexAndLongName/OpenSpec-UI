@@ -3,7 +3,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "Native OpenSpec workflow with lifecycle controls, VS Code Chat, persistent processes, checkpoints, and conflict-safe rollback.",
   "publisher": "openspec-ui",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
@@ -78,6 +78,11 @@
       {
         "command": "openspec-ui.deleteChange",
         "title": "OpenSpec UI: Delete Change",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openspec-ui.deleteTask",
+        "title": "OpenSpec UI: Delete Task",
         "icon": "$(trash)"
       },
       {
@@ -263,6 +268,11 @@
         {
           "command": "openspec-ui.deleteChange",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@9"
+        },
+        {
+          "command": "openspec-ui.deleteTask",
+          "when": "viewItem == openspec-ui.activeTask",
           "group": "openspec@9"
         },
         {

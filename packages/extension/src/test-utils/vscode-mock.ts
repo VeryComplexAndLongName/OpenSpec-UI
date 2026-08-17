@@ -18,6 +18,17 @@ export enum ViewColumn {
   Beside = -2,
 }
 
+export enum TextEditorRevealType {
+  Default = 0,
+  InCenter = 1,
+  InCenterIfOutsideViewport = 2,
+  AtTop = 3,
+}
+
+export class Selection {
+  constructor(public readonly anchor: unknown, public readonly active: unknown) { }
+}
+
 export class EventEmitter<T> {
   private listeners: Array<(e: T) => void> = [];
   readonly event = (listener: (e: T) => void) => {
@@ -77,6 +88,8 @@ export function createVscodeMock() {
     TreeItemCollapsibleState,
     ProgressLocation,
     ViewColumn,
+    TextEditorRevealType,
+    Selection,
     EventEmitter,
     ThemeIcon,
     TreeItem,
@@ -94,7 +107,11 @@ export function createVscodeMock() {
       showWarningMessage: vi.fn(),
       showErrorMessage: vi.fn(),
       showInformationMessage: vi.fn(),
-      showTextDocument: vi.fn(),
+      showTextDocument: vi.fn(async (document: unknown) => ({
+        document,
+        selection: undefined as unknown,
+        revealRange: vi.fn(),
+      })),
       withProgress: vi.fn(async (_options: unknown, task: (progress: unknown, token: unknown) => unknown) => {
         const token = { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) };
         return task({ report: vi.fn() }, token);
@@ -116,7 +133,13 @@ export function createVscodeMock() {
             get lineCount() {
               return Math.max(1, (documentContents.get(uri.fsPath) ?? "").split("\n").length);
             },
-            lineAt: (line: number) => ({ range: { end: { line, character: 0 } } }),
+            lineAt: (line: number) => {
+              const text = (documentContents.get(uri.fsPath) ?? "").split(/\r?\n/)[line] ?? "";
+              return {
+                text,
+                range: { start: { line, character: 0 }, end: { line, character: text.length } },
+              };
+            },
           };
         }
         const { language, content } = arg;

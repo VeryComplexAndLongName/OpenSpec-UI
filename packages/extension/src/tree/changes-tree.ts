@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   discoverOpenSpecWorkspace,
+  readTaskChecklist,
   type ChangeState,
   type WorkbenchArtifact,
 } from "@openspec-ui/core";
@@ -62,7 +63,48 @@ export class EmptyTreeItem extends vscode.TreeItem {
   }
 }
 
-export type WorkbenchTreeItem = ChangeTreeItem | ArtifactTreeItem | EmptyTreeItem;
+export class TaskTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly changeName: string,
+    public readonly changeDir: string,
+    public readonly archived: boolean,
+    public readonly lineNumber: number,
+    public readonly text: string,
+    public readonly done: boolean,
+  ) {
+    super(text, vscode.TreeItemCollapsibleState.None);
+    this.description = done ? "done" : undefined;
+    this.contextValue = archived ? "openspec-ui.archivedTask" : "openspec-ui.activeTask";
+    this.iconPath = new vscode.ThemeIcon(done ? "check" : "circle-large-outline");
+    this.command = { command: "openspec-ui.revealTask", title: "Reveal Task", arguments: [this] };
+  }
+}
+
+export type WorkbenchTreeItem = ChangeTreeItem | ArtifactTreeItem | EmptyTreeItem | TaskTreeItem;
+
+/** Shared by `ChangesTreeProvider` and `ArchiveTreeProvider` — both trees
+ * expand a `ChangeTreeItem` the same way (artifacts, then tasks.md's
+ * individual checklist items); see
+ * openspec/changes/tasks-tree-expand/design.md, "Shared getChangeChildren". */
+export async function getChangeChildren(
+  workspaceRoot: string,
+  element: ChangeTreeItem,
+): Promise<WorkbenchTreeItem[]> {
+  const artifactItems = element.artifacts.map(
+    (artifact) =>
+      new ArtifactTreeItem(
+        artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
+        artifact.path,
+        artifact.exists,
+      ),
+  );
+  const tasks = await readTaskChecklist(workspaceRoot, element.changeName, element.archived);
+  const taskItems = tasks.map(
+    (task) =>
+      new TaskTreeItem(element.changeName, element.changeDir, element.archived, task.lineNumber, task.text, task.done),
+  );
+  return [...artifactItems, ...taskItems];
+}
 
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -80,14 +122,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {
     if (element instanceof ChangeTreeItem) {
-      return element.artifacts.map(
-        (artifact) =>
-          new ArtifactTreeItem(
-            artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
-            artifact.path,
-            artifact.exists,
-          ),
-      );
+      return getChangeChildren(this.workspaceRoot, element);
     }
 
     if (element) return [];
