@@ -29,6 +29,21 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
 
+  openspec-validate:
+    name: OpenSpec change validation (merge gate)
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm install --global @fission-ai/openspec@1.7.0
+      - run: npm ci
+      - run: npm run start --workspace @openspec-ui/cli -- validate --cwd "$GITHUB_WORKSPACE"
+
   extension-integration:
     name: Extension integration and package
     needs: quality

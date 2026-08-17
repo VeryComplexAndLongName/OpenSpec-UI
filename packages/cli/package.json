@@ -1,0 +1,19 @@
+{
+  "name": "@openspec-ui/cli",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@openspec-ui/core": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "start": "tsx src/cli.ts"
+  }
+}

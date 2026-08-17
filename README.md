@@ -60,6 +60,7 @@ flowchart TD
 | `packages/server` | Thin REST/WS layer over `core`, used only for standalone | `standalone-app` |
 | `packages/webui` | Shared React components (Changes/Archive/Specs/Tasks/AI panel), transport-agnostic | `shared-ui` |
 | `packages/extension` | VS Code extension — TreeView/Commands/Settings/Chat Participant on top of native VS Code API + Webview for what is not covered natively | `vscode-extension` |
+| `packages/cli` | Non-interactive CLI over `core` for CI merge gates (no HTTP, no webview) | `ci-cli` |
 
 ## Technology Stack
 
@@ -109,6 +110,7 @@ release artifact. Current release versions are:
 | `openspec-ui-vscode` | 0.9.0 | VS Code delivery |
 | `@openspec-ui/server` | 1.6.0 | Standalone server delivery |
 | `@openspec-ui/webui` | 1.7.0 | Shared browser UI |
+| `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
 
 ## Delivery Capability Matrix
 
@@ -178,6 +180,31 @@ Copilot Chat panel and uses whatever model the user has already selected
 there. Neither replaces the other: the native path is VS Code-only and
 uses VS Code's own model picker; the agent picker described here works
 identically in both hosts through this app's own CLI-runner protocol.
+
+## CI CLI (merge gate)
+
+`packages/cli` (see `docs/adr/0007-ci-cli-third-delivery-target.md`) is a
+third, non-interactive delivery target: a thin adapter over `core`, no
+HTTP server and no webview, meant to run in CI. It has one command,
+`validate`: list every active OpenSpec change and run strict validation
+on each, printing an aggregated report.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
+```
+
+- Default output is JSON (`{ ok, results: [...] }`); `--format text`
+  prints a human-readable table for local use.
+- Exit codes are part of the contract: `0` every change is valid, `1` at
+  least one change failed strict validation, `2` the check itself could
+  not run (bad arguments, `openspec` CLI missing, etc.) — `1` and `2` are
+  deliberately distinct so CI can tell "your change is broken" apart from
+  "the tooling is broken."
+- One broken change never aborts the run — the report still covers every
+  other change in the same pass.
+- This repository's own CI (`.github/workflows/quality.yml`,
+  `openspec-validate` job) runs it against `openspec/changes/` on every
+  push/PR, as the real merge gate.
 
 ## Getting Started
 
