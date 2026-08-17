@@ -688,15 +688,39 @@ function renderEventBody(event: Event, index: number): ReactNode {
   }
 }
 
+/** Plain-text suffix, since a native `<select>`'s `<option>` cannot render
+ * a rich badge (see design.md, "`<option>` label suffix instead of a rich
+ * badge"). `undefined`/missing id means "unknown" — no suffix, not a
+ * negative result — e.g. before detection has resolved for the first time. */
+function agentOptionLabel(label: string, detected: boolean | undefined): string {
+  if (detected === undefined) return label;
+  return detected ? `${label} (detected)` : `${label} (not detected)`;
+}
+
 export interface AiPanelProps {
   transport: Transport;
   cwd: string;
   changeDir: string;
   promptContext?: string;
   generateRunId?: () => string;
+  /** Best-effort presence signal per agent id — annotates the picker, never
+   * filters or disables an option (see design.md, "Annotate, don't filter"). */
+  detectedAgents?: Record<string, boolean>;
+  /** Rendered as a "Refresh agents" button when supplied. Omitted in hosts
+   * that already re-detect on their own (e.g. the VS Code message-bridge
+   * host re-detects on every panel reveal). */
+  onRefreshAgents?: () => void;
 }
 
-export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunId = defaultRunId }: AiPanelProps) {
+export function AiPanel({
+  transport,
+  cwd,
+  changeDir,
+  promptContext,
+  generateRunId = defaultRunId,
+  detectedAgents,
+  onRefreshAgents,
+}: AiPanelProps) {
   const [commandKind, setCommandKind] = useState<CommandKind>("list");
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
   const [availableChanges, setAvailableChanges] = useState<string[]>([]);
@@ -821,10 +845,15 @@ export function AiPanel({ transport, cwd, changeDir, promptContext, generateRunI
         >
           {AGENT_REGISTRY.map((agent) => (
             <option key={agent.id} value={agent.id}>
-              {agent.label}
+              {agentOptionLabel(agent.label, detectedAgents?.[agent.id])}
             </option>
           ))}
         </select>
+        {onRefreshAgents ? (
+          <button type="button" data-testid="refresh-agents-button" onClick={onRefreshAgents}>
+            Refresh agents
+          </button>
+        ) : null}
         <button type="button" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
           Run
         </button>

@@ -36,4 +36,15 @@ describe("extension dashboard context", () => {
             context: { cwd: "/repo" },
         })).toBe(false);
     });
+
+    it("accepts a follow-up context message carrying detectedAgents", () => {
+        expect(isDashboardContextMessage({
+            type: DASHBOARD_CONTEXT_MESSAGE_TYPE,
+            context: {
+                cwd: "/repo",
+                changeDir: "/repo/openspec/changes/demo",
+                detectedAgents: { "claude-cli": true, "copilot-cli": false },
+            },
+        })).toBe(true);
+    });
 });

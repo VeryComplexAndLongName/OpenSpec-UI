@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- The AI panel's agent picker now shows a best-effort detected/not-detected
+  annotation per agent, refreshed automatically every time the panel is
+  opened in the default message-bridge dashboard. This never hides or
+  disables an option — it only annotates presence, not authentication.
+
 ## 0.8.0
 
 - Added a Templates view (Built-in and Project groups) to the OpenSpec UI

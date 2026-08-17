@@ -22,6 +22,7 @@ const statusChangeMock = vi.fn();
 const listChangesMock = vi.fn();
 const listSpecsMock = vi.fn();
 const initOpenSpecMock = vi.fn();
+const detectAvailableAgentsMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
@@ -30,6 +31,7 @@ vi.mock("@openspec-ui/core", async () => {
     listChanges: (...args: unknown[]) => listChangesMock(...args),
     listSpecs: (...args: unknown[]) => listSpecsMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
+    detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
   };
 });
 
@@ -102,6 +104,7 @@ afterEach(async () => {
   listChangesMock.mockReset();
   listSpecsMock.mockReset();
   initOpenSpecMock.mockReset();
+  detectAvailableAgentsMock.mockReset();
   await server?.close();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -430,6 +433,50 @@ describe("server — REST /api/status", () => {
     expect(body.builtIn.some((t) => t.manifest.id === "python-sqlalchemy-alembic")).toBe(true);
     expect(body.project).toHaveLength(1);
     expect(body.project[0]?.manifest.id).toBe("my-template");
+  });
+
+  it("reports agent detection results for an authorized cwd", async () => {
+    const cwd = await createTempWorkspace();
+    detectAvailableAgentsMock.mockResolvedValue({
+      "claude-cli": true,
+      "copilot-cli": false,
+      "codex-cli": false,
+      "gemini-cli": false,
+      "local-llm": false,
+    });
+
+    const response = await fetch(`${baseUrl}/api/agents/detect`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { agents: Record<string, boolean> };
+
+    expect(response.status).toBe(200);
+    expect(body.agents["claude-cli"]).toBe(true);
+    expect(body.agents["copilot-cli"]).toBe(false);
+    expect(detectAvailableAgentsMock).toHaveBeenCalledWith({ localLlmBaseUrl: undefined });
+  });
+
+  it("rejects an agent-detection request for a cwd outside the workspace", async () => {
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+    });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/api/agents/detect`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/outside/repo" }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
   });
 
   it("customizes a built-in template then rejects a second customize of the same id", async () => {

@@ -27,6 +27,7 @@ import {
   listTemplates as listTemplatesApi,
   renderTemplate as renderTemplateApi,
 } from "./template-catalog-client.js";
+import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
 import type { CatalogTemplate } from "@openspec-ui/core/browser";
 
 interface OverviewChange {
@@ -184,6 +185,7 @@ function StandaloneApp() {
   const [templateInsertTargetChange, setTemplateInsertTargetChange] = useState("");
   const [templateActionLoading, setTemplateActionLoading] = useState(false);
   const [templateActionMessage, setTemplateActionMessage] = useState<string | null>(null);
+  const [detectedAgents, setDetectedAgents] = useState<Record<string, boolean> | undefined>(undefined);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
     async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
@@ -302,6 +304,20 @@ function StandaloneApp() {
   function isTemplateCustomized(builtInId: string): boolean {
     return (templates?.project ?? []).some((t) => t.manifest.forkedFrom?.id === builtInId);
   }
+
+  async function handleRefreshAgents() {
+    try {
+      setDetectedAgents(await detectAgentsApi(apiFetch, cwd));
+    } catch {
+      // Detection is a best-effort annotation, not a required signal — leave
+      // the picker unannotated (previous result, or none) on failure.
+    }
+  }
+
+  useEffect(() => {
+    if (cwd.trim().length === 0 || changeDir.trim().length === 0) return;
+    void handleRefreshAgents();
+  }, [cwd, changeDir]);
 
   async function handleLoadTemplates() {
     if (cwd.trim().length === 0) {
@@ -568,7 +584,13 @@ function StandaloneApp() {
           </div>
         ) : null}
         {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} />
+          <AiPanel
+            transport={transport}
+            cwd={cwd}
+            changeDir={changeDir}
+            detectedAgents={detectedAgents}
+            onRefreshAgents={() => void handleRefreshAgents()}
+          />
         ) : (
           <p>Enter cwd and change directory to enable the AI panel.</p>
         )}

@@ -8,6 +8,7 @@ import path from "node:path";
 import { WebSocketServer } from "ws";
 import { type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
 import {
+  handleAgentsDetectRequest,
   handleArchiveTasksTemplateRequest,
   handleChangeEditorCreateRequest,
   handleChangeEditorReadRequest,
@@ -144,6 +145,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/templates/render") {
       void handleTemplatesRenderRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/agents/detect") {
+      void handleAgentsDetectRequest(req, res, requestPolicy, options.localLlmBaseUrl);
       return;
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {
