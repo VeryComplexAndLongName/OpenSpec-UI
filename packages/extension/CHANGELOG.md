@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- The Changes and Archive trees now expand each change to also show its
+  individual `tasks.md` checklist items, not just its artifacts.
+  Selecting a task opens (or reveals, if already open) `tasks.md` at
+  that exact line, in both trees. "Delete Task" removes a single
+  checklist line from an active change's `tasks.md`, with confirmation —
+  archived tasks offer no delete action.
+
 ## 0.10.1
 
 - "Customize Template" now opens the created `template.json` after

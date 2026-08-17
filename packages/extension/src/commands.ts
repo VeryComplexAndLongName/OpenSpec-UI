@@ -5,6 +5,8 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  TASK_CHECKBOX_LINE_RE,
+  TaskListChangedError,
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   archiveChange,
@@ -12,6 +14,7 @@ import {
   customizeTemplate,
   deleteChange,
   deleteProjectTemplate,
+  deleteTaskLine,
   initOpenSpec,
   listChanges,
   listSpecs,
@@ -29,7 +32,7 @@ import {
 import type { RunController } from "./run-controller.js";
 import { describeEvent } from "./describe-event.js";
 import { openDiffAgainstHead } from "./native/diff.js";
-import type { ChangeTreeItem } from "./tree/changes-tree.js";
+import type { ChangeTreeItem, TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
 import type { AiPanelContext } from "./webview/ai-panel.js";
@@ -167,6 +170,23 @@ function formatOpenSpecViewSummaryMarkdown(
 
   lines.push("> This summary is a parsed, non-interactive companion for `openspec view`. Use the integrated terminal for the full interactive dashboard.");
   return lines.join("\n");
+}
+
+/** Best-effort: if `tasks.md` changed since the tree was last refreshed,
+ * the stored line number may no longer point at the right task — falls
+ * back to a whole-document search by text, then to line 0, rather than
+ * failing (reveal is read-only, unlike delete — see
+ * openspec/changes/tasks-tree-expand/design.md). */
+function resolveTaskLine(document: vscode.TextDocument, lineNumber: number, expectedText: string): number {
+  if (lineNumber < document.lineCount) {
+    const match = document.lineAt(lineNumber).text.match(TASK_CHECKBOX_LINE_RE);
+    if (match && (match[2] ?? "").trim() === expectedText) return lineNumber;
+  }
+  for (let i = 0; i < document.lineCount; i += 1) {
+    const match = document.lineAt(i).text.match(TASK_CHECKBOX_LINE_RE);
+    if (match && (match[2] ?? "").trim() === expectedText) return i;
+  }
+  return 0;
 }
 
 async function openMarkdownDocument(title: string, markdown: string): Promise<void> {
@@ -451,6 +471,40 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage(`OpenSpec UI: deleted ${item.changeName}.`);
       } catch (error) {
         await showCommandError("delete change", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.revealTask", async (item?: TaskTreeItem) => {
+      if (!item) return;
+      try {
+        const tasksUri = vscode.Uri.file(path.join(item.changeDir, "tasks.md"));
+        const document = await vscode.workspace.openTextDocument(tasksUri);
+        const editor = await vscode.window.showTextDocument(document, { preview: false });
+        const range = document.lineAt(resolveTaskLine(document, item.lineNumber, item.text)).range;
+        editor.selection = new vscode.Selection(range.start, range.start);
+        editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+      } catch (error) {
+        await showCommandError("reveal task", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.deleteTask", async (item?: TaskTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item || item.archived) return;
+      const answer = await vscode.window.showWarningMessage(
+        `Permanently delete task "${item.text}" from ${item.changeName}'s tasks.md?`,
+        { modal: true },
+        "Delete",
+      );
+      if (answer !== "Delete") return;
+      try {
+        await deleteTaskLine(workspaceRoot, item.changeName, item.archived, item.lineNumber, item.text);
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(`OpenSpec UI: deleted task from ${item.changeName}.`);
+      } catch (error) {
+        if (error instanceof TaskListChangedError) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${error.message}`);
+          return;
+        }
+        await showCommandError("delete task", error);
       }
     }),
   );

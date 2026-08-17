@@ -1,18 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createVscodeMock } from "../test-utils/vscode-mock.js";
 
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
 const discoverOpenSpecWorkspaceMock = vi.fn();
+const readTaskChecklistMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
+  readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
 }));
 
 const { ArchiveTreeProvider } = await import("./archive-tree.js");
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  readTaskChecklistMock.mockResolvedValue([]);
 });
 
 describe("ArchiveTreeProvider", () => {
@@ -31,6 +37,22 @@ describe("ArchiveTreeProvider", () => {
     expect(items).toHaveLength(2);
     expect(items.map((i) => i.label)).toEqual(["old-change-1", "old-change-2"]);
     expect(items[0]?.description).toBe("archived");
+  });
+
+  it("shows archived tasks as read-only (openspec-ui.archivedTask) children", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      archiveExists: true,
+      archivedChanges: [{ name: "old-change-1", path: "/archive/old-change-1", state: "archived", artifacts: [] }],
+    });
+    readTaskChecklistMock.mockResolvedValue([{ lineNumber: 0, text: "Only task", done: false }]);
+
+    const provider = new ArchiveTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const children = await provider.getChildren(roots[0]);
+
+    expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "old-change-1", true);
+    expect(children.map((item) => item.label)).toEqual(["Only task"]);
+    expect(children[0]?.contextValue).toBe("openspec-ui.archivedTask");
   });
 
   it("explains when the archive directory does not exist", async () => {

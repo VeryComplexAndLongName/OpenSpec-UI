@@ -11,6 +11,7 @@ export * from "./openspec.js";
 export * from "./git.js";
 export * from "./workbench.js";
 export * from "./task-templates.js";
+export * from "./task-checklist.js";
 export * from "./template-catalog.js";
 export * from "./process-scheduler.js";
 export * from "./checkpoint.js";
