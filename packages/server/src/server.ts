@@ -18,6 +18,7 @@ import {
   handleStatusJsonRequest,
   handleStatusRequest,
   handleTemplatesCustomizeRequest,
+  handleTemplatesDeleteRequest,
   handleTemplatesListRequest,
   handleTemplatesRenderRequest,
 } from "./rest.js";
@@ -150,6 +151,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/templates/render") {
       void handleTemplatesRenderRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/templates/delete") {
+      void handleTemplatesDeleteRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/agents/detect") {

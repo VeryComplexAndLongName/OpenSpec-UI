@@ -24,6 +24,7 @@ import {
 } from "./change-editor-client.js";
 import {
   customizeTemplate as customizeTemplateApi,
+  deleteProjectTemplate as deleteProjectTemplateApi,
   listTemplates as listTemplatesApi,
   renderTemplate as renderTemplateApi,
 } from "./template-catalog-client.js";
@@ -396,6 +397,27 @@ function StandaloneApp() {
       await handleLoadTemplates();
     } catch (error) {
       setTemplateActionMessage(`Customize failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setTemplateActionLoading(false);
+    }
+  }
+
+  async function handleDeleteProjectTemplate(id: string) {
+    if (cwd.trim().length === 0) {
+      setTemplateActionMessage("Enter workspace root first.");
+      return;
+    }
+    if (!window.confirm(`Permanently delete project template "${id}"?`)) return;
+
+    setTemplateActionLoading(true);
+    setTemplateActionMessage(null);
+    try {
+      await deleteProjectTemplateApi(apiFetch, cwd, id);
+      setTemplateActionMessage(`Deleted openspec/templates/${id}/.`);
+      if (selectedTemplateKey === `project:${id}`) setSelectedTemplateKey("");
+      await handleLoadTemplates();
+    } catch (error) {
+      setTemplateActionMessage(`Delete failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setTemplateActionLoading(false);
     }
@@ -925,6 +947,15 @@ function StandaloneApp() {
                         disabled={templateActionLoading}
                       >
                         Customize
+                      </button>
+                    ) : null}
+                    {template.origin === "project" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteProjectTemplate(template.manifest.id)}
+                        disabled={templateActionLoading}
+                      >
+                        Delete
                       </button>
                     ) : null}
                   </td>

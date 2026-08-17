@@ -41,6 +41,19 @@ export async function customizeTemplate(
   return response.json() as Promise<CatalogTemplate>;
 }
 
+export async function deleteProjectTemplate(
+  request: ChangeEditorRequest,
+  cwd: string,
+  id: string,
+): Promise<void> {
+  const response = await request("/api/templates/delete", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cwd, id }),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+}
+
 export async function renderTemplate(
   request: ChangeEditorRequest,
   cwd: string,

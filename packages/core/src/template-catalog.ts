@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BUILT_IN_TEMPLATES } from "./templates/index.js";
 
@@ -53,6 +53,13 @@ export class UnknownBuiltInTemplateError extends Error {
   constructor(id: string) {
     super(`Unknown built-in template: ${id}`);
     this.name = "UnknownBuiltInTemplateError";
+  }
+}
+
+export class UnknownProjectTemplateError extends Error {
+  constructor(id: string) {
+    super(`Unknown project-level template: ${id}`);
+    this.name = "UnknownProjectTemplateError";
   }
 }
 
@@ -148,6 +155,15 @@ export async function customizeTemplate(workspaceRoot: string, builtInId: string
   ]);
 
   return { manifest, artifacts: source.artifacts, origin: "project" };
+}
+
+/** Built-in templates have no on-disk representation in the target
+ * workspace to delete (see design.md, "Context") — this only ever
+ * touches `openspec/templates/<id>/`. */
+export async function deleteProjectTemplate(workspaceRoot: string, id: string): Promise<void> {
+  const dir = templateDir(workspaceRoot, id);
+  if (!(await pathExists(dir))) throw new UnknownProjectTemplateError(id);
+  await rm(dir, { recursive: true, force: true });
 }
 
 /** Substitutes `{{name}}` for each declared variable that has a supplied

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0
+
+- Added "Delete Project Template" to the Templates view, scoped to
+  project-level templates only (with confirmation) — built-in templates
+  are never deletable through the UI.
+- Added three built-in templates: Flask→FastAPI migration, a
+  language-agnostic flat-to-hexagonal-architecture migration, and a
+  Node.js/TypeScript Vitest + ESLint testing baseline.
+
 ## 0.9.0
 
 - The AI panel's agent picker now shows a best-effort detected/not-detected

@@ -493,6 +493,48 @@ describe("server — REST /api/status", () => {
     expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
   });
 
+  it("deletes an existing project-level template", async () => {
+    const cwd = await createTempWorkspace();
+    const projectDir = path.join(cwd, "openspec", "templates", "my-template");
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, "template.json"),
+      JSON.stringify({ id: "my-template", title: "Mine", category: "c", version: "1.0.0", summary: "s", variables: [] }),
+    );
+    await writeFile(path.join(projectDir, "proposal.md"), "## Why\n");
+    await writeFile(path.join(projectDir, "design.md"), "## Context\n");
+    await writeFile(path.join(projectDir, "tasks.md"), "## 1. X\n");
+
+    const response = await fetch(`${baseUrl}/api/templates/delete`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, id: "my-template" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+
+    const listResponse = await fetch(`${baseUrl}/api/templates/list`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const listBody = (await listResponse.json()) as { project: unknown[] };
+    expect(listBody.project).toHaveLength(0);
+  });
+
+  it("rejects deleting an unknown project-level template id", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/templates/delete`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, id: "does-not-exist" }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
   it("customizes a built-in template then rejects a second customize of the same id", async () => {
     const cwd = await createTempWorkspace();
 

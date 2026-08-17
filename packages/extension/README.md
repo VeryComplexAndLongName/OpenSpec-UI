@@ -29,6 +29,12 @@ notifications while keeping lifecycle and security behavior in
   follows the active VS Code color theme, including dark and high-contrast
   themes.
 - Open native markdown and diff editors instead of custom replacements.
+- Browse built-in and project-level change templates in the Templates
+  view. Customize a built-in template into your project (keeping a
+  backlink to the version it was forked from), insert a rendered
+  template into any active change, or delete a project-level template
+  with confirmation — built-in templates ship as part of the extension
+  and are never deletable through the UI.
 
 ## Requirements
 

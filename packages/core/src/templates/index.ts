@@ -1,8 +1,14 @@
 import type { CatalogTemplate } from "../template-catalog.js";
+import { flaskToFastapi } from "./flask-to-fastapi.js";
+import { flatToHexagonalArchitecture } from "./flat-to-hexagonal-architecture.js";
+import { nodeVitestTestingBaseline } from "./node-vitest-testing-baseline.js";
 import { pythonSqlalchemyAlembic } from "./python-sqlalchemy-alembic.js";
 
 /** Built-in template registry — same "typed array" shape as
  * `AGENT_REGISTRY`. Add new built-in templates here. */
 export const BUILT_IN_TEMPLATES: readonly Omit<CatalogTemplate, "origin">[] = [
   pythonSqlalchemyAlembic,
+  flaskToFastapi,
+  flatToHexagonalArchitecture,
+  nodeVitestTestingBaseline,
 ];
