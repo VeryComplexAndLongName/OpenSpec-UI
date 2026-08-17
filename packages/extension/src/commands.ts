@@ -340,6 +340,15 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         await customizeTemplate(workspaceRoot, item.template.manifest.id);
         deps.refreshTemplatesTree();
+        // Open the created manifest as visible proof — a toast notification
+        // alone is easy to miss/dismiss, and the tree refresh isn't visible
+        // unless "Project" happens to already be expanded (found via live
+        // testing: the command silently succeeds with no other feedback).
+        const manifestUri = vscode.Uri.file(
+          path.join(workspaceRoot, "openspec", "templates", item.template.manifest.id, "template.json"),
+        );
+        const manifestDocument = await vscode.workspace.openTextDocument(manifestUri);
+        await vscode.window.showTextDocument(manifestDocument, { preview: false });
         void vscode.window.showInformationMessage(`OpenSpec UI: customized "${item.template.manifest.title}".`);
       } catch (error) {
         if (error instanceof TemplateAlreadyExistsError) {

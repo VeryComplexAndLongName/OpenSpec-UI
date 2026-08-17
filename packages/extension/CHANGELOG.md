@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1
+
+- "Customize Template" now opens the created `template.json` after
+  success, instead of only showing a notification and silently
+  refreshing the tree — found via live testing: the tree refresh alone
+  gave no visible feedback unless "Project" was already expanded.
+
 ## 0.10.0
 
 - Added "Delete Project Template" to the Templates view, scoped to
