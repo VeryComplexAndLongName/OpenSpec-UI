@@ -37,7 +37,7 @@ the one existing exception, and it needs an explicit `copyFile` in
   templates apply to which projects). Deferred — the manifest schema is
   not extended with fingerprint fields in this change; if that lands
   later, it is an additive schema change, not a rework of this one.
-  Discussed with the user as an explicit "не сейчас" scoping decision.
+  Discussed with the user as an explicit "not now" scoping decision.
 - No "create a project-level template from scratch" UI (only
   customize-from-built-in). A user can still hand-write
   `openspec/templates/<id>/template.json` + the three markdown files
