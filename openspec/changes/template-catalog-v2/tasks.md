@@ -71,10 +71,14 @@
 
 ## 6. Verification, versioning, and smoke test
 
-- [ ] 6.1 `npm run typecheck && npm run lint && npm run test` passes for
+- [x] 6.1 `npm run typecheck && npm run lint && npm run test` passes for
   `packages/core`, `packages/server`, `packages/webui`,
   `packages/extension`. Re-run `npm run verify` after `git add`/commit of
   all new files.
+  Ran (post-`git add`) — full repo verify passed; confirmed
+  independently by CI's own "Typecheck, lint, test, and build" job on
+  PR #36. Checkbox was left unmarked at the time; corrected here as
+  bookkeeping only, no functional change.
 - [x] 6.2 Bump `package.json` versions (minor) for all four touched
   packages. core 0.15.0 → 0.16.0, server 1.6.0 → 1.7.0, webui 1.7.0 →
   1.8.0, extension 0.9.0 → 0.10.0. Also added a `packages/extension/

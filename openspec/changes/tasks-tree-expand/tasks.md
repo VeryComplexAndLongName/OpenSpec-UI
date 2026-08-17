@@ -62,9 +62,13 @@
 
 ## 4. Verification, versioning, and smoke test
 
-- [ ] 4.1 `npm run typecheck && npm run lint && npm run test` passes for
+- [x] 4.1 `npm run typecheck && npm run lint && npm run test` passes for
   `packages/core`, `packages/extension`. Re-run `npm run verify` after
   `git add`/commit of all new files.
+  Ran (post-`git add`) — full repo verify passed; confirmed
+  independently by CI's own "Typecheck, lint, test, and build" job on
+  PR #38. Checkbox was left unmarked at the time; corrected here as
+  bookkeeping only, no functional change.
 - [x] 4.2 Bump `package.json` versions (minor) for `@openspec-ui/core`,
   `openspec-ui-vscode`. core 0.16.0 → 0.17.0, extension 0.10.1 → 0.11.0.
   Also added a `packages/extension/CHANGELOG.md` 0.11.0 entry, a README
