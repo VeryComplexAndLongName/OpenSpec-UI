@@ -4,7 +4,7 @@
 // reuses the same server package as standalone").
 
 import * as vscode from "vscode";
-import type { AgentRunner } from "@openspec-ui/core";
+import { detectAvailableAgents, type AgentRunner } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
@@ -14,6 +14,10 @@ const CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 export interface AiPanelContext {
   cwd: string;
   changeDir: string;
+  /** Never set by a caller of `reveal()` — populated internally, after the
+   * fact, once `detectAvailableAgents()` resolves (see design.md, "Extension:
+   * detection runs after reveal(), posted as a follow-up context message"). */
+  detectedAgents?: Record<string, boolean>;
 }
 
 interface BridgeCommandMessage {
@@ -49,6 +53,7 @@ export class AiPanel {
       if (panelContext) {
         void this.panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: panelContext });
       }
+      this.detectAndPostAgents();
       return;
     }
 
@@ -68,6 +73,7 @@ export class AiPanel {
     panel.webview.html = localServerUrl
       ? this.getLocalServerHtml(localServerUrl)
       : this.getBridgeHtml(panel.webview, panelContext);
+    this.detectAndPostAgents();
 
     const unsubscribeEvents = this.deps.runController.onEvent((event) => {
       void panel.webview.postMessage({ type: EVENT_MESSAGE_TYPE, event });
@@ -107,6 +113,23 @@ export class AiPanel {
 
   getContext(): AiPanelContext | undefined {
     return this.panelContext ? { ...this.panelContext } : undefined;
+  }
+
+  /** Fire-and-forget: computes agent presence via a direct core import and
+   * posts it as a follow-up context message once resolved, without
+   * delaying `reveal()` itself (see design.md, "Extension: detection runs
+   * after reveal()..."). No-op in optional-local-server mode — that mode's
+   * iframe loads the same standalone bundle, which already gets detection
+   * via its own REST call, not this message-bridge channel. */
+  private detectAndPostAgents(): void {
+    if (this.deps.getLocalServerUrl()) return;
+    const panel = this.panel;
+    if (!panel) return;
+    void detectAvailableAgents().then((detectedAgents) => {
+      if (!this.panelContext) return;
+      this.panelContext = { ...this.panelContext, detectedAgents };
+      void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });
+    });
   }
 
   private getBridgeHtml(webview: vscode.Webview, panelContext?: AiPanelContext): string {

@@ -105,10 +105,10 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.14.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.8.0 | VS Code delivery |
-| `@openspec-ui/server` | 1.5.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.6.0 | Shared browser UI |
+| `@openspec-ui/core` | 0.15.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.9.0 | VS Code delivery |
+| `@openspec-ui/server` | 1.6.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.7.0 | Shared browser UI |
 
 ## Delivery Capability Matrix
 
@@ -162,6 +162,14 @@ which has no VS Code dependency whatsoever. Practically: install
 `claude`/`copilot`/`codex`/`gemini` however you'd normally install any CLI
 tool, log in once, and it becomes available in this picker in both hosts —
 no VS Code-specific setup step exists or is required.
+
+Each option in the picker also carries a best-effort **detected** / **not
+detected** annotation (standalone: on load and via a "Refresh agents"
+button; VS Code message-bridge mode: refreshed automatically every time
+the AI panel is opened). This is a presence check only (the CLI resolves
+on `PATH`) — it never hides or disables an option, and a "detected" result
+is not a guarantee the tool is actually authenticated or otherwise usable;
+the run's own `failed` event remains the real source of truth for that.
 
 **This is a separate mechanism from VS Code's native Chat/Agent handoff**
 (the "Implement with VS Code Agent" command and the `@openspec` Chat

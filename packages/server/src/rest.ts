@@ -14,6 +14,7 @@ import {
   UnknownBuiltInTemplateError,
   createChange,
   customizeTemplate,
+  detectAvailableAgents,
   discoverOpenSpecWorkspace,
   findBuiltInTemplate,
   initOpenSpec,
@@ -458,6 +459,35 @@ export async function handleTemplatesRenderRequest(req: IncomingMessage, res: Se
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to render template: ${message}` });
+  }
+}
+
+export async function handleAgentsDetectRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+  localLlmBaseUrl?: string,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isOverviewRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const agents = await detectAvailableAgents({ localLlmBaseUrl });
+    sendJson(res, 200, { agents });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to detect agents: ${message}` });
   }
 }
 

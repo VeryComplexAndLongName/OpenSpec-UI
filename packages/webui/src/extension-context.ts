@@ -3,6 +3,12 @@ export const DASHBOARD_CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 export interface DashboardContext {
     cwd: string;
     changeDir: string;
+    /** Best-effort agent presence signal, computed by the extension host via
+     * a direct core import and delivered as a follow-up context message once
+     * detection resolves (see openspec/changes/agent-detection/design.md,
+     * "Extension: detection runs after reveal(), posted as a follow-up
+     * context message"). Absent on the initial context message. */
+    detectedAgents?: Record<string, boolean>;
 }
 
 export interface DashboardContextMessage {

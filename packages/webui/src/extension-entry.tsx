@@ -45,6 +45,7 @@ declare function acquireVsCodeApi(): VsCodeApiLike;
 function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) {
   const [cwd, setCwd] = useState(initialContext.cwd);
   const [changeDir, setChangeDir] = useState(initialContext.changeDir);
+  const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
   useEffect(() => {
@@ -60,6 +61,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       if (!isDashboardContextMessage(event.data)) return;
       setCwd(event.data.context.cwd);
       setChangeDir(event.data.context.changeDir);
+      if (event.data.context.detectedAgents) {
+        setDetectedAgents(event.data.context.detectedAgents);
+      }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -100,7 +104,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         </div>
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-        <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} />
+        <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} />
       ) : (
         <p>Enter cwd and change directory to enable the AI panel.</p>
       )}

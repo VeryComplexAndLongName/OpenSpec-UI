@@ -1,10 +1,27 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createVscodeMock } from "../test-utils/vscode-mock.js";
 
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
+const detectAvailableAgentsMock = vi.fn();
+vi.mock("@openspec-ui/core", async () => {
+    const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    return {
+        ...actual,
+        detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
+    };
+});
+
 const { AiPanel } = await import("./ai-panel.js");
+
+beforeEach(() => {
+    detectAvailableAgentsMock.mockResolvedValue({});
+});
+
+afterEach(() => {
+    detectAvailableAgentsMock.mockReset();
+});
 
 function createPanelFixture() {
     const webview = {
@@ -58,6 +75,61 @@ describe("AiPanel context", () => {
             type: "openspec-ui/context",
             context: { cwd: "/two", changeDir: "/two/openspec/changes/demo" },
         });
+    });
+
+    it("posts a follow-up context message with detection results once resolved, without blocking reveal", async () => {
+        let resolveDetection: (value: Record<string, boolean>) => void = () => {};
+        detectAvailableAgentsMock.mockReturnValue(
+            new Promise((resolve) => {
+                resolveDetection = resolve;
+            }),
+        );
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
+
+        // First-ever reveal creates the panel and embeds context via HTML
+        // data attributes (see getBridgeHtml), not postMessage — detection
+        // has not resolved yet, so no postMessage should have gone out.
+        expect(panel.webview.postMessage).not.toHaveBeenCalled();
+
+        resolveDetection({ "claude-cli": true, "copilot-cli": false });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith({
+            type: "openspec-ui/context",
+            context: {
+                cwd: "/repo",
+                changeDir: "/repo/openspec/changes",
+                detectedAgents: { "claude-cli": true, "copilot-cli": false },
+            },
+        });
+        expect(aiPanel.getContext()?.detectedAgents).toEqual({ "claude-cli": true, "copilot-cli": false });
+    });
+
+    it("re-detects on every reveal of an already-open panel", async () => {
+        detectAvailableAgentsMock.mockResolvedValue({ "claude-cli": true });
+        createPanelFixture();
+        const aiPanel = createAiPanel();
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
+        await Promise.resolve();
+        await Promise.resolve();
+        detectAvailableAgentsMock.mockClear();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
+
+        expect(detectAvailableAgentsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not run detection in optional-local-server mode", () => {
+        createPanelFixture();
+        const aiPanel = createAiPanel({ getLocalServerUrl: () => "http://127.0.0.1:4317/#token=abc" });
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
+
+        expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
     });
 });
 

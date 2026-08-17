@@ -109,6 +109,45 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         );
     });
 
+    it("annotates agent options with detection results without removing any option", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/x"
+                detectedAgents={{ "claude-cli": true, "copilot-cli": false }}
+            />,
+        );
+
+        const agentPicker = screen.getByTestId("agent-picker") as HTMLSelectElement;
+        const options = Array.from(agentPicker.querySelectorAll("option"));
+        expect(options.map((option) => option.value)).toEqual([
+            "claude-cli",
+            "copilot-cli",
+            "codex-cli",
+            "gemini-cli",
+            "local-llm",
+        ]);
+        expect(options.find((o) => o.value === "claude-cli")?.textContent).toContain("(detected)");
+        expect(options.find((o) => o.value === "copilot-cli")?.textContent).toContain("(not detected)");
+        // Ids absent from detectedAgents (still loading, or no result yet) get no suffix.
+        expect(options.find((o) => o.value === "codex-cli")?.textContent).not.toContain("detected");
+    });
+
+    it("shows a Refresh agents button only when onRefreshAgents is supplied", () => {
+        const { transport } = createFakeTransport();
+        const onRefreshAgents = vi.fn();
+        const { rerender } = render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
+
+        expect(screen.queryByTestId("refresh-agents-button")).not.toBeInTheDocument();
+
+        rerender(<AiPanel transport={transport} cwd="/repo" changeDir="/x" onRefreshAgents={onRefreshAgents} />);
+        fireEvent.click(screen.getByTestId("refresh-agents-button"));
+
+        expect(onRefreshAgents).toHaveBeenCalledTimes(1);
+    });
+
     it("renders events only for the active runId", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-1"} />);
