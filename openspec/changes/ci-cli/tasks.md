@@ -69,4 +69,12 @@
   "no `openspec/` at all", not a bug in this package). Full detail and
   the exact commands in `smoke-test-notes.md`; scratch fixture removed
   afterward, confirmed via `git status`.
-- [ ] 6.4 `openspec change validate --strict ci-cli` passes.
+- [x] 6.4 `openspec change validate --strict ci-cli` passes.
+
+## 7. Ship
+
+- [x] 7.1 Branch `feat/ci-cli` from post-merge `origin/main`, commit, push,
+  [PR #30](https://github.com/VeryComplexAndLongName/OpenSpec-UI/pull/30).
+- [x] 7.2 CI green (all four checks, including the new `openspec-validate`
+  merge-gate job running for real in GitHub Actions for the first time),
+  then merged as `f5bfaee` into `main`.
