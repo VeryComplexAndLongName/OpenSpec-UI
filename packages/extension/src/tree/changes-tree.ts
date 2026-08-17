@@ -74,7 +74,14 @@ export class TaskTreeItem extends vscode.TreeItem {
   ) {
     super(text, vscode.TreeItemCollapsibleState.None);
     this.description = done ? "done" : undefined;
-    this.contextValue = archived ? "openspec-ui.archivedTask" : "openspec-ui.activeTask";
+    this.contextValue = archived
+      ? "openspec-ui.archivedTask"
+      : done
+        ? "openspec-ui.activeTaskDone"
+        : "openspec-ui.activeTask";
+    if (!archived && done) {
+      this.tooltip = `${text}\n\nDone tasks can't be deleted.`;
+    }
     this.iconPath = new vscode.ThemeIcon(done ? "check" : "circle-large-outline");
     this.command = { command: "openspec-ui.revealTask", title: "Reveal Task", arguments: [this] };
   }

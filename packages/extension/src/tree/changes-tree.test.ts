@@ -87,7 +87,8 @@ describe("ChangesTreeProvider", () => {
     expect(children.map((item) => item.label)).toEqual(["1.1 First task", "1.2 Second task"]);
     expect(children[0]?.description).toBe("done");
     expect(children[1]?.description).toBeUndefined();
-    expect(children[0]?.contextValue).toBe("openspec-ui.activeTask");
+    expect(children[0]?.contextValue).toBe("openspec-ui.activeTaskDone");
+    expect(children[1]?.contextValue).toBe("openspec-ui.activeTask");
     expect(children[0]?.command?.command).toBe("openspec-ui.revealTask");
   });
 

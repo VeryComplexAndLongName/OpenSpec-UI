@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1
+
+- "Delete Task" is no longer offered for a task marked done, even in an
+  active (non-archived) change — matching the guard already in place for
+  archived changes. A completed checklist line records that the work
+  happened; the fix for a wrongly-checked task is unchecking it, not
+  deleting the record.
+
 ## 0.12.0
 
 - Added three Command Palette commands to bootstrap repository files

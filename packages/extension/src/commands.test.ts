@@ -665,6 +665,15 @@ describe("registerCommands", () => {
       expect(deleteTaskLineMock).not.toHaveBeenCalled();
     });
 
+    it("does nothing for a done task, even in an active change, without even prompting", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.({ ...activeItem, done: true });
+
+      expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      expect(deleteTaskLineMock).not.toHaveBeenCalled();
+    });
+
     it("reports a stale task list as a warning, not an error", async () => {
       vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Delete");
       deleteTaskLineMock.mockRejectedValue(new TaskListChangedError("task list changed"));
