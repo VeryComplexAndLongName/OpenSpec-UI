@@ -65,6 +65,42 @@ jobs:
           path: packages/extension/*.vsix
           if-no-files-found: error
 
+  release-extension:
+    name: Tag and release VS Code extension
+    needs: [quality, extension-integration]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./packages/extension/package.json').version")
+          TAG="openspec-ui-vscode@${VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null; then
+            echo "Tag ${TAG} already exists — nothing to release."
+            exit 0
+          fi
+          npm run package --workspace openspec-ui-vscode
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "openspec-ui-vscode ${VERSION}"
+          git push origin "${TAG}"
+          gh release create "${TAG}" packages/extension/*.vsix \
+            --title "openspec-ui-vscode ${VERSION}" \
+            --generate-notes
+
   browser-e2e:
     name: Standalone browser and accessibility
     needs: quality

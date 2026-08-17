@@ -112,6 +112,16 @@ release artifact. Current release versions are:
 | `@openspec-ui/webui` | 1.7.0 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
 
+`@vscode/vsce` (the extension's packager) already names the built
+artifact with its version (`openspec-ui-vscode-<version>.vsix`) — no
+extra step needed there. On every push to `main` where that version has
+no matching git tag yet, CI (`release-extension` job in
+`.github/workflows/quality.yml`) tags the commit
+(`openspec-ui-vscode@<version>`) and publishes a GitHub Release with the
+`.vsix` attached — that Release page is the permanent, versioned place to
+download a specific build; the artifact itself is never committed into
+`packages/` or anywhere else in git.
+
 ## Delivery Capability Matrix
 
 | Capability | Standalone | VS Code |
