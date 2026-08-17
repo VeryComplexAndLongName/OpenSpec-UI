@@ -6,10 +6,12 @@ import path from "node:path";
 import * as vscode from "vscode";
 import {
   TemplateAlreadyExistsError,
+  UnknownProjectTemplateError,
   archiveChange,
   createChange,
   customizeTemplate,
   deleteChange,
+  deleteProjectTemplate,
   initOpenSpec,
   listChanges,
   listSpecs,
@@ -397,6 +399,27 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
       } catch (error) {
         await showCommandError("insert template into change", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.deleteProjectTemplate", async (item?: TemplateTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item || item.template.origin !== "project") return;
+      const answer = await vscode.window.showWarningMessage(
+        `Permanently delete project template "${item.template.manifest.id}"?`,
+        { modal: true },
+        "Delete",
+      );
+      if (answer !== "Delete") return;
+      try {
+        await deleteProjectTemplate(workspaceRoot, item.template.manifest.id);
+        deps.refreshTemplatesTree();
+        void vscode.window.showInformationMessage(`OpenSpec UI: deleted "${item.template.manifest.title}".`);
+      } catch (error) {
+        if (error instanceof UnknownProjectTemplateError) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${error.message}`);
+          return;
+        }
+        await showCommandError("delete project template", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.deleteChange", async (item?: ChangeTreeItem) => {

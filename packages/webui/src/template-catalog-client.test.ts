@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { TemplateAlreadyExistsError, customizeTemplate, listTemplates, renderTemplate } from "./template-catalog-client.js";
+import {
+  TemplateAlreadyExistsError,
+  customizeTemplate,
+  deleteProjectTemplate,
+  listTemplates,
+  renderTemplate,
+} from "./template-catalog-client.js";
 
 describe("listTemplates", () => {
   it("posts cwd and returns builtIn/project lists", async () => {
@@ -27,6 +33,29 @@ describe("customizeTemplate", () => {
     );
 
     await expect(customizeTemplate(request, "/workspace", "seed")).rejects.toBeInstanceOf(TemplateAlreadyExistsError);
+  });
+});
+
+describe("deleteProjectTemplate", () => {
+  it("posts cwd and id and resolves on success", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    await expect(deleteProjectTemplate(request, "/workspace", "my-template")).resolves.toBeUndefined();
+    expect(request.mock.calls[0]?.[0]).toBe("/api/templates/delete");
+    expect(JSON.parse((request.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
+      cwd: "/workspace",
+      id: "my-template",
+    });
+  });
+
+  it("throws with the server-provided error message on 404", async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "Unknown project-level template: my-template" }), { status: 404 }),
+    );
+
+    await expect(deleteProjectTemplate(request, "/workspace", "my-template")).rejects.toThrow(
+      "Unknown project-level template: my-template",
+    );
   });
 });
 

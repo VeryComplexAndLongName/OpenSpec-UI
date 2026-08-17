@@ -16,13 +16,16 @@ const unarchiveChangeMock = vi.fn();
 const initOpenSpecMock = vi.fn();
 const readArchivedChangeTasksTemplateMock = vi.fn();
 const customizeTemplateMock = vi.fn();
+const deleteProjectTemplateMock = vi.fn();
 const renderTemplateMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
+class UnknownProjectTemplateError extends Error {}
 vi.mock("@openspec-ui/core", () => ({
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
   customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
+  deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
@@ -30,6 +33,7 @@ vi.mock("@openspec-ui/core", () => ({
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
   TemplateAlreadyExistsError,
+  UnknownProjectTemplateError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
@@ -408,6 +412,56 @@ describe("registerCommands", () => {
       });
 
       expect(customizeTemplateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.deleteProjectTemplate", () => {
+    const projectItem = {
+      template: {
+        origin: "project" as const,
+        manifest: { id: "seed", title: "Seed", category: "c", version: "1.0.0", summary: "s", variables: [] },
+      },
+    };
+
+    it("deletes a project template after confirmation and refreshes the templates tree", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValue("Delete");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.(projectItem);
+
+      expect(deleteProjectTemplateMock).toHaveBeenCalledWith("/workspace/repo", "seed");
+      expect(deps.refreshTemplatesTree).toHaveBeenCalled();
+    });
+
+    it("does not delete when the confirmation is declined", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.(projectItem);
+
+      expect(deleteProjectTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing for a built-in template", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.({
+        template: { ...projectItem.template, origin: "built-in" as const },
+      });
+
+      expect(deleteProjectTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("reports an unknown template id as a warning, not an error", async () => {
+      vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Delete");
+      deleteProjectTemplateMock.mockRejectedValue(new UnknownProjectTemplateError("Unknown project-level template: seed"));
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.(projectItem);
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(2);
+      expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();
     });
   });
 

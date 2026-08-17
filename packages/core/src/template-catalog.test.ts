@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   TemplateAlreadyExistsError,
   UnknownBuiltInTemplateError,
+  UnknownProjectTemplateError,
   customizeTemplate,
+  deleteProjectTemplate,
   listBuiltInTemplates,
   listProjectTemplates,
   renderTemplate,
@@ -103,6 +105,26 @@ describe("customizeTemplate", () => {
   it("rejects an unknown built-in id", async () => {
     const root = await temporaryRoot();
     await expect(customizeTemplate(root, "does-not-exist")).rejects.toThrow(UnknownBuiltInTemplateError);
+  });
+});
+
+describe("deleteProjectTemplate", () => {
+  it("removes an existing project-level template directory entirely", async () => {
+    const root = await temporaryRoot();
+    await customizeTemplate(root, "python-sqlalchemy-alembic");
+    expect(await listProjectTemplates(root)).toHaveLength(1);
+
+    await deleteProjectTemplate(root, "python-sqlalchemy-alembic");
+
+    expect(await listProjectTemplates(root)).toEqual([]);
+  });
+
+  it("rejects an unknown project-level template id without touching the filesystem", async () => {
+    const root = await temporaryRoot();
+    await customizeTemplate(root, "python-sqlalchemy-alembic");
+
+    await expect(deleteProjectTemplate(root, "does-not-exist")).rejects.toThrow(UnknownProjectTemplateError);
+    expect(await listProjectTemplates(root)).toHaveLength(1);
   });
 });
 

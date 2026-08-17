@@ -12,8 +12,10 @@ import {
   ChangeEditorConflictError,
   TemplateAlreadyExistsError,
   UnknownBuiltInTemplateError,
+  UnknownProjectTemplateError,
   createChange,
   customizeTemplate,
+  deleteProjectTemplate,
   detectAvailableAgents,
   discoverOpenSpecWorkspace,
   findBuiltInTemplate,
@@ -426,6 +428,34 @@ export async function handleTemplatesCustomizeRequest(req: IncomingMessage, res:
     }
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to customize template: ${message}` });
+  }
+}
+
+export async function handleTemplatesDeleteRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isTemplatesCustomizeRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and a valid template id" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    await deleteProjectTemplate(parsed.cwd, parsed.id);
+    sendJson(res, 200, { ok: true });
+  } catch (error) {
+    if (error instanceof UnknownProjectTemplateError) {
+      sendJson(res, 404, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to delete template: ${message}` });
   }
 }
 
