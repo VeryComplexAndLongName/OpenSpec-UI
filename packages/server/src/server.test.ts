@@ -157,6 +157,20 @@ describe("server — REST /api/status", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns startup workspaceRoot for authenticated clients", async () => {
+    const authorized = await fetch(`${baseUrl}/api/workspace-root`, {
+      method: "GET",
+      headers: { "x-openspec-ui-token": ACCESS_TOKEN },
+    });
+    expect(authorized.status).toBe(200);
+    expect(await authorized.json()).toEqual({ workspaceRoot: path.resolve("/workspace/repo") });
+
+    const unauthorized = await fetch(`${baseUrl}/api/workspace-root`, {
+      method: "GET",
+    });
+    expect(unauthorized.status).toBe(401);
+  });
+
   it("returns synthesized protocol events for /api/status-json", async () => {
     statusChangeMock.mockResolvedValueOnce({
       changeName: "x",
