@@ -91,6 +91,16 @@
   note that the picker shows a best-effort detected/not-detected
   annotation, and that it is not a filter or an authentication check.
 
+## 7. Ship
+
+- [x] 7.1 Branch `feat/agent-detection` from post-merge `origin/main` (per
+  user's branch-per-task rule), commit, push,
+  [PR #29](https://github.com/VeryComplexAndLongName/OpenSpec-UI/pull/29).
+- [x] 7.2 CI green on the PR commit, then merge.
+  All three checks (dependency review, typecheck/lint/test/build,
+  extension integration + package, standalone browser + accessibility)
+  passed. Merged as `be51f7a` into `main`.
+
 ## 6. Verification, versioning, and smoke test
 
 - [x] 6.1 `npm run typecheck && npm run lint && npm run test` passes for
