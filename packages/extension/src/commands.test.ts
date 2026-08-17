@@ -19,6 +19,9 @@ const customizeTemplateMock = vi.fn();
 const deleteProjectTemplateMock = vi.fn();
 const deleteTaskLineMock = vi.fn();
 const renderTemplateMock = vi.fn();
+const writeAgentInstructionsMock = vi.fn();
+const writeDependabotConfigMock = vi.fn();
+const writeSubtypeInstructionsMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
 class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
@@ -31,6 +34,10 @@ vi.mock("@openspec-ui/core", () => ({
   deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
   deleteTaskLine: (...args: unknown[]) => deleteTaskLineMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
+  listBootstrapProjectTypes: () => [
+    { id: "node", label: "Node.js / TypeScript" },
+    { id: "python", label: "Python" },
+  ],
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
@@ -41,6 +48,9 @@ vi.mock("@openspec-ui/core", () => ({
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
+  writeAgentInstructions: (...args: unknown[]) => writeAgentInstructionsMock(...args),
+  writeDependabotConfig: (...args: unknown[]) => writeDependabotConfigMock(...args),
+  writeSubtypeInstructions: (...args: unknown[]) => writeSubtypeInstructionsMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
 
@@ -111,6 +121,9 @@ describe("registerCommands", () => {
       expect.arrayContaining([
         "openspec-ui.status",
         "openspec-ui.initialize",
+        "openspec-ui.generateAgentInstructions",
+        "openspec-ui.configureDependabot",
+        "openspec-ui.generateSubtypeInstructions",
         "openspec-ui.createChange",
         "openspec-ui.validateSelectedChange",
         "openspec-ui.archiveChange",
@@ -312,6 +325,97 @@ describe("registerCommands", () => {
     expect(validateChangeMock).toHaveBeenCalledWith("shared-ui", { cwd: "/workspace/repo" });
     expect(vscodeMock.workspace.openTextDocument).toHaveBeenCalled();
     expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+  });
+
+  describe("openspec-ui.generateAgentInstructions", () => {
+    it("writes both CLAUDE.md and AGENTS.md, opens both, on full success", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Node.js / TypeScript", id: "node" });
+      writeAgentInstructionsMock.mockResolvedValue({ claude: "created", agents: "created" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateAgentInstructions")?.();
+
+      expect(writeAgentInstructionsMock).toHaveBeenCalledWith("/workspace/repo", "node");
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledTimes(2);
+      expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+    });
+
+    it("reports a foreign file as a warning without opening it, while still opening the other", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Python", id: "python" });
+      writeAgentInstructionsMock.mockResolvedValue({ claude: "skipped-foreign", agents: "created" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateAgentInstructions")?.();
+
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledTimes(1);
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining("CLAUDE.md already exists"),
+      );
+    });
+
+    it("does nothing when the project type picker is cancelled", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateAgentInstructions")?.();
+
+      expect(writeAgentInstructionsMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.configureDependabot", () => {
+    it("writes the file for the selected project types and opens it", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce([
+        { label: "Node.js / TypeScript", id: "node" },
+        { label: "Python", id: "python" },
+      ]);
+      writeDependabotConfigMock.mockResolvedValue("created");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureDependabot")?.();
+
+      expect(writeDependabotConfigMock).toHaveBeenCalledWith("/workspace/repo", ["node", "python"]);
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+    });
+
+    it("reports a foreign dependabot.yml as a warning and does not open it", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce([{ label: "Node.js / TypeScript", id: "node" }]);
+      writeDependabotConfigMock.mockResolvedValue("skipped-foreign");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureDependabot")?.();
+
+      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining("dependabot.yml already exists"),
+      );
+    });
+  });
+
+  describe("openspec-ui.generateSubtypeInstructions", () => {
+    it("prompts for project type then subtype, writes the file, and opens it", async () => {
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Node.js / TypeScript", id: "node" })
+        .mockResolvedValueOnce({ label: "backend", id: "backend" });
+      writeSubtypeInstructionsMock.mockResolvedValue("created");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSubtypeInstructions")?.();
+
+      expect(writeSubtypeInstructionsMock).toHaveBeenCalledWith("/workspace/repo", "node", "backend");
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+    });
+
+    it("does nothing when the subtype picker is cancelled after a project type was picked", async () => {
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Python", id: "python" })
+        .mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSubtypeInstructions")?.();
+
+      expect(writeSubtypeInstructionsMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("openspec-ui.copyTasksAsTemplate", () => {

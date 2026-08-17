@@ -16,6 +16,7 @@ import {
   deleteProjectTemplate,
   deleteTaskLine,
   initOpenSpec,
+  listBootstrapProjectTypes,
   listChanges,
   listSpecs,
   readArchivedChangeTasksTemplate,
@@ -23,6 +24,9 @@ import {
   showChange,
   unarchiveChange,
   validateChange,
+  writeAgentInstructions,
+  writeDependabotConfig,
+  writeSubtypeInstructions,
   type StartProcessOptions,
   type WorkbenchProcessScheduler,
   type Command,
@@ -236,6 +240,94 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage("OpenSpec UI: workspace initialized.");
       } catch (error) {
         await showCommandError("initialize workspace", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.generateAgentInstructions", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) return;
+      const picked = await vscode.window.showQuickPick(
+        listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
+        { title: "Generate Agent Instructions", placeHolder: "Select a project type" },
+      );
+      if (!picked) return;
+      try {
+        const result = await writeAgentInstructions(workspaceRoot, picked.id);
+        const written = [
+          result.claude !== "skipped-foreign" ? "CLAUDE.md" : null,
+          result.agents !== "skipped-foreign" ? "AGENTS.md" : null,
+        ].filter((name): name is string => name !== null);
+        for (const name of written) {
+          const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(workspaceRoot, name)));
+          await vscode.window.showTextDocument(doc, { preview: false });
+        }
+        const skipped = [
+          result.claude === "skipped-foreign" ? "CLAUDE.md" : null,
+          result.agents === "skipped-foreign" ? "AGENTS.md" : null,
+        ].filter((name): name is string => name !== null);
+        if (skipped.length > 0) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${skipped.join(", ")} already exists and is not managed by openspec-ui — left untouched.`,
+          );
+        }
+        if (written.length > 0) {
+          void vscode.window.showInformationMessage(`OpenSpec UI: wrote ${written.join(", ")}.`);
+        }
+      } catch (error) {
+        await showCommandError("generate agent instructions", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.configureDependabot", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) return;
+      const picked = await vscode.window.showQuickPick(
+        listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
+        { title: "Configure Dependabot", placeHolder: "Select project type(s)", canPickMany: true },
+      );
+      if (!picked || picked.length === 0) return;
+      try {
+        const result = await writeDependabotConfig(workspaceRoot, picked.map((p) => p.id));
+        if (result === "skipped-foreign") {
+          void vscode.window.showWarningMessage(
+            "OpenSpec UI: .github/dependabot.yml already exists and is not managed by openspec-ui — left untouched.",
+          );
+          return;
+        }
+        const doc = await vscode.workspace.openTextDocument(
+          vscode.Uri.file(path.join(workspaceRoot, ".github", "dependabot.yml")),
+        );
+        await vscode.window.showTextDocument(doc, { preview: false });
+        void vscode.window.showInformationMessage("OpenSpec UI: wrote .github/dependabot.yml.");
+      } catch (error) {
+        await showCommandError("configure dependabot", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.generateSubtypeInstructions", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) return;
+      const projectType = await vscode.window.showQuickPick(
+        listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
+        { title: "Generate Path-Scoped Instructions", placeHolder: "Select a project type" },
+      );
+      if (!projectType) return;
+      const subtype = await vscode.window.showQuickPick(
+        (["backend", "frontend", "general"] as const).map((id) => ({ label: id, id })),
+        { title: "Generate Path-Scoped Instructions", placeHolder: "Select a subtype" },
+      );
+      if (!subtype) return;
+      try {
+        const result = await writeSubtypeInstructions(workspaceRoot, projectType.id, subtype.id);
+        const relativePath = path.join(".github", "instructions", `${subtype.id}.instructions.md`);
+        if (result === "skipped-foreign") {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${relativePath} already exists and is not managed by openspec-ui — left untouched.`,
+          );
+          return;
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(workspaceRoot, relativePath)));
+        await vscode.window.showTextDocument(doc, { preview: false });
+        void vscode.window.showInformationMessage(`OpenSpec UI: wrote ${relativePath}.`);
+      } catch (error) {
+        await showCommandError("generate subtype instructions", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.createChange", async () => {
