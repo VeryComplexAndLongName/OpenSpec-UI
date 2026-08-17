@@ -82,10 +82,15 @@ describe("Tabs with computeVisibleTabs", () => {
     expect(screen.queryByTestId("page-tab-change-editor")).not.toBeInTheDocument();
   });
 
-  it("renders all five tabs in a plain standalone browser tab", () => {
+  it("renders all six tabs in a plain standalone browser tab", () => {
     render(<Tabs tabs={computeVisibleTabs("")} activeTab="run-a-command" onSelect={vi.fn()} />);
-    for (const id of ["run-a-command", "processes", "diff-preview", "overview", "change-editor"]) {
+    for (const id of ["run-a-command", "processes", "diff-preview", "overview", "change-editor", "templates"]) {
       expect(screen.getByTestId(`page-tab-${id}`)).toBeInTheDocument();
     }
+  });
+
+  it("excludes the Templates tab from the VS Code local-server embed", () => {
+    render(<Tabs tabs={computeVisibleTabs("vscode-local-server")} activeTab="run-a-command" onSelect={vi.fn()} />);
+    expect(screen.queryByTestId("page-tab-templates")).not.toBeInTheDocument();
   });
 });

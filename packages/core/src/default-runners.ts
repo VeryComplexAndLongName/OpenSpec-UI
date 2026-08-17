@@ -13,6 +13,7 @@ import { CopilotCliAdapter } from "./agents/copilot.js";
 import { CodexCliAdapter } from "./agents/codex.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
+import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
 import type { AllowlistConfig, AuditLog } from "./security.js";
 import { InMemoryAuditLog } from "./security.js";
@@ -25,7 +26,7 @@ export interface DefaultRunnersConfig {
   allowExternalCwd?: boolean;
 }
 
-export const DEFAULT_AGENT_ID = "claude-cli";
+export { DEFAULT_AGENT_ID };
 
 function exact(expected: string[]): (args: string[]) => boolean {
   return (args) => args.length === expected.length && args.every((a, i) => a === expected[i]);

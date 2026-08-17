@@ -1,6 +1,7 @@
 // Точка входа для реального запуска (dev/smoke-тест) — не часть публичного
 // API пакета. `npm run start -- <workspaceRoot> <port>`.
 
+import { buildDefaultAgentRunners } from "@openspec-ui/core";
 import { DEFAULT_HOST, DEFAULT_PORT, createServer } from "./server.js";
 
 const workspaceRoot = process.argv[2] ?? process.cwd();
@@ -12,6 +13,7 @@ const server = createServer({
   host: DEFAULT_HOST,
   port,
   allowExternalCwd,
+  runners: buildDefaultAgentRunners({ workspaceRoot, allowExternalCwd }),
 });
 const address = await server.listen();
 console.log(

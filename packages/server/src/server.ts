@@ -16,6 +16,9 @@ import {
   handleOverviewRequest,
   handleStatusJsonRequest,
   handleStatusRequest,
+  handleTemplatesCustomizeRequest,
+  handleTemplatesListRequest,
+  handleTemplatesRenderRequest,
 } from "./rest.js";
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
@@ -129,6 +132,18 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-editor/archive-tasks-template") {
       void handleArchiveTasksTemplateRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/templates/list") {
+      void handleTemplatesListRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/templates/customize") {
+      void handleTemplatesCustomizeRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/templates/render") {
+      void handleTemplatesRenderRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {

@@ -15,15 +15,21 @@ const deleteChangeMock = vi.fn();
 const unarchiveChangeMock = vi.fn();
 const initOpenSpecMock = vi.fn();
 const readArchivedChangeTasksTemplateMock = vi.fn();
+const customizeTemplateMock = vi.fn();
+const renderTemplateMock = vi.fn();
+class TemplateAlreadyExistsError extends Error {}
 vi.mock("@openspec-ui/core", () => ({
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
+  customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
+  renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
+  TemplateAlreadyExistsError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
@@ -78,6 +84,7 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     outputChannel: outputChannel as unknown as import("vscode").OutputChannel,
     revealAiPanel: vi.fn(),
     refreshTrees: vi.fn(),
+    refreshTemplatesTree: vi.fn(),
     scheduler: scheduler as unknown as import("@openspec-ui/core").WorkbenchProcessScheduler,
     implementationSessions: implementationSessions as unknown as import("./implementation-sessions.js").ImplementationSessionManager,
     ...overrides,
@@ -361,6 +368,136 @@ describe("registerCommands", () => {
       });
 
       expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.customizeTemplate", () => {
+    const builtInItem = {
+      template: {
+        origin: "built-in" as const,
+        manifest: { id: "seed", title: "Seed", category: "c", version: "1.0.0", summary: "s", variables: [] },
+      },
+    };
+
+    it("customizes a built-in template and refreshes the templates tree", async () => {
+      customizeTemplateMock.mockResolvedValue({});
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.customizeTemplate")?.(builtInItem);
+
+      expect(customizeTemplateMock).toHaveBeenCalledWith("/workspace/repo", "seed");
+      expect(deps.refreshTemplatesTree).toHaveBeenCalled();
+    });
+
+    it("reports an already-customized template as a warning, not an error", async () => {
+      customizeTemplateMock.mockRejectedValue(new TemplateAlreadyExistsError("already exists"));
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.customizeTemplate")?.(builtInItem);
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalled();
+      expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it("does nothing for a project-level template", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.customizeTemplate")?.({
+        template: { ...builtInItem.template, origin: "project" as const },
+      });
+
+      expect(customizeTemplateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.insertTemplateIntoChange", () => {
+    const templateItem = {
+      template: {
+        origin: "built-in" as const,
+        manifest: {
+          id: "seed",
+          title: "Seed",
+          category: "c",
+          version: "1.0.0",
+          summary: "s",
+          variables: [{ name: "packageName", prompt: "Package name?", default: "app" }],
+        },
+      },
+    };
+
+    it("prompts for variables, renders, and inserts into all three artifact files", async () => {
+      listChangesMock.mockResolvedValue({
+        changes: [{ name: "active-change", completedTasks: 0, totalTasks: 3, lastModified: "t", status: "draft" }],
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue({ label: "active-change", description: "0/3 — draft" });
+      vscodeMock.window.showInputBox.mockResolvedValue("myapp");
+      renderTemplateMock.mockReturnValue({ proposal: "P body", design: "D body", tasks: "T body" });
+
+      const changeDir = path.join("/workspace/repo", "openspec", "changes", "active-change");
+      vscodeMock._documentContents.set(path.join(changeDir, "proposal.md"), "");
+      vscodeMock._documentContents.set(path.join(changeDir, "design.md"), "");
+      vscodeMock._documentContents.set(path.join(changeDir, "tasks.md"), "## 1. Existing\n");
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.insertTemplateIntoChange")?.(templateItem);
+
+      expect(vscodeMock.window.showInputBox).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Package name?", value: "app" }),
+      );
+      expect(renderTemplateMock).toHaveBeenCalledWith(templateItem.template, { packageName: "myapp" });
+      expect(vscodeMock._documentContents.get(path.join(changeDir, "proposal.md"))).toBe("P body");
+      expect(vscodeMock._documentContents.get(path.join(changeDir, "design.md"))).toBe("D body");
+      expect(vscodeMock._documentContents.get(path.join(changeDir, "tasks.md"))).toBe("## 1. Existing\n\nT body");
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+    });
+
+    it("does nothing when the variable prompt is dismissed", async () => {
+      listChangesMock.mockResolvedValue({
+        changes: [{ name: "active-change", completedTasks: 0, totalTasks: 3, lastModified: "t", status: "draft" }],
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue({ label: "active-change", description: "0/3 — draft" });
+      vscodeMock.window.showInputBox.mockResolvedValue(undefined);
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.insertTemplateIntoChange")?.(templateItem);
+
+      expect(renderTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("prompts boolean-typed variables via a Yes/No QuickPick", async () => {
+      const booleanItem = {
+        template: {
+          origin: "built-in" as const,
+          manifest: {
+            id: "seed-bool",
+            title: "Seed Bool",
+            category: "c",
+            version: "1.0.0",
+            summary: "s",
+            variables: [{ name: "includeTests", prompt: "Include tests?", type: "boolean" as const }],
+          },
+        },
+      };
+      listChangesMock.mockResolvedValue({
+        changes: [{ name: "active-change", completedTasks: 0, totalTasks: 3, lastModified: "t", status: "draft" }],
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "active-change", description: "0/3 — draft" })
+        .mockResolvedValueOnce("Yes");
+      renderTemplateMock.mockReturnValue({ proposal: "", design: "", tasks: "" });
+      const changeDir = path.join("/workspace/repo", "openspec", "changes", "active-change");
+      vscodeMock._documentContents.set(path.join(changeDir, "proposal.md"), "");
+      vscodeMock._documentContents.set(path.join(changeDir, "design.md"), "");
+      vscodeMock._documentContents.set(path.join(changeDir, "tasks.md"), "");
+
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      await vscodeMock._registeredCommands.get("openspec-ui.insertTemplateIntoChange")?.(booleanItem);
+
+      expect(renderTemplateMock).toHaveBeenCalledWith(booleanItem.template, { includeTests: true });
     });
   });
 });

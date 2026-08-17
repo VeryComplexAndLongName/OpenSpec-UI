@@ -4,7 +4,12 @@
 
 import * as vscode from "vscode";
 import type { AgentRunner } from "@openspec-ui/core";
-import { WorkbenchProcessScheduler, WorkbenchRunJournal } from "@openspec-ui/core";
+import {
+  WorkbenchProcessScheduler,
+  WorkbenchRunJournal,
+  buildDefaultAgentRunners,
+  resolveRunner as resolveAgentRunner,
+} from "@openspec-ui/core";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { registerCommands } from "./commands.js";
@@ -12,6 +17,7 @@ import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
+import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
@@ -72,18 +78,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   let changesTree: ChangesTreeProvider | undefined;
   let archiveTree: ArchiveTreeProvider | undefined;
   let specsTree: SpecsTreeProvider | undefined;
+  let templatesTree: TemplatesTreeProvider | undefined;
   if (workspaceRoot) {
     changesTree = new ChangesTreeProvider(workspaceRoot);
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
     specsTree = new SpecsTreeProvider(workspaceRoot);
+    templatesTree = new TemplatesTreeProvider(workspaceRoot);
     context.subscriptions.push(
       vscode.window.registerTreeDataProvider("openspecUiChanges", changesTree),
       vscode.window.registerTreeDataProvider("openspecUiArchive", archiveTree),
       vscode.window.registerTreeDataProvider("openspecUiSpecs", specsTree),
+      vscode.window.registerTreeDataProvider("openspecUiTemplates", templatesTree),
       vscode.commands.registerCommand("openspec-ui.refresh", () => {
         changesTree?.refresh();
         archiveTree?.refresh();
         specsTree?.refresh();
+        templatesTree?.refresh();
       }),
     );
     const watcher = vscode.workspace.createFileSystemWatcher(
@@ -93,6 +103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       changesTree?.refresh();
       archiveTree?.refresh();
       specsTree?.refresh();
+      templatesTree?.refresh();
     };
     context.subscriptions.push(
       watcher,
@@ -108,6 +119,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     if (readConfig().localServerEnabled) {
       void optionalServer.start();
     }
+
+    runners = buildDefaultAgentRunners({ workspaceRoot });
   } else {
     void vscode.window.showWarningMessage("OpenSpec UI: no folder open — open a workspace to use it.");
   }
@@ -115,7 +128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
     runController,
-    resolveRunner: () => undefined,
+    resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
     getLocalServerUrl: () => optionalServer?.launchUrl,
   });
 
@@ -129,6 +142,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       archiveTree?.refresh();
       specsTree?.refresh();
     },
+    refreshTemplatesTree: () => templatesTree?.refresh(),
     scheduler,
     implementationSessions,
   });

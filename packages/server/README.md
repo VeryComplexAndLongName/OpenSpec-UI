@@ -35,3 +35,13 @@ npm run start -- <workspaceRoot> <port> --allow-external-cwd
 ```
 
 Open the tokenized URL printed by the server after startup.
+
+## Agents
+
+`npm run start` (via `src/cli.ts`) populates `createServer`'s `runners`
+option with `buildDefaultAgentRunners({ workspaceRoot, allowExternalCwd })`
+from `@openspec-ui/core` — `plan`/`implement`/`review` resolve to a real
+CLI-agent runner by default, not an empty map. See the root `README.md`'s
+"Agent Selection" section for the full picture (available agents, how
+each one authenticates, and how this differs from VS Code's native
+Chat/Agent handoff).

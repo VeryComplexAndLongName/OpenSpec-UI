@@ -42,19 +42,71 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         } satisfies Command);
     });
 
-    it("shows direct OpenSpec commands in command picker", () => {
+    it("shows direct OpenSpec commands and agent commands in command picker", () => {
         const { transport } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
 
         const picker = screen.getByTestId("command-picker");
         const options = picker.querySelectorAll("option");
-        expect(options).toHaveLength(4);
         expect(Array.from(options).map((option) => option.textContent)).toEqual([
             "status",
             "list",
             "show",
             "validate",
+            "plan",
+            "implement",
+            "review",
         ]);
+    });
+
+    it("defaults the agent picker to the default agent and disables it for direct commands", () => {
+        const { transport } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
+
+        const agentPicker = screen.getByTestId("agent-picker") as HTMLSelectElement;
+        expect(agentPicker.value).toBe("claude-cli");
+        expect(agentPicker).toBeDisabled();
+        const options = Array.from(agentPicker.querySelectorAll("option")).map((option) => option.value);
+        expect(options).toEqual(["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]);
+    });
+
+    it("enables the agent picker for plan/implement/review and sends the selected agentId", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-agent"} />);
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-agent",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-agent", timestamp: "t" });
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        expect(screen.getByTestId("agent-picker")).not.toBeDisabled();
+
+        fireEvent.change(screen.getByTestId("agent-picker"), { target: { value: "gemini-cli" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "implement",
+            cwd: "/repo",
+            runId: "run-agent",
+            agentId: "gemini-cli",
+            context: { changeDir: "/repo/openspec/changes/some-change", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("omits agentId for direct OpenSpec commands regardless of the picker's value", () => {
+        const { transport, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-direct"} />);
+
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenCalledWith(
+            expect.not.objectContaining({ agentId: expect.anything() }),
+        );
     });
 
     it("renders events only for the active runId", () => {

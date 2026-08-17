@@ -16,3 +16,8 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { id: "gemini-cli", label: "Gemini CLI" },
   { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
 ];
+
+/** Agent used when a `Command` does not specify `agentId`. Lives here
+ * (not `default-runners.ts`) because it has no Node-only dependencies, so
+ * it can be re-exported from `browser.ts` for the UI's agent picker. */
+export const DEFAULT_AGENT_ID = "claude-cli";

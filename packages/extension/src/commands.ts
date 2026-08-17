@@ -5,13 +5,16 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  TemplateAlreadyExistsError,
   archiveChange,
   createChange,
+  customizeTemplate,
   deleteChange,
   initOpenSpec,
   listChanges,
   listSpecs,
   readArchivedChangeTasksTemplate,
+  renderTemplate,
   showChange,
   unarchiveChange,
   validateChange,
@@ -25,6 +28,7 @@ import type { RunController } from "./run-controller.js";
 import { describeEvent } from "./describe-event.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import type { ChangeTreeItem } from "./tree/changes-tree.js";
+import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
 import type { AiPanelContext } from "./webview/ai-panel.js";
 
@@ -34,6 +38,7 @@ export interface CommandsDeps {
   outputChannel: vscode.OutputChannel;
   revealAiPanel: (context?: AiPanelContext) => void;
   refreshTrees: () => void;
+  refreshTemplatesTree: () => void;
   scheduler: WorkbenchProcessScheduler;
   implementationSessions: ImplementationSessionManager;
 }
@@ -325,6 +330,73 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
       } catch (error) {
         await showCommandError("copy tasks as template", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.customizeTemplate", async (item?: TemplateTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item || item.template.origin !== "built-in") return;
+      try {
+        await customizeTemplate(workspaceRoot, item.template.manifest.id);
+        deps.refreshTemplatesTree();
+        void vscode.window.showInformationMessage(`OpenSpec UI: customized "${item.template.manifest.title}".`);
+      } catch (error) {
+        if (error instanceof TemplateAlreadyExistsError) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${item.template.manifest.id} is already customized in this project.`,
+          );
+          return;
+        }
+        await showCommandError("customize template", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.insertTemplateIntoChange", async (item?: TemplateTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item) return;
+      const target = await pickChange(workspaceRoot);
+      if (!target) return;
+
+      const variables: Record<string, string | boolean> = {};
+      for (const variable of item.template.manifest.variables) {
+        if (variable.type === "boolean") {
+          const pick = await vscode.window.showQuickPick(["Yes", "No"], { title: variable.prompt });
+          if (pick === undefined) return;
+          variables[variable.name] = pick === "Yes";
+        } else {
+          const value = await vscode.window.showInputBox({
+            title: variable.prompt,
+            value: variable.default !== undefined ? String(variable.default) : "",
+          });
+          if (value === undefined) return;
+          variables[variable.name] = value;
+        }
+      }
+
+      try {
+        const rendered = renderTemplate(item.template, variables);
+        const files: Array<["proposal.md" | "design.md" | "tasks.md", string]> = [
+          ["proposal.md", rendered.proposal],
+          ["design.md", rendered.design],
+          ["tasks.md", rendered.tasks],
+        ];
+        for (const [fileName, content] of files) {
+          const uri = vscode.Uri.file(path.join(target.changeDir, fileName));
+          const document = await vscode.workspace.openTextDocument(uri);
+          const insertText = document.getText().trim().length > 0 ? `\n${content}` : content;
+          const endOfDocument = document.lineAt(document.lineCount - 1).range.end;
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(uri, endOfDocument, insertText);
+          await vscode.workspace.applyEdit(edit);
+        }
+
+        const tasksDocument = await vscode.workspace.openTextDocument(
+          vscode.Uri.file(path.join(target.changeDir, "tasks.md")),
+        );
+        await vscode.window.showTextDocument(tasksDocument, { preview: false });
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: inserted template "${item.template.manifest.title}" into ${target.name}.`,
+        );
+      } catch (error) {
+        await showCommandError("insert template into change", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.deleteChange", async (item?: ChangeTreeItem) => {

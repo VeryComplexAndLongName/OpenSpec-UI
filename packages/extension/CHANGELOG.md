@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.0
+
+- Added a Templates view (Built-in and Project groups) to the OpenSpec UI
+  activity bar.
+- Added "Customize Template" to fork a built-in template into
+  `openspec/templates/<id>/` in the workspace, with a backlink to the
+  built-in version it was forked from.
+- Added "Insert Template Into…" to render a template's variables and
+  insert the result into a picked non-archived change's proposal, design,
+  and tasks files.
+- Added JSON Schema validation for `openspec/templates/*/template.json`.
+
+## 0.7.0
+
+- Added an agent picker to the Process Dashboard's AI panel: `plan`,
+  `implement`, and `review` can now run through a selectable CLI agent
+  (Claude CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI, or a local
+  OpenAI-compatible LLM), in both the default message-bridge dashboard
+  and the optional local-server mode. This is independent of, and does
+  not change, the existing `@openspec` Chat Participant and "Implement
+  with VS Code Agent" native Chat/Agent path.
+
+## 0.6.0
+
+- Added "Copy Tasks as Template Into…" to the Archive tree: copies an
+  archived change's tasks (checkboxes reset to unchecked) into a picked
+  non-archived change's tasks file.
+
+## 0.5.0
+
+- The optional local-server dashboard (`openspec-ui.transport.localServer.enabled`)
+  now shows only the "Run a Command" panel — Diff Preview, Processes and
+  Recovery, OpenSpec view summary, and Change Editor are already covered
+  by native VS Code UI (diff editor, tree views, file editing) and are no
+  longer duplicated inside the embedded Webview.
+
 ## 0.4.3
 
 - Added actionable compatibility diagnostics when OpenSpec CLI JSON output no

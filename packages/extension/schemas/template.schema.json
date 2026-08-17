@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenSpec UI project-level template manifest",
+  "description": "Manifest for openspec/templates/<id>/template.json — see the template-catalog capability.",
+  "type": "object",
+  "required": ["id", "title", "category", "version", "summary", "variables"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Kebab-case id, also the directory name under openspec/templates/."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "category": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "prompt"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "prompt": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["string", "boolean"] },
+          "default": { "type": ["string", "boolean"] }
+        }
+      }
+    },
+    "forkedFrom": {
+      "type": "object",
+      "description": "Present only on a template created via \"Customize\" — provenance, not a live sync link.",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    }
+  }
+}

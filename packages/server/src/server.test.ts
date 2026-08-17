@@ -407,6 +407,71 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(404);
   });
 
+  it("lists the seed built-in template plus a real project-level fixture", async () => {
+    const cwd = await createTempWorkspace();
+    const projectDir = path.join(cwd, "openspec", "templates", "my-template");
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, "template.json"),
+      JSON.stringify({ id: "my-template", title: "Mine", category: "c", version: "1.0.0", summary: "s", variables: [] }),
+    );
+    await writeFile(path.join(projectDir, "proposal.md"), "## Why\n");
+    await writeFile(path.join(projectDir, "design.md"), "## Context\n");
+    await writeFile(path.join(projectDir, "tasks.md"), "## 1. X\n");
+
+    const response = await fetch(`${baseUrl}/api/templates/list`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { builtIn: Array<{ manifest: { id: string } }>; project: Array<{ manifest: { id: string } }> };
+
+    expect(response.status).toBe(200);
+    expect(body.builtIn.some((t) => t.manifest.id === "python-sqlalchemy-alembic")).toBe(true);
+    expect(body.project).toHaveLength(1);
+    expect(body.project[0]?.manifest.id).toBe("my-template");
+  });
+
+  it("customizes a built-in template then rejects a second customize of the same id", async () => {
+    const cwd = await createTempWorkspace();
+
+    const first = await fetch(`${baseUrl}/api/templates/customize`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, id: "python-sqlalchemy-alembic" }),
+    });
+    const firstBody = (await first.json()) as { manifest: { forkedFrom?: { id: string; version: string } } };
+    expect(first.status).toBe(200);
+    expect(firstBody.manifest.forkedFrom).toEqual({ id: "python-sqlalchemy-alembic", version: "1.0.0" });
+
+    const second = await fetch(`${baseUrl}/api/templates/customize`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, id: "python-sqlalchemy-alembic" }),
+    });
+    expect(second.status).toBe(409);
+  });
+
+  it("renders a built-in template with a supplied variable substituted", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/templates/render`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        cwd,
+        origin: "built-in",
+        id: "python-sqlalchemy-alembic",
+        variables: { packageName: "myapp" },
+      }),
+    });
+    const body = (await response.json()) as { proposal: string };
+
+    expect(response.status).toBe(200);
+    expect(body.proposal).toContain("myapp/db.py");
+    expect(body.proposal).not.toContain("{{packageName}}");
+  });
+
   it("loads persisted process history and cleanup through the recovery adapter", async () => {
     const cwd = await createTempWorkspace();
     await new WorkbenchRunJournal(cwd).save({

@@ -22,6 +22,12 @@ import {
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
+import {
+  customizeTemplate as customizeTemplateApi,
+  listTemplates as listTemplatesApi,
+  renderTemplate as renderTemplateApi,
+} from "./template-catalog-client.js";
+import type { CatalogTemplate } from "@openspec-ui/core/browser";
 
 interface OverviewChange {
   name: string;
@@ -170,6 +176,14 @@ function StandaloneApp() {
   const [archivedTemplateSource, setArchivedTemplateSource] = useState("");
   const [archivedTemplateLoading, setArchivedTemplateLoading] = useState(false);
   const [archivedTemplateMessage, setArchivedTemplateMessage] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<{ builtIn: CatalogTemplate[]; project: CatalogTemplate[] } | null>(null);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
+  const [templateVariableValues, setTemplateVariableValues] = useState<Record<string, string>>({});
+  const [templateInsertTargetChange, setTemplateInsertTargetChange] = useState("");
+  const [templateActionLoading, setTemplateActionLoading] = useState(false);
+  const [templateActionMessage, setTemplateActionMessage] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
     async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
@@ -277,6 +291,103 @@ function StandaloneApp() {
       setArchivedTemplateMessage(`Insert failed: ${message}`);
     } finally {
       setArchivedTemplateLoading(false);
+    }
+  }
+
+  const allTemplates: Array<CatalogTemplate & { key: string }> = templates
+    ? [...templates.builtIn, ...templates.project].map((t) => ({ ...t, key: `${t.origin}:${t.manifest.id}` }))
+    : [];
+  const selectedTemplate = allTemplates.find((t) => t.key === selectedTemplateKey);
+
+  function isTemplateCustomized(builtInId: string): boolean {
+    return (templates?.project ?? []).some((t) => t.manifest.forkedFrom?.id === builtInId);
+  }
+
+  async function handleLoadTemplates() {
+    if (cwd.trim().length === 0) {
+      setTemplatesError("Enter workspace root first.");
+      return;
+    }
+    setTemplatesLoading(true);
+    setTemplatesError(null);
+    try {
+      setTemplates(await listTemplatesApi(apiFetch, cwd));
+    } catch (error) {
+      setTemplatesError(error instanceof Error ? error.message : String(error));
+      setTemplates(null);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
+
+  function handleSelectTemplate(template: CatalogTemplate & { key: string }) {
+    setSelectedTemplateKey(template.key);
+    setTemplateVariableValues(
+      Object.fromEntries(
+        template.manifest.variables.map((v) => [v.name, v.default !== undefined ? String(v.default) : ""]),
+      ),
+    );
+    setTemplateActionMessage(null);
+  }
+
+  async function handleCustomizeTemplate(builtInId: string) {
+    if (cwd.trim().length === 0) {
+      setTemplateActionMessage("Enter workspace root first.");
+      return;
+    }
+    setTemplateActionLoading(true);
+    setTemplateActionMessage(null);
+    try {
+      await customizeTemplateApi(apiFetch, cwd, builtInId);
+      setTemplateActionMessage(`Customized ${builtInId} into openspec/templates/${builtInId}/.`);
+      await handleLoadTemplates();
+    } catch (error) {
+      setTemplateActionMessage(`Customize failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setTemplateActionLoading(false);
+    }
+  }
+
+  async function handleInsertTemplateIntoChange() {
+    if (cwd.trim().length === 0) {
+      setTemplateActionMessage("Enter workspace root first.");
+      return;
+    }
+    if (!selectedTemplate) {
+      setTemplateActionMessage("Select a template first.");
+      return;
+    }
+    if (templateInsertTargetChange.trim().length === 0) {
+      setTemplateActionMessage("Select a target change first.");
+      return;
+    }
+
+    setTemplateActionLoading(true);
+    setTemplateActionMessage(null);
+    try {
+      const rendered = await renderTemplateApi(
+        apiFetch,
+        cwd,
+        selectedTemplate.origin,
+        selectedTemplate.manifest.id,
+        templateVariableValues,
+      );
+      const loaded = await loadChangeEditorDocument(apiFetch, cwd, templateInsertTargetChange);
+      const mergedFiles: ChangeEditorFiles = {
+        proposal: mergeTasksTemplate(loaded.files.proposal, rendered.proposal),
+        design: mergeTasksTemplate(loaded.files.design, rendered.design),
+        tasks: mergeTasksTemplate(loaded.files.tasks, rendered.tasks),
+        spec: loaded.files.spec,
+      };
+      setEditorFiles(mergedFiles);
+      setEditorRevision(loaded.revision);
+      setEditorChangeName(templateInsertTargetChange);
+      setEditorMessage(`Inserted template "${selectedTemplate.manifest.title}" into ${templateInsertTargetChange}. Review and save.`);
+      setActiveTab("change-editor");
+    } catch (error) {
+      setTemplateActionMessage(`Insert failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setTemplateActionLoading(false);
     }
   }
 
@@ -704,6 +815,109 @@ function StandaloneApp() {
             {editorSaving ? "Saving..." : "Save markdown"}
           </button>
         </div>
+      </section>
+      </TabPanel>
+      )}
+
+      {visibleTabIds.has("templates") && (
+      <TabPanel id="templates" activeTab={activeTab}>
+      <section className="openspec-shell-panel">
+        <h2>Templates</h2>
+        <p className="openspec-shell-note">
+          Built-in and project-level ({"openspec/templates/"}) starting points for new changes. "Customize" forks a
+          built-in template into your project, keeping a backlink to the built-in version it came from.
+        </p>
+        <div className="openspec-ai-panel-controls">
+          <button type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
+            {templatesLoading ? "Loading..." : "Load templates"}
+          </button>
+        </div>
+
+        {templatesError ? <p className="openspec-overview-error">Failed to load templates: {templatesError}</p> : null}
+
+        {templates ? (
+          <table className="openspec-overview-table" data-testid="templates-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Origin</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {allTemplates.map((template) => (
+                <tr key={template.key} data-testid={`template-row-${template.key}`}>
+                  <td>
+                    {template.manifest.title}
+                    {template.manifest.forkedFrom ? " (customized)" : ""}
+                  </td>
+                  <td>{template.manifest.category}</td>
+                  <td>{template.origin}</td>
+                  <td className="openspec-ai-panel-controls">
+                    <button type="button" onClick={() => handleSelectTemplate(template)}>
+                      Select
+                    </button>
+                    {template.origin === "built-in" && !isTemplateCustomized(template.manifest.id) ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleCustomizeTemplate(template.manifest.id)}
+                        disabled={templateActionLoading}
+                      >
+                        Customize
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+
+        {selectedTemplate ? (
+          <div className="openspec-shell-panel">
+            <h3>{selectedTemplate.manifest.title}</h3>
+            <p className="openspec-shell-note">{selectedTemplate.manifest.summary}</p>
+            {selectedTemplate.manifest.variables.map((variable) => (
+              <label key={variable.name} className="openspec-shell-field">
+                {variable.prompt}
+                <input
+                  type="text"
+                  aria-label={variable.name}
+                  value={templateVariableValues[variable.name] ?? ""}
+                  onChange={(e) =>
+                    setTemplateVariableValues((prev) => ({ ...prev, [variable.name]: e.target.value }))
+                  }
+                />
+              </label>
+            ))}
+            <label className="openspec-shell-field">
+              Insert into change
+              <select
+                aria-label="Insert template into change"
+                value={templateInsertTargetChange}
+                onChange={(e) => setTemplateInsertTargetChange(e.target.value)}
+                disabled={(overview?.changes.length ?? 0) === 0}
+              >
+                <option value="">Select target change</option>
+                {(overview?.changes ?? []).map((change) => (
+                  <option key={change.name} value={change.name}>{change.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="openspec-ai-panel-controls">
+              <button
+                type="button"
+                onClick={() => void handleInsertTemplateIntoChange()}
+                disabled={templateActionLoading || templateInsertTargetChange.trim().length === 0}
+              >
+                {templateActionLoading ? "Inserting..." : "Insert into change"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {templateActionMessage ? <p className="openspec-shell-note">{templateActionMessage}</p> : null}
       </section>
       </TabPanel>
       )}
