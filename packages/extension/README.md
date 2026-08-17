@@ -59,7 +59,12 @@ notifications while keeping lifecycle and security behavior in
 1. Open the OpenSpec activity-bar container.
 2. Create or expand a change in **Changes**.
 3. Edit Proposal, Design, Tasks, and delta Specs in native editors.
-4. Run Validate, then choose **Implement with VS Code Agent**.
+4. Run Validate, then choose **Implement with VS Code Agent** — this runs
+   through VS Code's own Copilot Chat, using whatever model is selected
+   in Chat's own model picker. If you specifically want a particular CLI
+   agent (e.g. the real Anthropic Claude Code CLI, not Claude via
+   Copilot) to make the change instead, use **OpenSpec UI: Open Process
+   Dashboard** and its own agent picker instead — see "Agents" below.
 5. Follow the run in **Processes**. When Agent work is done, choose
    **Finish Implementation & Review**.
 6. Review native diffs, roll back the checkpoint if needed, or archive the
@@ -76,15 +81,27 @@ active change id:
 
 ## Agents
 
-The Process Dashboard's agent picker is independent of VS Code Chat: it
-runs `plan`/`implement`/`review` through this extension's own CLI-agent
-protocol (`@openspec-ui/core`'s `buildDefaultAgentRunners`), resolved at
-activation from the open workspace. Each listed CLI tool
-(`claude`/`copilot`/`codex`/`gemini`) must already be installed and
-authenticated on the machine separately — the extension never handles API
-keys itself. If a tool is missing, the run fails immediately with a clear
-error instead of hanging. This works the same way in both the default
-message-bridge dashboard and the optional local-server mode
+To run `plan`/`implement`/`review` through a specific CLI agent (Claude
+CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI, or a local
+OpenAI-compatible LLM) instead of VS Code's native Chat/Agent handoff:
+
+1. Run **OpenSpec UI: Open Process Dashboard** from the Command Palette
+   (or the toolbar button on a change in **Changes**).
+2. In the panel, pick `implement` (or `plan`/`review`) from the command
+   dropdown.
+3. Pick the agent you want from the agent dropdown next to it — each
+   option shows a best-effort detected/not-detected badge.
+4. Click **Run**.
+
+This picker is independent of VS Code Chat: it runs the command through
+this extension's own CLI-agent protocol (`@openspec-ui/core`'s
+`buildDefaultAgentRunners`), resolved at activation from the open
+workspace. Each listed CLI tool (`claude`/`copilot`/`codex`/`gemini`)
+must already be installed and authenticated on the machine separately —
+the extension never handles API keys itself. If a tool is missing, the
+run fails immediately with a clear error instead of hanging. This works
+the same way in both the default message-bridge dashboard and the
+optional local-server mode
 (`openspec-ui.transport.localServer.enabled`). None of these tools need a
 VS Code extension or any VS Code-specific setup — a plain CLI login is
 enough, the same as using it from a terminal. See the root repository
