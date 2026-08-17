@@ -22,10 +22,17 @@ GitHub API (not just the green check mark):
   change, so the "since the last tag" range fell back to the full
   history, exactly as `gh`'s documented behavior for a first release.
 
-No other-CI-job task remained to re-verify (idempotency on a second,
-version-unchanged push to `main`) — that will naturally get exercised
-the next time any package other than `openspec-ui-vscode` merges to
-`main` without an extension version bump, and the job's design (a plain
-`git rev-parse -q --verify` tag-existence check before doing anything
-else) makes that a low-risk, cheap thing to leave to happen naturally
-rather than manufacturing a second empty commit just to force it.
+## Idempotency, confirmed for real
+
+A second push to `main` landed shortly after (this very documentation
+follow-up, which didn't touch `packages/extension`), giving a real
+second run without a version bump. Fetched that run's actual job log
+(not just the green check) and confirmed the exact expected line:
+
+```
+Tag openspec-ui-vscode@0.9.0 already exists — nothing to release.
+```
+
+The job exited immediately after that line — no second tag, no second
+release, no VSIX rebuild. Task 1.2's idempotency requirement is verified
+end to end, not just by design.

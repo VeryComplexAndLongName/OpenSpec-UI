@@ -6,6 +6,62 @@ GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
 
+## Local Delivery Modes
+
+This repository effectively ships two independent products that share one
+common core:
+
+- VS Code extension for users who already work inside VS Code
+- Standalone web application for users who do not use VS Code
+
+Both products solve the same problem set: viewing and editing OpenSpec
+changes, validating artifacts, and running local AI-assisted workflows from
+the same shared execution engine. They are designed to operate only on the
+local machine and do not require Internet access for normal use. The split is
+purely about UI host preference: if VS Code is available, the extension is the
+most natural path; otherwise, the standalone web app is the equivalent local
+product.
+
+### UI reception and launch
+
+- Standalone web app: build the server bundle and start the local standalone
+  app from source, then open the tokenized localhost URL printed by the server.
+  Example commands from the repository root:
+
+  ```bash
+  npm install
+  npm run build --workspace @openspec-ui/server
+  npm run start --workspace @openspec-ui/server -- <workspaceRoot> 4317
+  ```
+
+  Here, `<workspaceRoot>` is the absolute path to the local project or repo
+  that the app should inspect and manage. In practice, this is usually the
+  folder you want to open, such as the current repository root or another Git
+  working directory on your machine. After startup, the server prints a URL in
+  the console similar to:
+
+  ```text
+  OpenSpec UI server listening on http://127.0.0.1:4317/#token=PU32_AOBt0lG6sHhYQtCMwSU6ZmcXtIJX0-4RUe1FQM (workspaceRoot: ., allowExternalCwd: false)
+  ```
+
+  You must open that exact URL in the browser to connect to the server. The
+  URL contains a temporary one-time access token; without it, you cannot access
+  the running server. The default port is `4317`.
+- VS Code extension: install the extension into VS Code and open the native
+  workbench from the editor. The extension uses the same shared core logic and
+  local-only data access path as the web app.
+
+### VSIX package reception and installation in VS Code
+
+- Receive the packaged artifact from the official GitHub Release for the
+  extension. The built package is published as a `.vsix` file; it is not
+  committed into the repository.
+- In VS Code, open the Extensions view and choose "Install from VSIX...".
+- Select the downloaded `.vsix` file, confirm the installation prompt, and
+  reload the window if VS Code asks for it.
+- After reload, the extension is available as a local VS Code product and can
+  be used without any remote service dependency.
+
 ## Status
 
 Active development. The repository contains a working standalone application,
