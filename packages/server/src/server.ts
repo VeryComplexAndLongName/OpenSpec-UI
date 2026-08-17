@@ -111,6 +111,11 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       void handleStatusRequest(req, res, runners, requestPolicy);
       return;
     }
+    if (req.method === "GET" && req.url === "/api/workspace-root") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ workspaceRoot }));
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/overview") {
       void handleOverviewRequest(req, res, requestPolicy);
       return;

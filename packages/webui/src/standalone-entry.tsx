@@ -154,10 +154,24 @@ function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
   });
 }
 
+interface WorkspaceRootResponse {
+  workspaceRoot: string;
+}
+
+async function loadWorkspaceRoot(): Promise<string> {
+  const response = await apiFetch("/api/workspace-root", { method: "GET" });
+  const payload = (await response.json().catch(() => ({}))) as Partial<WorkspaceRootResponse> & { error?: string };
+  if (!response.ok || typeof payload.workspaceRoot !== "string" || payload.workspaceRoot.trim().length === 0) {
+    const reason = payload.error ?? `${response.status} ${response.statusText}`;
+    throw new Error(`failed to load workspace root: ${reason}`);
+  }
+  return payload.workspaceRoot;
+}
+
 function StandaloneApp() {
   const [activeTab, setActiveTab] = useState<string>("run-a-command");
-  const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
-  const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
+  const [cwd, setCwd] = useState("");
+  const [changeDir, setChangeDir] = useState("");
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -185,6 +199,7 @@ function StandaloneApp() {
   const [templateInsertTargetChange, setTemplateInsertTargetChange] = useState("");
   const [templateActionLoading, setTemplateActionLoading] = useState(false);
   const [templateActionMessage, setTemplateActionMessage] = useState<string | null>(null);
+  const [workspaceRootSyncError, setWorkspaceRootSyncError] = useState<string | null>(null);
   const [detectedAgents, setDetectedAgents] = useState<Record<string, boolean> | undefined>(undefined);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
@@ -207,10 +222,32 @@ function StandaloneApp() {
   }, [cwd]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const workspaceRoot = await loadWorkspaceRoot();
+        if (cancelled) return;
+        setCwd(workspaceRoot);
+        setChangeDir(buildDefaultChangeDir(workspaceRoot));
+        setWorkspaceRootSyncError(null);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setWorkspaceRootSyncError(message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cwd.trim().length === 0) return;
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
   }, [cwd]);
 
   useEffect(() => {
+    if (changeDir.trim().length === 0) return;
     writeStoredValue(STORAGE_KEYS.changeDir, changeDir);
   }, [changeDir]);
 
@@ -552,6 +589,7 @@ function StandaloneApp() {
           Tip: changing <strong>Workspace root (cwd)</strong> auto-fills <strong>Change directory</strong> as
           <code> openspec/changes</code>.
         </p>
+        {workspaceRootSyncError ? <p className="openspec-shell-note">Workspace root sync failed: {workspaceRootSyncError}</p> : null}
         {canInitialize ? (
           <div className="openspec-shell-panel">
             <p className="openspec-shell-note">
