@@ -37,6 +37,12 @@ notifications while keeping lifecycle and security behavior in
   template into any active change, or delete a project-level template
   with confirmation — built-in templates ship as part of the extension
   and are never deletable through the UI.
+- Bootstrap repository files from the Command Palette, for a picked
+  project type (Node.js/TypeScript or Python): agent instructions
+  (`CLAUDE.md`/`AGENTS.md`), `.github/dependabot.yml`, and path-scoped
+  `.github/instructions/<subtype>.instructions.md`. Any of these commands
+  leaves an existing file alone (and tells you so) if it wasn't created
+  by this extension — never overwrites hand-written content.
 
 ## Requirements
 

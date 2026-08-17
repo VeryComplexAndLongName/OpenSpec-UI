@@ -13,6 +13,7 @@ export * from "./workbench.js";
 export * from "./task-templates.js";
 export * from "./task-checklist.js";
 export * from "./template-catalog.js";
+export * from "./repo-bootstrap.js";
 export * from "./process-scheduler.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";

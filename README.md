@@ -162,8 +162,8 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.17.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.11.0 | VS Code delivery |
+| `@openspec-ui/core` | 0.18.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.12.0 | VS Code delivery |
 | `@openspec-ui/server` | 1.7.0 | Standalone server delivery |
 | `@openspec-ui/webui` | 1.8.0 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |

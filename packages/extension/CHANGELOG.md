@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0
+
+- Added three Command Palette commands to bootstrap repository files
+  from a built-in, project-type-keyed registry (seed types: Node.js/
+  TypeScript, Python): "Generate Agent Instructions" (writes identical
+  content into `CLAUDE.md` and `AGENTS.md`), "Configure Dependabot"
+  (writes/accumulates `.github/dependabot.yml`), and "Generate
+  Path-Scoped Copilot Instructions" (writes
+  `.github/instructions/<subtype>.instructions.md` with `applyTo`
+  frontmatter). All three leave any pre-existing, not-managed-by-us file
+  untouched and report it instead of overwriting.
+
 ## 0.11.0
 
 - The Changes and Archive trees now expand each change to also show its
