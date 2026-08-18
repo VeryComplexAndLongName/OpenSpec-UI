@@ -12,7 +12,8 @@ notifications while keeping lifecycle and security behavior in
 - Create, validate, archive, unarchive, and delete changes from contextual
   actions with confirmation for destructive operations. Expand a change to
   see its individual `tasks.md` checklist items; select one to jump to it
-  in the editor, or delete it (active changes only) with confirmation.
+  in the editor, or delete it (active changes only, and only if not yet
+  done) with confirmation.
 - See queued, running, completed, failed, cancelled, interrupted, and
   rolled-back operations in the Processes view. Read-only work can run in
   parallel; workspace mutations are serialized to keep checkpoints isolated.
