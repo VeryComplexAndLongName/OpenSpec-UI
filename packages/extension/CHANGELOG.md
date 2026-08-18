@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0
+
+- Added "Rollback Change" on a Change item (in either the Changes or
+  Archive tree): rolls back every process ever run against that Change,
+  restoring every touched file to its state before the earliest of those
+  runs — works identically for active and archived changes. Same fail-
+  closed behavior as single-process rollback: any file changed outside
+  what the system knows about refuses the entire restore.
+- Added `openspec-ui.checkpointRetentionDays` setting (default `0` =
+  keep forever, unchanged from prior versions). A positive value prunes
+  process/checkpoint history older than that many days once, on the next
+  window reload — pruning permanently removes Rollback availability for
+  the pruned processes, disclosed in the setting description and in this
+  README.
+
 ## 0.13.1
 
 - Fixed: task items in the Changes and Archive trees could render flush

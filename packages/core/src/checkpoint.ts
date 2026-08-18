@@ -228,26 +228,91 @@ async function currentHash(filePath: string): Promise<string | undefined> {
   }
 }
 
-export async function rollbackCheckpoint(checkpoint: WorkbenchCheckpoint): Promise<RollbackResult> {
-  if (!checkpoint.after || !checkpoint.delta) throw new Error("Checkpoint must be finalized before rollback");
+/** One file's target restore state: `beforeContent` undefined means the
+ * file should not exist after restore (delete). `expectedCurrentHash` is
+ * the hash the file is expected to have on disk right now — a mismatch
+ * means something changed it after the checkpoint(s) this restore is
+ * based on, and the whole restore is refused (fail-closed), matching
+ * `rollbackCheckpoint`'s existing per-process behavior. */
+export interface RestoreEntry {
+  path: string;
+  beforeContent?: Buffer;
+  expectedCurrentHash?: string;
+}
+
+export async function restoreFiles(root: string, entries: RestoreEntry[]): Promise<RollbackResult> {
   const conflicts: string[] = [];
-  for (const delta of checkpoint.delta) {
-    const absolutePath = path.join(checkpoint.root, delta.path);
-    if (await currentHash(absolutePath) !== delta.afterHash) conflicts.push(delta.path);
+  for (const entry of entries) {
+    const absolutePath = path.join(root, entry.path);
+    if (await currentHash(absolutePath) !== entry.expectedCurrentHash) conflicts.push(entry.path);
   }
   if (conflicts.length > 0) return { restored: [], conflicts };
 
   const restored: string[] = [];
-  for (const delta of checkpoint.delta) {
-    const absolutePath = path.join(checkpoint.root, delta.path);
-    const beforeFile = checkpoint.before.get(delta.path);
-    if (!beforeFile) {
+  for (const entry of entries) {
+    const absolutePath = path.join(root, entry.path);
+    if (!entry.beforeContent) {
       await rm(absolutePath, { force: true });
     } else {
       await mkdir(path.dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, beforeFile.content);
+      await writeFile(absolutePath, entry.beforeContent);
     }
-    restored.push(delta.path);
+    restored.push(entry.path);
   }
   return { restored, conflicts: [] };
+}
+
+export async function rollbackCheckpoint(checkpoint: WorkbenchCheckpoint): Promise<RollbackResult> {
+  if (!checkpoint.after || !checkpoint.delta) throw new Error("Checkpoint must be finalized before rollback");
+  const entries: RestoreEntry[] = checkpoint.delta.map((delta) => ({
+    path: delta.path,
+    beforeContent: checkpoint.before.get(delta.path)?.content,
+    expectedCurrentHash: delta.afterHash,
+  }));
+  return restoreFiles(checkpoint.root, entries);
+}
+
+/** Aggregates every finalized checkpoint belonging to one Change into a
+ * single restore: each file's target is its content from the *earliest*
+ * checkpoint that touched it (i.e. "undo everything ever done under this
+ * Change"), and the conflict check compares against each file's *latest*
+ * known `afterHash` — the most recent state this restore actually knows
+ * about. Same fail-closed, all-or-nothing semantics as
+ * `rollbackCheckpoint`: any conflict refuses the entire restore, not just
+ * the conflicting file. Callers (`WorkbenchRecoveryService`,
+ * `ImplementationSessionManager`) are responsible for selecting which
+ * checkpoints belong to a Change and are rollback-eligible — this
+ * function only does the aggregation + restore.
+ *
+ * `checkpoints` MUST already be in chronological (earliest-first) order.
+ * This deliberately does not re-sort by `createdAt`: that field has
+ * millisecond resolution and two checkpoints captured in the same
+ * millisecond (confirmed live — a fast CI runner tripped this) would tie,
+ * making a sort-based order silently wrong with no error. Both real
+ * callers already provide correct order for free — they build this list
+ * from a `Map`'s iteration order, which is insertion order, which is
+ * capture order — so trusting the caller is both simpler and more
+ * reliable than re-deriving order from a lossy timestamp. */
+export async function rollbackChangeCheckpoints(checkpoints: WorkbenchCheckpoint[]): Promise<RollbackResult> {
+  if (checkpoints.length === 0) throw new Error("No checkpoints to roll back");
+  const root = checkpoints[0]!.root;
+
+  const earliestBefore = new Map<string, Buffer | undefined>();
+  const latestAfterHash = new Map<string, string | undefined>();
+  for (const checkpoint of checkpoints) {
+    if (!checkpoint.after || !checkpoint.delta) throw new Error("Checkpoint must be finalized before rollback");
+    for (const delta of checkpoint.delta) {
+      if (!earliestBefore.has(delta.path)) {
+        earliestBefore.set(delta.path, checkpoint.before.get(delta.path)?.content);
+      }
+      latestAfterHash.set(delta.path, delta.afterHash);
+    }
+  }
+
+  const entries: RestoreEntry[] = [...latestAfterHash.keys()].sort().map((filePath) => ({
+    path: filePath,
+    beforeContent: earliestBefore.get(filePath),
+    expectedCurrentHash: latestAfterHash.get(filePath),
+  }));
+  return restoreFiles(root, entries);
 }

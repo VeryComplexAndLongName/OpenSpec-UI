@@ -2,6 +2,7 @@ import {
   deserializeCheckpoint,
   finalizeCheckpoint,
   rollbackCheckpoint,
+  rollbackChangeCheckpoints,
   serializeCheckpoint,
   type CheckpointCoverage,
   type CheckpointDelta,
@@ -77,6 +78,55 @@ export class WorkbenchRecoveryService {
     const result = await rollbackCheckpoint(session.checkpoint);
     if (result.conflicts.length === 0) {
       this.scheduler.markRolledBack(processId, `${result.restored.length} files restored`);
+      await this.persist();
+    }
+    return result;
+  }
+
+  /** Every rollback-eligible process belonging to `changeName`, active or
+   * archived — archive status lives entirely in OpenSpec's own change
+   * folders, never in the checkpoint/journal system, so it plays no part
+   * in eligibility here (see `rollbackChange`'s own JSDoc). */
+  private changeRollbackCandidates(changeName: string): WorkbenchProcess[] {
+    return [...this.sessions.values()]
+      .filter((session) => session.changeName === changeName && session.checkpoint.after && session.checkpoint.delta)
+      .map((session) => this.scheduler.list().find((process) => process.id === session.processId))
+      .filter((process): process is WorkbenchProcess =>
+        process !== undefined && ["completed", "failed", "interrupted"].includes(process.state));
+  }
+
+  /** File count and process count a `rollbackChange` call for this
+   * changeName would affect, without performing the restore — for a
+   * confirmation prompt before the destructive call. */
+  changeRollbackDetails(changeName: string): { processCount: number; fileCount: number } | undefined {
+    const processes = this.changeRollbackCandidates(changeName);
+    if (processes.length === 0) return undefined;
+    const paths = new Set<string>();
+    for (const process of processes) {
+      const checkpoint = this.sessions.get(process.id)?.checkpoint;
+      for (const delta of checkpoint?.delta ?? []) paths.add(delta.path);
+    }
+    return { processCount: processes.length, fileCount: paths.size };
+  }
+
+  /** Rolls back every process ever run against `changeName` — active or
+   * already archived — restoring every touched file to its state before
+   * the earliest of those runs. Archiving a change never touches
+   * checkpoint/journal data (it's a thin `openspec archive` CLI wrapper
+   * scoped to `openspec/changes/`), so nothing here needs an
+   * archived-change guard; this is deliberately the simpler alternative
+   * to task-scoped rollback, discussed and chosen over a new
+   * SQLite-backed per-task diff store — see
+   * openspec/changes/change-scoped-rollback/proposal.md. */
+  async rollbackChange(changeName: string): Promise<RollbackResult> {
+    const processes = this.changeRollbackCandidates(changeName);
+    if (processes.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
+    const checkpoints = processes.map((process) => this.sessions.get(process.id)!.checkpoint);
+    const result = await rollbackChangeCheckpoints(checkpoints);
+    if (result.conflicts.length === 0) {
+      for (const process of processes) {
+        this.scheduler.markRolledBack(process.id, `change "${changeName}" rolled back: ${result.restored.length} files restored`);
+      }
       await this.persist();
     }
     return result;

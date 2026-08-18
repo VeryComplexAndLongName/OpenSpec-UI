@@ -3,10 +3,12 @@ import {
   deserializeCheckpoint,
   finalizeCheckpoint,
   rollbackCheckpoint,
+  rollbackChangeCheckpoints,
   serializeCheckpoint,
   type CheckpointDelta,
   type CheckpointCoverage,
   type PersistedCheckpointSession,
+  type RollbackResult,
   type StartProcessOptions,
   type WorkbenchCheckpoint,
   type WorkbenchProcess,
@@ -142,6 +144,47 @@ export class ImplementationSessionManager {
       this.scheduler.markRolledBack(processId, `${result.restored.length} files restored`);
     }
     return result;
+  }
+
+  /** Every rollback-eligible session belonging to `changeName`, active or
+   * archived — same eligibility rule as `WorkbenchRecoveryService`'s
+   * mirror of this method (`@openspec-ui/core`), duplicated here because
+   * the extension's primary mode keeps its own session map instead of
+   * going through that service (see module header). */
+  private changeRollbackCandidates(changeName: string): CheckpointSession[] {
+    return [...this.sessions.values()]
+      .filter((session) => session.changeName === changeName && session.delta)
+      .map((session) => ({ session, process: this.scheduler.list().find((candidate) => candidate.id === session.processId) }))
+      .filter((entry): entry is { session: CheckpointSession; process: WorkbenchProcess } =>
+        entry.process !== undefined && ["completed", "failed", "interrupted"].includes(entry.process.state))
+      .map((entry) => entry.session);
+  }
+
+  changeRollbackDetails(changeName: string): { processCount: number; fileCount: number } | undefined {
+    const sessions = this.changeRollbackCandidates(changeName);
+    if (sessions.length === 0) return undefined;
+    const paths = new Set<string>();
+    for (const session of sessions) for (const delta of session.delta ?? []) paths.add(delta.path);
+    return { processCount: sessions.length, fileCount: paths.size };
+  }
+
+  async rollbackChange(changeName: string): Promise<RollbackResult> {
+    const sessions = this.changeRollbackCandidates(changeName);
+    if (sessions.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
+    const result = await rollbackChangeCheckpoints(sessions.map((session) => session.checkpoint));
+    if (result.conflicts.length === 0) {
+      for (const session of sessions) {
+        this.scheduler.markRolledBack(session.processId, `change "${changeName}" rolled back: ${result.restored.length} files restored`);
+      }
+    }
+    return result;
+  }
+
+  /** Retention pruning (`openspec-ui.checkpointRetentionDays`) — drops
+   * sessions whose process was removed from the scheduler by
+   * `WorkbenchProcessScheduler.removeBefore`. */
+  dropSessions(processIds: readonly string[]): void {
+    for (const id of processIds) this.sessions.delete(id);
   }
 
   getDelta(processId: string): CheckpointDelta[] | undefined {

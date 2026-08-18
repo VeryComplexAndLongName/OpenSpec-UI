@@ -3,7 +3,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "Native OpenSpec workflow with lifecycle controls, VS Code Chat, persistent processes, checkpoints, and conflict-safe rollback.",
   "publisher": "openspec-ui",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
@@ -147,6 +147,11 @@
         "command": "openspec-ui.rollbackProcess",
         "title": "OpenSpec UI: Rollback Process Changes",
         "icon": "$(discard)"
+      },
+      {
+        "command": "openspec-ui.rollbackChange",
+        "title": "OpenSpec UI: Rollback Change",
+        "icon": "$(discard)"
       }
     ],
     "viewsContainers": {
@@ -263,6 +268,11 @@
           "group": "openspec@2"
         },
         {
+          "command": "openspec-ui.rollbackChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@3"
+        },
+        {
           "command": "openspec-ui.customizeTemplate",
           "when": "viewItem == openspec-ui.builtInTemplate",
           "group": "openspec@1"
@@ -311,6 +321,11 @@
           "type": "boolean",
           "default": false,
           "description": "Run an optional local REST/WS server (same package as the standalone tool) and point the AI panel webview at it instead of the default in-process message bridge."
+        },
+        "openspec-ui.checkpointRetentionDays": {
+          "type": "number",
+          "default": 0,
+          "description": "Days to keep process/checkpoint history before it's pruned on the next window reload. 0 or a negative number keeps everything forever (the default, unchanged from prior versions). WARNING: once a process is pruned, Rollback (both single-process and whole-Change) is permanently unavailable for it — pruning is not itself reversible."
         }
       }
     },

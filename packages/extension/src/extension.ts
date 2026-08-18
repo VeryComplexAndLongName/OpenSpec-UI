@@ -69,6 +69,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const implementationSessions = new ImplementationSessionManager(scheduler, persistRuns);
   context.subscriptions.push({ dispose: scheduler.onDidChange(persistRuns) });
   await implementationSessions.restore(restoredRuns.checkpointSessions);
+
+  // Retention (openspec-ui.checkpointRetentionDays): 0 or negative keeps
+  // everything forever (default, matches prior behavior — nothing was
+  // ever pruned before this setting existed). scheduler.removeBefore's
+  // own onDidChange emission (subscribed above) persists the pruned
+  // state; no separate persistRuns() call needed here.
+  const retentionDays = vscode.workspace.getConfiguration("openspec-ui").get<number>("checkpointRetentionDays", 0);
+  if (retentionDays > 0) {
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    implementationSessions.dropSessions(scheduler.removeBefore(cutoff));
+  }
   const processesTree = new ProcessesTreeProvider(scheduler);
   context.subscriptions.push(
     processesTree,

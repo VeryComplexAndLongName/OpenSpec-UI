@@ -102,6 +102,18 @@ describe("WorkbenchProcessScheduler", () => {
     expect(scheduler.list()[0]).toMatchObject({ state: "rolled-back", summary: "one file restored" });
   });
 
+  it("removeBefore drops only processes created before the cutoff, in place", () => {
+    const scheduler = new WorkbenchProcessScheduler([
+      { id: "old", operation: "review", mutating: false, state: "completed", createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "new", operation: "review", mutating: false, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    const removed = scheduler.removeBefore(new Date("2026-07-01T00:00:00.000Z"));
+
+    expect(removed).toEqual(["old"]);
+    expect(scheduler.list().map((process) => process.id)).toEqual(["new"]);
+  });
+
   it("restores unfinished processes as interrupted", () => {
     const scheduler = new WorkbenchProcessScheduler([{
       id: "active",

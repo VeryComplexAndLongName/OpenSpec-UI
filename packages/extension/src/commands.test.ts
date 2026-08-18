@@ -97,6 +97,8 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     getDelta: vi.fn(() => undefined),
     getCoverage: vi.fn(() => undefined),
     rollback: vi.fn(),
+    changeRollbackDetails: vi.fn(() => undefined),
+    rollbackChange: vi.fn(),
   };
   return {
     getWorkspaceRoot: () => "/workspace/repo",
@@ -137,6 +139,7 @@ describe("registerCommands", () => {
         "openspec-ui.listSpecsSummary",
         "openspec-ui.openAiPanel",
         "openspec-ui.reviewDiff",
+        "openspec-ui.rollbackChange",
       ]),
     );
   });
@@ -182,6 +185,102 @@ describe("registerCommands", () => {
     expect(unarchiveChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change");
     expect(deleteChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change", "archive");
     expect(deps.refreshTrees).toHaveBeenCalledTimes(2);
+  });
+
+  describe("openspec-ui.rollbackChange", () => {
+    const changeItem = { changeName: "demo-change", archived: false };
+
+    it("rolls back after confirmation and refreshes trees", async () => {
+      const deps = makeDeps();
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+        processCount: 2,
+        fileCount: 3,
+      });
+      (deps.implementationSessions.rollbackChange as ReturnType<typeof vi.fn>).mockResolvedValue({
+        restored: ["a.txt", "b.txt", "c.txt"],
+        conflicts: [],
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValue("Rollback");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.(changeItem);
+
+      expect(deps.implementationSessions.rollbackChange).toHaveBeenCalledWith("demo-change");
+      expect(deps.refreshTrees).toHaveBeenCalled();
+    });
+
+    it("reports no rollback-eligible processes instead of showing a confirmation", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.(changeItem);
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        expect.stringContaining("no rollback-eligible processes"),
+      );
+      expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ modal: true }),
+        expect.anything(),
+      );
+      expect(deps.implementationSessions.rollbackChange).not.toHaveBeenCalled();
+    });
+
+    it("does not roll back when the confirmation is declined", async () => {
+      const deps = makeDeps();
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+        processCount: 1,
+        fileCount: 1,
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.(changeItem);
+
+      expect(deps.implementationSessions.rollbackChange).not.toHaveBeenCalled();
+    });
+
+    it("reports conflicts as an error instead of refreshing trees", async () => {
+      const deps = makeDeps();
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+        processCount: 1,
+        fileCount: 1,
+      });
+      (deps.implementationSessions.rollbackChange as ReturnType<typeof vi.fn>).mockResolvedValue({
+        restored: [],
+        conflicts: ["a.txt"],
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValue("Rollback");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.(changeItem);
+
+      expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining("a.txt"),
+      );
+      expect(deps.refreshTrees).not.toHaveBeenCalled();
+    });
+
+    it("works the same for an archived change item", async () => {
+      const deps = makeDeps();
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+        processCount: 1,
+        fileCount: 1,
+      });
+      (deps.implementationSessions.rollbackChange as ReturnType<typeof vi.fn>).mockResolvedValue({
+        restored: ["a.txt"],
+        conflicts: [],
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValue("Rollback");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.({
+        changeName: "archived-change",
+        archived: true,
+      });
+
+      expect(deps.implementationSessions.rollbackChange).toHaveBeenCalledWith("archived-change");
+    });
   });
 
   it("openspec-ui.status: picks a change, runs direct OpenSpec status flow, and reveals the panel", async () => {

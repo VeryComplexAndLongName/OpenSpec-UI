@@ -14,6 +14,9 @@ import {
   getCoreVersion,
   OpenSpecCliCompatibilityError,
   WorkbenchRunJournal,
+  captureCheckpoint,
+  finalizeCheckpoint,
+  serializeCheckpoint,
   type AgentRunner,
   type Command,
   type Event,
@@ -618,6 +621,38 @@ describe("server — REST /api/status", () => {
     expect(cleaned.status).toBe(200);
     expect(await cleaned.json()).toEqual({ removed: 1, retained: 0 });
     expect((await new WorkbenchRunJournal(cwd).load()).processes).toEqual([]);
+  });
+
+  it("rolls back every process for a change across two checkpoints, to the earliest state", async () => {
+    const cwd = await createTempWorkspace();
+    const filePath = path.join(cwd, "shared.txt");
+    await writeFile(filePath, "v0", "utf8");
+    const checkpoint1 = await captureCheckpoint(cwd);
+    await writeFile(filePath, "v1", "utf8");
+    await finalizeCheckpoint(checkpoint1);
+    const checkpoint2 = await captureCheckpoint(cwd);
+    await writeFile(filePath, "v2", "utf8");
+    await finalizeCheckpoint(checkpoint2);
+    await new WorkbenchRunJournal(cwd).save({
+      processes: [
+        { id: "run-1", operation: "implement", changeName: "demo-change", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" },
+        { id: "run-2", operation: "implement", changeName: "demo-change", mutating: true, state: "completed", createdAt: "2026-08-02T00:00:00.000Z" },
+      ],
+      checkpointSessions: [
+        { processId: "run-1", changeName: "demo-change", checkpoint: serializeCheckpoint(checkpoint1) },
+        { processId: "run-2", changeName: "demo-change", checkpoint: serializeCheckpoint(checkpoint2) },
+      ],
+    });
+
+    const response = await fetch(`${baseUrl}/api/processes/rollback-change`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "demo-change" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ restored: ["shared.txt"], conflicts: [] });
+    expect(await readFile(filePath, "utf8")).toBe("v0");
   });
 
   it("returns actionable diagnostics without replacing a future run journal", async () => {
