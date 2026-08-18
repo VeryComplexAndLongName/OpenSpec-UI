@@ -6,6 +6,13 @@ import {
   type WorkbenchArtifact,
 } from "@openspec-ui/core";
 
+// Every TreeItem subclass here sets an explicit, stable `.id`. Without one,
+// VS Code falls back to a label-derived identity; since every getChildren()
+// call below constructs fresh instances (never reuses object references),
+// that fallback can desync across refreshes — reported live as tasks
+// rendering flush with their parent Change instead of nested, and losing
+// collapse/expand state. See openspec/changes/tree-item-stable-ids/proposal.md.
+
 function iconForState(state: ChangeState): string {
   switch (state) {
     case "draft":
@@ -28,6 +35,7 @@ export class ChangeTreeItem extends vscode.TreeItem {
     public readonly archived = false,
   ) {
     super(changeName, vscode.TreeItemCollapsibleState.Collapsed);
+    this.id = `change:${archived ? "archived" : "active"}:${changeName}`;
     this.description = state;
     this.contextValue = archived ? "openspec-ui.archivedChange" : "openspec-ui.activeChange";
     this.iconPath = new vscode.ThemeIcon(iconForState(state));
@@ -42,6 +50,7 @@ export class ArtifactTreeItem extends vscode.TreeItem {
     contextValue = "openspec-ui.artifact",
   ) {
     super(label, vscode.TreeItemCollapsibleState.None);
+    this.id = `artifact:${artifactPath}`;
     this.description = exists ? undefined : "missing";
     this.contextValue = contextValue;
     this.iconPath = new vscode.ThemeIcon(exists ? "markdown" : "warning");
@@ -56,6 +65,7 @@ export class ArtifactTreeItem extends vscode.TreeItem {
 export class EmptyTreeItem extends vscode.TreeItem {
   constructor(label: string, description: string, command?: vscode.Command) {
     super(label, vscode.TreeItemCollapsibleState.None);
+    this.id = `empty:${label}`;
     this.description = description;
     this.contextValue = "openspec-ui.empty";
     this.iconPath = new vscode.ThemeIcon("info");
@@ -73,6 +83,7 @@ export class TaskTreeItem extends vscode.TreeItem {
     public readonly done: boolean,
   ) {
     super(text, vscode.TreeItemCollapsibleState.None);
+    this.id = `task:${archived ? "archived" : "active"}:${changeName}:${lineNumber}`;
     this.description = done ? "done" : undefined;
     this.contextValue = archived
       ? "openspec-ui.archivedTask"
@@ -95,6 +106,7 @@ export class TaskTreeItem extends vscode.TreeItem {
 export class RepoBootstrapRootTreeItem extends vscode.TreeItem {
   constructor() {
     super("Repository Setup", vscode.TreeItemCollapsibleState.Collapsed);
+    this.id = "repo-bootstrap-root";
     this.description = "CLAUDE.md, dependabot.yml, ...";
     this.contextValue = "openspec-ui.repoBootstrapRoot";
     this.iconPath = new vscode.ThemeIcon("tools");
@@ -104,6 +116,7 @@ export class RepoBootstrapRootTreeItem extends vscode.TreeItem {
 export class RepoBootstrapActionTreeItem extends vscode.TreeItem {
   constructor(label: string, description: string, command: string, icon: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
+    this.id = `repo-bootstrap-action:${command}`;
     this.description = description;
     this.contextValue = "openspec-ui.repoBootstrapAction";
     this.iconPath = new vscode.ThemeIcon(icon);
