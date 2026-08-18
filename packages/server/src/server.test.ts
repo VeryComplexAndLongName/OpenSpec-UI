@@ -6,10 +6,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 import {
+  getCoreVersion,
   OpenSpecCliCompatibilityError,
   WorkbenchRunJournal,
   captureCheckpoint,
@@ -19,6 +21,8 @@ import {
   type Command,
   type Event,
 } from "@openspec-ui/core";
+
+const SERVER_VERSION: string = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
@@ -172,6 +176,16 @@ describe("server — REST /api/status", () => {
       method: "GET",
     });
     expect(unauthorized.status).toBe(401);
+  });
+
+  it("returns core and server package versions for /api/versions", async () => {
+    const res = await fetch(`${baseUrl}/api/versions`, {
+      method: "GET",
+      headers: { "x-openspec-ui-token": ACCESS_TOKEN },
+    });
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload).toEqual({ core: getCoreVersion(), server: SERVER_VERSION });
   });
 
   it("returns synthesized protocol events for /api/status-json", async () => {
