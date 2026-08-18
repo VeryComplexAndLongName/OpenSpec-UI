@@ -155,7 +155,10 @@ If a change is visibly user-facing, the affected package version in
 `package.json` must be bumped in the same change. For delivery forms, an
 aggregated release version is allowed, but package versions — especially
 `core` — remain the source of truth and should be shown separately when the UI
-displays build information.
+displays build information. The standalone browser shell does this: a
+footer shows `core`/`server`/`webui` versions, read from each package's
+own `package.json` via a token-gated `GET /api/versions` endpoint — see
+`packages/server/src/server.ts`.
 
 The private root package remains `0.0.0`; it is a workspace container, not a
 release artifact. Current release versions are:

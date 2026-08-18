@@ -140,32 +140,42 @@ for the areas the embed does not show.
 ### Requirement: Changes and Archive trees expand to individual tasks, with reveal and scoped delete
 
 Expanding a change node in either the "Changes" or "Archive" tree view
-SHALL also list that change's individual `tasks.md` checklist items as
-child tree items, alongside its existing artifact children, nested
-under that change and independently collapsible/expandable. Every tree
-item in these views SHALL have a stable identity derived from data
-already unique at its scope (not label-derived, not dependent on object
-identity surviving a refresh), distinct from its parent's identity, so
-that nesting and collapse state survive tree refreshes. Selecting a task
-item SHALL open (or reveal, if already open) `tasks.md` with the cursor
-moved to that task's line, in both trees. A "Delete Task" action SHALL
-be available only on task items belonging to an active (non-archived)
-change that are not marked done; selecting it, after confirmation, SHALL
-remove exactly that task's checklist line from the change's `tasks.md`.
-Task items belonging to archived changes, and done task items in active
-changes, SHALL NOT offer a delete action.
+SHALL list that change's artifacts as child tree items. The `tasks.md`
+artifact SHALL be collapsible when the file exists (a plain leaf, like
+every other artifact, when it doesn't), and expanding *it* — not the
+change node — SHALL list that change's individual `tasks.md` checklist
+items as its children; task items SHALL NOT appear as direct children
+of the change node itself. Every tree item in these views SHALL have a
+stable identity derived from data already unique at its scope (not
+label-derived, not dependent on object identity surviving a refresh),
+distinct from its parent's identity, so that nesting and collapse state
+survive tree refreshes. Selecting a task item SHALL open (or reveal, if
+already open) `tasks.md` with the cursor moved to that task's line, in
+both trees. A "Delete Task" action SHALL be available only on task
+items belonging to an active (non-archived) change that are not marked
+done; selecting it, after confirmation, SHALL remove exactly that
+task's checklist line from the change's `tasks.md`. Task items
+belonging to archived changes, and done task items in active changes,
+SHALL NOT offer a delete action.
 
 #### Scenario: Expanding an active change shows its tasks
 
 - **WHEN** the user expands a change node in the "Changes" tree
-- **THEN** its individual `tasks.md` checklist items appear as child
-  items alongside the existing artifact children
+- **THEN** its artifacts appear as child items, and the "Tasks" artifact
+  is collapsible while every other artifact is not
+
+#### Scenario: Individual tasks nest under Tasks, not under the change directly
+
+- **WHEN** the user expands the "Tasks" artifact under a change
+- **THEN** that change's individual `tasks.md` checklist items appear as
+  its children, and none of them appeared as direct children of the
+  change node itself
 
 #### Scenario: Task identity is distinct from its parent Change
 
-- **WHEN** a change node's children are computed
-- **THEN** each task item's id is distinct from the parent Change's own
-  id and from every sibling's id
+- **WHEN** the Tasks artifact's children are computed
+- **THEN** each task item's id is distinct from the Tasks artifact's own
+  id, from the parent Change's id, and from every sibling's id
 
 #### Scenario: Selecting a task reveals it in the editor
 
