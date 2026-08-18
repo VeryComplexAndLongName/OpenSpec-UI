@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.2
+
+- Docs only: Marketplace description now leads with the built-in
+  Claude/Copilot/Codex/Gemini agents instead of generic "native OpenSpec
+  workflow" wording — no code changes.
+
 ## 0.15.1
 
 - Docs only: added a Screenshots section to the root README (sidebar
