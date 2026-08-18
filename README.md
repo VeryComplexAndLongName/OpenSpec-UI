@@ -1,7 +1,8 @@
 # OpenSpec UI
 
-Dashboard for [OpenSpec](https://github.com/Fission-AI/OpenSpec) — a view
-over Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
+A dashboard + VS Code extension for [OpenSpec](https://github.com/Fission-AI/OpenSpec),
+with Claude, Copilot, Codex, and Gemini agents built in: a view over
+Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
 GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
@@ -201,7 +202,7 @@ release artifact. Current release versions are:
 | Package | Version | Release role |
 | --- | ---: | --- |
 | `@openspec-ui/core` | 0.19.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.15.1 | VS Code delivery |
+| `openspec-ui-vscode` | 0.15.2 | VS Code delivery |
 | `@openspec-ui/server` | 1.8.0 | Standalone server delivery |
 | `@openspec-ui/webui` | 1.8.1 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
