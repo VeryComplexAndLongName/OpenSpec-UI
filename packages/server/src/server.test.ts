@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 import {
-  CORE_VERSION,
+  getCoreVersion,
   OpenSpecCliCompatibilityError,
   WorkbenchRunJournal,
   type AgentRunner,
@@ -182,7 +182,7 @@ describe("server — REST /api/status", () => {
     });
     expect(res.status).toBe(200);
     const payload = await res.json();
-    expect(payload).toEqual({ core: CORE_VERSION, server: SERVER_VERSION });
+    expect(payload).toEqual({ core: getCoreVersion(), server: SERVER_VERSION });
   });
 
   it("returns synthesized protocol events for /api/status-json", async () => {
