@@ -149,6 +149,15 @@ export const shellThemeCss = `
     font-size: 13px;
   }
 
+  .openspec-shell-version-footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+
   .openspec-ai-panel {
     border: 1px solid var(--line);
     border-radius: 12px;

@@ -3,10 +3,11 @@
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { type IncomingMessage, type Server as HttpServer, createServer as createHttpServer } from "node:http";
+import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WebSocketServer } from "ws";
-import { type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
+import { getCoreVersion, type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
 import {
   handleAgentsDetectRequest,
   handleArchiveTasksTemplateRequest,
@@ -58,6 +59,20 @@ export interface ServerOptions {
 export const DEFAULT_HOST = "127.0.0.1";
 export const DEFAULT_PORT = 4317;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 1024 * 1024;
+
+let cachedServerVersion: string | undefined;
+/** Lazy, not a top-level constant — `createRequire(import.meta.url)` breaks
+ * once this module is bundled into a different format. `server` is bundled
+ * into the VS Code extension's CJS `dist/extension.js` for its optional
+ * local-server mode (see `staticAssets` doc above, `extension`'s
+ * `optional-server.ts`), where `import.meta.url` resolves to `undefined` —
+ * confirmed live via `@openspec-ui/core`'s identical `getCoreVersion` fix. */
+function getServerVersion(): string {
+  if (cachedServerVersion === undefined) {
+    cachedServerVersion = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
+  }
+  return cachedServerVersion;
+}
 
 export interface OpenSpecUiServer {
   listen(): Promise<AddressInfo>;
@@ -115,6 +130,11 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     if (req.method === "GET" && req.url === "/api/workspace-root") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ workspaceRoot }));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/api/versions") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ core: getCoreVersion(), server: getServerVersion() }));
       return;
     }
     if (req.method === "POST" && req.url === "/api/overview") {

@@ -12,7 +12,7 @@ import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
-import { computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
+import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
@@ -145,6 +145,21 @@ const accessToken = readAccessToken();
 const visibleTabs = computeVisibleTabs(readEmbedSignal(window.location.search));
 const visibleTabIds = new Set(visibleTabs.map((tab) => tab.id));
 
+// Version footer is standalone-only — see openspec/changes/
+// standalone-version-display/proposal.md. The VS Code local-server iframe
+// keeps its own extension version visible via VS Code's Extensions view.
+const isStandaloneHost = readEmbedSignal(window.location.search) !== VSCODE_LOCAL_SERVER_EMBED_SIGNAL;
+
+// Injected at build time by packages/server/scripts/client-build-options.mjs
+// (esbuild `define`) from packages/webui/package.json — the browser bundle
+// has no filesystem access to read its own package.json at runtime.
+declare const __OPENSPEC_UI_WEBUI_VERSION__: string;
+
+interface WorkbenchVersions {
+  core: string;
+  server: string;
+}
+
 function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
   return fetch(`${window.location.origin}${pathname}`, {
     ...init,
@@ -202,6 +217,7 @@ function StandaloneApp() {
   const [templateActionMessage, setTemplateActionMessage] = useState<string | null>(null);
   const [workspaceRootSyncError, setWorkspaceRootSyncError] = useState<string | null>(null);
   const [detectedAgents, setDetectedAgents] = useState<Record<string, boolean> | undefined>(undefined);
+  const [versions, setVersions] = useState<WorkbenchVersions | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
     async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
@@ -235,6 +251,24 @@ function StandaloneApp() {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
         setWorkspaceRootSyncError(message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isStandaloneHost) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/versions", { method: "GET" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as WorkbenchVersions;
+        if (!cancelled) setVersions(payload);
+      } catch {
+        // Version display is informational, not required for the app to work.
       }
     })();
     return () => {
@@ -1012,6 +1046,12 @@ function StandaloneApp() {
       </section>
       </TabPanel>
       )}
+
+      {isStandaloneHost ? (
+        <footer className="openspec-shell-version-footer" data-testid="version-footer">
+          core {versions?.core ?? "…"} · server {versions?.server ?? "…"} · webui {__OPENSPEC_UI_WEBUI_VERSION__}
+        </footer>
+      ) : null}
     </div>
   );
 }
