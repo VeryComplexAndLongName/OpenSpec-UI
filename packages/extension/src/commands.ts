@@ -664,6 +664,31 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("rollback", error);
       }
     }),
+    vscode.commands.registerCommand("openspec-ui.rollbackChange", async (item?: ChangeTreeItem) => {
+      if (!item) return;
+      const details = deps.implementationSessions.changeRollbackDetails(item.changeName);
+      if (!details) {
+        void vscode.window.showWarningMessage(`OpenSpec UI: no rollback-eligible processes for ${item.changeName}.`);
+        return;
+      }
+      const answer = await vscode.window.showWarningMessage(
+        `Rollback ${item.changeName}? This restores ${details.fileCount} file${details.fileCount === 1 ? "" : "s"} across ${details.processCount} process${details.processCount === 1 ? "" : "es"} to their state before this change was ever implemented.`,
+        { modal: true },
+        "Rollback",
+      );
+      if (answer !== "Rollback") return;
+      try {
+        const result = await deps.implementationSessions.rollbackChange(item.changeName);
+        if (result.conflicts.length > 0) {
+          void vscode.window.showErrorMessage(`OpenSpec UI: rollback blocked by later changes: ${result.conflicts.join(", ")}`);
+          return;
+        }
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(`OpenSpec UI: restored ${result.restored.length} files.`);
+      } catch (error) {
+        await showCommandError("rollback change", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.cancelProcess", (item?: { process?: { id?: string } }) => {
       if (item?.process?.id) deps.implementationSessions.cancel(item.process.id);
     }),

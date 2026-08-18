@@ -27,6 +27,12 @@ notifications while keeping lifecycle and security behavior in
   VS Code Agent implementation sessions, finish them for review, and roll back
   only files changed by a run. Rollback refuses to overwrite later edits and
   discloses files omitted by checkpoint size limits.
+- "Rollback Change" on a Change item (in either the Changes or Archive tree)
+  rolls back every process ever run against that Change, restoring every
+  touched file to its state before the earliest of those runs — works
+  identically for active and archived changes. Same fail-closed behavior as
+  single-process rollback: any file changed outside what the system knows
+  about refuses the entire restore, not just that one file.
 - Open the Process Dashboard with Workspace root and Change directory filled
   from the current VS Code workspace. The default message-bridge dashboard
   follows the active VS Code color theme, including dark and high-contrast
@@ -116,6 +122,16 @@ how this differs from the `@openspec` Chat Participant above.
   directly and uses an in-process message bridge. Because the optional
   localhost shell is a cross-origin iframe, it retains the standalone palette
   instead of inheriting VS Code theme variables.
+- `openspec-ui.checkpointRetentionDays`: days to keep process/checkpoint
+  history before it's pruned, once, on the next window reload. Defaults to
+  `0`, which keeps everything forever — unchanged from every prior version.
+  A positive number prunes anything older than that many days.
+
+  > **Warning:** once a process is pruned this way, both single-process
+  > Rollback and "Rollback Change" become permanently unavailable for it —
+  > pruning itself cannot be undone. Leave this at `0` (the default) unless
+  > you specifically want bounded history growth and have accepted that
+  > trade-off.
 
 ## Development
 

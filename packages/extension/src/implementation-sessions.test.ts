@@ -95,4 +95,60 @@ describe("ImplementationSessionManager", () => {
     expect((await manager.rollback(process.id)).conflicts).toEqual([]);
     expect(await readFile(filePath, "utf8")).toBe("before");
   });
+
+  it("rolls back every session for a change across two runs, to the earliest state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+    roots.push(root);
+    const filePath = path.join(root, "shared.txt");
+    await writeFile(filePath, "v0");
+    const scheduler = new WorkbenchProcessScheduler();
+    const manager = new ImplementationSessionManager(scheduler);
+
+    await manager.run(root, {
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => { await writeFile(filePath, "v1"); },
+    });
+    await manager.run(root, {
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => { await writeFile(filePath, "v2"); },
+    });
+
+    expect(manager.changeRollbackDetails("demo")).toEqual({ processCount: 2, fileCount: 1 });
+    await expect(manager.rollbackChange("demo")).resolves.toEqual({ restored: ["shared.txt"], conflicts: [] });
+    expect(await readFile(filePath, "utf8")).toBe("v0");
+  });
+
+  it("throws rollbackChange for a change with no rollback-eligible sessions", async () => {
+    const scheduler = new WorkbenchProcessScheduler();
+    const manager = new ImplementationSessionManager(scheduler);
+    await expect(manager.rollbackChange("nonexistent")).rejects.toThrow(
+      'No rollback-eligible processes for change "nonexistent"',
+    );
+    expect(manager.changeRollbackDetails("nonexistent")).toBeUndefined();
+  });
+
+  it("dropSessions removes a session so it no longer participates in change rollback", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+    roots.push(root);
+    const filePath = path.join(root, "code.ts");
+    await writeFile(filePath, "before");
+    const scheduler = new WorkbenchProcessScheduler();
+    const manager = new ImplementationSessionManager(scheduler);
+
+    const process = await manager.run(root, {
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => { await writeFile(filePath, "after"); },
+    });
+
+    manager.dropSessions([process.id]);
+
+    expect(manager.getDelta(process.id)).toBeUndefined();
+    expect(manager.changeRollbackDetails("demo")).toBeUndefined();
+  });
 });

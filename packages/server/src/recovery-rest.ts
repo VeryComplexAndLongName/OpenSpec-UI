@@ -12,6 +12,7 @@ interface RecoveryRequest {
   cwd: string;
   processId?: string;
   cutoff?: string;
+  changeName?: string;
 }
 
 export type RecoveryServiceResolver = (cwd: string) => Promise<WorkbenchRecoveryService>;
@@ -108,6 +109,18 @@ export function handleProcessRollbackRequest(
   return withRecoveryRequest<RollbackResult>(req, res, policy, resolveService, (request, service) => {
     if (!request.processId) throw new Error("processId is required");
     return service.rollback(request.processId);
+  });
+}
+
+export function handleChangeRollbackRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+  resolveService: RecoveryServiceResolver,
+): Promise<void> {
+  return withRecoveryRequest<RollbackResult>(req, res, policy, resolveService, (request, service) => {
+    if (!request.changeName) throw new Error("changeName is required");
+    return service.rollbackChange(request.changeName);
   });
 }
 

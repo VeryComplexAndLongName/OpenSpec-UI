@@ -92,6 +92,24 @@ export class WorkbenchProcessScheduler {
     return true;
   }
 
+  /** Removes processes created before `cutoff` in place, returning their
+   * ids — for retention (`openspec-ui.checkpointRetentionDays`). Prefer
+   * this over reconstructing the scheduler when the instance is shared
+   * across other long-lived references (VS Code extension activation
+   * wires this scheduler into several tree providers and the chat
+   * participant by reference). */
+  removeBefore(cutoff: Date): string[] {
+    const removed: string[] = [];
+    for (const [id, process] of this.processes) {
+      if (Date.parse(process.createdAt) < cutoff.getTime()) {
+        this.processes.delete(id);
+        removed.push(id);
+      }
+    }
+    if (removed.length > 0) this.emit();
+    return removed;
+  }
+
   start(options: StartProcessOptions): WorkbenchProcessHandle {
     const id = options.id ?? crypto.randomUUID();
     if (this.processes.has(id)) throw new Error(`Workbench process already exists: ${id}`);

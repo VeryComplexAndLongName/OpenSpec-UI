@@ -7,6 +7,7 @@ import {
   deserializeCheckpoint,
   finalizeCheckpoint,
   rollbackCheckpoint,
+  rollbackChangeCheckpoints,
   serializeCheckpoint,
 } from "./checkpoint.js";
 
@@ -91,5 +92,74 @@ describe("Workbench checkpoints", () => {
 
     serialized.before[0]!.path = "../outside.txt";
     expect(() => deserializeCheckpoint(serialized)).toThrow("Invalid checkpoint path");
+  });
+});
+
+describe("rollbackChangeCheckpoints", () => {
+  it("restores each file to its state before the earliest checkpoint that touched it", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, "shared.txt"), "v0");
+    await writeFile(path.join(root, "only-in-first.txt"), "orig1");
+
+    const checkpoint1 = await captureCheckpoint(root);
+    await writeFile(path.join(root, "shared.txt"), "v1");
+    await rm(path.join(root, "only-in-first.txt"));
+    await finalizeCheckpoint(checkpoint1);
+
+    const checkpoint2 = await captureCheckpoint(root);
+    await writeFile(path.join(root, "shared.txt"), "v2");
+    await writeFile(path.join(root, "only-in-second.txt"), "new2");
+    await finalizeCheckpoint(checkpoint2);
+
+    const result = await rollbackChangeCheckpoints([checkpoint1, checkpoint2]);
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.restored.sort()).toEqual(["only-in-first.txt", "only-in-second.txt", "shared.txt"]);
+    expect(await readFile(path.join(root, "shared.txt"), "utf8")).toBe("v0");
+    expect(await readFile(path.join(root, "only-in-first.txt"), "utf8")).toBe("orig1");
+    await expect(readFile(path.join(root, "only-in-second.txt"))).rejects.toThrow();
+  });
+
+  it("restores correctly regardless of array order (sorts by checkpoint.createdAt)", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, "shared.txt"), "v0");
+    const checkpoint1 = await captureCheckpoint(root);
+    await writeFile(path.join(root, "shared.txt"), "v1");
+    await finalizeCheckpoint(checkpoint1);
+    const checkpoint2 = await captureCheckpoint(root);
+    await writeFile(path.join(root, "shared.txt"), "v2");
+    await finalizeCheckpoint(checkpoint2);
+
+    const result = await rollbackChangeCheckpoints([checkpoint2, checkpoint1]);
+
+    expect(result.conflicts).toEqual([]);
+    expect(await readFile(path.join(root, "shared.txt"), "utf8")).toBe("v0");
+  });
+
+  it("refuses the entire restore when any file was changed after the latest known state", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, "a.txt"), "a0");
+    await writeFile(path.join(root, "b.txt"), "b0");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(path.join(root, "a.txt"), "a1");
+    await writeFile(path.join(root, "b.txt"), "b1");
+    await finalizeCheckpoint(checkpoint);
+    await writeFile(path.join(root, "b.txt"), "user changed it later");
+
+    const result = await rollbackChangeCheckpoints([checkpoint]);
+
+    expect(result).toEqual({ restored: [], conflicts: ["b.txt"] });
+    expect(await readFile(path.join(root, "a.txt"), "utf8")).toBe("a1");
+    expect(await readFile(path.join(root, "b.txt"), "utf8")).toBe("user changed it later");
+  });
+
+  it("throws for an empty checkpoint list", async () => {
+    await expect(rollbackChangeCheckpoints([])).rejects.toThrow("No checkpoints to roll back");
+  });
+
+  it("throws if a checkpoint was never finalized", async () => {
+    const root = await temporaryRoot();
+    const checkpoint = await captureCheckpoint(root);
+    await expect(rollbackChangeCheckpoints([checkpoint])).rejects.toThrow("Checkpoint must be finalized before rollback");
   });
 });

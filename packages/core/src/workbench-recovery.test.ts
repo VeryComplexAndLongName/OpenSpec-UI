@@ -60,6 +60,44 @@ describe("WorkbenchRecoveryService", () => {
     expect(service.list()[0]?.state).toBe("rolled-back");
   });
 
+  it("rolls back every process for a change across multiple checkpoints, to the earliest state", async () => {
+    const root = await createRoot();
+    const filePath = path.join(root, "shared.txt");
+    await writeFile(filePath, "v0", "utf8");
+    const checkpoint1 = await captureCheckpoint(root);
+    await writeFile(filePath, "v1", "utf8");
+    await finalizeCheckpoint(checkpoint1);
+    const checkpoint2 = await captureCheckpoint(root);
+    await writeFile(filePath, "v2", "utf8");
+    await finalizeCheckpoint(checkpoint2);
+    await new WorkbenchRunJournal(root).save({
+      processes: [
+        { id: "run-1", operation: "implement", changeName: "demo-change", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" },
+        { id: "run-2", operation: "implement", changeName: "demo-change", mutating: true, state: "completed", createdAt: "2026-08-02T00:00:00.000Z" },
+      ],
+      checkpointSessions: [
+        { processId: "run-1", changeName: "demo-change", checkpoint: serializeCheckpoint(checkpoint1) },
+        { processId: "run-2", changeName: "demo-change", checkpoint: serializeCheckpoint(checkpoint2) },
+      ],
+    });
+
+    const service = await WorkbenchRecoveryService.open(root);
+    expect(service.changeRollbackDetails("demo-change")).toEqual({ processCount: 2, fileCount: 1 });
+
+    await expect(service.rollbackChange("demo-change")).resolves.toEqual({ restored: ["shared.txt"], conflicts: [] });
+    expect(await readFile(filePath, "utf8")).toBe("v0");
+    expect(service.list().map((process) => process.state)).toEqual(["rolled-back", "rolled-back"]);
+  });
+
+  it("throws for a change with no rollback-eligible processes", async () => {
+    const root = await createRoot();
+    const service = await WorkbenchRecoveryService.open(root);
+    await expect(service.rollbackChange("nonexistent")).rejects.toThrow(
+      'No rollback-eligible processes for change "nonexistent"',
+    );
+    expect(service.changeRollbackDetails("nonexistent")).toBeUndefined();
+  });
+
   it("cleans old processes and their checkpoint sessions together", async () => {
     const root = await createRoot();
     const checkpoint = await captureCheckpoint(root);

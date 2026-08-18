@@ -25,6 +25,7 @@ import {
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
 import {
+  handleChangeRollbackRequest,
   handleProcessDetailsRequest,
   handleProcessRollbackRequest,
   handleProcessesCleanupRequest,
@@ -175,6 +176,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/processes/rollback") {
       void handleProcessRollbackRequest(req, res, requestPolicy, resolveRecoveryService);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/processes/rollback-change") {
+      void handleChangeRollbackRequest(req, res, requestPolicy, resolveRecoveryService);
       return;
     }
     if (req.method === "POST" && req.url === "/api/processes/cleanup") {
