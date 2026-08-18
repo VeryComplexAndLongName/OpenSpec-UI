@@ -34,6 +34,25 @@ describe("listBuiltInTemplates", () => {
     expect(seed?.origin).toBe("built-in");
     expect(seed?.manifest.variables.length).toBeGreaterThan(0);
   });
+
+  it("every built-in template has a unique id, non-empty artifacts, and every declared variable is used", () => {
+    const templates = listBuiltInTemplates();
+    const ids = templates.map((t) => t.manifest.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const template of templates) {
+      expect(template.artifacts.proposal.length).toBeGreaterThan(0);
+      expect(template.artifacts.design.length).toBeGreaterThan(0);
+      expect(template.artifacts.tasks.length).toBeGreaterThan(0);
+      for (const variable of template.manifest.variables) {
+        const placeholder = `{{${variable.name}}}`;
+        const usedSomewhere =
+          template.artifacts.proposal.includes(placeholder) ||
+          template.artifacts.design.includes(placeholder) ||
+          template.artifacts.tasks.includes(placeholder);
+        expect(usedSomewhere, `${template.manifest.id}: ${placeholder} unused`).toBe(true);
+      }
+    }
+  });
 });
 
 describe("listProjectTemplates", () => {
