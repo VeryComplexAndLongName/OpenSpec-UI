@@ -62,6 +62,39 @@ export class ArtifactTreeItem extends vscode.TreeItem {
   }
 }
 
+/** The `tasks.md` artifact specifically — unlike every other artifact
+ * (Proposal, Design, Spec: X), this one has real children: its individual
+ * checklist items. Previously those items were returned as flat siblings
+ * of this item (and of Proposal/Design/Spec) directly under the Change,
+ * which is the actual bug reported live: "tasks are not nested under
+ * Tasks, they're next to it." Fixing the tree-item `.id` fallback
+ * (`tree-item-stable-ids`) was necessary but not sufficient — the real
+ * fix is this class existing at all, giving `tasks.md` real
+ * collapsible/expandable children instead of a flat sibling list. Keeps
+ * `ArtifactTreeItem`'s open-on-click `.command`; the disclosure arrow
+ * (collapse/expand) is independent of that click target in VS Code. */
+export class TasksArtifactTreeItem extends vscode.TreeItem {
+  constructor(
+    label: string,
+    artifactPath: string,
+    exists: boolean,
+    public readonly changeName: string,
+    public readonly changeDir: string,
+    public readonly archived: boolean,
+  ) {
+    super(label, exists ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
+    this.id = `artifact:${artifactPath}`;
+    this.description = exists ? undefined : "missing";
+    this.contextValue = "openspec-ui.tasksArtifact";
+    this.iconPath = new vscode.ThemeIcon(exists ? "markdown" : "warning");
+    this.command = {
+      command: "vscode.open",
+      title: `Open ${label}`,
+      arguments: [vscode.Uri.file(artifactPath)],
+    };
+  }
+}
+
 export class EmptyTreeItem extends vscode.TreeItem {
   constructor(label: string, description: string, command?: vscode.Command) {
     super(label, vscode.TreeItemCollapsibleState.None);
@@ -150,33 +183,51 @@ export function getRepoBootstrapActions(): RepoBootstrapActionTreeItem[] {
 export type WorkbenchTreeItem =
   | ChangeTreeItem
   | ArtifactTreeItem
+  | TasksArtifactTreeItem
   | EmptyTreeItem
   | TaskTreeItem
   | RepoBootstrapRootTreeItem
   | RepoBootstrapActionTreeItem;
 
 /** Shared by `ChangesTreeProvider` and `ArchiveTreeProvider` — both trees
- * expand a `ChangeTreeItem` the same way (artifacts, then tasks.md's
- * individual checklist items); see
- * openspec/changes/tasks-tree-expand/design.md, "Shared getChangeChildren". */
-export async function getChangeChildren(
-  workspaceRoot: string,
-  element: ChangeTreeItem,
-): Promise<WorkbenchTreeItem[]> {
-  const artifactItems = element.artifacts.map(
-    (artifact) =>
-      new ArtifactTreeItem(
-        artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
+ * expand a `ChangeTreeItem` the same way: its artifacts, with the
+ * `tasks.md` artifact rendered as a `TasksArtifactTreeItem` so its
+ * checklist items nest under *it*, not flat alongside Proposal/Design/
+ * Spec. See openspec/changes/nest-tasks-under-tasks-artifact/design.md. */
+export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] {
+  return element.artifacts.map((artifact) => {
+    if (artifact.kind === "tasks") {
+      return new TasksArtifactTreeItem(
+        artifact.label,
         artifact.path,
         artifact.exists,
-      ),
-  );
+        element.changeName,
+        element.changeDir,
+        element.archived,
+      );
+    }
+    return new ArtifactTreeItem(
+      artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
+      artifact.path,
+      artifact.exists,
+    );
+  });
+}
+
+/** Children of a `TasksArtifactTreeItem` — the individual `tasks.md`
+ * checklist items. Split out from `getChangeChildren` because it needs
+ * to run lazily, only when the user actually expands "Tasks" (matching
+ * how VS Code TreeDataProvider.getChildren is meant to be used — cheap
+ * per node, not eagerly computing the whole subtree up front). */
+export async function getTasksArtifactChildren(
+  workspaceRoot: string,
+  element: TasksArtifactTreeItem,
+): Promise<TaskTreeItem[]> {
   const tasks = await readTaskChecklist(workspaceRoot, element.changeName, element.archived);
-  const taskItems = tasks.map(
+  return tasks.map(
     (task) =>
       new TaskTreeItem(element.changeName, element.changeDir, element.archived, task.lineNumber, task.text, task.done),
   );
-  return [...artifactItems, ...taskItems];
 }
 
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
@@ -195,7 +246,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {
     if (element instanceof ChangeTreeItem) {
-      return getChangeChildren(this.workspaceRoot, element);
+      return getChangeChildren(element);
+    }
+    if (element instanceof TasksArtifactTreeItem) {
+      return getTasksArtifactChildren(this.workspaceRoot, element);
     }
     if (element instanceof RepoBootstrapRootTreeItem) {
       return getRepoBootstrapActions();

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.0
+
+- Fixed: task checklist items in the Changes and Archive trees rendered
+  flush with the "Tasks" artifact instead of nested under it — reported
+  live twice, since the previous fix (`0.13.1`) addressed a real but
+  separate bug (unstable tree-item identity) that turned out not to be
+  the actual cause. `tasks.md`'s artifact entry is now its own
+  collapsible node; expanding it — not the Change directly — is what
+  reveals the individual checklist items. Clicking "Tasks" still opens
+  the file, unchanged.
+
 ## 0.14.0
 
 - Added "Rollback Change" on a Change item (in either the Changes or

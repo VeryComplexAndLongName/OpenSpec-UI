@@ -40,21 +40,34 @@ describe("ArchiveTreeProvider", () => {
     expect(items.map((i) => i.id)).toEqual(["change:archived:old-change-1", "change:archived:old-change-2"]);
   });
 
-  it("shows archived tasks as read-only (openspec-ui.archivedTask) children", async () => {
+  it("nests archived tasks under the Tasks artifact, as read-only (openspec-ui.archivedTask) children", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       archiveExists: true,
-      archivedChanges: [{ name: "old-change-1", path: "/archive/old-change-1", state: "archived", artifacts: [] }],
+      archivedChanges: [{
+        name: "old-change-1",
+        path: "/archive/old-change-1",
+        state: "archived",
+        artifacts: [
+          { id: "tasks", kind: "tasks", label: "Tasks", path: "/archive/old-change-1/tasks.md", exists: true },
+        ],
+      }],
     });
     readTaskChecklistMock.mockResolvedValue([{ lineNumber: 0, text: "Only task", done: false }]);
 
     const provider = new ArchiveTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const children = await provider.getChildren(roots[0]);
+    const changeChildren = await provider.getChildren(roots[0]);
+    expect(readTaskChecklistMock).not.toHaveBeenCalled();
+    const tasksArtifact = changeChildren[0];
+    expect(tasksArtifact?.contextValue).toBe("openspec-ui.tasksArtifact");
+
+    const children = await provider.getChildren(tasksArtifact);
 
     expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "old-change-1", true);
     expect(children.map((item) => item.label)).toEqual(["Only task"]);
     expect(children[0]?.contextValue).toBe("openspec-ui.archivedTask");
     expect(children[0]?.id).toBe("task:archived:old-change-1:0");
+    expect(children[0]?.id).not.toBe(tasksArtifact?.id);
     expect(children[0]?.id).not.toBe(roots[0]?.id);
   });
 

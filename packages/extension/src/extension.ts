@@ -35,6 +35,7 @@ export interface ExtensionTestApi {
   runController: RunController;
   optionalServer: OptionalServerManager | undefined;
   getDashboardContext: () => AiPanelContext | undefined;
+  changesTree: ChangesTreeProvider | undefined;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
@@ -175,6 +176,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runController,
     optionalServer,
     getDashboardContext: () => aiPanel.getContext(),
+    changesTree,
   };
 }
 

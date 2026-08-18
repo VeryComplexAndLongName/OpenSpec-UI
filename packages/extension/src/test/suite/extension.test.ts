@@ -86,6 +86,40 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
+  test("Changes tree: tasks.md's checklist items nest under the Tasks artifact, not flat under the Change", async () => {
+    // Live regression coverage for a bug reported twice against unit
+    // tests alone: unit tests with a mocked `vscode` module can assert a
+    // getChildren() return value is structurally correct, but they can't
+    // catch "the fix doesn't actually change what a real VS Code window
+    // renders." This drives the real ChangesTreeProvider, registered
+    // against the real fixture workspace (openspec/changes/demo, with a
+    // real tasks.md), inside a real Extension Host.
+    assert.ok(api.changesTree, "expected changesTree to be registered for a workspace with openspec/");
+    const roots = await api.changesTree.getChildren();
+    const change = roots.find((item) => item.label === "demo");
+    assert.ok(change, `expected a "demo" change among root items, got: ${roots.map((r) => r.label).join(", ")}`);
+
+    const changeChildren = await api.changesTree.getChildren(change);
+    const tasksArtifact = changeChildren.find((item) => item.label === "Tasks");
+    assert.ok(tasksArtifact, `expected a "Tasks" artifact among Change children, got: ${changeChildren.map((c) => c.label).join(", ")}`);
+    assert.equal(
+      changeChildren.some((item) => item.contextValue === "openspec-ui.activeTask" || item.contextValue === "openspec-ui.activeTaskDone"),
+      false,
+      "task checklist items must not appear flat under the Change itself",
+    );
+    assert.equal(
+      tasksArtifact.collapsibleState,
+      vscode.TreeItemCollapsibleState.Collapsed,
+      "the Tasks artifact must be collapsible — it has real children now",
+    );
+
+    const taskItems = await api.changesTree.getChildren(tasksArtifact);
+    assert.ok(
+      taskItems.some((item) => item.label === "1.1 Placeholder task."),
+      `expected the fixture's checklist item nested under Tasks, got: ${taskItems.map((t) => t.label).join(", ")}`,
+    );
+  });
+
   test("mode-toggle: enabling the localhost setting starts the same server/standalone bundle used by standalone-app", async () => {
     const config = vscode.workspace.getConfiguration("openspec-ui");
 
