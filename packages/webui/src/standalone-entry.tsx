@@ -5,7 +5,7 @@
 // библиотечный код, переиспользуемый в extension.
 
 import { createRoot } from "react-dom/client";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
@@ -369,7 +369,13 @@ function StandaloneApp() {
   }
 
   const allTemplates: Array<CatalogTemplate & { key: string }> = templates
-    ? [...templates.builtIn, ...templates.project].map((t) => ({ ...t, key: `${t.origin}:${t.manifest.id}` }))
+    ? [...templates.builtIn, ...templates.project]
+      .map((t) => ({ ...t, key: `${t.origin}:${t.manifest.id}` }))
+      .sort(
+        (a, b) =>
+          a.manifest.category.localeCompare(b.manifest.category) ||
+          a.manifest.title.localeCompare(b.manifest.title),
+      )
     : [];
   const selectedTemplate = allTemplates.find((t) => t.key === selectedTemplateKey);
 
@@ -962,8 +968,17 @@ function StandaloneApp() {
               </tr>
             </thead>
             <tbody>
-              {allTemplates.map((template) => (
-                <tr key={template.key} data-testid={`template-row-${template.key}`}>
+              {allTemplates.map((template, index) => {
+                const previousCategory = index > 0 ? allTemplates[index - 1]?.manifest.category : undefined;
+                const isNewCategory = template.manifest.category !== previousCategory;
+                return (
+                <Fragment key={template.key}>
+                  {isNewCategory ? (
+                    <tr className="openspec-overview-table-subheader" data-testid={`template-category-${template.manifest.category}`}>
+                      <td colSpan={4}>{template.manifest.category}</td>
+                    </tr>
+                  ) : null}
+                  <tr data-testid={`template-row-${template.key}`}>
                   <td>
                     {template.manifest.title}
                     {template.manifest.forkedFrom ? " (customized)" : ""}
@@ -993,8 +1008,10 @@ function StandaloneApp() {
                       </button>
                     ) : null}
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
         ) : null}

@@ -120,6 +120,48 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
+  test("Templates tree: built-in templates are grouped by category, not flat under Built-in", async () => {
+    // Built-in templates are a static in-code catalog (not workspace-
+    // dependent), so this drives the real TemplatesTreeProvider against
+    // this extension's actual built-in catalog, inside a real Extension
+    // Host — the same "live, not mocked" coverage as the Changes tree
+    // test above.
+    assert.ok(api.templatesTree, "expected templatesTree to be registered for a workspace with openspec/");
+    const roots = await api.templatesTree.getChildren();
+    const builtInGroup = roots.find((item) => item.label === "Built-in");
+    assert.ok(builtInGroup, `expected a "Built-in" group among root items, got: ${roots.map((r) => r.label).join(", ")}`);
+
+    const categoryGroups = await api.templatesTree.getChildren(builtInGroup);
+    assert.ok(
+      categoryGroups.every((item) => item.contextValue === "openspec-ui.templateCategoryGroup"),
+      `expected every child of Built-in to be a category subgroup, got contextValues: ${categoryGroups.map((c) => c.contextValue).join(", ")}`,
+    );
+    const categoryLabels = categoryGroups.map((item) => item.label);
+    assert.deepEqual(
+      categoryLabels,
+      [...categoryLabels].sort((a, b) => String(a).localeCompare(String(b))),
+      "category subgroups must be sorted alphabetically",
+    );
+    assert.ok(categoryLabels.includes("testing"), `expected a "testing" category subgroup, got: ${categoryLabels.join(", ")}`);
+    assert.equal(
+      categoryGroups.some((item) => item.contextValue === "openspec-ui.builtInTemplate"),
+      false,
+      "templates must not appear as direct children of the Built-in group",
+    );
+
+    const testingGroup = categoryGroups.find((item) => item.label === "testing");
+    assert.ok(testingGroup, "expected to find the testing category subgroup");
+    const testingTemplates = await api.templatesTree.getChildren(testingGroup);
+    assert.ok(
+      testingTemplates.every((item) => item.contextValue === "openspec-ui.builtInTemplate"),
+      `expected only templates under the testing subgroup, got contextValues: ${testingTemplates.map((t) => t.contextValue).join(", ")}`,
+    );
+    assert.ok(
+      testingTemplates.some((item) => item.label === "Add a Vitest + ESLint testing baseline to a Node.js/TypeScript project"),
+      `expected the Vitest testing template under the testing subgroup, got: ${testingTemplates.map((t) => t.label).join(", ")}`,
+    );
+  });
+
   test("mode-toggle: enabling the localhost setting starts the same server/standalone bundle used by standalone-app", async () => {
     const config = vscode.workspace.getConfiguration("openspec-ui");
 
