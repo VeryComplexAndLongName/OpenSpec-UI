@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.2
+
+- Fixed: task items in the Changes and Archive trees could render flush
+  with their parent Change instead of nested under it, and lose
+  collapse/expand behavior — none of this codebase's `TreeItem`
+  subclasses set an explicit `.id`, so VS Code fell back to a
+  label-derived identity that can desync once items are recreated on
+  every refresh (which they always are here). Also fixed the identical,
+  not-yet-reported defect in the Templates tree's built-in/project
+  groups.
+
 ## 0.12.1
 
 - "Delete Task" is no longer offered for a task marked done, even in an

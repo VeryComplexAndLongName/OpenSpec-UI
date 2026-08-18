@@ -40,6 +40,13 @@ describe("ChangesTreeProvider", () => {
     expect(items[1]?.label).toBe("execution-core");
     expect(items[1]?.description).toBe("implemented");
     expect(items[2]?.description).toBe("in-progress");
+    // Explicit stable ids, not the VS Code label-derived fallback — see
+    // openspec/changes/tree-item-stable-ids/proposal.md.
+    expect(items.map((item) => item.id)).toEqual([
+      "artifact:/workspace/repo/openspec/config.yaml",
+      "change:active:execution-core",
+      "change:active:shared-ui",
+    ]);
   });
 
   it("shows standard and delta artifacts under a change", async () => {
@@ -66,6 +73,11 @@ describe("ChangesTreeProvider", () => {
     expect(artifacts.map((item) => item.label)).toEqual(["Proposal", "Design", "Spec: x"]);
     expect(artifacts[1]?.description).toBe("missing");
     expect(artifacts[0]?.command?.command).toBe("vscode.open");
+    expect(artifacts.map((item) => item.id)).toEqual([
+      "artifact:/changes/shared-ui/proposal.md",
+      "artifact:/changes/shared-ui/design.md",
+      "artifact:/changes/shared-ui/specs/x/spec.md",
+    ]);
   });
 
   it("shows tasks.md's individual checklist items after the artifacts, as active tasks", async () => {
@@ -90,6 +102,15 @@ describe("ChangesTreeProvider", () => {
     expect(children[0]?.contextValue).toBe("openspec-ui.activeTaskDone");
     expect(children[1]?.contextValue).toBe("openspec-ui.activeTask");
     expect(children[0]?.command?.command).toBe("openspec-ui.revealTask");
+    // Regression coverage: task ids must be distinct from their parent
+    // Change's own id (and from each other) — without this, VS Code's
+    // label-derived id fallback could desync the tree, reported live as
+    // tasks rendering flush with the Change instead of nested under it.
+    expect(children.map((item) => item.id)).toEqual([
+      "task:active:shared-ui:2",
+      "task:active:shared-ui:3",
+    ]);
+    expect(children[0]?.id).not.toBe(roots[1]?.id);
   });
 
   it("offers initialization when the workspace has no OpenSpec artifacts", async () => {
@@ -105,6 +126,7 @@ describe("ChangesTreeProvider", () => {
 
     expect(items[1]?.label).toBe("Initialize OpenSpec");
     expect(items[1]?.command?.command).toBe("openspec-ui.initialize");
+    expect(items[1]?.id).toBe("empty:Initialize OpenSpec");
   });
 
   it("refresh() fires onDidChangeTreeData", () => {
