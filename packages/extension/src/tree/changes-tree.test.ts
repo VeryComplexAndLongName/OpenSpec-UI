@@ -35,18 +35,47 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(4);
     expect(items[0]?.contextValue).toBe("openspec-ui.config");
-    expect(items[1]?.label).toBe("execution-core");
-    expect(items[1]?.description).toBe("implemented");
-    expect(items[2]?.description).toBe("in-progress");
+    expect(items[1]?.contextValue).toBe("openspec-ui.repoBootstrapRoot");
+    expect(items[2]?.label).toBe("execution-core");
+    expect(items[2]?.description).toBe("implemented");
+    expect(items[3]?.description).toBe("in-progress");
     // Explicit stable ids, not the VS Code label-derived fallback — see
     // openspec/changes/tree-item-stable-ids/proposal.md.
     expect(items.map((item) => item.id)).toEqual([
       "artifact:/workspace/repo/openspec/config.yaml",
+      "repo-bootstrap-root",
       "change:active:execution-core",
       "change:active:shared-ui",
     ]);
+  });
+
+  it("expands the Repository Setup node to the three bootstrap actions, each with a stable id", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [],
+    });
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const bootstrapRoot = roots[1];
+    const actions = await provider.getChildren(bootstrapRoot);
+
+    expect(actions.map((item) => item.command?.command)).toEqual([
+      "openspec-ui.generateAgentInstructions",
+      "openspec-ui.configureDependabot",
+      "openspec-ui.generateSubtypeInstructions",
+    ]);
+    expect(actions.every((item) => item.contextValue === "openspec-ui.repoBootstrapAction")).toBe(true);
+    expect(actions.map((item) => item.id)).toEqual([
+      "repo-bootstrap-action:openspec-ui.generateAgentInstructions",
+      "repo-bootstrap-action:openspec-ui.configureDependabot",
+      "repo-bootstrap-action:openspec-ui.generateSubtypeInstructions",
+    ]);
+    expect(new Set(actions.map((item) => item.id)).size).toBe(3);
+    expect(actions[0]?.id).not.toBe(bootstrapRoot?.id);
   });
 
   it("shows standard and delta artifacts under a change", async () => {
@@ -67,7 +96,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const change = roots[1];
+    const change = roots[2];
     const artifacts = await provider.getChildren(change);
 
     expect(artifacts.map((item) => item.label)).toEqual(["Proposal", "Design", "Spec: x"]);
@@ -93,7 +122,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const children = await provider.getChildren(roots[1]);
+    const children = await provider.getChildren(roots[2]);
 
     expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "shared-ui", false);
     expect(children.map((item) => item.label)).toEqual(["1.1 First task", "1.2 Second task"]);
@@ -110,7 +139,7 @@ describe("ChangesTreeProvider", () => {
       "task:active:shared-ui:2",
       "task:active:shared-ui:3",
     ]);
-    expect(children[0]?.id).not.toBe(roots[1]?.id);
+    expect(children[0]?.id).not.toBe(roots[2]?.id);
   });
 
   it("offers initialization when the workspace has no OpenSpec artifacts", async () => {
@@ -124,9 +153,9 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items[1]?.label).toBe("Initialize OpenSpec");
-    expect(items[1]?.command?.command).toBe("openspec-ui.initialize");
-    expect(items[1]?.id).toBe("empty:Initialize OpenSpec");
+    expect(items[2]?.label).toBe("Initialize OpenSpec");
+    expect(items[2]?.command?.command).toBe("openspec-ui.initialize");
+    expect(items[2]?.id).toBe("empty:Initialize OpenSpec");
   });
 
   it("refresh() fires onDidChangeTreeData", () => {

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.12.2
+## 0.13.1
 
 - Fixed: task items in the Changes and Archive trees could render flush
   with their parent Change instead of nested under it, and lose
@@ -10,6 +10,16 @@
   every refresh (which they always are here). Also fixed the identical,
   not-yet-reported defect in the Templates tree's built-in/project
   groups.
+
+## 0.13.0
+
+- Added a "Repository Setup" node to the Changes tree, right after
+  "OpenSpec Configuration": expanding it lists "Generate Agent
+  Instructions", "Configure Dependabot", and "Generate Path-Scoped
+  Copilot Instructions" as clickable items. These commands already
+  existed (0.12.0) but were Command Palette-only with no tree presence —
+  this makes them discoverable without knowing the exact command name to
+  search for.
 
 ## 0.12.1
 
