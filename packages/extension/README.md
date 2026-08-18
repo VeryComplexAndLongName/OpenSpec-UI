@@ -10,8 +10,9 @@ notifications while keeping lifecycle and security behavior in
 - Navigate `config.yaml`, active changes, archived changes, canonical specs,
   and every proposal, design, task list, and delta spec.
 - Create, validate, archive, unarchive, and delete changes from contextual
-  actions with confirmation for destructive operations. Expand a change to
-  see its individual `tasks.md` checklist items; select one to jump to it
+  actions with confirmation for destructive operations. Expand a change,
+  then expand its collapsible "Tasks" entry to see the individual
+  `tasks.md` checklist items nested under it; select one to jump to it
   in the editor, or delete it (active changes only, and only if not yet
   done) with confirmation.
 - See queued, running, completed, failed, cancelled, interrupted, and

@@ -78,7 +78,7 @@ describe("ChangesTreeProvider", () => {
     expect(actions[0]?.id).not.toBe(bootstrapRoot?.id);
   });
 
-  it("shows standard and delta artifacts under a change", async () => {
+  it("shows standard, delta, and tasks artifacts under a change — tasks.md is collapsible, not a leaf", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",
       configExists: true,
@@ -89,6 +89,7 @@ describe("ChangesTreeProvider", () => {
         artifacts: [
           { id: "proposal", kind: "proposal", label: "Proposal", path: "/changes/shared-ui/proposal.md", exists: true },
           { id: "design", kind: "design", label: "Design", path: "/changes/shared-ui/design.md", exists: false },
+          { id: "tasks", kind: "tasks", label: "Tasks", path: "/changes/shared-ui/tasks.md", exists: true },
           { id: "delta-spec:x", kind: "delta-spec", label: "x", path: "/changes/shared-ui/specs/x/spec.md", exists: true },
         ],
       }],
@@ -99,21 +100,63 @@ describe("ChangesTreeProvider", () => {
     const change = roots[2];
     const artifacts = await provider.getChildren(change);
 
-    expect(artifacts.map((item) => item.label)).toEqual(["Proposal", "Design", "Spec: x"]);
+    // Individual tasks are NOT flattened in here alongside Proposal/Design/
+    // Spec — this is the exact bug reported live twice: "tasks aren't
+    // nested under Tasks, they're next to it." readTaskChecklist must not
+    // even be called yet — task fetching is lazy, only on expanding Tasks.
+    expect(artifacts.map((item) => item.label)).toEqual(["Proposal", "Design", "Tasks", "Spec: x"]);
+    expect(readTaskChecklistMock).not.toHaveBeenCalled();
     expect(artifacts[1]?.description).toBe("missing");
     expect(artifacts[0]?.command?.command).toBe("vscode.open");
     expect(artifacts.map((item) => item.id)).toEqual([
       "artifact:/changes/shared-ui/proposal.md",
       "artifact:/changes/shared-ui/design.md",
+      "artifact:/changes/shared-ui/tasks.md",
       "artifact:/changes/shared-ui/specs/x/spec.md",
     ]);
+    // Every other artifact is a non-collapsible leaf; Tasks is the only
+    // one with real children, so it's the only one collapsible.
+    expect(artifacts[0]?.collapsibleState).toBe(0); // None
+    expect(artifacts[1]?.collapsibleState).toBe(0); // None
+    expect(artifacts[2]?.collapsibleState).toBe(1); // Collapsed
+    expect(artifacts[2]?.contextValue).toBe("openspec-ui.tasksArtifact");
+    expect(artifacts[3]?.collapsibleState).toBe(0); // None
   });
 
-  it("shows tasks.md's individual checklist items after the artifacts, as active tasks", async () => {
+  it("a missing tasks.md is a non-collapsible leaf, same as any other missing artifact", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",
       configExists: true,
-      changes: [{ name: "shared-ui", path: "/changes/shared-ui", state: "in-progress", artifacts: [] }],
+      changes: [{
+        name: "shared-ui",
+        path: "/changes/shared-ui",
+        state: "draft",
+        artifacts: [
+          { id: "tasks", kind: "tasks", label: "Tasks", path: "/changes/shared-ui/tasks.md", exists: false },
+        ],
+      }],
+    });
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const artifacts = await provider.getChildren(roots[2]);
+
+    expect(artifacts[0]?.collapsibleState).toBe(0); // None
+    expect(artifacts[0]?.description).toBe("missing");
+  });
+
+  it("nests tasks.md's individual checklist items under the Tasks artifact, not under the Change directly", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [{
+        name: "shared-ui",
+        path: "/changes/shared-ui",
+        state: "in-progress",
+        artifacts: [
+          { id: "tasks", kind: "tasks", label: "Tasks", path: "/changes/shared-ui/tasks.md", exists: true },
+        ],
+      }],
     });
     readTaskChecklistMock.mockResolvedValue([
       { lineNumber: 2, text: "1.1 First task", done: true },
@@ -122,7 +165,11 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const children = await provider.getChildren(roots[2]);
+    const changeChildren = await provider.getChildren(roots[2]);
+    const tasksArtifact = changeChildren[0];
+    expect(tasksArtifact?.contextValue).toBe("openspec-ui.tasksArtifact");
+
+    const children = await provider.getChildren(tasksArtifact);
 
     expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "shared-ui", false);
     expect(children.map((item) => item.label)).toEqual(["1.1 First task", "1.2 Second task"]);
@@ -131,14 +178,13 @@ describe("ChangesTreeProvider", () => {
     expect(children[0]?.contextValue).toBe("openspec-ui.activeTaskDone");
     expect(children[1]?.contextValue).toBe("openspec-ui.activeTask");
     expect(children[0]?.command?.command).toBe("openspec-ui.revealTask");
-    // Regression coverage: task ids must be distinct from their parent
-    // Change's own id (and from each other) — without this, VS Code's
-    // label-derived id fallback could desync the tree, reported live as
-    // tasks rendering flush with the Change instead of nested under it.
+    // Regression coverage: task ids must be distinct from both their
+    // parent Tasks artifact's id and the Change's own id.
     expect(children.map((item) => item.id)).toEqual([
       "task:active:shared-ui:2",
       "task:active:shared-ui:3",
     ]);
+    expect(children[0]?.id).not.toBe(tasksArtifact?.id);
     expect(children[0]?.id).not.toBe(roots[2]?.id);
   });
 

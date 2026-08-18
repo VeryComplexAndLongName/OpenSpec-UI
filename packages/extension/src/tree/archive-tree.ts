@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { discoverOpenSpecWorkspace } from "@openspec-ui/core";
-import { ChangeTreeItem, EmptyTreeItem, getChangeChildren, type WorkbenchTreeItem } from "./changes-tree.js";
+import {
+  ChangeTreeItem,
+  EmptyTreeItem,
+  TasksArtifactTreeItem,
+  getChangeChildren,
+  getTasksArtifactChildren,
+  type WorkbenchTreeItem,
+} from "./changes-tree.js";
 
 export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -18,7 +25,10 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {
     if (element instanceof ChangeTreeItem) {
-      return getChangeChildren(this.workspaceRoot, element);
+      return getChangeChildren(element);
+    }
+    if (element instanceof TasksArtifactTreeItem) {
+      return getTasksArtifactChildren(this.workspaceRoot, element);
     }
     if (element) return [];
     const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);

@@ -141,19 +141,31 @@ for the areas the embed does not show.
 
 Expanding a change node in either the "Changes" or "Archive" tree view
 SHALL also list that change's individual `tasks.md` checklist items as
-child tree items, alongside its existing artifact children. Selecting a
-task item SHALL open (or reveal, if already open) `tasks.md` with the
-cursor moved to that task's line, in both trees. A "Delete Task" action
-SHALL be available only on task items belonging to an active (non-
-archived) change; selecting it, after confirmation, SHALL remove exactly
-that task's checklist line from the change's `tasks.md`. Task items
-belonging to archived changes SHALL NOT offer a delete action.
+child tree items, alongside its existing artifact children, nested
+under that change and independently collapsible/expandable. Every tree
+item in these views SHALL have a stable identity derived from data
+already unique at its scope (not label-derived, not dependent on object
+identity surviving a refresh), distinct from its parent's identity, so
+that nesting and collapse state survive tree refreshes. Selecting a task
+item SHALL open (or reveal, if already open) `tasks.md` with the cursor
+moved to that task's line, in both trees. A "Delete Task" action SHALL
+be available only on task items belonging to an active (non-archived)
+change that are not marked done; selecting it, after confirmation, SHALL
+remove exactly that task's checklist line from the change's `tasks.md`.
+Task items belonging to archived changes, and done task items in active
+changes, SHALL NOT offer a delete action.
 
 #### Scenario: Expanding an active change shows its tasks
 
 - **WHEN** the user expands a change node in the "Changes" tree
 - **THEN** its individual `tasks.md` checklist items appear as child
   items alongside the existing artifact children
+
+#### Scenario: Task identity is distinct from its parent Change
+
+- **WHEN** a change node's children are computed
+- **THEN** each task item's id is distinct from the parent Change's own
+  id and from every sibling's id
 
 #### Scenario: Selecting a task reveals it in the editor
 
@@ -164,7 +176,7 @@ belonging to archived changes SHALL NOT offer a delete action.
 #### Scenario: Deleting a task from an active change
 
 - **WHEN** the user confirms "Delete Task" on a task belonging to an
-  active change
+  active change that is not marked done
 - **THEN** that exact line is removed from the change's `tasks.md`
 
 #### Scenario: Archived tasks offer no delete action
@@ -172,10 +184,78 @@ belonging to archived changes SHALL NOT offer a delete action.
 - **WHEN** the user views a task item under the "Archive" tree
 - **THEN** no delete action is available for it
 
+#### Scenario: Done tasks offer no delete action, even in active changes
+
+- **WHEN** the user views a task item marked done (`- [x]`) under an
+  active change in the "Changes" tree
+- **THEN** no delete action is available for it, and invoking the delete
+  command directly with that item makes no change to `tasks.md`
+
 #### Scenario: The underlying file changed since the tree was last refreshed
 
 - **WHEN** the user attempts to delete a task whose stored position no
   longer matches the current content of `tasks.md`
 - **THEN** the system reports that the task list has changed and makes no
   filesystem change, rather than risking deletion of a different line
+
+### Requirement: Changes tree surfaces repository-setup actions
+
+The "Changes" tree view SHALL show a "Repository Setup" node, always
+present regardless of workspace initialization state, positioned
+immediately after "OpenSpec Configuration". Expanding it SHALL list the
+three repository-bootstrap actions ("Generate Agent Instructions",
+"Configure Dependabot", "Generate Path-Scoped Copilot Instructions") as
+child items; selecting one SHALL run the corresponding existing command
+(`openspec-ui.generateAgentInstructions`,
+`openspec-ui.configureDependabot`, `openspec-ui.generateSubtypeInstructions`)
+unchanged, including its project-type `QuickPick` prompt. The "Archive"
+tree SHALL NOT show this node.
+
+#### Scenario: Repository Setup node is always visible
+
+- **WHEN** the user opens the "Changes" tree, regardless of whether any
+  changes exist
+- **THEN** a "Repository Setup" node is shown immediately after "OpenSpec
+  Configuration"
+
+#### Scenario: Selecting a repository-setup action runs its command
+
+- **WHEN** the user expands "Repository Setup" and selects "Generate
+  Agent Instructions"
+- **THEN** the `openspec-ui.generateAgentInstructions` command runs,
+  including its existing project-type prompt
+
+#### Scenario: Archive tree has no Repository Setup node
+
+- **WHEN** the user opens the "Archive" tree
+- **THEN** no "Repository Setup" node is shown
+
+### Requirement: Changes and Archive trees offer whole-Change rollback
+
+A "Rollback Change" action SHALL be available on a Change item in either
+the "Changes" or "Archive" tree view. Selecting it, when at least one
+rollback-eligible process exists for that Change, SHALL show a
+confirmation naming the affected file and process counts before
+proceeding; when no rollback-eligible process exists, the system SHALL
+report that instead of prompting for confirmation.
+
+#### Scenario: Rollback from the Changes tree
+
+- **WHEN** the user selects "Rollback Change" on an active Change with
+  rollback-eligible processes
+- **THEN** a confirmation shows the affected file and process counts
+- **AND** confirming restores those files and refreshes the trees
+
+#### Scenario: Rollback from the Archive tree
+
+- **WHEN** the user selects "Rollback Change" on an archived Change with
+  rollback-eligible processes
+- **THEN** the same confirmation and restore behavior applies, unmodified
+  by archive status
+
+#### Scenario: No rollback-eligible processes
+
+- **WHEN** the user selects "Rollback Change" on a Change with no
+  rollback-eligible processes
+- **THEN** the system reports this without showing a confirmation dialog
 
