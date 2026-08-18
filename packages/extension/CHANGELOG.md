@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1
+
+- Docs only: added a Screenshots section to the root README (sidebar
+  overview, Changes/Tasks nesting, Archive context menu, Repository
+  Setup, Specs, Templates) — no code changes.
+
 ## 0.15.0
 
 - Fixed: task checklist items in the Changes and Archive trees rendered
