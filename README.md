@@ -6,6 +6,41 @@ GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
 
+## Screenshots (VS Code extension)
+
+Sidebar overview: Changes (with the "Repository Setup" discoverability node
+and its empty-state prompt), Archive, Specs, Templates, and Processes, all
+visible at once.
+
+![Sidebar overview: Changes, Archive, Specs, Templates, Processes](docs/images/overview.png)
+
+Individual `tasks.md` checklist items nest under the collapsible **Tasks**
+artifact of a change, not flat alongside Proposal/Design/Spec:
+
+![Task checklist items nested under the Tasks artifact of a change](docs/images/changes-tasks-nested.png)
+
+Archive: an archived change expanded to its artifacts, with the
+change-scoped actions available from its context menu (Unarchive, Copy
+Tasks as Template Into..., Rollback, Delete):
+
+![Archived change context menu: Unarchive, Copy Tasks as Template, Rollback, Delete](docs/images/archive.png)
+
+"Repository Setup" groups the repo-bootstrap actions (agent instructions,
+Dependabot config, path-scoped Copilot instructions) under a visible,
+discoverable tree node instead of Command Palette-only entries:
+
+![Repository Setup node with its three bootstrap actions](docs/images/repo-bootstrap.png)
+
+Specs: browse a capability's canonical requirements/scenarios directly in
+the editor:
+
+![Specs panel with a capability open in the editor](docs/images/specs.png)
+
+Templates: built-in and project-level `tasks.md` templates, with
+Customize/Insert actions from the context menu:
+
+![Templates panel with Customize Template / Insert Template Into... context menu](docs/images/templates.png)
+
 ## Local Delivery Modes
 
 This repository effectively ships two independent products that share one
