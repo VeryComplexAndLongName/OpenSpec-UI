@@ -33,6 +33,7 @@ describe("TemplatesTreeProvider", () => {
 
     expect(groups.map((g) => g.label)).toEqual(["Built-in", "Project"]);
     expect(listProjectTemplatesMock).toHaveBeenCalledWith("/workspace/repo");
+    expect(groups.map((g) => g.id)).toEqual(["template-group:Built-in", "template-group:Project"]);
   });
 
   it("lists templates inside a group as leaf items with the right contextValue", async () => {
@@ -46,6 +47,8 @@ describe("TemplatesTreeProvider", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.label).toBe("Seed");
     expect(items[0]?.contextValue).toBe("openspec-ui.builtInTemplate");
+    expect(items[0]?.id).toBe("template:built-in:seed");
+    expect(items[0]?.id).not.toBe(builtInGroup?.id);
   });
 
   it("marks project templates with a distinct contextValue", async () => {
