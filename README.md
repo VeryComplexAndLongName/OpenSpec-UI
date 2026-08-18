@@ -7,6 +7,8 @@ GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
 
+OpenSpec-UI is built around OpenSpec — and OpenSpec-UI itself is used with the OpenSpec repository.
+
 ## Screenshots (VS Code extension)
 
 Sidebar overview: Changes (with the "Repository Setup" discoverability node
