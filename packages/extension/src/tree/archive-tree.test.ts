@@ -37,6 +37,7 @@ describe("ArchiveTreeProvider", () => {
     expect(items).toHaveLength(2);
     expect(items.map((i) => i.label)).toEqual(["old-change-1", "old-change-2"]);
     expect(items[0]?.description).toBe("archived");
+    expect(items.map((i) => i.id)).toEqual(["change:archived:old-change-1", "change:archived:old-change-2"]);
   });
 
   it("shows archived tasks as read-only (openspec-ui.archivedTask) children", async () => {
@@ -53,6 +54,8 @@ describe("ArchiveTreeProvider", () => {
     expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "old-change-1", true);
     expect(children.map((item) => item.label)).toEqual(["Only task"]);
     expect(children[0]?.contextValue).toBe("openspec-ui.archivedTask");
+    expect(children[0]?.id).toBe("task:archived:old-change-1:0");
+    expect(children[0]?.id).not.toBe(roots[0]?.id);
   });
 
   it("explains when the archive directory does not exist", async () => {

@@ -4,6 +4,7 @@ import { listBuiltInTemplates, listProjectTemplates, type CatalogTemplate } from
 export class TemplateTreeItem extends vscode.TreeItem {
   constructor(public readonly template: CatalogTemplate) {
     super(template.manifest.title, vscode.TreeItemCollapsibleState.None);
+    this.id = `template:${template.origin}:${template.manifest.id}`;
     this.description = template.manifest.forkedFrom ? `${template.manifest.category} · customized` : template.manifest.category;
     this.contextValue = template.origin === "built-in" ? "openspec-ui.builtInTemplate" : "openspec-ui.projectTemplate";
     this.iconPath = new vscode.ThemeIcon(template.origin === "built-in" ? "library" : "file-code");
@@ -14,6 +15,7 @@ export class TemplateTreeItem extends vscode.TreeItem {
 export class TemplateGroupTreeItem extends vscode.TreeItem {
   constructor(label: string, public readonly templates: CatalogTemplate[]) {
     super(label, vscode.TreeItemCollapsibleState.Expanded);
+    this.id = `template-group:${label}`;
     this.contextValue = "openspec-ui.templateGroup";
   }
 }
@@ -21,6 +23,7 @@ export class TemplateGroupTreeItem extends vscode.TreeItem {
 export class EmptyTemplatesTreeItem extends vscode.TreeItem {
   constructor(label: string, description: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
+    this.id = `empty-templates:${label}`;
     this.description = description;
     this.contextValue = "openspec-ui.empty";
     this.iconPath = new vscode.ThemeIcon("info");
