@@ -282,15 +282,24 @@ export async function rollbackCheckpoint(checkpoint: WorkbenchCheckpoint): Promi
  * the conflicting file. Callers (`WorkbenchRecoveryService`,
  * `ImplementationSessionManager`) are responsible for selecting which
  * checkpoints belong to a Change and are rollback-eligible — this
- * function only does the aggregation + restore. */
+ * function only does the aggregation + restore.
+ *
+ * `checkpoints` MUST already be in chronological (earliest-first) order.
+ * This deliberately does not re-sort by `createdAt`: that field has
+ * millisecond resolution and two checkpoints captured in the same
+ * millisecond (confirmed live — a fast CI runner tripped this) would tie,
+ * making a sort-based order silently wrong with no error. Both real
+ * callers already provide correct order for free — they build this list
+ * from a `Map`'s iteration order, which is insertion order, which is
+ * capture order — so trusting the caller is both simpler and more
+ * reliable than re-deriving order from a lossy timestamp. */
 export async function rollbackChangeCheckpoints(checkpoints: WorkbenchCheckpoint[]): Promise<RollbackResult> {
   if (checkpoints.length === 0) throw new Error("No checkpoints to roll back");
-  const ordered = [...checkpoints].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  const root = ordered[0]!.root;
+  const root = checkpoints[0]!.root;
 
   const earliestBefore = new Map<string, Buffer | undefined>();
   const latestAfterHash = new Map<string, string | undefined>();
-  for (const checkpoint of ordered) {
+  for (const checkpoint of checkpoints) {
     if (!checkpoint.after || !checkpoint.delta) throw new Error("Checkpoint must be finalized before rollback");
     for (const delta of checkpoint.delta) {
       if (!earliestBefore.has(delta.path)) {

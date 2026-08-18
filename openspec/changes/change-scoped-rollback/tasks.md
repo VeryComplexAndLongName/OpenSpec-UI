@@ -114,3 +114,31 @@
   `server.test.ts` (task 6.3).
 - [x] 7.6 `openspec change validate --strict change-scoped-rollback`
   passes.
+
+## 8. CI-caught race condition, fixed post-review
+
+- [x] 8.1 A CI run on a fast runner failed `checkpoint.test.ts`'s
+  order-independence test with `expected ['shared.txt'] to deeply equal
+  []` — a genuine bug, not flakiness: `rollbackChangeCheckpoints` sorted
+  input checkpoints by `Date.parse(checkpoint.createdAt)`, and
+  `createdAt` (`new Date().toISOString()`) only has millisecond
+  resolution. Two checkpoints captured back to back can tie, and V8's
+  stable sort then leaves tied entries in their *original* array
+  position rather than a meaningful chronological one — silently
+  aggregating `before`/`after` state from the wrong checkpoint and
+  surfacing as a spurious conflict (or, worse in a real scenario, a
+  silently wrong restore instead of a caught conflict).
+- [x] 8.2 Fixed by removing the internal sort entirely: the function now
+  documents and trusts caller-provided order (earliest-first) instead of
+  re-deriving it from a lossy timestamp. Both real callers
+  (`WorkbenchRecoveryService.changeRollbackCandidates`,
+  `ImplementationSessionManager.changeRollbackCandidates`) already
+  provide correct order for free — they build their checkpoint list from
+  a `Map`'s iteration order, which is insertion order, which is capture
+  order.
+- [x] 8.3 `checkpoint.test.ts`'s order test rewritten to match the new
+  contract: correct (earliest-first) order still restores correctly;
+  passing checkpoints out of order now fails closed with a conflict
+  rather than silently restoring the wrong content. Re-ran
+  `packages/core`'s full suite (162/162) plus a standalone run of
+  `checkpoint.test.ts` (9/9) and `workbench-recovery.test.ts` (5/5).

@@ -120,7 +120,12 @@ describe("rollbackChangeCheckpoints", () => {
     await expect(readFile(path.join(root, "only-in-second.txt"))).rejects.toThrow();
   });
 
-  it("restores correctly regardless of array order (sorts by checkpoint.createdAt)", async () => {
+  it("trusts the caller's array order rather than re-sorting by createdAt", async () => {
+    // createdAt has millisecond resolution and can tie between two
+    // checkpoints captured back to back (confirmed live on a fast CI
+    // runner) — sorting by it would then be unreliable with no error.
+    // The function trusts input order instead; both real callers already
+    // provide it for free via Map iteration order (insertion order).
     const root = await temporaryRoot();
     await writeFile(path.join(root, "shared.txt"), "v0");
     const checkpoint1 = await captureCheckpoint(root);
@@ -130,10 +135,16 @@ describe("rollbackChangeCheckpoints", () => {
     await writeFile(path.join(root, "shared.txt"), "v2");
     await finalizeCheckpoint(checkpoint2);
 
-    const result = await rollbackChangeCheckpoints([checkpoint2, checkpoint1]);
-
-    expect(result.conflicts).toEqual([]);
+    const inOrder = await rollbackChangeCheckpoints([checkpoint1, checkpoint2]);
+    expect(inOrder.conflicts).toEqual([]);
     expect(await readFile(path.join(root, "shared.txt"), "utf8")).toBe("v0");
+
+    // Passing them out of order doesn't silently restore the wrong
+    // content — it fails closed with a conflict, same as any other
+    // unexpected on-disk state.
+    await writeFile(path.join(root, "shared.txt"), "v2");
+    const outOfOrder = await rollbackChangeCheckpoints([checkpoint2, checkpoint1]);
+    expect(outOfOrder.conflicts).toEqual(["shared.txt"]);
   });
 
   it("refuses the entire restore when any file was changed after the latest known state", async () => {
