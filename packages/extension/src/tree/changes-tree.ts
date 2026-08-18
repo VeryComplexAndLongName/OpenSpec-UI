@@ -87,7 +87,60 @@ export class TaskTreeItem extends vscode.TreeItem {
   }
 }
 
-export type WorkbenchTreeItem = ChangeTreeItem | ArtifactTreeItem | EmptyTreeItem | TaskTreeItem;
+/** Groups the three repo-bootstrap Command Palette actions
+ * (`repo-bootstrap-snippets`) under a visible tree node — those commands
+ * previously had no tree/menu presence at all, which review found made
+ * them effectively undiscoverable. See
+ * openspec/changes/repo-bootstrap-tree-ui/proposal.md. */
+export class RepoBootstrapRootTreeItem extends vscode.TreeItem {
+  constructor() {
+    super("Repository Setup", vscode.TreeItemCollapsibleState.Collapsed);
+    this.description = "CLAUDE.md, dependabot.yml, ...";
+    this.contextValue = "openspec-ui.repoBootstrapRoot";
+    this.iconPath = new vscode.ThemeIcon("tools");
+  }
+}
+
+export class RepoBootstrapActionTreeItem extends vscode.TreeItem {
+  constructor(label: string, description: string, command: string, icon: string) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.description = description;
+    this.contextValue = "openspec-ui.repoBootstrapAction";
+    this.iconPath = new vscode.ThemeIcon(icon);
+    this.command = { command, title: label };
+  }
+}
+
+export function getRepoBootstrapActions(): RepoBootstrapActionTreeItem[] {
+  return [
+    new RepoBootstrapActionTreeItem(
+      "Generate Agent Instructions",
+      "CLAUDE.md / AGENTS.md",
+      "openspec-ui.generateAgentInstructions",
+      "book",
+    ),
+    new RepoBootstrapActionTreeItem(
+      "Configure Dependabot",
+      ".github/dependabot.yml",
+      "openspec-ui.configureDependabot",
+      "shield",
+    ),
+    new RepoBootstrapActionTreeItem(
+      "Generate Path-Scoped Copilot Instructions",
+      ".github/instructions/<subtype>.instructions.md",
+      "openspec-ui.generateSubtypeInstructions",
+      "file-code",
+    ),
+  ];
+}
+
+export type WorkbenchTreeItem =
+  | ChangeTreeItem
+  | ArtifactTreeItem
+  | EmptyTreeItem
+  | TaskTreeItem
+  | RepoBootstrapRootTreeItem
+  | RepoBootstrapActionTreeItem;
 
 /** Shared by `ChangesTreeProvider` and `ArchiveTreeProvider` — both trees
  * expand a `ChangeTreeItem` the same way (artifacts, then tasks.md's
@@ -131,6 +184,9 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     if (element instanceof ChangeTreeItem) {
       return getChangeChildren(this.workspaceRoot, element);
     }
+    if (element instanceof RepoBootstrapRootTreeItem) {
+      return getRepoBootstrapActions();
+    }
 
     if (element) return [];
     const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
@@ -143,6 +199,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
         "openspec-ui.config",
       ),
     );
+    items.push(new RepoBootstrapRootTreeItem());
     for (const change of workspace.changes) {
       items.push(new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false));
     }
