@@ -203,7 +203,7 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.19.0 | Shared behavior and persistence contract |
+| `@openspec-ui/core` | 0.20.0 | Shared behavior and persistence contract |
 | `openspec-ui-vscode` | 0.16.0 | VS Code delivery |
 | `@openspec-ui/server` | 1.8.0 | Standalone server delivery |
 | `@openspec-ui/webui` | 1.9.0 | Shared browser UI |
