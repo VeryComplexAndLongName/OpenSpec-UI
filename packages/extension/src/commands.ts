@@ -580,7 +580,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.deleteTask", async (item?: TaskTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.archived) return;
+      if (!workspaceRoot || !item || item.archived || item.done) return;
       const answer = await vscode.window.showWarningMessage(
         `Permanently delete task "${item.text}" from ${item.changeName}'s tasks.md?`,
         { modal: true },
