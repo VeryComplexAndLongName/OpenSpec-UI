@@ -21,7 +21,7 @@ task's checklist line from the change's `tasks.md`. Task items
 belonging to archived changes, and done task items in active changes,
 SHALL NOT offer a delete action.
 
-#### Scenario: Expanding an active change shows its artifacts, including a collapsible Tasks
+#### Scenario: Expanding an active change shows its tasks
 
 - **WHEN** the user expands a change node in the "Changes" tree
 - **THEN** its artifacts appear as child items, and the "Tasks" artifact
@@ -34,7 +34,7 @@ SHALL NOT offer a delete action.
   its children, and none of them appeared as direct children of the
   change node itself
 
-#### Scenario: Task identity is distinct from its parent Tasks artifact and the Change
+#### Scenario: Task identity is distinct from its parent Change
 
 - **WHEN** the Tasks artifact's children are computed
 - **THEN** each task item's id is distinct from the Tasks artifact's own

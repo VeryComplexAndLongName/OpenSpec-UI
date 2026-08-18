@@ -14,5 +14,6 @@ Alternatives / Consequences.
 | [0005](0005-authenticated-local-transport.md) | Authenticated local REST and WebSocket transport | Accepted |
 | [0006](0006-fail-closed-journal-compatibility.md) | Fail-closed journal compatibility | Accepted |
 | [0007](0007-ci-cli-third-delivery-target.md) | CI CLI as a third thin delivery target | Accepted |
+| [0008](0008-change-scoped-rollback-and-retention.md) | Change-scoped rollback instead of task-scoped, with opt-in retention | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
