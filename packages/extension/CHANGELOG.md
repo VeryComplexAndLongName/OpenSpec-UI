@@ -15,6 +15,16 @@
   the pruned processes, disclosed in the setting description and in this
   README.
 
+## 0.13.0
+
+- Added a "Repository Setup" node to the Changes tree, right after
+  "OpenSpec Configuration": expanding it lists "Generate Agent
+  Instructions", "Configure Dependabot", and "Generate Path-Scoped
+  Copilot Instructions" as clickable items. These commands already
+  existed (0.12.0) but were Command Palette-only with no tree presence —
+  this makes them discoverable without knowing the exact command name to
+  search for.
+
 ## 0.12.1
 
 - "Delete Task" is no longer offered for a task marked done, even in an
