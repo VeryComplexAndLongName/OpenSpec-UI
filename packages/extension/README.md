@@ -40,7 +40,8 @@ notifications while keeping lifecycle and security behavior in
   themes.
 - Open native markdown and diff editors instead of custom replacements.
 - Browse built-in and project-level change templates in the Templates
-  view. Customize a built-in template into your project (keeping a
+  view, grouped first by origin (Built-in / Project) and then by
+  category. Customize a built-in template into your project (keeping a
   backlink to the version it was forked from), insert a rendered
   template into any active change, or delete a project-level template
   with confirmation — built-in templates ship as part of the extension

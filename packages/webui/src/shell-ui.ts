@@ -555,6 +555,15 @@ export const shellThemeCss = `
     border-bottom: none;
   }
 
+  .openspec-overview-table-subheader td {
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
   .openspec-process-details {
     margin-top: 12px;
     padding-top: 12px;

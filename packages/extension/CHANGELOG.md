@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0
+
+- Templates tree and the standalone Templates tab now group templates
+  by category instead of a flat per-origin list. VS Code: "Built-in" and
+  "Project" each gain an alphabetically-sorted category subgroup level —
+  a template is never a direct child of the origin group anymore.
+  Standalone: table rows are sorted by category with a subheader row per
+  category boundary. Presentation-only — no change to the underlying
+  catalog data or to customize/insert/delete actions.
+
 ## 0.15.2
 
 - Docs only: Marketplace description now leads with the built-in
