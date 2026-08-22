@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import simpleGit from "simple-git";
 
 const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
   ".git",
@@ -105,10 +106,55 @@ interface WorkspaceScan {
   skippedFiles: string[];
 }
 
+async function gitCheckpointPaths(root: string): Promise<string[] | undefined> {
+  try {
+    const output = await simpleGit(root).raw([
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "-z",
+    ]);
+    return output.split("\0").filter(Boolean).sort();
+  } catch {
+    return undefined;
+  }
+}
+
+function isMissingFile(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
 async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): Promise<WorkspaceScan> {
   const files = new Map<string, FileSnapshot>();
   const skippedFiles: string[] = [];
   let totalBytes = 0;
+
+  async function captureFile(relativePath: string): Promise<void> {
+    assertSafeRelativePath(relativePath);
+    if (isExcludedCheckpointPath(relativePath)) {
+      if (isExcludedCheckpointFile(relativePath)) skippedFiles.push(relativePath);
+      return;
+    }
+    const absolutePath = path.join(root, relativePath);
+    try {
+      const fileStats = await lstat(absolutePath);
+      if (!fileStats.isFile() || fileStats.isSymbolicLink()) return;
+    } catch (error) {
+      if (isMissingFile(error)) return;
+      throw error;
+    }
+    const content = await readFile(absolutePath);
+    if (content.byteLength > limits.maxFileBytes) {
+      skippedFiles.push(relativePath);
+      return;
+    }
+    totalBytes += content.byteLength;
+    if (files.size >= limits.maxFiles || totalBytes > limits.maxBytes) {
+      throw new Error("Workbench checkpoint exceeds configured size limits");
+    }
+    files.set(relativePath, { hash: hash(content), content });
+  }
 
   async function visit(directory: string): Promise<void> {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -121,24 +167,16 @@ async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): 
       }
       if (!entry.isFile()) continue;
       const relativePath = path.relative(root, absolutePath);
-      if (DEFAULT_EXCLUDED_FILES.has(entry.name)) {
-        skippedFiles.push(relativePath);
-        continue;
-      }
-      const content = await readFile(absolutePath);
-      if (content.byteLength > limits.maxFileBytes) {
-        skippedFiles.push(relativePath);
-        continue;
-      }
-      totalBytes += content.byteLength;
-      if (files.size >= limits.maxFiles || totalBytes > limits.maxBytes) {
-        throw new Error("Workbench checkpoint exceeds configured size limits");
-      }
-      files.set(relativePath, { hash: hash(content), content });
+      await captureFile(relativePath);
     }
   }
 
-  await visit(root);
+  const gitPaths = await gitCheckpointPaths(root);
+  if (gitPaths) {
+    for (const relativePath of gitPaths) await captureFile(relativePath);
+  } else {
+    await visit(root);
+  }
   return { files, skippedFiles };
 }
 

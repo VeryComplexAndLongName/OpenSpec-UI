@@ -9,6 +9,8 @@ history.
 
 - Exclude `.env`, generated cache directories, cache files, and local virtual
   environments from new workbench checkpoints.
+- Use the workspace repository's Git ignore rules so language- and
+  project-specific generated files are omitted without a hard-coded catalog.
 - Remove those paths from checkpoints restored from existing run journals and
   persist the sanitized journal without deleting workspace files.
 - Cover new capture and migration behavior with core tests.
@@ -28,4 +30,6 @@ history.
 
 - `packages/core/src/checkpoint.ts`
 - `packages/core/src/checkpoint.test.ts`
+- `packages/extension/CHANGELOG.md`
+- `README.md` release version table
 - Core and extension patch versions

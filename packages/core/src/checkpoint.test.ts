@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import simpleGit from "simple-git";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   captureCheckpoint,
@@ -99,6 +100,44 @@ describe("Workbench checkpoints", () => {
       ".venv",
       "__pycache__",
     ]));
+  });
+
+  it("honors nested Git ignore rules, negation, and tracked files", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await writeFile(path.join(root, ".gitignore"), "*.cache\nsrc/generated/\n!keep.cache\n");
+    await writeFile(path.join(root, "ignored.cache"), "ignored");
+    await writeFile(path.join(root, "keep.cache"), "included");
+    await writeFile(path.join(root, "tracked.cache"), "tracked");
+    await writeFile(path.join(root, "src", ".gitignore"), "*.tmp\n!keep.tmp\n");
+    await writeFile(path.join(root, "src", "ignored.tmp"), "ignored");
+    await writeFile(path.join(root, "src", "keep.tmp"), "included");
+    await mkdir(path.join(root, "src", "generated"), { recursive: true });
+    await writeFile(path.join(root, "src", "generated", "output.bin"), "ignored");
+    const git = simpleGit(root);
+    await git.init();
+    await git.add([".gitignore", "src/.gitignore"]);
+    await git.raw(["add", "-f", "tracked.cache"]);
+
+    const checkpoint = await captureCheckpoint(root);
+
+    expect([...checkpoint.before.keys()]).toEqual([
+      ".gitignore",
+      "keep.cache",
+      "src/.gitignore",
+      "src/keep.tmp",
+      "tracked.cache",
+    ]);
+  });
+
+  it("falls back to filesystem traversal outside a Git repository", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, ".gitignore"), "ignored.txt\n");
+    await writeFile(path.join(root, "ignored.txt"), "included without Git");
+
+    const checkpoint = await captureCheckpoint(root);
+
+    expect([...checkpoint.before.keys()]).toEqual([".gitignore", "ignored.txt"]);
   });
 
   it("round-trips persisted checkpoints and rejects unsafe paths", async () => {

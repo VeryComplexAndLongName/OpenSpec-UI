@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.2
+
+- Fixed: mutating operations such as archive no longer fail checkpoint limits
+  because of ignored project output. Checkpoint capture now honors root and
+  nested `.gitignore` rules, `.git/info/exclude`, and global Git excludes while
+  retaining tracked and negated files. Mandatory `.env`, virtual-environment,
+  and generated-cache exclusions remain active, and historical journals are
+  sanitized on workspace activation without deleting project files.
+
 ## 0.16.0
 
 - Templates tree and the standalone Templates tab now group templates

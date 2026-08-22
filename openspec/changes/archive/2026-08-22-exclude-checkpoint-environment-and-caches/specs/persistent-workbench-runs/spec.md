@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Checkpoint persistence excludes sensitive and generated state
 
@@ -18,3 +18,16 @@ local virtual environments from checkpoint capture and rollback data.
   current checkpoint policy
 - **THEN** recovery removes those paths from the checkpoint snapshots and delta
 - **AND** the sanitized journal is persisted without deleting workspace files
+
+#### Scenario: Capture a Git workspace with project-specific ignores
+
+- **WHEN** a checkpoint is captured in a Git workspace with root or nested
+  `.gitignore` rules
+- **THEN** untracked paths ignored by Git are omitted from the checkpoint
+- **AND** negated untracked paths and tracked files remain covered
+
+#### Scenario: Capture a workspace outside Git
+
+- **WHEN** Git cannot enumerate files for the workspace
+- **THEN** checkpoint capture falls back to filesystem traversal
+- **AND** mandatory sensitive and generated-state exclusions still apply

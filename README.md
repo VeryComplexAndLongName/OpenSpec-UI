@@ -181,10 +181,10 @@ release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.15.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.9.0 | VS Code delivery |
-| `@openspec-ui/server` | 1.6.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.7.0 | Shared browser UI |
+| `@openspec-ui/core` | 0.20.2 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.16.2 | VS Code delivery |
+| `@openspec-ui/server` | 1.8.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.9.0 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
 
 `@vscode/vsce` (the extension's packager) already names the built
