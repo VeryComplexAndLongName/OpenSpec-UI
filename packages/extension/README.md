@@ -5,6 +5,54 @@ It uses native tree views, markdown editors, diffs, Source Control, Chat, and
 notifications while keeping lifecycle and security behavior in
 `@openspec-ui/core`.
 
+## Screenshots
+
+### Workbench overview
+
+#### Expanded artifacts and actions
+
+![Expanded OpenSpec Workbench with change artifacts, archive entries, specs, templates, and processes](../../docs/images/extension/overview-expanded.png)
+
+#### Compact repository overview
+
+![Compact OpenSpec Workbench with Changes, Archive, Specs, Templates, and Processes views](../../docs/images/extension/overview-compact.png)
+
+### Changes and archive
+
+Individual checklist entries remain nested under their `tasks.md` artifact,
+while archived changes expose lifecycle and template actions from the native
+context menu.
+
+#### Nested tasks
+
+![Completed checklist items nested under a change Tasks artifact](../../docs/images/extension/nested-tasks.png)
+
+#### Archive actions
+
+![Archived change context menu with unarchive, copy template, rollback, and delete actions](../../docs/images/extension/archive-actions.png)
+
+#### Archived task history
+
+![Expanded archived change tasks beside the archive context menu](../../docs/images/extension/archive-tasks.png)
+
+### Specs, templates, and repository setup
+
+#### Canonical spec editor
+
+![Canonical spec selected in the Specs tree and open in the VS Code editor](../../docs/images/extension/specs-editor.png)
+
+#### Requirement counts
+
+![Specs tree listing capabilities and their requirement counts](../../docs/images/extension/specs-list.png)
+
+#### Template actions
+
+![Template context menu with customize and insert actions](../../docs/images/extension/template-actions.png)
+
+#### Repository bootstrap
+
+![Repository Setup tree with agent instructions, Dependabot, and Copilot instruction generators](../../docs/images/extension/repository-setup.png)
+
 ## Features
 
 - Navigate `config.yaml`, active changes, archived changes, canonical specs,

@@ -1,48 +1,29 @@
 # OpenSpec UI
 
-A dashboard + VS Code extension for [OpenSpec](https://github.com/Fission-AI/OpenSpec),
-with Claude, Copilot, Codex, and Gemini agents built in: a view over
-Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
+Dashboard for [OpenSpec](https://github.com/Fission-AI/OpenSpec) — a view
+over Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
 GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
 
-*OpenSpec-UI is built around OpenSpec — and OpenSpec-UI itself is used with the OpenSpec repository.*
+[A Tool That Watched Itself Get Built](https://www.linkedin.com/pulse/tool-watched-itself-get-built-alexander-ivanov-q57ne?lipi=urn%3Ali%3Apage%3Ad_flagship3_pulse_read%3BHDMlQK%2BGTcemHEauLJbbBA%3D%3D)
 
-## Screenshots (VS Code extension)
+## Product Tour
 
-Sidebar overview: Changes (with the "Repository Setup" discoverability node
-and its empty-state prompt), Archive, Specs, Templates, and Processes, all
-visible at once.
+The standalone application and VS Code extension expose the same OpenSpec
+workflows through interfaces suited to their respective hosts.
 
-![Sidebar overview: Changes, Archive, Specs, Templates, Processes](docs/images/overview.png)
+### Standalone application
 
-Individual `tasks.md` checklist items nest under the collapsible **Tasks**
-artifact of a change, not flat alongside Proposal/Design/Spec:
+![Standalone OpenSpec UI showing a completed show command and its streamed output](docs/images/standalone/run-command.png)
 
-![Task checklist items nested under the Tasks artifact of a change](docs/images/changes-tasks-nested.png)
+### VS Code extension
 
-Archive: an archived change expanded to its artifacts, with the
-change-scoped actions available from its context menu (Unarchive, Copy
-Tasks as Template Into..., Rollback, Delete):
+![VS Code OpenSpec Workbench showing Changes, Archive, Specs, Templates, and Processes](docs/images/extension/overview-expanded.png)
 
-![Archived change context menu: Unarchive, Copy Tasks as Template, Rollback, Delete](docs/images/archive.png)
-
-"Repository Setup" groups the repo-bootstrap actions (agent instructions,
-Dependabot config, path-scoped Copilot instructions) under a visible,
-discoverable tree node instead of Command Palette-only entries:
-
-![Repository Setup node with its three bootstrap actions](docs/images/repo-bootstrap.png)
-
-Specs: browse a capability's canonical requirements/scenarios directly in
-the editor:
-
-![Specs panel with a capability open in the editor](docs/images/specs.png)
-
-Templates: built-in and project-level `tasks.md` templates, with
-Customize/Insert actions from the context menu:
-
-![Templates panel with Customize Template / Insert Template Into... context menu](docs/images/templates.png)
+See the complete screenshot galleries for the
+[standalone application](packages/server/README.md#screenshots) and the
+[VS Code extension](packages/extension/README.md#screenshots).
 
 ## Local Delivery Modes
 
@@ -193,20 +174,17 @@ If a change is visibly user-facing, the affected package version in
 `package.json` must be bumped in the same change. For delivery forms, an
 aggregated release version is allowed, but package versions — especially
 `core` — remain the source of truth and should be shown separately when the UI
-displays build information. The standalone browser shell does this: a
-footer shows `core`/`server`/`webui` versions, read from each package's
-own `package.json` via a token-gated `GET /api/versions` endpoint — see
-`packages/server/src/server.ts`.
+displays build information.
 
 The private root package remains `0.0.0`; it is a workspace container, not a
 release artifact. Current release versions are:
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.20.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.16.0 | VS Code delivery |
-| `@openspec-ui/server` | 1.8.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.9.0 | Shared browser UI |
+| `@openspec-ui/core` | 0.15.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.9.0 | VS Code delivery |
+| `@openspec-ui/server` | 1.6.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.7.0 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
 
 `@vscode/vsce` (the extension's packager) already names the built

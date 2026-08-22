@@ -7,6 +7,39 @@ Business logic, execution security, recovery, and change state remain in core.
 The standalone capability is governed under `openspec/changes/standalone-app/`.
 The VS Code extension may also launch this server as an optional transport mode.
 
+## Screenshots
+
+### Run OpenSpec commands
+
+Select a change, command, and CLI agent, then inspect structured results and
+streamed output in the same view.
+
+![Standalone command runner showing a completed OpenSpec show command](../../docs/images/standalone/run-command.png)
+
+### Inspect repository state
+
+#### OpenSpec view summary
+
+![Standalone visual summary of active changes and canonical specs](../../docs/images/standalone/view-summary.png)
+
+#### Diff preview
+
+![Standalone before and after diff preview for an OpenSpec task list](../../docs/images/standalone/diff-preview.png)
+
+### Edit changes and templates
+
+#### Change Editor
+
+![Standalone Change Editor with proposal, design, tasks, and spec tabs](../../docs/images/standalone/change-editor.png)
+
+#### Template catalog
+
+![Standalone template catalog listing built-in and project templates](../../docs/images/standalone/templates.png)
+
+### Review persisted processes
+
+![Standalone Processes and Recovery view](../../docs/images/standalone/processes.png)
+
 ## Transport
 
 - `POST /api/status`: synchronous `{ events: Event[] }` response for status.
