@@ -36,6 +36,36 @@ describe("WorkbenchRecoveryService", () => {
     expect(service.details("run-1")).toMatchObject({ canRollback: true, delta: [{ path: "tracked.txt", kind: "modified" }] });
   });
 
+  it("rewrites historical journals without newly excluded checkpoint paths", async () => {
+    const root = await createRoot();
+    await writeFile(path.join(root, "tracked.txt"), "before", "utf8");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(path.join(root, "tracked.txt"), "after", "utf8");
+    await finalizeCheckpoint(checkpoint);
+    const serialized = serializeCheckpoint(checkpoint);
+    const beforeSnapshot = serialized.before[0]!;
+    const afterSnapshot = serialized.after![0]!;
+    serialized.before.push({ ...beforeSnapshot, path: ".env" });
+    serialized.before.push({ ...beforeSnapshot, path: ".mypy_cache/state.json" });
+    serialized.after!.push({ ...afterSnapshot, path: ".env" });
+    serialized.after!.push({ ...afterSnapshot, path: ".mypy_cache/state.json" });
+    serialized.delta!.push({ path: ".env", kind: "modified" });
+    serialized.delta!.push({ path: ".mypy_cache/state.json", kind: "modified" });
+    const journal = new WorkbenchRunJournal(root);
+    await journal.save({
+      processes: [{ id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" }],
+      checkpointSessions: [{ processId: "run-1", checkpoint: serialized }],
+    });
+
+    await WorkbenchRecoveryService.open(root);
+    const persisted = await journal.load();
+    const restoredCheckpoint = persisted.checkpointSessions[0]!.checkpoint;
+
+    expect(restoredCheckpoint.before.map((item) => item.path)).toEqual(["tracked.txt"]);
+    expect(restoredCheckpoint.after?.map((item) => item.path)).toEqual(["tracked.txt"]);
+    expect(restoredCheckpoint.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
+  });
+
   it("rolls back conflict-free files and reports later conflicts without partial writes", async () => {
     const root = await createRoot();
     const filePath = path.join(root, "tracked.txt");

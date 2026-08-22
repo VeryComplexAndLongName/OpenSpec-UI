@@ -70,6 +70,35 @@ describe("ImplementationSessionManager", () => {
     expect(await readFile(filePath, "utf8")).toBe("before");
   });
 
+  it("sanitizes excluded paths when restoring historical sessions", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+    roots.push(root);
+    await writeFile(path.join(root, "code.ts"), "before");
+    const serialized = serializeCheckpoint(await captureCheckpoint(root));
+    const snapshot = serialized.before[0]!;
+    serialized.before.push({ ...snapshot, path: ".env" });
+    serialized.before.push({ ...snapshot, path: ".pytest_cache/state.json" });
+    const scheduler = new WorkbenchProcessScheduler([{
+      id: "recovered",
+      operation: "archive",
+      changeName: "demo",
+      mutating: true,
+      state: "completed",
+      createdAt: "2026-08-08T10:00:00.000Z",
+    }]);
+    let persistRequests = 0;
+    const manager = new ImplementationSessionManager(scheduler, () => { persistRequests += 1; });
+
+    await manager.restore([{
+      processId: "recovered",
+      changeName: "demo",
+      checkpoint: serialized,
+    }]);
+
+    expect(manager.exportPersisted()[0]!.checkpoint.before.map((item) => item.path)).toEqual(["code.ts"]);
+    expect(persistRequests).toBe(1);
+  });
+
   it("preserves rollback state when a lifecycle mutation fails", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
     roots.push(root);
