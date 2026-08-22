@@ -5,6 +5,16 @@ import path from "node:path";
 const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
   ".git",
   ".openspec-ui",
+  ".cache",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".hypothesis",
+  ".tox",
+  ".nox",
+  ".venv",
+  "venv",
   "node_modules",
   "dist",
   "build",
@@ -12,6 +22,24 @@ const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
   ".next",
   ".vscode-test",
 ]);
+
+const DEFAULT_EXCLUDED_FILES = new Set([".env", ".eslintcache"]);
+
+function checkpointPathParts(filePath: string): string[] {
+  return filePath.split(/[\\/]/);
+}
+
+function isExcludedCheckpointPath(filePath: string): boolean {
+  const parts = checkpointPathParts(filePath);
+  const fileName = parts.at(-1);
+  return parts.slice(0, -1).some((part) => DEFAULT_EXCLUDED_DIRECTORIES.has(part))
+    || (fileName !== undefined && DEFAULT_EXCLUDED_FILES.has(fileName));
+}
+
+function isExcludedCheckpointFile(filePath: string): boolean {
+  const fileName = checkpointPathParts(filePath).at(-1);
+  return fileName !== undefined && DEFAULT_EXCLUDED_FILES.has(fileName);
+}
 
 export interface CheckpointLimits {
   maxFiles?: number;
@@ -92,8 +120,12 @@ async function scanWorkspace(root: string, limits: Required<CheckpointLimits>): 
         continue;
       }
       if (!entry.isFile()) continue;
-      const content = await readFile(absolutePath);
       const relativePath = path.relative(root, absolutePath);
+      if (DEFAULT_EXCLUDED_FILES.has(entry.name)) {
+        skippedFiles.push(relativePath);
+        continue;
+      }
+      const content = await readFile(absolutePath);
       if (content.byteLength > limits.maxFileBytes) {
         skippedFiles.push(relativePath);
         continue;
@@ -205,17 +237,33 @@ export function serializeCheckpoint(checkpoint: WorkbenchCheckpoint): Serialized
 
 export function deserializeCheckpoint(serialized: SerializedWorkbenchCheckpoint): WorkbenchCheckpoint {
   if (serialized.version !== 1) throw new Error(`Unsupported checkpoint version: ${String(serialized.version)}`);
+  for (const item of serialized.before) assertSafeRelativePath(item.path);
+  for (const item of serialized.after ?? []) assertSafeRelativePath(item.path);
   for (const item of serialized.delta ?? []) assertSafeRelativePath(item.path);
+  const before = serialized.before.filter((item) => !isExcludedCheckpointPath(item.path));
+  const after = serialized.after?.filter((item) => !isExcludedCheckpointPath(item.path));
+  const delta = serialized.delta?.filter((item) => !isExcludedCheckpointPath(item.path));
+  const newlySkippedFiles = [
+    ...serialized.before.map((item) => item.path),
+    ...(serialized.after?.map((item) => item.path) ?? []),
+    ...(serialized.delta?.map((item) => item.path) ?? []),
+  ].filter(isExcludedCheckpointFile);
   return {
     id: serialized.id,
     root: path.resolve(serialized.root),
     createdAt: serialized.createdAt,
-    before: deserializeFiles(serialized.before),
-    after: serialized.after ? deserializeFiles(serialized.after) : undefined,
-    delta: serialized.delta?.map((item) => ({ ...item })),
+    before: deserializeFiles(before),
+    after: after ? deserializeFiles(after) : undefined,
+    delta: delta?.map((item) => ({ ...item })),
     coverage: {
-      excludedDirectories: [...serialized.coverage.excludedDirectories],
-      skippedFiles: [...serialized.coverage.skippedFiles],
+      excludedDirectories: [...new Set([
+        ...serialized.coverage.excludedDirectories,
+        ...DEFAULT_EXCLUDED_DIRECTORIES,
+      ])].sort(),
+      skippedFiles: [...new Set([
+        ...serialized.coverage.skippedFiles,
+        ...newlySkippedFiles,
+      ])].sort(),
     },
   };
 }

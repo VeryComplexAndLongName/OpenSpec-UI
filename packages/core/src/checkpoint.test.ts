@@ -78,6 +78,29 @@ describe("Workbench checkpoints", () => {
     expect(checkpoint.coverage.excludedDirectories).toContain("node_modules");
   });
 
+  it("excludes environment files, virtual environments, and generated caches", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, ".venv"), { recursive: true });
+    await mkdir(path.join(root, ".mypy_cache"), { recursive: true });
+    await mkdir(path.join(root, "src", "__pycache__"), { recursive: true });
+    await writeFile(path.join(root, ".env"), "SECRET=value");
+    await writeFile(path.join(root, ".eslintcache"), "generated");
+    await writeFile(path.join(root, ".venv", "dependency.py"), "ignored");
+    await writeFile(path.join(root, ".mypy_cache", "state.json"), "ignored");
+    await writeFile(path.join(root, "src", "__pycache__", "module.pyc"), "ignored");
+    await writeFile(path.join(root, "tracked.txt"), "tracked");
+
+    const checkpoint = await captureCheckpoint(root);
+
+    expect([...checkpoint.before.keys()]).toEqual(["tracked.txt"]);
+    expect(checkpoint.coverage.skippedFiles).toEqual([".env", ".eslintcache"]);
+    expect(checkpoint.coverage.excludedDirectories).toEqual(expect.arrayContaining([
+      ".mypy_cache",
+      ".venv",
+      "__pycache__",
+    ]));
+  });
+
   it("round-trips persisted checkpoints and rejects unsafe paths", async () => {
     const root = await temporaryRoot();
     await writeFile(path.join(root, "work.txt"), "before");
@@ -92,6 +115,31 @@ describe("Workbench checkpoints", () => {
 
     serialized.before[0]!.path = "../outside.txt";
     expect(() => deserializeCheckpoint(serialized)).toThrow("Invalid checkpoint path");
+  });
+
+  it("removes newly excluded paths from historical checkpoints", async () => {
+    const root = await temporaryRoot();
+    await writeFile(path.join(root, "tracked.txt"), "before");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(path.join(root, "tracked.txt"), "after");
+    await finalizeCheckpoint(checkpoint);
+    const serialized = serializeCheckpoint(checkpoint);
+    const snapshot = serialized.before[0]!;
+    const afterSnapshot = serialized.after![0]!;
+    serialized.before.push({ ...snapshot, path: ".env" });
+    serialized.before.push({ ...snapshot, path: ".mypy_cache/cache.json" });
+    serialized.after!.push({ ...afterSnapshot, path: ".env" });
+    serialized.after!.push({ ...afterSnapshot, path: ".mypy_cache/cache.json" });
+    serialized.delta!.push({ path: ".env", kind: "modified" });
+    serialized.delta!.push({ path: ".mypy_cache/cache.json", kind: "modified" });
+
+    const restored = deserializeCheckpoint(serialized);
+
+    expect([...restored.before.keys()]).toEqual(["tracked.txt"]);
+    expect([...restored.after!.keys()]).toEqual(["tracked.txt"]);
+    expect(restored.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
+    expect(restored.coverage.skippedFiles).toContain(".env");
+    expect(restored.coverage.excludedDirectories).toContain(".mypy_cache");
   });
 });
 
