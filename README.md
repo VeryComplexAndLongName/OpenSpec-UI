@@ -105,8 +105,8 @@ Shared code (`packages/core`, `packages/webui`) is reused in two delivery
 forms: a standalone tool (browser + local REST/WS server) and a VS Code
 extension (Webview + direct `core` import in the extension host, without HTTP
 where possible). See `docs/adr/0001-shared-core-two-delivery-targets.md` for
-the full rationale and `openspec/specs/` (after the first `apply`) for the
-detailed behavioral contract of each part.
+the full rationale and `openspec/specs/` for the detailed behavioral
+contract of each part.
 
 ```mermaid
 flowchart TD
@@ -295,15 +295,26 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
 
 1. Read `docs/adr/0001-*.md` — the architecture decisions and rejected
     alternatives.
-2. Start with `openspec/changes/execution-core/`: `server`, `webui`, and
-    `extension` depend on the contract defined there (the unified
-    command/event protocol and the security model).
-3. Then `shared-ui`, followed by `standalone-app` and `vscode-extension` in
-    parallel.
-4. For each change: run `openspec change validate --strict <id>` before
-    marking tasks done; run `openspec archive <id> --yes` only after a live
-    verification (see `operations.archive.guidance` in `openspec/config.yaml`) —
-    not earlier.
+2. Read `openspec/README.md` — the runbook for this repository's governed
+    change workflow.
+3. The four foundational changes (`execution-core`, `shared-ui`,
+    `standalone-app`, `vscode-extension`) are already implemented; find them
+    under `openspec/changes/archive/`. Run `openspec list` to see what is
+    currently active in `openspec/changes/`.
+4. Every further repository modification — code, tests, docs, or tooling —
+    follows the same cycle:
+
+    ```mermaid
+    flowchart LR
+        A["openspec/changes/&lt;id&gt;/<br/>proposal.md + tasks.md"] --> B["Implement tasks.md;<br/>tsc / eslint / vitest green"]
+        B --> C["openspec change validate<br/>--strict &lt;id&gt;"]
+        C --> D["openspec archive &lt;id&gt;<br/>(after live verification)"]
+        D --> E["openspec/changes/archive/<br/>+ openspec/specs/ updated"]
+    ```
+
+    See `operations.apply.guidance` and `operations.archive.guidance` in
+    `openspec/config.yaml` for exactly what must be verified at each step —
+    archiving before live verification is out of process.
 
 ## Change Governance
 
