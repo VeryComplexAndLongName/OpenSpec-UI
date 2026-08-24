@@ -1,8 +1,8 @@
-// Точка входа для standalone-браузерного шелла (см.
-// openspec/changes/standalone-app/tasks.md 2.1). Не часть публичного API
-// пакета (не реэкспортируется из index.ts) — это bootstrap-код конкретно
-// для сборки `packages/server` (см. scripts/build-client.mjs), а не
-// библиотечный код, переиспользуемый в extension.
+// Entry point for the standalone browser shell (see
+// openspec/changes/standalone-app/tasks.md 2.1). Not part of the package's
+// public API (not re-exported from index.ts) — this is bootstrap code
+// specifically for `packages/server`'s build (see scripts/build-client.mjs),
+// not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -186,8 +186,8 @@ async function loadWorkspaceRoot(): Promise<string> {
 
 function StandaloneApp() {
   const [activeTab, setActiveTab] = useState<string>("run-a-command");
-  const [cwd, setCwd] = useState("");
-  const [changeDir, setChangeDir] = useState("");
+  const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
+  const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
