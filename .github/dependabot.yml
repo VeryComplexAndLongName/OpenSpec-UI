@@ -7,6 +7,16 @@ updates:
     groups:
       npm-development:
         dependency-type: development
+    ignore:
+      # typescript-eslint@8.67.0 requires TypeScript <6.1.0; a 7.x bump
+      # broke it before (see the archived
+      # restore-typescript-eslint-compatibility change).
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
+      # ESLint 10 drops the directly-imported @eslint/js package and needs a
+      # newer Node.js than this repo's pinned 22.11.0 runtime.
+      - dependency-name: "eslint"
+        versions: [">=10.0.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
