@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.0
+
+- Added a built-in template: "Migrate a Create React App project to Vite"
+  (`framework-migration`) — closes a gap where that category only had a
+  Python backend example (Flask to FastAPI), despite JavaScript being
+  named as its own target language for the catalog.
+
 ## 0.18.0
 
 - Added two built-in templates in a new `observability` category:
