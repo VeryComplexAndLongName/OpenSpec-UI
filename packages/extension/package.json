@@ -342,7 +342,7 @@
     "@openspec-ui/server": "*"
   },
   "devDependencies": {
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.134.0",
     "esbuild": "^0.28.2",
     "@vscode/test-electron": "^3.1.0",
     "mocha": "^11.8.0",
