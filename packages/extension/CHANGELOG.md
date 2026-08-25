@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20.1
+
+- Docs only: the Marketplace description and the root README's Delivery
+  Capability Matrix now mention the built-in template catalog's actual
+  size (16 templates across 9 categories) — previously the catalog's
+  growth across four merged changes today was reflected only in
+  `CHANGELOG.md` entries and archived OpenSpec changes, not in either
+  user-facing README.
+
 ## 0.20.0
 
 - Added a built-in template in a new `configuration` category: "Validate
