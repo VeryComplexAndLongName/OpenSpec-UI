@@ -13,9 +13,16 @@ updates:
       # restore-typescript-eslint-compatibility change).
       - dependency-name: "typescript"
         versions: [">=6.1.0"]
-      # ESLint 10 drops the directly-imported @eslint/js package and needs a
-      # newer Node.js than this repo's pinned 22.11.0 runtime.
+      # ESLint 10 needs a newer Node.js than this repo's pinned 22.11.0
+      # runtime.
       - dependency-name: "eslint"
+        versions: [">=10.0.0"]
+      # @eslint/js is a separate npm package from `eslint` itself; its 10.x
+      # line peer-requires eslint@^10, which conflicts with the `eslint`
+      # ignore rule above and breaks `npm ci` (ERESOLVE) if bumped alone
+      # (seen live in PR #62, "Bump the npm-development group with 4
+      # updates").
+      - dependency-name: "@eslint/js"
         versions: [">=10.0.0"]
   - package-ecosystem: github-actions
     directory: /
