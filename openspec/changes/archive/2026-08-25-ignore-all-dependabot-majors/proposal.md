@@ -11,9 +11,9 @@ package` refuses to build). Each was fixed reactively by adding a
 package-specific `ignore` entry to `.github/dependabot.yml` after CI had
 already failed on a real PR. The user asked directly for a structural fix
 rather than continuing to chase individual package names one at a time
-("сколько можно ловить проблемы с PR?" -- repository review session,
-2026-08-25). Every one of these four incidents was a major-version bump;
-none was a minor or patch update.
+("how much longer do we keep catching PR problems?" -- repository review
+session, 2026-08-25). Every one of these four incidents was a
+major-version bump; none was a minor or patch update.
 
 ## What Changes
 
@@ -28,10 +28,11 @@ none was a minor or patch update.
   version bumps are no longer proposed at all, and must be picked up
   deliberately (a manual `npm install <pkg>@latest` plus a reviewed,
   non-grouped change) when the team is ready to absorb the breaking change.
-- Supersedes the not-yet-merged `ignore-types-vscode-major` change (also
-  from 2026-08-25): its package-specific `@types/vscode` rule is now
-  redundant under the blanket rule. That branch/PR should be closed rather
-  than merged, to avoid the two `ignore` blocks conflicting.
+- Supersedes the `ignore-types-vscode-major` change (also archived
+  2026-08-25, merged as PR #68 before this change landed): its
+  package-specific `@types/vscode` rule is now redundant under the blanket
+  rule and was removed by this change's merge-conflict resolution against
+  `main`.
 - No change to the grouping, schedule, or the `github-actions` update block.
 
 ## Capabilities
