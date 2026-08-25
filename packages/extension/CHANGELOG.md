@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.20.2
+
+- Fixed: every screenshot in the "Details" tab (Extensions view and
+  Marketplace) was broken. `vsce package` rewrites relative README image
+  paths to `https://github.com/<repo>/raw/HEAD/<original-path>`, but does
+  not account for this package's `repository.directory`
+  (`packages/extension`) and does not collapse `..` segments — the
+  previous `../../docs/images/extension/*.png` paths became a literal,
+  unresolvable `HEAD/../../docs/images/extension/*.png` URL. Screenshot
+  links now use absolute `raw.githubusercontent.com` URLs, which `vsce`
+  leaves untouched and which resolve correctly.
+
 ## 0.20.1
 
 - Docs only: the Marketplace description and the root README's Delivery
