@@ -1,11 +1,11 @@
-// 5.2 Единый интерфейс запуска plan/implement/review независимо от
-// выбранного агента и активного Transport.
-// 5.3 Отображение потока событий с возможностью отмены (cancel).
+// 5.2 A unified interface for running plan/implement/review regardless of
+// the selected agent and active Transport.
+// 5.3 Displays the event stream with the ability to cancel.
 //
-// В отличие от остальных компонентов (Changes/Archive/Specs/Tasks), этот
-// действительно нуждается в `Transport` напрямую — команда/поток событий
-// исполнения по своей природе имеет форму send+subscribe (см. spec.md,
-// "AI-панель использует единый протокол независимо от агента").
+// Unlike the other components (Changes/Archive/Specs/Tasks), this one
+// genuinely needs `Transport` directly — the execution command/event
+// stream is inherently shaped as send+subscribe (see spec.md,
+// "The AI panel uses a unified protocol regardless of the agent").
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {

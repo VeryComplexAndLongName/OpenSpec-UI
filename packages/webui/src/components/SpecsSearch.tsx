@@ -1,4 +1,4 @@
-// 3.3 Поиск по specs — клиентский, по id spec'а и тексту требования.
+// 3.3 Search over specs — client-side, matching spec id and requirement text.
 
 import { useMemo, useState } from "react";
 import type { SpecSummary } from "./SpecsTree.js";

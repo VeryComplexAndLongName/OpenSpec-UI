@@ -6,11 +6,11 @@ const specs: SpecSummary[] = [
   {
     id: "execution-core",
     requirements: [
-      { text: "Система SHALL предоставлять единый протокол.", scenarios: [] },
-      { text: "Система SHALL аудировать каждый запуск.", scenarios: [] },
+      { text: "The system SHALL provide a unified protocol.", scenarios: [] },
+      { text: "The system SHALL audit every run.", scenarios: [] },
     ],
   },
-  { id: "shared-ui", requirements: [{ text: "Компоненты не зависят от транспорта.", scenarios: [] }] },
+  { id: "shared-ui", requirements: [{ text: "Components do not depend on the transport.", scenarios: [] }] },
 ];
 
 describe("SpecsTree", () => {

@@ -7,11 +7,11 @@ const specs: SpecSummary[] = [
   {
     id: "execution-core",
     requirements: [
-      { text: "Система SHALL предоставлять единый протокол команд.", scenarios: [] },
-      { text: "Каждый запуск агента аудируется.", scenarios: [] },
+      { text: "The system SHALL provide a unified command protocol.", scenarios: [] },
+      { text: "Every agent run is audited.", scenarios: [] },
     ],
   },
-  { id: "shared-ui", requirements: [{ text: "Компоненты не зависят от транспорта.", scenarios: [] }] },
+  { id: "shared-ui", requirements: [{ text: "Components do not depend on the transport.", scenarios: [] }] },
 ];
 
 describe("searchSpecs", () => {
@@ -27,7 +27,7 @@ describe("searchSpecs", () => {
   });
 
   it("matches by requirement text, case-insensitively", () => {
-    const results = searchSpecs(specs, "АУДИРУЕТСЯ".toLowerCase());
+    const results = searchSpecs(specs, "AUDITED".toLowerCase());
     expect(results).toHaveLength(1);
     expect(results[0]?.specId).toBe("execution-core");
     expect(results[0]?.requirementIndex).toBe(1);
@@ -37,14 +37,14 @@ describe("searchSpecs", () => {
 describe("SpecsSearch", () => {
   it("renders matching results as the user types", () => {
     render(<SpecsSearch specs={specs} />);
-    fireEvent.change(screen.getByLabelText("Search specs"), { target: { value: "протокол" } });
+    fireEvent.change(screen.getByLabelText("Search specs"), { target: { value: "protocol" } });
     expect(screen.getByTestId("specs-search-results").querySelectorAll("li")).toHaveLength(1);
   });
 
   it("calls onSelect with specId and requirementIndex", () => {
     const onSelect = vi.fn();
     render(<SpecsSearch specs={specs} onSelect={onSelect} />);
-    fireEvent.change(screen.getByLabelText("Search specs"), { target: { value: "транспорта" } });
+    fireEvent.change(screen.getByLabelText("Search specs"), { target: { value: "transport" } });
     fireEvent.click(screen.getByTestId("result-shared-ui-0"));
     expect(onSelect).toHaveBeenCalledWith("shared-ui", 0);
   });

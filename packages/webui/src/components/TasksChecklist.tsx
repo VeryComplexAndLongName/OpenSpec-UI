@@ -1,10 +1,10 @@
-// 4.1 Чек-лист + прогресс.
-// 4.2 Запуск отдельной задачи — компонент остаётся презентационным
-// (не знает про `Transport`): вызывает `onRunTask`, а фактическая отправка
-// команды `implement`, скоуп на этот пункт, через активный `Transport` —
-// ответственность хоста/контейнера, который его использует (см. AiPanel.tsx
-// за примером того, как это выглядит для компонента, которому Transport
-// действительно нужен напрямую).
+// 4.1 Checklist + progress.
+// 4.2 Running an individual task — the component stays presentational
+// (it does not know about `Transport`): it calls `onRunTask`, and actually
+// sending the `implement` command, scoped to that item, through the active
+// `Transport` is the responsibility of the host/container that uses it
+// (see AiPanel.tsx for an example of what that looks like for a component
+// that genuinely needs the Transport directly).
 
 import type { TaskItem } from "../types.js";
 

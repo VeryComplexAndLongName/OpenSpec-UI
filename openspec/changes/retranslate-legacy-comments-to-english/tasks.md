@@ -59,7 +59,7 @@
   lines; nothing left to translate there), `extension-entry.tsx`,
   `markdown.tsx`; translate `markdown.test.tsx`'s sample strings and update
   its matching assertions.
-- [ ] 7.3 Translate `components/TasksChecklist.tsx`,
+- [x] 7.3 Translate `components/TasksChecklist.tsx`,
   `components/RequirementView.tsx`, `components/RequirementView.test.tsx`
   (sample requirement text + assertions), `components/SpecsSearch.tsx`,
   `components/SpecsSearch.test.tsx` (fixture specs + query strings +
@@ -67,7 +67,8 @@
   (fixture specs), `components/ChangesList.tsx`, `components/ChangeDiff.tsx`,
   `components/ChangeRelations.tsx`, `components/ChangeRelations.test.tsx`
   (fixture proposal text + assertions), `components/ArchiveList.tsx`,
-  `components/AiPanel.tsx`.
+  `components/AiPanel.tsx`. Verified with
+  `npm run test --workspace packages/webui` (112 tests passed).
 
 ## 8. Repo-level markdown notes
 

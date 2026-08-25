@@ -1,5 +1,5 @@
-// 3.1 Древовидное отображение specs: верхний уровень — capability (spec id),
-// раскрывается в список требований.
+// 3.1 Tree view of specs: the top level is the capability (spec id),
+// expanding into a list of requirements.
 
 import { useState } from "react";
 import type { OpenSpecRequirement } from "@openspec-ui/core";

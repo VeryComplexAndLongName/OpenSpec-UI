@@ -1,6 +1,6 @@
-// 2.1 Список Changes — статус берётся из `ChangeSummary.state`, вычисленного
-// `execution-core` (см. spec.md, "Статус change отображается из derived
-// state, не пересчитывается в UI").
+// 2.1 List of Changes — status comes from `ChangeSummary.state`, computed
+// by `execution-core` (see spec.md, "A change's status is displayed from
+// derived state, not recomputed in the UI").
 
 import type { ChangeSummary } from "../types.js";
 

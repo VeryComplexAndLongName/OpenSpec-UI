@@ -4,7 +4,7 @@ import { RequirementView, extractCapabilityMentions } from "./RequirementView.js
 
 describe("extractCapabilityMentions", () => {
   it("finds known spec ids quoted as code spans", () => {
-    const text = "Данные приходят из `execution-core`, не из `shared-ui`.";
+    const text = "Data comes from `execution-core`, not from `shared-ui`.";
     expect(extractCapabilityMentions(text, ["execution-core", "shared-ui", "vscode-extension"])).toEqual([
       "execution-core",
       "shared-ui",
@@ -12,7 +12,7 @@ describe("extractCapabilityMentions", () => {
   });
 
   it("ignores code spans that are not known spec ids", () => {
-    const text = "Команда `implement` вызывает `execution-core`.";
+    const text = "The `implement` command invokes `execution-core`.";
     expect(extractCapabilityMentions(text, ["execution-core"])).toEqual(["execution-core"]);
   });
 
@@ -23,7 +23,7 @@ describe("extractCapabilityMentions", () => {
 
 describe("RequirementView", () => {
   it("renders the requirement text with inline markdown", () => {
-    render(<RequirementView requirement={{ text: "Система **SHALL** делать X.", scenarios: [] }} />);
+    render(<RequirementView requirement={{ text: "The system **SHALL** do X.", scenarios: [] }} />);
     expect(screen.getByTestId("requirement-view").querySelector("strong")).toHaveTextContent("SHALL");
   });
 
@@ -40,7 +40,7 @@ describe("RequirementView", () => {
     const onNavigateToSpec = vi.fn();
     render(
       <RequirementView
-        requirement={{ text: "Использует протокол из `execution-core`.", scenarios: [] }}
+        requirement={{ text: "Uses the protocol from `execution-core`.", scenarios: [] }}
         knownSpecIds={["execution-core"]}
         onNavigateToSpec={onNavigateToSpec}
       />,

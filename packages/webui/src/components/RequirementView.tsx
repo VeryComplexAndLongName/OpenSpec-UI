@@ -1,7 +1,7 @@
-// 3.2 Read-only markdown-рендер требования/сценария.
-// 3.4 Ссылки между требованиями — упоминание `capability-id` в тексте
-// требования (в code-span, как это делает сам OpenSpec CLI) рендерится как
-// переход к этому spec'у.
+// 3.2 Read-only markdown rendering of a requirement/scenario.
+// 3.4 Cross-links between requirements — a `capability-id` mention inside
+// requirement text (in a code span, the same way the OpenSpec CLI itself
+// does it) is rendered as a link to that spec.
 
 import type { OpenSpecRequirement } from "@openspec-ui/core";
 import { renderInlineMarkdown } from "../markdown.js";
@@ -23,8 +23,8 @@ export function extractCapabilityMentions(text: string, knownSpecIds: string[]):
 
 export interface RequirementViewProps {
   requirement: OpenSpecRequirement;
-  /** Известные id других specs — источник правды для того, что считать
-   * переходом, а не просто отформатированным кодом. */
+  /** Known ids of other specs — the source of truth for what counts as a
+   * link versus just formatted code. */
   knownSpecIds?: string[];
   onNavigateToSpec?: (specId: string) => void;
 }
