@@ -1,12 +1,12 @@
-// Browser-safe поверхность экспорта: только протокол команд/событий и
-// статический реестр агентов — ничто отсюда не импортирует Node built-ins
+// Browser-safe export surface: only the command/event protocol and the
+// static agent registry — nothing here imports Node built-ins
 // (`node:child_process`, `node:fs`, `simple-git`).
 //
-// `webui`'s браузерный бандл (packages/webui/src/standalone-entry.tsx через
-// packages/server/scripts/build-client.mjs) импортирует из
-// `@openspec-ui/core/browser`, а не из корневого барреля — барrel
-// (`@openspec-ui/core`) тянет за собой `git.ts`/`openspec.ts`/`agents/*.ts`,
-// которые не бандлятся для браузера (см.
+// `webui`'s browser bundle (packages/webui/src/standalone-entry.tsx via
+// packages/server/scripts/build-client.mjs) imports from
+// `@openspec-ui/core/browser`, not from the root barrel — the barrel
+// (`@openspec-ui/core`) pulls in `git.ts`/`openspec.ts`/`agents/*.ts`,
+// which are not bundled for the browser (see
 // openspec/changes/standalone-app/tasks.md 2.1).
 
 export * from "./protocol.js";

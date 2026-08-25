@@ -1,19 +1,19 @@
-// Тонкая обёртка над `openspec ... --json`-командами (list/show/validate).
-// Никакой файловой магии здесь — `server`/`extension` не должны парсить
-// `openspec/` руками, только через эту обёртку (см. README.md core).
+// Thin wrapper over `openspec ... --json` commands (list/show/validate).
+// No file-parsing magic here — `server`/`extension` must not parse
+// `openspec/` by hand, only through this wrapper (see README.md core).
 //
-// Формы вывода соответствуют реальному `openspec` CLI (см. фикстуры в
-// `openspec-fixtures/*.json`, снятые с живого CLI этого репозитория —
-// не придуманы вручную, см. tasks.md 5.3).
+// Output shapes match the real `openspec` CLI (see the fixtures in
+// `openspec-fixtures/*.json`, captured from this repository's live CLI —
+// not hand-crafted, see tasks.md 5.3).
 
 import crossSpawn from "cross-spawn";
 
-// `cross-spawn`, а не `node:child_process.execFile`: на Windows `openspec`
-// (как и `copilot`, см. agents/shared.ts) устанавливается как `.cmd`-шим —
-// голый `execFile` не находит его без `shell: true` (`ENOENT`), что и
-// показал живой прогон vscode-extension (см. tasks.md 4.1,
-// openspec/changes/vscode-extension/TEST-NOTES.md). `cross-spawn` резолвит
-// `.cmd`/`.bat` на Windows корректно, экранируя аргументы по отдельности.
+// `cross-spawn` rather than `node:child_process.execFile`: on Windows
+// `openspec` (like `copilot`, see agents/shared.ts) is installed as a
+// `.cmd` shim — plain `execFile` cannot find it without `shell: true`
+// (`ENOENT`), as shown by the live vscode-extension run (see tasks.md 4.1,
+// openspec/changes/vscode-extension/TEST-NOTES.md). `cross-spawn` resolves
+// `.cmd`/`.bat` on Windows correctly, escaping arguments individually.
 function execFileAsync(
   binary: string,
   args: string[],
@@ -42,7 +42,7 @@ function execFileAsync(
 
 export interface OpenSpecCliOptions {
   cwd: string;
-  /** Бинарь `openspec`, по умолчанию ожидается в PATH. */
+  /** The `openspec` binary; expected on PATH by default. */
   binary?: string;
 }
 

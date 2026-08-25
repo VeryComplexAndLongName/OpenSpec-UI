@@ -1,11 +1,12 @@
-// Derived state machine для статуса change'а — единственное место, где это
-// вычисляется (см. ADR 0001 п.5, design.md "Derived state — чистая функция").
+// Derived state machine for a change's status — the single place where this
+// is computed (see ADR 0001 item 5, design.md "Derived state — a pure
+// function").
 //
-// `deriveChangeState` сама по себе — чистая функция без побочных эффектов:
-// она принимает уже прочитанное содержимое `tasks.md` (или `null`, если
-// файла нет), а не читает файловую систему сама. Чтение файла — отдельная
-// обёртка (`readChangeState`), которой пользуются `server`/`extension`;
-// сама эвристика остаётся тестируемой без диска.
+// `deriveChangeState` itself is a pure function with no side effects: it
+// takes the already-read contents of `tasks.md` (or `null` if the file is
+// missing), rather than reading the filesystem itself. Reading the file is
+// a separate wrapper (`readChangeState`) used by `server`/`extension`; the
+// heuristic itself stays testable without disk access.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -35,15 +36,16 @@ function countTasks(tasksMarkdown: string): TaskCounts {
 }
 
 /**
- * Вычисляет статус change'а по расположению его директории и содержимому
- * `tasks.md` (или `null`, если файл отсутствует/ещё не создан).
+ * Computes a change's status from its directory location and the contents
+ * of `tasks.md` (or `null` if the file is missing/not yet created).
  *
- * - `archived` — директория лежит под `.../archive/...` (перекрывает всё
- *   остальное — не важно, что в `tasks.md` заархивированного change'а);
- * - `draft` — `tasks.md` отсутствует, пуст (нет пунктов) или ни один пункт не
- *   отмечен `[x]`;
- * - `implemented` — все пункты отмечены `[x]`;
- * - `in-progress` — отмечена часть пунктов.
+ * - `archived` — the directory lives under `.../archive/...` (overrides
+ *   everything else — it does not matter what is in an archived change's
+ *   `tasks.md`);
+ * - `draft` — `tasks.md` is missing, empty (no items), or no item is
+ *   checked `[x]`;
+ * - `implemented` — every item is checked `[x]`;
+ * - `in-progress` — some items are checked.
  */
 export function deriveChangeState(changeDir: string, tasksMarkdown: string | null): ChangeState {
   if (isArchived(changeDir)) return "archived";
@@ -55,9 +57,9 @@ export function deriveChangeState(changeDir: string, tasksMarkdown: string | nul
   return "in-progress";
 }
 
-/** Удобная обёртка для реальных потребителей: читает `tasks.md` с диска и
- * применяет `deriveChangeState`. Файл может отсутствовать — это не ошибка,
- * а сигнал состояния `draft`. */
+/** Convenience wrapper for real consumers: reads `tasks.md` from disk and
+ * applies `deriveChangeState`. The file may be missing — that is not an
+ * error, it is a signal of the `draft` state. */
 export async function readChangeState(changeDir: string): Promise<ChangeState> {
   let tasksMarkdown: string | null;
   try {

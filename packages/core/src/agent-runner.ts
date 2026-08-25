@@ -1,11 +1,12 @@
-// AgentRunner — единая абстракция запуска CLI-агента (или локальной LLM по
-// HTTP), скрывающая различия между Claude CLI/Copilot CLI/Codex CLI/Gemini
-// CLI/локальной LLM за адаптерами (см. design.md, "AgentRunner — интерфейс
-// с одним методом run(command, cwd, context) → AsyncIterable<Event>").
+// AgentRunner — a single abstraction for running a CLI agent (or a local
+// LLM over HTTP), hiding the differences between Claude CLI/Copilot
+// CLI/Codex CLI/Gemini CLI/local LLM behind adapters (see design.md,
+// "AgentRunner — a single-method interface run(command, cwd, context) →
+// AsyncIterable<Event>").
 //
-// Security-проверки (allowlist, cwd-sandbox) и аудит-лог выполняются здесь,
-// inline, ДО делегирования конкретному адаптеру — ни один адаптер не
-// вызывается, если проверка не пройдена (см. security.ts).
+// Security checks (allowlist, cwd sandbox) and the audit log run here,
+// inline, BEFORE delegating to a specific adapter — no adapter is ever
+// invoked if a check fails (see security.ts).
 
 import {
   type AllowlistConfig,
@@ -21,14 +22,14 @@ export type AdapterInvocation =
   | { kind: "http"; url: string; method: string };
 
 export interface AgentAdapter {
-  /** Имя агента, под которым он фигурирует в allowlist-конфиге воркспейса. */
+  /** The agent's name, as it appears in the workspace's allowlist config. */
   readonly name: string;
-  /** Строит описание того, что было бы запущено, для проверки allowlist'ом.
-   * Не выполняет побочных эффектов (не спавнит процесс, не делает HTTP-запрос). */
+  /** Builds a description of what would be run, for the allowlist check.
+   * Has no side effects (does not spawn a process or make an HTTP request). */
   buildInvocation(command: Command): AdapterInvocation;
-  /** Выполняет уже провалидированный запуск и стримит события протокола.
-   * Вызывается только после успешного прохождения allowlist/cwd-проверок.
-   * `prompt` — результат prepareAgentContext (данные, не инструкция). */
+  /** Executes an already-validated run and streams protocol events.
+   * Only called after the allowlist/cwd checks have passed.
+   * `prompt` is the result of prepareAgentContext (data, not an instruction). */
   execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event>;
 }
 
@@ -66,7 +67,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           timestamp: nowIso(),
           reason: cwdDecision.reason,
         });
-        yield* failedOnce(command.runId, cwdDecision.reason ?? "cwd вне воркспейса");
+        yield* failedOnce(command.runId, cwdDecision.reason ?? "cwd is outside the workspace");
         return;
       }
 
@@ -82,7 +83,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           invocation,
           reason: allowlistDecision.reason,
         });
-        yield* failedOnce(command.runId, allowlistDecision.reason ?? "команда не разрешена allowlist'ом");
+        yield* failedOnce(command.runId, allowlistDecision.reason ?? "command not permitted by the allowlist");
         return;
       }
 
