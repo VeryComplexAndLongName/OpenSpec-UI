@@ -1,8 +1,8 @@
-// 1.4 Contract test: сервер корректно сериализует/десериализует каждый
-// вариант `Event` из протокола `execution-core`, через реальные HTTP/WS
-// соединения (не мок node:http) — реестр `AgentRunner` подменяется фиктивным,
-// чтобы не требовать реальных CLI-агентов для этого теста (см. tasks.md 3.1
-// за отдельным живым smoke-тестом с реальным агентом).
+// 1.4 Contract test: the server correctly serializes/deserializes every
+// `Event` variant from the `execution-core` protocol, over real HTTP/WS
+// connections (not a node:http mock) — the `AgentRunner` registry is
+// substituted with a fake one, so this test does not require real CLI
+// agents (see tasks.md 3.1 for a separate live smoke test with a real agent).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -707,7 +707,7 @@ describe("server — WebSocket /api/ws", () => {
     client.send("not json");
     client.send(JSON.stringify({ not: "a command" }));
 
-    // Соединение остаётся открытым и продолжает обрабатывать валидные команды.
+    // The connection stays open and continues handling valid commands.
     const received: Event[] = [];
     const done = new Promise<void>((resolve) => {
       client.on("message", (raw) => {

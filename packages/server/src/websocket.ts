@@ -1,5 +1,5 @@
-// 1.2 WebSocket-канал для событийных команд (plan/implement/review/cancel):
-// команда приходит и её события уходят по одному и тому же соединению.
+// 1.2 WebSocket channel for event-driven commands (plan/implement/review/
+// cancel): the command arrives and its events go out over the same connection.
 
 import type { WebSocket } from "ws";
 import { type AgentRunner, type Command, resolveRunner, serializeEvent } from "@openspec-ui/core";
@@ -18,7 +18,7 @@ export function handleSocketMessage(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return; // не соответствующий протоколу payload — консервативно игнорируется
+    return; // payload does not match the protocol — conservatively ignored
   }
   if (!isCommandLike(parsed)) return;
   const command = parsed as Command;

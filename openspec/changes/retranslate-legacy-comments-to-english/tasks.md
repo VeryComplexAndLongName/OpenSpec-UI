@@ -33,10 +33,11 @@
 
 ## 5. Translate `packages/server`
 
-- [ ] 5.1 Translate comments in `cli.ts`, `index.ts`, `websocket.ts`,
+- [x] 5.1 Translate comments in `cli.ts`, `index.ts`, `websocket.ts`,
   `wire.ts`, `rest.ts`, `static.ts`, `server.ts`, `static.test.ts`,
   `server.test.ts`, `scripts/build-client.mjs`,
-  `scripts/client-build-options.mjs`.
+  `scripts/client-build-options.mjs`. Verified with
+  `npm run test --workspace packages/server` (40 tests passed).
 
 ## 6. Translate `packages/extension`
 

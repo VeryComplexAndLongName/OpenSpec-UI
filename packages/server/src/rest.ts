@@ -1,7 +1,7 @@
-// 1.1 REST-эндпоинт для `status` — синхронный ответ с полным списком
-// событий этого запуска. `status` — обычная команда `execution-core`
-// (см. `@openspec-ui/core`'s agents/shared.ts commandInstruction), просто
-// достаточно быстрая, чтобы не требовать WS ради неё (см.
+// 1.1 REST endpoint for `status` — a synchronous response with the full
+// list of events from this run. `status` is a regular `execution-core`
+// command (see `@openspec-ui/core`'s agents/shared.ts commandInstruction),
+// just fast enough that it does not need WS for its own sake (see
 // openspec/changes/standalone-app/design.md, "Decisions").
 
 import type { IncomingMessage, ServerResponse } from "node:http";

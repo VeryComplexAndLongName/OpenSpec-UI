@@ -1,7 +1,7 @@
-// Общие опции esbuild для клиентского бандла — переиспользуются
-// build-client.mjs (реальная сборка) и static.test.ts (гарантирует наличие
-// dist/app.js перед тестом статической отдачи, не полагаясь на то, что
-// `npm run build` уже был вызван вручную).
+// Shared esbuild options for the client bundle — reused by
+// build-client.mjs (the real build) and static.test.ts (ensures dist/app.js
+// exists before the static-serving test, without relying on `npm run build`
+// having already been invoked manually).
 
 import { createRequire } from "node:module";
 import path from "node:path";

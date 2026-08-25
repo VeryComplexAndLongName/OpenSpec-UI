@@ -1,7 +1,8 @@
-// Проверка формы входящего JSON как `Command` — это сериализационная
-// граница (аналог парсинга HTTP-запроса), а не бизнес-логика: сервер не
-// решает, что агенту разрешено делать, только распознаёт форму запроса
-// (см. spec.md, "Server contains no business logic").
+// Checking the shape of incoming JSON as a `Command` is a serialization
+// boundary (analogous to parsing an HTTP request), not business logic:
+// the server does not decide what the agent is permitted to do, it only
+// recognizes the request's shape (see spec.md, "Server contains no
+// business logic").
 
 import type { Command, CommandKind } from "@openspec-ui/core";
 
