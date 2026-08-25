@@ -31,6 +31,14 @@ updates:
       # npm-development group with 3 updates").
       - dependency-name: "vitest"
         versions: [">=3.0.0"]
+      # @types/vscode's version must stay <= packages/extension's declared
+      # engines.vscode (currently ^1.90.0), or `vsce package` refuses to
+      # build ("@types/vscode ^1.134.0 greater than engines.vscode
+      # ^1.90.0"). Bumping this requires deliberately raising engines.vscode
+      # too -- not something to accept automatically (seen live in PR #67,
+      # "Bump the npm-development group across 1 directory with 2 updates").
+      - dependency-name: "@types/vscode"
+        versions: [">=1.91.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
