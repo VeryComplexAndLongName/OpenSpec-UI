@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.3
+
+- The per-command instruction text sent to CLI agents (`plan`/`implement`/
+  `review`/`status`/`cancel`) is now in English instead of Russian, for
+  consistency with the other command kinds and this repository's
+  English-only policy. No change to which commands are available or how
+  they behave beyond the language of that instruction text.
+
 ## 0.16.2
 
 - Fixed: mutating operations such as archive no longer fail checkpoint limits
