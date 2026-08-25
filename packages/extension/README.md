@@ -93,7 +93,11 @@ context menu.
   backlink to the version it was forked from), insert a rendered
   template into any active change, or delete a project-level template
   with confirmation — built-in templates ship as part of the extension
-  and are never deletable through the UI.
+  and are never deletable through the UI. 16 built-in templates across 9
+  categories (data-layer, framework-migration, architecture-migration,
+  testing, ci-cd, auth, containerization, observability, configuration),
+  covering Python, Node.js/TypeScript, ASP.NET Core, and language-agnostic
+  patterns.
 - Bootstrap repository files for a picked project type (Node.js/
   TypeScript or Python): agent instructions (`CLAUDE.md`/`AGENTS.md`),
   `.github/dependabot.yml`, and path-scoped `.github/instructions/

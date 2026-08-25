@@ -209,6 +209,7 @@ download a specific build; the artifact itself is never committed into
 | Agent selection (plan/implement/review via this app's own protocol) | Yes | Yes |
 | Processes view and checkpoint rollback | Yes | Yes |
 | Persistent run journal engine | Yes | Yes |
+| Built-in template catalog (16 templates, 9 categories) | Yes | Yes |
 
 Host-specific UX is allowed to differ, but business behavior must remain in
 `packages/core`. Both delivery targets expose the same core recovery behavior
