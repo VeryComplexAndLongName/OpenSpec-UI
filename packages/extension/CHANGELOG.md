@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0
+
+- Added three ASP.NET Core built-in templates: "Add Entity Framework Core
+  and migrations to an ASP.NET Core project" (`data-layer`), "Add an
+  xUnit testing baseline to an ASP.NET Core project" (`testing`), and
+  "Add JWT bearer authentication to an ASP.NET Core API" (`auth`) —
+  closing a gap where ASP.NET Core, one of this product's four
+  originally-targeted languages, had zero built-in templates.
+
 ## 0.16.3
 
 - The per-command instruction text sent to CLI agents (`plan`/`implement`/
