@@ -14,12 +14,13 @@
 
 ## 3. Translate `packages/core/src/security.ts` and `security.test.ts`
 
-- [ ] 3.1 Translate `security.ts` (allowlist/cwd-sandbox decision messages,
+- [x] 3.1 Translate `security.ts` (allowlist/cwd-sandbox decision messages,
   the `prepareAgentContext` data/instructions header, audit-log JSDoc)
   faithfully, preserving the security-invariant wording exactly.
-- [ ] 3.2 Translate `security.test.ts`'s comments and any fixture/assertion
+- [x] 3.2 Translate `security.test.ts`'s comments and any fixture/assertion
   text that mirrors `security.ts`'s translated strings, keeping the tests
-  aligned with the implementation.
+  aligned with the implementation. Verified with
+  `npm run test --workspace packages/core` (170 tests passed).
 
 ## 4. Translate `packages/core/src/agents/*`
 
