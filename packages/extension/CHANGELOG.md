@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.20.0
+
+- Added a built-in template in a new `configuration` category: "Validate
+  environment configuration at startup instead of failing on first use" —
+  a schema-validated config module that crashes immediately with a clear
+  error on a missing or invalid environment variable, instead of failing
+  later at whatever code path first reads it.
+
 ## 0.19.0
 
 - Added a built-in template: "Migrate a Create React App project to Vite"
