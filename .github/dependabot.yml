@@ -24,6 +24,13 @@ updates:
       # updates").
       - dependency-name: "@eslint/js"
         versions: [">=10.0.0"]
+      # vitest 4's toolchain (vite 8 / rolldown) needs native bindings that
+      # fail to resolve here ("Cannot find module
+      # '@rolldown/binding-wasm32-wasi'") and a newer Node.js than this
+      # repo's pinned 22.11.0 (seen live in PR #65, "Bump the
+      # npm-development group with 3 updates").
+      - dependency-name: "vitest"
+        versions: [">=3.0.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
