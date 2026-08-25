@@ -1,101 +1,104 @@
 # Live smoke-test notes — standalone-app
 
-Дата: 2026-08-03. Выполнено в рамках tasks.md 3.1/3.2.
+Date: 2026-08-03. Performed as part of tasks.md 3.1/3.2.
 
-## Окружение
+## Environment
 
-- `claude` CLI: `C:\Users\ivanov.a\.local\bin\claude.exe` — установлен, но
-  **не авторизован** в этом окружении (`Not logged in · Please run /login`).
-  Это отдельная установка, не связанная с сессией, в которой выполняется
-  сама разработка.
-- `copilot` CLI: `C:\Users\ivanov.a\AppData\Roaming\npm\copilot` (npm-шим,
-  реально резолвится в `copilot.cmd` на Windows) — авторизован и рабочий.
-- `codex`, `gemini` — не установлены в этом окружении. Их адаптеры
-  валидируются только моками/contract-тестами (см. `execution-core`
-  tasks.md 2.7/2.8) — реальный live-прогон для них в этой фазе разработки
-  недоступен.
+- `claude` CLI: `C:\Users\ivanov.a\.local\bin\claude.exe` — installed, but
+  **not authorized** in this environment (`Not logged in · Please run /login`).
+  This is a separate installation, unrelated to the session in which the
+  development work itself is being done.
+- `copilot` CLI: `C:\Users\ivanov.a\AppData\Roaming\npm\copilot` (an npm
+  shim that actually resolves to `copilot.cmd` on Windows) — authorized
+  and working.
+- `codex`, `gemini` — not installed in this environment. Their adapters
+  are validated only by mocks/contract tests (see `execution-core`
+  tasks.md 2.7/2.8) — a real live run for them is not available at this
+  phase of development.
 
-## Ход теста
+## Test procedure
 
-1. Поднят `packages/server` (`npm run start`) с `workspaceRoot`, указывающим
-   на одноразовую scratch-директорию (не на реальный репозиторий — см.
-   ниже, "Почему не на реальном репозитории").
-2. Открыт браузерный шелл (`packages/server/public/index.html` +
-   собранный `dist/app.js`) через реальный HTTP-запрос в браузере.
-3. В AI-панели указаны `cwd`/`changeDir` на scratch-директорию, выбран
-   агент, запущена команда `plan`.
+1. Started `packages/server` (`npm run start`) with `workspaceRoot`
+   pointing at a disposable scratch directory (not at the real
+   repository — see below, "Why not against the real repository").
+2. Opened the browser shell (`packages/server/public/index.html` +
+   the built `dist/app.js`) via a real HTTP request in the browser.
+3. In the AI panel, set `cwd`/`changeDir` to the scratch directory,
+   selected an agent, and ran the `plan` command.
 
-### Попытка 1 — `claude-cli`
+### Attempt 1 — `claude-cli`
 
-Результат: `started` → `stdout` (`Not logged in · Please run /login`) →
-`failed: claude завершился с кодом 1`. Ожидаемо — реальный CLI не
-авторизован в этом окружении. Подтверждает, что спавн процесса, передача
-аргументов и перехват stdout/exit-кода работают корректно (ошибка —
-окружения, не кода).
+Result: `started` → `stdout` (`Not logged in · Please run /login`) →
+`failed: claude exited with code 1`. Expected — the real CLI is not
+authorized in this environment. Confirms that spawning the process,
+passing arguments, and capturing stdout/exit code work correctly (the
+error is environmental, not a code issue).
 
-### Попытка 2 — `copilot-cli`, до исправлений
+### Attempt 2 — `copilot-cli`, before fixes
 
-Результат: `failed: spawn copilot ENOENT`.
+Result: `failed: spawn copilot ENOENT`.
 
-**Найденный баг**: `agents/shared.ts`'s `spawnAndStream` использовал голый
-`node:child_process.spawn(executable, args)` без `shell: true`. На Windows
-`copilot` резолвится в `.cmd`-шим (`copilot.cmd`), а не в `.exe` — Node не
-может запустить `.cmd` напрямую без интерпретатора. Включать `shell: true`
-впрямую было бы небезопасно: `copilot`'s промпт (может содержать
-произвольное содержимое change-файлов) передаётся именно как argv-аргумент,
-и голый `shell: true` открыл бы shell-инъекцию через этот аргумент.
+**Bug found**: `agents/shared.ts`'s `spawnAndStream` used plain
+`node:child_process.spawn(executable, args)` without `shell: true`. On
+Windows, `copilot` resolves to a `.cmd` shim (`copilot.cmd`), not a
+`.exe` — Node cannot launch a `.cmd` directly without an interpreter.
+Enabling `shell: true` directly would be unsafe: `copilot`'s prompt (which
+can contain arbitrary change-file content) is passed in precisely as an
+argv argument, and plain `shell: true` would open a shell injection
+through that argument.
 
-**Исправление**: `agents/shared.ts` переведён на `cross-spawn` — корректно
-резолвит `.cmd`/`.bat` на Windows, экранируя каждый аргумент по отдельности,
-не интерпретируя итоговую командную строку в шелле. См.
+**Fix**: `agents/shared.ts` was switched to `cross-spawn` — it correctly
+resolves `.cmd`/`.bat` on Windows, escaping each argument individually
+rather than interpreting the resulting command line in a shell. See
 `packages/core/src/agents/shared.ts`, `@openspec-ui/core@0.4.1`.
 
-### Попытка 3 — `copilot-cli`, после исправления spawn
+### Attempt 3 — `copilot-cli`, after the spawn fix
 
-Результат: `started` → `stdout` (`No task was specified in your message —
+Result: `started` → `stdout` (`No task was specified in your message —
 "--allow-all-tools" is a flag, not a request...`) → `completed`.
 
-**Найденный баг**: `CopilotCliAdapter` передавал промпт через stdin (как и
-Claude/Codex/Gemini), но `copilot -p` не читает stdin — промпт должен быть
-позиционным аргументом сразу после `-p`.
+**Bug found**: `CopilotCliAdapter` passed the prompt via stdin (like
+Claude/Codex/Gemini), but `copilot -p` does not read stdin — the prompt
+must be a positional argument right after `-p`.
 
-**Исправление**: `CopilotCliAdapter.execute()` теперь встраивает промпт в
-argv (`["-p", prompt, "--allow-all-tools"]`) уже после того, как
-`buildInvocation()`'s статическая форма (`["-p", "--allow-all-tools"]`)
-прошла allowlist-проверку — содержимое промпта по-прежнему не влияет на то,
-разрешён ли сам запуск (см. `packages/core/src/agents/copilot.ts`).
+**Fix**: `CopilotCliAdapter.execute()` now embeds the prompt into argv
+(`["-p", prompt, "--allow-all-tools"]`) only after `buildInvocation()`'s
+static shape (`["-p", "--allow-all-tools"]`) has passed the allowlist
+check — the prompt's content still does not affect whether the run itself
+is permitted (see `packages/core/src/agents/copilot.ts`).
 
-### Попытка 4 — `copilot-cli`, после обоих исправлений
+### Attempt 4 — `copilot-cli`, after both fixes
 
-Результат: `started (plan)` → `stdout` (реальный ответ Copilot: корректно
-заметил, что описание change'а пусто, и попросил уточнить задачу) →
-`completed`. Реально потрачены AI Credits (9.05, ~10s), токены — see
-Copilot's own usage line in the output. **Полный pipeline подтверждён
-end-to-end**: браузер → WebSocket → `server` → `execution-core`'s
-`AgentRunner` → реальный процесс CLI-агента → поток событий → рендер в
-браузере.
+Result: `started (plan)` → `stdout` (a real Copilot response: it correctly
+noticed that the change's description was empty and asked for the task to
+be clarified) → `completed`. AI Credits were actually spent (9.05, ~10s),
+tokens — see Copilot's own usage line in the output. **The full pipeline
+was confirmed end-to-end**: browser → WebSocket → `server` →
+`execution-core`'s `AgentRunner` → the real CLI agent process → event
+stream → rendering in the browser.
 
-## Почему не на реальном репозитории
+## Why not against the real repository
 
-`plan`/`implement`/`review` — это настоящие вызовы CLI-агента с доступом к
-инструментам (`--allow-all-tools` для copilot, аналогично для claude).
-Прогонять их с `cwd`, указывающим на `C:\Prog\OpenSpec-UI`, означало бы
-доверить реальному репозиторию непроверенному агентскому прогону в рамках
-smoke-теста. Вместо этого `workspaceRoot`/`cwd` указывали на одноразовую
-scratch-директорию с фиктивным `openspec/changes/demo/proposal.md` —
-изоляция полностью убирает этот риск, не жертвуя ничем в проверке самого
-pipeline.
+`plan`/`implement`/`review` are real CLI-agent invocations with tool
+access (`--allow-all-tools` for copilot, similarly for claude). Running
+them with `cwd` pointing at `C:\Prog\OpenSpec-UI` would mean entrusting
+the real repository to an unverified agent run as part of a smoke test.
+Instead, `workspaceRoot`/`cwd` pointed at a disposable scratch directory
+with a fake `openspec/changes/demo/proposal.md` — this isolation removes
+the risk entirely without sacrificing anything in verifying the pipeline
+itself.
 
-## Вывод
+## Conclusion
 
-- `claude-cli` и `copilot-cli` — единственные агенты, доступные для live-
-  тестирования в этой фазе разработки (см. также `execution-core`
-  tasks.md 2.8). `copilot-cli` подтверждён полностью рабочим end-to-end.
-  `claude-cli` подтверждён механически рабочим (spawn/argv/stdout/exit-код),
-  но не был протестирован end-to-end из-за отсутствия авторизации в этом
-  окружении — это ограничение окружения, не блокер для archive.
-- `codex-cli`/`gemini-cli` остаются валидированы только моками/contract-
-  тестами — CLI не установлены в этом окружении.
-- Оба найденных бага (spawn `.cmd` на Windows, copilot's argv-vs-stdin)
-  исправлены в `@openspec-ui/core` и покрыты юнит-тестами
+- `claude-cli` and `copilot-cli` are the only agents available for live
+  testing at this phase of development (see also `execution-core`
+  tasks.md 2.8). `copilot-cli` was confirmed fully working end-to-end.
+  `claude-cli` was confirmed mechanically working (spawn/argv/stdout/exit
+  code), but was not tested end-to-end due to the lack of authorization
+  in this environment — this is an environment limitation, not a blocker
+  for archiving.
+- `codex-cli`/`gemini-cli` remain validated only by mocks/contract
+  tests — the CLIs are not installed in this environment.
+- Both bugs found (spawning a `.cmd` on Windows, copilot's argv-vs-stdin)
+  were fixed in `@openspec-ui/core` and are covered by unit tests
   (`agents/shared.test.ts`, `agents/copilot.test.ts`).

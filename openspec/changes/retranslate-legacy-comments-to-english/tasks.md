@@ -72,11 +72,14 @@
 
 ## 8. Repo-level markdown notes
 
-- [ ] 8.1 Translate
+- [x] 8.1 Translate
   `openspec/changes/archive/2026-08-13-standalone-app/smoke-test-notes.md`
   and `openspec/changes/archive/2026-08-13-vscode-extension/TEST-NOTES.md`
   in full (both are historical live-test notes from archived changes; no
-  functional content, safe to translate wholesale).
+  functional content, safe to translate wholesale). Confirmed via repo-wide
+  grep that no Cyrillic remains outside the two exempt files
+  (`packages/core/src/openspec-fixtures/show.json`,
+  `scripts/check-english.test.mjs`).
 
 ## 9. Baseline and verification
 

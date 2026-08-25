@@ -1,76 +1,77 @@
 # Live test notes — vscode-extension
 
-Дата: 2026-08-03. Выполнено в рамках tasks.md 4.1/4.2/4.3, через
-`@vscode/test-electron` (`packages/extension/src/test/run.mjs`) — реальный
-VS Code Extension Development Host, не мок `vscode`.
+Date: 2026-08-03. Performed as part of tasks.md 4.1/4.2/4.3, via
+`@vscode/test-electron` (`packages/extension/src/test/run.mjs`) — a real
+VS Code Extension Development Host, not a `vscode` mock.
 
-## Окружение
+## Environment
 
-Те же, что и в `openspec/changes/standalone-app/smoke-test-notes.md`:
-- `claude` CLI — установлен, не авторизован в этом окружении.
-- `copilot` CLI — авторизован и рабочий.
-- `codex`/`gemini` — не установлены.
+Same as in `openspec/changes/standalone-app/smoke-test-notes.md`:
+- `claude` CLI — installed, not authorized in this environment.
+- `copilot` CLI — authorized and working.
+- `codex`/`gemini` — not installed.
 
-## Ход теста
+## Test procedure
 
-Одноразовый temp-воркспейс (не в репозитории — те же соображения
-безопасности, что и у standalone-app: `plan`/`implement` — реальные вызовы
-CLI-агента с доступом к инструментам, прогонять их с cwd на реальном
-репозитории в рамках smoke-теста неприемлемо), с фиктивным
-`openspec/changes/demo/`. Извлечён из репозитория VS Code stable 1.131.0
-(скачан `@vscode/test-electron`), запущен Extension Development Host с
-`--disable-extensions` (встроенные расширения вроде `vscode.git` остаются
-активны — флаг отключает только пользовательские/marketplace-расширения).
+A disposable temp workspace (not in the repository — the same safety
+considerations as standalone-app: `plan`/`implement` are real CLI-agent
+invocations with tool access, running them with cwd on the real repository
+as part of a smoke test would be unacceptable), with a fake
+`openspec/changes/demo/`. Extracted from the VS Code stable 1.131.0
+repository (downloaded by `@vscode/test-electron`), launched an Extension
+Development Host with `--disable-extensions` (built-in extensions like
+`vscode.git` remain active — the flag only disables user/marketplace
+extensions).
 
-### Результат — 5/5 тестов пройдено
+### Result — 5/5 tests passed
 
-1. Расширение активируется, все 8 контрибьютed команд зарегистрированы.
-2. Реестр `AgentRunner` строится напрямую (без сети) для всех 5 агентов.
-3. Основной режим — serverless по умолчанию (локальный сервер НЕ запущен).
-4. **Реальный `plan` через `copilot-cli`**: `started` → реальный ответ
-   Copilot (заметил пустое описание задачи, попросил уточнить — корректная
-   реакция) → `completed`. ~35s, реальные AI Credits.
-5. **Переключение на локальный сервер** (`openspec-ui.transport.localServer.enabled`):
-   сервер поднимается на динамическом порту, отдаёт тот же standalone-шелл
-   (`<div id="root">` в HTML), выключение настройки останавливает сервер.
+1. The extension activates, all 8 contributed commands are registered.
+2. The `AgentRunner` registry is built directly (no network) for all 5 agents.
+3. The primary mode is serverless by default (the local server is NOT running).
+4. **A real `plan` run through `copilot-cli`**: `started` → a real Copilot
+   response (it noticed the empty task description and asked for
+   clarification — the correct reaction) → `completed`. ~35s, real AI
+   Credits spent.
+5. **Switching to the local server** (`openspec-ui.transport.localServer.enabled`):
+   the server comes up on a dynamic port, serves the same standalone shell
+   (`<div id="root">` in the HTML), disabling the setting stops the server.
 
-## Найденные и исправленные баги
+## Bugs found and fixed
 
-Все три — варианты одной и той же проблемы: Windows резолвит некоторые
-CLI/бинари как `.cmd`-шимы, которые `node:child_process`'s `spawn`/`execFile`
-без `shell: true` не могут запустить напрямую (`ENOENT`), а `shell: true`
-впрямую небезопасен там, где аргументы содержат данные из содержимого
-change-файлов.
+All three are variants of the same problem: Windows resolves certain
+CLIs/binaries as `.cmd` shims, which `node:child_process`'s `spawn`/`execFile`
+cannot launch directly without `shell: true` (`ENOENT`), while `shell: true`
+directly is unsafe wherever arguments contain data from change-file content.
 
-1. **`copilot` CLI спавнился напрямую** (`agents/shared.ts`) — исправлено
-   переходом на `cross-spawn` (см. `standalone-app/smoke-test-notes.md`,
-   найдено там же, до этого прогона).
-2. **`openspec` CLI (сам бинарь, вызываемый `core/openspec.ts`'s
-   `listChanges`/`listSpecs`/`showChange`/`validateChange`) спавнился через
-   голый `execFile`** — тот же `ENOENT` на Windows, найдено именно этим
-   прогоном (unit-тесты мокали `child_process` целиком и не ловили это;
-   standalone-app's smoke-тест не обращался к `openspec` CLI напрямую).
-   Исправлено: `openspec.ts` переведён на тот же `cross-spawn`-паттерн, что
-   и `agents/shared.ts` (`@openspec-ui/core@0.5.1`).
-3. **`server/src/static.ts` падал при импорте внутри забандленного CJS**
-   (`import.meta.url` — `undefined` при `esbuild --format=cjs`,
-   `fileURLToPath(undefined)` бросает `TypeError` на верхнем уровне модуля,
-   до того как вызывающий код успевает передать `staticAssets`-override).
-   Обнаружено именно тестом "переключение на локальный сервер" (единственный
-   путь, реально импортирующий `@openspec-ui/server` из забандленного
-   `extension.js`). Исправлено: вычисление дефолтных путей стало ленивым и
-   обёрнуто в try/catch (`@openspec-ui/server@0.1.3`).
+1. **The `copilot` CLI was spawned directly** (`agents/shared.ts`) — fixed
+   by switching to `cross-spawn` (see `standalone-app/smoke-test-notes.md`,
+   found there, before this run).
+2. **The `openspec` CLI (the binary itself, invoked by `core/openspec.ts`'s
+   `listChanges`/`listSpecs`/`showChange`/`validateChange`) was spawned via
+   plain `execFile`** — the same `ENOENT` on Windows, found specifically by
+   this run (unit tests mocked `child_process` wholesale and did not catch
+   this; standalone-app's smoke test did not call the `openspec` CLI
+   directly). Fixed: `openspec.ts` was switched to the same `cross-spawn`
+   pattern as `agents/shared.ts` (`@openspec-ui/core@0.5.1`).
+3. **`server/src/static.ts` crashed on import inside the bundled CJS
+   build** (`import.meta.url` is `undefined` under `esbuild --format=cjs`,
+   `fileURLToPath(undefined)` throws a `TypeError` at the module's top
+   level, before the calling code gets a chance to pass a `staticAssets`
+   override). Found specifically by the "switching to the local server"
+   test (the only path that actually imports `@openspec-ui/server` from
+   the bundled `extension.js`). Fixed: computing the default paths became
+   lazy and wrapped in try/catch (`@openspec-ui/server@0.1.3`).
 
-## Вывод
+## Conclusion
 
-`claude-cli` и `copilot-cli` — единственные агенты, доступные для live-
-тестирования в этой фазе разработки (см. `execution-core` tasks.md 2.8,
-`standalone-app` tasks.md 3.2). `copilot-cli` подтверждён полностью рабочим
-end-to-end и в standalone, и в vscode-extension. `codex-cli`/`gemini-cli`
-остаются валидированы только моками/contract-тестами.
+`claude-cli` and `copilot-cli` are the only agents available for live
+testing at this phase of development (see `execution-core` tasks.md 2.8,
+`standalone-app` tasks.md 3.2). `copilot-cli` was confirmed fully working
+end-to-end in both standalone and vscode-extension. `codex-cli`/`gemini-cli`
+remain validated only by mocks/contract tests.
 
-Ценность этого прогона — не в том, что он "прошёл первого раза" (не прошёл:
-нашёл 2 новых реальных бага сверх уже известного из standalone-app), а в
-том, что живой прогон внутри настоящего VS Code ловит именно те баги,
-которые unit-тесты с моками `vscode`/`child_process` структурно не могут
-поймать.
+The value of this run is not that it "passed on the first try" (it did
+not: it found 2 new real bugs beyond the one already known from
+standalone-app), but that a live run inside actual VS Code catches exactly
+the bugs that unit tests with `vscode`/`child_process` mocks structurally
+cannot catch.
