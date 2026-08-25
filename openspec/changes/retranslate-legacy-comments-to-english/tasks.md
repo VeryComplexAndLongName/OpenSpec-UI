@@ -51,12 +51,14 @@
 
 ## 7. Translate `packages/webui`
 
-- [ ] 7.1 Translate comments in `types.ts`, `transport/types.ts`, `index.ts`,
+- [x] 7.1 Translate comments in `types.ts`, `transport/types.ts`, `index.ts`,
   `transport/message-bridge-transport.ts`, `transport/fetch-transport.ts`,
   `transport/fetch-transport.test.ts`, `transport/contract.test.ts`.
-- [ ] 7.2 Translate comments in `standalone-entry.tsx`,
-  `extension-entry.tsx`, `markdown.tsx`; translate `markdown.test.tsx`'s
-  sample strings and update its matching assertions.
+- [x] 7.2 Translate comments in `standalone-entry.tsx` (already fully
+  English — a prior unrelated change had already replaced its baselined
+  lines; nothing left to translate there), `extension-entry.tsx`,
+  `markdown.tsx`; translate `markdown.test.tsx`'s sample strings and update
+  its matching assertions.
 - [ ] 7.3 Translate `components/TasksChecklist.tsx`,
   `components/RequirementView.tsx`, `components/RequirementView.test.tsx`
   (sample requirement text + assertions), `components/SpecsSearch.tsx`,

@@ -1,7 +1,7 @@
-// Минимальный inline-рендер markdown: **bold** и `code` — ровно то, что
-// используется в тексте требований OpenSpec (SHALL/SHALL NOT в bold,
-// идентификаторы в code). Не полноценный markdown-парсер — редактирование
-// и богатый рендер делегируются хосту (см. design.md, "Decisions").
+// A minimal inline markdown renderer: **bold** and `code` — exactly what
+// is used in OpenSpec requirement text (SHALL/SHALL NOT in bold,
+// identifiers in code). Not a full markdown parser — editing and rich
+// rendering are delegated to the host (see design.md, "Decisions").
 
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";

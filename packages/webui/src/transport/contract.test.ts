@@ -1,8 +1,9 @@
-// Contract test (tasks.md 1.4): один и тот же сценарий (успех/ошибка/обрыв
-// соединения) должен давать одинаковый набор событий через оба Transport,
-// несмотря на разные механизмы доставки под капотом (WebSocket vs
-// postMessage). Это прямой тест риска из design.md ("Два Transport-адаптера
-// могут разойтись по обработке ошибок").
+// Contract test (tasks.md 1.4): the same scenario (success/error/connection
+// drop) must produce the same set of events through both Transports,
+// regardless of the different delivery mechanisms under the hood
+// (WebSocket vs postMessage). This is a direct test of the risk from
+// design.md ("The two Transport adapters could diverge in how they
+// handle errors").
 
 import { describe, expect, it, vi } from "vitest";
 import type { Command, Event } from "@openspec-ui/core";
@@ -23,8 +24,8 @@ class FakeWebSocket extends EventTarget {
   }
 
   send(): void {
-    // Отправка команды по сокету не участвует в этом сценарии — здесь
-    // проверяется только доставка событий, приходящих обратно.
+    // Sending a command over the socket is not part of this scenario —
+    // only the delivery of events coming back is verified here.
   }
 
   open() {
@@ -81,9 +82,9 @@ function setUpFetchTransport(): { transport: Transport; drive: (event: Event) =>
     fetchImpl: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ events: [] }) }) as unknown as typeof fetch,
     webSocketCtor: ctor,
   });
-  // `command.kind === "implement"` идёт по WS — сокет создаётся при первом
-  // `send()` (см. fetch-transport.ts), поэтому для доставки событий сначала
-  // нужно инициировать команду, как это происходит в реальном сценарии.
+  // `command.kind === "implement"` goes over WS — the socket is created on
+  // the first `send()` (see fetch-transport.ts), so to deliver events we
+  // first need to initiate the command, just as happens in a real scenario.
   transport.send(command);
   instances[0]?.open();
 
@@ -102,9 +103,9 @@ function setUpMessageBridgeTransport(): { transport: Transport; drive: (event: E
     transport,
     drive: (event: Event) => eventTarget.dispatchEvent(new MessageEvent("message", { data: { type: "openspec-ui/event", event } })),
     teardownChannel: () => {
-      // MessageBridgeTransport не владеет lifecycle'ом eventTarget — обрыв
-      // соединения здесь означает "хост перестал слать события", что не
-      // требует явного действия для этого фейка.
+      // MessageBridgeTransport does not own the eventTarget's lifecycle —
+      // a connection drop here means "the host stopped sending events",
+      // which requires no explicit action for this fake.
     },
   };
 }

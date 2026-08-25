@@ -1,6 +1,7 @@
-// Точка входа @openspec-ui/webui — транспорт-агностичные React-компоненты,
-// переиспользуемые и в standalone (браузер), и в VS Code extension (Webview).
-// См. openspec/changes/shared-ui/design.md за архитектурными решениями.
+// Entry point for @openspec-ui/webui — transport-agnostic React
+// components, reused by both standalone (browser) and the VS Code
+// extension (Webview). See openspec/changes/shared-ui/design.md for the
+// architectural decisions.
 
 export type { Transport, Unsubscribe } from "./transport/types.js";
 export { FetchTransport, type FetchTransportOptions } from "./transport/fetch-transport.js";

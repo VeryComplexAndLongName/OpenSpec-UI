@@ -1,22 +1,23 @@
-// FetchTransport — используется standalone-инструментом и, опционально, VS
-// Code extension'ом (см. ADR 0001, п.2 — локальный сервер как опциональный
-// режим extension). Проводной протокол зафиксирован в
+// FetchTransport — used by the standalone tool and, optionally, by the VS
+// Code extension (see ADR 0001, item 2 — the local server as an optional
+// extension mode). The wire protocol is fixed in
 // `openspec/changes/standalone-app/design.md`:
-//   - `status` — REST (`POST /api/status`), синхронный ответ с полным
-//     списком событий этого запуска (команда быстрая, WS ради неё избыточен);
-//   - `plan`/`implement`/`review`/`cancel` — единое WebSocket-соединение
-//     (`/api/ws`): команда отправляется и её события приходят по одному и
-//     тому же сокету.
-// Это деталь ПРОВОДНОГО протокола именно этой реализации `Transport` — вызов
-// `send`/`subscribe` для потребителя выглядит одинаково независимо от того,
-// какой kind команды отправлен (см. spec.md shared-ui, "Компоненты не
-// зависят от конкретного транспорта").
+//   - `status` — REST (`POST /api/status`), a synchronous response with
+//     the full list of events from this run (the command is fast, WS
+//     would be overkill for it);
+//   - `plan`/`implement`/`review`/`cancel` — a single WebSocket connection
+//     (`/api/ws`): the command is sent and its events arrive over the
+//     same socket.
+// This is a WIRE-protocol detail specific to this `Transport`
+// implementation — for the consumer, calling `send`/`subscribe` looks the
+// same regardless of which command kind was sent (see spec.md shared-ui,
+// "Components do not depend on a specific transport").
 
 import { type Command, type Event, deserializeEvent } from "@openspec-ui/core/browser";
 import type { Transport, Unsubscribe } from "./types.js";
 
 export interface FetchTransportOptions {
-  /** Базовый URL сервера, например http://localhost:4000. */
+  /** The server's base URL, e.g. http://localhost:4000. */
   baseUrl: string;
   accessToken: string;
   fetchImpl?: typeof fetch;
@@ -45,7 +46,7 @@ export class FetchTransport implements Transport {
     }
     const ctor = options.webSocketCtor ?? (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
     if (!ctor) {
-      throw new Error("FetchTransport: WebSocket недоступен в этом окружении и не передан явно");
+      throw new Error("FetchTransport: WebSocket is unavailable in this environment and was not passed explicitly");
     }
     this.WebSocketCtor = ctor;
   }
@@ -136,8 +137,9 @@ export class FetchTransport implements Transport {
       const event = typeof raw === "string" ? deserializeEvent(raw) : deserializeEvent(JSON.stringify(raw));
       for (const listener of this.listeners) listener(event);
     } catch {
-      // Payload, не соответствующий протоколу, — консервативно игнорируется
-      // (тот же принцип, что и в core/agents/shared.ts), не роняет поток.
+      // A payload that does not match the protocol is conservatively
+      // ignored (the same principle as in core/agents/shared.ts), without
+      // breaking the stream.
     }
   }
 
