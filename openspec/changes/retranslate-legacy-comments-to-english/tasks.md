@@ -83,18 +83,22 @@
 
 ## 9. Baseline and verification
 
-- [ ] 9.1 Confirm no file was skipped without a documented reason;
+- [x] 9.1 Confirm no file was skipped without a documented reason;
   `packages/core/src/openspec-fixtures/show.json` stays untouched
   (explicitly exempt from scanning) and `scripts/check-english.test.mjs`
   stays untouched (its Cyrillic lines are the intentional subject of the
   scanner's own tests, marked `english-policy-allow`, and were never
-  baselined).
-- [ ] 9.2 Regenerate `scripts/english-policy-baseline.json` via
+  baselined). Confirmed via repo-wide grep — zero remaining Cyrillic lines
+  outside those two files.
+- [x] 9.2 Regenerate `scripts/english-policy-baseline.json` via
   `node scripts/check-english.mjs --write-baseline` after all intended
-  translations above are complete.
-- [ ] 9.3 `npm run lint:english` passes.
-- [ ] 9.4 `npm run typecheck` passes workspace-wide.
-- [ ] 9.5 `npm run test` passes workspace-wide.
-- [ ] 9.6 `npm run lint` passes workspace-wide.
-- [ ] 9.7 `openspec change validate --strict retranslate-legacy-comments-to-english`
+  translations above are complete. Result: 0 entries (down from 635).
+- [x] 9.3 `npm run lint:english` passes — "English policy check passed."
+- [x] 9.4 `npm run typecheck` passes workspace-wide (cli, core, extension,
+  server, webui — no errors).
+- [x] 9.5 `npm run test` passes workspace-wide: 435 tests passed across all
+  5 workspaces (cli: 12, core: 170, extension: 101, server: 40, webui: 112).
+- [x] 9.6 `npm run lint` passes workspace-wide (lint:english + eslint for
+  every workspace, no errors).
+- [x] 9.7 `openspec change validate --strict retranslate-legacy-comments-to-english`
   passes.
