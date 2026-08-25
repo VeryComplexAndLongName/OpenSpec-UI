@@ -1,9 +1,9 @@
-// Адаптер: локальная LLM через OpenAI-совместимый API (SGLang/vLLM) — прямой
-// HTTP-вызов `/v1/chat/completions` с `stream: true`, а не CLI-процесс (см.
-// tasks.md 2.6). Стриминг разбирается построчно по SSE-формату
-// (`data: {...}\n\n`); строки, не соответствующие ожидаемому формату,
-// передаются как есть в `stdout` — тот же принцип консервативного парсинга,
-// что и в CLI-адаптерах (shared.ts).
+// Adapter: a local LLM via an OpenAI-compatible API (SGLang/vLLM) — a
+// direct HTTP call to `/v1/chat/completions` with `stream: true`, rather
+// than a CLI process (see tasks.md 2.6). The stream is parsed line-by-line
+// in SSE format (`data: {...}\n\n`); lines that do not match the expected
+// format are passed through to `stdout` as-is — the same conservative
+// parsing principle used by the CLI adapters (shared.ts).
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
@@ -14,7 +14,7 @@ function nowIso(): string {
 }
 
 export interface LocalLlmAdapterOptions {
-  /** Базовый URL сервера, например http://hppii-gpu:30000. */
+  /** The server's base URL, e.g. http://hppii-gpu:30000. */
   baseUrl: string;
   model: string;
 }
@@ -38,7 +38,7 @@ export class LocalLlmAdapter implements AgentAdapter {
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
     if (invocation.kind !== "http") {
-      throw new Error("LocalLlmAdapter ожидает invocation.kind === 'http'");
+      throw new Error("LocalLlmAdapter expects invocation.kind === 'http'");
     }
     const { runId, cwd, kind } = command;
     yield { kind: "started", runId, timestamp: nowIso(), command: kind, cwd };

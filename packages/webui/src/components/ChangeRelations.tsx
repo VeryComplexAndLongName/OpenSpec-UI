@@ -1,11 +1,13 @@
-// 2.4 Отображение связей между changes — размечены неявно: change A связан
-// с change B, если имя B упоминается в тексте proposal.md change'а A (тот же
-// принцип, что и cross-links между requirements в Specs, см. RequirementView).
+// 2.4 Displays relations between changes — marked implicitly: change A is
+// related to change B if B's name is mentioned in change A's proposal.md
+// text (the same principle as cross-links between requirements in Specs,
+// see RequirementView).
 
 export interface ChangeRelationsProps {
   proposalText: string;
-  /** Все известные имена changes (кроме текущего) — источник правды для
-   * "что вообще может быть связью", не эвристика самого компонента. */
+  /** All known change names (other than the current one) — the source of
+   * truth for "what could even be a relation", not a heuristic of the
+   * component itself. */
   knownChangeNames: string[];
   onNavigate?: (name: string) => void;
 }

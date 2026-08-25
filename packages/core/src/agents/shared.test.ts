@@ -6,7 +6,7 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-// Импортируется после vi.mock, чтобы использовать замоканный cross-spawn.
+// Imported after vi.mock, so it uses the mocked cross-spawn.
 const { spawnAndStream } = await import("./shared.js");
 
 class FakeChildProcess extends EventEmitter {

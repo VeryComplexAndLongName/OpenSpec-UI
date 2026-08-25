@@ -1,5 +1,5 @@
-// 3.1 Открытие spec/proposal-документов нативным редактором VS Code —
-// `webui` в extension-режиме сам markdown не редактирует (см. shared-ui
+// 3.1 Opens spec/proposal documents with VS Code's native editor —
+// `webui` does not edit markdown itself in extension mode (see shared-ui
 // design.md, "Decisions").
 
 import * as vscode from "vscode";

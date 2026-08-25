@@ -1,6 +1,6 @@
-// Точка входа @openspec-ui/core — единственный источник правды по поведению
-// (см. docs/adr/0001-shared-core-two-delivery-targets.md). `server`/`extension`
-// импортируют отсюда, не лезут во внутренние модули напрямую.
+// Entry point for @openspec-ui/core — the single source of truth for
+// behavior (see docs/adr/0001-shared-core-two-delivery-targets.md).
+// `server`/`extension` import from here, not directly from internal modules.
 
 export * from "./protocol.js";
 export * from "./agent-runner.js";

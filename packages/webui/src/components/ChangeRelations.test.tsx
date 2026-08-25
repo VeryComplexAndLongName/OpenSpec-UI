@@ -18,7 +18,7 @@ describe("ChangeRelations", () => {
   it("renders a clickable entry per related change", () => {
     render(
       <ChangeRelations
-        proposalText="Зависит от execution-core (протокол команд/событий)."
+        proposalText="Depends on execution-core (command/event protocol)."
         knownChangeNames={["execution-core", "standalone-app"]}
       />,
     );
@@ -30,7 +30,7 @@ describe("ChangeRelations", () => {
     const onNavigate = vi.fn();
     render(
       <ChangeRelations
-        proposalText="Зависит от execution-core."
+        proposalText="Depends on execution-core."
         knownChangeNames={["execution-core"]}
         onNavigate={onNavigate}
       />,

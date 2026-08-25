@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-// `openspec` резолвится в `.cmd`-шим на Windows — openspec.ts спавнит его
-// через `cross-spawn` (см. комментарий там), не голый `execFile`. Мок
-// эмулирует дочерний процесс тем же паттерном, что и agents/shared.test.ts.
+// `openspec` resolves to a `.cmd` shim on Windows — openspec.ts spawns it
+// via `cross-spawn` (see the comment there), not plain `execFile`. The mock
+// emulates the child process using the same pattern as agents/shared.test.ts.
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
   stderr = new EventEmitter();
@@ -28,8 +28,8 @@ const {
   validateChange,
 } = await import("./openspec.js");
 
-/** Настраивает `spawnMock` на возврат фейкового процесса, который сразу же
- * (в следующем тике) отдаёт заданный stdout и завершается кодом 0. */
+/** Configures `spawnMock` to return a fake process that immediately
+ * (on the next tick) emits the given stdout and exits with code 0. */
 function mockSuccessfulSpawn(stdout: string): void {
   const child = new FakeChildProcess();
   spawnMock.mockReturnValueOnce(child);

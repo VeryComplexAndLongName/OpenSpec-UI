@@ -1,16 +1,17 @@
-// Адаптер: GitHub Copilot CLI (`copilot`). В отличие от Claude/Codex/Gemini
-// CLI, `copilot -p` не читает промпт из stdin — промпт должен быть позиционным
-// аргументом сразу после `-p` (подтверждено живым smoke-тестом, см.
-// openspec/changes/standalone-app/tasks.md 3.1/3.2: без аргумента `copilot`
-// отвечает "No task was specified", хотя тот же текст на stdin им
-// игнорируется).
+// Adapter: GitHub Copilot CLI (`copilot`). Unlike the Claude/Codex/Gemini
+// CLIs, `copilot -p` does not read the prompt from stdin — the prompt must
+// be a positional argument right after `-p` (confirmed by a live smoke
+// test, see openspec/changes/standalone-app/tasks.md 3.1/3.2: without the
+// argument `copilot` responds "No task was specified", even though the
+// same text on stdin is ignored by it).
 //
-// `buildInvocation()` намеренно возвращает СТАТИЧЕСКУЮ форму (`-p`,
-// `--allow-all-tools`, без самого промпта) — именно она проверяется
-// allowlist'ом ДО того, как промпт вообще подготовлен (см. agent-runner.ts).
-// `execute()` встраивает реальный промпт в argv уже после этой проверки —
-// содержимое промпта по-прежнему не может повлиять на то, разрешён ли сам
-// запуск (executable + фиксированные флаги остаются теми же).
+// `buildInvocation()` intentionally returns the STATIC shape (`-p`,
+// `--allow-all-tools`, without the prompt itself) — it is exactly this
+// shape that gets checked by the allowlist BEFORE the prompt is even
+// prepared (see agent-runner.ts). `execute()` embeds the actual prompt
+// into argv only after that check — the prompt's content still cannot
+// affect whether the run itself is permitted (the executable + fixed
+// flags stay the same).
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
@@ -25,7 +26,7 @@ export class CopilotCliAdapter implements AgentAdapter {
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
-      throw new Error("CopilotCliAdapter ожидает invocation.kind === 'process'");
+      throw new Error("CopilotCliAdapter expects invocation.kind === 'process'");
     }
     const fullPrompt = `${commandInstruction(command.kind)}\n\n${prompt}`;
     yield* spawnAndStream({

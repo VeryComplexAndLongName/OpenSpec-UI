@@ -1,10 +1,10 @@
-// Чтение настроек расширения (`contributes.configuration` в package.json).
+// Reads extension settings (`contributes.configuration` in package.json).
 
 import * as vscode from "vscode";
 
 export interface ExtensionConfig {
-  /** `openspec-ui.transport.localServer.enabled` — опциональный режим
-   * локального сервера, по умолчанию выключен (см. spec.md, "Localhost
+  /** `openspec-ui.transport.localServer.enabled` — the optional local
+   * server mode, disabled by default (see spec.md, "Localhost
    * server mode is optional and opt-in"). */
   localServerEnabled: boolean;
 }

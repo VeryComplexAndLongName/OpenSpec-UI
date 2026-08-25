@@ -1,22 +1,22 @@
-// Общий помощник для CLI-адаптеров, основанных на дочернем процессе (все,
-// кроме локальной LLM — та работает через HTTP, см. local-llm.ts).
+// Shared helper for CLI adapters based on a child process (all of them
+// except the local LLM, which works over HTTP — see local-llm.ts).
 //
-// Консервативный парсинг: вывод агента передаётся построчно как есть в
-// событие `stdout`/`stderr`, без попытки угадать структурированный формат.
-// Если версия CLI поменяет формат вывода, поток событий не ломается — просто
-// не даёт `progress`, только `stdout` (см. spec.md, "Непредвиденный формат
-// вывода агента").
+// Conservative parsing: the agent's output is passed through line-by-line
+// as-is into a `stdout`/`stderr` event, with no attempt to guess a
+// structured format. If a CLI version changes its output format, the
+// event stream does not break — it simply does not produce `progress`,
+// only `stdout` (see spec.md, "Unexpected agent output format").
 //
-// `cross-spawn`, а не голый `node:child_process.spawn`: на Windows многие
-// CLI (в т.ч. `copilot`) устанавливаются как `.cmd`-шимы, которые
-// `spawn(executable, args)` без `shell: true` не находит (`ENOENT`) — см.
-// openspec/changes/standalone-app/tasks.md 3.1, живой smoke-тест. Включать
-// `shell: true` напрямую небезопасно: промпт (данные из содержимого
-// change-файлов) передаётся некоторым адаптерам как argv-аргумент, и голый
-// `shell: true` был бы прямой shell-инъекцией через этот аргумент.
-// `cross-spawn` решает именно резолюцию `.cmd`/`.bat` на Windows, экранируя
-// каждый аргумент по отдельности, не интерпретируя итоговую командную строку
-// в шелле.
+// `cross-spawn` rather than plain `node:child_process.spawn`: on Windows
+// many CLIs (including `copilot`) are installed as `.cmd` shims, which
+// `spawn(executable, args)` cannot find without `shell: true` (`ENOENT`) —
+// see openspec/changes/standalone-app/tasks.md 3.1, live smoke test.
+// Enabling `shell: true` directly would be unsafe: the prompt (data from
+// change-file content) is passed to some adapters as an argv argument, and
+// plain `shell: true` would be a direct shell injection through that
+// argument. `cross-spawn` specifically solves `.cmd`/`.bat` resolution on
+// Windows, escaping each argument individually rather than interpreting
+// the resulting command line in a shell.
 import crossSpawn from "cross-spawn";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { CommandKind, Event } from "../protocol.js";
@@ -31,23 +31,23 @@ export interface SpawnAndStreamOptions {
   cwd: string;
   runId: string;
   commandKind: CommandKind;
-  /** Передаётся в stdin процесса (например, промпт для CLI, читающих его со stdin). */
+  /** Written to the process's stdin (e.g. the prompt for CLIs that read it from stdin). */
   stdin?: string;
 }
 
-/** Инструкция, зависящая ТОЛЬКО от `command.kind` (доверенное значение,
- * заданное вызывающей стороной, а не содержимым change-файлов) — безопасно
- * ставить перед промптом, полученным из prepareAgentContext. */
+/** Instruction that depends ONLY on `command.kind` (a trusted value set by
+ * the caller, not by change-file content) — safe to place before the
+ * prompt obtained from prepareAgentContext. */
 export function commandInstruction(kind: CommandKind): string {
   switch (kind) {
     case "plan":
-      return "Составь план реализации для описанного ниже change'а, не изменяя код.";
+      return "Draft an implementation plan for the change described below, without changing code.";
     case "implement":
-      return "Реализуй задачи из tasks.md для описанного ниже change'а.";
+      return "Implement the tasks from tasks.md for the change described below.";
     case "review":
-      return "Проверь текущую реализацию описанного ниже change'а на соответствие спецификации.";
+      return "Review the current implementation of the change described below against the specification.";
     case "status":
-      return "Опиши текущий статус реализации описанного ниже change'а.";
+      return "Describe the current implementation status of the change described below.";
     case "list":
       return "Show available OpenSpec changes.";
     case "show":
@@ -55,7 +55,7 @@ export function commandInstruction(kind: CommandKind): string {
     case "validate":
       return "Run strict validation for the selected OpenSpec change.";
     case "cancel":
-      return "Останови текущее выполнение для описанного ниже change'а.";
+      return "Stop the current execution for the change described below.";
   }
 }
 
@@ -92,11 +92,11 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     wake();
   };
 
-  // Слушатели вешаются синхронно, ДО первого `yield` — это гарантирует, что
-  // ни одно событие процесса не будет потеряно между спавном и началом
-  // потребления очереди (весь код до первого await/yield выполняется в
-  // одном синхронном тике, раньше, чем event loop успеет доставить данные
-  // от дочернего процесса).
+  // Listeners are attached synchronously, BEFORE the first `yield` — this
+  // guarantees that no process event is lost between spawning and the
+  // start of queue consumption (all code before the first await/yield
+  // runs in a single synchronous tick, before the event loop can deliver
+  // data from the child process).
   child.stdout.on("data", (data: Buffer) => {
     push({ kind: "stdout", runId, timestamp: nowIso(), chunk: data.toString("utf8") });
   });
@@ -130,7 +130,7 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
           kind: "failed",
           runId,
           timestamp: nowIso(),
-          reason: `${executable} завершился с кодом ${item.code ?? "unknown"}`,
+          reason: `${executable} exited with code ${item.code ?? "unknown"}`,
         };
       }
     } else if (item.kind === "__error__") {

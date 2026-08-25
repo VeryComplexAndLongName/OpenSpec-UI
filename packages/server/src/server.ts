@@ -1,4 +1,4 @@
-// 1.3 Bind по умолчанию на `127.0.0.1`, порт конфигурируется (см. spec.md,
+// 1.3 Binds to `127.0.0.1` by default, port is configurable (see spec.md,
 // "Server is localhost-only by default").
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -35,8 +35,8 @@ import {
 
 export interface ServerOptions {
   workspaceRoot: string;
-  /** По умолчанию `127.0.0.1` — сервер не должен быть доступен из сети без
-   * явного намерения пользователя (см. design.md, "Decisions"). */
+  /** Defaults to `127.0.0.1` — the server must not be reachable from the
+   * network without the user's explicit intent (see design.md, "Decisions"). */
   host?: string;
   port?: number;
   localLlmBaseUrl?: string;
@@ -47,11 +47,12 @@ export interface ServerOptions {
    */
   allowExternalCwd?: boolean;
   auditLog?: AuditLog;
-  /** Только для тестов: подмена реестра `AgentRunner` вместо реальных
-   * CLI-адаптеров (см. server.test.ts) — не используется в проде. */
+  /** Tests only: substitutes the `AgentRunner` registry instead of the
+   * real CLI adapters (see server.test.ts) — not used in production. */
   runners?: Map<string, AgentRunner>;
-  /** Явные пути к index.html/app.js — нужны, когда `server` встроен в
-   * забандленный CJS-хост (см. static.ts, `extension`'s optional-server.ts). */
+  /** Explicit paths to index.html/app.js — needed when `server` is
+   * embedded into a bundled CJS host (see static.ts, `extension`'s
+   * optional-server.ts). */
   staticAssets?: StaticAssetPaths;
   accessToken?: string;
   maxPayloadBytes?: number;

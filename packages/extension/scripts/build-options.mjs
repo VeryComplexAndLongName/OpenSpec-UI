@@ -1,7 +1,7 @@
-// Общие опции esbuild для сборки расширения: extension host (Node/CJS) +
-// Webview (браузер). Переиспользуются build.mjs (реальная сборка) и
-// integration-тестом, который гарантирует наличие dist/*.js перед запуском
-// живого VS Code (см. src/test/).
+// Shared esbuild options for building the extension: extension host
+// (Node/CJS) + Webview (browser). Reused by build.mjs (the real build) and
+// by the integration test, which ensures dist/*.js exists before launching
+// a live VS Code instance (see src/test/).
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,10 +36,10 @@ export function webviewBuildOptions() {
   };
 }
 
-/** Интеграционный test suite (tasks.md 4.1/4.2) — два отдельных выходных
- * файла (index.js + extension.test.js), не единый бандл: `index.ts`'s
- * `run()` находит тестовые файлы через `glob("**\/*.test.js")` рядом с
- * собой — паттерн из документации `@vscode/test-electron`. */
+/** Integration test suite (tasks.md 4.1/4.2) — two separate output files
+ * (index.js + extension.test.js), not a single bundle: `index.ts`'s
+ * `run()` finds test files via `glob("**\/*.test.js")` next to itself —
+ * the pattern from `@vscode/test-electron`'s documentation. */
 export function testSuiteBuildOptions() {
   return {
     entryPoints: [
@@ -57,10 +57,11 @@ export function testSuiteBuildOptions() {
   };
 }
 
-/** 2.3: опциональный локальный сервер встраивает тот же standalone-шелл, что
- * и `standalone-app` (см. design.md "Decisions") — расширение носит свою
- * собственную копию этого бандла в `dist/standalone/`, а не читает
- * `packages/server`'s `dist/`/`public/` напрямую (те не пакуются в .vsix). */
+/** 2.3: the optional local server embeds the same standalone shell as
+ * `standalone-app` (see design.md "Decisions") — the extension carries its
+ * own copy of this bundle in `dist/standalone/`, rather than reading
+ * `packages/server`'s `dist/`/`public/` directly (those are not packaged
+ * into the .vsix). */
 export function standaloneAssetsBuildOptions() {
   return {
     entryPoints: [path.resolve(here, "../../webui/src/standalone-entry.tsx")],

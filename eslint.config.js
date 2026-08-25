@@ -18,8 +18,8 @@ export default tseslint.config(
     },
   },
   {
-    // Node-скрипты сборки/тестов (build.mjs, run.mjs и т.п.) — не браузерный
-    // код, нужны Node-глобалы (console/process/__dirname).
+    // Node build/test scripts (build.mjs, run.mjs, etc.) — not browser
+    // code, they need Node globals (console/process/__dirname).
     files: ["**/*.mjs", "**/*.cjs", "**/scripts/**/*.js"],
     languageOptions: {
       globals: { ...globals.node },

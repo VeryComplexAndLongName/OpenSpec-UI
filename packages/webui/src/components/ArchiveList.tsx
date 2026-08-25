@@ -1,7 +1,7 @@
-// 2.3 Archive: поиск, фильтры, история. Принимает уже отфильтрованный по
-// `state === "archived"` список (хост решает, что считать архивом) —
-// компонент добавляет только клиентский текстовый поиск и сортировку по
-// дате (история).
+// 2.3 Archive: search, filters, history. Accepts a list already filtered
+// by `state === "archived"` (the host decides what counts as the archive)
+// — the component only adds client-side text search and sorting by date
+// (history).
 
 import { useMemo, useState } from "react";
 import type { ChangeSummary } from "../types.js";

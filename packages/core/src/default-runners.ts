@@ -1,12 +1,12 @@
-// Готовая сборка реестра `AgentRunner` с allowlist'ом по умолчанию —
-// переиспользуется и `server`, и `extension` (оба — тонкие хосты
-// `execution-core`, не должны придумывать эту конфигурацию по отдельности,
-// см. ADR 0001 п.1: "единственный источник правды по поведению — core").
+// Ready-made build of the `AgentRunner` registry with a default allowlist —
+// reused by both `server` and `extension` (both are thin hosts over
+// `execution-core` and must not invent this configuration separately,
+// see ADR 0001 item 1: "single source of truth for behavior is core").
 //
-// Allowlist здесь лишь формализует то, что каждый адаптер и так
-// детерминированно строит в своём `buildInvocation()` (см. agents/*.ts) —
-// это не бизнес-логика хоста, а конфигурация уже существующего механизма
-// security.ts.
+// The allowlist here just formalizes what each adapter already
+// deterministically builds in its own `buildInvocation()` (see agents/*.ts) —
+// this is not host business logic, it is configuration of the already
+// existing security.ts mechanism.
 
 import { ClaudeCliAdapter } from "./agents/claude.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
@@ -32,9 +32,8 @@ function exact(expected: string[]): (args: string[]) => boolean {
   return (args) => args.length === expected.length && args.every((a, i) => a === expected[i]);
 }
 
-/** Allowlist по умолчанию: разрешает ровно то, что каждый адаптер и так
- * строит сам (см. `buildInvocation()` каждого из них), не более широкий
- * набор. */
+/** Default allowlist: permits exactly what each adapter already builds
+ * itself (see each one's `buildInvocation()`), not a broader set. */
 export function buildDefaultAllowlist(): AllowlistConfig {
   return {
     "claude-cli": [{ executable: "claude", argsAllowed: exact(["-p", "--output-format", "text"]) }],

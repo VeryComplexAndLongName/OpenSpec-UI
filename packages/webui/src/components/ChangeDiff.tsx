@@ -1,7 +1,7 @@
-// 2.2 Diff между версиями архивного change'а — используется собственный
-// рендер ТОЛЬКО там, где хост не предоставляет нативный diff (standalone).
-// Для VS Code extension этот компонент не используется вовсе — делегируется
-// `vscode.diff` (см. design.md, "Decisions").
+// 2.2 Diff between versions of an archived change — uses this component's
+// own rendering ONLY where the host does not provide a native diff
+// (standalone). For the VS Code extension, this component is not used at
+// all — it delegates to `vscode.diff` (see design.md, "Decisions").
 
 import { diffLines } from "diff";
 

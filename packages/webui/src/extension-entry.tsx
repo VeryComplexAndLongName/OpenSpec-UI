@@ -1,12 +1,12 @@
-// Точка входа для Webview VS Code extension'а (см.
-// openspec/changes/vscode-extension/tasks.md 2.2). Не часть публичного API
-// пакета — bootstrap-код для сборки `packages/extension`
-// (scripts/build-webview.mjs), не библиотечный код.
+// Entry point for the VS Code extension's Webview (see
+// openspec/changes/vscode-extension/tasks.md 2.2). Not part of the
+// package's public API — bootstrap code for building `packages/extension`
+// (scripts/build-webview.mjs), not library code.
 //
-// В отличие от standalone-entry.tsx, здесь НЕТ `ChangeDiff` — extension
-// делегирует diff нативному `vscode.diff` (см. spec.md, "Native diff UI is
-// used for review... SHALL NOT render custom diff UI inside Webview for
-// extension mode").
+// Unlike standalone-entry.tsx, there is NO `ChangeDiff` here — the
+// extension delegates diffing to native `vscode.diff` (see spec.md,
+// "Native diff UI is used for review... SHALL NOT render custom diff UI
+// inside Webview for extension mode").
 
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useState } from "react";

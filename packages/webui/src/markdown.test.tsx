@@ -9,20 +9,20 @@ function renderText(text: string) {
 
 describe("renderInlineMarkdown", () => {
   it("renders **bold** as <strong>", () => {
-    const container = renderText("Система **SHALL** предоставлять протокол.");
+    const container = renderText("The system **SHALL** provide the protocol.");
     expect(container.querySelector("strong")).toHaveTextContent("SHALL");
   });
 
   it("renders `code` spans as <code>", () => {
-    const container = renderText("Команда `implement` запущена.");
+    const container = renderText("The `implement` command has started.");
     expect(container.querySelector("code")).toHaveTextContent("implement");
   });
 
   it("handles multiple tokens and plain text in between", () => {
-    const container = renderText("**SHALL NOT** запускать `rm -rf` никогда.");
+    const container = renderText("**SHALL NOT** run `rm -rf` ever.");
     expect(container.querySelector("strong")).toHaveTextContent("SHALL NOT");
     expect(container.querySelector("code")).toHaveTextContent("rm -rf");
-    expect(container).toHaveTextContent("никогда.");
+    expect(container).toHaveTextContent("ever.");
   });
 
   it("returns plain text unchanged when there is no markdown", () => {

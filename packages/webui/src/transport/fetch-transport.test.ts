@@ -175,7 +175,7 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
       "openspec-ui",
       `openspec-ui-token.${ACCESS_TOKEN}`,
     ]);
-    expect(instances[0]?.sent).toHaveLength(0); // ещё не открыт
+    expect(instances[0]?.sent).toHaveLength(0); // not open yet
     instances[0]?.open();
     expect(instances[0]?.sent).toEqual([JSON.stringify(planCommand)]);
   });
@@ -192,7 +192,7 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
     instances[0]?.open();
     transport.send({ ...planCommand, kind: "cancel" });
 
-    expect(instances).toHaveLength(1); // переиспользует то же соединение
+    expect(instances).toHaveLength(1); // reuses the same connection
     expect(instances[0]?.sent).toHaveLength(2);
   });
 

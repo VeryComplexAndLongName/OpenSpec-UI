@@ -1,26 +1,27 @@
-// MessageBridgeTransport — основной режим VS Code extension: Webview не
-// делает fetch к localhost, а обменивается сообщениями с extension host'ом
-// через `acquireVsCodeApi().postMessage`/`window.addEventListener('message')`
-// (см. ADR 0001, п.2).
+// MessageBridgeTransport — the primary mode for the VS Code extension: the
+// Webview does not fetch localhost, it exchanges messages with the
+// extension host via
+// `acquireVsCodeApi().postMessage`/`window.addEventListener('message')`
+// (see ADR 0001, item 2).
 
 import { type Command, type Event, isEvent } from "@openspec-ui/core/browser";
 import type { Transport, Unsubscribe } from "./types.js";
 
-/** Минимальный интерфейс объекта, возвращаемого `acquireVsCodeApi()`. Хост
- * (extension) вызывает `acquireVsCodeApi()` один раз и передаёт результат
- * сюда — сам `webui` эту глобальную функцию не вызывает. */
+/** Minimal interface for the object returned by `acquireVsCodeApi()`. The
+ * host (extension) calls `acquireVsCodeApi()` once and passes the result
+ * in here — `webui` itself never calls this global function. */
 export interface VsCodeApiLike {
   postMessage(message: unknown): void;
 }
 
-/** Ровно те методы `EventTarget`, что нужны — совпадает структурно с
- * реальным `EventTarget`/`Window`, поэтому и то, и другое подходит без
- * дополнительных приведений типов на стороне вызывающего кода. */
+/** Exactly the `EventTarget` methods that are needed — structurally
+ * matches the real `EventTarget`/`Window`, so either one fits without
+ * extra type casts on the calling side. */
 type EventTargetLike = Pick<EventTarget, "addEventListener" | "removeEventListener">;
 
 export interface MessageBridgeTransportOptions {
   vscodeApi: VsCodeApiLike;
-  /** По умолчанию — глобальный `window`; подставляется в тестах. */
+  /** Defaults to the global `window`; substituted in tests. */
   eventTarget?: EventTargetLike;
 }
 

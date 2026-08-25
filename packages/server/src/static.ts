@@ -1,32 +1,33 @@
-// 2.1 Отдача браузерного шелла (packages/webui's standalone-entry.tsx,
-// собранного scripts/build-client.mjs). Только 2 фиксированных пути — не
-// полноценный статический файловый сервер (не нужен для этой цели, лишняя
-// поверхность вроде защиты от directory traversal ни к чему для двух
-// известных файлов).
+// 2.1 Serving the browser shell (packages/webui's standalone-entry.tsx,
+// built by scripts/build-client.mjs). Only 2 fixed paths — not a
+// full-blown static file server (not needed for this purpose; extra
+// surface like directory-traversal protection is pointless for two known
+// files).
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
 
-/** Явные пути к статическим файлам — нужны, когда `server` встроен (забандлен)
- * в другой хост (например, `extension`'s CJS-бандл для опционального
- * локального сервера, см. optional-server.ts), где `import.meta.url` внутри
- * CJS-вывода — `undefined` (esbuild опустошает `import.meta` при `format:
- * "cjs"`), и путь "рядом с этим модулем" вычислить нельзя. Без явного
- * override используются пути по умолчанию (для standalone/тестов). */
+/** Explicit paths to static files — needed when `server` is embedded
+ * (bundled) into another host (e.g. `extension`'s CJS bundle for the
+ * optional local server, see optional-server.ts), where `import.meta.url`
+ * inside CJS output is `undefined` (esbuild strips out `import.meta` for
+ * `format: "cjs"`), so a "next to this module" path cannot be computed.
+ * Without an explicit override, the default paths are used (for
+ * standalone/tests). */
 export interface StaticAssetPaths {
   indexHtmlPath?: string;
   appJsPath?: string;
   appJsMapPath?: string;
 }
 
-/** Ленивое и защищённое вычисление дефолтных путей: в забандленном CJS
- * `import.meta.url` — `undefined`, и `fileURLToPath(undefined)` бросает
- * исключение. Если бы это вычислялось на верхнем уровне модуля (раньше так
- * и было), сам `import` этого файла падал бы ещё до того, как вызывающий
- * код успевал передать явный override (см. tasks.md 4.2, живой прогон
- * vscode-extension, где именно это и произошло). */
+/** Lazy, guarded computation of the default paths: in a bundled CJS build
+ * `import.meta.url` is `undefined`, and `fileURLToPath(undefined)` throws.
+ * If this were computed at the module's top level (as it used to be), the
+ * `import` of this file itself would fail before the calling code even
+ * got a chance to pass an explicit override (see tasks.md 4.2, a live
+ * vscode-extension run where exactly this happened). */
 function computeDefaultPaths(): { indexHtmlPath?: string; appJsPath?: string; appJsMapPath?: string } {
   try {
     const here = path.dirname(fileURLToPath(import.meta.url));

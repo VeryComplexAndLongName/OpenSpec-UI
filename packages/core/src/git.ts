@@ -1,5 +1,5 @@
-// Тонкая git-обёртка — только то, что реально нужно UI (статус, diff, commit,
-// branch), не полный API git (см. tasks.md 5.2). Поверх `simple-git`.
+// Thin git wrapper — only what the UI actually needs (status, diff, commit,
+// branch), not the full git API (see tasks.md 5.2). Built on top of `simple-git`.
 
 import simpleGit, { type SimpleGit } from "simple-git";
 

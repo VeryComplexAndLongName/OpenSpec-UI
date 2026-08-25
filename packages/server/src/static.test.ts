@@ -1,5 +1,5 @@
-// 2.1 Проверка, что браузерный шелл (index.html + собранный app.js)
-// реально отдаётся сервером по фиксированным путям.
+// 2.1 Verifies that the browser shell (index.html + built app.js) is
+// actually served by the server at the fixed paths.
 
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,8 +11,8 @@ let server: OpenSpecUiServer;
 let baseUrl: string;
 
 beforeAll(async () => {
-  // Гарантирует наличие dist/app.js для этого тестового прогона независимо
-  // от того, был ли уже вручную вызван `npm run build`.
+  // Ensures dist/app.js exists for this test run regardless of whether
+  // `npm run build` was already invoked manually.
   await build(clientBuildOptions());
 }, 30_000);
 

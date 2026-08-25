@@ -1,19 +1,20 @@
-// Transport — единственная граница, за которой компоненты `webui` не знают,
-// работают ли они в браузере (standalone) или в Webview (VS Code extension).
-// Компоненты вызывают только этот интерфейс, никогда `fetch`/`postMessage`
-// напрямую (см. spec.md, "Компоненты не зависят от конкретного транспорта").
+// Transport is the single boundary beyond which `webui` components do not
+// know whether they are running in the browser (standalone) or in a
+// Webview (VS Code extension). Components call only this interface, never
+// `fetch`/`postMessage` directly (see spec.md, "Components do not depend
+// on a specific transport").
 
 import type { Command, Event } from "@openspec-ui/core";
 
 export type Unsubscribe = () => void;
 
 export interface Transport {
-  /** Отправляет команду. Не возвращает результат напрямую — результат
-   * приходит как поток событий через `subscribe` (см. design.md: единый
-   * event-driven протокол, а не запрос/ответ). */
+  /** Sends a command. Does not return a result directly — the result
+   * arrives as a stream of events through `subscribe` (see design.md: a
+   * single event-driven protocol, not request/response). */
   send(command: Command): void;
-  /** Подписывается на ВСЕ события, полученные этим transport'ом (события
-   * от разных `runId` могут приходить конкурентно — потребитель фильтрует
-   * сам). Возвращает функцию отписки. */
+  /** Subscribes to ALL events received by this transport (events from
+   * different `runId`s may arrive concurrently — the consumer filters
+   * them itself). Returns an unsubscribe function. */
   subscribe(onEvent: (event: Event) => void): Unsubscribe;
 }

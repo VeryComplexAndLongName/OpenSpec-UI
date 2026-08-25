@@ -1,5 +1,5 @@
-// Точка входа для реального запуска (dev/smoke-тест) — не часть публичного
-// API пакета. `npm run start -- <workspaceRoot> <port>`.
+// Entry point for actually running the server (dev/smoke test) — not part
+// of the package's public API. `npm run start -- <workspaceRoot> <port>`.
 
 import { buildDefaultAgentRunners } from "@openspec-ui/core";
 import { DEFAULT_HOST, DEFAULT_PORT, createServer } from "./server.js";
