@@ -24,6 +24,18 @@ updates:
       # reviewed bump instead of an unreviewed grouped PR.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # @types/vscode's own version tracks VS Code's version, not this
+      # package's API surface, so a compatibility-breaking jump (like
+      # 1.90 -> 1.134) is a semver-MINOR bump ("1" never changes) and the
+      # blanket major-only rule above does not catch it. Its version must
+      # stay <= packages/extension's declared engines.vscode (currently
+      # ^1.90.0), or `vsce package` refuses to build ("@types/vscode
+      # ^1.134.0 greater than engines.vscode ^1.90.0"). Bumping this
+      # requires deliberately raising engines.vscode too -- not something
+      # to accept automatically (seen live in PR #67 and again in PR #71
+      # after the blanket rule alone let it through).
+      - dependency-name: "@types/vscode"
+        versions: [">=1.91.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
