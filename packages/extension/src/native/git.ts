@@ -1,6 +1,6 @@
-// 3.3 Встроенный Git API вместо своего git UI — только то, что нужно для
-// диффа (3.2): получение виртуального URI файла на ревизии `HEAD` через
-// встроенное расширение `vscode.git`.
+// 3.3 Uses the built-in Git API instead of a custom git UI — only what is
+// needed for the diff (3.2): obtaining a file's virtual URI at the `HEAD`
+// revision through the built-in `vscode.git` extension.
 
 import * as vscode from "vscode";
 

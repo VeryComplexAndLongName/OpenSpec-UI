@@ -1,7 +1,7 @@
-// Общий контроллер запуска — один активный run за раз (инструмент
-// однопользовательский, локальный, см. design.md non-goals). Используется и
-// командами Command Palette, и AI-панелью (Webview), чтобы оба пути видели
-// один и тот же поток событий и могли отменить один и тот же запуск.
+// Shared run controller — a single active run at a time (the tool is
+// single-user and local, see design.md non-goals). Used by both the
+// Command Palette commands and the AI panel (Webview), so both paths see
+// the same event stream and can cancel the same run.
 
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import { listChanges, showChange, statusChange, validateChange } from "@openspec-ui/core";
@@ -147,8 +147,8 @@ export class RunController {
     }
   }
 
-  /** Отправляет `cancel` для текущего активного запуска, если он есть.
-   * Возвращает `false`, если отменять нечего. */
+  /** Sends `cancel` for the currently active run, if any.
+   * Returns `false` if there is nothing to cancel. */
   cancel(): boolean {
     if (!this.activeCommand || !this.activeRunner) return false;
     const cancelCommand: Command = { ...this.activeCommand, kind: "cancel" };

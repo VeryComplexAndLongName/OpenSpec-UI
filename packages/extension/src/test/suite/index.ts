@@ -1,6 +1,6 @@
-// Mocha-раннер для живого прогона внутри реального VS Code Extension
-// Development Host (см. tasks.md 4.1/4.2). Точка входа, которую вызывает
-// `@vscode/test-electron` (см. src/test/run.mjs).
+// Mocha runner for a live run inside a real VS Code Extension Development
+// Host (see tasks.md 4.1/4.2). The entry point invoked by
+// `@vscode/test-electron` (see src/test/run.mjs).
 
 import path from "node:path";
 import Mocha from "mocha";

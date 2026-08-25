@@ -1,6 +1,7 @@
-// Минимальный мок `vscode` API для юнит-тестов вне реального VS Code host'а.
-// Живой прогон внутри настоящего VS Code — src/test/ (см. tasks.md 4.1/4.2),
-// это не заменяет его, а покрывает то, что можно проверить без него.
+// Minimal mock of the `vscode` API for unit tests outside a real VS Code
+// host. A live run inside actual VS Code is src/test/ (see tasks.md
+// 4.1/4.2) — this does not replace it, it covers what can be verified
+// without it.
 
 import { vi } from "vitest";
 

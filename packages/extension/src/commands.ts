@@ -1,5 +1,5 @@
-// 1.1 Регистрация команд Command Palette (`openspec.plan`/`implement`/
-// `review`/`status`/`cancel`, контрибьютятся как `openspec-ui.*` — см.
+// 1.1 Registers Command Palette commands (`openspec.plan`/`implement`/
+// `review`/`status`/`cancel`, contributed as `openspec-ui.*` — see
 // package.json `contributes.commands`).
 
 import path from "node:path";

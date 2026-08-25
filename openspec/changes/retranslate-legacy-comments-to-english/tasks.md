@@ -41,12 +41,13 @@
 
 ## 6. Translate `packages/extension`
 
-- [ ] 6.1 Translate comments in `config.ts`, `commands.ts`, `extension.ts`,
+- [x] 6.1 Translate comments in `config.ts`, `commands.ts`, `extension.ts`,
   `native/diff.ts`, `native/git.ts`, `native/open-doc.ts`,
   `run-controller.ts`, `test-utils/vscode-mock.ts`, `webview/ai-panel.ts`.
-- [ ] 6.2 Translate comments in `test/suite/index.ts`,
+- [x] 6.2 Translate comments in `test/suite/index.ts`,
   `test/suite/extension.test.ts`, `test/run.mjs`, `vitest.config.ts`,
-  `scripts/build-options.mjs`.
+  `scripts/build-options.mjs`. Verified with
+  `npm run test --workspace packages/extension` (101 tests passed).
 
 ## 7. Translate `packages/webui`
 

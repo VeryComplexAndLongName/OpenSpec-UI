@@ -167,8 +167,9 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
 
     try {
       await config.update("transport.localServer.enabled", true, vscode.ConfigurationTarget.Global);
-      // `onDidChangeConfiguration` в extension.ts запускает сервер асинхронно —
-      // ждём, пока он реально поднимется (без опроса дольше пары секунд).
+      // `onDidChangeConfiguration` in extension.ts starts the server
+      // asynchronously — wait for it to actually come up (polling for no
+      // more than a couple of seconds).
       const deadline = Date.now() + 5000;
       while (!api.optionalServer?.isRunning && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 100));

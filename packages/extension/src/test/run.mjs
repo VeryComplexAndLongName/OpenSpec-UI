@@ -1,8 +1,8 @@
-// Оркестратор живого прогона (tasks.md 4.1/4.2): собирает расширение +
-// webview + standalone-ассеты + test suite, поднимает одноразовый
-// temp-воркспейс (не в репозитории — те же соображения безопасности, что и
-// у standalone-app's smoke-test-notes.md) и запускает реальный VS Code
-// Extension Development Host через `@vscode/test-electron`.
+// Orchestrator for the live run (tasks.md 4.1/4.2): builds the extension +
+// webview + standalone assets + test suite, spins up a disposable
+// temp workspace (outside the repository — the same safety considerations
+// as standalone-app's smoke-test-notes.md), and launches a real VS Code
+// Extension Development Host via `@vscode/test-electron`.
 
 import { build } from "esbuild";
 import { copyFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";

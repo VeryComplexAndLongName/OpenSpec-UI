@@ -1,6 +1,7 @@
-// Точка входа расширения VS Code. Основной режим — прямой импорт
-// `@openspec-ui/core` + message bridge к Webview, без сети (см. ADR 0001
-// п.2 и openspec/changes/vscode-extension/design.md).
+// Entry point for the VS Code extension. The primary mode is a direct
+// import of `@openspec-ui/core` + a message bridge to the Webview, with no
+// network involved (see ADR 0001 item 2 and
+// openspec/changes/vscode-extension/design.md).
 
 import * as vscode from "vscode";
 import type { AgentRunner } from "@openspec-ui/core";
@@ -28,8 +29,8 @@ import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 let runners: Map<string, AgentRunner> | undefined;
 let optionalServer: OptionalServerManager | undefined;
 
-/** Экспортируется через `vscode.extensions.getExtension(...).exports` —
- * только для интеграционных тестов (src/test/suite), не публичный API. */
+/** Exported via `vscode.extensions.getExtension(...).exports` — for
+ * integration tests only (src/test/suite), not a public API. */
 export interface ExtensionTestApi {
   getRunners: () => Map<string, AgentRunner> | undefined;
   runController: RunController;
