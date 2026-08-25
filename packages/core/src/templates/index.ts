@@ -2,6 +2,7 @@ import type { CatalogTemplate } from "../template-catalog.js";
 import { aspnetEfcoreMigrations } from "./aspnet-efcore-migrations.js";
 import { aspnetJwtBearerAuth } from "./aspnet-jwt-bearer-auth.js";
 import { aspnetXunitTestingBaseline } from "./aspnet-xunit-testing-baseline.js";
+import { craToVite } from "./cra-to-vite.js";
 import { flaskToFastapi } from "./flask-to-fastapi.js";
 import { flatToHexagonalArchitecture } from "./flat-to-hexagonal-architecture.js";
 import { githubActionsCiPipeline } from "./github-actions-ci-pipeline.js";
@@ -31,4 +32,5 @@ export const BUILT_IN_TEMPLATES: readonly Omit<CatalogTemplate, "origin">[] = [
   aspnetJwtBearerAuth,
   structuredRequestLogging,
   requestCorrelationId,
+  craToVite,
 ];
