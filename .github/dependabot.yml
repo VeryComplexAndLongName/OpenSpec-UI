@@ -8,29 +8,22 @@ updates:
       npm-development:
         dependency-type: development
     ignore:
-      # typescript-eslint@8.67.0 requires TypeScript <6.1.0; a 7.x bump
-      # broke it before (see the archived
-      # restore-typescript-eslint-compatibility change).
-      - dependency-name: "typescript"
-        versions: [">=6.1.0"]
-      # ESLint 10 needs a newer Node.js than this repo's pinned 22.11.0
-      # runtime.
-      - dependency-name: "eslint"
-        versions: [">=10.0.0"]
-      # @eslint/js is a separate npm package from `eslint` itself; its 10.x
-      # line peer-requires eslint@^10, which conflicts with the `eslint`
-      # ignore rule above and breaks `npm ci` (ERESOLVE) if bumped alone
-      # (seen live in PR #62, "Bump the npm-development group with 4
-      # updates").
-      - dependency-name: "@eslint/js"
-        versions: [">=10.0.0"]
-      # vitest 4's toolchain (vite 8 / rolldown) needs native bindings that
-      # fail to resolve here ("Cannot find module
-      # '@rolldown/binding-wasm32-wasi'") and a newer Node.js than this
-      # repo's pinned 22.11.0 (seen live in PR #65, "Bump the
-      # npm-development group with 3 updates").
-      - dependency-name: "vitest"
-        versions: [">=3.0.0"]
+      # Major-version bumps repeatedly broke this repo's pinned toolchain
+      # without warning: typescript 6->7 and eslint 9->10 (both broke
+      # typescript-eslint@8.67.0, which requires TypeScript <6.1.0 --
+      # see the archived restore-typescript-eslint-compatibility change),
+      # @eslint/js 9->10 (peer-requires eslint@^10, ERESOLVE conflict with
+      # the pinned eslint -- PR #62), vitest 2->4 (needs native bindings
+      # that fail to resolve here plus a newer Node.js than the pinned
+      # 22.11.0 -- PR #65), and @types/vscode 1.90->1.134 (vsce package
+      # refuses to build once it exceeds packages/extension's declared
+      # engines.vscode -- PR #67). Rather than reactively ignoring one
+      # broken package name at a time, block every major bump in this
+      # group up front: minor/patch updates (including security fixes)
+      # keep flowing automatically, and majors wait for a deliberate,
+      # reviewed bump instead of an unreviewed grouped PR.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
