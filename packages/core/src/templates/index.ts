@@ -11,6 +11,8 @@ import { prismaOrmMigrations } from "./prisma-orm-migrations.js";
 import { productionDockerfile } from "./production-dockerfile.js";
 import { pytestCoverageBaseline } from "./pytest-coverage-baseline.js";
 import { pythonSqlalchemyAlembic } from "./python-sqlalchemy-alembic.js";
+import { requestCorrelationId } from "./request-correlation-id.js";
+import { structuredRequestLogging } from "./structured-request-logging.js";
 
 /** Built-in template registry — same "typed array" shape as
  * `AGENT_REGISTRY`. Add new built-in templates here. */
@@ -27,4 +29,6 @@ export const BUILT_IN_TEMPLATES: readonly Omit<CatalogTemplate, "origin">[] = [
   aspnetEfcoreMigrations,
   aspnetXunitTestingBaseline,
   aspnetJwtBearerAuth,
+  structuredRequestLogging,
+  requestCorrelationId,
 ];

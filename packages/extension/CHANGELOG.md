@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0
+
+- Added two built-in templates in a new `observability` category:
+  "Add structured JSON request logging to a Node.js/TypeScript HTTP API"
+  and "Add a per-request correlation ID to logs and responses" (language-
+  agnostic). The two are independent and complementary — neither requires
+  the other.
+
 ## 0.17.0
 
 - Added three ASP.NET Core built-in templates: "Add Entity Framework Core
