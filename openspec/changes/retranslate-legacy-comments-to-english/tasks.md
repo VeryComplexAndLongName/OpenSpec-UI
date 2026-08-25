@@ -23,9 +23,9 @@
 
 ## 4. Translate `packages/core/src/agents/*`
 
-- [ ] 4.1 Translate `claude.ts`, `codex.ts`, `copilot.ts`, `gemini.ts`,
+- [x] 4.1 Translate `claude.ts`, `codex.ts`, `copilot.ts`, `gemini.ts`,
   `local-llm.ts`, `registry.ts`.
-- [ ] 4.2 Translate `shared.ts`, including the per-command
+- [x] 4.2 Translate `shared.ts`, including the per-command
   `commandInstruction()` prompt strings for `plan`/`implement`/`review`/
   `status`/`cancel` (a runtime behavior change, see proposal.md's
   "What Changes") and `shared.test.ts`.

@@ -1,5 +1,5 @@
-// Адаптер: Gemini CLI (`gemini`). Неинтерактивный режим, промпт — через stdin
-// (см. claude.ts за тем же паттерном).
+// Adapter: Gemini CLI (`gemini`). Non-interactive mode, the prompt is fed
+// in via stdin (see claude.ts for the same pattern).
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
@@ -14,7 +14,7 @@ export class GeminiCliAdapter implements AgentAdapter {
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
-      throw new Error("GeminiCliAdapter ожидает invocation.kind === 'process'");
+      throw new Error("GeminiCliAdapter expects invocation.kind === 'process'");
     }
     yield* spawnAndStream({
       executable: invocation.executable,

@@ -1,10 +1,10 @@
-// Реестр зарегистрированных AgentRunner-адаптеров — единственное место, где
-// перечислены доступные агенты по их `AgentAdapter.name`-идентификатору.
-// `webui` строит выбор агента в AI-панели по этому реестру, а не по
-// собственному захардкоженному списку (см. shared-ui tasks.md 5.1).
+// Registry of registered AgentRunner adapters — the single place that
+// lists the available agents by their `AgentAdapter.name` identifier.
+// `webui` builds the agent selection in the AI panel from this registry,
+// not from its own hardcoded list (see shared-ui tasks.md 5.1).
 
 export interface AgentDescriptor {
-  /** Совпадает с `AgentAdapter.name` соответствующего адаптера. */
+  /** Matches the `AgentAdapter.name` of the corresponding adapter. */
   id: string;
   label: string;
 }

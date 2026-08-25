@@ -1,5 +1,5 @@
-// Адаптер: Codex CLI (`codex`). Неинтерактивный режим (`exec`), промпт — через
-// stdin (см. claude.ts за тем же паттерном).
+// Adapter: Codex CLI (`codex`). Non-interactive mode (`exec`), the prompt
+// is fed in via stdin (see claude.ts for the same pattern).
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
@@ -14,7 +14,7 @@ export class CodexCliAdapter implements AgentAdapter {
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
-      throw new Error("CodexCliAdapter ожидает invocation.kind === 'process'");
+      throw new Error("CodexCliAdapter expects invocation.kind === 'process'");
     }
     yield* spawnAndStream({
       executable: invocation.executable,
