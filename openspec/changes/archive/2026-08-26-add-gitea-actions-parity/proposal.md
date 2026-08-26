@@ -1,8 +1,9 @@
 ## Why
 
-Follow-up from the 2026-08-26 discussion ("Предлагаю ... сделать CLI
-одинаковым для Github и Gitea") and the agreed Gitea Actions plan. A
-proof-of-concept was validated end-to-end on the user's own Gitea
+Follow-up from the 2026-08-26 discussion, which asked for the CLI-based
+merge gate to work the same way on both GitHub and Gitea, and the agreed
+Gitea Actions plan. A proof-of-concept was validated end-to-end on the
+user's own Gitea
 instance (Gitea 1.26.4, self-hosted `ubuntu-latest` runner): a scratch
 repository confirmed `actions/checkout@v4` (a GitHub Marketplace action)
 runs unmodified, and a "require changeset when package source changed"
