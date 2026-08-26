@@ -22,9 +22,12 @@
     "lint": "npm run lint:english && npm run lint --workspaces --if-present",
     "lint:english": "node scripts/check-english.mjs",
     "test": "npm run test:english && npm run test --workspaces --if-present",
-    "test:english": "node --test scripts/check-english.test.mjs"
+    "test:english": "node --test scripts/check-english.test.mjs",
+    "changeset": "changeset",
+    "changeset:version": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.1",
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
     "globals": "^17.11.0",
