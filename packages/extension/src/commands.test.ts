@@ -10,6 +10,7 @@ const listSpecsMock = vi.fn();
 const showChangeMock = vi.fn();
 const validateChangeMock = vi.fn();
 const archiveChangeMock = vi.fn();
+const checkChangesetReminderMock = vi.fn();
 const createChangeMock = vi.fn();
 const deleteChangeMock = vi.fn();
 const unarchiveChangeMock = vi.fn();
@@ -28,6 +29,7 @@ class TaskListChangedError extends Error {}
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
+  checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
   customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
@@ -159,6 +161,7 @@ describe("registerCommands", () => {
   it("archives a confirmed active change and refreshes", async () => {
     vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
     archiveChangeMock.mockResolvedValue({ ok: true });
+    checkChangesetReminderMock.mockResolvedValue({ changesetsAdopted: false, pendingChangesetCount: 0 });
     const deps = makeDeps();
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
@@ -169,6 +172,40 @@ describe("registerCommands", () => {
 
     expect(archiveChangeMock).toHaveBeenCalledWith("done-change", { cwd: "/workspace/repo" });
     expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("offers to run npx changeset after archiving when Changesets is adopted but nothing is pending", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
+    archiveChangeMock.mockResolvedValue({ ok: true });
+    checkChangesetReminderMock.mockResolvedValue({ changesetsAdopted: true, pendingChangesetCount: 0 });
+    vscodeMock.window.showInformationMessage.mockResolvedValue("Run npx changeset");
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
+      changeName: "done-change",
+      archived: false,
+    });
+
+    await vi.waitFor(() => expect(vscodeMock.window.createTerminal).toHaveBeenCalled());
+    const terminal = vscodeMock.window.createTerminal.mock.results[0]?.value;
+    expect(terminal.sendText).toHaveBeenCalledWith("npx changeset", true);
+  });
+
+  it("does not offer a changeset reminder when one is already pending", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
+    archiveChangeMock.mockResolvedValue({ ok: true });
+    checkChangesetReminderMock.mockResolvedValue({ changesetsAdopted: true, pendingChangesetCount: 1 });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
+      changeName: "done-change",
+      archived: false,
+    });
+
+    await vi.waitFor(() => expect(checkChangesetReminderMock).toHaveBeenCalled());
+    expect(vscodeMock.window.createTerminal).not.toHaveBeenCalled();
   });
 
   it("unarchives and deletes only after explicit confirmation", async () => {
