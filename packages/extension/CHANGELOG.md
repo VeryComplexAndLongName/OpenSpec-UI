@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.24.1
+
+### Patch Changes
+
+- Fix the change timeline webview showing "No timeline data" for every
+  user: its CSP blocked the inline script that embeds the fetched data
+  (the bundle's own external script tag still loaded, masking the
+  failure instead of erroring). Fixed via a per-panel CSP nonce.
+
 ## 0.24.0
 
 ### Minor Changes
