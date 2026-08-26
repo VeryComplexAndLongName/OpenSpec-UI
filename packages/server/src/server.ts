@@ -14,6 +14,8 @@ import {
   handleChangeEditorCreateRequest,
   handleChangeEditorReadRequest,
   handleChangeEditorSaveRequest,
+  handleChangeTimelineRequest,
+  handleChangeTimelinesRequest,
   handleOpenSpecInitRequest,
   handleOverviewRequest,
   handleStatusJsonRequest,
@@ -161,6 +163,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-editor/archive-tasks-template") {
       void handleArchiveTasksTemplateRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-timeline") {
+      void handleChangeTimelineRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-timelines") {
+      void handleChangeTimelinesRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/templates/list") {
