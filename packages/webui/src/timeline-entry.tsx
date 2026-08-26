@@ -23,21 +23,24 @@ declare global {
   interface Window {
     __OPENSPEC_UI_TIMELINE__?: ChangeTimeline;
     __OPENSPEC_UI_MULTI_TIMELINE__?: MultiChangeTimelinePayload;
+    __OPENSPEC_UI_STALE_THRESHOLD_DAYS__?: number;
   }
 }
 
 function TimelineApp({
   timeline,
   multi,
+  staleThresholdDays,
 }: {
   timeline: ChangeTimeline | undefined;
   multi: MultiChangeTimelinePayload | undefined;
+  staleThresholdDays: number | undefined;
 }) {
   return (
     <div className="openspec-extension-app">
       <style>{`${shellThemeCss}\n${vscodeThemeCss}`}</style>
       {timeline ? (
-        <ChangeTimelineView timeline={timeline} />
+        <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} />
       ) : multi ? (
         <MultiChangeTimelineView timelines={multi.timelines} rangeStart={multi.rangeStart} rangeEnd={multi.rangeEnd} />
       ) : (
@@ -52,5 +55,9 @@ if (!container) {
   throw new Error("timeline-entry: #root element not found");
 }
 createRoot(container).render(
-  <TimelineApp timeline={window.__OPENSPEC_UI_TIMELINE__} multi={window.__OPENSPEC_UI_MULTI_TIMELINE__} />,
+  <TimelineApp
+    timeline={window.__OPENSPEC_UI_TIMELINE__}
+    multi={window.__OPENSPEC_UI_MULTI_TIMELINE__}
+    staleThresholdDays={window.__OPENSPEC_UI_STALE_THRESHOLD_DAYS__}
+  />,
 );

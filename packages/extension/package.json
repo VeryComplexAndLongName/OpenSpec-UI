@@ -4,7 +4,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "A dashboard + VS Code extension for OpenSpec, with Claude, Copilot, Codex, and Gemini agents built in.",
   "publisher": "openspec-ui",
-  "version": "0.24.1",
+  "version": "0.25.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
@@ -341,6 +341,12 @@
           "type": "number",
           "default": 0,
           "description": "Days to keep process/checkpoint history before it's pruned on the next window reload. 0 or a negative number keeps everything forever (the default, unchanged from prior versions). WARNING: once a process is pruned, Rollback (both single-process and whole-Change) is permanently unavailable for it — pruning is not itself reversible."
+        },
+        "openspec-ui.staleTaskThresholdDays": {
+          "type": "number",
+          "default": 14,
+          "minimum": 1,
+          "description": "Days a pending task can sit untouched (per git blame on tasks.md) before the Change Timeline view flags it as stale."
         }
       }
     },

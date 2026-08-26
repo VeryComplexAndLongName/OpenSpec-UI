@@ -742,6 +742,15 @@ export const shellThemeCss = `
     font-style: italic;
   }
 
+  .openspec-timeline-task-stale .openspec-timeline-task-toggle {
+    border-color: var(--danger);
+  }
+
+  .openspec-timeline-task-stale .openspec-timeline-task-marker,
+  .openspec-timeline-task-stale .openspec-timeline-task-date {
+    color: var(--danger);
+  }
+
   .openspec-timeline-task-text {
     overflow: hidden;
     text-overflow: ellipsis;

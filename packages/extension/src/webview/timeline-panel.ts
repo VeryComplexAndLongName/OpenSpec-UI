@@ -19,10 +19,17 @@ export class TimelineWebviewPanel {
 
   /** Opens a new webview tab for `timeline` — deliberately not a
    * singleton (unlike `AiPanel`): opening timelines for different
-   * changes yields separate tabs a user can compare side by side. */
-  show(changeName: string, timeline: ChangeTimeline): void {
+   * changes yields separate tabs a user can compare side by side.
+   * `staleThresholdDays` (see openspec/changes/
+   * add-stale-task-detection/design.md) is embedded alongside the
+   * timeline itself, under its own global — `ChangeTimelineView` reads
+   * it as a prop, not baked into the `ChangeTimeline` data shape. */
+  show(changeName: string, timeline: ChangeTimeline, staleThresholdDays: number): void {
     const panel = this.createPanel(`OpenSpec UI: ${changeName} timeline`);
-    panel.webview.html = this.getHtml(panel.webview, "__OPENSPEC_UI_TIMELINE__", timeline);
+    panel.webview.html = this.getHtml(panel.webview, {
+      __OPENSPEC_UI_TIMELINE__: timeline,
+      __OPENSPEC_UI_STALE_THRESHOLD_DAYS__: staleThresholdDays,
+    });
   }
 
   /** Same not-a-singleton shape as `show()`, for the multi-change
@@ -30,7 +37,7 @@ export class TimelineWebviewPanel {
    * add-multi-change-timeline-view/design.md). */
   showMulti(payload: MultiChangeTimelinePayload): void {
     const panel = this.createPanel("OpenSpec UI: change comparison");
-    panel.webview.html = this.getHtml(panel.webview, "__OPENSPEC_UI_MULTI_TIMELINE__", payload);
+    panel.webview.html = this.getHtml(panel.webview, { __OPENSPEC_UI_MULTI_TIMELINE__: payload });
   }
 
   private createPanel(title: string): vscode.WebviewPanel {
@@ -45,7 +52,7 @@ export class TimelineWebviewPanel {
     );
   }
 
-  private getHtml(webview: vscode.Webview, globalName: string, payload: unknown): string {
+  private getHtml(webview: vscode.Webview, globals: Record<string, unknown>): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "timeline.js"));
     // A nonce, not a blanket 'unsafe-inline', authorizes only this one
     // inline script — CSP's `script-src` otherwise blocks inline
@@ -57,7 +64,9 @@ export class TimelineWebviewPanel {
     const csp = `default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline';`;
     // `<` -> `<` prevents an embedded `</script>` sequence (e.g. inside
     // markdown content) from closing the script tag early.
-    const payloadJson = JSON.stringify(payload).replaceAll("<", "\\u003c");
+    const assignments = Object.entries(globals)
+      .map(([name, value]) => `window.${name} = ${JSON.stringify(value).replaceAll("<", "\\u003c")};`)
+      .join("\n");
     return `<!doctype html>
 <html>
   <head>
@@ -67,7 +76,7 @@ export class TimelineWebviewPanel {
   </head>
   <body>
     <div id="root"></div>
-    <script nonce="${nonce}">window.${globalName} = ${payloadJson};</script>
+    <script nonce="${nonce}">${assignments}</script>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

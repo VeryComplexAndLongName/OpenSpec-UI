@@ -9,7 +9,15 @@ const timeline: ChangeTimeline = {
   proposal: "## Why\n",
   design: "## Context\n",
   specs: [],
-  tasks: [{ lineNumber: 0, text: "done", done: true, date: "2026-01-02T00:00:00.000Z" }],
+  tasks: [
+    {
+      lineNumber: 0,
+      text: "done",
+      done: true,
+      date: "2026-01-02T00:00:00.000Z",
+      lastTouchedDate: "2026-01-02T00:00:00.000Z",
+    },
+  ],
 };
 
 describe("loadChangeTimeline", () => {

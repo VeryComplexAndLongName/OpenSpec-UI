@@ -4,11 +4,18 @@
 // See openspec/changes/add-change-timeline-view/design.md.
 
 import { useState } from "react";
+import { DEFAULT_STALE_TASK_THRESHOLD_DAYS, isTaskStale } from "@openspec-ui/core/browser";
 import { renderMarkdown } from "../markdown.js";
 import type { ChangeTimeline, ChangeTimelineTask } from "../change-timeline-client.js";
 
 export interface ChangeTimelineViewProps {
   timeline: ChangeTimeline;
+  /** Days a pending task can sit untouched before it's flagged stale.
+   * Defaults to `DEFAULT_STALE_TASK_THRESHOLD_DAYS` (14). */
+  staleThresholdDays?: number;
+  /** Injectable for deterministic tests — defaults to the real current
+   * time. */
+  now?: Date;
 }
 
 function formatDate(date: string | null): string {
@@ -28,11 +35,23 @@ function sortedTasks(tasks: ChangeTimelineTask[]): ChangeTimelineTask[] {
   });
 }
 
-function TaskRow({ task }: { task: ChangeTimelineTask }) {
+function TaskRow({
+  task,
+  staleThresholdDays,
+  now,
+}: {
+  task: ChangeTimelineTask;
+  staleThresholdDays: number;
+  now: Date;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const stale = isTaskStale(task, staleThresholdDays, now);
 
   return (
-    <li className="openspec-timeline-task" data-testid={`timeline-task-${task.lineNumber}`}>
+    <li
+      className={`openspec-timeline-task${stale ? " openspec-timeline-task-stale" : ""}`}
+      data-testid={`timeline-task-${task.lineNumber}`}
+    >
       <button
         type="button"
         className="openspec-timeline-task-toggle"
@@ -40,13 +59,17 @@ function TaskRow({ task }: { task: ChangeTimelineTask }) {
         aria-expanded={expanded}
       >
         <span className="openspec-timeline-task-marker" aria-hidden="true">
-          {task.date ? "●" : task.done ? "○" : "◌"}
+          {stale ? "⚠" : task.date ? "●" : task.done ? "○" : "◌"}
         </span>
         {task.date ? (
           <time className="openspec-timeline-task-date" dateTime={task.date}>{formatDate(task.date)}</time>
         ) : (
           <span className="openspec-timeline-task-date openspec-timeline-task-pending">
-            {task.done ? "done, date unknown" : "pending"}
+            {task.done
+              ? "done, date unknown"
+              : stale
+                ? `pending, stale (${staleThresholdDays}+ days untouched)`
+                : "pending"}
           </span>
         )}
         <span className="openspec-timeline-task-text">{task.text}</span>
@@ -56,7 +79,11 @@ function TaskRow({ task }: { task: ChangeTimelineTask }) {
   );
 }
 
-export function ChangeTimelineView({ timeline }: ChangeTimelineViewProps) {
+export function ChangeTimelineView({
+  timeline,
+  staleThresholdDays = DEFAULT_STALE_TASK_THRESHOLD_DAYS,
+  now = new Date(),
+}: ChangeTimelineViewProps) {
   return (
     <div className="openspec-change-timeline" data-testid="change-timeline-view">
       <header className="openspec-timeline-header">
@@ -101,7 +128,7 @@ export function ChangeTimelineView({ timeline }: ChangeTimelineViewProps) {
         ) : (
           <ul data-testid="change-timeline-tasks">
             {sortedTasks(timeline.tasks).map((task) => (
-              <TaskRow key={task.lineNumber} task={task} />
+              <TaskRow key={task.lineNumber} task={task} staleThresholdDays={staleThresholdDays} now={now} />
             ))}
           </ul>
         )}

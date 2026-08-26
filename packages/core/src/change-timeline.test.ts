@@ -135,8 +135,20 @@ describe("getChangeTimeline", () => {
     expect(timeline.proposal).toContain("Because.");
     expect(timeline.design).toContain("Some context.");
     expect(timeline.tasks).toEqual([
-      { lineNumber: 0, text: "first", done: true, date: "2026-01-02T00:00:00.000Z" },
-      { lineNumber: 1, text: "second", done: false, date: null },
+      {
+        lineNumber: 0,
+        text: "first",
+        done: true,
+        date: "2026-01-02T00:00:00.000Z",
+        lastTouchedDate: "2026-01-02T00:00:00.000Z",
+      },
+      {
+        lineNumber: 1,
+        text: "second",
+        done: false,
+        date: null,
+        lastTouchedDate: "2026-01-01T00:00:00.000Z",
+      },
     ]);
   });
 
@@ -164,7 +176,13 @@ describe("getChangeTimeline", () => {
     expect(timeline.archived).toBe(true);
     expect(timeline.archivedDate).toBe("2026-01-03");
     expect(timeline.tasks).toEqual([
-      { lineNumber: 0, text: "only", done: true, date: "2026-01-02T00:00:00.000Z" },
+      {
+        lineNumber: 0,
+        text: "only",
+        done: true,
+        date: "2026-01-02T00:00:00.000Z",
+        lastTouchedDate: "2026-01-02T00:00:00.000Z",
+      },
     ]);
   });
 

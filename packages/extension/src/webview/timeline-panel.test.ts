@@ -33,7 +33,7 @@ describe("TimelineWebviewPanel", () => {
     const panel = createPanelFixture();
     const timelinePanel = createTimelinePanel();
 
-    timelinePanel.show("my-change", { changeName: "my-change" } as never);
+    timelinePanel.show("my-change", { changeName: "my-change" } as never, 14);
 
     // The inline data-injection script must carry a nonce that also
     // appears in the CSP's script-src — without it, a real VS Code
@@ -48,6 +48,7 @@ describe("TimelineWebviewPanel", () => {
     expect(panel.webview.html).toContain(`script-src vscode-webview: 'nonce-${nonce}'`);
     expect(panel.webview.html).not.toContain("script-src vscode-webview: 'unsafe-inline'");
     expect(panel.webview.html).toContain('window.__OPENSPEC_UI_TIMELINE__ = {"changeName":"my-change"}');
+    expect(panel.webview.html).toContain("window.__OPENSPEC_UI_STALE_THRESHOLD_DAYS__ = 14;");
   });
 
   it("embeds the multi-change payload behind a CSP nonce", () => {
@@ -66,9 +67,9 @@ describe("TimelineWebviewPanel", () => {
     const panel = createPanelFixture();
     const timelinePanel = createTimelinePanel();
 
-    timelinePanel.show("first", { changeName: "first" } as never);
+    timelinePanel.show("first", { changeName: "first" } as never, 14);
     const firstHtml = panel.webview.html;
-    timelinePanel.show("second", { changeName: "second" } as never);
+    timelinePanel.show("second", { changeName: "second" } as never, 14);
     const secondHtml = panel.webview.html;
 
     expect(extractInlineScriptNonce(firstHtml)).not.toBe(extractInlineScriptNonce(secondHtml));
@@ -78,7 +79,7 @@ describe("TimelineWebviewPanel", () => {
     const panel = createPanelFixture();
     const timelinePanel = createTimelinePanel();
 
-    timelinePanel.show("my-change", { changeName: "my-change", proposal: "</script><script>alert(1)</script>" } as never);
+    timelinePanel.show("my-change", { changeName: "my-change", proposal: "</script><script>alert(1)</script>" } as never, 14);
 
     // Escaping every literal `<` to `\u003c` is sufficient on its own —
     // the HTML tokenizer's script-end-tag detection requires a real `<`

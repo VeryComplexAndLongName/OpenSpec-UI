@@ -14,7 +14,15 @@ const timelineA: ChangeTimeline = {
   proposal: "",
   design: "",
   specs: [],
-  tasks: [{ lineNumber: 0, text: "done task", done: true, date: "2026-01-02T12:00:00.000Z" }],
+  tasks: [
+    {
+      lineNumber: 0,
+      text: "done task",
+      done: true,
+      date: "2026-01-02T12:00:00.000Z",
+      lastTouchedDate: "2026-01-02T12:00:00.000Z",
+    },
+  ],
 };
 
 const timelineB: ChangeTimeline = {
@@ -25,7 +33,7 @@ const timelineB: ChangeTimeline = {
   proposal: "",
   design: "",
   specs: [],
-  tasks: [{ lineNumber: 0, text: "pending task", done: false, date: null }],
+  tasks: [{ lineNumber: 0, text: "pending task", done: false, date: null, lastTouchedDate: null }],
 };
 
 describe("MultiChangeTimelineView", () => {
