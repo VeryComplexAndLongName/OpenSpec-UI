@@ -170,21 +170,27 @@ delivery level.
 - `major` — breaking changes in public behavior, protocol, data format, or
   promised UX.
 
-If a change is visibly user-facing, the affected package version in
-`package.json` must be bumped in the same change. For delivery forms, an
-aggregated release version is allowed, but package versions — especially
-`core` — remain the source of truth and should be shown separately when the UI
-displays build information.
+If a change is visibly user-facing, the affected package's version bump and
+`CHANGELOG.md` entry are proposed via a [changeset](.changeset/README.md)
+(`npx changeset`) in the same change, instead of hand-editing `package.json`'s
+`version` field directly — see `.changeset/README.md` for the full workflow
+and why this repository adopted it. For delivery forms, an aggregated release
+version is allowed, but package versions — especially `core` — remain the
+source of truth and should be shown separately when the UI displays build
+information.
 
 The private root package remains `0.0.0`; it is a workspace container, not a
-release artifact. Current release versions are:
+release artifact, and is excluded from changesets accordingly
+(`.changeset/config.json`'s `ignore`). Current release versions (as of
+2026-08-26; each package's own `package.json` is the live source of truth,
+this table is a snapshot, not authoritative):
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.20.2 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.16.2 | VS Code delivery |
+| `@openspec-ui/core` | 0.24.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.20.2 | VS Code delivery |
 | `@openspec-ui/server` | 1.8.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.9.0 | Shared browser UI |
+| `@openspec-ui/webui` | 1.9.1 | Shared browser UI |
 | `@openspec-ui/cli` | 0.1.0 | CI merge-gate delivery |
 
 `@vscode/vsce` (the extension's packager) already names the built

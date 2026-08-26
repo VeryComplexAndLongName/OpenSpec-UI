@@ -68,7 +68,10 @@ operations:
         (a real run, not just unit tests) is also required before a task may be
         marked complete.
       - A version bump in the affected package's package.json is mandatory in
-        sync with every externally visible behavior change.
+        sync with every externally visible behavior change, proposed via a
+        changeset (`npx changeset`) in the same change rather than editing
+        `package.json`'s `version` field by hand — see
+        `.changeset/README.md` for the full workflow.
       - >-
         Versioning follows semver at the package level: patch — fixes,
         documentation, and refactoring without changing the external
