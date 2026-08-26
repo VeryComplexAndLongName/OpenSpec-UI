@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.24.0
+
+### Minor Changes
+
+- Add a "compare changes" timeline: a new global command
+  (`openspec-ui.showAllChangesTimeline`) and a standalone Timeline-tab
+  mode that show several changes as parallel lanes on a shared,
+  log-scaled time axis (verified against real archived-change data
+  before choosing the log-scale direction). Also adds the CSS the
+  single-change timeline view needed but was missing, and fixes archived
+  dates plotting before same-day created/task timestamps.
+
+### Patch Changes
+
+- Updated dependencies
+  - @openspec-ui/webui@1.13.0
+
 ## 0.23.0
 
 ### Minor Changes

@@ -7,6 +7,12 @@
 import * as vscode from "vscode";
 import type { ChangeTimeline } from "@openspec-ui/core";
 
+interface MultiChangeTimelinePayload {
+  timelines: ChangeTimeline[];
+  rangeStart: string;
+  rangeEnd: string;
+}
+
 export class TimelineWebviewPanel {
   constructor(private readonly deps: { extensionUri: vscode.Uri }) { }
 
@@ -14,24 +20,36 @@ export class TimelineWebviewPanel {
    * singleton (unlike `AiPanel`): opening timelines for different
    * changes yields separate tabs a user can compare side by side. */
   show(changeName: string, timeline: ChangeTimeline): void {
-    const panel = vscode.window.createWebviewPanel(
+    const panel = this.createPanel(`OpenSpec UI: ${changeName} timeline`);
+    panel.webview.html = this.getHtml(panel.webview, "__OPENSPEC_UI_TIMELINE__", timeline);
+  }
+
+  /** Same not-a-singleton shape as `show()`, for the multi-change
+   * comparison view (see openspec/changes/
+   * add-multi-change-timeline-view/design.md). */
+  showMulti(payload: MultiChangeTimelinePayload): void {
+    const panel = this.createPanel("OpenSpec UI: change comparison");
+    panel.webview.html = this.getHtml(panel.webview, "__OPENSPEC_UI_MULTI_TIMELINE__", payload);
+  }
+
+  private createPanel(title: string): vscode.WebviewPanel {
+    return vscode.window.createWebviewPanel(
       "openspecUiChangeTimeline",
-      `OpenSpec UI: ${changeName} timeline`,
+      title,
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
         localResourceRoots: [vscode.Uri.joinPath(this.deps.extensionUri, "dist")],
       },
     );
-    panel.webview.html = this.getHtml(panel.webview, timeline);
   }
 
-  private getHtml(webview: vscode.Webview, timeline: ChangeTimeline): string {
+  private getHtml(webview: vscode.Webview, globalName: string, payload: unknown): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "timeline.js"));
     const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
     // `<` -> `<` prevents an embedded `</script>` sequence (e.g. inside
     // markdown content) from closing the script tag early.
-    const timelineJson = JSON.stringify(timeline).replaceAll("<", "\\u003c");
+    const payloadJson = JSON.stringify(payload).replaceAll("<", "\\u003c");
     return `<!doctype html>
 <html>
   <head>
@@ -41,7 +59,7 @@ export class TimelineWebviewPanel {
   </head>
   <body>
     <div id="root"></div>
-    <script>window.__OPENSPEC_UI_TIMELINE__ = ${timelineJson};</script>
+    <script>window.${globalName} = ${payloadJson};</script>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

@@ -24,7 +24,8 @@ import {
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
-import { loadChangeTimeline, type ChangeTimeline } from "./change-timeline-client.js";
+import { loadChangeTimeline, loadChangeTimelines, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
+import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
 import {
   customizeTemplate as customizeTemplateApi,
   deleteProjectTemplate as deleteProjectTemplateApi,
@@ -208,6 +209,13 @@ function StandaloneApp() {
   const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
+  const [timelineMode, setTimelineMode] = useState<"single" | "multi">("single");
+  const [multiRangeStart, setMultiRangeStart] = useState("");
+  const [multiRangeEnd, setMultiRangeEnd] = useState("");
+  const [multiSelection, setMultiSelection] = useState<string[]>([]);
+  const [multiTimelines, setMultiTimelines] = useState<ChangeTimeline[]>([]);
+  const [multiLoading, setMultiLoading] = useState(false);
+  const [multiMessage, setMultiMessage] = useState<string | null>(null);
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
@@ -373,6 +381,41 @@ function StandaloneApp() {
       setTimeline(null);
     } finally {
       setTimelineLoading(false);
+    }
+  }
+
+  function decodeSelection(selection: string): ChangeTimelineEntry | undefined {
+    const [prefix, ...rest] = selection.split(":");
+    const changeName = rest.join(":");
+    if (!changeName || (prefix !== "active" && prefix !== "archived")) return undefined;
+    return { changeName, archived: prefix === "archived" };
+  }
+
+  async function loadMultiTimelines() {
+    if (cwd.trim().length === 0) {
+      setMultiMessage("Enter workspace root first.");
+      return;
+    }
+    if (multiRangeStart.trim().length === 0 || multiRangeEnd.trim().length === 0) {
+      setMultiMessage("Select a date range first.");
+      return;
+    }
+    const entries = multiSelection.map(decodeSelection).filter((entry): entry is ChangeTimelineEntry => Boolean(entry));
+    if (entries.length === 0) {
+      setMultiMessage("Select at least one change first.");
+      return;
+    }
+    setMultiLoading(true);
+    setMultiMessage(null);
+    try {
+      const loaded = await loadChangeTimelines(apiFetch, cwd, entries);
+      setMultiTimelines(loaded);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMultiMessage(`Load failed: ${message}`);
+      setMultiTimelines([]);
+    } finally {
+      setMultiLoading(false);
     }
   }
 
@@ -1126,32 +1169,111 @@ function StandaloneApp() {
           when git shows each was completed.
         </p>
 
-        <div className="openspec-ai-panel-controls">
-          <select
-            aria-label="Change to show a timeline for"
-            value={timelineSelection}
-            onChange={(e) => setTimelineSelection(e.target.value)}
-            disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
-          >
-            <option value="">Select change</option>
-            {(overview?.changes ?? []).map((change) => (
-              <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
-            ))}
-            {(overview?.archivedChanges ?? []).map((name) => (
-              <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
-            ))}
-          </select>
+        <div className="openspec-editor-tabs">
           <button
             type="button"
-            onClick={() => void loadTimeline()}
-            disabled={timelineLoading || timelineSelection.trim().length === 0}
+            className={timelineMode === "single" ? "is-active" : ""}
+            onClick={() => setTimelineMode("single")}
           >
-            {timelineLoading ? "Loading..." : "Load timeline"}
+            Single change
+          </button>
+          <button
+            type="button"
+            className={timelineMode === "multi" ? "is-active" : ""}
+            onClick={() => setTimelineMode("multi")}
+          >
+            Compare changes
           </button>
         </div>
 
-        {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
-        {timeline ? <ChangeTimelineView timeline={timeline} /> : null}
+        {timelineMode === "single" ? (
+          <Fragment>
+            <div className="openspec-ai-panel-controls">
+              <select
+                aria-label="Change to show a timeline for"
+                value={timelineSelection}
+                onChange={(e) => setTimelineSelection(e.target.value)}
+                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
+              >
+                <option value="">Select change</option>
+                {(overview?.changes ?? []).map((change) => (
+                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
+                ))}
+                {(overview?.archivedChanges ?? []).map((name) => (
+                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => void loadTimeline()}
+                disabled={timelineLoading || timelineSelection.trim().length === 0}
+              >
+                {timelineLoading ? "Loading..." : "Load timeline"}
+              </button>
+            </div>
+
+            {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
+            {timeline ? <ChangeTimelineView timeline={timeline} /> : null}
+          </Fragment>
+        ) : (
+          <Fragment>
+            <div className="openspec-shell-grid">
+              <label className="openspec-shell-field">
+                Range start
+                <input
+                  type="date"
+                  aria-label="Timeline range start"
+                  value={multiRangeStart}
+                  onChange={(e) => setMultiRangeStart(e.target.value)}
+                />
+              </label>
+              <label className="openspec-shell-field">
+                Range end
+                <input
+                  type="date"
+                  aria-label="Timeline range end"
+                  value={multiRangeEnd}
+                  onChange={(e) => setMultiRangeEnd(e.target.value)}
+                />
+              </label>
+            </div>
+            <label className="openspec-shell-field">
+              Changes to compare
+              <select
+                aria-label="Changes to compare"
+                multiple
+                value={multiSelection}
+                onChange={(e) => setMultiSelection(Array.from(e.target.selectedOptions, (o) => o.value))}
+                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
+              >
+                {(overview?.changes ?? []).map((change) => (
+                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
+                ))}
+                {(overview?.archivedChanges ?? []).map((name) => (
+                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
+                ))}
+              </select>
+            </label>
+            <div className="openspec-ai-panel-controls">
+              <button
+                type="button"
+                onClick={() => void loadMultiTimelines()}
+                disabled={multiLoading || multiSelection.length === 0}
+              >
+                {multiLoading ? "Loading..." : "Load comparison"}
+              </button>
+            </div>
+
+            {multiMessage ? <p className="openspec-shell-note">{multiMessage}</p> : null}
+            {multiTimelines.length > 0 && multiRangeStart && multiRangeEnd ? (
+              <MultiChangeTimelineView
+                timelines={multiTimelines}
+                rangeStart={new Date(multiRangeStart).toISOString()}
+                rangeEnd={new Date(multiRangeEnd).toISOString()}
+              />
+            ) : null}
+          </Fragment>
+        )}
       </section>
       </TabPanel>
       )}
