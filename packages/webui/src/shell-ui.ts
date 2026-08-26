@@ -680,6 +680,130 @@ export const shellThemeCss = `
     background: var(--surface-2);
   }
 
+  .openspec-timeline-header dl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 4px 0 0;
+  }
+
+  .openspec-timeline-header dt {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .openspec-timeline-header dd {
+    margin: 0 16px 0 4px;
+    font-size: 12px;
+  }
+
+  .openspec-timeline-artifact {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+
+  .openspec-timeline-tasks ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .openspec-timeline-task-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--ink);
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .openspec-timeline-task-marker {
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .openspec-timeline-task-date {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .openspec-timeline-task-pending {
+    font-style: italic;
+  }
+
+  .openspec-timeline-task-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .openspec-timeline-task-detail {
+    margin: 4px 0 0 10px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .openspec-multi-timeline-axis {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .openspec-multi-timeline-lane {
+    margin-bottom: 18px;
+  }
+
+  .openspec-multi-timeline-lane-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .openspec-multi-timeline-track {
+    position: relative;
+    height: 28px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .openspec-multi-timeline-point {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .openspec-multi-timeline-point-created {
+    color: var(--muted);
+  }
+
+  .openspec-multi-timeline-point-task {
+    color: var(--primary);
+  }
+
+  .openspec-multi-timeline-point-archived {
+    color: var(--danger);
+  }
+
   @media (max-width: 760px) {
     .openspec-shell-grid { grid-template-columns: 1fr; }
     .openspec-editor-grid { grid-template-columns: 1fr; }

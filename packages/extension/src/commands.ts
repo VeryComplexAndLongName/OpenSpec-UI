@@ -16,7 +16,9 @@ import {
   deleteChange,
   deleteProjectTemplate,
   deleteTaskLine,
+  discoverOpenSpecWorkspace,
   getChangeTimeline,
+  getChangeTimelines,
   initOpenSpec,
   listBootstrapProjectTypes,
   listChanges,
@@ -31,6 +33,7 @@ import {
   writeSubtypeInstructions,
   type StartProcessOptions,
   type WorkbenchProcessScheduler,
+  type ChangeTimeline,
   type Command,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
@@ -241,6 +244,55 @@ async function pickChange(workspaceRoot: string): Promise<{ name: string; change
   );
   if (!pick) return undefined;
   return { name: pick.label, changeDir: path.join(workspaceRoot, "openspec", "changes", pick.label) };
+}
+
+async function pickChangesForTimeline(
+  workspaceRoot: string,
+): Promise<Array<{ changeName: string; archived: boolean }> | undefined> {
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  const items = [
+    ...workspace.changes.map((c) => ({ label: c.name, description: "active", archived: false })),
+    ...workspace.archivedChanges.map((c) => ({ label: c.name, description: "archived", archived: true })),
+  ];
+  if (items.length === 0) {
+    void vscode.window.showWarningMessage("OpenSpec UI: no changes found in openspec/changes/.");
+    return undefined;
+  }
+  const picks = await vscode.window.showQuickPick(items, {
+    placeHolder: "Select changes to compare",
+    canPickMany: true,
+  });
+  if (!picks || picks.length === 0) return undefined;
+  return picks.map((pick) => ({ changeName: pick.label, archived: pick.archived }));
+}
+
+/** The date-range axis for the multi-change view is derived from the
+ * selected changes' own data (earliest/latest of every created/task/
+ * archived date) rather than asking the user to type ISO dates — no
+ * native date picker exists in VS Code's own prompt UI, and the data's
+ * own extent is a reasonable default range. Falls back to a 1-day
+ * window around now if no change carries any determinable date. */
+function computeDefaultRange(timelines: ChangeTimeline[]): { rangeStart: string; rangeEnd: string } {
+  const dates: string[] = [];
+  for (const timeline of timelines) {
+    if (timeline.createdDate) dates.push(timeline.createdDate);
+    // Archiving is chronologically last, but archivedDate has no
+    // time-of-day (parsed from the folder name) — end-of-day avoids it
+    // sorting before that same day's actual created/task timestamps.
+    if (timeline.archived && timeline.archivedDate) dates.push(`${timeline.archivedDate}T23:59:59.999Z`);
+    for (const task of timeline.tasks) {
+      if (task.date) dates.push(task.date);
+    }
+  }
+  if (dates.length === 0) {
+    const now = Date.now();
+    return {
+      rangeStart: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+      rangeEnd: new Date(now + 12 * 60 * 60 * 1000).toISOString(),
+    };
+  }
+  const sorted = [...dates].sort();
+  return { rangeStart: sorted[0] as string, rangeEnd: sorted[sorted.length - 1] as string };
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
@@ -793,6 +845,25 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         void vscode.window.showWarningMessage(`OpenSpec UI: failed to build parsed openspec view summary (${message}).`);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.showAllChangesTimeline", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const entries = await pickChangesForTimeline(workspaceRoot);
+      if (!entries) return;
+      try {
+        const timelines = await getChangeTimelines(workspaceRoot, entries);
+        const { rangeStart, rangeEnd } = computeDefaultRange(timelines);
+        timelinePanel.showMulti({ timelines, rangeStart, rangeEnd });
+      } catch (error) {
+        await showCommandError("show change comparison", error);
       }
     }),
   );
