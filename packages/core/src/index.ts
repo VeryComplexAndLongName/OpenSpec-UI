@@ -22,6 +22,7 @@ export * from "./workbench-recovery.js";
 export * from "./agent-detection.js";
 export * from "./changeset-reminder.js";
 export * from "./change-timeline.js";
+export * from "./stale-tasks.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

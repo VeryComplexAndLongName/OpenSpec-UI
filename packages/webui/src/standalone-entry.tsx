@@ -33,6 +33,7 @@ import {
   renderTemplate as renderTemplateApi,
 } from "./template-catalog-client.js";
 import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
+import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
 
 interface OverviewChange {
@@ -210,6 +211,7 @@ function StandaloneApp() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
   const [timelineMode, setTimelineMode] = useState<"single" | "multi">("single");
+  const [staleThresholdDays, setStaleThresholdDays] = useState(DEFAULT_STALE_TASK_THRESHOLD_DAYS);
   const [multiRangeStart, setMultiRangeStart] = useState("");
   const [multiRangeEnd, setMultiRangeEnd] = useState("");
   const [multiSelection, setMultiSelection] = useState<string[]>([]);
@@ -1210,10 +1212,20 @@ function StandaloneApp() {
               >
                 {timelineLoading ? "Loading..." : "Load timeline"}
               </button>
+              <label className="openspec-shell-field">
+                Stale after (days)
+                <input
+                  type="number"
+                  aria-label="Stale task threshold in days"
+                  min={1}
+                  value={staleThresholdDays}
+                  onChange={(e) => setStaleThresholdDays(Number(e.target.value) || DEFAULT_STALE_TASK_THRESHOLD_DAYS)}
+                />
+              </label>
             </div>
 
             {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
-            {timeline ? <ChangeTimelineView timeline={timeline} /> : null}
+            {timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null}
           </Fragment>
         ) : (
           <Fragment>

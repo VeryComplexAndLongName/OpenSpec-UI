@@ -12,9 +12,27 @@ const timeline: ChangeTimeline = {
   design: "## Context\n\nSome context.\n",
   specs: [{ specId: "execution-core", content: "## ADDED Requirements\n" }],
   tasks: [
-    { lineNumber: 0, text: "second task, checked later", done: true, date: "2026-01-03T00:00:00.000Z" },
-    { lineNumber: 1, text: "first task, checked earlier", done: true, date: "2026-01-02T00:00:00.000Z" },
-    { lineNumber: 2, text: "still pending", done: false, date: null },
+    {
+      lineNumber: 0,
+      text: "second task, checked later",
+      done: true,
+      date: "2026-01-03T00:00:00.000Z",
+      lastTouchedDate: "2026-01-03T00:00:00.000Z",
+    },
+    {
+      lineNumber: 1,
+      text: "first task, checked earlier",
+      done: true,
+      date: "2026-01-02T00:00:00.000Z",
+      lastTouchedDate: "2026-01-02T00:00:00.000Z",
+    },
+    {
+      lineNumber: 2,
+      text: "still pending",
+      done: false,
+      date: null,
+      lastTouchedDate: "2026-01-10T00:00:00.000Z",
+    },
   ],
 };
 
@@ -56,5 +74,32 @@ describe("ChangeTimelineView", () => {
   it("shows nothing for an empty task list", () => {
     render(<ChangeTimelineView timeline={{ ...timeline, tasks: [] }} />);
     expect(screen.getByText("No tasks found.")).toBeInTheDocument();
+  });
+
+  it("flags a pending task as stale once it has sat untouched past the threshold", () => {
+    render(
+      <ChangeTimelineView
+        timeline={timeline}
+        staleThresholdDays={14}
+        now={new Date("2026-02-01T00:00:00.000Z")} // 22 days after the pending task's lastTouchedDate
+      />,
+    );
+    const pendingTask = screen.getByTestId("timeline-task-2");
+    expect(pendingTask.className).toContain("openspec-timeline-task-stale");
+    expect(pendingTask).toHaveTextContent("stale");
+  });
+
+  it("does not flag a pending task touched recently", () => {
+    render(
+      <ChangeTimelineView
+        timeline={timeline}
+        staleThresholdDays={14}
+        now={new Date("2026-01-11T00:00:00.000Z")} // 1 day after the pending task's lastTouchedDate
+      />,
+    );
+    const pendingTask = screen.getByTestId("timeline-task-2");
+    expect(pendingTask.className).not.toContain("openspec-timeline-task-stale");
+    expect(pendingTask).toHaveTextContent("pending");
+    expect(pendingTask).not.toHaveTextContent("stale");
   });
 });

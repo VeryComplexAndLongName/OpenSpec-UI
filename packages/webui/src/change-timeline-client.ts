@@ -1,25 +1,10 @@
-export interface ChangeTimelineTask {
-  lineNumber: number;
-  text: string;
-  done: boolean;
-  date: string | null;
-}
-
-export interface ChangeTimelineSpec {
-  specId: string;
-  content: string;
-}
-
-export interface ChangeTimeline {
-  changeName: string;
-  archived: boolean;
-  createdDate: string | null;
-  archivedDate: string | null;
-  proposal: string;
-  design: string;
-  specs: ChangeTimelineSpec[];
-  tasks: ChangeTimelineTask[];
-}
+// Re-exported from core's browser-safe barrel (not hand-duplicated) —
+// see openspec/changes/add-stale-task-detection/design.md for why: a
+// hand-duplicated copy of these interfaces already drifted out of sync
+// once (missing `lastTouchedDate`) before this module started importing
+// them for real.
+export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "@openspec-ui/core/browser";
+import type { ChangeTimeline } from "@openspec-ui/core/browser";
 
 export interface ChangeTimelineEntry {
   changeName: string;

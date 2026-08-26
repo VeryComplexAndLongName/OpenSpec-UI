@@ -31,6 +31,7 @@ class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
+  DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -187,7 +188,24 @@ describe("registerCommands", () => {
     });
 
     expect(getChangeTimelineMock).toHaveBeenCalledWith("/workspace/repo", "my-change", false);
-    expect(timelinePanelShowMock).toHaveBeenCalledWith("my-change", timeline);
+    expect(timelinePanelShowMock).toHaveBeenCalledWith("my-change", timeline, 14);
+  });
+
+  it("reads the stale-task threshold from the openspec-ui.staleTaskThresholdDays setting", async () => {
+    const timeline = { changeName: "my-change", archived: false, tasks: [] };
+    getChangeTimelineMock.mockResolvedValue(timeline);
+    const configuredGet = vi.fn((_key: string, _defaultValue?: unknown) => 30);
+    vscodeMock.workspace.getConfiguration.mockReturnValue({ get: configuredGet });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeTimeline")?.({
+      changeName: "my-change",
+      archived: false,
+    });
+
+    expect(configuredGet).toHaveBeenCalledWith("staleTaskThresholdDays", 14);
+    expect(timelinePanelShowMock).toHaveBeenCalledWith("my-change", timeline, 30);
   });
 
   it("fetches an archived change's timeline with archived: true", async () => {

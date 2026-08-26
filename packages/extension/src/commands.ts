@@ -5,6 +5,7 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
   TaskListChangedError,
   TemplateAlreadyExistsError,
@@ -463,7 +464,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot || !item) return;
       try {
         const timeline = await getChangeTimeline(workspaceRoot, item.changeName, item.archived);
-        timelinePanel.show(item.changeName, timeline);
+        const staleThresholdDays = vscode.workspace
+          .getConfiguration("openspec-ui")
+          .get<number>("staleTaskThresholdDays", DEFAULT_STALE_TASK_THRESHOLD_DAYS);
+        timelinePanel.show(item.changeName, timeline, staleThresholdDays);
       } catch (error) {
         await showCommandError("show change timeline", error);
       }

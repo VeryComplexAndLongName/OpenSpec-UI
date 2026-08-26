@@ -1,5 +1,15 @@
 # @openspec-ui/core
 
+## 0.28.0
+
+### Minor Changes
+
+- Add stale-pending-task detection: a pending task untouched (per git
+  blame) longer than a configurable threshold (default 14 days) is now
+  flagged in the Change Timeline view. Configurable via a number input in
+  the standalone Timeline tab and the new `openspec-ui.staleTaskThresholdDays`
+  VS Code setting.
+
 ## 0.27.0
 
 ### Minor Changes

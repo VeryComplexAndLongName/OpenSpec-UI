@@ -12,8 +12,14 @@ import { discoverOpenSpecWorkspace } from "./workbench.js";
 export interface ChangeTimelineTask extends TaskChecklistItem {
   /** ISO 8601 date the task was last checked/unchecked, per git blame on
    * its tasks.md line — `null` when undeterminable (never checked, or
-   * blame data unavailable). */
+   * blame data unavailable). Only ever set for a checked (`done`) task —
+   * see the comment in `getChangeTimeline` for why. */
   date: string | null;
+  /** ISO 8601 date this task's line was last touched, per git blame —
+   * set regardless of `done`, unlike `date`. Used to flag a still-pending
+   * task as stale (see `stale-tasks.ts`), not to imply completion. `null`
+   * when undeterminable. */
+  lastTouchedDate: string | null;
 }
 
 export interface ChangeTimelineSpec {
@@ -160,6 +166,7 @@ export async function getChangeTimeline(
   const tasks: ChangeTimelineTask[] = taskItems.map((task) => ({
     ...task,
     date: task.done ? blameDates?.get(task.lineNumber) ?? null : null,
+    lastTouchedDate: blameDates?.get(task.lineNumber) ?? null,
   }));
 
   return {

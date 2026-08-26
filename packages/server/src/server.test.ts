@@ -459,7 +459,7 @@ describe("server — REST /api/status", () => {
       createdDate: string | null;
       archivedDate: string | null;
       proposal: string;
-      tasks: Array<{ text: string; done: boolean; date: string | null }>;
+      tasks: Array<{ text: string; done: boolean; date: string | null; lastTouchedDate: string | null }>;
     };
 
     expect(response.status).toBe(200);
@@ -469,8 +469,8 @@ describe("server — REST /api/status", () => {
     expect(body.createdDate).toBeNull();
     expect(body.proposal).toContain("Because.");
     expect(body.tasks).toEqual([
-      { lineNumber: 0, text: "done", done: true, date: null },
-      { lineNumber: 1, text: "todo", done: false, date: null },
+      { lineNumber: 0, text: "done", done: true, date: null, lastTouchedDate: null },
+      { lineNumber: 1, text: "todo", done: false, date: null, lastTouchedDate: null },
     ]);
   });
 
