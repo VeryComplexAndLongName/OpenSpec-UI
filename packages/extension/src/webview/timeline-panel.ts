@@ -4,6 +4,7 @@
 // `ChangeTimeline` via a direct `@openspec-ui/core` import and embeds it
 // in the webview's initial HTML; `timeline-entry.tsx` just renders it.
 
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import type { ChangeTimeline } from "@openspec-ui/core";
 
@@ -46,7 +47,14 @@ export class TimelineWebviewPanel {
 
   private getHtml(webview: vscode.Webview, globalName: string, payload: unknown): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "timeline.js"));
-    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
+    // A nonce, not a blanket 'unsafe-inline', authorizes only this one
+    // inline script — CSP's `script-src` otherwise blocks inline
+    // scripts entirely, which silently dropped the data-injection
+    // script below (the bundle's own `<script src=...>` tag still
+    // matched `webview.cspSource` and ran fine, so the page rendered
+    // its "no timeline data" fallback rather than failing loudly).
+    const nonce = randomBytes(16).toString("base64");
+    const csp = `default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline';`;
     // `<` -> `<` prevents an embedded `</script>` sequence (e.g. inside
     // markdown content) from closing the script tag early.
     const payloadJson = JSON.stringify(payload).replaceAll("<", "\\u003c");
@@ -59,7 +67,7 @@ export class TimelineWebviewPanel {
   </head>
   <body>
     <div id="root"></div>
-    <script>window.${globalName} = ${payloadJson};</script>
+    <script nonce="${nonce}">window.${globalName} = ${payloadJson};</script>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;
