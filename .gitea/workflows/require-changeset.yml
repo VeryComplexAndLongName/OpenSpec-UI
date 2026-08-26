@@ -1,0 +1,32 @@
+name: Require changeset
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  require-changeset:
+    name: Require a changeset when package source changed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for a changeset when package source or manifests changed
+        run: |
+          set -e
+          BASE="origin/${{ github.event.pull_request.base.ref }}"
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=50
+          CHANGED=$(git diff --name-only "$BASE"...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^packages/[^/]+/(src/|package\.json$)'; then
+            if echo "$CHANGED" | grep -qE '^\.changeset/.*\.md$'; then
+              echo "Package source or manifest changed and a changeset is present. OK."
+            else
+              echo "::error::Package source or a package.json changed under packages/*/ but no .changeset/*.md file was added. Run 'npx changeset' and commit the result."
+              exit 1
+            fi
+          else
+            echo "No package source or manifest changed; changeset not required."
+          fi
