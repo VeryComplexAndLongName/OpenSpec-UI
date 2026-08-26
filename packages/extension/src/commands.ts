@@ -10,6 +10,7 @@ import {
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   archiveChange,
+  checkChangesetReminder,
   createChange,
   customizeTemplate,
   deleteChange,
@@ -55,6 +56,30 @@ export interface CommandsDeps {
 async function showCommandError(action: string, error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message : String(error);
   await vscode.window.showErrorMessage(`OpenSpec UI: ${action} failed (${message}).`);
+}
+
+/** Best-effort, non-blocking nudge after a successful archive: if this
+ * workspace has adopted Changesets but no changeset is currently pending,
+ * offer to run `npx changeset` in an integrated terminal. Never surfaces an
+ * error — a failed check silently does nothing, since it must not affect
+ * the archive operation that already succeeded. */
+async function remindAboutPendingChangeset(workspaceRoot: string): Promise<void> {
+  try {
+    const status = await checkChangesetReminder(workspaceRoot);
+    if (!status.changesetsAdopted || status.pendingChangesetCount > 0) return;
+    const action = await vscode.window.showInformationMessage(
+      "OpenSpec UI: this repository uses Changesets, but no pending changeset was found. " +
+        "If this change affects a published package's version or changelog, add one now.",
+      "Run npx changeset",
+      "Dismiss",
+    );
+    if (action !== "Run npx changeset") return;
+    const terminal = vscode.window.createTerminal({ name: "OpenSpec UI: changeset", cwd: workspaceRoot });
+    terminal.show(true);
+    terminal.sendText("npx changeset", true);
+  } catch {
+    // Best-effort only — see the doc comment above.
+  }
 }
 
 async function runTrackedProcess(
@@ -396,6 +421,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         });
         deps.refreshTrees();
         void vscode.window.showInformationMessage(`OpenSpec UI: archived ${item.changeName}.`);
+        void remindAboutPendingChangeset(workspaceRoot);
       } catch (error) {
         await showCommandError("archive change", error);
       }

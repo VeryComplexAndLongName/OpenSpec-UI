@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.22.0
+
+### Minor Changes
+
+- Add an archive-time Changesets reminder to the VS Code extension. When a
+  workspace has adopted Changesets (`.changeset/config.json` exists) and no
+  changeset is currently pending, archiving a change now offers to run
+  `npx changeset` in an integrated terminal. Silent for workspaces that
+  have not adopted Changesets, and never affects the archive operation's
+  own result.
+
+### Patch Changes
+
+- Updated dependencies
+  - @openspec-ui/core@0.26.0
+
 ## 0.21.0
 
 ### Minor Changes
