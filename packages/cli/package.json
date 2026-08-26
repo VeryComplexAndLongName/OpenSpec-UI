@@ -1,19 +1,43 @@
 {
   "name": "@openspec-ui/cli",
-  "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "description": "Non-interactive OpenSpec change validation for CI merge gates (see docs/adr/0007-ci-cli-third-delivery-target.md).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "openspec",
+    "spec-driven",
+    "ci",
+    "validate"
+  ],
   "type": "module",
-  "main": "src/index.ts",
+  "bin": {
+    "openspec-ui-cli": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "@openspec-ui/core": "*"
+    "cross-spawn": "^7.0.6",
+    "simple-git": "^3.27.0"
   },
   "devDependencies": {
+    "@openspec-ui/core": "*",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.12"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run",
-    "start": "tsx src/cli.ts"
+    "start": "tsx src/cli.ts",
+    "build": "node scripts/build.mjs"
   }
 }
