@@ -17,6 +17,11 @@ npx @openspec-ui/cli validate --cwd . --format text
   to the current directory).
 - `--format json|text`: `json` (the default) prints an aggregated report
   suitable for further processing; `text` prints a human-readable table.
+- `--help` / `-h`: print this usage summary and exit `0`.
+
+```sh
+npx @openspec-ui/cli --help
+```
 
 ## Exit codes
 

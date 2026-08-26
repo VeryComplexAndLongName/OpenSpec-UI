@@ -97,4 +97,34 @@ describe("runMain", () => {
     expect(code).toBe(2);
     expect(io.errLines[0]).toContain("--format must be");
   });
+
+  it("prints usage and exits 0 for --help", async () => {
+    const io = collectingIo();
+
+    const code = await runMain(["--help"], { validateAll: vi.fn(), ...io });
+
+    expect(code).toBe(0);
+    expect(io.outLines[0]).toContain("Usage:");
+    expect(io.outLines[0]).toContain("--cwd");
+    expect(io.outLines[0]).toContain("--format");
+  });
+
+  it("prints usage and exits 0 for -h", async () => {
+    const io = collectingIo();
+
+    const code = await runMain(["-h"], { validateAll: vi.fn(), ...io });
+
+    expect(code).toBe(0);
+    expect(io.outLines[0]).toContain("Usage:");
+  });
+
+  it("prints usage alongside an unknown-command error", async () => {
+    const io = collectingIo();
+
+    const code = await runMain(["bogus"], { validateAll: vi.fn(), ...io });
+
+    expect(code).toBe(2);
+    expect(io.errLines[0]).toContain("unknown command");
+    expect(io.errLines[1]).toContain("Usage:");
+  });
 });

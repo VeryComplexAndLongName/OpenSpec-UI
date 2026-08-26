@@ -1,6 +1,6 @@
 {
   "name": "@openspec-ui/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Non-interactive OpenSpec change validation for CI merge gates (see docs/adr/0007-ci-cli-third-delivery-target.md).",
   "license": "MIT",
   "repository": {

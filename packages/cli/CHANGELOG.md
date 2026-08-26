@@ -1,5 +1,15 @@
 # @openspec-ui/cli
 
+## 0.1.2
+
+### Patch Changes
+
+- Add `--help`/`-h` to `openspec-ui-cli`, printing usage (command syntax,
+  options, exit codes) and exiting `0`. Usage is now also printed
+  alongside argument-parsing and unknown-command errors, so a mistake
+  surfaces the available options immediately instead of only an error
+  message.
+
 ## 0.1.1
 
 ### Patch Changes
