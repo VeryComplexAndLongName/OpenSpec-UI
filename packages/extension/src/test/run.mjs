@@ -14,6 +14,7 @@ import {
   extensionHostBuildOptions,
   standaloneAssetsBuildOptions,
   testSuiteBuildOptions,
+  timelineWebviewBuildOptions,
   webviewBuildOptions,
 } from "../../scripts/build-options.mjs";
 
@@ -23,6 +24,7 @@ const extensionRoot = path.resolve(here, "../..");
 async function buildAll() {
   await build(extensionHostBuildOptions());
   await build(webviewBuildOptions());
+  await build(timelineWebviewBuildOptions());
   await build(standaloneAssetsBuildOptions());
   await build(testSuiteBuildOptions());
   const standaloneDir = path.resolve(extensionRoot, "dist/standalone");

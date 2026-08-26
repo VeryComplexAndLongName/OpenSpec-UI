@@ -4,7 +4,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "A dashboard + VS Code extension for OpenSpec, with Claude, Copilot, Codex, and Gemini agents built in.",
   "publisher": "openspec-ui",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
@@ -57,6 +57,11 @@
         "command": "openspec-ui.validateSelectedChange",
         "title": "OpenSpec UI: Validate Change",
         "icon": "$(pass)"
+      },
+      {
+        "command": "openspec-ui.showChangeTimeline",
+        "title": "OpenSpec UI: Show Change Timeline",
+        "icon": "$(graph-line)"
       },
       {
         "command": "openspec-ui.archiveChange",
@@ -272,6 +277,11 @@
           "command": "openspec-ui.rollbackChange",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
           "group": "openspec@3"
+        },
+        {
+          "command": "openspec-ui.showChangeTimeline",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@4"
         },
         {
           "command": "openspec-ui.customizeTemplate",

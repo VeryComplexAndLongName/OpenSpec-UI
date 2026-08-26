@@ -16,6 +16,7 @@ import {
   deleteChange,
   deleteProjectTemplate,
   deleteTaskLine,
+  getChangeTimeline,
   initOpenSpec,
   listBootstrapProjectTypes,
   listChanges,
@@ -41,6 +42,7 @@ import type { ChangeTreeItem, TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
 import type { AiPanelContext } from "./webview/ai-panel.js";
+import { TimelineWebviewPanel } from "./webview/timeline-panel.js";
 
 export interface CommandsDeps {
   getWorkspaceRoot: () => string | undefined;
@@ -242,6 +244,7 @@ async function pickChange(workspaceRoot: string): Promise<{ name: string; change
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
+  const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.initialize", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
@@ -401,6 +404,16 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
       } catch (error) {
         await showCommandError("validate change", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.showChangeTimeline", async (item?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item) return;
+      try {
+        const timeline = await getChangeTimeline(workspaceRoot, item.changeName, item.archived);
+        timelinePanel.show(item.changeName, timeline);
+      } catch (error) {
+        await showCommandError("show change timeline", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.archiveChange", async (item?: ChangeTreeItem) => {

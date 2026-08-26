@@ -19,6 +19,7 @@ export const ALL_TABS: readonly TabDefinition[] = [
   { id: "overview", label: "OpenSpec view summary" },
   { id: "change-editor", label: "Change Editor" },
   { id: "templates", label: "Templates" },
+  { id: "timeline", label: "Timeline" },
 ];
 
 export const ALLOWED_TABS_VSCODE_EMBED: readonly string[] = ["run-a-command"];
