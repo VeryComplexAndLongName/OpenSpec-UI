@@ -13,6 +13,7 @@ import {
 } from "@openspec-ui/core";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
+import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { registerCommands } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
@@ -72,6 +73,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const implementationSessions = new ImplementationSessionManager(scheduler, persistRuns);
   context.subscriptions.push({ dispose: scheduler.onDidChange(persistRuns) });
   await implementationSessions.restore(restoredRuns.checkpointSessions);
+
+  // Notify when a plan/implement/review run finishes while the user isn't
+  // necessarily watching the Processes view — seeded from the restored
+  // journal so processes that were already terminal before this activation
+  // (including ones the constructor above just marked "interrupted") never
+  // re-fire. See run-notifications.ts for why status/list/show/validate and
+  // cancelled/interrupted/rolled-back are excluded.
+  const runCompletionNotifier = new RunCompletionNotifier(scheduler.list());
+  context.subscriptions.push({
+    dispose: scheduler.onDidChange((processes) => {
+      for (const process of runCompletionNotifier.handle(processes)) {
+        const message = describeRunCompletion(process);
+        const show = process.state === "failed" ? vscode.window.showErrorMessage : vscode.window.showInformationMessage;
+        void show(message, "View").then((choice) => {
+          if (choice === "View") void vscode.commands.executeCommand("openspec-ui.openAiPanel");
+        });
+      }
+    }),
+  });
 
   // Retention (openspec-ui.checkpointRetentionDays): 0 or negative keeps
   // everything forever (default, matches prior behavior — nothing was

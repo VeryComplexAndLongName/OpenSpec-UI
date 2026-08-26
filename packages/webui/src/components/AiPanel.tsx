@@ -16,13 +16,14 @@ import {
   type Event,
 } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
+import { AGENT_COMMANDS } from "../notify-run-completion.js";
 
 const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "implement", "review"];
 const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "implement", "review"];
-/** Commands that actually run through an agent — the agent picker only
- * matters for these; `status`/`list`/`show`/`validate` bypass the runner
- * entirely (see fetch-transport.ts/message-bridge-transport.ts). */
-const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "implement", "review"];
+// AGENT_COMMANDS (imported): commands that actually run through an agent —
+// the agent picker only matters for these; `status`/`list`/`show`/
+// `validate` bypass the runner entirely (see fetch-transport.ts/
+// message-bridge-transport.ts).
 
 interface ChecklistItem {
   checked: boolean;
@@ -710,6 +711,18 @@ export interface AiPanelProps {
    * that already re-detect on their own (e.g. the VS Code message-bridge
    * host re-detects on every panel reveal). */
   onRefreshAgents?: () => void;
+  /** Called once when an agent command (`plan`/`implement`/`review`) reaches
+   * a terminal `completed`/`failed` event — never for `status`/`list`/
+   * `show`/`validate` (near-instant, no "walked away" scenario) or for
+   * `cancelled` (almost always the direct result of an action the caller
+   * just took). Deliberately just a report, not a notification itself:
+   * `AiPanel` stays transport- and host-neutral (see ADR 0001) — the host
+   * (e.g. standalone-entry.tsx) decides whether to actually show a browser
+   * `Notification`. Omitted entirely by hosts that already notify some
+   * other way (the VS Code extension's message-bridge host notifies
+   * natively from the extension side instead, see
+   * packages/extension/src/run-notifications.ts). */
+  onRunTerminal?: (commandKind: CommandKind, event: Event) => void;
 }
 
 export function AiPanel({
@@ -720,6 +733,7 @@ export function AiPanel({
   generateRunId = defaultRunId,
   detectedAgents,
   onRefreshAgents,
+  onRunTerminal,
 }: AiPanelProps) {
   const [commandKind, setCommandKind] = useState<CommandKind>("list");
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
@@ -729,6 +743,7 @@ export function AiPanel({
   const [events, setEvents] = useState<Event[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
+  const activeCommandKindRef = useRef<CommandKind>("list");
   const changesRoot = useMemo(() => resolveChangesRoot(changeDir), [changeDir]);
 
   useEffect(() => {
@@ -747,10 +762,16 @@ export function AiPanel({
             setSelectionHint(names.length > 0 ? null : "No OpenSpec changes found. Create a change first.");
           }
         }
+        if (
+          (event.kind === "completed" || event.kind === "failed")
+          && AGENT_COMMANDS.includes(activeCommandKindRef.current)
+        ) {
+          onRunTerminal?.(activeCommandKindRef.current, event);
+        }
         setEvents((prev) => [...prev, event]);
       }
     });
-  }, [transport]);
+  }, [transport, onRunTerminal]);
 
   const collapsedEvents = useMemo(() => collapseStreamEvents(events), [events]);
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);
@@ -777,6 +798,7 @@ export function AiPanel({
 
     const newRunId = generateRunId();
     runIdRef.current = newRunId;
+    activeCommandKindRef.current = kind;
     setRunId(newRunId);
     setEvents([]);
     if (kind === "list") {

@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
+import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
@@ -29,7 +30,7 @@ import {
   renderTemplate as renderTemplateApi,
 } from "./template-catalog-client.js";
 import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
-import type { CatalogTemplate } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
 
 interface OverviewChange {
   name: string;
@@ -392,6 +393,26 @@ function StandaloneApp() {
     }
   }
 
+  // Only wired up in the real standalone host (isStandaloneHost), not the
+  // VS Code local-server iframe embed: that host already gets a native
+  // notification from the extension side (run-notifications.ts) once the
+  // command/event stream reaches it, and browser Notification permission is
+  // unreliable inside a webview iframe anyway. Requests permission lazily
+  // on first use rather than unprompted on load; if permission is not yet
+  // granted by the time a run finishes, that one run's notification is
+  // silently skipped (request stays in flight for the next one) — no
+  // notification is ever shown without the browser actually granting it.
+  function handleRunTerminal(commandKind: CommandKind, event: Event) {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") {
+      void Notification.requestPermission();
+      return;
+    }
+    if (Notification.permission !== "granted") return;
+    const notification = describeRunCompletionNotification(commandKind, event);
+    if (notification) new Notification(notification.title, { body: notification.body });
+  }
+
   useEffect(() => {
     if (cwd.trim().length === 0 || changeDir.trim().length === 0) return;
     void handleRefreshAgents();
@@ -690,6 +711,7 @@ function StandaloneApp() {
             changeDir={changeDir}
             detectedAgents={detectedAgents}
             onRefreshAgents={() => void handleRefreshAgents()}
+            onRunTerminal={isStandaloneHost ? handleRunTerminal : undefined}
           />
         ) : (
           <p>Enter cwd and change directory to enable the AI panel.</p>
