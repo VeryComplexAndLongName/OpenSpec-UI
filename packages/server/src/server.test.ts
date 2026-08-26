@@ -441,6 +441,76 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(404);
   });
 
+  it("returns a change timeline with best-effort dates for a non-git workspace", async () => {
+    const cwd = await createTempWorkspace();
+    const changeDir = path.join(cwd, "openspec", "changes", "my-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nBecause.\n");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] done\n- [ ] todo\n");
+
+    const response = await fetch(`${baseUrl}/api/change-timeline`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "my-change", archived: false }),
+    });
+    const body = (await response.json()) as {
+      changeName: string;
+      archived: boolean;
+      createdDate: string | null;
+      archivedDate: string | null;
+      proposal: string;
+      tasks: Array<{ text: string; done: boolean; date: string | null }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.changeName).toBe("my-change");
+    expect(body.archived).toBe(false);
+    expect(body.archivedDate).toBeNull();
+    expect(body.createdDate).toBeNull();
+    expect(body.proposal).toContain("Because.");
+    expect(body.tasks).toEqual([
+      { lineNumber: 0, text: "done", done: true, date: null },
+      { lineNumber: 1, text: "todo", done: false, date: null },
+    ]);
+  });
+
+  it("returns multiple change timelines in one request", async () => {
+    const cwd = await createTempWorkspace();
+    for (const name of ["first-change", "second-change"]) {
+      const changeDir = path.join(cwd, "openspec", "changes", name);
+      await mkdir(changeDir, { recursive: true });
+      await writeFile(path.join(changeDir, "tasks.md"), "- [ ] todo\n");
+    }
+
+    const response = await fetch(`${baseUrl}/api/change-timelines`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        cwd,
+        entries: [
+          { changeName: "first-change", archived: false },
+          { changeName: "second-change", archived: false },
+        ],
+      }),
+    });
+    const body = (await response.json()) as Array<{ changeName: string }>;
+
+    expect(response.status).toBe(200);
+    expect(body.map((t) => t.changeName)).toEqual(["first-change", "second-change"]);
+  });
+
+  it("rejects a change-timeline request missing archived", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/change-timeline`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "my-change" }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("lists the seed built-in template plus a real project-level fixture", async () => {
     const cwd = await createTempWorkspace();
     const projectDir = path.join(cwd, "openspec", "templates", "my-template");

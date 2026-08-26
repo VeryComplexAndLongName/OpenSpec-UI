@@ -19,6 +19,8 @@ import {
   detectAvailableAgents,
   discoverOpenSpecWorkspace,
   findBuiltInTemplate,
+  getChangeTimeline,
+  getChangeTimelines,
   initOpenSpec,
   listBuiltInTemplates,
   listChanges,
@@ -33,6 +35,7 @@ import {
   validateChange,
   type AgentRunner,
   type CatalogTemplate,
+  type ChangeTimelineRequestEntry,
   type Command,
   type Event,
   type OpenSpecChangeListItem,
@@ -115,6 +118,35 @@ function nowIso(): string {
 interface ChangeEditorReadRequest {
   cwd: string;
   changeName: string;
+}
+
+interface ChangeTimelineRequest {
+  cwd: string;
+  changeName: string;
+  archived: boolean;
+}
+
+interface ChangeTimelinesRequest {
+  cwd: string;
+  entries: ChangeTimelineRequestEntry[];
+}
+
+function isChangeTimelineRequest(value: unknown): value is ChangeTimelineRequest {
+  if (!isObjectRecord(value)) return false;
+  return (
+    isNonEmptyString(value.cwd) && isChangeName(value.changeName) && typeof value.archived === "boolean"
+  );
+}
+
+function isChangeTimelineRequestEntry(value: unknown): value is ChangeTimelineRequestEntry {
+  if (!isObjectRecord(value)) return false;
+  return isChangeName(value.changeName) && typeof value.archived === "boolean";
+}
+
+function isChangeTimelinesRequest(value: unknown): value is ChangeTimelinesRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd) || !Array.isArray(value.entries)) return false;
+  return value.entries.every(isChangeTimelineRequestEntry);
 }
 
 interface ChangeEditorSaveRequest extends ChangeEditorReadRequest {
@@ -341,6 +373,52 @@ export async function handleChangeEditorReadRequest(req: IncomingMessage, res: S
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change files: ${message}` });
+  }
+}
+
+export async function handleChangeTimelineRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isChangeTimelineRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd, valid changeName, and archived" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await getChangeTimeline(parsed.cwd, parsed.changeName, parsed.archived));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read change timeline: ${message}` });
+  }
+}
+
+export async function handleChangeTimelinesRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isChangeTimelinesRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and a valid entries array" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await getChangeTimelines(parsed.cwd, parsed.entries));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read change timelines: ${message}` });
   }
 }
 
