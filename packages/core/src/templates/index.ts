@@ -1,4 +1,5 @@
 import type { CatalogTemplate } from "../template-catalog.js";
+import { adoptChangesets } from "./adopt-changesets.js";
 import { aspnetEfcoreMigrations } from "./aspnet-efcore-migrations.js";
 import { aspnetJwtBearerAuth } from "./aspnet-jwt-bearer-auth.js";
 import { aspnetXunitTestingBaseline } from "./aspnet-xunit-testing-baseline.js";
@@ -35,4 +36,5 @@ export const BUILT_IN_TEMPLATES: readonly Omit<CatalogTemplate, "origin">[] = [
   requestCorrelationId,
   craToVite,
   failFastEnvConfig,
+  adoptChangesets,
 ];
