@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   extensionHostBuildOptions,
   standaloneAssetsBuildOptions,
+  timelineWebviewBuildOptions,
   webviewBuildOptions,
 } from "./build-options.mjs";
 
@@ -12,6 +13,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 await build(extensionHostBuildOptions());
 await build(webviewBuildOptions());
+await build(timelineWebviewBuildOptions());
 await build(standaloneAssetsBuildOptions());
 
 const standaloneDir = path.resolve(here, "../dist/standalone");

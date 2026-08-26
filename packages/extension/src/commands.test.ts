@@ -11,6 +11,7 @@ const showChangeMock = vi.fn();
 const validateChangeMock = vi.fn();
 const archiveChangeMock = vi.fn();
 const checkChangesetReminderMock = vi.fn();
+const getChangeTimelineMock = vi.fn();
 const createChangeMock = vi.fn();
 const deleteChangeMock = vi.fn();
 const unarchiveChangeMock = vi.fn();
@@ -35,6 +36,7 @@ vi.mock("@openspec-ui/core", () => ({
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
   deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
   deleteTaskLine: (...args: unknown[]) => deleteTaskLineMock(...args),
+  getChangeTimeline: (...args: unknown[]) => getChangeTimelineMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   listBootstrapProjectTypes: () => [
     { id: "node", label: "Node.js / TypeScript" },
@@ -58,6 +60,11 @@ vi.mock("@openspec-ui/core", () => ({
 
 const openDiffAgainstHeadMock = vi.fn();
 vi.mock("./native/diff.js", () => ({ openDiffAgainstHead: (...args: unknown[]) => openDiffAgainstHeadMock(...args) }));
+
+const timelinePanelShowMock = vi.fn();
+vi.mock("./webview/timeline-panel.js", () => ({
+  TimelineWebviewPanel: vi.fn().mockImplementation(() => ({ show: timelinePanelShowMock })),
+}));
 
 const { registerCommands } = await import("./commands.js");
 const { RunController } = await import("./run-controller.js");
@@ -130,6 +137,7 @@ describe("registerCommands", () => {
         "openspec-ui.generateSubtypeInstructions",
         "openspec-ui.createChange",
         "openspec-ui.validateSelectedChange",
+        "openspec-ui.showChangeTimeline",
         "openspec-ui.archiveChange",
         "openspec-ui.unarchiveChange",
         "openspec-ui.deleteChange",
@@ -156,6 +164,50 @@ describe("registerCommands", () => {
 
     expect(createChangeMock).toHaveBeenCalledWith("new-workbench-change", { cwd: "/workspace/repo" });
     expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("fetches and shows a change timeline for an active change", async () => {
+    const timeline = { changeName: "my-change", archived: false, tasks: [] };
+    getChangeTimelineMock.mockResolvedValue(timeline);
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeTimeline")?.({
+      changeName: "my-change",
+      archived: false,
+    });
+
+    expect(getChangeTimelineMock).toHaveBeenCalledWith("/workspace/repo", "my-change", false);
+    expect(timelinePanelShowMock).toHaveBeenCalledWith("my-change", timeline);
+  });
+
+  it("fetches an archived change's timeline with archived: true", async () => {
+    getChangeTimelineMock.mockResolvedValue({ changeName: "2026-01-01-old", archived: true, tasks: [] });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeTimeline")?.({
+      changeName: "2026-01-01-old",
+      archived: true,
+    });
+
+    expect(getChangeTimelineMock).toHaveBeenCalledWith("/workspace/repo", "2026-01-01-old", true);
+  });
+
+  it("reports an error and does not open a panel when the timeline fetch fails", async () => {
+    getChangeTimelineMock.mockRejectedValue(new Error("boom"));
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeTimeline")?.({
+      changeName: "my-change",
+      archived: false,
+    });
+
+    expect(timelinePanelShowMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining("show change timeline failed"),
+    );
   });
 
   it("archives a confirmed active change and refreshes", async () => {

@@ -10,6 +10,7 @@ import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
+import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -23,6 +24,7 @@ import {
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
+import { loadChangeTimeline, type ChangeTimeline } from "./change-timeline-client.js";
 import {
   customizeTemplate as customizeTemplateApi,
   deleteProjectTemplate as deleteProjectTemplateApi,
@@ -202,6 +204,10 @@ function StandaloneApp() {
   const [newChangeName, setNewChangeName] = useState("");
   const [newChangeDescription, setNewChangeDescription] = useState("");
   const [editorMessage, setEditorMessage] = useState<string | null>(null);
+  const [timelineSelection, setTimelineSelection] = useState("");
+  const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
@@ -342,6 +348,31 @@ function StandaloneApp() {
       setEditorMessage(`Load failed: ${message}`);
     } finally {
       setEditorLoading(false);
+    }
+  }
+
+  async function loadTimeline() {
+    if (cwd.trim().length === 0) {
+      setTimelineMessage("Enter workspace root first.");
+      return;
+    }
+    const [prefix, ...rest] = timelineSelection.split(":");
+    const changeName = rest.join(":");
+    if (!changeName || (prefix !== "active" && prefix !== "archived")) {
+      setTimelineMessage("Select a change first.");
+      return;
+    }
+    setTimelineLoading(true);
+    setTimelineMessage(null);
+    try {
+      const loaded = await loadChangeTimeline(apiFetch, cwd, changeName, prefix === "archived");
+      setTimeline(loaded);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTimelineMessage(`Load failed: ${message}`);
+      setTimeline(null);
+    } finally {
+      setTimelineLoading(false);
     }
   }
 
@@ -1082,6 +1113,45 @@ function StandaloneApp() {
         ) : null}
 
         {templateActionMessage ? <p className="openspec-shell-note">{templateActionMessage}</p> : null}
+      </section>
+      </TabPanel>
+      )}
+
+      {visibleTabIds.has("timeline") && (
+      <TabPanel id="timeline" activeTab={activeTab}>
+      <section className="openspec-shell-panel">
+        <h2>Timeline</h2>
+        <p className="openspec-shell-note">
+          See a change's proposal/design/spec and its tasks, positioned by
+          when git shows each was completed.
+        </p>
+
+        <div className="openspec-ai-panel-controls">
+          <select
+            aria-label="Change to show a timeline for"
+            value={timelineSelection}
+            onChange={(e) => setTimelineSelection(e.target.value)}
+            disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
+          >
+            <option value="">Select change</option>
+            {(overview?.changes ?? []).map((change) => (
+              <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
+            ))}
+            {(overview?.archivedChanges ?? []).map((name) => (
+              <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void loadTimeline()}
+            disabled={timelineLoading || timelineSelection.trim().length === 0}
+          >
+            {timelineLoading ? "Loading..." : "Load timeline"}
+          </button>
+        </div>
+
+        {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
+        {timeline ? <ChangeTimelineView timeline={timeline} /> : null}
       </section>
       </TabPanel>
       )}

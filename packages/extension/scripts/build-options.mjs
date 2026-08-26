@@ -36,6 +36,20 @@ export function webviewBuildOptions() {
   };
 }
 
+export function timelineWebviewBuildOptions() {
+  return {
+    entryPoints: [path.resolve(here, "../../webui/src/timeline-entry.tsx")],
+    outfile: path.resolve(here, "../dist/timeline.js"),
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    jsx: "automatic",
+    sourcemap: true,
+    logLevel: "info",
+  };
+}
+
 /** Integration test suite (tasks.md 4.1/4.2) — two separate output files
  * (index.js + extension.test.js), not a single bundle: `index.ts`'s
  * `run()` finds test files via `glob("**\/*.test.js")` next to itself —

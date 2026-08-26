@@ -13,7 +13,7 @@ describe("readEmbedSignal", () => {
 });
 
 describe("computeVisibleTabs", () => {
-  it("returns all five tabs for a plain standalone browser tab (no embed signal)", () => {
+  it("returns every tab for a plain standalone browser tab (no embed signal)", () => {
     expect(computeVisibleTabs("")).toEqual(ALL_TABS);
   });
 

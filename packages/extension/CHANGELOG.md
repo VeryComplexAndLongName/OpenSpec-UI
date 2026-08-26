@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.23.0
+
+### Minor Changes
+
+- Add a "Show Change Timeline" context-menu command (active and archived
+  changes) and a standalone "Timeline" tab: proposal/design/spec content
+  followed by tasks positioned by best-effort git-derived completion
+  date, with pending/undated tasks shown distinctly. The extension
+  computes the timeline directly (no HTTP, no message bridge) and opens
+  it in a new webview tab per change.
+
+### Patch Changes
+
+- Updated dependencies
+  - @openspec-ui/webui@1.12.0
+
 ## 0.22.0
 
 ### Minor Changes
