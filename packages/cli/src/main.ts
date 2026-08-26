@@ -5,6 +5,22 @@
 
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 
+const USAGE = `openspec-ui-cli — non-interactive OpenSpec change validation for CI merge gates.
+
+Usage:
+  openspec-ui-cli validate [--cwd <path>] [--format json|text]
+
+Options:
+  --cwd <path>        Repository root containing openspec/changes/ (default: current directory)
+  --format json|text  Output format (default: json)
+  --help, -h          Show this help and exit
+
+Exit codes:
+  0  every active change passed strict validation
+  1  at least one active change failed strict validation
+  2  the CLI itself could not complete the check (bad arguments, the
+     openspec CLI missing, a filesystem error)`;
+
 export interface MainOptions {
   cwd?: string;
   format?: "json" | "text";
@@ -58,13 +74,20 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   const stdout = deps.stdout ?? console.log;
   const stderr = deps.stderr ?? console.error;
 
+  if (argv.includes("--help") || argv.includes("-h")) {
+    stdout(USAGE);
+    return 0;
+  }
+
   const { command, options, error } = parseArgs(argv);
   if (error) {
     stderr(`openspec-ui-cli: ${error}`);
+    stderr(USAGE);
     return 2;
   }
   if (command !== "validate") {
     stderr(`openspec-ui-cli: unknown command '${command ?? ""}' (supported: validate)`);
+    stderr(USAGE);
     return 2;
   }
 
