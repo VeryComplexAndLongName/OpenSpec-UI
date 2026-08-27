@@ -13,6 +13,7 @@ import {
   TemplateAlreadyExistsError,
   UnknownBuiltInTemplateError,
   UnknownProjectTemplateError,
+  buildSprintReport,
   createChange,
   customizeTemplate,
   deleteProjectTemplate,
@@ -28,6 +29,7 @@ import {
   listSpecs,
   readArchivedChangeTasksTemplate,
   readChangeEditorDocument,
+  renderSprintReportPdf,
   renderTemplate,
   saveChangeEditorDocument,
   showChange,
@@ -67,6 +69,14 @@ async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Prom
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   res.writeHead(statusCode, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+function sendPdf(res: ServerResponse, buffer: Buffer, filename: string): void {
+  res.writeHead(200, {
+    "content-type": "application/pdf",
+    "content-disposition": `attachment; filename="${filename}"`,
+  });
+  res.end(buffer);
 }
 
 function sendBodyError(res: ServerResponse, error: unknown): void {
@@ -146,6 +156,20 @@ function isChangeTimelineRequestEntry(value: unknown): value is ChangeTimelineRe
 function isChangeTimelinesRequest(value: unknown): value is ChangeTimelinesRequest {
   if (!isObjectRecord(value)) return false;
   if (!isNonEmptyString(value.cwd) || !Array.isArray(value.entries)) return false;
+  return value.entries.every(isChangeTimelineRequestEntry);
+}
+
+interface SprintReportRequest {
+  cwd: string;
+  entries: ChangeTimelineRequestEntry[];
+  rangeStart: string;
+  rangeEnd: string;
+}
+
+function isSprintReportRequest(value: unknown): value is SprintReportRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd) || !Array.isArray(value.entries)) return false;
+  if (!isNonEmptyString(value.rangeStart) || !isNonEmptyString(value.rangeEnd)) return false;
   return value.entries.every(isChangeTimelineRequestEntry);
 }
 
@@ -419,6 +443,32 @@ export async function handleChangeTimelinesRequest(req: IncomingMessage, res: Se
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change timelines: ${message}` });
+  }
+}
+
+export async function handleSprintReportRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isSprintReportRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd, a valid entries array, rangeStart, and rangeEnd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const report = await buildSprintReport(parsed.cwd, parsed.entries, parsed.rangeStart, parsed.rangeEnd);
+    const pdf = await renderSprintReportPdf(report);
+    const filename = `sprint-report-${parsed.rangeStart.slice(0, 10)}-${parsed.rangeEnd.slice(0, 10)}.pdf`;
+    sendPdf(res, pdf, filename);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to generate sprint report: ${message}` });
   }
 }
 

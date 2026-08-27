@@ -511,6 +511,44 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(400);
   });
 
+  it("generates a downloadable sprint report PDF", async () => {
+    const cwd = await createTempWorkspace();
+    const changeDir = path.join(cwd, "openspec", "changes", "my-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nBecause reasons.\n");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] todo\n");
+
+    const response = await fetch(`${baseUrl}/api/sprint-report`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        cwd,
+        entries: [{ changeName: "my-change", archived: false }],
+        rangeStart: "2026-01-01T00:00:00.000Z",
+        rangeEnd: "2026-01-14T00:00:00.000Z",
+      }),
+    });
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("content-disposition")).toContain("attachment");
+    expect(response.headers.get("content-disposition")).toContain("sprint-report-2026-01-01-2026-01-14.pdf");
+    expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  });
+
+  it("rejects a sprint-report request missing the date range", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/sprint-report`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, entries: [] }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("lists the seed built-in template plus a real project-level fixture", async () => {
     const cwd = await createTempWorkspace();
     const projectDir = path.join(cwd, "openspec", "templates", "my-template");

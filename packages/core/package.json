@@ -1,7 +1,7 @@
 {
   "name": "@openspec-ui/core",
   "private": true,
-  "version": "0.28.0",
+  "version": "0.29.0",
   "type": "module",
   "main": "src/index.ts",
   "exports": {
@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "simple-git": "^3.27.0",
-    "cross-spawn": "^7.0.6"
+    "cross-spawn": "^7.0.6",
+    "pdfkit": "^0.20.1"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
-    "@types/cross-spawn": "^6.0.6"
+    "@types/cross-spawn": "^6.0.6",
+    "@types/pdfkit": "^0.17.6"
   }
 }

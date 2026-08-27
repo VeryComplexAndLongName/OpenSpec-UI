@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   blameLineDates,
   getChangeArchivedDate,
+  getChangeAuthorship,
   getChangeTimeline,
   getFileCreatedDate,
 } from "./change-timeline.js";
@@ -32,6 +33,25 @@ async function initRepo(root: string): Promise<SimpleGit> {
 
 async function commitAll(root: string, message: string, isoDate: string): Promise<void> {
   const git = simpleGit(root).env({ GIT_AUTHOR_DATE: isoDate, GIT_COMMITTER_DATE: isoDate });
+  await git.add(".");
+  await git.commit(message);
+}
+
+async function commitAllAs(
+  root: string,
+  message: string,
+  isoDate: string,
+  authorName: string,
+  authorEmail: string,
+): Promise<void> {
+  const git = simpleGit(root).env({
+    GIT_AUTHOR_DATE: isoDate,
+    GIT_COMMITTER_DATE: isoDate,
+    GIT_AUTHOR_NAME: authorName,
+    GIT_AUTHOR_EMAIL: authorEmail,
+    GIT_COMMITTER_NAME: authorName,
+    GIT_COMMITTER_EMAIL: authorEmail,
+  });
   await git.add(".");
   await git.commit(message);
 }
@@ -111,6 +131,62 @@ describe("getChangeArchivedDate", () => {
 
   it("returns null when the folder name has no date prefix", () => {
     expect(getChangeArchivedDate("add-cli-help-flag", true)).toBeNull();
+  });
+});
+
+describe("getChangeAuthorship", () => {
+  it("returns empty authorship when git fails (not a repo)", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "my-change"), { recursive: true });
+
+    const authorship = await getChangeAuthorship(root, path.join(root, "openspec", "changes", "my-change"));
+
+    expect(authorship).toEqual({ primaryAuthor: null, contributors: [] });
+  });
+
+  it("attributes the primary author to the most recent commit touching the directory", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    const changeDir = await writeChangeFiles(root, "my-change", "- [ ] first\n");
+    await commitAllAs(root, "create change", "2026-01-01T00:00:00Z", "Alice", "alice@example.com");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] first\n");
+    await commitAllAs(root, "complete task", "2026-01-05T00:00:00Z", "Bob", "bob@example.com");
+
+    const authorship = await getChangeAuthorship(root, changeDir);
+
+    expect(authorship.primaryAuthor).toEqual({
+      name: "Bob",
+      email: "bob@example.com",
+      date: "2026-01-05T00:00:00.000Z",
+    });
+  });
+
+  it("lists every distinct contributor, oldest to newest, deduplicated by email", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    const changeDir = await writeChangeFiles(root, "my-change", "- [ ] first\n- [ ] second\n");
+    await commitAllAs(root, "create change", "2026-01-01T00:00:00Z", "Alice", "alice@example.com");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] first\n- [ ] second\n");
+    await commitAllAs(root, "complete first", "2026-01-02T00:00:00Z", "Bob", "bob@example.com");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] first\n- [x] second\n");
+    await commitAllAs(root, "complete second", "2026-01-03T00:00:00Z", "Alice", "alice@example.com");
+
+    const authorship = await getChangeAuthorship(root, changeDir);
+
+    expect(authorship.contributors.map((c) => c.email)).toEqual(["alice@example.com", "bob@example.com"]);
+  });
+
+  it("returns empty authorship when the directory has no history", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "committed-change", "- [ ] first\n");
+    await commitAllAs(root, "create change", "2026-01-01T00:00:00Z", "Alice", "alice@example.com");
+    const uncommittedDir = path.join(root, "openspec", "changes", "never-committed");
+    await mkdir(uncommittedDir, { recursive: true });
+
+    const authorship = await getChangeAuthorship(root, uncommittedDir);
+
+    expect(authorship).toEqual({ primaryAuthor: null, contributors: [] });
   });
 });
 

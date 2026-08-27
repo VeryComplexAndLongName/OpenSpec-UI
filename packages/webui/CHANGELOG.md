@@ -1,5 +1,20 @@
 # @openspec-ui/webui
 
+## 1.15.0
+
+### Minor Changes
+
+- Add a downloadable sprint summary PDF report: for a user-picked date
+  range and set of changes, who authored each one (from git), what it
+  was, task completion, plus aggregate statistics (total changes, tasks
+  completed in range, a per-author breakdown). New "Sprint report" mode
+  in the standalone Timeline tab.
+
+### Patch Changes
+
+- Updated dependencies
+  - @openspec-ui/core@0.29.0
+
 ## 1.14.0
 
 ### Minor Changes

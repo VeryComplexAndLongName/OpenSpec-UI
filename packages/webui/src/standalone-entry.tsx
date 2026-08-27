@@ -25,6 +25,7 @@ import {
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
 import { loadChangeTimeline, loadChangeTimelines, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
+import { fetchSprintReportPdf } from "./sprint-report-client.js";
 import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
 import {
   customizeTemplate as customizeTemplateApi,
@@ -210,7 +211,9 @@ function StandaloneApp() {
   const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
-  const [timelineMode, setTimelineMode] = useState<"single" | "multi">("single");
+  const [timelineMode, setTimelineMode] = useState<"single" | "multi" | "sprint">("single");
+  const [sprintReportLoading, setSprintReportLoading] = useState(false);
+  const [sprintReportMessage, setSprintReportMessage] = useState<string | null>(null);
   const [staleThresholdDays, setStaleThresholdDays] = useState(DEFAULT_STALE_TASK_THRESHOLD_DAYS);
   const [multiRangeStart, setMultiRangeStart] = useState("");
   const [multiRangeEnd, setMultiRangeEnd] = useState("");
@@ -418,6 +421,40 @@ function StandaloneApp() {
       setMultiTimelines([]);
     } finally {
       setMultiLoading(false);
+    }
+  }
+
+  async function downloadSprintReport() {
+    if (cwd.trim().length === 0) {
+      setSprintReportMessage("Enter workspace root first.");
+      return;
+    }
+    if (multiRangeStart.trim().length === 0 || multiRangeEnd.trim().length === 0) {
+      setSprintReportMessage("Select a date range first.");
+      return;
+    }
+    const entries = multiSelection.map(decodeSelection).filter((entry): entry is ChangeTimelineEntry => Boolean(entry));
+    if (entries.length === 0) {
+      setSprintReportMessage("Select at least one change first.");
+      return;
+    }
+    setSprintReportLoading(true);
+    setSprintReportMessage(null);
+    try {
+      const rangeStart = new Date(multiRangeStart).toISOString();
+      const rangeEnd = new Date(multiRangeEnd).toISOString();
+      const pdfBlob = await fetchSprintReportPdf(apiFetch, cwd, entries, rangeStart, rangeEnd);
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `sprint-report-${multiRangeStart}-${multiRangeEnd}.pdf`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSprintReportMessage(`Generate failed: ${message}`);
+    } finally {
+      setSprintReportLoading(false);
     }
   }
 
@@ -1186,6 +1223,13 @@ function StandaloneApp() {
           >
             Compare changes
           </button>
+          <button
+            type="button"
+            className={timelineMode === "sprint" ? "is-active" : ""}
+            onClick={() => setTimelineMode("sprint")}
+          >
+            Sprint report
+          </button>
         </div>
 
         {timelineMode === "single" ? (
@@ -1227,7 +1271,7 @@ function StandaloneApp() {
             {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
             {timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null}
           </Fragment>
-        ) : (
+        ) : timelineMode === "multi" ? (
           <Fragment>
             <div className="openspec-shell-grid">
               <label className="openspec-shell-field">
@@ -1284,6 +1328,57 @@ function StandaloneApp() {
                 rangeEnd={new Date(multiRangeEnd).toISOString()}
               />
             ) : null}
+          </Fragment>
+        ) : (
+          <Fragment>
+            <div className="openspec-shell-grid">
+              <label className="openspec-shell-field">
+                Sprint start
+                <input
+                  type="date"
+                  aria-label="Sprint report range start"
+                  value={multiRangeStart}
+                  onChange={(e) => setMultiRangeStart(e.target.value)}
+                />
+              </label>
+              <label className="openspec-shell-field">
+                Sprint end
+                <input
+                  type="date"
+                  aria-label="Sprint report range end"
+                  value={multiRangeEnd}
+                  onChange={(e) => setMultiRangeEnd(e.target.value)}
+                />
+              </label>
+            </div>
+            <label className="openspec-shell-field">
+              Changes in this sprint
+              <select
+                aria-label="Changes in this sprint"
+                multiple
+                value={multiSelection}
+                onChange={(e) => setMultiSelection(Array.from(e.target.selectedOptions, (o) => o.value))}
+                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
+              >
+                {(overview?.changes ?? []).map((change) => (
+                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
+                ))}
+                {(overview?.archivedChanges ?? []).map((name) => (
+                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
+                ))}
+              </select>
+            </label>
+            <div className="openspec-ai-panel-controls">
+              <button
+                type="button"
+                onClick={() => void downloadSprintReport()}
+                disabled={sprintReportLoading || multiSelection.length === 0}
+              >
+                {sprintReportLoading ? "Generating..." : "Download PDF"}
+              </button>
+            </div>
+
+            {sprintReportMessage ? <p className="openspec-shell-note">{sprintReportMessage}</p> : null}
           </Fragment>
         )}
       </section>
