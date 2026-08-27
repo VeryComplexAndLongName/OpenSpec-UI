@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.0
+
+### Minor Changes
+
+- Add "OpenSpec UI: Generate Sprint Report (PDF)" Command Palette command: pick a date range and one or more changes, then save a generated PDF sprint report and optionally open it.
+
 ## 0.25.0
 
 ### Minor Changes

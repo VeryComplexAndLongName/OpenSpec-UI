@@ -13,6 +13,8 @@ const archiveChangeMock = vi.fn();
 const checkChangesetReminderMock = vi.fn();
 const getChangeTimelineMock = vi.fn();
 const getChangeTimelinesMock = vi.fn();
+const buildSprintReportMock = vi.fn();
+const renderSprintReportPdfMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const createChangeMock = vi.fn();
 const deleteChangeMock = vi.fn();
@@ -33,6 +35,7 @@ const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
   DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
+  buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
   customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
@@ -50,6 +53,7 @@ vi.mock("@openspec-ui/core", () => ({
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
+  renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
   TASK_CHECKBOX_LINE_RE,
@@ -148,6 +152,7 @@ describe("registerCommands", () => {
         "openspec-ui.validateSelectedChange",
         "openspec-ui.showChangeTimeline",
         "openspec-ui.showAllChangesTimeline",
+        "openspec-ui.generateSprintReport",
         "openspec-ui.archiveChange",
         "openspec-ui.unarchiveChange",
         "openspec-ui.deleteChange",
@@ -294,6 +299,154 @@ describe("registerCommands", () => {
 
     expect(getChangeTimelinesMock).not.toHaveBeenCalled();
     expect(timelinePanelShowMultiMock).not.toHaveBeenCalled();
+  });
+
+  describe("generateSprintReport", () => {
+    function setUpPicker() {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        changes: [{ name: "active-change" }],
+        archivedChanges: [{ name: "2026-01-01-old-change" }],
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue([
+        { label: "active-change", description: "active", archived: false },
+        { label: "2026-01-01-old-change", description: "archived", archived: true },
+      ]);
+    }
+
+    it("builds a sprint report for the picked range and changes, then saves and offers to open the PDF", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox
+        .mockResolvedValueOnce("2026-08-01")
+        .mockResolvedValueOnce("2026-08-14");
+      const report = { rangeStart: "2026-08-01T00:00:00.000Z", rangeEnd: "2026-08-14T23:59:59.999Z", entries: [], stats: {} };
+      buildSprintReportMock.mockResolvedValue(report);
+      const pdf = Buffer.from("pdf-bytes");
+      renderSprintReportPdfMock.mockResolvedValue(pdf);
+      const target = vscodeMock.Uri.file("/workspace/repo/sprint-report-2026-08-01-2026-08-14.pdf");
+      vscodeMock.window.showSaveDialog.mockResolvedValue(target);
+      vscodeMock.window.showInformationMessage.mockResolvedValue("Open");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(buildSprintReportMock).toHaveBeenCalledWith(
+        "/workspace/repo",
+        [
+          { changeName: "active-change", archived: false },
+          { changeName: "2026-01-01-old-change", archived: true },
+        ],
+        "2026-08-01T00:00:00.000Z",
+        "2026-08-14T23:59:59.999Z",
+      );
+      expect(renderSprintReportPdfMock).toHaveBeenCalledWith(report);
+      expect(vscodeMock.workspace.fs.writeFile).toHaveBeenCalledWith(target, pdf);
+      expect(vscodeMock.env.openExternal).toHaveBeenCalledWith(target);
+    });
+
+    it("does nothing when no changes are picked", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        changes: [{ name: "active-change" }],
+        archivedChanges: [],
+      });
+      vscodeMock.window.showQuickPick.mockResolvedValue(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(vscodeMock.window.showInputBox).not.toHaveBeenCalled();
+      expect(buildSprintReportMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the start date prompt is dismissed", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox.mockResolvedValueOnce(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(buildSprintReportMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the end date prompt is dismissed", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox.mockResolvedValueOnce("2026-08-01").mockResolvedValueOnce(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(buildSprintReportMock).not.toHaveBeenCalled();
+    });
+
+    it("wires a YYYY-MM-DD validator into both date prompts", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox.mockResolvedValue(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      const options = vscodeMock.window.showInputBox.mock.calls[0]?.[0] as {
+        validateInput?: (value: string) => string | undefined;
+      };
+      expect(options.validateInput?.("not-a-date")).toBe("Enter a date as YYYY-MM-DD.");
+      expect(options.validateInput?.("2026-08-01")).toBeUndefined();
+    });
+
+    it("does not write a file when the save dialog is dismissed", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox
+        .mockResolvedValueOnce("2026-08-01")
+        .mockResolvedValueOnce("2026-08-14");
+      buildSprintReportMock.mockResolvedValue({ entries: [] });
+      renderSprintReportPdfMock.mockResolvedValue(Buffer.from("pdf-bytes"));
+      vscodeMock.window.showSaveDialog.mockResolvedValue(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(vscodeMock.workspace.fs.writeFile).not.toHaveBeenCalled();
+      expect(vscodeMock.env.openExternal).not.toHaveBeenCalled();
+    });
+
+    it("does not open the PDF when the confirmation message is dismissed", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox
+        .mockResolvedValueOnce("2026-08-01")
+        .mockResolvedValueOnce("2026-08-14");
+      buildSprintReportMock.mockResolvedValue({ entries: [] });
+      renderSprintReportPdfMock.mockResolvedValue(Buffer.from("pdf-bytes"));
+      vscodeMock.window.showSaveDialog.mockResolvedValue(vscodeMock.Uri.file("/workspace/repo/report.pdf"));
+      vscodeMock.window.showInformationMessage.mockResolvedValue(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(vscodeMock.workspace.fs.writeFile).toHaveBeenCalled();
+      expect(vscodeMock.env.openExternal).not.toHaveBeenCalled();
+    });
+
+    it("reports an error and writes no file when building the report fails", async () => {
+      setUpPicker();
+      vscodeMock.window.showInputBox
+        .mockResolvedValueOnce("2026-08-01")
+        .mockResolvedValueOnce("2026-08-14");
+      buildSprintReportMock.mockRejectedValue(new Error("boom"));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.generateSprintReport")?.();
+
+      expect(vscodeMock.workspace.fs.writeFile).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining("generate sprint report failed"),
+      );
+    });
   });
 
   it("archives a confirmed active change and refreshes", async () => {

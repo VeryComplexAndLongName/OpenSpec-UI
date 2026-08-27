@@ -3,10 +3,30 @@
 // by the integration test, which ensures dist/*.js exists before launching
 // a live VS Code instance (see src/test/).
 
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
+// pdfkit's package.json "exports" resolves a static `import` to its ESM
+// build (js/pdfkit.node.mjs), which uses real `import.meta.url` syntax
+// esbuild cannot preserve when bundling to a single CJS file -- it
+// substitutes an empty object, and pdfkit's top-level `new URL(...)`
+// then throws ("Invalid URL"), crashing extension activation entirely
+// (core's `@openspec-ui/core` barrel re-exports the sprint-report PDF
+// renderer for every consumer, extension included). Aliasing to the
+// package's own CommonJS build sidesteps this: that file reads
+// `__filename` instead, which esbuild *can* shim correctly for a
+// node/cjs bundle, and it's a genuine bundle-time alias (not a runtime
+// `require`), so the code still ends up inlined -- required, since
+// `npm run package` builds the .vsix with `--no-dependencies` (no
+// node_modules shipped; the extension itself has no direct dependency
+// on pdfkit either, only a transitive one via `@openspec-ui/core`).
+// `require.resolve` (via this file's own `createRequire`) follows the
+// package's `require` export condition directly to js/pdfkit.js.
+const pdfkitCjsEntry = require.resolve("pdfkit");
 
 export function extensionHostBuildOptions() {
   return {
@@ -17,6 +37,7 @@ export function extensionHostBuildOptions() {
     platform: "node",
     target: "node20",
     external: ["vscode"],
+    alias: { pdfkit: pdfkitCjsEntry },
     sourcemap: true,
     logLevel: "info",
   };

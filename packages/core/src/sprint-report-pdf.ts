@@ -4,30 +4,16 @@
 // "plain and functional over polished" bias (e.g. the multi-change
 // timeline's plain-CSS-position choice over a charting library).
 
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
-import type PDFKitDocument from "pdfkit";
+import PDFDocument from "pdfkit";
 import type { SprintReport } from "./sprint-report.js";
 
-// pdfkit's package.json "exports" map points `import` at an ESM build
-// (js/pdfkit.node.mjs) that uses real `import.meta.url` syntax. When
-// esbuild bundles this package to a single CJS file (the VS Code
-// extension host build), it cannot preserve `import.meta.url` and
-// substitutes an empty object, which crashes that ESM build at load
-// time ("TypeError: Invalid URL") -- breaking extension activation
-// entirely, even though nothing calls PDF/A features that need it.
-// Requiring "pdfkit" instead resolves the package's `require`
-// condition (js/pdfkit.js), a genuinely CommonJS build that reads
-// `__filename` instead, which esbuild *can* shim correctly for a
-// node/cjs bundle. `__filename` is unavailable in this file's own
-// plain-ESM runtime (server/core, unbundled) instead, hence the
-// `typeof` guard -- safe because `typeof` never throws on an
-// undeclared identifier.
-declare const __filename: string | undefined;
-const require = createRequire(
-  typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url),
-);
-const PDFDocument = require("pdfkit") as typeof PDFKitDocument;
+// A plain static import: correct and sufficient for every plain-Node/ESM
+// consumer (server, core's own tests). pdfkit's package.json "exports"
+// resolves this to its ESM build (js/pdfkit.node.mjs), which needs real
+// `import.meta.url` support -- something the VS Code extension's esbuild
+// CJS bundle cannot provide (see build-options.mjs's `alias` entry for
+// "pdfkit" in `extensionHostBuildOptions`, which redirects that one
+// consumer to pdfkit's CommonJS build instead, at bundle time).
 
 function formatDate(date: string | null): string {
   return date ? new Date(date).toLocaleDateString() : "unknown";
