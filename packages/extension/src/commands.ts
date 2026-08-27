@@ -11,6 +11,7 @@ import {
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   archiveChange,
+  buildSprintReport,
   checkChangesetReminder,
   createChange,
   customizeTemplate,
@@ -25,6 +26,7 @@ import {
   listChanges,
   listSpecs,
   readArchivedChangeTasksTemplate,
+  renderSprintReportPdf,
   renderTemplate,
   showChange,
   unarchiveChange,
@@ -294,6 +296,34 @@ function computeDefaultRange(timelines: ChangeTimeline[]): { rangeStart: string;
   }
   const sorted = [...dates].sort();
   return { rangeStart: sorted[0] as string, rangeEnd: sorted[sorted.length - 1] as string };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** VS Code has no native date picker, so the sprint range is two
+ * validated `showInputBox` prompts rather than the auto-derived range
+ * `computeDefaultRange` uses elsewhere — this command needs a real
+ * user-specified sprint boundary, not a default. Returns full-day ISO
+ * bounds (start of `start`, end of `end`) so a task completed anywhere
+ * during either boundary date is included. */
+async function promptSprintRange(): Promise<{ rangeStart: string; rangeEnd: string } | undefined> {
+  const validateInput = (value: string): string | undefined =>
+    DATE_RE.test(value) && !Number.isNaN(Date.parse(value)) ? undefined : "Enter a date as YYYY-MM-DD.";
+  const start = await vscode.window.showInputBox({
+    title: "Sprint Report: Start Date",
+    prompt: "First day of the sprint (YYYY-MM-DD)",
+    placeHolder: "2026-08-01",
+    validateInput,
+  });
+  if (!start) return undefined;
+  const end = await vscode.window.showInputBox({
+    title: "Sprint Report: End Date",
+    prompt: "Last day of the sprint (YYYY-MM-DD)",
+    placeHolder: "2026-08-14",
+    validateInput,
+  });
+  if (!end) return undefined;
+  return { rangeStart: `${start}T00:00:00.000Z`, rangeEnd: `${end}T23:59:59.999Z` };
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
@@ -868,6 +898,38 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         timelinePanel.showMulti({ timelines, rangeStart, rangeEnd });
       } catch (error) {
         await showCommandError("show change comparison", error);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.generateSprintReport", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const entries = await pickChangesForTimeline(workspaceRoot);
+      if (!entries) return;
+      const range = await promptSprintRange();
+      if (!range) return;
+      try {
+        const report = await buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd);
+        const pdf = await renderSprintReportPdf(report);
+        const defaultName = `sprint-report-${range.rangeStart.slice(0, 10)}-${range.rangeEnd.slice(0, 10)}.pdf`;
+        const target = await vscode.window.showSaveDialog({
+          filters: { PDF: ["pdf"] },
+          defaultUri: vscode.Uri.joinPath(vscode.Uri.file(workspaceRoot), defaultName),
+        });
+        if (!target) return;
+        await vscode.workspace.fs.writeFile(target, pdf);
+        const action = await vscode.window.showInformationMessage(
+          `OpenSpec UI: sprint report saved to ${target.fsPath}.`,
+          "Open",
+        );
+        if (action === "Open") await vscode.env.openExternal(target);
+      } catch (error) {
+        await showCommandError("generate sprint report", error);
       }
     }),
   );

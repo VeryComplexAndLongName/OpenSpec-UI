@@ -113,6 +113,7 @@ export function createVscodeMock() {
         selection: undefined as unknown,
         revealRange: vi.fn(),
       })),
+      showSaveDialog: vi.fn(),
       withProgress: vi.fn(async (_options: unknown, task: (progress: unknown, token: unknown) => unknown) => {
         const token = { onCancellationRequested: vi.fn(() => ({ dispose: vi.fn() })) };
         return task({ report: vi.fn() }, token);
@@ -152,6 +153,12 @@ export function createVscodeMock() {
         }
         return true;
       }),
+      fs: {
+        writeFile: vi.fn(async () => undefined),
+      },
+    },
+    env: {
+      openExternal: vi.fn(async () => true),
     },
     _documentContents: documentContents,
     commands: {
