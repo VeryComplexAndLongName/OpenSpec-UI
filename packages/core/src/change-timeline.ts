@@ -126,6 +126,65 @@ export function getChangeArchivedDate(changeName: string, archived: boolean): st
   return changeName.match(ARCHIVE_DATE_RE)?.[1] ?? null;
 }
 
+export interface CommitAuthor {
+  name: string;
+  email: string;
+  /** ISO 8601 date of the commit this author is attributed for. */
+  date: string;
+}
+
+export interface ChangeAuthorship {
+  /** Author of the most recent commit touching the change's directory —
+   * "who shipped it." For a squash-merge workflow (this repository's
+   * own convention) this is usually the only commit anyway; for a
+   * history with multiple commits, the most recent one is the most
+   * representative single answer to "who did this." */
+  primaryAuthor: CommitAuthor | null;
+  /** Every distinct author (by email) across all commits touching the
+   * directory, oldest to newest. Includes `primaryAuthor`. */
+  contributors: CommitAuthor[];
+}
+
+const AUTHOR_LOG_FIELD_SEP = "\x1f";
+
+/** Best-effort git-derived authorship for `changeDirPath` (an active or
+ * archived change's directory) — `{ primaryAuthor: null, contributors: [] }`
+ * when undeterminable (shallow clone, no history, not a git repository). */
+export async function getChangeAuthorship(cwd: string, changeDirPath: string): Promise<ChangeAuthorship> {
+  const empty: ChangeAuthorship = { primaryAuthor: null, contributors: [] };
+  try {
+    const output = await simpleGit(cwd).raw([
+      "log",
+      `--format=%an${AUTHOR_LOG_FIELD_SEP}%ae${AUTHOR_LOG_FIELD_SEP}%aI`,
+      "--",
+      changeDirPath,
+    ]);
+    const authors: CommitAuthor[] = [];
+    for (const line of output.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const [name, email, date] = trimmed.split(AUTHOR_LOG_FIELD_SEP);
+      if (!name || !email || !date) continue;
+      authors.push({ name, email, date: new Date(date).toISOString() });
+    }
+    if (authors.length === 0) return empty;
+
+    // `git log`'s default order is newest-first, so the first parsed
+    // commit is the most recent one touching this directory.
+    const primaryAuthor = authors[0] ?? null;
+    const seenEmails = new Set<string>();
+    const contributors: CommitAuthor[] = [];
+    for (const author of [...authors].reverse()) {
+      if (seenEmails.has(author.email)) continue;
+      seenEmails.add(author.email);
+      contributors.push(author);
+    }
+    return { primaryAuthor, contributors };
+  } catch {
+    return empty;
+  }
+}
+
 export async function getChangeTimeline(
   workspaceRoot: string,
   changeName: string,

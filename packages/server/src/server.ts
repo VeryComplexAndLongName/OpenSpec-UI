@@ -18,6 +18,7 @@ import {
   handleChangeTimelinesRequest,
   handleOpenSpecInitRequest,
   handleOverviewRequest,
+  handleSprintReportRequest,
   handleStatusJsonRequest,
   handleStatusRequest,
   handleTemplatesCustomizeRequest,
@@ -171,6 +172,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-timelines") {
       void handleChangeTimelinesRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/sprint-report") {
+      void handleSprintReportRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/templates/list") {
