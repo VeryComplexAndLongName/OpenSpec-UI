@@ -16,6 +16,7 @@ export * from "./version-info.js";
 export * from "./template-catalog.js";
 export * from "./repo-bootstrap.js";
 export * from "./process-scheduler.js";
+export * from "./workspace-lease.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";
 export * from "./workbench-recovery.js";

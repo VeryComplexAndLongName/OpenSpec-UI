@@ -1,5 +1,11 @@
 # @openspec-ui/core
 
+## 0.30.0
+
+### Minor Changes
+
+- Add a cross-host workspace lease (docs/adr/0010-cross-host-workspace-lease.md) so at most one host process — a VS Code extension or a standalone server, pointed at the same workspace — can run a mutating operation at a time. A blocked host gets an immediate, actionable error naming the other host instead of racing it or queuing forever. The standalone server's own `implement` execution is now routed through the same mutation lock and lease (it previously bypassed the scheduler entirely), closing a pre-existing same-host gap alongside the cross-host one.
+
 ## 0.29.0
 
 ### Minor Changes

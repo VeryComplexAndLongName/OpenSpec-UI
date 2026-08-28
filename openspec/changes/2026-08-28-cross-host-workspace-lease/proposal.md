@@ -27,6 +27,15 @@ place ADR 0001 decision 3 designates as the command protocol's source of
 truth — a new command kind added to core silently fails this
 hand-maintained copy until someone remembers to update it.
 
+**Found while implementing this change:** the paragraph above assumed the
+standalone server already gated its own mutating execution in-process,
+the way the extension does. It does not — `packages/server/src/
+websocket.ts`'s `streamRun` called `runner.run(command)` directly for
+every command kind, never touching `WorkbenchProcessScheduler` at all, so
+ADR 0004's mutation isolation was not enforced by the server's own live
+`implement` execution even same-host. This change now closes that gap
+too, alongside the cross-host one — see ADR 0010's Context/Decision 7.
+
 See ADR 0010 for the full decision and rejected alternatives.
 
 ## What Changes
@@ -52,6 +61,14 @@ See ADR 0010 for the full decision and rejected alternatives.
 - Export `COMMAND_KINDS` from `packages/core/src/protocol.ts`;
   `packages/server/src/wire.ts` imports it instead of redeclaring the
   literal list.
+- `WorkbenchRecoveryService` (`workbench-recovery.ts`) gains
+  `runMutating()`, a thin pass-through to `scheduler.start({..., mutating:
+  true, execute})` that persists the terminal state — no checkpoint
+  capture. `packages/server/src/websocket.ts`'s `streamRun` routes
+  `implement` commands specifically through it (every other command kind
+  is unchanged, direct through the `AgentRunner`); a lease conflict is
+  detected via the returned process's `startedAt === undefined` and
+  surfaced as a synthesized `failed` `Event` on the socket.
 - Add `docs/adr/0010-cross-host-workspace-lease.md`.
 
 ## Capabilities
@@ -76,6 +93,9 @@ See ADR 0010 for the full decision and rejected alternatives.
 - `packages/core/src/workbench-recovery.ts`
 - `packages/core/src/index.ts` (export `WorkspaceLeaseManager`)
 - `packages/server/src/wire.ts`
+- `packages/server/src/websocket.ts`
+- `packages/server/src/server.ts` (pass `resolveRecoveryService` into
+  `handleSocketMessage`)
 - `packages/extension/src/extension.ts`
 - `docs/adr/0010-cross-host-workspace-lease.md` (new)
 - `.changeset/*.md` (new changeset file)

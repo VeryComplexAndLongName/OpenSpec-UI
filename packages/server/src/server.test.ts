@@ -785,7 +785,20 @@ describe("server — REST /api/status", () => {
 });
 
 describe("server — WebSocket /api/ws", () => {
+  // `implement` is the one mutating command kind, and is now routed through
+  // WorkbenchRecoveryService's real (fs-backed) scheduler/lease (ADR 0010,
+  // packages/server/src/websocket.ts) — unlike `statusCommand`'s fake
+  // "/workspace/repo", these tests need a real, cleaned-up temp workspace,
+  // or they write stray `.openspec-ui/` files outside any sandbox.
+  let wsImplementCommand: Command;
+
   beforeEach(async () => {
+    const workspaceRoot = await createTempWorkspace();
+    wsImplementCommand = {
+      ...implementCommand,
+      cwd: workspaceRoot,
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "x") },
+    };
     await startServer(new Map([["fake-agent", fakeRunner(ALL_EVENT_VARIANTS)]]));
   });
 
@@ -801,7 +814,7 @@ describe("server — WebSocket /api/ws", () => {
       });
     });
 
-    client.send(JSON.stringify(implementCommand));
+    client.send(JSON.stringify(wsImplementCommand));
     await done;
 
     expect(received).toEqual(ALL_EVENT_VARIANTS);
@@ -823,7 +836,7 @@ describe("server — WebSocket /api/ws", () => {
         if (received.length === ALL_EVENT_VARIANTS.length) resolve();
       });
     });
-    client.send(JSON.stringify(implementCommand));
+    client.send(JSON.stringify(wsImplementCommand));
     await done;
 
     expect(received).toEqual(ALL_EVENT_VARIANTS);
@@ -841,11 +854,87 @@ describe("server — WebSocket /api/ws", () => {
         resolve();
       });
     });
-    client.send(JSON.stringify({ ...implementCommand, agentId: "does-not-exist" }));
+    client.send(JSON.stringify({ ...wsImplementCommand, agentId: "does-not-exist" }));
     await done;
 
     expect(received).toEqual([expect.objectContaining({ kind: "failed", runId: "run-1" })]);
     client.close();
+  });
+
+  it("blocks a second server's implement run while another server holds the workspace lease, and unblocks once it finishes", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const command = {
+      ...implementCommand,
+      cwd: workspaceRoot,
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "x") },
+    };
+    let releaseFirstRun!: () => void;
+    const firstRunGate = new Promise<void>((resolve) => { releaseFirstRun = resolve; });
+    const firstServer = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map<string, AgentRunner>([["fake-agent", {
+        async *run(): AsyncIterable<Event> {
+          yield { kind: "started", runId: "run-1", timestamp: "t1", command: "implement", cwd: workspaceRoot };
+          await firstRunGate;
+          yield { kind: "completed", runId: "run-1", timestamp: "t2" };
+        },
+      }]]),
+    });
+    const secondServer = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map([["fake-agent", fakeRunner(ALL_EVENT_VARIANTS)]]),
+    });
+
+    try {
+      const firstAddress = await firstServer.listen();
+      const secondAddress = await secondServer.listen();
+      const firstClient = new WebSocket(
+        `ws://127.0.0.1:${firstAddress.port}/api/ws`,
+        ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`],
+      );
+      await new Promise((resolve) => firstClient.once("open", resolve));
+      const firstStarted = new Promise<void>((resolve) => {
+        firstClient.on("message", (raw) => {
+          if ((JSON.parse(raw.toString()) as Event).kind === "started") resolve();
+        });
+      });
+      firstClient.send(JSON.stringify(command));
+      await firstStarted; // the first server has acquired the lease and is mid-run
+
+      const secondClient = new WebSocket(
+        `ws://127.0.0.1:${secondAddress.port}/api/ws`,
+        ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`],
+      );
+      await new Promise((resolve) => secondClient.once("open", resolve));
+      const secondReceived = await new Promise<Event[]>((resolve) => {
+        const events: Event[] = [];
+        secondClient.on("message", (raw) => {
+          events.push(JSON.parse(raw.toString()) as Event);
+          resolve(events);
+        });
+        secondClient.send(JSON.stringify(command));
+      });
+
+      expect(secondReceived).toHaveLength(1);
+      expect(secondReceived[0]).toMatchObject({ kind: "failed", runId: command.runId });
+      expect((secondReceived[0] as { reason: string }).reason).toContain("standalone server");
+      secondClient.close();
+
+      releaseFirstRun();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      firstClient.close();
+    } finally {
+      await firstServer.close();
+      await secondServer.close();
+    }
   });
 
   it("rejects unauthenticated and hostile-origin handshakes", async () => {

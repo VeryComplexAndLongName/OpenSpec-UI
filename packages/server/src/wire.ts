@@ -4,18 +4,7 @@
 // recognizes the request's shape (see spec.md, "Server contains no
 // business logic").
 
-import type { Command, CommandKind } from "@openspec-ui/core";
-
-const COMMAND_KINDS: readonly CommandKind[] = [
-  "plan",
-  "implement",
-  "review",
-  "status",
-  "list",
-  "show",
-  "validate",
-  "cancel",
-];
+import { COMMAND_KINDS, type Command, type CommandKind } from "@openspec-ui/core";
 
 export function isCommandLike(value: unknown): value is Command {
   if (typeof value !== "object" || value === null) return false;

@@ -15,6 +15,18 @@ constructs `new WorkbenchProcessScheduler()` or
 `new WorkbenchProcessScheduler([...])` with a single positional array
 argument and no real filesystem workspace.
 
+**Discovered mid-implementation:** `WorkbenchRecoveryService`'s scheduler,
+as originally wired, was never actually reachable from the standalone
+server's live command execution. `packages/server/src/websocket.ts`'s
+`streamRun` called `runner.run(command)` directly for every command kind
+— `WorkbenchRecoveryService.list()`/`rollback()`/`cleanupBefore()` only
+ever read/mutated a scheduler populated from whatever the journal file
+already contained. A lease wired only into that scheduler would have
+protected `WorkbenchRecoveryService`'s own rollback/cleanup calls, but not
+the actual "someone clicks Implement in the browser" case — the realistic
+cross-host race ADR 0010 exists for. See ADR 0010's Context for the fuller
+account; this design was extended (not restarted) once that was found.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -26,6 +38,9 @@ argument and no real filesystem workspace.
   fixture it doesn't already have — the lease is additive and optional.
 - Reuse the journal's write-then-rename atomic replacement pattern
   exactly; no new dependency.
+- The standalone server's own live `implement` execution is actually
+  gated — not only `WorkbenchRecoveryService`'s rollback/cleanup calls,
+  which were never the realistic contention point.
 
 **Non-Goals:**
 - Not merging concurrent journal writes from two hosts (revision/CAS) —
@@ -41,6 +56,11 @@ argument and no real filesystem workspace.
   internal constant for this iteration, not a new setting.
 - Not covering true concurrent mutation from two hosts — that is the
   separately tracked worktree-isolation work ADR 0004 already named.
+- Not adding checkpoint capture to the standalone server's WS-driven
+  `implement` path. Those runs gain mutation exclusivity from this
+  change but still have no rollback and are not recoverable as
+  `interrupted` after a crash — a pre-existing, separate gap this
+  change narrows (adds locking) but does not close (still no checkpoint).
 
 ## Decisions
 
@@ -120,6 +140,49 @@ no-op in-memory-only behavior when absent, keeps every current call site
 and test compiling and passing unchanged, and matches how
 `WorkbenchRunJournalOptions` is already optional on the journal side.
 
+### Route only `implement` through the scheduler on the WS path; every other command kind is untouched
+
+`packages/server/src/websocket.ts`'s `streamRun` branches on
+`command.kind !== "implement"` first: every other kind (`plan`, `review`,
+`status`, `list`, `show`, `validate`, `cancel`) keeps calling
+`runner.run(command)` directly, unchanged. Only `implement` — the one
+`mutating: true` operation, matching `ImplementationSessionManager`'s own
+convention — goes through `WorkbenchRecoveryService.runMutating()`. This
+mirrors the extension's existing asymmetry (only `implement` sessions are
+scheduler-gated there either) rather than inventing a new rule for the
+server.
+
+### `WorkbenchRecoveryService.runMutating()` is a thin pass-through, not a checkpoint-capturing wrapper
+
+It calls `scheduler.start({ ..., mutating: true, execute })` and, once
+`execute` finishes, calls the same private `persist()` every rollback/
+cleanup call already uses — so a terminal (`completed`/`failed`)
+`implement` run becomes visible in `list()`/the journal like any other,
+without adding checkpoint capture. There is deliberately no
+`scheduler.onDidChange` auto-persist wiring added for this: `initialize()`
+and `cleanupBefore()` both reassign `this.scheduler` to a new instance,
+and re-subscribing a listener across those reassignments is exactly the
+kind of retrofit checkpoint capture would also need — out of scope here
+(see Non-Goals). Consequence: a server crash strictly *during* a WS-driven
+`implement` run leaves no persisted trace of it (not even as
+`interrupted`) — only genuinely-finished runs are recorded. Narrower than
+the extension's own crash coverage, and disclosed as such rather than
+silently assumed away.
+
+### Detecting a lease-blocked run without adding a new `Event` kind
+
+When the lease blocks a mutating run, `execute` never runs, so nothing
+was ever sent to the client for that attempt — but `websocket.ts` needs
+to tell the client the run failed. Rather than teaching
+`WorkbenchRecoveryService` to talk WebSocket, `streamRun` inspects the
+returned `WorkbenchProcess` itself: `state === "failed" && startedAt ===
+undefined` is exactly the signature of the early-exit path in
+`process-scheduler.ts`'s `run()` (a normal in-`execute` failure always
+sets `startedAt` first). `streamRun` then synthesizes one `failed` `Event`
+from `process.error`. No protocol change, no new `EventKind` — reuses the
+existing `failed` variant precisely as `agent-runner.ts` already does for
+its own internal errors.
+
 ## Risks / Trade-offs
 
 - **[Risk]** Introducing an asynchronous gate into `WorkbenchProcessScheduler.run()`
@@ -144,3 +207,14 @@ and test compiling and passing unchanged, and matches how
   after an unclean host exit is expected, not a bug — the next mutating
   run's staleness check cleans it up functionally (overwrites it) even
   though the file itself isn't deleted proactively.
+- **[Realized during implementation]** `packages/server/src/server.test.ts`'s
+  existing WS `implement` tests used a fake, non-real `cwd`
+  (`/workspace/repo`) — harmless before this change, since nothing
+  touched the filesystem for that path. Once `implement` started routing
+  through `WorkbenchRecoveryService.open(command.cwd)`, the same tests
+  silently created real files at `C:\workspace\repo\.openspec-ui\`,
+  outside any temp-directory sandbox and outside `afterEach`'s cleanup.
+  Fixed by giving those specific tests a real, tracked temp workspace
+  (task 5.4) — flagged here as a reminder that any *other* test
+  exercising the WS `implement` path with a placeholder `cwd` needs the
+  same fix, not just the ones this change happened to touch.

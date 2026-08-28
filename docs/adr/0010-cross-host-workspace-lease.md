@@ -38,6 +38,24 @@ designates as the protocol's source of truth). A new command kind added
 to core silently fails server-side shape validation until someone
 remembers to update the copy in `wire.ts`.
 
+**Correction discovered during implementation:** the paragraph above
+assumes the standalone server already routes its own mutating command
+execution through `WorkbenchProcessScheduler`, the way the extension's
+`ImplementationSessionManager` does. It does not. `packages/server/src/
+websocket.ts`'s `handleSocketMessage`/`streamRun` called
+`runner.run(command)` directly for every command kind, including
+`implement` — never touching `WorkbenchRecoveryService`'s scheduler, never
+capturing a checkpoint, never persisting to the journal. `packages/
+server/src/rest.ts` has no `plan`/`implement`/`review` handling either.
+`WorkbenchRecoveryService`'s scheduler was populated only from whatever a
+journal file already contained (in practice, only entries the extension
+had written there) — the server itself never called `scheduler.start()`.
+This means ADR 0004 decision 4's mutation isolation was not enforced by
+the standalone server at all, same-host, before this change — a
+pre-existing gap distinct from, and larger than, the cross-host
+coordination problem this ADR set out to solve. Decision 7 below closes
+it as part of this same change.
+
 ## Decision
 
 1. **A workspace-local lease file, not a wider protocol version.** Core
@@ -82,6 +100,20 @@ remembers to update the copy in `wire.ts`.
    change and needs no version bump — it removes a manual-sync hazard
    discovered while researching this ADR's own scope, in the same files
    this change already touches.
+7. **Route the standalone server's `implement` execution through the
+   scheduler too, closing the pre-existing same-host gap above — without
+   checkpoint capture.** `packages/server/src/websocket.ts`'s `streamRun`
+   calls `WorkbenchRecoveryService.runMutating()` for `implement` commands
+   specifically (every other command kind is unaffected, exactly as
+   before); its `execute` callback streams the `AgentRunner`'s events to
+   the socket as they occur. A lease conflict now produces a `failed`
+   `Event` on the socket (synthesized from the scheduler process's
+   `error`, since a blocked run's `execute` callback — and therefore the
+   `AgentRunner` — never ran, so nothing was ever sent for that attempt).
+   Checkpoint capture (and therefore rollback) for these runs stays out of
+   scope for this pass: mutation exclusivity does not require it, and
+   bundling it in would reopen the "standalone parity" scope ADR 0004
+   decision 7 already deferred as separate follow-up work.
 
 ## Rejected Alternatives
 
@@ -108,8 +140,7 @@ two host processes — has both hosts on the same package versions
 already. A handshake with nothing on the other end to negotiate against
 is speculative scope, not a fix for an observed gap.
 
-### An OS-level file lock (`flock`/`proper-lockfile`) instead of an
-application-level heartbeat lease
+### An OS-level file lock (`flock`/`proper-lockfile`) instead of an application-level heartbeat lease
 
 Rejected. This would add a new dependency and platform-specific locking
 semantics (Windows advisory locks behave differently from POSIX flock)
@@ -149,3 +180,12 @@ already uses elsewhere in this codebase.
 - `WorkbenchProcessScheduler`'s internal control flow around `run()`
   gains an asynchronous gate for mutating processes only; read-only
   scheduling stays synchronous and unaffected.
+- The standalone server's `implement` command execution is now actually
+  gated (same-host and cross-host) instead of unconditionally bypassing
+  the scheduler — closing the pre-existing same-host gap this ADR found,
+  not just the cross-host one it set out to solve.
+- Standalone-initiated `implement` runs still have no rollback (no
+  checkpoint is captured for them), and a server crash mid-run is not
+  recoverable as `interrupted` with a reviewable delta — only mutation
+  exclusivity is in scope here. Full standalone execution-time parity
+  (checkpoint capture on the WS path) remains separate follow-up work.

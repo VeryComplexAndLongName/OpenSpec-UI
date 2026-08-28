@@ -15,6 +15,20 @@ export type CommandKind =
   | "validate"
   | "cancel";
 
+/** Runtime enumeration of `CommandKind`, kept in this one place so
+ * transport-boundary shape checks (e.g. `packages/server/src/wire.ts`'s
+ * `isCommandLike`) never hand-maintain their own separate copy. */
+export const COMMAND_KINDS: readonly CommandKind[] = [
+  "plan",
+  "implement",
+  "review",
+  "status",
+  "list",
+  "show",
+  "validate",
+  "cancel",
+];
+
 export interface CommandContext {
   /** Absolute path to the OpenSpec change this command applies to. */
   changeDir: string;
