@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchProcessScheduler } from "./process-scheduler.js";
+import { WorkspaceLeaseManager } from "./workspace-lease.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -130,5 +134,120 @@ describe("WorkbenchProcessScheduler", () => {
       state: "interrupted",
       error: "Workbench host stopped before this process completed",
     });
+  });
+});
+
+describe("WorkbenchProcessScheduler cross-host workspace lease", () => {
+  const roots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  async function temporaryRoot(): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-scheduler-lease-"));
+    roots.push(root);
+    return root;
+  }
+
+  it("runs a mutating process normally when no other host holds the lease", async () => {
+    const root = await temporaryRoot();
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    const scheduler = new WorkbenchProcessScheduler([], lease);
+
+    const handle = scheduler.start({
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => "done",
+    });
+
+    const process = await handle.completion;
+    expect(process.state).toBe("completed");
+  });
+
+  it("fails a mutating run immediately, without queuing, when a foreign host holds a live lease", async () => {
+    const root = await temporaryRoot();
+    const foreignLease = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });
+    await foreignLease.acquireOrRenew();
+
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    const scheduler = new WorkbenchProcessScheduler([], lease);
+    const started = vi.fn();
+    const handle = scheduler.start({
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => { started(); },
+    });
+
+    const process = await handle.completion;
+
+    expect(started).not.toHaveBeenCalled();
+    expect(process.state).toBe("failed");
+    expect(process.error).toContain("VS Code extension");
+    expect(process.startedAt).toBeUndefined();
+  });
+
+  it("reclaims and runs once a foreign lease has gone stale", async () => {
+    const root = await temporaryRoot();
+    const foreignLease = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });
+    await foreignLease.acquireOrRenew();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    // Staleness is judged by the evaluating (this) manager's own threshold.
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server", staleAfterMs: 1 });
+    const scheduler = new WorkbenchProcessScheduler([], lease);
+    const handle = scheduler.start({
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => "done",
+    });
+
+    const process = await handle.completion;
+
+    expect(process.state).toBe("completed");
+    expect(process.progress).toContain("Reclaimed");
+  });
+
+  it("releases the lease on completion so a second host can then mutate", async () => {
+    const root = await temporaryRoot();
+    const firstLease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    const firstScheduler = new WorkbenchProcessScheduler([], firstLease);
+    await (await firstScheduler.start({
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => "done",
+    }).completion);
+
+    const secondLease = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });
+    const secondScheduler = new WorkbenchProcessScheduler([], secondLease);
+    const second = await secondScheduler.start({
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      execute: async () => "done",
+    }).completion;
+
+    expect(second.state).toBe("completed");
+  });
+
+  it("does not gate read-only runs on the lease at all", async () => {
+    const root = await temporaryRoot();
+    const foreignLease = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });
+    await foreignLease.acquireOrRenew();
+
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    const scheduler = new WorkbenchProcessScheduler([], lease);
+    const process = await scheduler.start({
+      operation: "status",
+      changeName: "demo",
+      mutating: false,
+      execute: async () => "ok",
+    }).completion;
+
+    expect(process.state).toBe("completed");
   });
 });

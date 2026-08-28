@@ -9,12 +9,13 @@ import {
   type RollbackResult,
   type WorkbenchCheckpoint,
 } from "./checkpoint.js";
-import { WorkbenchProcessScheduler, type WorkbenchProcess } from "./process-scheduler.js";
+import { WorkbenchProcessScheduler, type StartProcessOptions, type WorkbenchProcess } from "./process-scheduler.js";
 import {
   WorkbenchRunJournal,
   type PersistedCheckpointSession,
   type WorkbenchRunJournalOptions,
 } from "./workbench-run-journal.js";
+import { WorkspaceLeaseManager } from "./workspace-lease.js";
 
 interface RecoverySession {
   processId: string;
@@ -36,11 +37,13 @@ export interface WorkbenchCleanupResult {
 
 export class WorkbenchRecoveryService {
   private readonly journal: WorkbenchRunJournal;
+  private readonly lease: WorkspaceLeaseManager;
   private scheduler = new WorkbenchProcessScheduler();
   private readonly sessions = new Map<string, RecoverySession>();
 
   private constructor(root: string, options: WorkbenchRunJournalOptions) {
     this.journal = new WorkbenchRunJournal(root, options);
+    this.lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
   }
 
   static async open(
@@ -54,6 +57,26 @@ export class WorkbenchRecoveryService {
 
   list(): WorkbenchProcess[] {
     return this.scheduler.list().sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  }
+
+  /** Runs a mutating command through the scheduler's mutation lock and
+   * cross-host workspace lease (docs/adr/0010-cross-host-workspace-lease.md)
+   * — the standalone server's own live command execution
+   * (`packages/server/src/websocket.ts`) otherwise never touched this
+   * scheduler at all. Deliberately no checkpoint capture in this pass: the
+   * resulting process has no rollback coverage, and a server crash mid-run
+   * is not recoverable as "interrupted" with reviewable delta — only
+   * mutation exclusivity is in scope here. Resolves once `execute`
+   * finishes and the terminal state is persisted. */
+  async runMutating(
+    id: string,
+    operation: string,
+    changeName: string | undefined,
+    execute: StartProcessOptions["execute"],
+  ): Promise<WorkbenchProcess> {
+    const process = await this.scheduler.start({ id, operation, changeName, mutating: true, execute }).completion;
+    await this.persist();
+    return process;
   }
 
   details(processId: string): WorkbenchRecoveryDetails | undefined {
@@ -140,14 +163,14 @@ export class WorkbenchRecoveryService {
     for (const processId of this.sessions.keys()) {
       if (!retainedIds.has(processId)) this.sessions.delete(processId);
     }
-    this.scheduler = new WorkbenchProcessScheduler(retained);
+    this.scheduler = new WorkbenchProcessScheduler(retained, this.lease);
     await this.persist();
     return { removed: current.length - retained.length, retained: retained.length };
   }
 
   private async initialize(): Promise<void> {
     const restored = await this.journal.load();
-    this.scheduler = new WorkbenchProcessScheduler(restored.processes);
+    this.scheduler = new WorkbenchProcessScheduler(restored.processes, this.lease);
     for (const persisted of restored.checkpointSessions) {
       this.sessions.set(persisted.processId, {
         processId: persisted.processId,

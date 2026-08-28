@@ -1,3 +1,10 @@
+import {
+  WORKSPACE_LEASE_RENEW_INTERVAL_MS,
+  describeWorkspaceLeaseConflict,
+  describeWorkspaceLeaseReclamation,
+  type WorkspaceLeaseManager,
+} from "./workspace-lease.js";
+
 export type WorkbenchProcessState =
   | "queued"
   | "running"
@@ -54,7 +61,11 @@ export class WorkbenchProcessScheduler {
   private mutationLocked = false;
   private readonly listeners = new Set<(processes: WorkbenchProcess[]) => void>();
 
-  constructor(initialProcesses: WorkbenchProcess[] = []) {
+  /** Cross-host mutation isolation (docs/adr/0010-cross-host-workspace-lease.md).
+   * Optional so every existing call site/test that constructs a scheduler
+   * with no real workspace root keeps its current in-memory-only behavior
+   * unchanged. */
+  constructor(initialProcesses: WorkbenchProcess[] = [], private readonly lease?: WorkspaceLeaseManager) {
     for (const initial of initialProcesses) {
       const process = { ...initial };
       if (process.state === "queued" || process.state === "running") {
@@ -166,10 +177,41 @@ export class WorkbenchProcessScheduler {
 
   private async run(pending: PendingProcess): Promise<void> {
     const process = pending.process;
+    const leasedMutation = process.mutating && this.lease !== undefined;
+
+    if (leasedMutation) {
+      const result = await this.lease!.acquireOrRenew();
+      if (!result.ok) {
+        // Never transitions through "running" — another host holds the
+        // workspace, so this run never actually starts.
+        process.error = describeWorkspaceLeaseConflict(result.conflict);
+        this.finish(pending, "failed");
+        this.drain();
+        return;
+      }
+      if (result.reclaimedFrom) {
+        process.progress = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+      }
+    }
+
     if (process.mutating) this.mutationLocked = true;
     process.state = "running";
     process.startedAt = new Date().toISOString();
     this.emit();
+
+    const renewTimer = leasedMutation
+      ? setInterval(() => {
+          void this.lease!.acquireOrRenew().catch(() => undefined);
+        }, WORKSPACE_LEASE_RENEW_INTERVAL_MS)
+      : undefined;
+
+    // `finish()` (which resolves `completion`) is deliberately called after
+    // this try/catch/finally, not inside it: releasing the lease is
+    // asynchronous, and a caller awaiting `completion` before starting
+    // another mutating run (exactly the cross-host scenario this lease
+    // exists for) must be able to rely on all of this run's cleanup —
+    // including the lease release — having already happened.
+    let terminalState: WorkbenchProcessState;
     try {
       const summary = await pending.execute({
         signal: pending.controller.signal,
@@ -179,22 +221,25 @@ export class WorkbenchProcessScheduler {
         },
       });
       if (pending.controller.signal.aborted) {
-        this.finish(pending, "cancelled");
+        terminalState = "cancelled";
       } else {
         if (summary !== undefined) process.summary = summary;
-        this.finish(pending, "completed");
+        terminalState = "completed";
       }
     } catch (error) {
       if (pending.controller.signal.aborted) {
-        this.finish(pending, "cancelled");
+        terminalState = "cancelled";
       } else {
         process.error = error instanceof Error ? error.message : String(error);
-        this.finish(pending, "failed");
+        terminalState = "failed";
       }
     } finally {
+      if (renewTimer) clearInterval(renewTimer);
       if (process.mutating) this.mutationLocked = false;
-      this.drain();
+      if (leasedMutation) await this.lease!.release();
     }
+    this.finish(pending, terminalState);
+    this.drain();
   }
 
   private finish(pending: PendingProcess, state: WorkbenchProcessState): void {

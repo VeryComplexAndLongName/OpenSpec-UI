@@ -8,6 +8,7 @@ import type { AgentRunner } from "@openspec-ui/core";
 import {
   WorkbenchProcessScheduler,
   WorkbenchRunJournal,
+  WorkspaceLeaseManager,
   buildDefaultAgentRunners,
   resolveRunner as resolveAgentRunner,
 } from "@openspec-ui/core";
@@ -60,7 +61,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       journal = undefined;
     }
   }
-  const scheduler = new WorkbenchProcessScheduler(restoredRuns.processes);
+  const lease = workspaceRoot
+    ? new WorkspaceLeaseManager(workspaceRoot, { hostKind: "vscode-extension" })
+    : undefined;
+  const scheduler = new WorkbenchProcessScheduler(restoredRuns.processes, lease);
   const persistRuns = () => {
     if (!journal) return;
     void journal.save({
