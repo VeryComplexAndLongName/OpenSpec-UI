@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm audit *)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(sleep 2 && cat \"$HOME/sprint-smoke-server.log\")",
+      "Read(//c/Users/ivanov.a/**)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 22084)",
+      "Bash(rm -f 'C:\\\\Users\\\\ivanov.a/sprint-smoke-server.log' 'C:\\\\Users\\\\ivanov.a/sprint-report-smoke.pdf')",
+      "Bash(openspec change *)"
+    ]
+  }
+}
