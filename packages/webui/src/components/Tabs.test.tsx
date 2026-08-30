@@ -70,6 +70,81 @@ describe("TabPanel", () => {
     fireEvent.click(screen.getByText("editor"));
     expect(screen.getByLabelText("draft")).toHaveValue("unsaved edits");
   });
+
+  it("does not mount a lazy panel's children before it has ever been active", () => {
+    render(
+      <>
+        <TabPanel id="a" activeTab="a" lazy>
+          <p>Panel A</p>
+        </TabPanel>
+        <TabPanel id="b" activeTab="a" lazy>
+          <p>Panel B</p>
+        </TabPanel>
+      </>,
+    );
+    expect(screen.getByTestId("page-tab-panel-a")).not.toHaveAttribute("hidden");
+    expect(screen.getByText("Panel A")).toBeInTheDocument();
+    expect(screen.getByTestId("page-tab-panel-b")).toHaveAttribute("hidden");
+    expect(screen.queryByText("Panel B")).not.toBeInTheDocument();
+  });
+
+  it("mounts a lazy panel's children once it becomes active, and keeps them mounted after switching away", () => {
+    function Harness() {
+      const [activeTab, setActiveTab] = useState("a");
+      return (
+        <>
+          <button type="button" onClick={() => setActiveTab("a")}>a</button>
+          <button type="button" onClick={() => setActiveTab("b")}>b</button>
+          <TabPanel id="a" activeTab={activeTab} lazy>
+            <p>Panel A</p>
+          </TabPanel>
+          <TabPanel id="b" activeTab={activeTab} lazy>
+            <p>Panel B</p>
+          </TabPanel>
+        </>
+      );
+    }
+
+    render(<Harness />);
+    expect(screen.queryByText("Panel B")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("b"));
+    expect(screen.getByText("Panel B")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("a"));
+    expect(screen.getByTestId("page-tab-panel-b")).toHaveAttribute("hidden");
+    expect(screen.getByText("Panel B")).toBeInTheDocument();
+  });
+
+  it("preserves child state across tab switches for a lazy panel, once opened", () => {
+    function Draft() {
+      const [value, setValue] = useState("");
+      return <input aria-label="draft" value={value} onChange={(e) => setValue(e.target.value)} />;
+    }
+
+    function Harness() {
+      const [activeTab, setActiveTab] = useState("run-a-command");
+      return (
+        <>
+          <button type="button" onClick={() => setActiveTab("editor")}>editor</button>
+          <button type="button" onClick={() => setActiveTab("run-a-command")}>run-a-command</button>
+          <TabPanel id="run-a-command" activeTab={activeTab} lazy>
+            <p>Run a Command</p>
+          </TabPanel>
+          <TabPanel id="editor" activeTab={activeTab} lazy>
+            <Draft />
+          </TabPanel>
+        </>
+      );
+    }
+
+    render(<Harness />);
+    fireEvent.click(screen.getByText("editor"));
+    fireEvent.change(screen.getByLabelText("draft"), { target: { value: "unsaved edits" } });
+    fireEvent.click(screen.getByText("run-a-command"));
+    fireEvent.click(screen.getByText("editor"));
+    expect(screen.getByLabelText("draft")).toHaveValue("unsaved edits");
+  });
 });
 
 describe("Tabs with computeVisibleTabs", () => {

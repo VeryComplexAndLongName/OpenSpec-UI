@@ -138,7 +138,11 @@ Recovery", "Diff Preview", "OpenSpec view summary", and "Change Editor" as
 separate tabs rather than a single scrolling page. Only one tab's content
 SHALL be visible at a time; switching tabs SHALL NOT discard in-progress
 state in the other tabs (e.g. an unsaved Change Editor draft, an in-flight
-Run a Command execution).
+Run a Command execution). A tab's content MAY defer mounting until the
+user opens that tab for the first time; once a tab has been opened, it
+SHALL keep its mounted state for the rest of the session (including its
+in-progress state), matching the behavior of a tab that was never
+deferred.
 
 #### Scenario: User switches from Change Editor to Run a Command
 
@@ -146,6 +150,20 @@ Run a Command execution).
   to the Run a Command tab
 - **THEN** the Change Editor tab retains the unsaved edits when the user
   switches back
+
+#### Scenario: A tab's content is not mounted before it is first opened
+
+- **WHEN** the standalone shell loads and the user has not yet clicked a
+  given tab
+- **THEN** that tab's content, including anything it would otherwise
+  fetch or compute on mount, has not started
+
+#### Scenario: A previously-opened tab keeps its state after switching away and back
+
+- **WHEN** the user opens a tab, changes its in-progress state, switches
+  to a different tab, and switches back
+- **THEN** the tab's in-progress state is unchanged, identical to a tab
+  that was never deferred
 
 ### Requirement: Standalone shell restricts tabs when embedded as the VS Code local-server view
 
@@ -273,4 +291,39 @@ downloads a generated PDF sprint report as a browser file download.
   date range or without selecting any change
 - **THEN** the system reports what is missing rather than attempting
   to generate an empty or partial report
+
+### Requirement: OpenSpec view summary lists are searchable by name or status
+
+The standalone "OpenSpec view summary" tab SHALL render its active
+changes as a searchable list (matching by name or by status label),
+replacing a static, non-interactive table, and SHALL additionally render
+an Archive section, also searchable, listing archived changes (not
+previously shown in this tab). Archived changes SHALL display real
+task-completion progress and a last-modified date, sourced from
+`execution-core`, rather than only a name.
+
+#### Scenario: User filters active changes by name
+
+- **WHEN** the user types part of a change's name into the Changes
+  section's search box
+- **THEN** only active changes whose name matches remain visible
+
+#### Scenario: User filters active changes by status
+
+- **WHEN** the user types a status word (e.g. "progress") into the
+  Changes section's search box
+- **THEN** only active changes whose displayed status label matches
+  remain visible
+
+#### Scenario: User filters archived changes
+
+- **WHEN** the user types into the Archive section's search box
+- **THEN** only archived changes matching by name or status label remain
+  visible, sorted by last-modified date
+
+#### Scenario: Archived changes show real progress
+
+- **WHEN** the Overview tab loads a workspace with archived changes
+- **THEN** each archived change displays its actual completed/total task
+  count and a last-modified date, not just its name
 

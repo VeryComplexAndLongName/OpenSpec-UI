@@ -45,3 +45,84 @@ independent of selected CLI agent.
 - **WHEN** user switches selected agent from one CLI to another
 - **THEN** command form and event rendering stay the same; only the underlying
   `AgentRunner` adapter changes
+
+### Requirement: Changes and Archive lists share one search implementation
+
+`ChangesList` and `ArchiveList` SHALL both filter their displayed changes
+using the same predicate: a case-insensitive match against a change's
+name or its human-readable status label. Neither component SHALL
+implement its own, independently-maintained filter logic.
+
+#### Scenario: Searching in ChangesList
+
+- **WHEN** a query is entered into `ChangesList`'s search box
+- **THEN** only changes whose name or status label matches the query are
+  rendered
+
+#### Scenario: Searching in ArchiveList matches status too
+
+- **WHEN** a query matching a status label (not a name) is entered into
+  `ArchiveList`'s search box
+- **THEN** matching changes are shown, in addition to the existing
+  name-match and last-modified sort behavior
+
+### Requirement: Changes and Archive lists show task-completion percentage and last-modified date
+
+`ChangesList` and `ArchiveList` SHALL both display a task-completion
+percentage alongside a change's `completedTasks`/`totalTasks` fraction,
+computed from the same shared formatting function so the two never
+diverge. A change with zero total tasks SHALL NOT display a percentage
+(distinct from a change with a positive total and zero completed tasks,
+which SHALL show "(0%)"). Both components SHALL display a change's
+`lastModified` date when present.
+
+#### Scenario: A change with completed and pending tasks
+
+- **WHEN** `ChangesList` or `ArchiveList` renders a change with a
+  positive `totalTasks`
+- **THEN** the rendered progress includes both the fraction and a
+  rounded percentage
+
+#### Scenario: A change with no tasks at all
+
+- **WHEN** a change's `totalTasks` is zero
+- **THEN** the rendered progress shows the fraction only, with no
+  percentage
+
+#### Scenario: ChangesList shows last-modified date
+
+- **WHEN** `ChangesList` renders a change with a `lastModified` value
+- **THEN** that date is displayed, matching `ArchiveList`'s existing
+  behavior
+
+### Requirement: Changes and Archive lists render inside a bounded, windowed scroll container
+
+`ChangesList` and `ArchiveList` SHALL render inside a height-bounded
+scroll container, independent of item count. Below a size threshold,
+every item SHALL render as a real DOM row, identical to unbounded
+rendering aside from the container. Above the threshold, only the
+currently visible window of rows (plus a small overscan margin) SHALL
+be mounted as real DOM nodes, with the full scrollable height preserved
+so scrolling reveals the remaining rows correctly.
+
+#### Scenario: A list below the threshold
+
+- **WHEN** `ChangesList` or `ArchiveList` renders a number of items at
+  or below the virtualization threshold
+- **THEN** every item renders as a real DOM row inside the bounded
+  scroll container
+
+#### Scenario: A list above the threshold
+
+- **WHEN** `ChangesList` or `ArchiveList` renders a number of items
+  above the virtualization threshold
+- **THEN** only the visible window of rows is mounted as real DOM
+  nodes, and scrolling the container reveals further rows with correct
+  content
+
+#### Scenario: The search box stays reachable regardless of list size
+
+- **WHEN** a list's content exceeds the bounded container's height
+- **THEN** the list scrolls within its own container rather than
+  pushing the search box (rendered above it) out of view
+

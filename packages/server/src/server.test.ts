@@ -239,7 +239,9 @@ describe("server — REST /api/status", () => {
 
   it("lists archived change names in the overview, independent of listChanges", async () => {
     const cwd = await createTempWorkspace();
-    await mkdir(path.join(cwd, "openspec", "changes", "archive", "old-change"), { recursive: true });
+    const changeDir = path.join(cwd, "openspec", "changes", "archive", "old-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] Done\n- [ ] Not done\n");
     await writeFile(path.join(cwd, "openspec", "config.yaml"), "schema: spec-driven\n");
     listChangesMock.mockResolvedValueOnce({ changes: [], root: { path: cwd, source: "nearest" } });
     listSpecsMock.mockResolvedValueOnce({ specs: [], root: { path: cwd, source: "nearest" } });
@@ -251,8 +253,18 @@ describe("server — REST /api/status", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { archivedChanges: string[] };
+    const body = (await res.json()) as {
+      archivedChanges: string[];
+      archivedChangeSummaries: Array<{ name: string; completedTasks: number; totalTasks: number; lastModified: string }>;
+    };
     expect(body.archivedChanges).toEqual(["old-change"]);
+    expect(body.archivedChangeSummaries).toHaveLength(1);
+    expect(body.archivedChangeSummaries[0]).toMatchObject({
+      name: "old-change",
+      completedTasks: 1,
+      totalTasks: 2,
+    });
+    expect(typeof body.archivedChangeSummaries[0]?.lastModified).toBe("string");
   });
 
   it("returns overview with canInitialize=true for workspace without OpenSpec artifacts", async () => {

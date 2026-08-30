@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "@openspec-ui/core": "*",
+    "@tanstack/react-virtual": "^3.14.10",
     "diff": "^9.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

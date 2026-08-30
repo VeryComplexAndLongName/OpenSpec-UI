@@ -11,6 +11,8 @@ import { AiPanel } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
+import { ChangesList } from "./components/ChangesList.js";
+import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -36,10 +38,18 @@ import {
 import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
+import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
   name: string;
   status: string;
+  completedTasks: number;
+  totalTasks: number;
+  lastModified: string;
+}
+
+interface OverviewArchivedChangeSummary {
+  name: string;
   completedTasks: number;
   totalTasks: number;
   lastModified: string;
@@ -60,6 +70,7 @@ interface OpenSpecOverview {
   changes: OverviewChange[];
   specs: OverviewSpec[];
   archivedChanges: string[];
+  archivedChangeSummaries: OverviewArchivedChangeSummary[];
   initialization: {
     hasOpenSpecDir: boolean;
     hasInitializationArtifacts: boolean;
@@ -757,7 +768,7 @@ function StandaloneApp() {
 
       <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
 
-      <TabPanel id="run-a-command" activeTab={activeTab}>
+      <TabPanel id="run-a-command" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Run a command</h2>
         <div className="openspec-shell-grid">
@@ -833,7 +844,7 @@ function StandaloneApp() {
       </TabPanel>
 
       {visibleTabIds.has("processes") && (
-      <TabPanel id="processes" activeTab={activeTab}>
+      <TabPanel id="processes" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
@@ -843,7 +854,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("diff-preview") && (
-      <TabPanel id="diff-preview" activeTab={activeTab}>
+      <TabPanel id="diff-preview" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
         <p>
@@ -861,7 +872,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("overview") && (
-      <TabPanel id="overview" activeTab={activeTab}>
+      <TabPanel id="overview" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>OpenSpec view summary</h2>
         <p className="openspec-shell-note">
@@ -886,30 +897,18 @@ function StandaloneApp() {
             {overview.changes.length > 0 ? (
               <div className="openspec-overview-block">
                 <h3>Changes</h3>
-                <table className="openspec-overview-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Status</th>
-                      <th>Tasks</th>
-                      <th>Last modified</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...overview.changes]
-                      .sort((a, b) => Date.parse(b.lastModified) - Date.parse(a.lastModified))
-                      .map((change) => (
-                        <tr key={change.name}>
-                          <td>{change.name}</td>
-                          <td>{change.status}</td>
-                          <td>
-                            {change.completedTasks}/{change.totalTasks}
-                          </td>
-                          <td>{change.lastModified}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <ChangesList
+                  changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                />
+              </div>
+            ) : null}
+
+            {overview.archivedChangeSummaries.length > 0 ? (
+              <div className="openspec-overview-block">
+                <h3>Archive</h3>
+                <ArchiveList
+                  changes={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
+                />
               </div>
             ) : null}
 
@@ -941,7 +940,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("change-editor") && (
-      <TabPanel id="change-editor" activeTab={activeTab}>
+      <TabPanel id="change-editor" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Change Editor</h2>
         <p className="openspec-shell-note">
@@ -1077,7 +1076,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("templates") && (
-      <TabPanel id="templates" activeTab={activeTab}>
+      <TabPanel id="templates" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Templates</h2>
         <p className="openspec-shell-note">
@@ -1200,7 +1199,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("timeline") && (
-      <TabPanel id="timeline" activeTab={activeTab}>
+      <TabPanel id="timeline" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Timeline</h2>
         <p className="openspec-shell-note">

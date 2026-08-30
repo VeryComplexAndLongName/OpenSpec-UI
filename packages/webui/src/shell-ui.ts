@@ -528,6 +528,35 @@ export const shellThemeCss = `
     font-size: 15px;
   }
 
+  /* Changes/Archive lists: always sit inside a bounded, scrollable
+     container (see openspec/changes/virtualize-change-lists/design.md)
+     so the search input above them never scrolls out of view, and so
+     windowed rendering above the size threshold has a fixed viewport to
+     window against. Row height matches useVirtualList's itemHeight
+     estimate (40px) so the estimated and real layout agree. */
+  .openspec-changes-list-scroll,
+  .openspec-archive-list-scroll {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  .openspec-changes-list li,
+  .openspec-archive-list li {
+    list-style: none;
+    height: 40px;
+    box-sizing: border-box;
+  }
+
+  .openspec-changes-list li button,
+  .openspec-archive-list li button {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
   .openspec-overview-table {
     width: 100%;
     border-collapse: collapse;

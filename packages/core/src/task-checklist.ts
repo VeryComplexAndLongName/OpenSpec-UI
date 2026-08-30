@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 // See openspec/changes/tasks-tree-expand/design.md. Paths always come
@@ -90,4 +90,41 @@ export async function deleteTaskLine(
 
   lines.splice(lineNumber, 1);
   await writeFile(tasksPath, lines.join(eol), "utf8");
+}
+
+export interface ArchivedChangeSummary {
+  completedTasks: number;
+  totalTasks: number;
+  /** ISO timestamp: `tasks.md`'s mtime, or the change directory's mtime
+   * if it has no `tasks.md`. Best-effort — see design.md's "Risks"; not
+   * guaranteed to share a source with active changes' CLI-reported
+   * `lastModified`. */
+  lastModified: string;
+}
+
+/** Progress summary for an *archived* change, for callers (like the
+ * standalone overview) that need more than the name
+ * `discoverOpenSpecWorkspace` alone provides. Reuses this file's own
+ * checklist parsing rather than adding a third checkbox-counting
+ * implementation alongside `change-state.ts`'s separate counter. Returns
+ * `{0, 0}` with an epoch timestamp for an unknown change name — callers
+ * are expected to only pass names already listed in
+ * `discoverOpenSpecWorkspace`'s `archivedChanges`. */
+export async function getArchivedChangeSummary(
+  workspaceRoot: string,
+  changeName: string,
+): Promise<ArchivedChangeSummary> {
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  const change = workspace.archivedChanges.find((c) => c.name === changeName);
+  const tasksArtifact = change?.artifacts.find((artifact) => artifact.id === "tasks");
+  const tasksPath = tasksArtifact?.exists ? tasksArtifact.path : undefined;
+
+  const items = tasksPath ? parseChecklist(await readFile(tasksPath, "utf8")) : [];
+  const completedTasks = items.filter((item) => item.done).length;
+  const totalTasks = items.length;
+
+  const statPath = tasksPath ?? change?.path;
+  const lastModified = statPath ? (await stat(statPath)).mtime.toISOString() : new Date(0).toISOString();
+
+  return { completedTasks, totalTasks, lastModified };
 }

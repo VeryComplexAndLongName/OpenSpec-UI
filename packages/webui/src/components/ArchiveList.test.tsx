@@ -38,4 +38,28 @@ describe("ArchiveList", () => {
     fireEvent.change(screen.getByLabelText("Search archive"), { target: { value: "does-not-exist" } });
     expect(screen.getByTestId("archive-list").querySelectorAll("li")).toHaveLength(0);
   });
+
+  it("filters by status label", () => {
+    render(<ArchiveList changes={changes} />);
+    fireEvent.change(screen.getByLabelText("Search archive"), { target: { value: "archived" } });
+
+    const items = screen.getByTestId("archive-list").querySelectorAll("li");
+    expect(items).toHaveLength(2);
+  });
+
+  it("renders task progress with a percentage", () => {
+    const partial: ChangeSummary[] = [
+      { name: "shared-ui", state: "archived", completedTasks: 4, totalTasks: 17, lastModified: "2026-08-01T00:00:00.000Z" },
+    ];
+    render(<ArchiveList changes={partial} />);
+    expect(screen.getByTestId("archive-shared-ui")).toHaveTextContent("4/17 (24%)");
+  });
+
+  it("wraps the list in a height-bounded, scrollable container", () => {
+    render(<ArchiveList changes={changes} />);
+
+    const container = screen.getByTestId("archive-list").parentElement;
+    expect(container).toHaveStyle({ overflowY: "auto" });
+    expect(container?.style.maxHeight.length).toBeGreaterThan(0);
+  });
 });
