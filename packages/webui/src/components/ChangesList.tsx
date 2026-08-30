@@ -2,11 +2,14 @@
 // by `execution-core` (see spec.md, "A change's status is displayed from
 // derived state, not recomputed in the UI"). Search filters by name or
 // status label via the same shared predicate `ArchiveList` uses (see
-// openspec/changes/changes-overview-search/design.md).
+// openspec/changes/changes-overview-search/design.md). Task progress is
+// formatted via the same shared helper `ArchiveList` uses (see
+// openspec/changes/change-progress-display/proposal.md).
 
 import { useMemo, useState } from "react";
 import type { ChangeSummary } from "../types.js";
 import { STATE_LABEL, filterChanges } from "./change-filter.js";
+import { formatTaskProgress } from "./task-progress.js";
 
 export interface ChangesListProps {
   changes: ChangeSummary[];
@@ -39,8 +42,9 @@ export function ChangesList({ changes, onSelect }: ChangesListProps) {
                 {STATE_LABEL[change.state]}
               </span>
               <span className="openspec-change-progress">
-                {change.completedTasks}/{change.totalTasks}
+                {formatTaskProgress(change.completedTasks, change.totalTasks)}
               </span>
+              {change.lastModified && <time dateTime={change.lastModified}>{change.lastModified}</time>}
             </button>
           </li>
         ))}

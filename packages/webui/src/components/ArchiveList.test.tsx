@@ -46,4 +46,12 @@ describe("ArchiveList", () => {
     const items = screen.getByTestId("archive-list").querySelectorAll("li");
     expect(items).toHaveLength(2);
   });
+
+  it("renders task progress with a percentage", () => {
+    const partial: ChangeSummary[] = [
+      { name: "shared-ui", state: "archived", completedTasks: 4, totalTasks: 17, lastModified: "2026-08-01T00:00:00.000Z" },
+    ];
+    render(<ArchiveList changes={partial} />);
+    expect(screen.getByTestId("archive-shared-ui")).toHaveTextContent("4/17 (24%)");
+  });
 });

@@ -1,12 +1,14 @@
 // 2.3 Archive: search, filters, history. Accepts a list already filtered
 // by `state === "archived"` (the host decides what counts as the archive)
 // — the component filters by name or status label (via the shared
-// `filterChanges`, also used by `ChangesList`) and sorts by date
-// (history).
+// `filterChanges`, also used by `ChangesList`), sorts by date (history),
+// and formats task progress via the same shared helper `ChangesList`
+// uses (see openspec/changes/change-progress-display/proposal.md).
 
 import { useMemo, useState } from "react";
 import type { ChangeSummary } from "../types.js";
 import { filterChanges } from "./change-filter.js";
+import { formatTaskProgress } from "./task-progress.js";
 
 export interface ArchiveListProps {
   changes: ChangeSummary[];
@@ -35,6 +37,9 @@ export function ArchiveList({ changes, onSelect }: ArchiveListProps) {
           <li key={change.name}>
             <button type="button" data-testid={`archive-${change.name}`} onClick={() => onSelect?.(change.name)}>
               <span>{change.name}</span>
+              <span className="openspec-change-progress">
+                {formatTaskProgress(change.completedTasks, change.totalTasks)}
+              </span>
               {change.lastModified && <time dateTime={change.lastModified}>{change.lastModified}</time>}
             </button>
           </li>
