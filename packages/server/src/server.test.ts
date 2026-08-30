@@ -106,6 +106,34 @@ async function startServer(runners: Map<string, AgentRunner>) {
   wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
 }
 
+/** A WebSocket `implement` run's "completed" event reaches the test's
+ * client as soon as the fake agent's event stream ends — before the
+ * server has finished its own async side effects for that same run
+ * (WorkbenchRecoveryService.runMutating awaits persist() only *after*
+ * scheduler.start(...).completion resolves, which is itself after the
+ * "completed" event has already gone out over the socket). A test can
+ * therefore reach this afterEach and call rm() on the temp workspace
+ * while the server is still mid-write to its .openspec-ui/ journal file
+ * inside it — a real, reproducible race (ENOTEMPTY/EBUSY on rmdir, seen
+ * on both Windows and Linux CI), not something the client should have to
+ * synchronize on (it has no business knowing about server-internal
+ * journal persistence). Retrying rm() a few times is the correct fix
+ * here, not delaying the "completed" event or the client's done promise
+ * — both would add artificial latency to real usage for a test-only
+ * concern. */
+async function rmWithRetry(dir: string, attempts = 5): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt === attempts || (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+    }
+  }
+}
+
 afterEach(async () => {
   statusChangeMock.mockReset();
   listChangesMock.mockReset();
@@ -113,7 +141,7 @@ afterEach(async () => {
   initOpenSpecMock.mockReset();
   detectAvailableAgentsMock.mockReset();
   await server?.close();
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  await Promise.all(tempDirs.splice(0).map((dir) => rmWithRetry(dir)));
 });
 
 describe("server — REST /api/status", () => {
