@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenSpec UI Agentic Harness — per-change override",
+  "description": "Per-change override for openspec/changes/<id>/harness.json — deep-merged over the global openspec/agent-harness.json, key by key. Only set fields you want to override; everything else stays inherited.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stepAgents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "propose": { "$ref": "#/definitions/agentId" },
+        "review": { "$ref": "#/definitions/agentId" },
+        "apply": { "$ref": "#/definitions/agentId" },
+        "archive": { "$ref": "#/definitions/agentId" },
+        "git": { "$ref": "#/definitions/agentId" }
+      }
+    },
+    "autonomyLevel": {
+      "type": "string",
+      "enum": ["assisted", "semi-autonomous", "autonomous"],
+      "description": "semi-autonomous and autonomous are accepted and persisted but not yet functional — see openspec/changes/agentic-harness/design.md."
+    },
+    "reviewGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["human-required", "agent-sufficient"],
+          "description": "Whoever is configured as the review stepAgent is the accountable party for relaxing this to agent-sufficient."
+        }
+      }
+    }
+  },
+  "definitions": {
+    "agentId": {
+      "type": "string",
+      "description": "Must match an AgentDescriptor.id from packages/core/src/agents/registry.ts — kept in sync by hand (a small, stable list).",
+      "enum": ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]
+    }
+  }
+}

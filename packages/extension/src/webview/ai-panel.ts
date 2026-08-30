@@ -4,7 +4,13 @@
 // local server reuses the same server package as standalone").
 
 import * as vscode from "vscode";
-import { detectAvailableAgents, type AgentRunner } from "@openspec-ui/core";
+import {
+  detectAvailableAgents,
+  resolveHarnessConfig,
+  type AgentRunner,
+  type Command,
+  type WorkbenchProcessScheduler,
+} from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
@@ -18,6 +24,10 @@ export interface AiPanelContext {
    * fact, once `detectAvailableAgents()` resolves (see design.md, "Extension:
    * detection runs after reveal(), posted as a follow-up context message"). */
   detectedAgents?: Record<string, boolean>;
+  /** Never set by a caller of `reveal()` — populated internally, after
+   * `resolveHarnessConfig()` resolves, the same follow-up-message pattern
+   * as `detectedAgents`. See openspec/changes/agentic-harness/. */
+  stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
 }
 
 interface BridgeCommandMessage {
@@ -39,6 +49,12 @@ export interface AiPanelDeps {
    * (`http://127.0.0.1:<port>`); otherwise `undefined` (primary mode uses
    * the bridge). */
   getLocalServerUrl: () => string | undefined;
+  /** Optional — when present, every `plan`/`implement`/`review` run also
+   * registers a `WorkbenchProcess` (visible in the Processes view, with
+   * `agentId`) purely as an observer of the same event stream already
+   * flowing to the webview; it does not change how the run itself
+   * executes. See openspec/changes/agentic-harness/design.md. */
+  scheduler?: WorkbenchProcessScheduler;
 }
 
 export class AiPanel {
@@ -46,6 +62,53 @@ export class AiPanel {
   private panelContext: AiPanelContext | undefined;
 
   constructor(private readonly deps: AiPanelDeps) { }
+
+  /** Registers a `WorkbenchProcess` for a `plan`/`implement`/`review`
+   * command, purely observing `runController`'s existing event stream
+   * (no change to how the run itself executes or cancels). No-op when
+   * `deps.scheduler` isn't supplied. */
+  private trackHarnessProcess(command: Command): void {
+    const scheduler = this.deps.scheduler;
+    if (!scheduler) return;
+
+    const changeName = command.context.changeDir
+      .split(/[\\/]+/)
+      .filter((segment) => segment.length > 0)
+      .pop();
+
+    const handle: ReturnType<WorkbenchProcessScheduler["start"]> = scheduler.start({
+      operation: command.kind,
+      changeName,
+      agentId: command.agentId,
+      mutating: command.kind === "implement",
+      execute: ({ report }) =>
+        new Promise<string | void>((resolve, reject) => {
+          const unsubscribe = this.deps.runController.onEvent((event) => {
+            if (event.runId !== command.runId) return;
+            switch (event.kind) {
+              case "progress":
+                report(event.message);
+                return;
+              case "completed":
+                unsubscribe();
+                resolve(event.summary);
+                return;
+              case "failed":
+                unsubscribe();
+                reject(new Error(event.reason));
+                return;
+              case "cancelled":
+                unsubscribe();
+                handle?.cancel();
+                resolve();
+                return;
+              default:
+                return;
+            }
+          });
+        }),
+    });
+  }
 
   reveal(panelContext?: AiPanelContext): void {
     if (panelContext) this.panelContext = { ...panelContext };
@@ -55,6 +118,7 @@ export class AiPanel {
         void this.panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: panelContext });
       }
       this.detectAndPostAgents();
+      this.resolveAndPostStepAgents();
       return;
     }
 
@@ -75,6 +139,7 @@ export class AiPanel {
       ? this.getLocalServerHtml(localServerUrl)
       : this.getBridgeHtml(panel.webview, panelContext);
     this.detectAndPostAgents();
+    this.resolveAndPostStepAgents();
 
     const unsubscribeEvents = this.deps.runController.onEvent((event) => {
       void panel.webview.postMessage({ type: EVENT_MESSAGE_TYPE, event });
@@ -102,6 +167,7 @@ export class AiPanel {
         });
         return;
       }
+      this.trackHarnessProcess(command);
       void this.deps.runController.run(runner, command);
     });
 
@@ -130,6 +196,35 @@ export class AiPanel {
       if (!this.panelContext) return;
       this.panelContext = { ...this.panelContext, detectedAgents };
       void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });
+    });
+  }
+
+  /** Same follow-up-context-message pattern as `detectAndPostAgents()` —
+   * resolves the Agentic Harness `stepAgents` recommendation for the
+   * currently loaded change and posts it once resolved, never blocking
+   * `reveal()`. No-op in optional-local-server mode (that mode loads the
+   * standalone webui bundle over HTTP instead, unrelated to this
+   * message-bridge context). */
+  private resolveAndPostStepAgents(): void {
+    if (this.deps.getLocalServerUrl()) return;
+    const panel = this.panel;
+    const context = this.panelContext;
+    if (!panel || !context || !context.changeDir) return;
+    const changeName = context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0).pop();
+    if (!changeName) return;
+
+    void resolveHarnessConfig(context.cwd, changeName).then((harnessConfig) => {
+      if (!this.panelContext) return;
+      const stepAgents: AiPanelContext["stepAgents"] = {
+        propose: harnessConfig.stepAgents.propose,
+        review: harnessConfig.stepAgents.review,
+        apply: harnessConfig.stepAgents.apply,
+      };
+      this.panelContext = { ...this.panelContext, stepAgents };
+      void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });
+    }).catch(() => {
+      // Malformed harness config is reported elsewhere (Harness Settings
+      // UI); the picker simply falls back to no recommendation here.
     });
   }
 

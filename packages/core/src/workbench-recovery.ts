@@ -73,8 +73,9 @@ export class WorkbenchRecoveryService {
     operation: string,
     changeName: string | undefined,
     execute: StartProcessOptions["execute"],
+    agentId?: string,
   ): Promise<WorkbenchProcess> {
-    const process = await this.scheduler.start({ id, operation, changeName, mutating: true, execute }).completion;
+    const process = await this.scheduler.start({ id, operation, changeName, agentId, mutating: true, execute }).completion;
     await this.persist();
     return process;
   }

@@ -19,6 +19,14 @@ export type {
   TemplateVariable,
 } from "./template-catalog.js";
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
+export type {
+  HarnessAutonomyLevel,
+  HarnessConfig,
+  HarnessReviewGate,
+  HarnessReviewGateMode,
+  HarnessStage,
+  HarnessStepAgents,
+} from "./harness-config.js";
 // Pure date math, no git/fs access — safe for the browser bundle (see the
 // file header comment for why this differs from change-timeline.js's
 // runtime exports, which stay Node-only).

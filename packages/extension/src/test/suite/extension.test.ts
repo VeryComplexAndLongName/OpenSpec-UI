@@ -162,6 +162,50 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
+  test("Harness Settings: global command creates openspec/agent-harness.json with the documented default and opens it", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const uri = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "agent-harness.json");
+
+    await vscode.commands.executeCommand("openspec-ui.configureHarness");
+
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    assert.deepEqual(written, { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+    assert.ok(
+      vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
+      "expected openspec/agent-harness.json to be open in an editor",
+    );
+
+    assert.ok(api.changesTree, "expected changesTree to be registered for a workspace with openspec/");
+    const roots = await api.changesTree.getChildren();
+    const harnessSettingsRoot = roots.find((item) => item.contextValue === "openspec-ui.harnessSettingsRoot");
+    assert.ok(harnessSettingsRoot, `expected a Harness Settings root item, got: ${roots.map((r) => r.label).join(", ")}`);
+    assert.equal(harnessSettingsRoot.command?.command, "openspec-ui.configureHarness");
+  });
+
+  test("Harness Settings: per-change command creates openspec/changes/<name>/harness.json and opens it", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const changeDir = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo");
+    const uri = vscode.Uri.joinPath(changeDir, "harness.json");
+
+    assert.ok(api.changesTree, "expected changesTree to be registered for a workspace with openspec/");
+    const roots = await api.changesTree.getChildren();
+    const change = roots.find((item) => item.label === "demo");
+    assert.ok(change, `expected a "demo" change among root items, got: ${roots.map((r) => r.label).join(", ")}`);
+
+    await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", change);
+
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    assert.deepEqual(written, {});
+    assert.ok(
+      vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
+      "expected the per-change harness.json to be open in an editor",
+    );
+  });
+
   test("mode-toggle: enabling the localhost setting starts the same server/standalone bundle used by standalone-app", async () => {
     const config = vscode.workspace.getConfiguration("openspec-ui");
 

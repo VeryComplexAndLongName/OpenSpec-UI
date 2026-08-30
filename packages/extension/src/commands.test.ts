@@ -28,11 +28,14 @@ const renderTemplateMock = vi.fn();
 const writeAgentInstructionsMock = vi.fn();
 const writeDependabotConfigMock = vi.fn();
 const writeSubtypeInstructionsMock = vi.fn();
+const writeGlobalHarnessConfigMock = vi.fn();
+const writeChangeHarnessConfigMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
 class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
+  DEFAULT_HARNESS_CONFIG: { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
   DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
@@ -62,7 +65,9 @@ vi.mock("@openspec-ui/core", () => ({
   UnknownProjectTemplateError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
   writeAgentInstructions: (...args: unknown[]) => writeAgentInstructionsMock(...args),
+  writeChangeHarnessConfig: (...args: unknown[]) => writeChangeHarnessConfigMock(...args),
   writeDependabotConfig: (...args: unknown[]) => writeDependabotConfigMock(...args),
+  writeGlobalHarnessConfig: (...args: unknown[]) => writeGlobalHarnessConfigMock(...args),
   writeSubtypeInstructions: (...args: unknown[]) => writeSubtypeInstructionsMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
 }));
@@ -787,6 +792,74 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.generateAgentInstructions")?.();
 
       expect(writeAgentInstructionsMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.configureHarness", () => {
+    it("seeds the file with the documented default when it doesn't exist yet, then opens it", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
+
+      expect(writeGlobalHarnessConfigMock).toHaveBeenCalledWith(
+        "/workspace/repo",
+        { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
+      );
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+    });
+
+    it("opens the existing file without overwriting it", async () => {
+      vscodeMock.workspace.fs.stat.mockResolvedValueOnce({});
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
+
+      expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+    });
+
+    it("does nothing without a workspace root", async () => {
+      registerCommands(
+        makeContext() as unknown as import("vscode").ExtensionContext,
+        makeDeps({ getWorkspaceRoot: () => undefined }),
+      );
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
+
+      expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.configureHarnessForChange", () => {
+    const changeItem = { changeName: "demo-change", changeDir: "/workspace/repo/openspec/changes/demo-change", archived: false };
+
+    it("seeds an empty override (inherit everything) when none exists yet, then opens it", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {});
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+    });
+
+    it("opens an existing override without overwriting it", async () => {
+      vscodeMock.workspace.fs.stat.mockResolvedValueOnce({});
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+    });
+
+    it("does nothing without a tree item (invoked outside the context menu)", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.();
+
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
     });
   });
 

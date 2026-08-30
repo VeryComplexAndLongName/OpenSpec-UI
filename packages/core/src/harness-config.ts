@@ -1,0 +1,203 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { AGENT_REGISTRY } from "./agents/registry.js";
+
+// Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
+// autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
+// its own file pair, not new keys inside openspec/config.yaml: the
+// upstream openspec CLI's config schema is a fixed Zod object that
+// silently drops unrecognized keys (verified in @fission-ai/openspec's
+// own source), so anything added there would look configured but do
+// nothing.
+
+export type HarnessAutonomyLevel = "assisted" | "semi-autonomous" | "autonomous";
+export type HarnessReviewGateMode = "human-required" | "agent-sufficient";
+export type HarnessStage = "propose" | "review" | "apply" | "archive" | "git";
+
+export type HarnessStepAgents = Partial<Record<HarnessStage, string>>;
+
+export interface HarnessReviewGate {
+  mode: HarnessReviewGateMode;
+}
+
+export interface HarnessConfig {
+  stepAgents: HarnessStepAgents;
+  autonomyLevel: HarnessAutonomyLevel;
+  reviewGate: HarnessReviewGate;
+}
+
+/** The config to use when neither the global nor a per-change file
+ * exists — matches spec.md's "Neither file exists" scenario. */
+export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
+  stepAgents: {},
+  autonomyLevel: "assisted",
+  reviewGate: { mode: "human-required" },
+};
+
+const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous", "autonomous"];
+const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
+const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive", "git"];
+const KNOWN_AGENT_IDS = new Set(AGENT_REGISTRY.map((agent) => agent.id));
+
+export class InvalidHarnessConfigError extends Error {
+  constructor(reason: string) {
+    super(`Invalid harness config: ${reason}`);
+    this.name = "InvalidHarnessConfigError";
+  }
+}
+
+/** `reviewGate.mode: "agent-sufficient"` is only ever valid in a
+ * per-change file — see spec.md, "reviewGate.mode: 'agent-sufficient' is
+ * never a valid global setting". */
+export class GlobalAgentSufficientReviewGateError extends InvalidHarnessConfigError {
+  constructor() {
+    super('reviewGate.mode "agent-sufficient" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    this.name = "GlobalAgentSufficientReviewGateError";
+  }
+}
+
+function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgents {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("stepAgents must be an object");
+  }
+  for (const [stage, agentId] of Object.entries(value)) {
+    if (!STAGES.includes(stage as HarnessStage)) {
+      throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STAGES.join(", ")})`);
+    }
+    if (typeof agentId !== "string" || agentId.length === 0) {
+      throw new InvalidHarnessConfigError(`stepAgents.${stage} must be a non-empty string`);
+    }
+    if (!KNOWN_AGENT_IDS.has(agentId)) {
+      throw new InvalidHarnessConfigError(`stepAgents.${stage} references unknown agent id "${agentId}"`);
+    }
+  }
+}
+
+function assertValidAutonomyLevel(value: unknown): asserts value is HarnessAutonomyLevel | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "string" || !AUTONOMY_LEVELS.includes(value as HarnessAutonomyLevel)) {
+    throw new InvalidHarnessConfigError(`autonomyLevel must be one of: ${AUTONOMY_LEVELS.join(", ")}`);
+  }
+}
+
+function assertValidReviewGate(value: unknown, allowGlobal: boolean): asserts value is HarnessReviewGate | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("reviewGate must be an object");
+  }
+  const mode = (value as { mode?: unknown }).mode;
+  if (typeof mode !== "string" || !REVIEW_GATE_MODES.includes(mode as HarnessReviewGateMode)) {
+    throw new InvalidHarnessConfigError(`reviewGate.mode must be one of: ${REVIEW_GATE_MODES.join(", ")}`);
+  }
+  if (!allowGlobal && mode === "agent-sufficient") {
+    throw new GlobalAgentSufficientReviewGateError();
+  }
+}
+
+/** Validates a raw parsed JSON value as a partial `HarnessConfig`.
+ * `allowGlobalAgentSufficient` is `false` for the global file, `true`
+ * for a per-change file — see spec.md. */
+function assertValidHarnessConfigInput(
+  value: unknown,
+  allowGlobalAgentSufficient: boolean,
+): asserts value is Partial<HarnessConfig> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("root value must be an object");
+  }
+  const input = value as Partial<HarnessConfig>;
+  assertValidStepAgents(input.stepAgents);
+  assertValidAutonomyLevel(input.autonomyLevel);
+  assertValidReviewGate(input.reviewGate, allowGlobalAgentSufficient);
+}
+
+function globalHarnessConfigPath(workspaceRoot: string): string {
+  return path.join(workspaceRoot, "openspec", "agent-harness.json");
+}
+
+function changeHarnessConfigPath(workspaceRoot: string, changeName: string): string {
+  return path.join(workspaceRoot, "openspec", "changes", changeName, "harness.json");
+}
+
+async function readJsonFile(filePath: string): Promise<unknown | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch {
+    return undefined;
+  }
+  return JSON.parse(raw);
+}
+
+/** Reads `openspec/agent-harness.json`. Returns `DEFAULT_HARNESS_CONFIG`
+ * when the file doesn't exist. Throws `InvalidHarnessConfigError` (never
+ * silently ignored) if the file is malformed or sets `reviewGate.mode:
+ * "agent-sufficient"` at the global level. */
+export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<HarnessConfig> {
+  const raw = await readJsonFile(globalHarnessConfigPath(workspaceRoot));
+  if (raw === undefined) return { ...DEFAULT_HARNESS_CONFIG, stepAgents: {} };
+
+  assertValidHarnessConfigInput(raw, false);
+  return {
+    stepAgents: raw.stepAgents ?? {},
+    autonomyLevel: raw.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
+    reviewGate: raw.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
+  };
+}
+
+/** Reads `openspec/changes/<changeName>/harness.json`. Returns
+ * `undefined` when the file doesn't exist (distinct from an empty
+ * override — callers merge only when this is defined). */
+export async function readChangeHarnessConfig(
+  workspaceRoot: string,
+  changeName: string,
+): Promise<Partial<HarnessConfig> | undefined> {
+  const raw = await readJsonFile(changeHarnessConfigPath(workspaceRoot, changeName));
+  if (raw === undefined) return undefined;
+
+  assertValidHarnessConfigInput(raw, true);
+  return raw;
+}
+
+/** Deep-merges a per-change override over the global config, key by key
+ * (a change overriding only `reviewGate.mode` still inherits every
+ * `stepAgents` entry from the global file) — see design.md, "Merge
+ * semantics". */
+export function mergeHarnessConfig(global: HarnessConfig, override: Partial<HarnessConfig> | undefined): HarnessConfig {
+  if (override === undefined) return global;
+  return {
+    stepAgents: { ...global.stepAgents, ...override.stepAgents },
+    autonomyLevel: override.autonomyLevel ?? global.autonomyLevel,
+    reviewGate: override.reviewGate ?? global.reviewGate,
+  };
+}
+
+/** Resolves the effective harness config for a workspace, optionally
+ * scoped to a specific change. */
+export async function resolveHarnessConfig(workspaceRoot: string, changeName?: string): Promise<HarnessConfig> {
+  const global = await readGlobalHarnessConfig(workspaceRoot);
+  if (changeName === undefined) return global;
+  const override = await readChangeHarnessConfig(workspaceRoot, changeName);
+  return mergeHarnessConfig(global, override);
+}
+
+async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+/** Validates before writing — never writes a structurally invalid file
+ * (see tasks.md 1.5). */
+export async function writeGlobalHarnessConfig(workspaceRoot: string, config: Partial<HarnessConfig>): Promise<void> {
+  assertValidHarnessConfigInput(config, false);
+  await writeJsonFile(globalHarnessConfigPath(workspaceRoot), config);
+}
+
+export async function writeChangeHarnessConfig(
+  workspaceRoot: string,
+  changeName: string,
+  config: Partial<HarnessConfig>,
+): Promise<void> {
+  assertValidHarnessConfigInput(config, true);
+  await writeJsonFile(changeHarnessConfigPath(workspaceRoot, changeName), config);
+}

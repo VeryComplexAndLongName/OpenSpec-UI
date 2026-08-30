@@ -35,17 +35,19 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(5);
     expect(items[0]?.contextValue).toBe("openspec-ui.config");
     expect(items[1]?.contextValue).toBe("openspec-ui.repoBootstrapRoot");
-    expect(items[2]?.label).toBe("execution-core");
-    expect(items[2]?.description).toBe("implemented");
-    expect(items[3]?.description).toBe("in-progress");
+    expect(items[2]?.contextValue).toBe("openspec-ui.harnessSettingsRoot");
+    expect(items[3]?.label).toBe("execution-core");
+    expect(items[3]?.description).toBe("implemented");
+    expect(items[4]?.description).toBe("in-progress");
     // Explicit stable ids, not the VS Code label-derived fallback — see
     // openspec/changes/tree-item-stable-ids/proposal.md.
     expect(items.map((item) => item.id)).toEqual([
       "artifact:/workspace/repo/openspec/config.yaml",
       "repo-bootstrap-root",
+      "harness-settings-root",
       "change:active:execution-core",
       "change:active:shared-ui",
     ]);
@@ -97,7 +99,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const change = roots[2];
+    const change = roots[3];
     const artifacts = await provider.getChildren(change);
 
     // Individual tasks are NOT flattened in here alongside Proposal/Design/
@@ -139,7 +141,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const artifacts = await provider.getChildren(roots[2]);
+    const artifacts = await provider.getChildren(roots[3]);
 
     expect(artifacts[0]?.collapsibleState).toBe(0); // None
     expect(artifacts[0]?.description).toBe("missing");
@@ -165,7 +167,7 @@ describe("ChangesTreeProvider", () => {
 
     const provider = new ChangesTreeProvider("/workspace/repo");
     const roots = await provider.getChildren();
-    const changeChildren = await provider.getChildren(roots[2]);
+    const changeChildren = await provider.getChildren(roots[3]);
     const tasksArtifact = changeChildren[0];
     expect(tasksArtifact?.contextValue).toBe("openspec-ui.tasksArtifact");
 
@@ -185,7 +187,7 @@ describe("ChangesTreeProvider", () => {
       "task:active:shared-ui:3",
     ]);
     expect(children[0]?.id).not.toBe(tasksArtifact?.id);
-    expect(children[0]?.id).not.toBe(roots[2]?.id);
+    expect(children[0]?.id).not.toBe(roots[3]?.id);
   });
 
   it("offers initialization when the workspace has no OpenSpec artifacts", async () => {
@@ -199,9 +201,25 @@ describe("ChangesTreeProvider", () => {
     const provider = new ChangesTreeProvider("/workspace/repo");
     const items = await provider.getChildren();
 
-    expect(items[2]?.label).toBe("Initialize OpenSpec");
-    expect(items[2]?.command?.command).toBe("openspec-ui.initialize");
-    expect(items[2]?.id).toBe("empty:Initialize OpenSpec");
+    expect(items[3]?.label).toBe("Initialize OpenSpec");
+    expect(items[3]?.command?.command).toBe("openspec-ui.initialize");
+    expect(items[3]?.id).toBe("empty:Initialize OpenSpec");
+  });
+
+  it("Harness Settings root is a direct-command leaf, not a group", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [],
+    });
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const harnessSettingsRoot = roots[2];
+
+    expect(harnessSettingsRoot?.command?.command).toBe("openspec-ui.configureHarness");
+    expect(harnessSettingsRoot?.collapsibleState).toBe(0); // None — not expandable
+    expect(await provider.getChildren(harnessSettingsRoot)).toEqual([]);
   });
 
   it("refresh() fires onDidChangeTreeData", () => {

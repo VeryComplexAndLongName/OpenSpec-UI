@@ -46,6 +46,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [cwd, setCwd] = useState(initialContext.cwd);
   const [changeDir, setChangeDir] = useState(initialContext.changeDir);
   const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
+  const [stepAgents, setStepAgents] = useState(initialContext.stepAgents);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
   useEffect(() => {
@@ -63,6 +64,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setChangeDir(event.data.context.changeDir);
       if (event.data.context.detectedAgents) {
         setDetectedAgents(event.data.context.detectedAgents);
+      }
+      if (event.data.context.stepAgents) {
+        setStepAgents(event.data.context.stepAgents);
       }
     };
     window.addEventListener("message", handleMessage);
@@ -104,7 +108,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         </div>
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-        <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} />
+        <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} />
       ) : (
         <p>Enter cwd and change directory to enable the AI panel.</p>
       )}

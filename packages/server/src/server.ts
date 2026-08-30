@@ -16,6 +16,9 @@ import {
   handleChangeEditorSaveRequest,
   handleChangeTimelineRequest,
   handleChangeTimelinesRequest,
+  handleHarnessConfigReadChangeOverrideRequest,
+  handleHarnessConfigResolveRequest,
+  handleHarnessConfigWriteRequest,
   handleOpenSpecInitRequest,
   handleOverviewRequest,
   handleSprintReportRequest,
@@ -196,6 +199,18 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/agents/detect") {
       void handleAgentsDetectRequest(req, res, requestPolicy, options.localLlmBaseUrl);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/harness-config/resolve") {
+      void handleHarnessConfigResolveRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/harness-config/read-change-override") {
+      void handleHarnessConfigReadChangeOverrideRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/harness-config/write") {
+      void handleHarnessConfigWriteRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/openspec/init") {

@@ -95,8 +95,12 @@ async function streamRun(
   const changeName = path.basename(command.context.changeDir);
   let process;
   try {
-    process = await recovery.runMutating(command.runId, command.kind, changeName, (context) =>
-      streamAgentEvents(socket, runner, command, context.report),
+    process = await recovery.runMutating(
+      command.runId,
+      command.kind,
+      changeName,
+      (context) => streamAgentEvents(socket, runner, command, context.report),
+      command.agentId,
     );
   } catch (error) {
     if (socket.readyState === socket.OPEN) {

@@ -723,7 +723,19 @@ export interface AiPanelProps {
    * natively from the extension side instead, see
    * packages/extension/src/run-notifications.ts). */
   onRunTerminal?: (commandKind: CommandKind, event: Event) => void;
+  /** Agentic Harness `stepAgents` recommendation for the current
+   * change, resolved by the host (see openspec/changes/agentic-harness/).
+   * Pre-selects the picker for `plan`/`review`/`implement` (mapped to
+   * `propose`/`review`/`apply`) — the user can still pick a different
+   * agent before running; this never enforces the recommendation. */
+  stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
 }
+
+const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply">> = {
+  plan: "propose",
+  review: "review",
+  implement: "apply",
+};
 
 export function AiPanel({
   transport,
@@ -734,6 +746,7 @@ export function AiPanel({
   detectedAgents,
   onRefreshAgents,
   onRunTerminal,
+  stepAgents,
 }: AiPanelProps) {
   const [commandKind, setCommandKind] = useState<CommandKind>("list");
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
@@ -745,6 +758,19 @@ export function AiPanel({
   const runIdRef = useRef<string | null>(null);
   const activeCommandKindRef = useRef<CommandKind>("list");
   const changesRoot = useMemo(() => resolveChangesRoot(changeDir), [changeDir]);
+
+  // Agent Selection pre-fill (assisted-level Agentic Harness — see
+  // openspec/changes/agentic-harness/design.md, "Agent Selection
+  // pre-fill is advisory, never enforced"). Tracks, per command kind,
+  // whether the user has manually picked an agent for it — a manual
+  // pick is never overwritten by a later pre-fill for the same kind.
+  const manuallySelectedCommandKinds = useRef<Set<CommandKind>>(new Set());
+  useEffect(() => {
+    if (manuallySelectedCommandKinds.current.has(commandKind)) return;
+    const stage = COMMAND_KIND_TO_HARNESS_STAGE[commandKind];
+    const recommended = stage ? stepAgents?.[stage] : undefined;
+    if (recommended !== undefined) setAgentId(recommended);
+  }, [commandKind, stepAgents]);
 
   useEffect(() => {
     return transport.subscribe((event) => {
@@ -862,7 +888,10 @@ export function AiPanel({
           aria-label="Select agent"
           data-testid="agent-picker"
           value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
+          onChange={(e) => {
+            manuallySelectedCommandKinds.current.add(commandKind);
+            setAgentId(e.target.value);
+          }}
           disabled={!AGENT_COMMANDS.includes(commandKind)}
         >
           {AGENT_REGISTRY.map((agent) => (

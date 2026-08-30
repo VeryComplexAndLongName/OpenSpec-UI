@@ -20,6 +20,7 @@ export const ALL_TABS: readonly TabDefinition[] = [
   { id: "change-editor", label: "Change Editor" },
   { id: "templates", label: "Templates" },
   { id: "timeline", label: "Timeline" },
+  { id: "harness-settings", label: "Harness Settings" },
 ];
 
 export const ALLOWED_TABS_VSCODE_EMBED: readonly string[] = ["run-a-command"];

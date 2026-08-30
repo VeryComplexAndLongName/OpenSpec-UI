@@ -107,7 +107,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     implementationSessions.dropSessions(scheduler.removeBefore(cutoff));
   }
-  const processesTree = new ProcessesTreeProvider(scheduler);
+  const processesTree = new ProcessesTreeProvider(scheduler, workspaceRoot ?? "");
   context.subscriptions.push(
     processesTree,
     vscode.window.registerTreeDataProvider("openspecUiProcesses", processesTree),
@@ -168,6 +168,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runController,
     resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
     getLocalServerUrl: () => optionalServer?.launchUrl,
+    scheduler,
   });
 
   registerCommands(context, {
