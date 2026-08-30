@@ -33,4 +33,22 @@ describe("ChangesList", () => {
     render(<ChangesList changes={[]} />);
     expect(screen.getByTestId("changes-list").children).toHaveLength(0);
   });
+
+  it("filters by name", () => {
+    render(<ChangesList changes={changes} />);
+    fireEvent.change(screen.getByLabelText("Search changes"), { target: { value: "shared" } });
+
+    const items = screen.getByTestId("changes-list").querySelectorAll("li");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent("shared-ui");
+  });
+
+  it("filters by status label", () => {
+    render(<ChangesList changes={changes} />);
+    fireEvent.change(screen.getByLabelText("Search changes"), { target: { value: "draft" } });
+
+    const items = screen.getByTestId("changes-list").querySelectorAll("li");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent("vscode-extension");
+  });
 });

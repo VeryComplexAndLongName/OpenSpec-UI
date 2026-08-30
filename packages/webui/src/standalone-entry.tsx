@@ -11,6 +11,8 @@ import { AiPanel } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
+import { ChangesList } from "./components/ChangesList.js";
+import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -36,10 +38,18 @@ import {
 import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
+import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
   name: string;
   status: string;
+  completedTasks: number;
+  totalTasks: number;
+  lastModified: string;
+}
+
+interface OverviewArchivedChangeSummary {
+  name: string;
   completedTasks: number;
   totalTasks: number;
   lastModified: string;
@@ -60,6 +70,7 @@ interface OpenSpecOverview {
   changes: OverviewChange[];
   specs: OverviewSpec[];
   archivedChanges: string[];
+  archivedChangeSummaries: OverviewArchivedChangeSummary[];
   initialization: {
     hasOpenSpecDir: boolean;
     hasInitializationArtifacts: boolean;
@@ -886,30 +897,18 @@ function StandaloneApp() {
             {overview.changes.length > 0 ? (
               <div className="openspec-overview-block">
                 <h3>Changes</h3>
-                <table className="openspec-overview-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Status</th>
-                      <th>Tasks</th>
-                      <th>Last modified</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...overview.changes]
-                      .sort((a, b) => Date.parse(b.lastModified) - Date.parse(a.lastModified))
-                      .map((change) => (
-                        <tr key={change.name}>
-                          <td>{change.name}</td>
-                          <td>{change.status}</td>
-                          <td>
-                            {change.completedTasks}/{change.totalTasks}
-                          </td>
-                          <td>{change.lastModified}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <ChangesList
+                  changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                />
+              </div>
+            ) : null}
+
+            {overview.archivedChangeSummaries.length > 0 ? (
+              <div className="openspec-overview-block">
+                <h3>Archive</h3>
+                <ArchiveList
+                  changes={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
+                />
               </div>
             ) : null}
 

@@ -20,6 +20,7 @@ import {
   detectAvailableAgents,
   discoverOpenSpecWorkspace,
   findBuiltInTemplate,
+  getArchivedChangeSummary,
   getChangeTimeline,
   getChangeTimelines,
   initOpenSpec,
@@ -97,6 +98,13 @@ interface OverviewRequest {
   cwd: string;
 }
 
+interface OverviewArchivedChangeSummary {
+  name: string;
+  completedTasks: number;
+  totalTasks: number;
+  lastModified: string;
+}
+
 interface OverviewResponse {
   root: OpenSpecRoot;
   changes: OpenSpecChangeListItem[];
@@ -106,6 +114,12 @@ interface OverviewResponse {
    * via `discoverOpenSpecWorkspace`, independent of `listChanges` (the
    * `openspec list` CLI wrapper), which never returns archived changes. */
   archivedChanges: string[];
+  /** Per-archived-change progress, additive to `archivedChanges` (see
+   * openspec/changes/changes-overview-search/design.md, "New
+   * archivedChangeSummaries field, archivedChanges: string[] unchanged")
+   * — `archivedChanges` itself is left as plain names since four other
+   * pickers in the standalone UI already depend on that shape. */
+  archivedChangeSummaries: OverviewArchivedChangeSummary[];
   initialization: OpenSpecInitialization;
 }
 
@@ -772,6 +786,7 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
         changes: [],
         specs: [],
         archivedChanges: [],
+        archivedChangeSummaries: [],
         initialization,
       };
       sendJson(res, 200, payload);
@@ -784,11 +799,19 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
       discoverOpenSpecWorkspace(cwd),
     ]);
 
+    const archivedChangeSummaries = await Promise.all(
+      workspace.archivedChanges.map(async (change) => ({
+        name: change.name,
+        ...(await getArchivedChangeSummary(cwd, change.name)),
+      })),
+    );
+
     const payload: OverviewResponse = {
       root: changesResult.root,
       changes: changesResult.changes,
       specs: specsResult.specs,
       archivedChanges: workspace.archivedChanges.map((change) => change.name),
+      archivedChangeSummaries,
       initialization,
     };
     sendJson(res, 200, payload);

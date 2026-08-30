@@ -38,4 +38,12 @@ describe("ArchiveList", () => {
     fireEvent.change(screen.getByLabelText("Search archive"), { target: { value: "does-not-exist" } });
     expect(screen.getByTestId("archive-list").querySelectorAll("li")).toHaveLength(0);
   });
+
+  it("filters by status label", () => {
+    render(<ArchiveList changes={changes} />);
+    fireEvent.change(screen.getByLabelText("Search archive"), { target: { value: "archived" } });
+
+    const items = screen.getByTestId("archive-list").querySelectorAll("li");
+    expect(items).toHaveLength(2);
+  });
 });

@@ -1,8 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { TaskListChangedError, deleteTaskLine, readTaskChecklist } from "./task-checklist.js";
+import {
+  TaskListChangedError,
+  deleteTaskLine,
+  getArchivedChangeSummary,
+  readTaskChecklist,
+} from "./task-checklist.js";
 
 const temporaryRoots: string[] = [];
 
@@ -103,5 +108,42 @@ describe("deleteTaskLine", () => {
     const root = await temporaryRoot();
 
     await expect(deleteTaskLine(root, "does-not-exist", false, 0, "text")).rejects.toThrow(TaskListChangedError);
+  });
+});
+
+describe("getArchivedChangeSummary", () => {
+  it("counts completed/total tasks and reports tasks.md's mtime", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "archive", "old-change");
+    await mkdir(changeDir, { recursive: true });
+    const tasksPath = path.join(changeDir, "tasks.md");
+    await writeFile(tasksPath, "- [x] Done\n- [ ] Not done\n- [x] Also done\n");
+
+    const summary = await getArchivedChangeSummary(root, "old-change");
+    const expectedMtime = (await stat(tasksPath)).mtime.toISOString();
+
+    expect(summary).toEqual({ completedTasks: 2, totalTasks: 3, lastModified: expectedMtime });
+  });
+
+  it("returns zero counts and the change directory's mtime when tasks.md is missing", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "archive", "old-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "proposal.md"), "# Proposal\n");
+
+    const summary = await getArchivedChangeSummary(root, "old-change");
+    const expectedMtime = (await stat(changeDir)).mtime.toISOString();
+
+    expect(summary).toEqual({ completedTasks: 0, totalTasks: 0, lastModified: expectedMtime });
+  });
+
+  it("returns zero counts and the epoch for an unknown change name", async () => {
+    const root = await temporaryRoot();
+
+    expect(await getArchivedChangeSummary(root, "does-not-exist")).toEqual({
+      completedTasks: 0,
+      totalTasks: 0,
+      lastModified: new Date(0).toISOString(),
+    });
   });
 });

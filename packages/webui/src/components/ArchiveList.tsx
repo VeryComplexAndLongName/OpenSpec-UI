@@ -1,10 +1,12 @@
 // 2.3 Archive: search, filters, history. Accepts a list already filtered
 // by `state === "archived"` (the host decides what counts as the archive)
-// — the component only adds client-side text search and sorting by date
+// — the component filters by name or status label (via the shared
+// `filterChanges`, also used by `ChangesList`) and sorts by date
 // (history).
 
 import { useMemo, useState } from "react";
 import type { ChangeSummary } from "../types.js";
+import { filterChanges } from "./change-filter.js";
 
 export interface ArchiveListProps {
   changes: ChangeSummary[];
@@ -15,9 +17,7 @@ export function ArchiveList({ changes, onSelect }: ArchiveListProps) {
   const [query, setQuery] = useState("");
 
   const visible = useMemo(() => {
-    const filtered = query.trim().length === 0
-      ? changes
-      : changes.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase()));
+    const filtered = filterChanges(changes, query);
     return [...filtered].sort((a, b) => (b.lastModified ?? "").localeCompare(a.lastModified ?? ""));
   }, [changes, query]);
 
