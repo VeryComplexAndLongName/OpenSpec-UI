@@ -1,6 +1,6 @@
 # ADR 0011: Agentic Harness config and autonomy levels
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-08-30
 
