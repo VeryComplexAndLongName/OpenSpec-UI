@@ -36,4 +36,26 @@ describe("ProcessesView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clean old history" }));
     await waitFor(() => expect(api.cleanup).toHaveBeenCalledOnce());
   });
+
+  it("shows the process's agentId and a percent-complete derived from changeProgress, not the process itself", async () => {
+    const api: ProcessesApi = {
+      ...createApi(),
+      list: vi.fn().mockResolvedValue([
+        { id: "run-1", operation: "implement", changeName: "demo", agentId: "claude-cli", state: "running", createdAt: "2026-08-13T00:00:00.000Z" },
+      ]),
+    };
+    render(<ProcessesView api={api} changeProgress={{ demo: { completedTasks: 3, totalTasks: 4 } }} />);
+
+    expect(await screen.findByText("claude-cli")).toBeInTheDocument();
+    expect(screen.getByText("75%")).toBeInTheDocument();
+  });
+
+  it("renders a dash for agent and progress when neither is known", async () => {
+    const api = createApi();
+    render(<ProcessesView api={api} />);
+
+    await screen.findByText("interrupted");
+    const dashes = screen.getAllByText("-");
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
+  });
 });

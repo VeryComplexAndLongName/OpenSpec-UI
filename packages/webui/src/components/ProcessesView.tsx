@@ -4,10 +4,28 @@ export interface ProcessSummary {
   id: string;
   operation: string;
   changeName?: string;
+  /** Which Agentic Harness agent ran this process, when known — see
+   * openspec/changes/agentic-harness/. Absent for processes not tied to
+   * a specific agent. */
+  agentId?: string;
   state: string;
   createdAt: string;
   summary?: string;
   error?: string;
+}
+
+/** Percent-complete is derived from the associated change's real
+ * `tasks.md` checkbox state (`completedTasks`/`totalTasks`), never from
+ * a process's own free-text progress message — see design.md, "Percent-
+ * complete source". */
+export interface ChangeProgress {
+  completedTasks: number;
+  totalTasks: number;
+}
+
+function formatPercent(progress: ChangeProgress | undefined): string {
+  if (!progress || progress.totalTasks === 0) return "-";
+  return `${Math.round((progress.completedTasks / progress.totalTasks) * 100)}%`;
 }
 
 export interface ProcessDetails {
@@ -24,7 +42,7 @@ export interface ProcessesApi {
   cleanup(cutoff: string): Promise<{ removed: number; retained: number }>;
 }
 
-export function ProcessesView({ api }: { api: ProcessesApi }) {
+export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; changeProgress?: Record<string, ChangeProgress> }) {
   const [processes, setProcesses] = useState<ProcessSummary[]>([]);
   const [details, setDetails] = useState<ProcessDetails | null>(null);
   const [retentionDays, setRetentionDays] = useState(30);
@@ -101,10 +119,13 @@ export function ProcessesView({ api }: { api: ProcessesApi }) {
       {message ? <p className="openspec-shell-note" role="status">{message}</p> : null}
       {processes.length === 0 ? <p className="openspec-shell-note">No persisted processes.</p> : (
         <table className="openspec-overview-table">
-          <thead><tr><th>Operation</th><th>Change</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
+          <thead><tr><th>Operation</th><th>Change</th><th>Agent</th><th>Progress</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
           <tbody>{processes.map((process) => (
             <tr key={process.id}>
-              <td>{process.operation}</td><td>{process.changeName ?? "-"}</td><td>{process.state}</td><td>{process.createdAt}</td>
+              <td>{process.operation}</td><td>{process.changeName ?? "-"}</td>
+              <td>{process.agentId ?? "-"}</td>
+              <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
+              <td>{process.state}</td><td>{process.createdAt}</td>
               <td><button type="button" onClick={() => void inspect(process.id)}>Review</button></td>
             </tr>
           ))}</tbody>

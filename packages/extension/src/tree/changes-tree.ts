@@ -180,6 +180,21 @@ export function getRepoBootstrapActions(): RepoBootstrapActionTreeItem[] {
   ];
 }
 
+/** A single, direct action — unlike Repository Setup (three actions), the
+ * global harness config has exactly one: open (creating with the
+ * documented default if missing) `openspec/agent-harness.json`. See
+ * openspec/changes/agentic-harness/. */
+export class HarnessSettingsRootTreeItem extends vscode.TreeItem {
+  constructor() {
+    super("Harness Settings", vscode.TreeItemCollapsibleState.None);
+    this.id = "harness-settings-root";
+    this.description = "openspec/agent-harness.json";
+    this.contextValue = "openspec-ui.harnessSettingsRoot";
+    this.iconPath = new vscode.ThemeIcon("robot");
+    this.command = { command: "openspec-ui.configureHarness", title: "Harness Settings" };
+  }
+}
+
 export type WorkbenchTreeItem =
   | ChangeTreeItem
   | ArtifactTreeItem
@@ -187,7 +202,8 @@ export type WorkbenchTreeItem =
   | EmptyTreeItem
   | TaskTreeItem
   | RepoBootstrapRootTreeItem
-  | RepoBootstrapActionTreeItem;
+  | RepoBootstrapActionTreeItem
+  | HarnessSettingsRootTreeItem;
 
 /** Shared by `ChangesTreeProvider` and `ArchiveTreeProvider` — both trees
  * expand a `ChangeTreeItem` the same way: its artifacts, with the
@@ -267,6 +283,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       ),
     );
     items.push(new RepoBootstrapRootTreeItem());
+    items.push(new HarnessSettingsRootTreeItem());
     for (const change of workspace.changes) {
       items.push(new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false));
     }

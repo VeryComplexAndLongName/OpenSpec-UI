@@ -586,6 +586,151 @@ describe("server — REST /api/status", () => {
     expect(body.project[0]?.manifest.id).toBe("my-template");
   });
 
+  it("resolves the documented default harness config when no file exists", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/harness-config/resolve`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+  });
+
+  it("merges a per-change override over the global harness config", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { propose: "claude-cli", apply: "gemini-cli" } }),
+    );
+    await mkdir(path.join(cwd, "openspec", "changes", "demo"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "changes", "demo", "harness.json"),
+      JSON.stringify({ reviewGate: { mode: "agent-sufficient" } }),
+    );
+
+    const response = await fetch(`${baseUrl}/api/harness-config/resolve`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "demo" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.stepAgents).toEqual({ propose: "claude-cli", apply: "gemini-cli" });
+    expect(body.reviewGate).toEqual({ mode: "agent-sufficient" });
+  });
+
+  it("writes the global harness config, and it round-trips through resolve", async () => {
+    const cwd = await createTempWorkspace();
+
+    const writeResponse = await fetch(`${baseUrl}/api/harness-config/write`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, config: { stepAgents: { propose: "claude-cli" }, autonomyLevel: "assisted" } }),
+    });
+    expect(writeResponse.status).toBe(200);
+
+    const resolveResponse = await fetch(`${baseUrl}/api/harness-config/resolve`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await resolveResponse.json();
+    expect(body.stepAgents).toEqual({ propose: "claude-cli" });
+  });
+
+  it("rejects writing a global config with reviewGate.mode: agent-sufficient (422)", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/harness-config/write`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, config: { reviewGate: { mode: "agent-sufficient" } } }),
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  it("writes a per-change harness override without touching the global config", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec", "changes", "demo"), { recursive: true });
+
+    const writeResponse = await fetch(`${baseUrl}/api/harness-config/write`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "demo", config: { reviewGate: { mode: "agent-sufficient" } } }),
+    });
+    expect(writeResponse.status).toBe(200);
+
+    const globalResponse = await fetch(`${baseUrl}/api/harness-config/resolve`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    expect((await globalResponse.json()).reviewGate).toEqual({ mode: "human-required" });
+  });
+
+  it("reads the raw per-change override, distinct from the merged resolve result", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { propose: "claude-cli" } }),
+    );
+    await mkdir(path.join(cwd, "openspec", "changes", "demo"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "changes", "demo", "harness.json"),
+      JSON.stringify({ reviewGate: { mode: "agent-sufficient" } }),
+    );
+
+    const response = await fetch(`${baseUrl}/api/harness-config/read-change-override`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "demo" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    // Only what's explicitly in harness.json — not the inherited stepAgents.
+    expect(body.override).toEqual({ reviewGate: { mode: "agent-sufficient" } });
+  });
+
+  it("returns override: null when no per-change override file exists", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/harness-config/read-change-override`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "no-override-here" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.override).toBeNull();
+  });
+
+  it("reports a malformed global harness config as 422, not 500", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "agent-harness.json"),
+      JSON.stringify({ reviewGate: { mode: "agent-sufficient" } }),
+    );
+
+    const response = await fetch(`${baseUrl}/api/harness-config/resolve`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(response.status).toBe(422);
+  });
+
   it("reports agent detection results for an authorized cwd", async () => {
     const cwd = await createTempWorkspace();
     detectAvailableAgentsMock.mockResolvedValue({

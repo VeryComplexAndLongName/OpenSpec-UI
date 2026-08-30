@@ -18,6 +18,11 @@ export interface WorkbenchProcess {
   id: string;
   operation: string;
   changeName?: string;
+  /** Which Agentic Harness agent id ran this process, when started via a
+   * harness-aware Agent Selection pick — see openspec/changes/
+   * agentic-harness/. Absent for processes not tied to a specific agent
+   * (e.g. plain `status`/`list`/`validate`). */
+  agentId?: string;
   mutating: boolean;
   state: WorkbenchProcessState;
   createdAt: string;
@@ -37,6 +42,7 @@ export interface StartProcessOptions {
   id?: string;
   operation: string;
   changeName?: string;
+  agentId?: string;
   mutating: boolean;
   execute: (context: ProcessExecutionContext) => Promise<string | void>;
 }
@@ -129,6 +135,7 @@ export class WorkbenchProcessScheduler {
       id,
       operation: options.operation,
       changeName: options.changeName,
+      agentId: options.agentId,
       mutating: options.mutating,
       state: "queued",
       createdAt: new Date().toISOString(),

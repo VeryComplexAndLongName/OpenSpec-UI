@@ -49,6 +49,14 @@
         "title": "OpenSpec UI: Generate Path-Scoped Copilot Instructions"
       },
       {
+        "command": "openspec-ui.configureHarness",
+        "title": "OpenSpec UI: Configure Harness Settings"
+      },
+      {
+        "command": "openspec-ui.configureHarnessForChange",
+        "title": "OpenSpec UI: Configure Harness for this Change"
+      },
+      {
         "command": "openspec-ui.createChange",
         "title": "OpenSpec UI: Create Change",
         "icon": "$(add)"
@@ -292,6 +300,11 @@
           "group": "openspec@4"
         },
         {
+          "command": "openspec-ui.configureHarnessForChange",
+          "when": "viewItem == openspec-ui.activeChange",
+          "group": "openspec@5"
+        },
+        {
           "command": "openspec-ui.customizeTemplate",
           "when": "viewItem == openspec-ui.builtInTemplate",
           "group": "openspec@1"
@@ -358,6 +371,14 @@
       {
         "fileMatch": "openspec/templates/*/template.json",
         "url": "./schemas/template.schema.json"
+      },
+      {
+        "fileMatch": "openspec/agent-harness.json",
+        "url": "./schemas/agent-harness.schema.json"
+      },
+      {
+        "fileMatch": "openspec/changes/*/harness.json",
+        "url": "./schemas/change-harness.schema.json"
       }
     ]
   },

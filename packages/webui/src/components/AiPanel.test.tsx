@@ -352,3 +352,66 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.getByTestId("run-status-label")).toHaveTextContent("Failed: network down");
     });
 });
+
+describe("AiPanel Agentic Harness stepAgents pre-fill", () => {
+    it("pre-selects the recommended agent for the current command kind", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/x"
+                stepAgents={{ apply: "gemini-cli" }}
+            />,
+        );
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("gemini-cli");
+    });
+
+    it("never overwrites an agent the user picked manually for that command kind", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/x"
+                stepAgents={{ apply: "gemini-cli" }}
+            />,
+        );
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        fireEvent.change(screen.getByTestId("agent-picker"), { target: { value: "codex-cli" } });
+        // Switch away and back to "implement" — the manual pick must stick.
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "plan" } });
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("codex-cli");
+    });
+
+    it("falls back to the default agent when no recommendation exists for the command kind", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/x"
+                stepAgents={{ apply: "gemini-cli" }}
+            />,
+        );
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "review" } });
+
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("claude-cli");
+    });
+
+    it("behaves exactly as before when no stepAgents prop is supplied", () => {
+        const { transport } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("claude-cli");
+    });
+});

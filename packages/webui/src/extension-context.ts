@@ -9,6 +9,11 @@ export interface DashboardContext {
      * "Extension: detection runs after reveal(), posted as a follow-up
      * context message"). Absent on the initial context message. */
     detectedAgents?: Record<string, boolean>;
+    /** Agentic Harness `stepAgents` recommendation for the currently
+     * loaded change, resolved by the extension host via a direct core
+     * import — see openspec/changes/agentic-harness/. Absent when no
+     * harness config exists for the workspace/change. */
+    stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
 }
 
 export interface DashboardContextMessage {

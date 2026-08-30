@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { WorkbenchProcess, WorkbenchProcessScheduler } from "@openspec-ui/core";
+import { readTaskChecklist, type WorkbenchProcess, type WorkbenchProcessScheduler } from "@openspec-ui/core";
 
 function iconForState(state: WorkbenchProcess["state"]): string {
   switch (state) {
@@ -13,10 +13,22 @@ function iconForState(state: WorkbenchProcess["state"]): string {
   }
 }
 
+/** Percent-complete for the process's associated change, derived from
+ * the change's real `tasks.md` checkbox state — not the process's own
+ * free-text `progress` field. See openspec/changes/agentic-harness/
+ * design.md, "Percent-complete source". `undefined` when the process has
+ * no `changeName`, or that change has no tasks yet. */
+function formatPercent(completedTasks: number, totalTasks: number): string | undefined {
+  if (totalTasks === 0) return undefined;
+  return `${Math.round((completedTasks / totalTasks) * 100)}%`;
+}
+
 export class ProcessTreeItem extends vscode.TreeItem {
-  constructor(public readonly process: WorkbenchProcess) {
+  constructor(public readonly process: WorkbenchProcess, percent: string | undefined) {
     super(process.operation, vscode.TreeItemCollapsibleState.None);
-    this.description = [process.changeName, process.state, process.progress].filter(Boolean).join(" · ");
+    this.description = [process.changeName, process.agentId, percent, process.state, process.progress]
+      .filter(Boolean)
+      .join(" · ");
     this.tooltip = process.error ?? process.summary ?? process.progress;
     this.iconPath = new vscode.ThemeIcon(iconForState(process.state));
     const active = process.state === "queued" || process.state === "running";
@@ -39,7 +51,7 @@ export class ProcessesTreeProvider implements vscode.TreeDataProvider<ProcessTre
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
   private readonly unsubscribe: () => void;
 
-  constructor(private readonly scheduler: WorkbenchProcessScheduler) {
+  constructor(private readonly scheduler: WorkbenchProcessScheduler, private readonly workspaceRoot: string) {
     this.unsubscribe = scheduler.onDidChange(() => this.onDidChangeTreeDataEmitter.fire());
   }
 
@@ -47,8 +59,25 @@ export class ProcessesTreeProvider implements vscode.TreeDataProvider<ProcessTre
     return element;
   }
 
-  getChildren(): ProcessTreeItem[] {
-    return this.scheduler.list().reverse().map((process) => new ProcessTreeItem(process));
+  async getChildren(): Promise<ProcessTreeItem[]> {
+    const processes = this.scheduler.list().reverse();
+    const changeNames = [...new Set(processes.map((process) => process.changeName).filter((name): name is string => Boolean(name)))];
+    const percentByChange = new Map<string, string | undefined>();
+    await Promise.all(
+      changeNames.map(async (changeName) => {
+        // Active first (the common case for a running/recent process);
+        // archived changes can still have rollback-eligible processes.
+        const items = await readTaskChecklist(this.workspaceRoot, changeName, false)
+          .then((active) => (active.length > 0 ? active : readTaskChecklist(this.workspaceRoot, changeName, true)))
+          .catch(() => []);
+        const completedTasks = items.filter((item) => item.done).length;
+        percentByChange.set(changeName, formatPercent(completedTasks, items.length));
+      }),
+    );
+
+    return processes.map(
+      (process) => new ProcessTreeItem(process, process.changeName ? percentByChange.get(process.changeName) : undefined),
+    );
   }
 
   dispose(): void {

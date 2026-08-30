@@ -5,6 +5,7 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  DEFAULT_HARNESS_CONFIG,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
   TaskListChangedError,
@@ -32,7 +33,9 @@ import {
   unarchiveChange,
   validateChange,
   writeAgentInstructions,
+  writeChangeHarnessConfig,
   writeDependabotConfig,
+  writeGlobalHarnessConfig,
   writeSubtypeInstructions,
   type StartProcessOptions,
   type WorkbenchProcessScheduler,
@@ -385,6 +388,44 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         }
       } catch (error) {
         await showCommandError("generate agent instructions", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.configureHarness", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) return;
+      const uri = vscode.Uri.file(path.join(workspaceRoot, "openspec", "agent-harness.json"));
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        // Doesn't exist yet — seed it with the documented default so the
+        // file is immediately valid and schema-editable, not empty.
+        await writeGlobalHarnessConfig(workspaceRoot, DEFAULT_HARNESS_CONFIG);
+      }
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+      } catch (error) {
+        await showCommandError("open harness config", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.configureHarnessForChange", async (item?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item) return;
+      const uri = vscode.Uri.file(path.join(item.changeDir, "harness.json"));
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        // Doesn't exist yet — an empty override object (inherit
+        // everything from the global config) is a valid, schema-editable
+        // starting point, unlike the global file it has no required
+        // fields.
+        await writeChangeHarnessConfig(workspaceRoot, item.changeName, {});
+      }
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await vscode.window.showTextDocument(doc, { preview: false });
+      } catch (error) {
+        await showCommandError("open per-change harness config", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.configureDependabot", async () => {

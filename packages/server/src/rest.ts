@@ -23,6 +23,7 @@ import {
   getArchivedChangeSummary,
   getChangeTimeline,
   getChangeTimelines,
+  InvalidHarnessConfigError,
   initOpenSpec,
   listBuiltInTemplates,
   listChanges,
@@ -30,17 +31,22 @@ import {
   listSpecs,
   readArchivedChangeTasksTemplate,
   readChangeEditorDocument,
+  readChangeHarnessConfig,
   renderSprintReportPdf,
   renderTemplate,
+  resolveHarnessConfig,
   saveChangeEditorDocument,
   showChange,
   statusChange,
   validateChange,
+  writeChangeHarnessConfig,
+  writeGlobalHarnessConfig,
   type AgentRunner,
   type CatalogTemplate,
   type ChangeTimelineRequestEntry,
   type Command,
   type Event,
+  type HarnessConfig,
   type OpenSpecChangeListItem,
   type OpenSpecRoot,
   type OpenSpecSpecListItem,
@@ -918,4 +924,138 @@ export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerR
   }
 
   sendJson(res, 200, { events });
+}
+
+interface HarnessConfigResolveRequest {
+  cwd: string;
+  changeName?: string;
+}
+
+function isHarnessConfigResolveRequest(value: unknown): value is HarnessConfigResolveRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd)) return false;
+  return value.changeName === undefined || isNonEmptyString(value.changeName);
+}
+
+/** Resolves the Agentic Harness config (global + optional per-change
+ * override, merged) for the standalone Agent Selection picker's
+ * pre-fill — see openspec/changes/agentic-harness/. A malformed harness
+ * config is reported as 422 (distinct from 400 — the request itself is
+ * well-formed, the *repository's own file* is not), matching how a
+ * config error is a workspace-state problem, not a client-request
+ * problem. */
+export async function handleHarnessConfigResolveRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isHarnessConfigResolveRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd and an optional non-empty changeName" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const config = await resolveHarnessConfig(parsed.cwd, parsed.changeName);
+    sendJson(res, 200, config);
+  } catch (error) {
+    if (error instanceof InvalidHarnessConfigError) {
+      sendJson(res, 422, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to resolve harness config: ${message}` });
+  }
+}
+
+/** Reads the raw per-change `harness.json` override — distinct from
+ * `resolveHarnessConfig` (which merges it over the global config): the
+ * Harness Settings UI needs the raw override to show which fields are
+ * actually explicitly set for this change versus inherited from the
+ * global config, not the already-merged result. `null` (not 404) when
+ * no override file exists — that's the normal, common case, not an
+ * error. */
+export async function handleHarnessConfigReadChangeOverrideRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isObjectRecord(parsed) || !isNonEmptyString(parsed.cwd) || !isNonEmptyString(parsed.changeName)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd and a non-empty changeName" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const override = await readChangeHarnessConfig(parsed.cwd, parsed.changeName);
+    sendJson(res, 200, { override: override ?? null });
+  } catch (error) {
+    if (error instanceof InvalidHarnessConfigError) {
+      sendJson(res, 422, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read harness config override: ${message}` });
+  }
+}
+
+interface HarnessConfigWriteRequest {
+  cwd: string;
+  changeName?: string;
+  // Shape re-validated at runtime inside writeGlobalHarnessConfig/
+  // writeChangeHarnessConfig (InvalidHarnessConfigError -> 422 below) —
+  // this guard only confirms it's an object, not its field-level shape.
+  config: unknown;
+}
+
+function isHarnessConfigWriteRequest(value: unknown): value is HarnessConfigWriteRequest {
+  if (!isObjectRecord(value)) return false;
+  if (!isNonEmptyString(value.cwd)) return false;
+  if (value.changeName !== undefined && !isNonEmptyString(value.changeName)) return false;
+  return isObjectRecord(value.config);
+}
+
+/** Writes the global (`cwd` only) or per-change (`cwd` + `changeName`)
+ * Agentic Harness config, after the same validation `resolveHarnessConfig`
+ * enforces (e.g. `reviewGate.mode: "agent-sufficient"` rejected at the
+ * global level) — see openspec/changes/agentic-harness/. */
+export async function handleHarnessConfigWriteRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isHarnessConfigWriteRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd, an optional non-empty changeName, and a config object" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const config = parsed.config as Partial<HarnessConfig>;
+    if (parsed.changeName !== undefined) {
+      await writeChangeHarnessConfig(parsed.cwd, parsed.changeName, config);
+    } else {
+      await writeGlobalHarnessConfig(parsed.cwd, config);
+    }
+    sendJson(res, 200, { written: true });
+  } catch (error) {
+    if (error instanceof InvalidHarnessConfigError) {
+      sendJson(res, 422, { error: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to write harness config: ${message}` });
+  }
 }

@@ -36,6 +36,12 @@ import {
   renderTemplate as renderTemplateApi,
 } from "./template-catalog-client.js";
 import { detectAgents as detectAgentsApi } from "./agent-detection-client.js";
+import {
+  readChangeHarnessOverride as readChangeHarnessOverrideApi,
+  resolveHarnessConfig as resolveHarnessConfigApi,
+  writeHarnessConfig as writeHarnessConfigApi,
+} from "./harness-config-client.js";
+import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
@@ -248,6 +254,11 @@ function StandaloneApp() {
   const [templateActionMessage, setTemplateActionMessage] = useState<string | null>(null);
   const [workspaceRootSyncError, setWorkspaceRootSyncError] = useState<string | null>(null);
   const [detectedAgents, setDetectedAgents] = useState<Record<string, boolean> | undefined>(undefined);
+  // Global harness config only (no changeName) — the standalone shell has
+  // no per-change context at this level the way VS Code's panel does when
+  // opened from a specific change in the tree (see openspec/changes/
+  // agentic-harness/design.md). Still a real, useful repo-wide default.
+  const [stepAgents, setStepAgents] = useState<Partial<Record<"propose" | "review" | "apply", string>> | undefined>(undefined);
   const [versions, setVersions] = useState<WorkbenchVersions | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
@@ -268,6 +279,13 @@ function StandaloneApp() {
       cleanup: (cutoff) => request("/api/processes/cleanup", { cutoff }),
     };
   }, [cwd]);
+
+  const harnessSettingsApi = useMemo<HarnessSettingsApi>(() => ({
+    resolveGlobal: () => resolveHarnessConfigApi(apiFetch, cwd),
+    writeGlobal: (config) => writeHarnessConfigApi(apiFetch, cwd, config),
+    readChangeOverride: (changeName) => readChangeHarnessOverrideApi(apiFetch, cwd, changeName),
+    writeChangeOverride: (changeName, config) => writeHarnessConfigApi(apiFetch, cwd, config, changeName),
+  }), [cwd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -493,6 +511,17 @@ function StandaloneApp() {
     }
   }
 
+  const changeProgress = useMemo(
+    () =>
+      Object.fromEntries(
+        (overview?.changes ?? []).map((change) => [
+          change.name,
+          { completedTasks: change.completedTasks, totalTasks: change.totalTasks },
+        ]),
+      ),
+    [overview],
+  );
+
   const allTemplates: Array<CatalogTemplate & { key: string }> = templates
     ? [...templates.builtIn, ...templates.project]
       .map((t) => ({ ...t, key: `${t.origin}:${t.manifest.id}` }))
@@ -541,6 +570,23 @@ function StandaloneApp() {
     if (cwd.trim().length === 0 || changeDir.trim().length === 0) return;
     void handleRefreshAgents();
   }, [cwd, changeDir]);
+
+  useEffect(() => {
+    if (cwd.trim().length === 0) {
+      setStepAgents(undefined);
+      return;
+    }
+    resolveHarnessConfigApi(apiFetch, cwd)
+      .then((config) => {
+        setStepAgents({ propose: config.stepAgents.propose, review: config.stepAgents.review, apply: config.stepAgents.apply });
+      })
+      .catch(() => {
+        // No harness config, or a malformed one — the picker simply falls
+        // back to no recommendation (surfaced separately by Harness
+        // Settings, not this best-effort pre-fill).
+        setStepAgents(undefined);
+      });
+  }, [cwd]);
 
   async function handleLoadTemplates() {
     if (cwd.trim().length === 0) {
@@ -834,6 +880,7 @@ function StandaloneApp() {
             cwd={cwd}
             changeDir={changeDir}
             detectedAgents={detectedAgents}
+            stepAgents={stepAgents}
             onRefreshAgents={() => void handleRefreshAgents()}
             onRunTerminal={isStandaloneHost ? handleRunTerminal : undefined}
           />
@@ -848,7 +895,7 @@ function StandaloneApp() {
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
-        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} /> : <p>Enter workspace root to load processes.</p>}
+        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} /> : <p>Enter workspace root to load processes.</p>}
       </section>
       </TabPanel>
       )}
@@ -1380,6 +1427,19 @@ function StandaloneApp() {
             {sprintReportMessage ? <p className="openspec-shell-note">{sprintReportMessage}</p> : null}
           </Fragment>
         )}
+      </section>
+      </TabPanel>
+      )}
+
+      {visibleTabIds.has("harness-settings") && (
+      <TabPanel id="harness-settings" activeTab={activeTab} lazy>
+      <section className="openspec-shell-panel">
+        <h2>Harness Settings</h2>
+        <p className="openspec-shell-note">
+          Recommends a CLI agent per OpenSpec-change stage in the Agent Selection picker above — a global default,
+          optionally overridden per change. See openspec/changes/agentic-harness/.
+        </p>
+        {cwd.trim().length > 0 ? <HarnessSettingsView api={harnessSettingsApi} /> : <p>Enter workspace root to configure the harness.</p>}
       </section>
       </TabPanel>
       )}

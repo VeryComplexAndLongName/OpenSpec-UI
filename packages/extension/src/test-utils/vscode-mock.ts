@@ -155,6 +155,12 @@ export function createVscodeMock() {
       }),
       fs: {
         writeFile: vi.fn(async () => undefined),
+        // Defaults to "not found" (real VS Code's fs.stat rejects for a
+        // missing path) — tests simulate an existing file by overriding
+        // with .mockResolvedValueOnce(...) for that one call.
+        stat: vi.fn(async (): Promise<unknown> => {
+          throw new Error("ENOENT: no such file");
+        }),
       },
     },
     env: {
