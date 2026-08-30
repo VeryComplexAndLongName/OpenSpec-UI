@@ -768,7 +768,7 @@ function StandaloneApp() {
 
       <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
 
-      <TabPanel id="run-a-command" activeTab={activeTab}>
+      <TabPanel id="run-a-command" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Run a command</h2>
         <div className="openspec-shell-grid">
@@ -844,7 +844,7 @@ function StandaloneApp() {
       </TabPanel>
 
       {visibleTabIds.has("processes") && (
-      <TabPanel id="processes" activeTab={activeTab}>
+      <TabPanel id="processes" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
@@ -854,7 +854,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("diff-preview") && (
-      <TabPanel id="diff-preview" activeTab={activeTab}>
+      <TabPanel id="diff-preview" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
         <p>
@@ -872,7 +872,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("overview") && (
-      <TabPanel id="overview" activeTab={activeTab}>
+      <TabPanel id="overview" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>OpenSpec view summary</h2>
         <p className="openspec-shell-note">
@@ -940,7 +940,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("change-editor") && (
-      <TabPanel id="change-editor" activeTab={activeTab}>
+      <TabPanel id="change-editor" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Change Editor</h2>
         <p className="openspec-shell-note">
@@ -1076,7 +1076,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("templates") && (
-      <TabPanel id="templates" activeTab={activeTab}>
+      <TabPanel id="templates" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Templates</h2>
         <p className="openspec-shell-note">
@@ -1199,7 +1199,7 @@ function StandaloneApp() {
       )}
 
       {visibleTabIds.has("timeline") && (
-      <TabPanel id="timeline" activeTab={activeTab}>
+      <TabPanel id="timeline" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
         <h2>Timeline</h2>
         <p className="openspec-shell-note">
