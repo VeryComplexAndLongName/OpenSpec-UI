@@ -11,7 +11,10 @@ Pointers, not duplicates: edit the source document, not this page.
    external review.
 2. [`openspec/README.md`](openspec/README.md) — the runbook: the order of
    implementing changes and when to create a new OpenSpec entry versus a
-   plain commit.
+   plain commit. See its "Which command/skill to use when" table for the
+   exact skill to invoke (`openspec-apply-change`, `openspec-propose`,
+   `openspec-archive-change`, `openspec-update-change`,
+   `openspec-sync-specs`) for a given situation.
 3. [`openspec/changes/`](openspec/changes/) — the four prepared proposals
    (`execution-core`, `shared-ui`, `standalone-app`, `vscode-extension`),
    each with `proposal.md`/`design.md`/`tasks.md`/`specs/`. Start
