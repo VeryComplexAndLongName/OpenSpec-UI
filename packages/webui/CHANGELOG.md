@@ -1,5 +1,47 @@
 # @openspec-ui/webui
 
+## 1.16.0
+
+### Minor Changes
+
+- 3a93782: Add the Agentic Harness (assisted level): a two-level (global +
+  per-change), product-owned config that recommends a CLI agent per
+  OpenSpec-change stage in the Agent Selection picker, and shows which
+  agent ran a process plus its percent-complete in the Processes view.
+  Configurable via a new "Harness Settings" GUI in both delivery targets.
+  
+  See `docs/adr/0011-agentic-harness-config-and-autonomy-levels.md` and
+  `openspec/changes/agentic-harness/` for the full design. Only the
+  `assisted` autonomy level is functional in this release —
+  `semi-autonomous`/`autonomous`/the `git` stepAgent action/parallel task
+  execution are accepted in the config schema for forward compatibility
+  but not yet implemented, and are visibly marked as such in the Harness
+  Settings UI.
+- cc7fc8a: `ChangesList` and `ArchiveList` now show a task-completion percentage
+  alongside the existing fraction, and both show a change's last-modified
+  date (previously `ChangesList` didn't show it, and `ArchiveList` didn't
+  show task progress at all).
+- da70d78: Standalone app's "OpenSpec view summary" tab now renders active and
+  archived changes as searchable lists (by name or status), using the
+  shared `ChangesList`/`ArchiveList` components instead of a static table;
+  archived changes now show real task progress and a last-modified date.
+- 47b2fc4: `TabPanel` gains an opt-in `lazy` prop that defers a tab's first mount
+  until the user opens it, instead of mounting on app load; applied to all
+  of the standalone shell's top-level tabs, closing an eager-fetch gap
+  where the Processes and Recovery tab loaded its data before ever being
+  opened.
+- fcd2f15: `ChangesList`/`ArchiveList` now render inside a height-bounded, scrollable
+  container — so the search box no longer scrolls out of view on long
+  lists — and switch to windowed DOM rendering above 50 items, keeping the
+  live DOM node count bounded regardless of how many changes a repository
+  has archived.
+
+### Patch Changes
+
+- Updated dependencies [3a93782]
+- Updated dependencies [da70d78]
+  - @openspec-ui/core@0.31.0
+
 ## 1.15.0
 
 ### Minor Changes
