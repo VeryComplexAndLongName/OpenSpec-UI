@@ -2,13 +2,17 @@
 // by `state === "archived"` (the host decides what counts as the archive)
 // — the component filters by name or status label (via the shared
 // `filterChanges`, also used by `ChangesList`), sorts by date (history),
-// and formats task progress via the same shared helper `ChangesList`
-// uses (see openspec/changes/change-progress-display/proposal.md).
+// formats task progress via the same shared helper `ChangesList` uses
+// (see openspec/changes/change-progress-display/proposal.md), and
+// renders windowed above a size threshold, inside an always-bounded
+// scroll container, via the same shared hook `ChangesList` uses (see
+// openspec/changes/virtualize-change-lists/design.md).
 
 import { useMemo, useState } from "react";
 import type { ChangeSummary } from "../types.js";
 import { filterChanges } from "./change-filter.js";
 import { formatTaskProgress } from "./task-progress.js";
+import { useVirtualList } from "./use-virtual-list.js";
 
 export interface ArchiveListProps {
   changes: ChangeSummary[];
@@ -23,6 +27,10 @@ export function ArchiveList({ changes, onSelect }: ArchiveListProps) {
     return [...filtered].sort((a, b) => (b.lastModified ?? "").localeCompare(a.lastModified ?? ""));
   }, [changes, query]);
 
+  const { containerRef, containerStyle, listStyle, rows } = useVirtualList(visible, (change) => change.name, {
+    itemHeight: 40,
+  });
+
   return (
     <div className="openspec-archive-list">
       <input
@@ -32,19 +40,21 @@ export function ArchiveList({ changes, onSelect }: ArchiveListProps) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <ul data-testid="archive-list">
-        {visible.map((change) => (
-          <li key={change.name}>
-            <button type="button" data-testid={`archive-${change.name}`} onClick={() => onSelect?.(change.name)}>
-              <span>{change.name}</span>
-              <span className="openspec-change-progress">
-                {formatTaskProgress(change.completedTasks, change.totalTasks)}
-              </span>
-              {change.lastModified && <time dateTime={change.lastModified}>{change.lastModified}</time>}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div ref={containerRef} style={containerStyle} className="openspec-archive-list-scroll">
+        <ul data-testid="archive-list" style={listStyle}>
+          {rows.map(({ item: change, key, style }) => (
+            <li key={key} style={style}>
+              <button type="button" data-testid={`archive-${change.name}`} onClick={() => onSelect?.(change.name)}>
+                <span>{change.name}</span>
+                <span className="openspec-change-progress">
+                  {formatTaskProgress(change.completedTasks, change.totalTasks)}
+                </span>
+                {change.lastModified && <time dateTime={change.lastModified}>{change.lastModified}</time>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

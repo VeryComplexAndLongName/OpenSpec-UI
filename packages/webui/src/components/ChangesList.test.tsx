@@ -60,4 +60,12 @@ describe("ChangesList", () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveTextContent("vscode-extension");
   });
+
+  it("wraps the list in a height-bounded, scrollable container", () => {
+    render(<ChangesList changes={changes} />);
+
+    const container = screen.getByTestId("changes-list").parentElement;
+    expect(container).toHaveStyle({ overflowY: "auto" });
+    expect(container?.style.maxHeight.length).toBeGreaterThan(0);
+  });
 });

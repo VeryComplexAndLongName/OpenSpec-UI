@@ -54,4 +54,12 @@ describe("ArchiveList", () => {
     render(<ArchiveList changes={partial} />);
     expect(screen.getByTestId("archive-shared-ui")).toHaveTextContent("4/17 (24%)");
   });
+
+  it("wraps the list in a height-bounded, scrollable container", () => {
+    render(<ArchiveList changes={changes} />);
+
+    const container = screen.getByTestId("archive-list").parentElement;
+    expect(container).toHaveStyle({ overflowY: "auto" });
+    expect(container?.style.maxHeight.length).toBeGreaterThan(0);
+  });
 });
