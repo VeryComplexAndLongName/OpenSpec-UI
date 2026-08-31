@@ -198,3 +198,17 @@ npm run test --workspace openspec-ui-vscode
 npm run build --workspace openspec-ui-vscode
 npm run test:integration --workspace openspec-ui-vscode
 ```
+
+To try a local change in your own VS Code instead of just building:
+
+```bash
+npm run reinstall:local --workspace openspec-ui-vscode
+```
+
+Unlike `npm run package` (which only produces the `.vsix`), this also
+force-installs it — the extension's `version` in `package.json` often
+does not change between local iterations, and `code --install-extension`
+silently does nothing when the target version is already installed, so a
+plain reinstall without `--force` can leave you testing stale code. You
+still need to run "Developer: Reload Window" yourself afterward — that
+step is not automated.
