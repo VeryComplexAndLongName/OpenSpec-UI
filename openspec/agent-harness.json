@@ -1,0 +1,12 @@
+{
+  "stepAgents": {
+    "propose": "claude-cli",
+    "review": "claude-cli",
+    "apply": "copilot-cli",
+    "archive": "claude-cli"
+  },
+  "autonomyLevel": "assisted",
+  "reviewGate": {
+    "mode": "human-required"
+  }
+}
