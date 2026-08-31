@@ -419,6 +419,7 @@
     "test": "vitest run",
     "build": "node scripts/build.mjs",
     "test:integration": "node src/test/run.mjs",
-    "package": "npm run build && vsce package --no-dependencies"
+    "package": "npm run build && vsce package --no-dependencies",
+    "reinstall:local": "node scripts/reinstall-local.mjs"
   }
 }
