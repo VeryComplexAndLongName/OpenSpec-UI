@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useState } from "react";
 import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
+import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
   isDashboardContextMessage,
@@ -47,6 +48,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [changeDir, setChangeDir] = useState(initialContext.changeDir);
   const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
   const [stepAgents, setStepAgents] = useState(initialContext.stepAgents);
+  const [startChain, setStartChain] = useState(initialContext.startChain ?? false);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
   useEffect(() => {
@@ -68,6 +70,11 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       if (event.data.context.stepAgents) {
         setStepAgents(event.data.context.stepAgents);
       }
+      // Unlike detectedAgents/stepAgents (append-only follow-ups), this
+      // must reset to false on a reveal that doesn't request a chain —
+      // otherwise a later "open the normal picker" reveal on the same
+      // (reused) panel would stay stuck showing HarnessChainPanel.
+      setStartChain(event.data.context.startChain ?? false);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -108,7 +115,11 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         </div>
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-        <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} />
+        startChain ? (
+          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} />
+        ) : (
+          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} />
+        )
       ) : (
         <p>Enter cwd and change directory to enable the AI panel.</p>
       )}

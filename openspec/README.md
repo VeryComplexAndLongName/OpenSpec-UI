@@ -65,3 +65,77 @@ The related OpenSpec change must reference the ADR decision.
   for the full list), explicitly tell the agent that already implemented
   adapters are affected so that design.md captures backward compatibility or
   an explicit breaking change.
+
+## Agentic Harness — how to work with it
+
+Full rationale: `docs/adr/0011-agentic-harness-config-and-autonomy-levels.md`
+and `docs/adr/0012-agentic-harness-chain-execution-protocol.md`. Normative
+behavior: `openspec/specs/agentic-harness/spec.md`. This section is the
+short, practical version.
+
+**Config files** — two levels, both product-owned (never read by the
+upstream `openspec` CLI):
+
+- `openspec/agent-harness.json` — global default for the whole repository.
+- `openspec/changes/<id>/harness.json` — optional per-change override,
+  merged key-by-key over the global file (only the keys it sets are
+  overridden; everything else is inherited).
+
+Fields: `stepAgents` (maps `propose`/`review`/`apply`/`archive`/`git` to a
+preferred `agentId` from `packages/core/src/agents/registry.ts`),
+`autonomyLevel`, and `reviewGate.mode`.
+
+**Three ways to edit either file:**
+
+1. "Harness Settings" tab in the standalone webui, or the VS Code commands
+   `OpenSpec UI: Configure Harness Settings` (global) and
+   `OpenSpec UI: Configure Harness for this Change` (per-change, from the
+   Changes tree context menu).
+2. Hand-editing the JSON directly — it is validated on read/write either
+   way, so a malformed edit fails with a clear error rather than being
+   silently ignored.
+
+**What each `autonomyLevel` does today:**
+
+- `assisted` (default): the Agent Selection picker in both delivery
+  targets pre-fills the `stepAgents` recommendation for the stage being
+  opened; a human still explicitly starts every `plan`/`review`/
+  `implement` run.
+- `semi-autonomous`: a `"chain"` command runs `propose → review → apply →
+  archive` in sequence, pausing at an explicit `checkpoint` between each
+  stage by default (Continue/Cancel) unless a per-change `harness.json`
+  sets `checkpoints.requireConfirmationBetweenSteps: false`.
+- `autonomous`: same chain, no pause between stages
+  (`stageCompleted` events only) — reachable **only** through an explicit
+  per-change `openspec/changes/<id>/harness.json` setting
+  `autonomyLevel: "autonomous"` directly; the global file can never set it,
+  and it is never implied by any other setting.
+
+Either chain level always stops after `archive` and never invokes the
+`git` stepAgent — commit/push automation is still fully out of scope (see
+`reviewGate.mode` below). See `docs/adr/0012-agentic-harness-chain-
+execution-protocol.md` for the full chain protocol and
+`openspec/changes/agentic-harness-autonomy/` for the implementation.
+
+**Starting a run:** "Run with Agentic Harness" — a context-menu command on
+a change in the VS Code extension, or a button in the standalone shell's
+Change Editor tab (`openspec/changes/agentic-harness-run-menu/`) — resolves
+the change's harness config fresh on every invocation and dispatches
+accordingly: opens the Agent Selection picker for `assisted`, or starts a
+chain (rendered in `HarnessChainPanel`, with the checkpoint Continue/Cancel
+choice) for `semi-autonomous`/`autonomous`. It never overrides what the
+resolved config says — change the config (above) to change the behavior.
+
+**`reviewGate.mode`**: `human-required` (the only valid global value) or
+`agent-sufficient` (per-change file only). This gate is meant to govern the
+`git` stepAgent's commit/push action — but that action does not exist as a
+product feature yet (`GitWrapper.commit()`/`push()` are not called from
+anywhere), so today `reviewGate.mode` has no observable runtime effect
+either way. It is safe to set, and already enforces its own validation
+rules (global can never be `agent-sufficient`), but nothing currently reads
+it to gate an action.
+
+**Where the resolved config shows up today:** the Agent Selection picker's
+pre-fill and the "Run with Agentic Harness" dispatch (both above), and the
+Processes view, which shows the `agentId` that started a process and a
+percent-complete derived from that change's `tasks.md` checklist.

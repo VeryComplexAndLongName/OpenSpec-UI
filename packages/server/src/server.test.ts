@@ -4,12 +4,36 @@
 // substituted with a fake one, so this test does not require real CLI
 // agents (see tasks.md 3.1 for a separate live smoke test with a real agent).
 
+import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
+
+// The "chain" contract test below needs `HarnessChainRunner`'s
+// `determineStartStage` to resolve without a real `openspec` CLI on PATH —
+// mock `cross-spawn` the same way `packages/core/src/harness-chain-
+// runner.test.ts` does, rather than the real binary.
+class FakeChildProcess extends EventEmitter {
+  stdout = new EventEmitter();
+  stderr = new EventEmitter();
+}
+const spawnMock = vi.fn();
+vi.mock("cross-spawn", () => ({
+  default: (...args: unknown[]) => spawnMock(...args),
+}));
+function mockCliJson(stdout: unknown): void {
+  spawnMock.mockImplementationOnce(() => {
+    const child = new FakeChildProcess();
+    queueMicrotask(() => {
+      child.stdout.emit("data", Buffer.from(JSON.stringify(stdout), "utf8"));
+      child.emit("close", 0);
+    });
+    return child;
+  });
+}
 import {
   getCoreVersion,
   OpenSpecCliCompatibilityError,
@@ -1157,5 +1181,89 @@ describe("server — WebSocket /api/ws", () => {
     const closed = new Promise<number>((resolve) => client.once("close", resolve));
     client.send("x".repeat(128));
     await expect(closed).resolves.toBe(1009);
+  });
+
+  // Contract test for the two protocol members
+  // `agentic-harness-autonomy` adds (ADR 0012): a "chain" command must
+  // reach `HarnessChainRunner` (not a plain `AgentRunner`) and produce a
+  // `checkpoint` event over the wire; a "cancel" targeting that same
+  // `runId` must resolve the paused checkpoint (not fall through to the
+  // generic single-stage cancel path) and end the chain with `cancelled`.
+  it("routes a chain command to HarnessChainRunner and resolves cancel against its checkpoint", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    await writeGlobalHarnessConfig(workspaceRoot, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli" },
+    });
+
+    mockCliJson({
+      changeName: "demo",
+      schemaName: "spec-driven",
+      progress: { total: 3, complete: 0, remaining: 3 },
+      artifacts: [
+        { id: "proposal", outputPath: "proposal.md", status: "pending", requires: [] },
+        { id: "design", outputPath: "design.md", status: "pending", requires: [] },
+        { id: "tasks", outputPath: "tasks.md", status: "pending", requires: [] },
+      ],
+      root: { path: workspaceRoot, source: "cwd" },
+    });
+
+    await server.close();
+    server = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map<string, AgentRunner>([
+        [
+          "claude-cli",
+          fakeRunner([
+            { kind: "started", runId: "chain-1", timestamp: "t1", command: "plan", cwd: workspaceRoot },
+            { kind: "completed", runId: "chain-1", timestamp: "t2" },
+          ]),
+        ],
+      ]),
+    });
+    const address = await server.listen();
+    wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+
+    const received: Event[] = [];
+    const sawCheckpoint = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        const event = JSON.parse(raw.toString()) as Event;
+        received.push(event);
+        if (event.kind === "checkpoint") resolve();
+      });
+    });
+
+    const chainCommand: Command = {
+      kind: "chain",
+      cwd: workspaceRoot,
+      runId: "chain-1",
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "demo") },
+    };
+    client.send(JSON.stringify(chainCommand));
+    await sawCheckpoint;
+
+    expect(received).toEqual([
+      expect.objectContaining({ kind: "started", command: "chain" }),
+      expect.objectContaining({ kind: "started", command: "plan" }),
+      expect.objectContaining({ kind: "checkpoint", stage: "propose", nextStage: "review" }),
+    ]);
+
+    const cancelled = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        if ((JSON.parse(raw.toString()) as Event).kind === "cancelled") resolve();
+      });
+    });
+    client.send(JSON.stringify({ kind: "cancel", cwd: workspaceRoot, runId: "chain-1", context: chainCommand.context }));
+    await cancelled;
+
+    client.close();
   });
 });

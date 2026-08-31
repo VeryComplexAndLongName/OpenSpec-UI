@@ -7,7 +7,14 @@ import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WebSocketServer } from "ws";
-import { getCoreVersion, type AgentRunner, type AuditLog, WorkbenchRecoveryService } from "@openspec-ui/core";
+import {
+  getCoreVersion,
+  resolveRunner,
+  HarnessChainRunner,
+  WorkbenchRecoveryService,
+  type AgentRunner,
+  type AuditLog,
+} from "@openspec-ui/core";
 import {
   handleAgentsDetectRequest,
   handleArchiveTasksTemplateRequest,
@@ -102,6 +109,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       return resolved === workspaceRoot || resolved.startsWith(`${workspaceRoot}${path.sep}`);
     },
   };
+  // One `HarnessChainRunner` for the process lifetime — chains are
+  // stateful (a paused checkpoint lives between messages, see
+  // harness-chain-runner.ts), so `websocket.ts` must reuse the same
+  // instance across `"chain"`/`"confirmCheckpoint"`/`"cancel"` messages,
+  // not construct a fresh one per message.
+  const chainRunner = new HarnessChainRunner({
+    resolveRunner: (agentId) => resolveRunner(runners, agentId),
+  });
   const recoveryServices = new Map<string, Promise<WorkbenchRecoveryService>>();
   const resolveRecoveryService = (cwd: string): Promise<WorkbenchRecoveryService> => {
     const root = path.resolve(cwd);
@@ -266,7 +281,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       socket.close();
     });
     socket.on("message", (raw) => {
-      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService);
+      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner);
     });
   });
 

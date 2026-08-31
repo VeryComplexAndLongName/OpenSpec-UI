@@ -5,11 +5,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_HARNESS_CONFIG,
   GlobalAgentSufficientReviewGateError,
+  GlobalAutonomousAutonomyLevelError,
+  GlobalCheckpointsDisabledError,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
   readChangeHarnessConfig,
   readGlobalHarnessConfig,
   resolveHarnessConfig,
+  resolveRunWithHarnessTarget,
   writeChangeHarnessConfig,
   writeGlobalHarnessConfig,
 } from "./harness-config.js";
@@ -67,6 +70,46 @@ describe("readGlobalHarnessConfig", () => {
       writeGlobalHarnessConfig(root, { stepAgents: { propose: "not-a-real-agent" } }),
     ).rejects.toThrow(InvalidHarnessConfigError);
   });
+
+  it("rejects a global file that sets autonomyLevel to autonomous", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await expect(writeGlobalHarnessConfig(root, { autonomyLevel: "autonomous" })).rejects.toThrow(
+      GlobalAutonomousAutonomyLevelError,
+    );
+  });
+
+  it("rejects reading a hand-edited global file that sets autonomyLevel to autonomous", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ autonomyLevel: "autonomous" }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(GlobalAutonomousAutonomyLevelError);
+  });
+
+  it("rejects a global file that disables checkpoints.requireConfirmationBetweenSteps", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await expect(
+      writeGlobalHarnessConfig(root, { checkpoints: { requireConfirmationBetweenSteps: false } }),
+    ).rejects.toThrow(GlobalCheckpointsDisabledError);
+  });
+
+  it("rejects reading a hand-edited global file that disables checkpoints.requireConfirmationBetweenSteps", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ checkpoints: { requireConfirmationBetweenSteps: false } }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(GlobalCheckpointsDisabledError);
+  });
 });
 
 describe("readChangeHarnessConfig", () => {
@@ -81,6 +124,24 @@ describe("readChangeHarnessConfig", () => {
 
     const override = await readChangeHarnessConfig(root, "some-change");
     expect(override?.reviewGate).toEqual({ mode: "agent-sufficient" });
+  });
+
+  it("accepts autonomyLevel: autonomous at the per-change level", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "some-change", { autonomyLevel: "autonomous" });
+
+    const override = await readChangeHarnessConfig(root, "some-change");
+    expect(override?.autonomyLevel).toBe("autonomous");
+  });
+
+  it("accepts checkpoints.requireConfirmationBetweenSteps: false at the per-change level", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "some-change", {
+      checkpoints: { requireConfirmationBetweenSteps: false },
+    });
+
+    const override = await readChangeHarnessConfig(root, "some-change");
+    expect(override?.checkpoints).toEqual({ requireConfirmationBetweenSteps: false });
   });
 });
 
@@ -113,6 +174,27 @@ describe("mergeHarnessConfig", () => {
     expect(merged.stepAgents).toEqual({ propose: "claude-cli" });
     expect(merged.reviewGate).toEqual({ mode: "agent-sufficient" });
   });
+
+  it("inherits an absent checkpoints field from the global config", () => {
+    const global = {
+      stepAgents: {},
+      autonomyLevel: "assisted" as const,
+      reviewGate: { mode: "human-required" as const },
+    };
+    expect(mergeHarnessConfig(global, { autonomyLevel: "semi-autonomous" }).checkpoints).toBeUndefined();
+  });
+
+  it("overrides checkpoints alone without touching autonomyLevel", () => {
+    const global = {
+      stepAgents: {},
+      autonomyLevel: "semi-autonomous" as const,
+      reviewGate: { mode: "human-required" as const },
+    };
+    const merged = mergeHarnessConfig(global, { checkpoints: { requireConfirmationBetweenSteps: false } });
+
+    expect(merged.autonomyLevel).toBe("semi-autonomous");
+    expect(merged.checkpoints).toEqual({ requireConfirmationBetweenSteps: false });
+  });
 });
 
 describe("resolveHarnessConfig", () => {
@@ -140,5 +222,19 @@ describe("resolveHarnessConfig", () => {
     const resolved = await resolveHarnessConfig(root, "no-override-here");
     expect(resolved.stepAgents).toEqual({ propose: "claude-cli" });
     expect(resolved.reviewGate).toEqual({ mode: "human-required" });
+  });
+});
+
+describe("resolveRunWithHarnessTarget", () => {
+  it("returns 'picker' for assisted", () => {
+    expect(resolveRunWithHarnessTarget({ ...DEFAULT_HARNESS_CONFIG, autonomyLevel: "assisted" })).toBe("picker");
+  });
+
+  it("returns 'chain' for semi-autonomous", () => {
+    expect(resolveRunWithHarnessTarget({ ...DEFAULT_HARNESS_CONFIG, autonomyLevel: "semi-autonomous" })).toBe("chain");
+  });
+
+  it("returns 'chain' for autonomous", () => {
+    expect(resolveRunWithHarnessTarget({ ...DEFAULT_HARNESS_CONFIG, autonomyLevel: "autonomous" })).toBe("chain");
   });
 });

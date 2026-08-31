@@ -17,6 +17,14 @@ const samples: Event[] = [
   { ...base, kind: "completed" },
   { ...base, kind: "failed", reason: "allowlist rejected command" },
   { ...base, kind: "cancelled" },
+  { ...base, kind: "stageCompleted", stage: "propose", nextStage: "review" },
+  {
+    ...base,
+    kind: "checkpoint",
+    stage: "review",
+    nextStage: "apply",
+    nextAgentId: "claude-cli",
+  },
 ];
 
 describe("protocol Event serialization", () => {
@@ -37,5 +45,25 @@ describe("protocol Event serialization", () => {
     expect(isEvent({})).toBe(false);
     expect(isEvent({ ...base, kind: "stdout" })).toBe(false);
     expect(isEvent({ ...base, kind: "started", command: "implement" })).toBe(false);
+  });
+
+  it("rejects malformed stageCompleted/checkpoint payloads", () => {
+    expect(isEvent({ ...base, kind: "stageCompleted", nextStage: "review" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stageCompleted", stage: "propose" })).toBe(false);
+    expect(
+      isEvent({ ...base, kind: "stageCompleted", stage: "propose", nextStage: "not-a-stage" }),
+    ).toBe(false);
+    expect(
+      isEvent({ ...base, kind: "checkpoint", stage: "review", nextStage: "apply" }),
+    ).toBe(false);
+    expect(
+      isEvent({
+        ...base,
+        kind: "checkpoint",
+        stage: "review",
+        nextStage: "apply",
+        nextAgentId: 42,
+      }),
+    ).toBe(false);
   });
 });

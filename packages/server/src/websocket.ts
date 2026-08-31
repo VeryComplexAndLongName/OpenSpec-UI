@@ -12,6 +12,7 @@ import type { WebSocket } from "ws";
 import {
   type AgentRunner,
   type Command,
+  type HarnessChainRunner,
   type WorkbenchRecoveryService,
   resolveRunner,
   serializeEvent,
@@ -27,6 +28,7 @@ export function handleSocketMessage(
   raw: string,
   runners: Map<string, AgentRunner>,
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
+  chainRunner: HarnessChainRunner,
 ): void {
   let parsed: unknown;
   try {
@@ -36,6 +38,24 @@ export function handleSocketMessage(
   }
   if (!isCommandLike(parsed)) return;
   const command = parsed as Command;
+
+  // `"confirmCheckpoint"` and a `"cancel"` targeting an active chain never
+  // reach a single `AgentRunner` at all — they signal the one long-lived
+  // `HarnessChainRunner` already driving that `runId` (see
+  // harness-chain-runner.ts). `cancel()` returning `false` means `runId`
+  // is not a chain at all, so it falls through to the existing generic
+  // single-stage cancel path below, unchanged.
+  if (command.kind === "confirmCheckpoint") {
+    chainRunner.confirmCheckpoint(command.runId);
+    return;
+  }
+  if (command.kind === "cancel" && chainRunner.cancel(command.runId)) {
+    return;
+  }
+  if (command.kind === "chain") {
+    void streamChainRun(socket, chainRunner, command, resolveRecoveryService);
+    return;
+  }
 
   const runner = resolveRunner(runners, command.agentId);
   if (!runner) {
@@ -51,6 +71,75 @@ export function handleSocketMessage(
   }
 
   void streamRun(socket, runner, command, resolveRecoveryService);
+}
+
+/** Same shape as `streamAgentEvents`, over `chainRunner.run(command)`
+ * instead of a single `AgentRunner` — a chain's `apply`/`archive` stages
+ * mutate the repository exactly like a standalone `implement` does, so a
+ * chain is always run through the mutation-lock/cross-host lease path
+ * (`recovery.runMutating`), never the plain branch `streamRun` uses for
+ * non-mutating single-stage commands. */
+async function streamChainEvents(
+  socket: WebSocket,
+  chainRunner: HarnessChainRunner,
+  command: Command,
+  report: (message: string) => void,
+): Promise<string | undefined> {
+  let summary: string | undefined;
+  let failureReason: string | undefined;
+  for await (const event of chainRunner.run(command)) {
+    if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
+    if (event.kind === "progress") report(event.message);
+    if (event.kind === "stageCompleted" || event.kind === "checkpoint") report(`${event.stage} -> ${event.nextStage}`);
+    if (event.kind === "completed") summary = event.summary;
+    if (event.kind === "failed") failureReason = event.reason;
+  }
+  if (failureReason !== undefined) throw new Error(failureReason);
+  return summary;
+}
+
+async function streamChainRun(
+  socket: WebSocket,
+  chainRunner: HarnessChainRunner,
+  command: Command,
+  resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
+): Promise<void> {
+  const recovery = await resolveRecoveryService(command.cwd);
+  const changeName = path.basename(command.context.changeDir);
+  let process;
+  try {
+    process = await recovery.runMutating(
+      command.runId,
+      command.kind,
+      changeName,
+      (context) => streamChainEvents(socket, chainRunner, command, context.report),
+      command.agentId,
+    );
+  } catch (error) {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(
+        serializeEvent({
+          kind: "failed",
+          runId: command.runId,
+          timestamp: nowIso(),
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+    return;
+  }
+  if (process.state === "failed" && process.startedAt === undefined) {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(
+        serializeEvent({
+          kind: "failed",
+          runId: command.runId,
+          timestamp: nowIso(),
+          reason: process.error ?? "run did not start",
+        }),
+      );
+    }
+  }
 }
 
 /** Streams `runner.run(command)`'s events to the socket, reporting

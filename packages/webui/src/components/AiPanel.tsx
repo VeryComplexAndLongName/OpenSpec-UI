@@ -127,7 +127,14 @@ function defaultRunId(): string {
   return crypto.randomUUID();
 }
 
-function isTerminal(event: Event): boolean {
+// Exported for HarnessChainPanel.tsx — a chain run's event stream (started/
+// stdout/stderr/progress/checkpoint/stageCompleted/completed/failed/
+// cancelled) is a superset of a single-stage run's, so it reuses this
+// module's own event-collapsing/terminal-detection/body-rendering instead
+// of a second, potentially-drifting copy (see agentic-harness-autonomy's
+// design.md, "Chain-run view: a new component, not AiPanel extended in
+// place").
+export function isTerminal(event: Event): boolean {
   return event.kind === "completed" || event.kind === "failed" || event.kind === "cancelled";
 }
 
@@ -272,7 +279,7 @@ function extractStepItems(text: string): StepItem[] {
   return items;
 }
 
-function collapseStreamEvents(events: Event[]): Event[] {
+export function collapseStreamEvents(events: Event[]): Event[] {
   const collapsed: Event[] = [];
 
   for (const event of events) {
@@ -500,6 +507,10 @@ function describeEvent(event: Event): string {
       return `failed: ${event.reason}`;
     case "cancelled":
       return "cancelled";
+    case "stageCompleted":
+      return `stage completed: ${event.stage} → ${event.nextStage}`;
+    case "checkpoint":
+      return `checkpoint: ${event.stage} → ${event.nextStage} (${event.nextAgentId})`;
   }
 }
 
@@ -676,7 +687,7 @@ function renderStructuredText(raw: string, index: number): ReactNode {
   }
 }
 
-function renderEventBody(event: Event, index: number): ReactNode {
+export function renderEventBody(event: Event, index: number): ReactNode {
   switch (event.kind) {
     case "stdout":
       return renderStructuredText(event.chunk, index);

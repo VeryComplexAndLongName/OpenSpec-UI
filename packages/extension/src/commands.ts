@@ -29,6 +29,8 @@ import {
   readArchivedChangeTasksTemplate,
   renderSprintReportPdf,
   renderTemplate,
+  resolveHarnessConfig,
+  resolveRunWithHarnessTarget,
   showChange,
   unarchiveChange,
   validateChange,
@@ -426,6 +428,22 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await vscode.window.showTextDocument(doc, { preview: false });
       } catch (error) {
         await showCommandError("open per-change harness config", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.runWithHarness", async (item?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot || !item || item.archived) return;
+      try {
+        // Resolved fresh on every invocation (never cached) — see
+        // agentic-harness-run-menu's design.md, "Menu entry always
+        // resolves fresh, never caches the autonomy level": the user may
+        // have just edited this change's harness.json via "Configure
+        // Harness for this Change" immediately before running.
+        const config = await resolveHarnessConfig(workspaceRoot, item.changeName);
+        const target = resolveRunWithHarnessTarget(config);
+        deps.revealAiPanel({ ...dashboardContext(workspaceRoot, item.changeDir), startChain: target === "chain" });
+      } catch (error) {
+        await showCommandError("resolve Agentic Harness config", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.configureDependabot", async () => {

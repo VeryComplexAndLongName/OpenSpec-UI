@@ -30,6 +30,8 @@ const writeDependabotConfigMock = vi.fn();
 const writeSubtypeInstructionsMock = vi.fn();
 const writeGlobalHarnessConfigMock = vi.fn();
 const writeChangeHarnessConfigMock = vi.fn();
+const resolveHarnessConfigMock = vi.fn();
+const resolveRunWithHarnessTargetMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
 class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
@@ -58,6 +60,8 @@ vi.mock("@openspec-ui/core", () => ({
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
+  resolveHarnessConfig: (...args: unknown[]) => resolveHarnessConfigMock(...args),
+  resolveRunWithHarnessTarget: (...args: unknown[]) => resolveRunWithHarnessTargetMock(...args),
   showChange: (...args: unknown[]) => showChangeMock(...args),
   TASK_CHECKBOX_LINE_RE,
   TaskListChangedError,
@@ -860,6 +864,70 @@ describe("registerCommands", () => {
 
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
       expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.runWithHarness", () => {
+    const changeItem = { changeName: "demo-change", changeDir: "/workspace/repo/openspec/changes/demo-change", archived: false };
+
+    it("resolves the change's harness config fresh and reveals the picker for assisted", async () => {
+      const resolvedConfig = { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } };
+      resolveHarnessConfigMock.mockResolvedValue(resolvedConfig);
+      resolveRunWithHarnessTargetMock.mockReturnValue("picker");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(resolveHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change");
+      expect(resolveRunWithHarnessTargetMock).toHaveBeenCalledWith(resolvedConfig);
+      expect(deps.revealAiPanel).toHaveBeenCalledWith({
+        cwd: "/workspace/repo",
+        changeDir: "/workspace/repo/openspec/changes/demo-change",
+        startChain: false,
+      });
+    });
+
+    it("reveals with startChain: true when the resolved target is chain", async () => {
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous", reviewGate: { mode: "human-required" } });
+      resolveRunWithHarnessTargetMock.mockReturnValue("chain");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ startChain: true }));
+    });
+
+    it("does nothing for an archived change", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.({ ...changeItem, archived: true });
+
+      expect(resolveHarnessConfigMock).not.toHaveBeenCalled();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
+
+    it("does nothing without a tree item (invoked outside the context menu)", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.();
+
+      expect(resolveHarnessConfigMock).not.toHaveBeenCalled();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
+
+    it("reports a resolution failure instead of throwing", async () => {
+      resolveHarnessConfigMock.mockRejectedValue(new Error("bad harness config"));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(vscodeMock.window.showErrorMessage).toHaveBeenCalled();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
   });
 
