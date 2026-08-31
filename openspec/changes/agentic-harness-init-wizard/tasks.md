@@ -26,7 +26,22 @@
 - [ ] 1.3 Asks "Generate CLAUDE.md/AGENTS.md now?" only if at least one is
   missing; if yes, reuses `openspec-ui.generateAgentInstructions`'s exact
   `listBootstrapProjectTypes()`/`writeAgentInstructions()` call.
-- [ ] 1.4 `openspec-ui.initialize`'s existing handler: after a successful
+- [ ] 1.4 **Only if `acp-agent-adapters` has landed by the time this task
+  is implemented** (see design.md, "Ordering against
+  `acp-agent-adapters`" — otherwise skip this task entirely and file it
+  as a fast-follow inside that change instead): if `claude-cli` was
+  chosen for the control or apply role in task 1.2, run `claude
+  --version`, parse the version token from its plain-text output (live-
+  confirmed format: `<version> (Claude Code)`), and compare against the
+  tested-version constant exported by `acp-agent-adapters`'s
+  `claude-cli-acp` module. On mismatch, show a dismissible
+  `showWarningMessage` naming both versions and pointing at
+  `docs/adr/0013-acp-agent-adapters.md`; does not block the wizard from
+  continuing. On a `claude --version` spawn failure (binary missing/
+  errored), skip the check silently — `detectAvailableAgents()` already
+  covers presence, this step assumes presence and only adds version
+  detail.
+- [ ] 1.5 `openspec-ui.initialize`'s existing handler: after a successful
   `initOpenSpec()`, if `openspec/agent-harness.json` does not exist yet,
   shows a dismissible `showInformationMessage` with an action button that
   invokes `openspec-ui.setUpAgenticHarness`. No change to `initialize`'s
@@ -51,8 +66,18 @@
   persisted; `autonomous` never appears in the QuickPick's option list;
   the post-`initialize` suggestion only appears when `agent-harness.json`
   does not already exist.
+- [ ] 3.1b Only if task 1.4 was implemented (see design.md, "Ordering
+  against `acp-agent-adapters`"): unit tests for the version check —
+  matching versions show no warning, a mismatch shows the warning without
+  blocking, a `claude --version` spawn failure skips the check silently,
+  and the check never runs when `claude-cli` was not chosen for either
+  role.
 - [ ] 3.2 `openspec/specs/agentic-harness/spec.md` delta — new
-  requirement for the guided first-run flow.
+  requirement for the guided first-run flow, plus the `claude-cli`
+  version-compatibility requirement (only if task 1.4 was implemented —
+  otherwise leave that requirement out of the delta for this change's own
+  archive, and let whichever change implements task 1.4 as a fast-follow
+  add it then).
 - [ ] 3.3 `openspec change validate --strict agentic-harness-init-wizard`.
 - [ ] 3.4 typecheck/lint/test for `extension`.
 - [ ] 3.5 Version bump via `npx changeset` (`openspec-ui-vscode` only).

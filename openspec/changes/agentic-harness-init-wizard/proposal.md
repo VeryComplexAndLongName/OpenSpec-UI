@@ -13,6 +13,21 @@ never-discover "Configure Harness Settings" action. This repository's own
 Copilot) is exactly the kind of decision a new user should be prompted
 for once, up front, not left to stumble into.
 
+Second, separate risk raised directly in review on 2026-08-31, specific to
+`claude-cli`: per `docs/adr/0013-acp-agent-adapters.md` /
+`openspec/changes/acp-agent-adapters/`, `claude-cli` is the one agent in
+`AGENT_REGISTRY` with no native ACP mode — its ACP-flavored adapter is
+instead an in-house translation of `claude --input-format stream-json
+--output-format stream-json --verbose`'s structured output, an
+undocumented, non-versioned CLI surface (unlike the other three agents'
+ACP-flavored adapters, which speak an actual versioned protocol with its
+own negotiation). That translation was built and verified against one
+exact `claude` CLI version (`2.1.237`, per `acp-agent-adapters/design.md`'s
+own live spike); a materially different installed version is a real,
+silent-breakage risk this wizard is well-placed to surface, since it
+already runs `detectAvailableAgents()` and already asks which agent(s) the
+harness will actually depend on.
+
 ## What Changes
 
 - New re-runnable command `openspec-ui.setUpAgenticHarness` ("OpenSpec
@@ -46,6 +61,16 @@ for once, up front, not left to stumble into.
   per-question here, not all-or-nothing" for why the two commands differ.
 - Writes only the fields actually answered, via the existing
   `writeGlobalHarnessConfig`.
+- If `claude-cli` is chosen for either role (control or apply) **and**
+  `acp-agent-adapters` has landed by the time this task is implemented
+  (its `claude-cli-acp` module exporting a tested-version constant — see
+  design.md for what happens if the ordering is reversed): runs `claude
+  --version`, parses the version token out of its plain-text output
+  (confirmed live this session: `2.1.237 (Claude Code)` — not JSON,
+  despite `claude`'s CLI otherwise offering JSON output modes for other
+  commands), and shows a dismissible warning if it does not match the
+  version `claude-cli-acp` was last verified against. This does not block
+  proceeding — see design.md for why a warning, not a hard stop.
 
 ## Capabilities
 
@@ -67,7 +92,9 @@ for once, up front, not left to stumble into.
 - `packages/extension/package.json`: command registration (Command
   Palette only — see design.md for why no tree/menu entry is added).
 - `openspec/specs/agentic-harness/spec.md`: new requirement for the
-  guided first-run flow.
+  guided first-run flow, plus the `claude-cli` version-compatibility
+  warning (conditional on `acp-agent-adapters` — see design.md and
+  tasks.md 1.4).
 
 ## Process note (how this gets implemented)
 
