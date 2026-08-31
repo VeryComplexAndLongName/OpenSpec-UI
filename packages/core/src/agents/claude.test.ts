@@ -22,7 +22,7 @@ describe("ClaudeCliAdapter", () => {
     expect(adapter.buildInvocation(command)).toEqual({
       kind: "process",
       executable: "claude",
-      args: ["-p", "--output-format", "text"],
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions"],
     });
   });
 
@@ -44,7 +44,7 @@ describe("ClaudeCliAdapter", () => {
     expect(spawnAndStreamMock).toHaveBeenCalledWith(
       expect.objectContaining({
         executable: "claude",
-        args: ["-p", "--output-format", "text"],
+        args: ["-p", "--output-format", "text", "--dangerously-skip-permissions"],
         cwd: "/workspace/repo",
         runId: "run-1",
         commandKind: "implement",
