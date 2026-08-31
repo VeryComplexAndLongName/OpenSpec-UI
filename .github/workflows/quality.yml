@@ -65,6 +65,29 @@ jobs:
           path: packages/extension/*.vsix
           if-no-files-found: error
 
+  version-packages:
+    name: Version pending changesets
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - name: Create or update version PR
+        uses: changesets/action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   release-extension:
     name: Tag and release VS Code extension
     needs: [quality, extension-integration]
