@@ -40,6 +40,17 @@ streamed output in the same view.
 
 ![Standalone Processes and Recovery view](../../docs/images/standalone/processes.png)
 
+### Configure and run with Agentic Harness
+
+Recommend a CLI agent per OpenSpec-change stage, then start a run — a
+single-stage picker or a supervised/unsupervised chain, depending on the
+resolved autonomy level — without leaving the Change Editor. See
+`openspec/README.md`'s "Agentic Harness — how to work with it".
+
+![Standalone Harness Settings tab showing per-stage agent recommendations and autonomy level](../../docs/images/standalone/harness-settings.png)
+
+![Change Editor's "Run with Agentic Harness" button for the selected change](../../docs/images/standalone/run-with-harness.png)
+
 ## Transport
 
 - `POST /api/status`: synchronous `{ events: Event[] }` response for status.
