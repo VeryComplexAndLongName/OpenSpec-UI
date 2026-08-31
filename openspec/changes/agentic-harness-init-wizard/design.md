@@ -70,6 +70,70 @@ choice that is guaranteed to fail is worse UX than not presenting it, for
 a restriction that is already fully enforced elsewhere (this wizard adds
 no new enforcement, only avoids offering a dead end).
 
+### `claude-cli` version-compatibility check is scoped to `claude-cli` alone, and is a warning, not a block
+
+Only `claude-cli`'s selection triggers a `claude --version` check, and
+only when `acp-agent-adapters` has actually landed (see "Ordering
+against `acp-agent-adapters`" below). The other three ACP-flavored
+adapters (`copilot-cli`, `gemini-cli`, `codex-cli`) speak an actual
+versioned protocol (ACP itself) that negotiates capabilities at session
+start — a CLI version mismatch there degrades through the protocol's own
+mechanism, not silently. `claude-cli`'s ACP-flavored adapter has no such
+protocol underneath it: it is an in-house parser of one specific CLI's
+undocumented `stream-json` output shape (`acp-agent-adapters/design.md`'s
+own "Load-bearing facts" section), verified against exactly one version
+(`2.1.237`). A version drift there has no negotiation layer to degrade
+through — it just silently misparses or breaks. That asymmetry, not a
+general "check every agent's version" policy, is why only `claude-cli`
+gets this.
+
+The check is a dismissible warning (`showWarningMessage`, one action:
+"Continue anyway"), not a hard stop — consistent with this wizard's
+existing Non-Goal ("Not validating that a chosen agent is actually
+authenticated/working... detection is presence-only"). It differs from
+that Non-Goal in *kind*, not severity: that Non-Goal is about not
+verifying an agent is functional at all (out of scope everywhere in this
+product); this check is about a specific, already-known, already-
+documented compatibility ceiling for one specific translation layer —
+surfacing already-known information, not adding a new liveness/auth
+probe.
+
+**Rejected alternative**: block proceeding until the version matches
+exactly. Rejected — a `claude` CLI point release may well be fully
+compatible in practice; refusing to proceed on any version delta would be
+false-positive-prone and contradicts the product's whole detection
+philosophy ("Annotate, don't filter" — `agentic-harness`'s own spec
+language). A dismissible warning gives the user the same information
+without a hard, possibly-wrong gate.
+
+**Rejected alternative**: check every agent's version, not just
+`claude-cli`'s. Rejected — the other three raw-text adapters have no
+version-sensitive parsing at all (`spawnAndStream`'s deliberately opaque
+text handling), and their ACP-flavored counterparts self-negotiate over
+the protocol; there is nothing analogous to warn about for them today.
+
+### Ordering against `acp-agent-adapters`
+
+This specific sub-task depends on `acp-agent-adapters` having already
+landed — its `claude-cli-acp` module is where the tested-version constant
+must live (single source of truth for "which version was this built
+against," not duplicated into the wizard). Both changes are gated on the
+same precondition (task 0.1, other agent stepping away) and neither is
+implemented yet as of this writing, so either could land first.
+
+**If `agentic-harness-init-wizard` is implemented before
+`acp-agent-adapters`**: skip tasks.md 1.4 (the version-check sub-task)
+entirely — do not stub it against a constant that does not exist yet.
+File it as an explicit fast-follow task inside whichever change
+implements `acp-agent-adapters`, referencing this design.md section, so
+the requirement is not silently dropped.
+
+**If `acp-agent-adapters` lands first** (the expected order, since it is
+already further along — ADR 0013 exists and its own proposal/design/tasks
+are already written): implement tasks.md 1.4 as specified, importing the
+tested-version constant from wherever `acp-agent-adapters` ends up
+defining it.
+
 ### Detection reuses `detectAvailableAgents()`, not a new mechanism
 
 Same function the Agent Selection picker's "(detected)"/"(not detected)"
@@ -98,6 +162,14 @@ mind.
   split must still use "Configure Harness Settings" afterward. Accepted:
   this wizard's job is a good, common-case default reached quickly, not
   full generality (see Non-Goals).
+- **[Risk]** The `claude-cli` version check's "tested version" constant
+  will go stale the moment a newer `claude` CLI is actually verified
+  compatible (or a genuinely breaking one is found) and nobody updates
+  it. → **Mitigation**: it lives in `acp-agent-adapters`'s own
+  `claude-cli-acp` module, right next to the parsing code it protects
+  (not duplicated into this wizard), so updating it is a one-line change
+  in the same file a future compatibility fix would already need to
+  touch.
 
 ## Migration
 

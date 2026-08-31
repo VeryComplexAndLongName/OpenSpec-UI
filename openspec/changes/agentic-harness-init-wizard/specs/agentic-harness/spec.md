@@ -53,3 +53,33 @@ run this flow.
 - **WHEN** `openspec-ui.initialize` completes successfully and
   `openspec/agent-harness.json` already exists
 - **THEN** no suggestion appears
+
+### Requirement: Choosing `claude-cli` warns on a CLI version mismatch, without blocking
+
+Implemented only once `acp-agent-adapters` has landed (see design.md,
+"Ordering against `acp-agent-adapters`" — this requirement does not apply
+before then). When `claude-cli` is chosen for the control or apply role,
+the flow SHALL check the installed `claude` CLI's version against the
+version `acp-agent-adapters`'s `claude-cli-acp` translation layer was last
+verified against, and show a dismissible warning on a mismatch, without
+blocking the flow from continuing.
+
+#### Scenario: Installed Claude CLI version matches the tested version
+
+- **WHEN** `claude-cli` is chosen for a role and the installed `claude
+  --version` matches the tested-version constant
+- **THEN** no warning is shown
+
+#### Scenario: Installed Claude CLI version differs from the tested version
+
+- **WHEN** `claude-cli` is chosen for a role and the installed `claude
+  --version` does not match the tested-version constant
+- **THEN** a dismissible warning names both versions and points at
+  `docs/adr/0013-acp-agent-adapters.md`, and the flow still allows
+  continuing
+
+#### Scenario: `claude --version` cannot be determined
+
+- **WHEN** `claude-cli` is chosen for a role but running `claude
+  --version` fails
+- **THEN** the check is skipped silently and no warning is shown
