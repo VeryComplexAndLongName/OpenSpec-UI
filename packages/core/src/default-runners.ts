@@ -36,7 +36,7 @@ function exact(expected: string[]): (args: string[]) => boolean {
  * itself (see each one's `buildInvocation()`), not a broader set. */
 export function buildDefaultAllowlist(): AllowlistConfig {
   return {
-    "claude-cli": [{ executable: "claude", argsAllowed: exact(["-p", "--output-format", "text"]) }],
+    "claude-cli": [{ executable: "claude", argsAllowed: exact(["-p", "--output-format", "text", "--dangerously-skip-permissions"]) }],
     "copilot-cli": [{ executable: "copilot", argsAllowed: exact(["-p", "--allow-all-tools"]) }],
     "codex-cli": [{ executable: "codex", argsAllowed: exact(["exec", "--skip-git-repo-check"]) }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],

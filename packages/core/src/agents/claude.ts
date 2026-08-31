@@ -3,6 +3,17 @@
 // The CLI's output format can change between versions — it is not parsed
 // structurally, it is passed through as `stdout`/`stderr` as-is (see
 // shared.ts).
+//
+// `--dangerously-skip-permissions` is required: `claude -p` still enforces
+// its normal interactive tool-approval model by default, and with no TTY to
+// answer an approval prompt, any tool needing approval (Edit/Write/Bash)
+// stalls with no way to proceed — reproduced live, see
+// openspec/changes/claude-cli-permission-bypass/. Matches this project's
+// already-established posture for the other adapters (`gemini-cli` already
+// uses `--yolo`, `copilot-cli` already uses `--allow-all-tools`); this
+// project's actual security boundary is `checkCwdSandbox` + the allowlist +
+// `AuditLog` in security.ts, not any individual CLI's own interactive
+// prompts.
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
@@ -12,7 +23,11 @@ export class ClaudeCliAdapter implements AgentAdapter {
   readonly name = "claude-cli";
 
   buildInvocation(_command: Command): AdapterInvocation {
-    return { kind: "process", executable: "claude", args: ["-p", "--output-format", "text"] };
+    return {
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions"],
+    };
   }
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
