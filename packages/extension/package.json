@@ -57,6 +57,10 @@
         "title": "OpenSpec UI: Configure Harness for this Change"
       },
       {
+        "command": "openspec-ui.runWithHarness",
+        "title": "OpenSpec UI: Run with Agentic Harness"
+      },
+      {
         "command": "openspec-ui.createChange",
         "title": "OpenSpec UI: Create Change",
         "icon": "$(add)"
@@ -303,6 +307,11 @@
           "command": "openspec-ui.configureHarnessForChange",
           "when": "viewItem == openspec-ui.activeChange",
           "group": "openspec@5"
+        },
+        {
+          "command": "openspec-ui.runWithHarness",
+          "when": "viewItem == openspec-ui.activeChange",
+          "group": "openspec@6"
         },
         {
           "command": "openspec-ui.customizeTemplate",

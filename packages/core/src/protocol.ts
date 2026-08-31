@@ -5,6 +5,8 @@
 // (`server`, `extension`) serialize these same values for their own
 // transport (REST/WS, message bridge) and must not define their own variants.
 
+import { STAGES, type HarnessStage } from "./harness-stage.js";
+
 export type CommandKind =
   | "plan"
   | "implement"
@@ -13,7 +15,14 @@ export type CommandKind =
   | "list"
   | "show"
   | "validate"
-  | "cancel";
+  | "cancel"
+  /** Runs `propose → review → apply → archive` in sequence under one
+   * `runId`, per `HarnessChainRunner`. Unlike every other command kind,
+   * a chain's `runId` is not guaranteed exactly one `"started"` event —
+   * a client that counts `"started"` events per `runId` will see one per
+   * stage. */
+  | "chain"
+  | "confirmCheckpoint";
 
 /** Runtime enumeration of `CommandKind`, kept in this one place so
  * transport-boundary shape checks (e.g. `packages/server/src/wire.ts`'s
@@ -27,6 +36,8 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "show",
   "validate",
   "cancel",
+  "chain",
+  "confirmCheckpoint",
 ];
 
 export interface CommandContext {
@@ -60,7 +71,9 @@ export type EventKind =
   | "progress"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "stageCompleted"
+  | "checkpoint";
 
 interface BaseEvent {
   runId: string;
@@ -106,6 +119,23 @@ export interface CancelledEvent extends BaseEvent {
   kind: "cancelled";
 }
 
+/** A chain stage finished and the next one is starting immediately (no
+ * confirmation required for this transition). */
+export interface StageCompletedEvent extends BaseEvent {
+  kind: "stageCompleted";
+  stage: HarnessStage;
+  nextStage: HarnessStage;
+}
+
+/** A chain paused between stages, waiting for a `"confirmCheckpoint"` (or
+ * `"cancel"`) command before it proceeds to `nextStage`. */
+export interface CheckpointEvent extends BaseEvent {
+  kind: "checkpoint";
+  stage: HarnessStage;
+  nextStage: HarnessStage;
+  nextAgentId: string;
+}
+
 export type Event =
   | StartedEvent
   | StdoutEvent
@@ -113,7 +143,9 @@ export type Event =
   | ProgressEvent
   | CompletedEvent
   | FailedEvent
-  | CancelledEvent;
+  | CancelledEvent
+  | StageCompletedEvent
+  | CheckpointEvent;
 
 /** Type guard helper: serializing an Event is just JSON, but we verify
  * that `kind` is one of the known variants when deserializing from an
@@ -137,6 +169,21 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.reason === "string";
     case "cancelled":
       return true;
+    case "stageCompleted":
+      return (
+        typeof v.stage === "string" &&
+        STAGES.includes(v.stage as HarnessStage) &&
+        typeof v.nextStage === "string" &&
+        STAGES.includes(v.nextStage as HarnessStage)
+      );
+    case "checkpoint":
+      return (
+        typeof v.stage === "string" &&
+        STAGES.includes(v.stage as HarnessStage) &&
+        typeof v.nextStage === "string" &&
+        STAGES.includes(v.nextStage as HarnessStage) &&
+        typeof v.nextAgentId === "string"
+      );
     default:
       return false;
   }

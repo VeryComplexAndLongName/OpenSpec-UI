@@ -48,6 +48,15 @@ function createPanelFixture() {
     return panel;
 }
 
+function createFakeChainRunner() {
+    return {
+        run: vi.fn(),
+        confirmCheckpoint: vi.fn(() => false),
+        cancel: vi.fn(() => false),
+        asAgentRunner: vi.fn(() => ({ run: vi.fn() })),
+    };
+}
+
 function createAiPanel(options: { getLocalServerUrl?: () => string | undefined } = {}) {
     return new AiPanel({
         extensionUri: vscodeMock.Uri.file("/extension") as never,
@@ -56,6 +65,7 @@ function createAiPanel(options: { getLocalServerUrl?: () => string | undefined }
             run: vi.fn(),
         } as never,
         resolveRunner: () => undefined,
+        chainRunner: createFakeChainRunner() as never,
         getLocalServerUrl: options.getLocalServerUrl ?? (() => undefined),
     });
 }
@@ -242,10 +252,12 @@ describe("AiPanel harness process tracking", () => {
             }) => scheduleHandle),
         };
         const panel = createPanelFixture();
+        const chainRunner = createFakeChainRunner();
         const aiPanel = new AiPanel({
             extensionUri: vscodeMock.Uri.file("/extension") as never,
             runController: runController as never,
             resolveRunner: () => ({ name: "claude-cli", run: vi.fn() }) as never,
+            chainRunner: chainRunner as never,
             getLocalServerUrl: () => undefined,
             scheduler: scheduler as never,
         });
@@ -253,7 +265,7 @@ describe("AiPanel harness process tracking", () => {
 
         const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
         const emit = (event: unknown) => eventListeners.forEach((listener) => listener(event));
-        return { panel, runController, scheduler, scheduleHandle, receiveMessage, emit };
+        return { panel, runController, scheduler, scheduleHandle, chainRunner, receiveMessage, emit };
     }
 
     function sendImplementCommand(receiveMessage: (message: unknown) => void) {
@@ -291,6 +303,7 @@ describe("AiPanel harness process tracking", () => {
             extensionUri: vscodeMock.Uri.file("/extension") as never,
             runController: runController as never,
             resolveRunner: () => ({ name: "claude-cli", run: vi.fn() }) as never,
+            chainRunner: createFakeChainRunner() as never,
             getLocalServerUrl: () => undefined,
         });
         aiPanel.reveal();
@@ -352,5 +365,62 @@ describe("AiPanel harness process tracking", () => {
         emit({ kind: "completed", runId: "run-1", summary: "mine" });
         await resultPromise;
         expect(settled).toBe(true);
+    });
+
+    function sendChainCommand(receiveMessage: (message: unknown) => void, overrides: Record<string, unknown> = {}) {
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "chain",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "chain-1",
+                ...overrides,
+            },
+        });
+    }
+
+    it("starts a chain through runController using chainRunner.asAgentRunner(), and tracks it as mutating", () => {
+        const { runController, scheduler, receiveMessage, chainRunner } = createHarnessFixture();
+        const chainAdapter = { run: vi.fn() };
+        chainRunner.asAgentRunner.mockReturnValue(chainAdapter);
+
+        sendChainCommand(receiveMessage);
+
+        expect(chainRunner.asAgentRunner).toHaveBeenCalled();
+        expect(runController.run).toHaveBeenCalledWith(chainAdapter, expect.objectContaining({ kind: "chain", runId: "chain-1" }));
+        expect(scheduler.start).toHaveBeenCalledWith(expect.objectContaining({ operation: "chain", mutating: true }));
+    });
+
+    it("routes confirmCheckpoint directly to chainRunner without starting a new run", () => {
+        const { runController, receiveMessage, chainRunner } = createHarnessFixture();
+
+        sendChainCommand(receiveMessage, { kind: "confirmCheckpoint" });
+
+        expect(chainRunner.confirmCheckpoint).toHaveBeenCalledWith("chain-1");
+        expect(runController.run).not.toHaveBeenCalled();
+    });
+
+    it("routes a cancel targeting an active chain to chainRunner.cancel(), not the generic runner path", () => {
+        const { runController, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.cancel.mockReturnValue(true);
+
+        sendChainCommand(receiveMessage, { kind: "cancel" });
+
+        expect(chainRunner.cancel).toHaveBeenCalledWith("chain-1");
+        expect(runController.run).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the generic single-stage cancel path when the runId is not an active chain", () => {
+        const { runController, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.cancel.mockReturnValue(false);
+
+        sendChainCommand(receiveMessage, { kind: "cancel", agentId: "claude-cli" });
+
+        expect(chainRunner.cancel).toHaveBeenCalledWith("chain-1");
+        expect(runController.run).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "claude-cli" }),
+            expect.objectContaining({ kind: "cancel" }),
+        );
     });
 });

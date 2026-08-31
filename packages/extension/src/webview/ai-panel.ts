@@ -9,6 +9,7 @@ import {
   resolveHarnessConfig,
   type AgentRunner,
   type Command,
+  type HarnessChainRunner,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
@@ -28,6 +29,16 @@ export interface AiPanelContext {
    * `resolveHarnessConfig()` resolves, the same follow-up-message pattern
    * as `detectedAgents`. See openspec/changes/agentic-harness/. */
   stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
+  /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`) when
+   * the caller already resolved (Node-side, before ever revealing a
+   * panel) that this change's harness config targets `"chain"` rather
+   * than `"picker"` — see `resolveRunWithHarnessTarget` in
+   * `@openspec-ui/core`. Unlike `detectedAgents`/`stepAgents`, this must
+   * be known on the FIRST render (it decides which component mounts), so
+   * it is baked into the initial webview HTML (`getBridgeHtml`'s
+   * `data-start-chain`), not delivered as a follow-up message. Absent (or
+   * `false`) for every other reveal — the existing single-stage picker. */
+  startChain?: boolean;
 }
 
 interface BridgeCommandMessage {
@@ -45,6 +56,11 @@ export interface AiPanelDeps {
   extensionUri: vscode.Uri;
   runController: RunController;
   resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
+  /** Drives `"chain"`/`"confirmCheckpoint"` commands — see
+   * docs/adr/0012-agentic-harness-chain-execution-protocol.md. Reused
+   * across every message (a paused chain's state lives between them), not
+   * a per-command construction. */
+  chainRunner: HarnessChainRunner;
   /** If the local server is enabled and running — returns its base URL
    * (`http://127.0.0.1:<port>`); otherwise `undefined` (primary mode uses
    * the bridge). */
@@ -63,10 +79,10 @@ export class AiPanel {
 
   constructor(private readonly deps: AiPanelDeps) { }
 
-  /** Registers a `WorkbenchProcess` for a `plan`/`implement`/`review`
-   * command, purely observing `runController`'s existing event stream
-   * (no change to how the run itself executes or cancels). No-op when
-   * `deps.scheduler` isn't supplied. */
+  /** Registers a `WorkbenchProcess` for a `plan`/`implement`/`review`/
+   * `chain` command, purely observing `runController`'s existing event
+   * stream (no change to how the run itself executes or cancels). No-op
+   * when `deps.scheduler` isn't supplied. */
   private trackHarnessProcess(command: Command): void {
     const scheduler = this.deps.scheduler;
     if (!scheduler) return;
@@ -80,7 +96,9 @@ export class AiPanel {
       operation: command.kind,
       changeName,
       agentId: command.agentId,
-      mutating: command.kind === "implement",
+      // A chain includes "implement"/"archive" stages that mutate the
+      // repository just as directly as a standalone `implement` does.
+      mutating: command.kind === "implement" || command.kind === "chain",
       execute: ({ report }) =>
         new Promise<string | void>((resolve, reject) => {
           const unsubscribe = this.deps.runController.onEvent((event) => {
@@ -151,6 +169,27 @@ export class AiPanel {
 
       if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
         void this.deps.runController.run(undefined, command);
+        return;
+      }
+
+      // "confirmCheckpoint" and a "cancel" targeting an active chain never
+      // reach a single AgentRunner — they signal the one long-lived
+      // HarnessChainRunner already driving that runId (see
+      // harness-chain-runner.ts). The chain's own events keep flowing to
+      // the webview through the existing `runController.onEvent`
+      // subscription above (unchanged) — a chain is started through
+      // `runController.run()` below just like any other command, so no
+      // separate event-forwarding path is needed for it.
+      if (command.kind === "confirmCheckpoint") {
+        this.deps.chainRunner.confirmCheckpoint(command.runId);
+        return;
+      }
+      if (command.kind === "cancel" && this.deps.chainRunner.cancel(command.runId)) {
+        return;
+      }
+      if (command.kind === "chain") {
+        this.trackHarnessProcess(command);
+        void this.deps.runController.run(this.deps.chainRunner.asAgentRunner(), command);
         return;
       }
 
@@ -233,6 +272,11 @@ export class AiPanel {
     const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
     const cwd = escapeHtmlAttribute(panelContext?.cwd ?? "");
     const changeDir = escapeHtmlAttribute(panelContext?.changeDir ?? "");
+    // Unlike detectedAgents/stepAgents (delivered as a follow-up message
+    // once resolved), startChain must be known on the FIRST render — it
+    // decides which component mounts — so it is baked into the initial
+    // HTML here, not posted afterward.
+    const startChain = panelContext?.startChain ? "true" : "false";
     return `<!doctype html>
 <html>
   <head>
@@ -241,7 +285,7 @@ export class AiPanel {
     <title>OpenSpec UI</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

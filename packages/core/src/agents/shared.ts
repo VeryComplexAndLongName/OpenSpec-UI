@@ -56,6 +56,13 @@ export function commandInstruction(kind: CommandKind): string {
       return "Run strict validation for the selected OpenSpec change.";
     case "cancel":
       return "Stop the current execution for the change described below.";
+    case "chain":
+    case "confirmCheckpoint":
+      // HarnessChainRunner decomposes a chain into calls to this same
+      // spawnAndStream path using each stage's own single-stage
+      // CommandKind (`plan`/`review`/`implement`/...) — it never invokes
+      // a CLI agent with "chain" or "confirmCheckpoint" itself.
+      throw new Error(`commandInstruction: "${kind}" is not a single-agent command kind`);
   }
 }
 

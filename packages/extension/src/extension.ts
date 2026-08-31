@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import type { AgentRunner } from "@openspec-ui/core";
 import {
+  HarnessChainRunner,
   WorkbenchProcessScheduler,
   WorkbenchRunJournal,
   WorkspaceLeaseManager,
@@ -163,10 +164,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     void vscode.window.showWarningMessage("OpenSpec UI: no folder open — open a workspace to use it.");
   }
 
+  // One `HarnessChainRunner` for the extension host's lifetime — a chain
+  // is stateful (a paused checkpoint lives between webview messages, see
+  // harness-chain-runner.ts), so it must be reused across every message,
+  // not reconstructed per command. `runners` resolves lazily the same way
+  // `resolveRunner` above does — there is no workspace-independent set of
+  // agents to bind at construction time.
+  const chainRunner = new HarnessChainRunner({
+    resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+  });
+
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
     runController,
     resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+    chainRunner,
     getLocalServerUrl: () => optionalServer?.launchUrl,
     scheduler,
   });

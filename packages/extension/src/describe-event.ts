@@ -16,5 +16,9 @@ export function describeEvent(event: Event): string {
       return `[failed] ${event.reason}`;
     case "cancelled":
       return "[cancelled]";
+    case "stageCompleted":
+      return `[stage completed] ${event.stage} -> ${event.nextStage}`;
+    case "checkpoint":
+      return `[checkpoint] ${event.stage} -> ${event.nextStage} (${event.nextAgentId})`;
   }
 }

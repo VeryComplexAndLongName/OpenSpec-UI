@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "OpenSpec UI Agentic Harness — global config",
-  "description": "Global default for openspec/agent-harness.json — see the agentic-harness capability. reviewGate.mode is fixed to human-required at this level; only a per-change openspec/changes/<id>/harness.json may set agent-sufficient.",
+  "description": "Global default for openspec/agent-harness.json — see the agentic-harness capability. At this level: reviewGate.mode is fixed to human-required, autonomyLevel excludes autonomous, and checkpoints.requireConfirmationBetweenSteps is fixed to true. Only a per-change openspec/changes/<id>/harness.json may relax any of these.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -18,8 +18,8 @@
     },
     "autonomyLevel": {
       "type": "string",
-      "enum": ["assisted", "semi-autonomous", "autonomous"],
-      "description": "semi-autonomous and autonomous are accepted and persisted but not yet functional — see openspec/changes/agentic-harness/design.md."
+      "enum": ["assisted", "semi-autonomous"],
+      "description": "autonomous is only valid in a per-change harness.json, never here — see openspec/changes/agentic-harness-autonomy/design.md."
     },
     "reviewGate": {
       "type": "object",
@@ -30,6 +30,18 @@
           "type": "string",
           "enum": ["human-required"],
           "description": "agent-sufficient is only valid in a per-change harness.json, never here."
+        }
+      }
+    },
+    "checkpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requireConfirmationBetweenSteps"],
+      "properties": {
+        "requireConfirmationBetweenSteps": {
+          "type": "boolean",
+          "enum": [true],
+          "description": "false is only valid in a per-change harness.json, never here — see openspec/changes/agentic-harness-autonomy/design.md."
         }
       }
     }

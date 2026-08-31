@@ -1,6 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
+import { STAGES, type HarnessStage } from "./harness-stage.js";
+
+export { STAGES, type HarnessStage };
 
 // Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
 // autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
@@ -12,7 +15,6 @@ import { AGENT_REGISTRY } from "./agents/registry.js";
 
 export type HarnessAutonomyLevel = "assisted" | "semi-autonomous" | "autonomous";
 export type HarnessReviewGateMode = "human-required" | "agent-sufficient";
-export type HarnessStage = "propose" | "review" | "apply" | "archive" | "git";
 
 export type HarnessStepAgents = Partial<Record<HarnessStage, string>>;
 
@@ -20,10 +22,21 @@ export interface HarnessReviewGate {
   mode: HarnessReviewGateMode;
 }
 
+export interface HarnessCheckpoints {
+  requireConfirmationBetweenSteps: boolean;
+}
+
 export interface HarnessConfig {
   stepAgents: HarnessStepAgents;
   autonomyLevel: HarnessAutonomyLevel;
   reviewGate: HarnessReviewGate;
+  /** Whether `HarnessChainRunner` pauses for an explicit human
+   * confirmation between stages. Optional: absent (the common case) means
+   * "confirmation required" wherever it matters — see
+   * `agentic-harness-autonomy`'s design.md, "Migration". Only a per-change
+   * `harness.json` may set `requireConfirmationBetweenSteps: false`; see
+   * `GlobalCheckpointsDisabledError`. */
+  checkpoints?: HarnessCheckpoints;
 }
 
 /** The config to use when neither the global nor a per-change file
@@ -36,7 +49,6 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
 
 const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous", "autonomous"];
 const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
-const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive", "git"];
 const KNOWN_AGENT_IDS = new Set(AGENT_REGISTRY.map((agent) => agent.id));
 
 export class InvalidHarnessConfigError extends Error {
@@ -53,6 +65,26 @@ export class GlobalAgentSufficientReviewGateError extends InvalidHarnessConfigEr
   constructor() {
     super('reviewGate.mode "agent-sufficient" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
     this.name = "GlobalAgentSufficientReviewGateError";
+  }
+}
+
+/** `autonomyLevel: "autonomous"` is only ever valid in a per-change file —
+ * see `agentic-harness-autonomy`'s design.md, "Decisions". Mirrors
+ * `GlobalAgentSufficientReviewGateError`'s exact pattern. */
+export class GlobalAutonomousAutonomyLevelError extends InvalidHarnessConfigError {
+  constructor() {
+    super('autonomyLevel "autonomous" is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    this.name = "GlobalAutonomousAutonomyLevelError";
+  }
+}
+
+/** `checkpoints.requireConfirmationBetweenSteps: false` is only ever valid
+ * in a per-change file — closes the same class of loophole as
+ * `GlobalAutonomousAutonomyLevelError`. */
+export class GlobalCheckpointsDisabledError extends InvalidHarnessConfigError {
+  constructor() {
+    super('checkpoints.requireConfirmationBetweenSteps: false is only valid in a per-change harness.json, never in the global openspec/agent-harness.json');
+    this.name = "GlobalCheckpointsDisabledError";
   }
 }
 
@@ -74,14 +106,23 @@ function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgen
   }
 }
 
-function assertValidAutonomyLevel(value: unknown): asserts value is HarnessAutonomyLevel | undefined {
+function assertValidAutonomyLevel(
+  value: unknown,
+  isPerChangeFile: boolean,
+): asserts value is HarnessAutonomyLevel | undefined {
   if (value === undefined) return;
   if (typeof value !== "string" || !AUTONOMY_LEVELS.includes(value as HarnessAutonomyLevel)) {
     throw new InvalidHarnessConfigError(`autonomyLevel must be one of: ${AUTONOMY_LEVELS.join(", ")}`);
   }
+  if (!isPerChangeFile && value === "autonomous") {
+    throw new GlobalAutonomousAutonomyLevelError();
+  }
 }
 
-function assertValidReviewGate(value: unknown, allowGlobal: boolean): asserts value is HarnessReviewGate | undefined {
+function assertValidReviewGate(
+  value: unknown,
+  isPerChangeFile: boolean,
+): asserts value is HarnessReviewGate | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("reviewGate must be an object");
@@ -90,25 +131,46 @@ function assertValidReviewGate(value: unknown, allowGlobal: boolean): asserts va
   if (typeof mode !== "string" || !REVIEW_GATE_MODES.includes(mode as HarnessReviewGateMode)) {
     throw new InvalidHarnessConfigError(`reviewGate.mode must be one of: ${REVIEW_GATE_MODES.join(", ")}`);
   }
-  if (!allowGlobal && mode === "agent-sufficient") {
+  if (!isPerChangeFile && mode === "agent-sufficient") {
     throw new GlobalAgentSufficientReviewGateError();
   }
 }
 
+function assertValidCheckpoints(
+  value: unknown,
+  isPerChangeFile: boolean,
+): asserts value is HarnessCheckpoints | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("checkpoints must be an object");
+  }
+  const requireConfirmationBetweenSteps = (value as { requireConfirmationBetweenSteps?: unknown })
+    .requireConfirmationBetweenSteps;
+  if (typeof requireConfirmationBetweenSteps !== "boolean") {
+    throw new InvalidHarnessConfigError("checkpoints.requireConfirmationBetweenSteps must be a boolean");
+  }
+  if (!isPerChangeFile && requireConfirmationBetweenSteps === false) {
+    throw new GlobalCheckpointsDisabledError();
+  }
+}
+
 /** Validates a raw parsed JSON value as a partial `HarnessConfig`.
- * `allowGlobalAgentSufficient` is `false` for the global file, `true`
- * for a per-change file — see spec.md. */
+ * `isPerChangeFile` is `false` for the global file, `true` for a
+ * per-change file — gates every field that a global file may not set
+ * (`reviewGate.mode: "agent-sufficient"`, `autonomyLevel: "autonomous"`,
+ * `checkpoints.requireConfirmationBetweenSteps: false`) — see spec.md. */
 function assertValidHarnessConfigInput(
   value: unknown,
-  allowGlobalAgentSufficient: boolean,
+  isPerChangeFile: boolean,
 ): asserts value is Partial<HarnessConfig> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("root value must be an object");
   }
   const input = value as Partial<HarnessConfig>;
   assertValidStepAgents(input.stepAgents);
-  assertValidAutonomyLevel(input.autonomyLevel);
-  assertValidReviewGate(input.reviewGate, allowGlobalAgentSufficient);
+  assertValidAutonomyLevel(input.autonomyLevel, isPerChangeFile);
+  assertValidReviewGate(input.reviewGate, isPerChangeFile);
+  assertValidCheckpoints(input.checkpoints, isPerChangeFile);
 }
 
 function globalHarnessConfigPath(workspaceRoot: string): string {
@@ -142,6 +204,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     stepAgents: raw.stepAgents ?? {},
     autonomyLevel: raw.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
     reviewGate: raw.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
+    checkpoints: raw.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
   };
 }
 
@@ -169,6 +232,7 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     stepAgents: { ...global.stepAgents, ...override.stepAgents },
     autonomyLevel: override.autonomyLevel ?? global.autonomyLevel,
     reviewGate: override.reviewGate ?? global.reviewGate,
+    checkpoints: override.checkpoints ?? global.checkpoints,
   };
 }
 
@@ -180,6 +244,13 @@ export async function resolveHarnessConfig(workspaceRoot: string, changeName?: s
   const override = await readChangeHarnessConfig(workspaceRoot, changeName);
   return mergeHarnessConfig(global, override);
 }
+
+// resolveRunWithHarnessTarget/RunWithHarnessTarget live in harness-
+// dispatch.ts, not here — see that file's header comment for why (a
+// value re-export from THIS module would pull its Node-only imports into
+// the browser bundle). Re-exported below so a Node-side consumer can
+// still get everything from this one module if it prefers.
+export { resolveRunWithHarnessTarget, type RunWithHarnessTarget } from "./harness-dispatch.js";
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });

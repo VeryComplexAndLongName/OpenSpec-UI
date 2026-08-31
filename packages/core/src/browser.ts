@@ -21,12 +21,18 @@ export type {
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
 export type {
   HarnessAutonomyLevel,
+  HarnessCheckpoints,
   HarnessConfig,
   HarnessReviewGate,
   HarnessReviewGateMode,
   HarnessStage,
   HarnessStepAgents,
 } from "./harness-config.js";
+// resolveRunWithHarnessTarget is a real value export (not just a type) —
+// imported from its own zero-Node-import leaf module, not from
+// harness-config.js, which would pull that module's node:fs/node:path
+// imports into this browser bundle. See harness-dispatch.ts.
+export { resolveRunWithHarnessTarget, type RunWithHarnessTarget } from "./harness-dispatch.js";
 // Pure date math, no git/fs access — safe for the browser bundle (see the
 // file header comment for why this differs from change-timeline.js's
 // runtime exports, which stay Node-only).

@@ -16,6 +16,7 @@ export * from "./version-info.js";
 export * from "./template-catalog.js";
 export * from "./repo-bootstrap.js";
 export * from "./harness-config.js";
+export * from "./harness-chain-runner.js";
 export * from "./process-scheduler.js";
 export * from "./workspace-lease.js";
 export * from "./checkpoint.js";

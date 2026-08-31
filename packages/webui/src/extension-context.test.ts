@@ -14,6 +14,7 @@ describe("extension dashboard context", () => {
         expect(resolveInitialDashboardContext(container, (key) => `stored-${key}`)).toEqual({
             cwd: "C:\\repo",
             changeDir: "C:\\repo\\openspec\\changes",
+            startChain: false,
         });
     });
 
@@ -23,7 +24,17 @@ describe("extension dashboard context", () => {
         expect(resolveInitialDashboardContext(container, (key) => `stored-${key}`)).toEqual({
             cwd: "stored-cwd",
             changeDir: "stored-changeDir",
+            startChain: false,
         });
+    });
+
+    it("reads startChain from the initial HTML dataset", () => {
+        const container = document.createElement("div");
+        container.dataset.workspaceRoot = "C:\\repo";
+        container.dataset.changeDirectory = "C:\\repo\\openspec\\changes\\demo";
+        container.dataset.startChain = "true";
+
+        expect(resolveInitialDashboardContext(container, () => "").startChain).toBe(true);
     });
 
     it("accepts only typed host context messages", () => {

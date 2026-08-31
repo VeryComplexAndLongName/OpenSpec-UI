@@ -32,6 +32,17 @@
           "description": "Whoever is configured as the review stepAgent is the accountable party for relaxing this to agent-sufficient."
         }
       }
+    },
+    "checkpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requireConfirmationBetweenSteps"],
+      "properties": {
+        "requireConfirmationBetweenSteps": {
+          "type": "boolean",
+          "description": "false lets a semi-autonomous/autonomous chain run this change's stages with no pause between them."
+        }
+      }
     }
   },
   "definitions": {

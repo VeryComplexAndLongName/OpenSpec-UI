@@ -14,6 +14,15 @@ export interface DashboardContext {
      * import — see openspec/changes/agentic-harness/. Absent when no
      * harness config exists for the workspace/change. */
     stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
+    /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`)
+     * when the resolved harness config for the change targets `"chain"`
+     * rather than `"picker"` (see `resolveRunWithHarnessTarget` in
+     * `@openspec-ui/core`) — decides whether `extension-entry.tsx` mounts
+     * `HarnessChainPanel` instead of `AiPanel`. Unlike `detectedAgents`/
+     * `stepAgents`, known and needed on the very first render, so it is
+     * also read from the initial HTML dataset, not only follow-up
+     * messages. */
+    startChain?: boolean;
 }
 
 export interface DashboardContextMessage {
@@ -28,6 +37,7 @@ export function resolveInitialDashboardContext(
     return {
         cwd: container.dataset.workspaceRoot || readStoredValue("cwd"),
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
+        startChain: container.dataset.startChain === "true",
     };
 }
 
