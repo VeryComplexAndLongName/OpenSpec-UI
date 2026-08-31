@@ -1,5 +1,11 @@
 # @openspec-ui/core
 
+## 0.33.2
+
+### Patch Changes
+
+- 5ce55ae: Fix `claude-cli` runs stalling on an unanswerable Edit/Write/Bash permission prompt in non-interactive mode. `buildInvocation()` now passes `--dangerously-skip-permissions`, matching the existing non-interactive-bypass posture already used by `copilot-cli` (`--allow-all-tools`) and `gemini-cli` (`--yolo`).
+
 ## 0.33.1
 
 ### Patch Changes
