@@ -13,14 +13,21 @@
   (`push` to `main` only, matching `release-extension`) means GitHub
   Actions never runs it against a PR branch or fork — there is no way to
   observe it firing before this change is actually on `main`. Verified
-  instead: the job syntax/config (env vars, permissions, action version)
-  against `release-extension`'s already-working job in the same file, and
-  `npx changeset version`'s own behavior locally (this is exactly the
-  command `changesets/action` runs). Real end-to-end verification — does
-  it actually open/skip a "Version Packages" PR correctly on a real push
-  to `main` — happens after merge, tracked as a follow-up note in this
-  change's PR description rather than a task here, since it cannot be
-  completed before the merge that makes it possible.
+  pre-merge: the job syntax/config (env vars, permissions, action
+  version) against `release-extension`'s already-working job in the same
+  file, and `npx changeset version`'s own behavior locally (this is
+  exactly the command `changesets/action` runs). Verified post-merge
+  (PR #124, merge commit `9a83698`, real push to `main`): the
+  `version-packages` job ran and completed successfully
+  (`https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/33411836200`,
+  "Create or update version PR" step green); with zero pending
+  `.changeset/*.md` files at merge time, it correctly did **not** open an
+  empty "Version Packages" PR (confirmed via `gh pr list --search
+  "Version Packages"` — no new PR beyond the pre-existing #120/#118/
+  #113/#110) — case (b) from this task's original scope. Case (a) (opens
+  a real PR with actual pending changesets) remains to be observed the
+  next time any changeset lands and is merged to `main`, not specially
+  gated on anything further in this change.
 
 ## 2. One-time cleanup
 
