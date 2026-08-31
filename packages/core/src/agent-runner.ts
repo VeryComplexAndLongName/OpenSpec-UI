@@ -87,7 +87,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         return;
       }
 
-      const { prompt } = prepareAgentContext(command.context);
+      const { prompt } = await prepareAgentContext(command.context);
 
       auditLog.record({
         runId: command.runId,
