@@ -5,6 +5,7 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  AGENT_REGISTRY,
   DEFAULT_HARNESS_CONFIG,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
@@ -43,6 +44,10 @@ import {
   type WorkbenchProcessScheduler,
   type ChangeTimeline,
   type Command,
+  type HarnessAutonomyLevel,
+  type HarnessConfig,
+  type HarnessReviewGateMode,
+  type HarnessStage,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
 } from "@openspec-ui/core";
@@ -102,6 +107,75 @@ async function runTrackedProcess(
 ): Promise<void> {
   const process = await sessions.run(workspaceRoot, options);
   if (process.state === "failed") throw new Error(process.error ?? `${process.operation} failed`);
+}
+
+// openspec-ui.createChangeTemplate's wizard — see openspec/changes/
+// agentic-harness-change-template/design.md, "Sequential QuickPick
+// wizard, not a single form" and "Cancelling mid-wizard discards the
+// whole customization, not a partial file". `git` is deliberately not
+// asked — see design.md, "Why git is not part of the wizard".
+const INHERIT_PICK = "(inherit from global default)";
+const HARNESS_TEMPLATE_STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive"];
+
+const AUTONOMY_LEVEL_PICKS: readonly vscode.QuickPickItem[] = [
+  { label: INHERIT_PICK },
+  {
+    label: "assisted",
+    description: "Recommended default",
+    detail: "The Agent Selection picker pre-fills a suggestion; a human still explicitly starts every stage.",
+  },
+  {
+    label: "semi-autonomous",
+    detail: "Runs propose -> review -> apply -> archive as one chain, pausing at a checkpoint between each stage by default.",
+  },
+  {
+    label: "autonomous",
+    detail: "Same chain, no pause between stages. Only takes effect because it is set in this exact per-change file.",
+  },
+];
+
+const REVIEW_GATE_PICKS: readonly vscode.QuickPickItem[] = [
+  { label: INHERIT_PICK },
+  { label: "human-required", description: "Default" },
+  {
+    label: "agent-sufficient",
+    detail: "Currently a no-op — the git stepAgent's commit/push action does not exist yet.",
+  },
+];
+
+/** Returns `undefined` if the wizard was cancelled at any step (the
+ * caller discards everything collected so far, per design.md); otherwise
+ * a `Partial<HarnessConfig>` containing only the fields the user actually
+ * set away from "(inherit)"/the default — possibly empty, if every
+ * question was left at inherit/default. */
+async function promptHarnessCustomization(changeName: string): Promise<Partial<HarnessConfig> | undefined> {
+  const stepAgents: Partial<Record<HarnessStage, string>> = {};
+  for (const stage of HARNESS_TEMPLATE_STAGES) {
+    const pick = await vscode.window.showQuickPick(
+      [INHERIT_PICK, ...AGENT_REGISTRY.map((agent) => agent.label)],
+      { title: `Agent for "${stage}" (${changeName})` },
+    );
+    if (pick === undefined) return undefined;
+    if (pick === INHERIT_PICK) continue;
+    const agent = AGENT_REGISTRY.find((candidate) => candidate.label === pick);
+    if (agent) stepAgents[stage] = agent.id;
+  }
+
+  const autonomyPick = await vscode.window.showQuickPick(AUTONOMY_LEVEL_PICKS, {
+    title: `Autonomy level (${changeName})`,
+  });
+  if (autonomyPick === undefined) return undefined;
+
+  const reviewGatePick = await vscode.window.showQuickPick(REVIEW_GATE_PICKS, {
+    title: `Review gate (${changeName})`,
+  });
+  if (reviewGatePick === undefined) return undefined;
+
+  const config: Partial<HarnessConfig> = {};
+  if (Object.keys(stepAgents).length > 0) config.stepAgents = stepAgents;
+  if (autonomyPick.label !== INHERIT_PICK) config.autonomyLevel = autonomyPick.label as HarnessAutonomyLevel;
+  if (reviewGatePick.label !== INHERIT_PICK) config.reviewGate = { mode: reviewGatePick.label as HarnessReviewGateMode };
+  return config;
 }
 
 function formatShowMarkdown(result: OpenSpecShowResult): string {
@@ -526,6 +600,64 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}.`);
       } catch (error) {
         await showCommandError("create change", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.createChangeTemplate", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) {
+        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        return;
+      }
+      const changeName = await vscode.window.showInputBox({
+        title: "Create Change Template",
+        prompt: "Enter a lowercase change id",
+        placeHolder: "improve-workbench",
+        validateInput: (value) => /^[a-z0-9][a-z0-9._-]*$/.test(value)
+          ? undefined
+          : "Use lowercase letters, numbers, dots, dashes, or underscores.",
+      });
+      if (!changeName) return;
+
+      try {
+        await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
+          operation: "create",
+          changeName,
+          mutating: true,
+          execute: async () => { await createChange(changeName, { cwd: workspaceRoot }); },
+        });
+        deps.refreshTrees();
+      } catch (error) {
+        await showCommandError("create change", error);
+        return;
+      }
+
+      const useDefaults = "Use global Agentic Harness defaults";
+      const customize = "Customize Agentic Harness for this change";
+      const choice = await vscode.window.showQuickPick([useDefaults, customize], {
+        title: `Agentic Harness for "${changeName}"`,
+      });
+      if (choice !== customize) {
+        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}.`);
+        return;
+      }
+
+      const config = await promptHarnessCustomization(changeName);
+      if (config === undefined) {
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: created ${changeName}. Harness customization cancelled — this change inherits the global default.`,
+        );
+        return;
+      }
+      if (Object.keys(config).length === 0) {
+        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}. No customization made — inherits the global default.`);
+        return;
+      }
+
+      try {
+        await writeChangeHarnessConfig(workspaceRoot, changeName, config);
+        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName} with a customized Agentic Harness override.`);
+      } catch (error) {
+        await showCommandError("write per-change harness config", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.validateSelectedChange", async (item?: ChangeTreeItem) => {

@@ -37,6 +37,13 @@ class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
+  AGENT_REGISTRY: [
+    { id: "claude-cli", label: "Claude CLI" },
+    { id: "copilot-cli", label: "GitHub Copilot CLI" },
+    { id: "codex-cli", label: "Codex CLI" },
+    { id: "gemini-cli", label: "Gemini CLI" },
+    { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
+  ],
   DEFAULT_HARNESS_CONFIG: { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
   DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
@@ -188,6 +195,94 @@ describe("registerCommands", () => {
 
     expect(createChangeMock).toHaveBeenCalledWith("new-workbench-change", { cwd: "/workspace/repo" });
     expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  describe("openspec-ui.createChangeTemplate", () => {
+    const INHERIT = "(inherit from global default)";
+
+    it("creates the change and writes nothing when the user picks global defaults", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce("Use global Agentic Harness defaults");
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(createChangeMock).toHaveBeenCalledWith("demo-change", { cwd: "/workspace/repo" });
+      expect(deps.refreshTrees).toHaveBeenCalled();
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+    });
+
+    it("writes only the explicitly customized fields", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce("Claude CLI") // propose
+        .mockResolvedValueOnce(INHERIT) // review
+        .mockResolvedValueOnce("GitHub Copilot CLI") // apply
+        .mockResolvedValueOnce(INHERIT) // archive
+        .mockResolvedValueOnce({ label: "autonomous" })
+        .mockResolvedValueOnce({ label: "agent-sufficient" });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        stepAgents: { propose: "claude-cli", apply: "copilot-cli" },
+        autonomyLevel: "autonomous",
+        reviewGate: { mode: "agent-sufficient" },
+      });
+    });
+
+    it("writes nothing when every customization question is left at inherit/default", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce(INHERIT)
+        .mockResolvedValueOnce(INHERIT)
+        .mockResolvedValueOnce(INHERIT)
+        .mockResolvedValueOnce(INHERIT)
+        .mockResolvedValueOnce({ label: INHERIT })
+        .mockResolvedValueOnce({ label: INHERIT });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+    });
+
+    it("cancelling mid-wizard discards the whole customization but keeps the change", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce("Claude CLI") // propose answered...
+        .mockResolvedValueOnce(undefined); // ...then Esc on review
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(createChangeMock).toHaveBeenCalledWith("demo-change", { cwd: "/workspace/repo" });
+      expect(deps.refreshTrees).toHaveBeenCalled();
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+    });
+
+    it("does nothing without a change id", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(createChangeMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+    });
   });
 
   it("fetches and shows a change timeline for an active change", async () => {

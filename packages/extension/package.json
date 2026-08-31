@@ -66,6 +66,10 @@
         "icon": "$(add)"
       },
       {
+        "command": "openspec-ui.createChangeTemplate",
+        "title": "OpenSpec UI: Create Change Template"
+      },
+      {
         "command": "openspec-ui.validateSelectedChange",
         "title": "OpenSpec UI: Validate Change",
         "icon": "$(pass)"
@@ -250,6 +254,10 @@
           "command": "openspec-ui.createChange",
           "when": "view == openspecUiChanges",
           "group": "navigation@1"
+        },
+        {
+          "command": "openspec-ui.createChangeTemplate",
+          "when": "view == openspecUiChanges"
         },
         {
           "command": "openspec-ui.refresh",
