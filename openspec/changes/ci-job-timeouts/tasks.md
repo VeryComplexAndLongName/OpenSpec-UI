@@ -39,11 +39,10 @@ changing it — in particular, `browser-e2e`'s ceiling is wide because a
 - [x] 3.1 `git diff .github/workflows/quality.yml` shows exactly seven
   added lines, one per job, and no other change. This is the check that
   proves task 2.2 held.
-- [ ] 3.2 The file is valid YAML and every job still parses — confirmed by
+- [x] 3.2 The file is valid YAML and every job still parses — confirmed by
   CI running at all on the pull request for this change, which is itself
-  the test. OUTSTANDING: requires a live pull request run; parsing was
-  locally confirmed (`yaml.parse` succeeded, all seven jobs present) but
-  the actual CI run on this change's PR has not happened yet.
+  the test. Settled on PR #154: all five non-skipped jobs ran and passed,
+  which cannot happen if the workflow fails to parse.
 - [x] 3.3 `openspec change validate --strict ci-job-timeouts` — passed
   ("Change \"ci-job-timeouts\" is valid").
 - [x] 3.4 No changeset (CI configuration only, no `packages/*` change) —
@@ -52,9 +51,14 @@ changing it — in particular, `browser-e2e`'s ceiling is wide because a
   Confirmed no changeset was added for this change (the only untracked
   file in `.changeset/` is `checkpoint-storage-split.md`, pre-existing
   and unrelated).
-- [ ] 3.5 Confirm from this change's own pull request that every job still
+- [x] 3.5 Confirm from this change's own pull request that every job still
   completes well inside its new ceiling; note in this task the slowest
   job's actual duration on that run, so the next person adjusting these
   numbers has one more measurement rather than one more opinion.
-  OUTSTANDING: requires this change's own pull request to exist and run
-  on CI; cannot be performed from a local, headless run.
+  Measured on PR #154, the first run under these ceilings:
+  Standalone browser and accessibility 1m27s against 20 min (the
+  slowest); Typecheck, lint, test and build 1m17s against 10 min;
+  Extension integration and package 1m00s against 10 min; OpenSpec change
+  validation 36s against 5 min; Dependency review 4s against 5 min. Every
+  job finished inside a tenth of its ceiling — the intended margin, since
+  a ceiling detects a hang rather than budgeting performance.
