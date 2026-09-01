@@ -16,6 +16,12 @@
   that a task an implementing agent cannot perform (live, interactive or
   manual verification) must be marked as such in the task text, and must
   be reported as outstanding rather than checked off.
+- [ ] 1.5 `openspec/config.yaml`, `rules.tasks`: append a rule stating
+  that the implementing agent marks each task `[x]` in `tasks.md` as soon
+  as that task's own verification has passed — not in a single batch at
+  the end of the run, and never before the task is actually done. State
+  both halves: incremental marking is required, and marking ahead of the
+  work is the failure this rule exists to prevent.
 
 ## 2. Verification
 
