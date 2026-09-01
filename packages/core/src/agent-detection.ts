@@ -11,7 +11,16 @@ import crossSpawn from "cross-spawn";
 import { buildDefaultAllowlist } from "./default-runners.js";
 
 const HTTP_SENTINEL = "__http__";
-const SPAWN_TIMEOUT_MS = 3000;
+// 10 s, not the 3 s this used to be: measured on Windows while the machine
+// was loaded, `copilot --version` took 4.96-6.51 s and `claude --version`
+// 1.61-2.72 s, so a CLI that was installed and working was reported as
+// absent (and `claude` only just fit). 10 s is deliberate headroom over
+// that measured maximum for a colder start, not a tidy round number to be
+// trimmed back later. The cost of the extra headroom is not paid by a
+// missing CLI: `cross-spawn` emits an `error` event for an executable it
+// cannot find, so a genuinely absent agent still resolves immediately
+// rather than waiting out this budget.
+const SPAWN_TIMEOUT_MS = 10000;
 const HTTP_TIMEOUT_MS = 1500;
 
 export interface AgentDetectionConfig {

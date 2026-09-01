@@ -45,8 +45,10 @@ function buildFallbackPrompt(kind: Command["kind"], changeDir: string): string {
 export class CopilotCliAdapter implements AgentAdapter {
   readonly name = "copilot-cli";
 
-  buildInvocation(_command: Command): AdapterInvocation {
-    return { kind: "process", executable: "copilot", args: ["-p", "--allow-all-tools"] };
+  buildInvocation(command: Command): AdapterInvocation {
+    const args = ["-p", "--allow-all-tools"];
+    if (command.model) args.push("--model", command.model);
+    return { kind: "process", executable: "copilot", args };
   }
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
@@ -57,9 +59,11 @@ export class CopilotCliAdapter implements AgentAdapter {
     const fullPrompt = embeddedPrompt.length <= MAX_ARGV_PROMPT_LENGTH
       ? embeddedPrompt
       : buildFallbackPrompt(command.kind, command.context.changeDir);
+    const args = ["-p", fullPrompt, "--allow-all-tools"];
+    if (command.model) args.push("--model", command.model);
     yield* spawnAndStream({
       executable: invocation.executable,
-      args: ["-p", fullPrompt, "--allow-all-tools"],
+      args,
       cwd: command.cwd,
       runId: command.runId,
       commandKind: command.kind,

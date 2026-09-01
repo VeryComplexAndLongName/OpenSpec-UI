@@ -11,9 +11,11 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AGENT_REGISTRY,
   DEFAULT_AGENT_ID,
+  normalizeStepAgent,
   type Command,
   type CommandKind,
   type Event,
+  type HarnessStepAgents,
 } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
@@ -738,8 +740,9 @@ export interface AiPanelProps {
    * change, resolved by the host (see openspec/changes/agentic-harness/).
    * Pre-selects the picker for `plan`/`review`/`implement` (mapped to
    * `propose`/`review`/`apply`) — the user can still pick a different
-   * agent before running; this never enforces the recommendation. */
-  stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
+   * agent before running; this never enforces the recommendation. May
+   * include a model for the selected agent. */
+  stepAgents?: HarnessStepAgents;
 }
 
 const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply">> = {
@@ -768,6 +771,9 @@ export function AiPanel({
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const activeCommandKindRef = useRef<CommandKind>("list");
+  // The `cwd` the change list was already auto-loaded for, so opening the
+  // panel populates the picker exactly once per working directory.
+  const autoLoadedCwdRef = useRef<string | null>(null);
   const changesRoot = useMemo(() => resolveChangesRoot(changeDir), [changeDir]);
 
   // Agent Selection pre-fill (assisted-level Agentic Harness — see
@@ -779,8 +785,11 @@ export function AiPanel({
   useEffect(() => {
     if (manuallySelectedCommandKinds.current.has(commandKind)) return;
     const stage = COMMAND_KIND_TO_HARNESS_STAGE[commandKind];
-    const recommended = stage ? stepAgents?.[stage] : undefined;
-    if (recommended !== undefined) setAgentId(recommended);
+    const configuredEntry = stage ? stepAgents?.[stage] : undefined;
+    if (configuredEntry !== undefined) {
+      const agentId = normalizeStepAgent(configuredEntry).agent;
+      setAgentId(agentId);
+    }
   }, [commandKind, stepAgents]);
 
   useEffect(() => {
@@ -825,6 +834,22 @@ export function AiPanel({
         ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
         : "Idle";
 
+  // Auto-load the change list once the working directory is known, so the
+  // change picker is usable the moment the panel opens instead of being
+  // gated behind a manual click. Declared *after* the transport.subscribe
+  // effect above so the subscription exists before the command is sent —
+  // otherwise the run's stdout would be missed and the picker would stay
+  // empty. Only the read-only `list` command is ever auto-run.
+  useEffect(() => {
+    if (cwd === "") return;
+    if (autoLoadedCwdRef.current === cwd) return;
+    // A `list` fired into an in-flight run would reset events/runId and
+    // clobber output the user is watching.
+    if (isRunning) return;
+    autoLoadedCwdRef.current = cwd;
+    runCommand("list");
+  }, [cwd, isRunning]);
+
   function runCommand(kind: CommandKind) {
     if (CHANGE_REQUIRED_COMMANDS.includes(kind) && selectedChange.length === 0) {
       setSelectionHint("Run list and choose a change before this command.");
@@ -842,11 +867,17 @@ export function AiPanel({
       setSelectionHint(null);
     }
 
+    const stage = COMMAND_KIND_TO_HARNESS_STAGE[kind];
+    const configuredEntry = stage ? stepAgents?.[stage] : undefined;
+    const configuredAgent = configuredEntry ? normalizeStepAgent(configuredEntry).agent : undefined;
+    const model = configuredEntry && configuredAgent === agentId ? normalizeStepAgent(configuredEntry).model : undefined;
+
     const command: Command = {
       kind,
       cwd,
       runId: newRunId,
       agentId: AGENT_COMMANDS.includes(kind) ? agentId : undefined,
+      ...(model !== undefined && { model }),
       context: { changeDir: effectiveChangeDir, promptContext },
     };
     transport.send(command);
@@ -864,7 +895,7 @@ export function AiPanel({
     <div className="openspec-ai-panel">
       <div className="openspec-ai-panel-controls">
         <button type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
-          Load changes
+          Reload changes
         </button>
         <select
           aria-label="Select OpenSpec change"

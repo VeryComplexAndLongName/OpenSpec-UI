@@ -2,8 +2,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { STAGES, type HarnessStage } from "./harness-stage.js";
+import { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents } from "./harness-step-agent.js";
 
 export { STAGES, type HarnessStage };
+export { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents };
 
 // Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
 // autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
@@ -15,8 +17,6 @@ export { STAGES, type HarnessStage };
 
 export type HarnessAutonomyLevel = "assisted" | "semi-autonomous" | "autonomous";
 export type HarnessReviewGateMode = "human-required" | "agent-sufficient";
-
-export type HarnessStepAgents = Partial<Record<HarnessStage, string>>;
 
 export interface HarnessReviewGate {
   mode: HarnessReviewGateMode;
@@ -50,6 +50,7 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
 const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous", "autonomous"];
 const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
 const KNOWN_AGENT_IDS = new Set(AGENT_REGISTRY.map((agent) => agent.id));
+const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
 
 export class InvalidHarnessConfigError extends Error {
   constructor(reason: string) {
@@ -93,15 +94,34 @@ function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgen
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("stepAgents must be an object");
   }
-  for (const [stage, agentId] of Object.entries(value)) {
+  for (const [stage, entry] of Object.entries(value)) {
     if (!STAGES.includes(stage as HarnessStage)) {
       throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STAGES.join(", ")})`);
     }
+
+    let agentId: unknown;
+    let model: unknown;
+    if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+      agentId = (entry as { agent?: unknown }).agent;
+      model = (entry as { model?: unknown }).model;
+    } else {
+      agentId = entry;
+    }
+
     if (typeof agentId !== "string" || agentId.length === 0) {
       throw new InvalidHarnessConfigError(`stepAgents.${stage} must be a non-empty string`);
     }
     if (!KNOWN_AGENT_IDS.has(agentId)) {
       throw new InvalidHarnessConfigError(`stepAgents.${stage} references unknown agent id "${agentId}"`);
+    }
+
+    if (model !== undefined) {
+      if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.model "${String(model)}" is not a valid model id`);
+      }
+      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage} sets a model, but agent "${agentId}" does not accept one`);
+      }
     }
   }
 }

@@ -38,6 +38,13 @@ set for an agent that accepts no model.
 - **THEN** reading the configuration fails with an error naming the
   stage, and the value never reaches the spawned process
 
+#### Scenario: The user runs a stage on a different agent than configured
+
+- **WHEN** a stage has a model configured for one agent, and the user
+  starts that stage on a different agent
+- **THEN** no model is passed, because a model id is specific to the CLI
+  it was configured for
+
 #### Scenario: A per-change file overrides the global model
 
 - **WHEN** the global configuration sets one model for a stage and a

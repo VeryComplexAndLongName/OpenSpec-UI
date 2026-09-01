@@ -184,7 +184,7 @@
   started, passes cleanly in isolation (`vitest run src/sprint-report.test.ts`
   alone), not touched by any file this change modifies. Not fixed here —
   out of scope for `agentic-harness-autonomy`.
-- [ ] 6.4b Real Extension Host smoke test exercising one full
+- [ ] 6.4b **Half verified 2026-09-01**: a full `semi-autonomous` chain ran end to end on `task-granularity-rules` (started at `apply` per `determineStartStage`, paused at the checkpoint, the user confirmed, `archive` completed and the change is now in `openspec/changes/archive/2026-09-01-task-granularity-rules`). The `autonomous` half is still not run. Original task: real Extension Host smoke test exercising one full
   `semi-autonomous` chain (checkpoint confirm) and one full `autonomous`
   chain, per this project's established live-verification requirement —
   **not performed**: requires an interactive VS Code Extension Development

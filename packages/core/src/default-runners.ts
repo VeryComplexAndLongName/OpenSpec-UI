@@ -14,6 +14,7 @@ import { CodexCliAdapter } from "./agents/codex.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
+import { MODEL_ID_PATTERN } from "./harness-config.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
 import type { AllowlistConfig, AuditLog } from "./security.js";
 import { InMemoryAuditLog } from "./security.js";
@@ -32,12 +33,34 @@ function exact(expected: string[]): (args: string[]) => boolean {
   return (args) => args.length === expected.length && args.every((a, i) => a === expected[i]);
 }
 
+/** Permits `expected` exactly, or `expected` followed by exactly the
+ * given `modelFlag` and one value matching `MODEL_ID_PATTERN` —
+ * nothing else (see harness-step-models design.md, "The allowlist
+ * matcher admits one pair, positionally last"). */
+function exactWithOptionalModel(expected: string[], modelFlag: string): (args: string[]) => boolean {
+  return (args) => {
+    if (args.length === expected.length) return exact(expected)(args);
+    if (args.length !== expected.length + 2) return false;
+    return (
+      exact(expected)(args.slice(0, expected.length)) &&
+      args[expected.length] === modelFlag &&
+      MODEL_ID_PATTERN.test(args[expected.length + 1] ?? "")
+    );
+  };
+}
+
 /** Default allowlist: permits exactly what each adapter already builds
  * itself (see each one's `buildInvocation()`), not a broader set. */
 export function buildDefaultAllowlist(): AllowlistConfig {
   return {
-    "claude-cli": [{ executable: "claude", argsAllowed: exact(["-p", "--output-format", "text", "--dangerously-skip-permissions"]) }],
-    "copilot-cli": [{ executable: "copilot", argsAllowed: exact(["-p", "--allow-all-tools"]) }],
+    "claude-cli": [{
+      executable: "claude",
+      argsAllowed: exactWithOptionalModel(["-p", "--output-format", "text", "--dangerously-skip-permissions"], "--model"),
+    }],
+    "copilot-cli": [{
+      executable: "copilot",
+      argsAllowed: exactWithOptionalModel(["-p", "--allow-all-tools"], "--model"),
+    }],
     "codex-cli": [{ executable: "codex", argsAllowed: exact(["exec", "--skip-git-repo-check"]) }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],

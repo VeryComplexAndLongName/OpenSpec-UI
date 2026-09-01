@@ -54,7 +54,7 @@
   instead of `AiPanel` when `startChain` is true, reset to `false` on
   every other reveal so a reused panel doesn't get stuck on the chain
   view.
-- [ ] 2.3 Real Extension Host smoke test — **deferred by the user**
+- [x] 2.3 Real Extension Host smoke test — **verified 2026-09-01**: with `autonomyLevel: semi-autonomous` in a per-change `harness.json`, "Run with Agentic Harness" opened the chain panel (status `Idle`, `start-chain-button`) instead of the Agent Selection picker. Originally deferred
   alongside `agentic-harness-autonomy`'s task 6.4b (same underlying
   limitation: requires an interactive VS Code Extension Development Host
   session this agent cannot drive). Both scenarios (assisted → picker,

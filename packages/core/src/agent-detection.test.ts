@@ -48,7 +48,11 @@ describe("detectAvailableAgents", () => {
     expect(result["copilot-cli"]).toBe(true);
   });
 
-  it("reports an agent as not detected when spawning errors (e.g. ENOENT)", async () => {
+  it("reports an agent as not detected when spawning errors (e.g. ENOENT), without waiting out the spawn budget", async () => {
+    // Fake timers with nothing advancing them: if a missing executable had
+    // to wait for the spawn timeout, this would never resolve. A genuinely
+    // absent CLI must resolve off `cross-spawn`'s `error` event alone.
+    vi.useFakeTimers();
     spawnMock.mockImplementation(() => {
       const child = new FakeChildProcess();
       queueMicrotask(() => child.emit("error", new Error("ENOENT")));
@@ -59,6 +63,36 @@ describe("detectAvailableAgents", () => {
     const result = await detectAvailableAgents();
 
     expect(result["gemini-cli"]).toBe(false);
+  });
+
+  it("reports an agent as not detected when its probe never exits, once the spawn budget elapses", async () => {
+    vi.useFakeTimers();
+    const children: FakeChildProcess[] = [];
+    spawnMock.mockImplementation(() => {
+      // Never emits `exit` or `error` — only the timeout can settle this.
+      const child = new FakeChildProcess();
+      children.push(child);
+      return child;
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue({});
+
+    const pending = detectAvailableAgents();
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+
+    // The budget the probe actually uses must be well past the old 3 s one
+    // that reported installed-but-slow CLIs as absent; asserting the exact
+    // constant here would just restate it, so assert what went wrong before.
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(settled).toBe(false);
+
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result["claude-cli"]).toBe(false);
+    expect(children[0]?.kill).toHaveBeenCalled();
   });
 
   it("checks the local LLM via HTTP reachability instead of spawning", async () => {
