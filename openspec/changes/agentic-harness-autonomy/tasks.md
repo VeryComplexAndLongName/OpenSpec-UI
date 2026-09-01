@@ -184,7 +184,7 @@
   started, passes cleanly in isolation (`vitest run src/sprint-report.test.ts`
   alone), not touched by any file this change modifies. Not fixed here —
   out of scope for `agentic-harness-autonomy`.
-- [ ] 6.4b **Half verified 2026-09-01**: a full `semi-autonomous` chain ran end to end on `task-granularity-rules` (started at `apply` per `determineStartStage`, paused at the checkpoint, the user confirmed, `archive` completed and the change is now in `openspec/changes/archive/2026-09-01-task-granularity-rules`). The `autonomous` half is still not run. Original task: real Extension Host smoke test exercising one full
+- [x] 6.4b **Verified 2026-09-01, both halves**: a full `semi-autonomous` chain ran end to end on `task-granularity-rules` (started at `apply` per `determineStartStage`, paused at the checkpoint, the user confirmed, `archive` completed and the change is now in `openspec/changes/archive/2026-09-01-task-granularity-rules`). The `autonomous` half is still not run. Original task: real Extension Host smoke test exercising one full
   `semi-autonomous` chain (checkpoint confirm) and one full `autonomous`
   chain, per this project's established live-verification requirement —
   **not performed**: requires an interactive VS Code Extension Development
@@ -205,3 +205,17 @@
   integration in either delivery target — `agentic-harness-run-menu`.
 - The `git` stepAgent's actual commit/push action and its security model.
 - Parallel task execution / worktree isolation.
+
+
+On the `autonomous` half: the chain ran `apply` and continued straight
+to `archive` with no checkpoint, which is the behavior this task exists
+to verify. `archive` itself then failed, for an unrelated reason -
+`openspec archive` refused with `archive_spec_update_failed`: this
+change's delta for `### Requirement: reviewGate.mode ... never a valid
+global setting` no longer lists the scenario `Per-change file sets
+agent-sufficient` that the canonical spec has since gained, so archiving
+would have dropped it. A correct guard, and a content fix owed to this
+change's delta - not an autonomy defect. Also exposed a real reporting
+defect on our side: the run surfaced only the CLI's stderr
+(an ExperimentalWarning) and discarded the actual JSON diagnostic on
+stdout.
