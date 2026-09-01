@@ -1,6 +1,6 @@
 # ADR 0013: ACP-flavored agent adapters (Agent Client Protocol)
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-08-31
 
@@ -23,6 +23,32 @@ this one: making the `git` stage real is tracked in its own change,
 per-stage `checkpoint`/`autonomyLevel`/`reviewGate.mode` mechanism
 (`HarnessStage` already reserves `"git"`), not by this ADR's per-action
 `permissionRequest`. Neither decision depends on the other.
+
+Two further facts, surfaced when this ADR was reviewed for acceptance on
+2026-09-01, bear directly on the decision and were not in the original
+draft:
+
+- **The raw-text adapters deliver the prompt as an argv element.** On
+  Windows `copilot` and `claude` resolve as `.cmd` shims through
+  `cmd.exe`, whose command line caps at roughly 8191 characters, so
+  `packages/core/src/agents/copilot.ts` caps the embedded prompt at
+  `MAX_ARGV_PROMPT_LENGTH = 6000` and otherwise falls back to a prompt
+  that only names the change directory and asks the agent to read it. ACP
+  carries the prompt inside a `session/prompt` JSON-RPC message over
+  stdio, where no such cap applies. An ACP-flavored adapter therefore
+  needs no fallback prompt at all — including the project-rules section
+  `harness-prompt-project-rules` added, which the raw-text `copilot-cli`
+  adapter can otherwise reach only by telling the agent to re-run
+  `openspec instructions` itself.
+- **`copilot-cli` is currently unusable in this repository.** Every write
+  and shell action is denied with "Permission denied and could not
+  request permission from user", reproduced from a plain shell, the
+  extension host and the standalone server, and reported upstream. The
+  cause is structural: a headless CLI has nobody to answer its permission
+  prompt. ACP's `session/request_permission` is the one documented path
+  that gives it somebody to ask — this project's own UI. Whether that
+  actually restores the agent is not assumed here; it is the first thing
+  the related change verifies.
 
 The Agent Client Protocol (ACP, agentclientprotocol.com) is a versioned,
 JSON-RPC, session-based protocol distinct from and unrelated to MCP,
@@ -135,6 +161,14 @@ substitute for what this decision needs.
 - `gemini-cli-acp`'s and `codex-cli-acp`'s permission-relay is assumed,
   not yet live-verified — each adapter's own tasks require live
   verification before being considered complete.
+- `copilot-cli-acp` receives the full prompt over stdio, so
+  `copilot.ts`'s `MAX_ARGV_PROMPT_LENGTH` truncation and its fallback
+  prompt do not apply to it. The raw-text `copilot-cli` adapter keeps
+  both, unchanged.
+- If the permission round-trip works, `copilot-cli-acp` is the path back
+  to a usable `copilot-cli`. If it does not, that is a finding worth
+  having: it would mean the denial is not about the absence of an
+  interactive surface, and the upstream report needs amending.
 - `claude-cli-acp` provides observability without a permission gate; this
   is a structural limitation of Claude's current CLI surface, not
   something this decision can close without either metered API billing or
