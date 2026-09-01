@@ -1,6 +1,6 @@
 # ADR 0015: Agentic Harness per-stage model selection
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-09-01
 

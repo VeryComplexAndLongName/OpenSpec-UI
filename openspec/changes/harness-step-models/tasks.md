@@ -128,13 +128,14 @@ at the end, and never before the work is actually done.
   `.changeset/harness-step-models.md`; `npx changeset status` confirms
   `@openspec-ui/core` minor, with `server`/`webui`/`openspec-ui-vscode`
   cascading to patch as its dependents.
-- [ ] 7.7 `docs/adr/README.md`: add the ADR 0015 row to the index.
+- [x] 7.7 `docs/adr/README.md`: add the ADR 0015 row to the index.
   **Do this only once the concurrent uncommitted edits to that file (ADR
   0013/0014 rows) have been committed** — otherwise committing this file
-  would sweep up another session's work. Left unchecked: as of this
-  session, `docs/adr/README.md` still has the ADR 0013/0014 rows
-  uncommitted (working-tree diff, not yet on `main`) — the gate has not
-  cleared yet. Outstanding.
+  would sweep up another session's work. Gate cleared 2026-09-01: the
+  0013/0014 rows and both ADR files are committed in the same commit as
+  this row, with the repository owner's explicit authorization to act on
+  them. ADR 0015's own status is set to Accepted at the same time — the
+  decision shipped and was verified live by 7.8/8.6/9.7.
 - [x] 7.8 **Human-only, cannot be completed by an implementing agent**:
   live smoke test — set `apply` to a cheaper model (in
   `openspec/agent-harness.json`, or a per-change `harness.json` when the
