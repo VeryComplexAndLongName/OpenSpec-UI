@@ -25,6 +25,7 @@ const samples: Event[] = [
     nextStage: "apply",
     nextAgentId: "claude-cli",
   },
+  { ...base, kind: "handedOff", stage: "apply" },
 ];
 
 describe("protocol Event serialization", () => {
@@ -66,4 +67,11 @@ describe("protocol Event serialization", () => {
       }),
     ).toBe(false);
   });
+
+  it("accepts handedOff and rejects it with a missing or invalid stage", () => {
+    expect(isEvent({ ...base, kind: "handedOff", stage: "apply" })).toBe(true);
+    expect(isEvent({ ...base, kind: "handedOff" })).toBe(false);
+    expect(isEvent({ ...base, kind: "handedOff", stage: "not-a-stage" })).toBe(false);
+  });
+
 });

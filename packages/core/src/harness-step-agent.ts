@@ -11,11 +11,18 @@
 
 import type { HarnessStage } from "./harness-stage.js";
 
+/** How a stage's entry runs: `"cli"` (default) spawns the configured
+ * agent as a subprocess, as every stage has always run; `"vscode-chat"`
+ * hands the stage's prompt to VS Code's own chat instead — see
+ * docs/adr/0016-harness-stage-dispatch-via-vscode-chat.md. */
+export type HarnessStageDispatch = "cli" | "vscode-chat";
+
 /** A stage's entry names an agent, either on its own (the bare-string
  * form, unchanged from before this capability) or together with a
- * model. Widened, not replaced — see harness-step-models design.md,
- * "Widen the entry, keep the string form working". */
-export type HarnessStepAgent = string | { agent: string; model?: string };
+ * model and/or a dispatch mode. Widened, not replaced — see
+ * harness-step-models design.md, "Widen the entry, keep the string form
+ * working". */
+export type HarnessStepAgent = string | { agent: string; model?: string; dispatch?: HarnessStageDispatch };
 export type HarnessStepAgents = Partial<Record<HarnessStage, HarnessStepAgent>>;
 
 /** Allow-list of characters a model id may contain: cannot start with
@@ -26,8 +33,10 @@ export type HarnessStepAgents = Partial<Record<HarnessStage, HarnessStepAgent>>;
 export const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,
- * model? }` — the single place that knows both shapes exist, so no
- * consumer has to. */
-export function normalizeStepAgent(entry: HarnessStepAgent): { agent: string; model?: string } {
-  return typeof entry === "string" ? { agent: entry } : entry;
+ * model?, dispatch }` — the single place that knows both shapes exist,
+ * so no consumer has to. `dispatch` defaults to `"cli"` when the entry
+ * doesn't set one. */
+export function normalizeStepAgent(entry: HarnessStepAgent): { agent: string; model?: string; dispatch: HarnessStageDispatch } {
+  if (typeof entry === "string") return { agent: entry, dispatch: "cli" };
+  return { agent: entry.agent, model: entry.model, dispatch: entry.dispatch ?? "cli" };
 }
