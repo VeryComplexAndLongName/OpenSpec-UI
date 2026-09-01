@@ -75,3 +75,51 @@ any total.
 - **WHEN** an aggregate is built over no runs
 - **THEN** it reports zero totals and zero unmeasured runs, rather than
   failing
+
+### Requirement: A configured budget stops work at stage boundaries
+
+The system SHALL support a configured ceiling on what a change's runs may
+cost. Where a ceiling is configured, the system SHALL refuse to start a
+stage, and SHALL refuse to continue a chain, once recorded usage has
+reached it.
+
+The refusal SHALL name the budget as its reason, distinguishably from a run
+that failed on its own merits.
+
+A ceiling SHALL be enforced only against usage that was actually reported.
+Runs carrying no usage SHALL NOT be counted against it, by any estimate.
+
+The system SHALL NOT be required to interrupt a run already in progress:
+enforcement happens at the boundaries between stages, because a run's cost
+is not known until it ends.
+
+#### Scenario: Budget remains
+
+- **WHEN** a stage is about to start and recorded usage for its change is
+  below the configured ceiling
+- **THEN** the stage starts normally
+
+#### Scenario: Budget is exhausted between stages
+
+- **WHEN** a stage completes, recorded usage has reached the ceiling, and a
+  further stage would otherwise follow
+- **THEN** the chain stops without starting it, and reports the budget as
+  the reason rather than a failure of the work
+
+#### Scenario: A run exceeds the ceiling on its own
+
+- **WHEN** a single run's reported usage carries the total past the ceiling
+- **THEN** that run is not interrupted, and the ceiling takes effect before
+  the next stage starts
+
+#### Scenario: No usage was reported
+
+- **WHEN** runs for a change carry no reported usage
+- **THEN** nothing is counted against the ceiling, and no estimate is
+  substituted
+
+#### Scenario: No ceiling is configured
+
+- **WHEN** no ceiling is configured
+- **THEN** stages and chains proceed exactly as they would without this
+  requirement

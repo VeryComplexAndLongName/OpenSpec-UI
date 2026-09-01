@@ -52,6 +52,16 @@ yields it.
 - New `packages/core/src/usage-report.ts`: aggregates audit entries into
   totals by agent, by model and by change, alongside the existing
   `sprint-report.ts`/`change-timeline.ts` reporting modules.
+- `packages/core/src/harness-config.ts`: `HarnessConfig` gains an optional
+  budget (a cost ceiling, and optionally a token ceiling), settable
+  globally and per change. Per the pattern `autonomous` and
+  `agent-sufficient` already follow, a per-change value that *raises* the
+  global ceiling is accepted only from a per-change `harness.json` and is
+  never inherited silently.
+- `packages/core/src/harness-chain-runner.ts`: a chain checks the remaining
+  budget before starting each stage and refuses to continue when it is
+  exhausted, terminating in a state that names the budget as the reason —
+  not a generic failure.
 - `packages/extension`/`packages/webui`: a run's cost shown where the run
   already is, when present. Absent where there is no structured source —
   never an estimate (ADR 0017's last rejected alternative).
@@ -59,6 +69,20 @@ yields it.
   to read the version detection already captured instead of spawning
   `claude --version` a second time (ADR 0017 decision 6). That change is
   unimplemented, so this is an edit to its plan, not to shipped behavior.
+
+A budget belongs with the record, not after it. Recording alone answers
+"what did this cost"; it does not stop the next run. Batch processing (ADR
+0018 decision 5) makes that gap expensive: twenty changes run unattended at
+a per-run cost nobody can currently name. So this change also introduces
+the limit, enforced where the number is actually known.
+
+**What a budget can and cannot do.** Vendor cost arrives in a run's *final*
+result message, so a budget gates the **start** of a stage and the
+**continuation** of a chain. It cannot abort a run in flight; that would
+require parsing incremental token deltas, which is ADR 0017's most
+drift-exposed level and is deferred (ADR 0018 decision 7). Saying "hard
+token limit" without that qualifier would promise more than the mechanism
+delivers, so the specification states the boundary explicitly.
 
 ## Capabilities
 
@@ -84,7 +108,11 @@ yields it.
 ## Explicitly out of scope
 
 - Extracting usage from any agent (`acp-agent-adapters` and its per-adapter
-  follow-ups).
+  follow-ups). Until one lands, the budget has nothing to subtract, so it
+  is inert by construction — which is correct, not a defect: a ceiling
+  enforced against unmeasured runs would be a fabricated number, the thing
+  ADR 0017's last rejected alternative forbids.
+- Aborting a run mid-flight on budget exhaustion (ADR 0018 decision 7).
 - Changing `claude.ts` off `--output-format text`, or converting any
   raw-text adapter to structured output — forbidden by ADR 0017 decision 2.
 - The version-mismatch warning UI itself (`agentic-harness-init-wizard`
