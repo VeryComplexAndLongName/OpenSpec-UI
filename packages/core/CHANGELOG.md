@@ -1,5 +1,17 @@
 # @openspec-ui/core
 
+## 0.34.0
+
+### Minor Changes
+
+- db0e717: Agentic Harness `stepAgents` entries may now declare `dispatch: "vscode-chat"` (alongside the existing `"cli"`, the default) to hand a stage's prompt to VS Code's own chat instead of spawning a CLI subprocess — the same `workbench.action.chat.open` dispatch `openspec-ui.startImplementation` already used, now reachable through the harness. Valid only under `autonomyLevel: assisted`, and only in the VS Code delivery target; resolving it in the standalone server is a configuration error rather than a silent fallback to a CLI. Such a stage emits `started` followed by a new non-terminal `handedOff` event, never `completed` — nothing observes the chat session's work. Existing configurations are unaffected: absent `dispatch`, every stage behaves exactly as before.
+- 6b13d58: Agentic Harness `stepAgents` entries may now name a model alongside the agent (`{ agent, model }`, in addition to the existing bare agent id string), passed as `--model <value>` to `claude-cli`/`copilot-cli`. Lets a change configure a cheap model for `apply` and an expensive one for `propose`/`review`/`archive` on the same CLI. A model is validated against a closed character set and against the target agent's registry entry at config-read time, before any run starts.
+
+### Patch Changes
+
+- 6b13d58: Agent presence detection now allows a CLI 10 s to answer a `--version` probe instead of 3 s. On a loaded Windows machine `copilot --version` measured 4.96-6.51 s and `claude --version` 1.61-2.72 s, so an installed, working CLI was annotated as "not detected". A genuinely missing executable still resolves immediately via `cross-spawn`'s `error` event rather than waiting out the budget, and probes still run in parallel, so the worst case grows once, not per agent.
+- d9084ab: An Agentic Harness chain now decides between the `apply` and `archive` stages from the change's own `tasks.md` checkboxes, and refuses to archive while any task is unchecked. Previously `statusChange()` synthesized a `progress` value from artifact presence when the CLI reported none, where an artifact being "done" means only that its file exists; a change with all four artifact files written and every task unchecked therefore reported `remaining: 0`, and a chain skipped `apply` and archived it unimplemented. `progress` is now optional on `OpenSpecStatusResult` and absent when the CLI reports none, rather than fabricated. When task completion cannot be determined at all, a chain starts at `apply` and refuses to archive, so an unknown signal never selects the irreversible stage.
+
 ## 0.33.2
 
 ### Patch Changes
