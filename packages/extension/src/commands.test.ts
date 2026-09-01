@@ -346,6 +346,48 @@ describe("registerCommands", () => {
     );
   });
 
+  it("openspec-ui.showChangeTimeline: warns instead of silently doing nothing without a tree item", async () => {
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeTimeline")?.();
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: select a change in the tree first.",
+    );
+    expect(getChangeTimelineMock).not.toHaveBeenCalled();
+  });
+
+  describe("openspec-ui.validateSelectedChange", () => {
+    it("runs strict validation for the given change and opens a parsed markdown summary", async () => {
+      validateChangeMock.mockResolvedValue({
+        items: [{ id: "shared-ui", type: "change", valid: true, issues: [], durationMs: 12 }],
+        summary: { totals: { items: 1, passed: 1, failed: 0 }, byType: { change: { items: 1, passed: 1, failed: 0 } } },
+        version: "1.2.3",
+        root: { path: "/workspace/repo", source: "nearest" },
+      });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.validateSelectedChange")?.({
+        changeName: "shared-ui",
+        archived: false,
+      });
+
+      expect(validateChangeMock).toHaveBeenCalledWith("shared-ui", { cwd: "/workspace/repo" });
+      expect(vscodeMock.window.showTextDocument).toHaveBeenCalled();
+    });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.validateSelectedChange")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
+      expect(validateChangeMock).not.toHaveBeenCalled();
+    });
+  });
+
   it("picks changes across active and archived, fetches, and shows a comparison", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       changes: [{ name: "active-change" }],
@@ -603,6 +645,17 @@ describe("registerCommands", () => {
     expect(vscodeMock.window.createTerminal).not.toHaveBeenCalled();
   });
 
+  it("openspec-ui.archiveChange: warns instead of silently doing nothing without a tree item", async () => {
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.();
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: select a change in the tree first.",
+    );
+    expect(archiveChangeMock).not.toHaveBeenCalled();
+  });
+
   it("unarchives and deletes only after explicit confirmation", async () => {
     vscodeMock.window.showWarningMessage
       .mockResolvedValueOnce("Unarchive")
@@ -617,6 +670,28 @@ describe("registerCommands", () => {
     expect(unarchiveChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change");
     expect(deleteChangeMock).toHaveBeenCalledWith("/workspace/repo", "old-change", "archive");
     expect(deps.refreshTrees).toHaveBeenCalledTimes(2);
+  });
+
+  it("openspec-ui.unarchiveChange: warns instead of silently doing nothing without a tree item", async () => {
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.unarchiveChange")?.();
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: select a change in the tree first.",
+    );
+    expect(unarchiveChangeMock).not.toHaveBeenCalled();
+  });
+
+  it("openspec-ui.deleteChange: warns instead of silently doing nothing without a tree item", async () => {
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.deleteChange")?.();
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: select a change in the tree first.",
+    );
+    expect(deleteChangeMock).not.toHaveBeenCalled();
   });
 
   describe("openspec-ui.rollbackChange", () => {
@@ -712,6 +787,18 @@ describe("registerCommands", () => {
       });
 
       expect(deps.implementationSessions.rollbackChange).toHaveBeenCalledWith("archived-change");
+    });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.rollbackChange")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
+      expect(deps.implementationSessions.rollbackChange).not.toHaveBeenCalled();
     });
   });
 
@@ -952,11 +1039,14 @@ describe("registerCommands", () => {
       expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
     });
 
-    it("does nothing without a tree item (invoked outside the context menu)", async () => {
+    it("warns instead of silently doing nothing without a tree item (invoked outside the context menu)", async () => {
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.();
 
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
       expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
     });
@@ -1004,12 +1094,15 @@ describe("registerCommands", () => {
       expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
 
-    it("does nothing without a tree item (invoked outside the context menu)", async () => {
+    it("warns instead of silently doing nothing without a tree item (invoked outside the context menu)", async () => {
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.();
 
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
       expect(resolveHarnessConfigMock).not.toHaveBeenCalled();
       expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
@@ -1118,6 +1211,17 @@ describe("registerCommands", () => {
       expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
     });
 
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.copyTasksAsTemplate")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
+      expect(readArchivedChangeTasksTemplateMock).not.toHaveBeenCalled();
+    });
+
     it("reports no valid target instead of offering an empty picker", async () => {
       listChangesMock.mockResolvedValue({ changes: [], root: { path: "/workspace/repo", source: "nearest" } });
 
@@ -1191,6 +1295,17 @@ describe("registerCommands", () => {
 
       expect(customizeTemplateMock).not.toHaveBeenCalled();
     });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.customizeTemplate")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a template in the tree first.",
+      );
+      expect(customizeTemplateMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("openspec-ui.deleteProjectTemplate", () => {
@@ -1228,6 +1343,17 @@ describe("registerCommands", () => {
         template: { ...projectItem.template, origin: "built-in" as const },
       });
 
+      expect(deleteProjectTemplateMock).not.toHaveBeenCalled();
+    });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteProjectTemplate")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a template in the tree first.",
+      );
       expect(deleteProjectTemplateMock).not.toHaveBeenCalled();
     });
 
@@ -1347,6 +1473,17 @@ describe("registerCommands", () => {
       expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(2);
       expect(vscodeMock.window.showErrorMessage).not.toHaveBeenCalled();
     });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a task in the tree first.",
+      );
+      expect(deleteTaskLineMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("openspec-ui.insertTemplateIntoChange", () => {
@@ -1437,5 +1574,109 @@ describe("registerCommands", () => {
 
       expect(renderTemplateMock).toHaveBeenCalledWith(booleanItem.template, { includeTests: true });
     });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.insertTemplateIntoChange")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a template in the tree first.",
+      );
+      expect(renderTemplateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.revealTask", () => {
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealTask")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a task in the tree first.",
+      );
+      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.startImplementation", () => {
+    it("starts an implementation session for the given change", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.startImplementation")?.({
+        changeName: "demo-change",
+        changeDir: "/workspace/repo/openspec/changes/demo-change",
+        archived: false,
+      });
+
+      expect(deps.implementationSessions.start).toHaveBeenCalledWith("/workspace/repo", "demo-change");
+    });
+
+    it("does nothing for an archived change", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.startImplementation")?.({
+        changeName: "demo-change",
+        changeDir: "/workspace/repo/openspec/changes/demo-change",
+        archived: true,
+      });
+
+      expect(deps.implementationSessions.start).not.toHaveBeenCalled();
+    });
+
+    it("warns instead of silently doing nothing without a tree item", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.startImplementation")?.();
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: select a change in the tree first.",
+      );
+      expect(deps.implementationSessions.start).not.toHaveBeenCalled();
+    });
+
+    it("warns instead of silently doing nothing without a workspace", async () => {
+      const deps = makeDeps({ getWorkspaceRoot: () => undefined });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.startImplementation")?.({
+        changeName: "demo-change",
+        changeDir: "/workspace/repo/openspec/changes/demo-change",
+        archived: false,
+      });
+
+      expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: open a folder or workspace first.",
+      );
+      expect(deps.implementationSessions.start).not.toHaveBeenCalled();
+    });
+  });
+
+  it("openspec-ui.createChange: shows the exact pre-existing no-workspace message via the shared helper", async () => {
+    const deps = makeDeps({ getWorkspaceRoot: () => undefined });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.createChange")?.();
+
+    expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: open a folder or workspace first.",
+    );
+    expect(createChangeMock).not.toHaveBeenCalled();
+  });
+
+  it("openspec-ui.openAiPanel: shows the exact pre-existing no-workspace message via the shared helper", async () => {
+    const deps = makeDeps({ getWorkspaceRoot: () => undefined });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.openAiPanel")?.();
+
+    expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+      "OpenSpec UI: open a folder or workspace first.",
+    );
+    expect(deps.revealAiPanel).not.toHaveBeenCalled();
   });
 });
