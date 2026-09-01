@@ -23,5 +23,6 @@ Alternatives / Consequences.
 | [0014](0014-agentic-harness-git-stage.md) | Agentic Harness `git` stage (push / PR / merge) | Proposed |
 | [0015](0015-agentic-harness-per-stage-model-selection.md) | Agentic Harness per-stage model selection | Accepted |
 | [0016](0016-harness-stage-dispatch-via-vscode-chat.md) | Harness stage dispatch via the VS Code chat | Accepted |
+| [0017](0017-structured-agent-output-parsing.md) | Structured agent output: parsing discipline and graceful degradation | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
