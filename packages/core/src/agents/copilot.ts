@@ -39,7 +39,10 @@ function buildFallbackPrompt(kind: Command["kind"], changeDir: string): string {
     `proceeding, read proposal.md, design.md, tasks.md, and any ` +
     `specs/*/spec.md files directly from ${changeDir} using your own ` +
     "file tools. Work only within that directory — do not read or " +
-    "modify files under any other openspec/changes/<id>/ directory.";
+    "modify files under any other openspec/changes/<id>/ directory. Also " +
+    "run `openspec instructions tasks --change <id>` yourself (with <id> " +
+    "the change's directory name) and follow what it returns — those are " +
+    "this project's own rules for how the work must be done.";
 }
 
 export class CopilotCliAdapter implements AgentAdapter {

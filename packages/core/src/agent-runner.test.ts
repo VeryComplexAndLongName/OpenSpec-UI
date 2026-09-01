@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Without this, prepareAgentContext's rules lookup for "implement" commands
+// (see security.ts) would shell out to a real `openspec` binary against a
+// fake workspace path on every test here — this suite is about the runner's
+// own security/audit behavior, not the rules lookup, so it stays best-effort
+// undefined throughout.
+vi.mock("./openspec.js", () => ({ instructionsForArtifact: async () => undefined }));
+
 import { type AdapterInvocation, type AgentAdapter, createAgentRunner } from "./agent-runner.js";
 import { type AllowlistConfig, InMemoryAuditLog } from "./security.js";
 import type { Command, Event } from "./protocol.js";

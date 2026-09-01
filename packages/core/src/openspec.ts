@@ -443,6 +443,31 @@ export async function archiveChange(
   return runJson(args, options, "a JSON object", isObjectResult);
 }
 
+/** Returns the project's own instructions for `artifact` (e.g. `"tasks"`),
+ * as `openspec instructions <artifact> --change <changeName>` prints them —
+ * raw text, since this subcommand has no `--json` form. Returns `undefined`
+ * rather than throwing when the subcommand fails or prints nothing, so a
+ * caller can treat the rules as best-effort (see security.ts
+ * prepareAgentContext, design.md "A failed lookup degrades to today's
+ * behavior"). */
+export async function instructionsForArtifact(
+  artifact: string,
+  changeName: string,
+  options: OpenSpecCliOptions,
+): Promise<string | undefined> {
+  const binary = options.binary ?? "openspec";
+  try {
+    const { stdout } = await execFileAsync(
+      binary,
+      ["instructions", artifact, "--change", changeName],
+      { cwd: options.cwd, windowsHide: true },
+    );
+    return stdout.trim().length > 0 ? stdout : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function initOpenSpec(
   options: OpenSpecCliOptions,
   initOptions: OpenSpecInitOptions,

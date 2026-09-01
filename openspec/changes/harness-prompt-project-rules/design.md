@@ -47,6 +47,40 @@ the YAML), and would drift the moment upstream changes how instructions
 are assembled. This product does not otherwise parse `config.yaml`, and
 should not start.
 
+**Correction (2026-09-01, found in review of the first implementation).**
+The sentence above treated "more than a verbatim dump of the YAML" as a
+benefit. It is not. `openspec instructions <artifact> --change <id>` is
+the *authoring* prompt for that artifact, used by the propose flow to
+create it. Its real output wraps the rules in four sibling blocks, two of
+which instruct the reader to do a different job:
+
+```
+<artifact id="tasks" change="..." schema="spec-driven">
+<task>Create the tasks artifact for change "...".</task>
+<project_context>...</project_context>
+<rules>...the eight rules.tasks entries...</rules>
+<dependencies>Read ... before creating this artifact</dependencies>
+```
+
+Prepended to an `implement` prompt under a heading that says to follow
+it, that puts "Create the tasks artifact" one line below
+`commandInstruction("implement")`'s "Implement the tasks from tasks.md",
+as the earlier and more emphatic of the two. An agent running under
+`--dangerously-skip-permissions`/`--allow-all-tools` that resolves the
+conflict toward the more specific-looking `<task>` block rewrites
+`tasks.md` instead of implementing the change, silently.
+
+So the CLI stays the source — the reason for rejecting a `config.yaml`
+parser still holds — but only the `<rules>` element of its output belongs
+in the prompt. Everything else in that output is addressed to a run
+authoring the artifact, not to a run carrying out its contents.
+
+Not caught by tests because every test stubs the wrapper or the spawn, so
+none sees the real output shape; the only task that would have caught it
+is the human-only live check (5.5). This is the same failure mode as
+`harness-step-models` sections 8-9: types fit, tests pass, and the defect
+exists only in the assembled artifact.
+
 ### The rules block is labelled as instructions, and the artifact block stays data
 
 The prompt gains two clearly separated sections: the project's rules for
