@@ -2,10 +2,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { STAGES, type HarnessStage } from "./harness-stage.js";
-import { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents } from "./harness-step-agent.js";
+import {
+  MODEL_ID_PATTERN,
+  normalizeStepAgent,
+  type HarnessStageDispatch,
+  type HarnessStepAgent,
+  type HarnessStepAgents,
+} from "./harness-step-agent.js";
 
 export { STAGES, type HarnessStage };
-export { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents };
+export { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStageDispatch, type HarnessStepAgent, type HarnessStepAgents };
 
 // Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
 // autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
@@ -89,7 +95,12 @@ export class GlobalCheckpointsDisabledError extends InvalidHarnessConfigError {
   }
 }
 
-function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgents {
+/** `autonomyLevel` is the value resolved for the same file being
+ * validated (its own `autonomyLevel`, or the default when absent) — see
+ * design.md, "Validation splits between core and the host": core can
+ * only know what this one file declares, not the merged result of a
+ * global file plus a per-change override. */
+function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLevel): asserts value is HarnessStepAgents {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("stepAgents must be an object");
@@ -101,9 +112,11 @@ function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgen
 
     let agentId: unknown;
     let model: unknown;
+    let dispatch: unknown;
     if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
       agentId = (entry as { agent?: unknown }).agent;
       model = (entry as { model?: unknown }).model;
+      dispatch = (entry as { dispatch?: unknown }).dispatch;
     } else {
       agentId = entry;
     }
@@ -121,6 +134,17 @@ function assertValidStepAgents(value: unknown): asserts value is HarnessStepAgen
       }
       if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage} sets a model, but agent "${agentId}" does not accept one`);
+      }
+    }
+
+    if (dispatch !== undefined) {
+      if (dispatch !== "cli" && dispatch !== "vscode-chat") {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.dispatch must be "cli" or "vscode-chat"`);
+      }
+      if (dispatch === "vscode-chat" && autonomyLevel !== "assisted") {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage} sets dispatch "vscode-chat", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
+        );
       }
     }
   }
@@ -187,8 +211,8 @@ function assertValidHarnessConfigInput(
     throw new InvalidHarnessConfigError("root value must be an object");
   }
   const input = value as Partial<HarnessConfig>;
-  assertValidStepAgents(input.stepAgents);
   assertValidAutonomyLevel(input.autonomyLevel, isPerChangeFile);
+  assertValidStepAgents(input.stepAgents, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
 }

@@ -453,3 +453,109 @@ describe("AiPanel harness process tracking", () => {
         );
     });
 });
+
+describe("AiPanel vscode-chat stage dispatch", () => {
+    async function createChatDispatchFixture() {
+        resolveHarnessConfigMock.mockResolvedValue({
+            stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+            autonomyLevel: "assisted",
+            reviewGate: { mode: "human-required" },
+        });
+        const runController = { onEvent: vi.fn(() => vi.fn()), run: vi.fn() };
+        const resolveRunner = vi.fn(() => ({ name: "claude-cli", run: vi.fn() }));
+        const panel = createPanelFixture();
+        const aiPanel = new AiPanel({
+            extensionUri: vscodeMock.Uri.file("/extension") as never,
+            runController: runController as never,
+            resolveRunner: resolveRunner as never,
+            chainRunner: createFakeChainRunner() as never,
+            getLocalServerUrl: () => undefined,
+        });
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo" });
+        // Let resolveAndPostStepAgents()'s resolveHarnessConfig() promise
+        // settle and populate panelContext.stepAgents before any command is
+        // sent — mirrors real usage, where a user can't click "Run" before
+        // reveal() has finished rendering.
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
+        return { panel, runController, resolveRunner, receiveMessage };
+    }
+
+    function sendImplementCommand(receiveMessage: (message: unknown) => void) {
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "implement",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-1",
+                agentId: "claude-cli",
+            },
+        });
+    }
+
+    it("opens VS Code's own chat and never calls the AgentRunner mock", async () => {
+        const { resolveRunner, receiveMessage } = await createChatDispatchFixture();
+
+        sendImplementCommand(receiveMessage);
+        await Promise.resolve();
+
+        expect(vscodeMock.commands.executeCommand).toHaveBeenCalledWith(
+            "workbench.action.chat.open",
+            expect.objectContaining({ mode: "agent" }),
+        );
+        expect(resolveRunner).not.toHaveBeenCalled();
+    });
+
+    it("posts started then handedOff, and never completed", async () => {
+        const { panel, receiveMessage } = await createChatDispatchFixture();
+
+        sendImplementCommand(receiveMessage);
+        await Promise.resolve();
+
+        const postedEvents = (panel.webview.postMessage.mock.calls as unknown as Array<[{ type: string; event?: { kind: string } }]>)
+            .map(([message]) => message)
+            .filter((message) => message.type === "openspec-ui/event")
+            .map((message) => message.event?.kind);
+
+        expect(postedEvents).toEqual(["started", "handedOff"]);
+        expect(postedEvents).not.toContain("completed");
+    });
+
+    it("a stage with no dispatch still goes through the AgentRunner exactly as today", async () => {
+        resolveHarnessConfigMock.mockResolvedValue({
+            stepAgents: {},
+            autonomyLevel: "assisted",
+            reviewGate: { mode: "human-required" },
+        });
+        const runController = { onEvent: vi.fn(() => vi.fn()), run: vi.fn() };
+        const resolveRunner = vi.fn(() => ({ name: "claude-cli", run: vi.fn() }));
+        const panel = createPanelFixture();
+        const aiPanel = new AiPanel({
+            extensionUri: vscodeMock.Uri.file("/extension") as never,
+            runController: runController as never,
+            resolveRunner: resolveRunner as never,
+            chainRunner: createFakeChainRunner() as never,
+            getLocalServerUrl: () => undefined,
+        });
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo" });
+        await Promise.resolve();
+        await Promise.resolve();
+        const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
+        vscodeMock.commands.executeCommand.mockClear();
+
+        sendImplementCommand(receiveMessage);
+
+        expect(resolveRunner).toHaveBeenCalledWith("claude-cli");
+        expect(runController.run).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "claude-cli" }),
+            expect.objectContaining({ kind: "implement" }),
+        );
+        expect(vscodeMock.commands.executeCommand).not.toHaveBeenCalledWith(
+            "workbench.action.chat.open",
+            expect.anything(),
+        );
+    });
+});

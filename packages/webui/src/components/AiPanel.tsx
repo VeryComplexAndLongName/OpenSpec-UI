@@ -513,6 +513,8 @@ function describeEvent(event: Event): string {
       return `stage completed: ${event.stage} → ${event.nextStage}`;
     case "checkpoint":
       return `checkpoint: ${event.stage} → ${event.nextStage} (${event.nextAgentId})`;
+    case "handedOff":
+      return `handed off: ${event.stage} → VS Code chat`;
   }
 }
 

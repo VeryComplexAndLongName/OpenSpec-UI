@@ -87,7 +87,7 @@ the ends.
   implemented; do not rewrite them.
 - [x] 5.4 Version bump via `npx changeset` (`@openspec-ui/core`, patch —
   a bug fix; chains were archiving unimplemented changes).
-- [ ] 5.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 5.5 **Human-only, cannot be completed by an implementing agent**:
   rebuild and reinstall (`npm run reinstall:local --workspace
   openspec-ui-vscode`), reload, and run an `autonomous` chain on a change
   with unchecked tasks. Confirm it runs `apply` (not `archive`), and that

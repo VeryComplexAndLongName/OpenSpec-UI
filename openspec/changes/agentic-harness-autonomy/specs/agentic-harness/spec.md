@@ -95,10 +95,17 @@ reject a global `openspec/agent-harness.json` that sets `autonomyLevel` to
 - **THEN** the system reports a clear validation error and does not
   resolve or apply that value
 
-#### Scenario: Per-change file sets any of the three restricted values
+#### Scenario: Per-change file sets agent-sufficient
 
 - **WHEN** a per-change `harness.json` sets `reviewGate.mode:
-  "agent-sufficient"`, or `autonomyLevel: "autonomous"`, or
-  `checkpoints.requireConfirmationBetweenSteps: false`
+  "agent-sufficient"`
+- **THEN** the resolved configuration for that change uses
+  `agent-sufficient`, without affecting any other change's resolved
+  configuration
+
+#### Scenario: Per-change file sets autonomous or disables checkpoint confirmation
+
+- **WHEN** a per-change `harness.json` sets `autonomyLevel:
+  "autonomous"`, or `checkpoints.requireConfirmationBetweenSteps: false`
 - **THEN** the resolved configuration for that change uses the set value,
   without affecting any other change's resolved configuration

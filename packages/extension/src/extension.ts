@@ -17,6 +17,7 @@ import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { registerCommands } from "./commands.js";
+import type { TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
@@ -118,16 +119,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   let archiveTree: ArchiveTreeProvider | undefined;
   let specsTree: SpecsTreeProvider | undefined;
   let templatesTree: TemplatesTreeProvider | undefined;
+  // The three views whose rows the item-scoped commands act on:
+  // `createTreeView` returns a handle exposing `selection`, which
+  // `registerTreeDataProvider` does not, and the Command Palette (which
+  // passes no item) needs it to find the row the user highlighted.
+  // `openspecUiSpecs`/`openspecUiProcesses` stay on
+  // `registerTreeDataProvider` — no command reads their selection.
+  let changesView: TreeSelectionView | undefined;
+  let archiveView: TreeSelectionView | undefined;
+  let templatesView: TreeSelectionView | undefined;
   if (workspaceRoot) {
     changesTree = new ChangesTreeProvider(workspaceRoot);
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
     specsTree = new SpecsTreeProvider(workspaceRoot);
     templatesTree = new TemplatesTreeProvider(workspaceRoot);
+    const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changesTree });
+    const archiveTreeView = vscode.window.createTreeView("openspecUiArchive", { treeDataProvider: archiveTree });
+    const templatesTreeView = vscode.window.createTreeView("openspecUiTemplates", { treeDataProvider: templatesTree });
+    changesView = changesTreeView;
+    archiveView = archiveTreeView;
+    templatesView = templatesTreeView;
     context.subscriptions.push(
-      vscode.window.registerTreeDataProvider("openspecUiChanges", changesTree),
-      vscode.window.registerTreeDataProvider("openspecUiArchive", archiveTree),
+      changesTreeView,
+      archiveTreeView,
+      templatesTreeView,
       vscode.window.registerTreeDataProvider("openspecUiSpecs", specsTree),
-      vscode.window.registerTreeDataProvider("openspecUiTemplates", templatesTree),
       vscode.commands.registerCommand("openspec-ui.refresh", () => {
         changesTree?.refresh();
         archiveTree?.refresh();
@@ -196,6 +212,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     refreshTemplatesTree: () => templatesTree?.refresh(),
     scheduler,
     implementationSessions,
+    changesView,
+    archiveView,
+    templatesView,
   });
   registerOpenSpecChatParticipant(context, { getWorkspaceRoot });
 

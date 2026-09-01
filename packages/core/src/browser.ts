@@ -31,7 +31,12 @@ export type {
 // import leaf module, not from harness-config.js, for the same reason
 // resolveRunWithHarnessTarget comes from harness-dispatch.js below — see
 // harness-step-agent.ts's header comment.
-export { normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents } from "./harness-step-agent.js";
+export {
+  normalizeStepAgent,
+  type HarnessStageDispatch,
+  type HarnessStepAgent,
+  type HarnessStepAgents,
+} from "./harness-step-agent.js";
 // resolveRunWithHarnessTarget is a real value export (not just a type) —
 // imported from its own zero-Node-import leaf module, not from
 // harness-config.js, which would pull that module's node:fs/node:path

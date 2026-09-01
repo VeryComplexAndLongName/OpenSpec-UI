@@ -78,7 +78,8 @@ export type EventKind =
   | "failed"
   | "cancelled"
   | "stageCompleted"
-  | "checkpoint";
+  | "checkpoint"
+  | "handedOff";
 
 interface BaseEvent {
   runId: string;
@@ -141,6 +142,15 @@ export interface CheckpointEvent extends BaseEvent {
   nextAgentId: string;
 }
 
+/** A stage was handed to the host's own chat instead of being spawned
+ * and observed — see docs/adr/0016-harness-stage-dispatch-via-vscode-
+ * chat.md. Non-terminal: nothing observes the chat session's work, so no
+ * `completed`/`failed`/`cancelled` follows it for that stage. */
+export interface HandedOffEvent extends BaseEvent {
+  kind: "handedOff";
+  stage: HarnessStage;
+}
+
 export type Event =
   | StartedEvent
   | StdoutEvent
@@ -150,7 +160,8 @@ export type Event =
   | FailedEvent
   | CancelledEvent
   | StageCompletedEvent
-  | CheckpointEvent;
+  | CheckpointEvent
+  | HandedOffEvent;
 
 /** Type guard helper: serializing an Event is just JSON, but we verify
  * that `kind` is one of the known variants when deserializing from an
@@ -189,6 +200,8 @@ export function isEvent(value: unknown): value is Event {
         STAGES.includes(v.nextStage as HarnessStage) &&
         typeof v.nextAgentId === "string"
       );
+    case "handedOff":
+      return typeof v.stage === "string" && STAGES.includes(v.stage as HarnessStage);
     default:
       return false;
   }

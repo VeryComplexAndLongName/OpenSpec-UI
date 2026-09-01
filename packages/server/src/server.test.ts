@@ -1070,6 +1070,30 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  it("rejects a stage configured with dispatch \"vscode-chat\" instead of running a CLI", async () => {
+    const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    await writeGlobalHarnessConfig(wsImplementCommand.cwd, {
+      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+    });
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+
+    const received: Event[] = [];
+    const done = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        received.push(JSON.parse(raw.toString()) as Event);
+        resolve();
+      });
+    });
+    client.send(JSON.stringify(wsImplementCommand));
+    await done;
+
+    expect(received).toEqual([expect.objectContaining({ kind: "failed", runId: wsImplementCommand.runId })]);
+    expect((received[0] as { reason: string }).reason).toContain("vscode-chat");
+    client.close();
+  });
+
   it("blocks a second server's implement run while another server holds the workspace lease, and unblocks once it finishes", async () => {
     const workspaceRoot = await createTempWorkspace();
     const command = {

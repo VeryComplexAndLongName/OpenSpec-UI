@@ -6,14 +6,17 @@
 import * as vscode from "vscode";
 import {
   detectAvailableAgents,
+  normalizeStepAgent,
   resolveHarnessConfig,
   type AgentRunner,
   type Command,
   type HarnessChainRunner,
+  type HarnessStage,
   type HarnessStepAgents,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
+import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
 const EVENT_MESSAGE_TYPE = "openspec-ui/event";
@@ -57,6 +60,20 @@ function isBridgeCommandMessage(data: unknown): data is BridgeCommandMessage {
   const v = data as Record<string, unknown>;
   return v.type === COMMAND_MESSAGE_TYPE && typeof v.command === "object" && v.command !== null;
 }
+
+/** The `HarnessStage` a single-stage `Command.kind` corresponds to —
+ * mirrors `HarnessChainRunner`'s own `CHAIN_STAGE_COMMAND` mapping
+ * (`harness-chain-runner.ts`), inverted, and `webui`'s
+ * `COMMAND_KIND_TO_HARNESS_STAGE` (`AiPanel.tsx`). Only these three kinds
+ * are ever dispatched through a single `stepAgents` entry — everything
+ * else (`status`/`list`/`show`/`validate`/`cancel`/`chain`/
+ * `confirmCheckpoint`) has no entry here and always falls through to the
+ * existing `AgentRunner` path. */
+const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
+  plan: "propose",
+  review: "review",
+  implement: "apply",
+};
 
 export interface AiPanelDeps {
   extensionUri: vscode.Uri;
@@ -134,6 +151,89 @@ export class AiPanel {
     });
   }
 
+  /** Routes a `"plan"`/`"review"`/`"implement"` command either to a
+   * spawned `AgentRunner` (default, unchanged) or, when the
+   * corresponding stage's `stepAgents` entry — already resolved once per
+   * reveal by `resolveAndPostStepAgents()`, the same recommendation the
+   * webview's picker pre-fill uses — declares `dispatch: "vscode-chat"`,
+   * to VS Code's own chat instead — see
+   * docs/adr/0016-harness-stage-dispatch-via-vscode-chat.md. Reading the
+   * already-resolved `this.panelContext.stepAgents` here (rather than
+   * calling `resolveHarnessConfig` again) keeps the ordinary AgentRunner
+   * path fully synchronous, exactly as before this capability existed —
+   * a malformed harness config already fails silently in
+   * `resolveAndPostStepAgents()` (reported elsewhere, in the Harness
+   * Settings UI), leaving `stepAgents` undefined and this method falling
+   * through to the AgentRunner path here too. Every other command kind
+   * has no entry in `STAGE_FOR_COMMAND_KIND`, so it always falls through
+   * unchanged as well. */
+  private dispatchOrRun(panel: vscode.WebviewPanel, command: Command): void {
+    const stage = STAGE_FOR_COMMAND_KIND[command.kind];
+    const stepAgent = stage ? this.panelContext?.stepAgents?.[stage] : undefined;
+    if (stepAgent !== undefined && normalizeStepAgent(stepAgent).dispatch === "vscode-chat") {
+      const changeName = command.context.changeDir
+        .split(/[\\/]+/)
+        .filter((segment) => segment.length > 0)
+        .pop();
+      if (changeName) {
+        void this.dispatchToChat(panel, command, stage as HarnessStage, changeName);
+        return;
+      }
+    }
+
+    const runner = this.deps.resolveRunner(command.agentId);
+    if (!runner) {
+      void panel.webview.postMessage({
+        type: EVENT_MESSAGE_TYPE,
+        event: {
+          kind: "failed",
+          runId: command.runId,
+          timestamp: new Date().toISOString(),
+          reason: "AI agent execution is disabled in direct OpenSpec mode.",
+        },
+      });
+      return;
+    }
+    this.trackHarnessProcess(command);
+    void this.deps.runController.run(runner, command);
+  }
+
+  /** Hands `command`'s stage to VS Code's own chat instead of spawning
+   * an `AgentRunner`. Emits `started` then `handedOff` — never
+   * `completed`/`failed`/`cancelled` — see design.md, "A distinct event
+   * kind, not `completed`": nothing observes the chat session's work, so
+   * the run simply ends at the hand-off event. */
+  private async dispatchToChat(
+    panel: vscode.WebviewPanel,
+    command: Command,
+    stage: HarnessStage,
+    changeName: string,
+  ): Promise<void> {
+    void panel.webview.postMessage({
+      type: EVENT_MESSAGE_TYPE,
+      event: {
+        kind: "started",
+        runId: command.runId,
+        timestamp: new Date().toISOString(),
+        command: command.kind,
+        cwd: command.cwd,
+      },
+    });
+
+    const prompt = buildWorkbenchChatPrompt({
+      stage,
+      changeName,
+      workspaceRoot: command.cwd,
+      changeDir: command.context.changeDir,
+    });
+    await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt, mode: "agent" });
+
+    void panel.webview.postMessage({
+      type: EVENT_MESSAGE_TYPE,
+      event: { kind: "handedOff", runId: command.runId, timestamp: new Date().toISOString(), stage },
+    });
+  }
+
   reveal(panelContext?: AiPanelContext): void {
     if (panelContext) this.panelContext = { ...panelContext };
     if (this.panel) {
@@ -199,21 +299,7 @@ export class AiPanel {
         return;
       }
 
-      const runner = this.deps.resolveRunner(command.agentId);
-      if (!runner) {
-        void panel.webview.postMessage({
-          type: EVENT_MESSAGE_TYPE,
-          event: {
-            kind: "failed",
-            runId: command.runId,
-            timestamp: new Date().toISOString(),
-            reason: "AI agent execution is disabled in direct OpenSpec mode.",
-          },
-        });
-        return;
-      }
-      this.trackHarnessProcess(command);
-      void this.deps.runController.run(runner, command);
+      this.dispatchOrRun(panel, command);
     });
 
     panel.onDidDispose(() => {

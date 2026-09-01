@@ -233,7 +233,7 @@ describe("stepAgents model support", () => {
 
     const config = await readGlobalHarnessConfig(root);
     expect(config.stepAgents).toEqual({ propose: "claude-cli" });
-    expect(normalizeStepAgent(config.stepAgents.propose!)).toEqual({ agent: "claude-cli" });
+    expect(normalizeStepAgent(config.stepAgents.propose!)).toEqual({ agent: "claude-cli", dispatch: "cli" });
   });
 
   it("resolves the object form to the same agent, with the model carried", async () => {
@@ -243,7 +243,11 @@ describe("stepAgents model support", () => {
     });
 
     const config = await readGlobalHarnessConfig(root);
-    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({ agent: "claude-cli", model: "claude-haiku-4-5" });
+    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
+      agent: "claude-cli",
+      model: "claude-haiku-4-5",
+      dispatch: "cli",
+    });
   });
 
   it.each([
@@ -274,7 +278,77 @@ describe("stepAgents model support", () => {
     });
 
     const resolved = await resolveHarnessConfig(root, "demo");
-    expect(normalizeStepAgent(resolved.stepAgents.apply!)).toEqual({ agent: "claude-cli", model: "cheap-model" });
+    expect(normalizeStepAgent(resolved.stepAgents.apply!)).toEqual({
+      agent: "claude-cli",
+      model: "cheap-model",
+      dispatch: "cli",
+    });
+  });
+});
+
+describe("stepAgents dispatch", () => {
+  it("defaults dispatch to \"cli\" for both the bare-string and { agent, model } forms", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { propose: "claude-cli", apply: { agent: "claude-cli", model: "claude-haiku-4-5" } },
+    });
+
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.propose!).dispatch).toBe("cli");
+    expect(normalizeStepAgent(config.stepAgents.apply!).dispatch).toBe("cli");
+  });
+
+  it("rejects an unknown dispatch value, naming the stage", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { propose: { agent: "claude-cli", dispatch: "carrier-pigeon" } } }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/stepAgents\.propose\.dispatch/);
+  });
+
+  it("rejects dispatch \"vscode-chat\" when autonomyLevel is semi-autonomous", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeChangeHarnessConfig(root, "demo", {
+        autonomyLevel: "semi-autonomous",
+        stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*vscode-chat/);
+  });
+
+  it("rejects dispatch \"vscode-chat\" when autonomyLevel is autonomous", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeChangeHarnessConfig(root, "demo", {
+        autonomyLevel: "autonomous",
+        stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*vscode-chat/);
+  });
+
+  it("accepts dispatch \"vscode-chat\" under autonomyLevel assisted", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "demo", {
+      autonomyLevel: "assisted",
+      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+    });
+
+    const override = await readChangeHarnessConfig(root, "demo");
+    expect(override?.stepAgents?.apply).toEqual({ agent: "claude-cli", dispatch: "vscode-chat" });
+  });
+
+  it("accepts dispatch \"vscode-chat\" when autonomyLevel is left absent (defaults to assisted)", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+    });
+
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!).dispatch).toBe("vscode-chat");
   });
 });
 

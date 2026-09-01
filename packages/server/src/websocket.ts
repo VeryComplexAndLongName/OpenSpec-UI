@@ -13,7 +13,10 @@ import {
   type AgentRunner,
   type Command,
   type HarnessChainRunner,
+  type HarnessStage,
   type WorkbenchRecoveryService,
+  normalizeStepAgent,
+  resolveHarnessConfig,
   resolveRunner,
   serializeEvent,
 } from "@openspec-ui/core";
@@ -21,6 +24,49 @@ import { isCommandLike } from "./wire.js";
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Mirrors `webui`'s `COMMAND_KIND_TO_HARNESS_STAGE` (`AiPanel.tsx`) and
+ * the extension's `STAGE_FOR_COMMAND_KIND` (`webview/ai-panel.ts`): the
+ * `HarnessStage` a single-stage `Command.kind` corresponds to. Only these
+ * three are ever driven by a single `stepAgents` entry. */
+const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
+  plan: "propose",
+  review: "review",
+  implement: "apply",
+};
+
+/** The standalone server has no chat to hand a stage to — ADR 0016
+ * requires refusing `dispatch: "vscode-chat"` here with an error, never a
+ * silent fallback to spawning the CLI the user did not ask for. Returns
+ * `true` (and has already sent the `failed` event) when `command` was
+ * refused for exactly this reason. */
+async function rejectIfChatDispatch(socket: WebSocket, command: Command): Promise<boolean> {
+  const stage = STAGE_FOR_COMMAND_KIND[command.kind];
+  if (!stage) return false;
+
+  const changeName = path.basename(command.context.changeDir);
+  let harnessConfig;
+  try {
+    harnessConfig = await resolveHarnessConfig(command.cwd, changeName);
+  } catch {
+    return false; // malformed config surfaces elsewhere; don't block the run on it here
+  }
+
+  const stepAgent = harnessConfig.stepAgents[stage];
+  if (stepAgent === undefined || normalizeStepAgent(stepAgent).dispatch !== "vscode-chat") return false;
+
+  if (socket.readyState === socket.OPEN) {
+    socket.send(
+      serializeEvent({
+        kind: "failed",
+        runId: command.runId,
+        timestamp: nowIso(),
+        reason: `stage "${stage}" is configured with dispatch "vscode-chat", which the standalone server cannot honour — run it from the VS Code extension instead`,
+      }),
+    );
+  }
+  return true;
 }
 
 export function handleSocketMessage(
@@ -57,6 +103,17 @@ export function handleSocketMessage(
     return;
   }
 
+  void dispatchSingleStage(socket, command, runners, resolveRecoveryService);
+}
+
+async function dispatchSingleStage(
+  socket: WebSocket,
+  command: Command,
+  runners: Map<string, AgentRunner>,
+  resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
+): Promise<void> {
+  if (await rejectIfChatDispatch(socket, command)) return;
+
   const runner = resolveRunner(runners, command.agentId);
   if (!runner) {
     socket.send(
@@ -70,7 +127,7 @@ export function handleSocketMessage(
     return;
   }
 
-  void streamRun(socket, runner, command, resolveRecoveryService);
+  await streamRun(socket, runner, command, resolveRecoveryService);
 }
 
 /** Same shape as `streamAgentEvents`, over `chainRunner.run(command)`
