@@ -144,18 +144,13 @@ export interface OpenSpecStatusProgress {
 export interface OpenSpecStatusResult {
   changeName: string;
   schemaName: string;
-  progress: OpenSpecStatusProgress;
-  artifacts: OpenSpecStatusArtifact[];
-  tasks?: OpenSpecStatusTask[];
-  state?: string;
-  instruction?: string;
-  root: OpenSpecRoot;
-  [key: string]: unknown;
-}
-
-interface RawOpenSpecStatusResult {
-  changeName: string;
-  schemaName: string;
+  /** Task progress, exactly as the CLI reported it — absent when it
+   * reported none. Never derived from `artifacts`: an artifact's `"done"`
+   * means that file exists, which is not a statement about whether the
+   * change's tasks are done. Conflating the two once let chains archive
+   * two changes whose every task was still unchecked (see
+   * openspec/changes/harness-chain-archive-gate). A caller that needs task
+   * completion must read the task list, not this field's absence. */
   progress?: OpenSpecStatusProgress;
   artifacts: OpenSpecStatusArtifact[];
   tasks?: OpenSpecStatusTask[];
@@ -326,7 +321,7 @@ function isStatusArtifact(value: unknown): value is OpenSpecStatusArtifact {
       || (Array.isArray(value.missingDeps) && value.missingDeps.every((item) => typeof item === "string")));
 }
 
-function isStatusResult(value: unknown): value is RawOpenSpecStatusResult {
+function isStatusResult(value: unknown): value is OpenSpecStatusResult {
   if (!isRecord(value)
     || !hasString(value, "changeName")
     || !hasString(value, "schemaName")
@@ -344,16 +339,6 @@ function isStatusResult(value: unknown): value is RawOpenSpecStatusResult {
   )))) return false;
   return (value.state === undefined || typeof value.state === "string")
     && (value.instruction === undefined || typeof value.instruction === "string");
-}
-
-function normalizeStatusResult(value: RawOpenSpecStatusResult): OpenSpecStatusResult {
-  if (value.progress) return { ...value, progress: value.progress };
-  const complete = value.artifacts.filter((artifact) => artifact.status === "done").length;
-  const total = value.artifacts.length;
-  return {
-    ...value,
-    progress: { total, complete, remaining: total - complete },
-  };
 }
 
 const isObjectResult = (value: unknown): value is Record<string, unknown> => isRecord(value);
@@ -425,13 +410,12 @@ export async function validateChange(
 }
 
 export async function statusChange(changeName: string, options: OpenSpecCliOptions): Promise<OpenSpecStatusResult> {
-  const status = await runJson(
+  return runJson(
     ["status", "--change", changeName, "--json"],
     options,
     "changeName, schemaName, artifacts[], root, and optional progress",
     isStatusResult,
   );
-  return normalizeStatusResult(status);
 }
 
 export async function createChange(

@@ -122,11 +122,12 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       { cwd: "C:\\Prog\\OpenSpec-UI", windowsHide: true },
     );
     expect(result.changeName).toBe("command-output-hub");
-    expect(result.progress.total).toBeGreaterThan(0);
+    // Passed through exactly as the CLI reported it, not recomputed.
+    expect(result.progress).toEqual({ total: 16, complete: 16, remaining: 0 });
     expect(result.artifacts.length).toBeGreaterThan(0);
   });
 
-  it("normalizes current status output without progress from artifact completion", async () => {
+  it("reports no progress when the CLI reports none, rather than deriving one from artifacts", async () => {
     mockSuccessfulSpawn(JSON.stringify({
       changeName: "current-contract",
       schemaName: "spec-driven",
@@ -140,7 +141,9 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
     const result = await statusChange("current-contract", { cwd: "/repo" });
 
-    expect(result.progress).toEqual({ total: 2, complete: 1, remaining: 1 });
+    // An artifact's "done" means the file exists; deriving progress from
+    // it once let chains archive changes with every task unchecked.
+    expect(result.progress).toBeUndefined();
     expect(result.additiveField).toBe(true);
   });
 

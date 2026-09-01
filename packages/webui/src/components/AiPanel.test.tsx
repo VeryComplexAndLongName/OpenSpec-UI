@@ -205,7 +205,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.getByTestId("event-0-status")).toHaveTextContent("blocked");
     });
 
-    it("renders status JSON card even when progress is omitted", () => {
+    it("renders a status JSON card with no progress figure when progress is omitted", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-status-no-progress"} />);
         fireEvent.click(screen.getByTestId("run-button"));
@@ -228,7 +228,10 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         expect(screen.getByTestId("event-0-status")).toBeInTheDocument();
         expect(screen.getByTestId("event-0-status")).toHaveTextContent("direct-openspec-mode");
-        expect(screen.getByTestId("event-0-status")).toHaveTextContent("Progress: 2/2");
+        // No "2/2" derived from the two "done" artifacts: an artifact being
+        // done means its file exists, which says nothing about tasks.
+        expect(screen.getByTestId("event-0-status")).not.toHaveTextContent("Progress:");
+        expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("renders list JSON as a structured changes card", () => {

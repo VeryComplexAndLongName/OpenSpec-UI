@@ -14,10 +14,13 @@
 // client-side orchestrator would duplicate this logic across both delivery
 // targets and could not outlive a closed webview).
 
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
 import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
+import { TASK_CHECKBOX_LINE_RE } from "./task-checklist.js";
 
 /** The subsequence of `HarnessStage` a chain actually drives — deliberately
  * excludes `"git"`: a chain never invokes the `git` stepAgent under any
@@ -66,17 +69,54 @@ function failedEvent(runId: string, reason: string): Event {
   return { kind: "failed", runId, timestamp: nowIso(), reason };
 }
 
-/** Determines the first not-yet-complete stage for a change, reusing the
- * same status signal the `status` command already reports — no new
- * "is this stage done" mechanism (see design.md, "Stage detection reuses
- * the existing status signal"). `review` has no durable artifact of its
- * own in the upstream `openspec status` schema, so it is only ever the
- * start stage as a side effect of `propose` being incomplete — a chain
- * resuming after `propose` is already done starts at `apply` directly
- * (this session's own `review`, if any, already happened; a chain cannot
- * tell whether an earlier one did, and re-running it unconditionally on
- * every resume would be surprising and wasteful). */
-async function determineStartStage(cwd: string, changeName: string): Promise<ChainStage> {
+interface TaskCounts {
+  unchecked: number;
+  total: number;
+}
+
+/** Counts the change's own `tasks.md` checkboxes, using the same line
+ * convention as `task-checklist.ts` rather than a second, drifting copy of
+ * it. Returns `undefined` when the file cannot be read at all — a signal
+ * the callers deliberately treat as "unknown", never as "nothing remains"
+ * (see design.md, "The chain counts tasks itself, and fails safe").
+ *
+ * This exists because `openspec status`'s artifact completeness answers a
+ * different question: whether `tasks.md` EXISTS, not whether its tasks are
+ * done. Reading the former as the latter is what archived two
+ * unimplemented changes. */
+async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
+  let content: string;
+  try {
+    content = await readFile(path.join(changeDir, "tasks.md"), "utf8");
+  } catch {
+    return undefined;
+  }
+  let unchecked = 0;
+  let total = 0;
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(TASK_CHECKBOX_LINE_RE);
+    if (!match) continue;
+    total += 1;
+    if ((match[1] ?? "").toLowerCase() !== "x") unchecked += 1;
+  }
+  return { unchecked, total };
+}
+
+/** Determines the first not-yet-complete stage for a change. Whether the
+ * `propose` artifacts exist still comes from the `status` command (that is
+ * exactly the question artifact presence answers), but the `apply` vs
+ * `archive` decision comes from the change's real task checkboxes —
+ * `status.progress` is deliberately not consulted here, because it is
+ * absent for the CLI shape this repository actually runs, and the value
+ * that used to be synthesized in its place counted artifacts, not tasks.
+ * `review` has no durable artifact of its own in the upstream
+ * `openspec status` schema, so it is only ever the start stage as a side
+ * effect of `propose` being incomplete — a chain resuming after `propose`
+ * is already done starts at `apply` directly (this session's own `review`,
+ * if any, already happened; a chain cannot tell whether an earlier one
+ * did, and re-running it unconditionally on every resume would be
+ * surprising and wasteful). */
+async function determineStartStage(cwd: string, changeName: string, changeDir: string): Promise<ChainStage> {
   const status = await statusChange(changeName, { cwd });
   const isDone = (artifactId: string): boolean =>
     status.artifacts.some((artifact) => {
@@ -86,8 +126,11 @@ async function determineStartStage(cwd: string, changeName: string): Promise<Cha
     });
   const proposeDone = isDone("proposal") && isDone("design") && isDone("tasks");
   if (!proposeDone) return "propose";
-  if (status.progress.remaining > 0) return "apply";
-  return "archive";
+  const tasks = await countTasks(changeDir);
+  // Unknown progress picks the reversible stage: a redundant `apply` costs
+  // one run, a wrong `archive` costs an unimplemented change.
+  if (!tasks) return "apply";
+  return tasks.unchecked > 0 ? "apply" : "archive";
 }
 
 export class HarnessChainRunner {
@@ -237,7 +280,7 @@ export class HarnessChainRunner {
 
     let startStage: ChainStage;
     try {
-      startStage = await determineStartStage(cwd, changeName);
+      startStage = await determineStartStage(cwd, changeName, context.changeDir);
     } catch (error) {
       yield failedEvent(runId, error instanceof Error ? error.message : String(error));
       return;
@@ -316,6 +359,21 @@ export class HarnessChainRunner {
     const { cwd, context, runId } = command;
 
     if (stage === "archive") {
+      // The archive stage is irreversible, and a stage exiting successfully
+      // is not evidence the work was done — an agent process can exit `0`
+      // having changed nothing. Refuse on anything short of "every task
+      // checked", including a task count that cannot be read at all.
+      const tasks = await countTasks(context.changeDir);
+      if (!tasks || tasks.unchecked > 0) {
+        const changeName = changeNameFromDir(context.changeDir);
+        yield failedEvent(
+          runId,
+          tasks
+            ? `cannot archive "${changeName}": ${tasks.unchecked} task(s) still unchecked; complete or verify them, then archive`
+            : `cannot archive "${changeName}": its tasks.md could not be read, so task completion is unknown; verify the change, then archive`,
+        );
+        return "failed";
+      }
       try {
         await archiveChange(changeNameFromDir(context.changeDir), { cwd });
       } catch (error) {
