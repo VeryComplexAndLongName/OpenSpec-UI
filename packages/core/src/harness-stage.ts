@@ -7,9 +7,9 @@
 // packages/server/src/static.test.ts, which builds that bundle with
 // esbuild and fails loudly if a Node built-in leaks into the graph.
 
-export type HarnessStage = "propose" | "review" | "apply" | "archive" | "git";
+export type HarnessStage = "propose" | "review" | "apply" | "verify" | "archive" | "git";
 
 /** Runtime enumeration of `HarnessStage`, kept in this one place so
  * `harness-config.ts`'s validation and `protocol.ts`'s `isEvent()`
  * boundary check never hand-maintain their own separate copy. */
-export const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive", "git"];
+export const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive", "git"];

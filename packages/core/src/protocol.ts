@@ -11,16 +11,17 @@ export type CommandKind =
   | "plan"
   | "implement"
   | "review"
+  | "verify"
   | "status"
   | "list"
   | "show"
   | "validate"
   | "cancel"
-  /** Runs `propose → review → apply → archive` in sequence under one
-   * `runId`, per `HarnessChainRunner`. Unlike every other command kind,
-   * a chain's `runId` is not guaranteed exactly one `"started"` event —
-   * a client that counts `"started"` events per `runId` will see one per
-   * stage. */
+  /** Runs `propose → review → apply → verify → archive` in sequence under
+   * one `runId`, per `HarnessChainRunner`. Unlike every other command
+   * kind, a chain's `runId` is not guaranteed exactly one `"started"`
+   * event — a client that counts `"started"` events per `runId` will see
+   * one per stage. */
   | "chain"
   | "confirmCheckpoint";
 
@@ -31,6 +32,7 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "plan",
   "implement",
   "review",
+  "verify",
   "status",
   "list",
   "show",
@@ -40,6 +42,20 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "confirmCheckpoint",
 ];
 
+/** One file changed by the run a `"verify"` command is reviewing, carried
+ * alongside `CommandContext` so `HarnessChainRunner` can hand a `verify`
+ * stage's `Command` the delta of the `apply` run that preceded it (see
+ * `security.ts`'s `AgentPromptContextOptions.verifiedDelta`, which is
+ * where this actually reaches the agent's prompt). `kind` reuses
+ * `CheckpointDelta`'s vocabulary (checkpoint.ts) rather than inventing a
+ * second one; `before`/`after` are the file's text content, not a diff. */
+export interface VerifiedDeltaEntry {
+  path: string;
+  kind: "added" | "modified" | "deleted";
+  before?: string;
+  after?: string;
+}
+
 export interface CommandContext {
   /** Absolute path to the OpenSpec change this command applies to. */
   changeDir: string;
@@ -47,6 +63,12 @@ export interface CommandContext {
    * agent as prompt content. This is DATA — see security.ts prepareAgentContext:
    * nothing here can affect the allowlist/cwd/command selection. */
   promptContext?: string;
+  /** Files changed by the run being verified, for a `"verify"` command
+   * only. Absent for every other command kind, and absent for a `verify`
+   * run whose preceding delta could not be determined — see security.ts,
+   * "An oversized delta is truncated with a marker, never silently
+   * dropped" for what happens once this reaches the prompt. */
+  verifiedDelta?: VerifiedDeltaEntry[];
 }
 
 export interface Command {

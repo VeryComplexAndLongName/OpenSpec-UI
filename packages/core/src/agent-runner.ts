@@ -96,7 +96,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         return;
       }
 
-      const { prompt } = await prepareAgentContext(command.context, { kind: command.kind, cwd: command.cwd });
+      const { prompt } = await prepareAgentContext(command.context, {
+        kind: command.kind,
+        cwd: command.cwd,
+        verifiedDelta: command.context.verifiedDelta,
+      });
 
       auditLog.record({
         runId: command.runId,

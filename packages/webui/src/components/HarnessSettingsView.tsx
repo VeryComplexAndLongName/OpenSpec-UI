@@ -13,7 +13,7 @@ export interface HarnessSettingsApi {
   writeChangeOverride(changeName: string, config: Partial<HarnessConfig>): Promise<void>;
 }
 
-const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive", "git"];
+const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive", "git"];
 const INHERIT = "" as const;
 
 const AUTONOMY_LEVEL_OPTIONS: ReadonlyArray<{ value: HarnessAutonomyLevel; label: string }> = [

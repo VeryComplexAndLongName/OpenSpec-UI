@@ -45,7 +45,9 @@ export function commandInstruction(kind: CommandKind): string {
     case "implement":
       return "Implement the tasks from tasks.md for the change described below.";
     case "review":
-      return "Review the current implementation of the change described below against the specification.";
+      return "Review the proposal (proposal.md/design.md/tasks.md) for the change described below, before any of it is implemented.";
+    case "verify":
+      return "Review the current implementation of the change described below against its tasks.md and its specs/*/spec.md delta. Uncheck any task in tasks.md whose stated verification does not actually hold.";
     case "status":
       return "Describe the current implementation status of the change described below.";
     case "list":

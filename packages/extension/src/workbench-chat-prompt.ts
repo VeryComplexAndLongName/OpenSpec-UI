@@ -11,8 +11,9 @@ import type { HarnessStage } from "@openspec-ui/core";
 
 const STAGE_VERB: Partial<Record<HarnessStage, string>> = {
   propose: "Propose",
-  review: "Review the implementation of",
+  review: "Review the proposal of",
   apply: "Implement",
+  verify: "Verify the implementation of",
 };
 
 export interface WorkbenchChatPromptParams {

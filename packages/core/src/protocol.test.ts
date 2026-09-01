@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMMAND_KINDS,
   type Event,
   deserializeEvent,
   isEvent,
@@ -74,4 +75,13 @@ describe("protocol Event serialization", () => {
     expect(isEvent({ ...base, kind: "handedOff", stage: "not-a-stage" })).toBe(false);
   });
 
+});
+
+describe("COMMAND_KINDS", () => {
+  it("contains 'verify', additive alongside every previously present kind", () => {
+    expect(COMMAND_KINDS).toContain("verify");
+    for (const kind of ["plan", "implement", "review", "status", "list", "show", "validate", "cancel", "chain", "confirmCheckpoint"]) {
+      expect(COMMAND_KINDS).toContain(kind);
+    }
+  });
 });
