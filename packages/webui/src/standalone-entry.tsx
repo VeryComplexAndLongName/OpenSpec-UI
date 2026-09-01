@@ -45,7 +45,7 @@ import { HarnessSettingsView, type HarnessSettingsApi } from "./components/Harne
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessStepAgents } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -263,7 +263,7 @@ function StandaloneApp() {
   // no per-change context at this level the way VS Code's panel does when
   // opened from a specific change in the tree (see openspec/changes/
   // agentic-harness/design.md). Still a real, useful repo-wide default.
-  const [stepAgents, setStepAgents] = useState<Partial<Record<"propose" | "review" | "apply", string>> | undefined>(undefined);
+  const [stepAgents, setStepAgents] = useState<HarnessStepAgents | undefined>(undefined);
   const [versions, setVersions] = useState<WorkbenchVersions | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
@@ -614,7 +614,10 @@ function StandaloneApp() {
     }
     resolveHarnessConfigApi(apiFetch, cwd)
       .then((config) => {
-        setStepAgents({ propose: config.stepAgents.propose, review: config.stepAgents.review, apply: config.stepAgents.apply });
+        // Passed through as resolved, not flattened to agent ids — the
+        // object form carries the stage's model, which AiPanel needs for
+        // the `Command` it sends (harness-step-models tasks.md section 9).
+        setStepAgents(config.stepAgents);
       })
       .catch(() => {
         // No harness config, or a malformed one — the picker simply falls

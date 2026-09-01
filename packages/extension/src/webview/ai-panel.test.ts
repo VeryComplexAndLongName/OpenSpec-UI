@@ -155,7 +155,29 @@ describe("AiPanel context", () => {
 });
 
 describe("AiPanel Agentic Harness stepAgents context", () => {
-    it("posts a follow-up context message with the resolved propose/review/apply agents once resolved", async () => {
+    it("passes a stage's model through to the webview instead of flattening it away", async () => {
+        // Regression guard for harness-step-models tasks.md section 9: this
+        // layer used to flatten each stage to its agent id, which silently
+        // dropped the model before the panel could put it on a Command.
+        resolveHarnessConfigMock.mockResolvedValue({
+            stepAgents: { apply: { agent: "claude-cli", model: "claude-haiku-4-5" } },
+            autonomyLevel: "assisted",
+            reviewGate: { mode: "human-required" },
+        });
+        detectAvailableAgentsMock.mockReturnValue(new Promise(() => {}));
+        createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo" });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(aiPanel.getContext()?.stepAgents).toEqual({
+            apply: { agent: "claude-cli", model: "claude-haiku-4-5" },
+        });
+    });
+
+    it("posts a follow-up context message with the resolved agents once resolved", async () => {
         resolveHarnessConfigMock.mockResolvedValue({
             stepAgents: { propose: "claude-cli", apply: "gemini-cli", archive: "codex-cli", git: "claude-cli" },
             autonomyLevel: "assisted",
@@ -177,10 +199,17 @@ describe("AiPanel Agentic Harness stepAgents context", () => {
             context: {
                 cwd: "/repo",
                 changeDir: "/repo/openspec/changes/demo",
-                stepAgents: { propose: "claude-cli", review: undefined, apply: "gemini-cli" },
+                // Passed through as resolved, every stage included — not
+                // narrowed to propose/review/apply, and not flattened.
+                stepAgents: { propose: "claude-cli", apply: "gemini-cli", archive: "codex-cli", git: "claude-cli" },
             },
         });
-        expect(aiPanel.getContext()?.stepAgents).toEqual({ propose: "claude-cli", review: undefined, apply: "gemini-cli" });
+        expect(aiPanel.getContext()?.stepAgents).toEqual({
+            propose: "claude-cli",
+            apply: "gemini-cli",
+            archive: "codex-cli",
+            git: "claude-cli",
+        });
     });
 
     it("does not resolve harness config in optional-local-server mode", () => {

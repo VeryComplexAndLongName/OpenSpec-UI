@@ -10,6 +10,7 @@ import {
   type AgentRunner,
   type Command,
   type HarnessChainRunner,
+  type HarnessStepAgents,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
@@ -27,8 +28,13 @@ export interface AiPanelContext {
   detectedAgents?: Record<string, boolean>;
   /** Never set by a caller of `reveal()` — populated internally, after
    * `resolveHarnessConfig()` resolves, the same follow-up-message pattern
-   * as `detectedAgents`. See openspec/changes/agentic-harness/. */
-  stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
+   * as `detectedAgents`. See openspec/changes/agentic-harness/.
+   * Passed through in whatever form the config used — an agent id on its
+   * own, or `{ agent, model }`. It must NOT be flattened to agent ids
+   * here: the panel needs the model to put it on the `Command` it sends
+   * (see harness-step-models tasks.md section 9 — flattening at this
+   * layer silently dropped the model on its way to argv). */
+  stepAgents?: HarnessStepAgents;
   /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`) when
    * the caller already resolved (Node-side, before ever revealing a
    * panel) that this change's harness config targets `"chain"` rather
@@ -254,12 +260,10 @@ export class AiPanel {
 
     void resolveHarnessConfig(context.cwd, changeName).then((harnessConfig) => {
       if (!this.panelContext) return;
-      const stepAgents: AiPanelContext["stepAgents"] = {
-        propose: harnessConfig.stepAgents.propose,
-        review: harnessConfig.stepAgents.review,
-        apply: harnessConfig.stepAgents.apply,
-      };
-      this.panelContext = { ...this.panelContext, stepAgents };
+      // Passed through as resolved, not flattened to agent ids — the
+      // object form carries the stage's model, which the panel needs for
+      // the `Command` it sends. JSON-serializes over `postMessage` as is.
+      this.panelContext = { ...this.panelContext, stepAgents: harnessConfig.stepAgents };
       void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });
     }).catch(() => {
       // Malformed harness config is reported elsewhere (Harness Settings

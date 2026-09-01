@@ -299,7 +299,9 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
     it("toggles run button state while status run is in progress", () => {
         const { transport, emit } = createFakeTransport();
-        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-1"} />);
+        // No cwd yet, so the panel does not auto-load changes and the
+        // idle -> running -> idle transition is observable on its own.
+        render(<AiPanel transport={transport} cwd="" changeDir="/x" generateRunId={() => "run-1"} />);
 
         expect(screen.getByTestId("run-button")).not.toBeDisabled();
 
@@ -341,7 +343,9 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
     it("shows explicit loading and failure status labels", () => {
         const { transport, emit } = createFakeTransport();
-        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-status-line"} />);
+        // No cwd yet, so the panel does not auto-load changes and the run
+        // starts from the "Idle" label this test is about.
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes" generateRunId={() => "run-status-line"} />);
 
         expect(screen.getByTestId("run-status-label")).toHaveTextContent("Idle");
 
@@ -413,5 +417,185 @@ describe("AiPanel Agentic Harness stepAgents pre-fill", () => {
         fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
 
         expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("claude-cli");
+    });
+
+    it("sends model on the command when the selected agent matches the stage's configured agent", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes"
+                generateRunId={() => "run-model"}
+                stepAgents={{ apply: { agent: "claude-cli", model: "claude-3-opus" } }}
+            />,
+        );
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-model",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-model", timestamp: "t" });
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "implement",
+            cwd: "/repo",
+            runId: "run-model",
+            agentId: "claude-cli",
+            model: "claude-3-opus",
+            context: { changeDir: "/repo/openspec/changes/some-change", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("omits model from the command when the user picks a different agent than configured", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes"
+                generateRunId={() => "run-agent-override"}
+                stepAgents={{ apply: { agent: "claude-cli", model: "claude-3-opus" } }}
+            />,
+        );
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-agent-override",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-agent-override", timestamp: "t" });
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        fireEvent.change(screen.getByTestId("agent-picker"), { target: { value: "gemini-cli" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "implement",
+            cwd: "/repo",
+            runId: "run-agent-override",
+            agentId: "gemini-cli",
+            context: { changeDir: "/repo/openspec/changes/some-change", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("never sends model for direct OpenSpec commands even when configured", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes"
+                generateRunId={() => "run-direct-cmds"}
+                stepAgents={{ apply: { agent: "claude-cli", model: "claude-3-opus" } }}
+            />,
+        );
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-direct-cmds",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-direct-cmds", timestamp: "t" });
+
+        // Test "list" — no harness stage
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        expect(send).toHaveBeenLastCalledWith(
+            expect.not.objectContaining({ model: expect.anything() }),
+        );
+
+        // Test "validate" — no harness stage
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "validate" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+        expect(send).toHaveBeenLastCalledWith(
+            expect.not.objectContaining({ model: expect.anything() }),
+        );
+    });
+});
+
+describe("AiPanel auto-loads the change list", () => {
+    it("sends exactly one list command on open, with no click", () => {
+        const { transport, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith({
+            kind: "list",
+            cwd: "/repo",
+            runId: "run-auto",
+            context: { changeDir: "/repo/openspec/changes", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("waits for a usable cwd before auto-loading", () => {
+        const { transport, send } = createFakeTransport();
+        const { rerender } = render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        expect(send).not.toHaveBeenCalled();
+
+        rerender(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith(expect.objectContaining({ kind: "list", cwd: "/repo" }));
+    });
+
+    it("does not auto-load again when a re-render leaves cwd unchanged", () => {
+        const { transport, emit, send } = createFakeTransport();
+        const { rerender } = render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        expect(send).toHaveBeenCalledTimes(1);
+        // Let the auto-load finish, so nothing but the guard keeps a second
+        // run from being sent.
+        emit({ kind: "completed", runId: "run-auto", timestamp: "t" });
+
+        rerender(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it("populates the change picker from the auto-load without any click", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        emit({
+            kind: "stdout",
+            runId: "run-auto",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "first-change" }, { name: "second-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-auto", timestamp: "t" });
+
+        const picker = screen.getByTestId("change-picker") as HTMLSelectElement;
+        expect(picker).not.toBeDisabled();
+        expect(Array.from(picker.querySelectorAll("option")).map((option) => option.value)).toEqual([
+            "",
+            "first-change",
+            "second-change",
+        ]);
+        expect(picker.value).toBe("first-change");
+    });
+
+    it("keeps the explicit reload control working after the auto-load", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes" generateRunId={() => "run-auto"} />);
+
+        emit({ kind: "completed", runId: "run-auto", timestamp: "t" });
+
+        const reloadButton = screen.getByTestId("load-changes-button");
+        expect(reloadButton).toHaveTextContent("Reload changes");
+        fireEvent.click(reloadButton);
+
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "list" }));
     });
 });

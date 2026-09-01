@@ -71,6 +71,25 @@ Rejected — a config that says `apply` runs on a cheap model, silently
 ignored, produces expensive runs the user believes are cheap. Failing at
 read time is the only outcome that cannot be misread.
 
+### A model belongs to its configured agent
+
+On the `assisted` path the user picks the agent in the picker, which is
+pre-filled from `stepAgents` but freely overridable. A model is therefore
+attached to a command **only when the selected agent is the one the model
+was configured for**; overriding the agent drops the model rather than
+carrying it across.
+
+**Rejected alternative**: always send the stage's configured model
+regardless of which agent the user picked. Rejected — model ids are
+vendor-specific, so a model configured for one CLI is at best meaningless
+and at worst a hard failure on another. Silently pairing them would turn
+a deliberate agent override into a broken run.
+
+**Rejected alternative**: disable the agent picker when a stage has a
+model configured. Rejected — it contradicts `agentic-harness`'s
+established "annotate, don't filter" stance, where `stepAgents` is a
+recommendation the user may always override.
+
 ### The allowlist matcher admits one pair, positionally last
 
 For model-capable adapters the matcher accepts the adapter's existing

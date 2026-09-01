@@ -50,6 +50,25 @@ rules:
     - Tasks in execution-core that implement the security model (allowlist,
       cwd sandbox, audit) cannot be marked complete without the corresponding
       test in tasks — this is not a decorative section.
+    - One task must cover one file and one verifiable outcome; split any task
+      that names two files or two distinct behaviors.
+    - Name exact identifiers (function, command, or symbol names), exact file
+      paths, and the exact expected result instead of referring to "the
+      relevant" or "the corresponding" code.
+    - When a plausible-looking generalization of a task would be wrong, state
+      the prohibition explicitly in the task itself.
+    - A task that an implementing agent cannot perform (live, interactive, or
+      manual verification) must be marked as such in the task text, and must
+      be reported as outstanding rather than checked off.
+    - The implementing agent marks each task `[x]` in tasks.md as soon as that
+      task's own verification has passed — incrementally, not in a single batch
+      at the end of the run, and never before the task is actually done.
+    - When a change threads a new value through multiple layers, the tasks must
+      name the complete path it travels (origin through every intermediate layer
+      to the point of use) and require verification at each junction — not only
+      at the two ends. A task phrased as "widen the type here" is most cheaply
+      satisfied by discarding the new value at that layer, which type-checks and
+      passes every existing test; explicit junction checks prevent this.
 
 operations:
   apply:

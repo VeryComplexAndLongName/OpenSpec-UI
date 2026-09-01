@@ -22,12 +22,10 @@ import { commandInstruction, spawnAndStream } from "./shared.js";
 export class ClaudeCliAdapter implements AgentAdapter {
   readonly name = "claude-cli";
 
-  buildInvocation(_command: Command): AdapterInvocation {
-    return {
-      kind: "process",
-      executable: "claude",
-      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions"],
-    };
+  buildInvocation(command: Command): AdapterInvocation {
+    const args = ["-p", "--output-format", "text", "--dangerously-skip-permissions"];
+    if (command.model) args.push("--model", command.model);
+    return { kind: "process", executable: "claude", args };
   }
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {

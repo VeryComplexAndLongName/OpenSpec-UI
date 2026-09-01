@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AGENT_REGISTRY, type HarnessAutonomyLevel, type HarnessConfig, type HarnessReviewGateMode, type HarnessStage } from "@openspec-ui/core/browser";
+import { AGENT_REGISTRY, normalizeStepAgent, type HarnessAutonomyLevel, type HarnessConfig, type HarnessReviewGateMode, type HarnessStage, type HarnessStepAgents } from "@openspec-ui/core/browser";
 
 // Harness Settings — see openspec/changes/agentic-harness/. Two levels:
 // a global default (this view's top section) and a per-change override
@@ -24,9 +24,17 @@ const AUTONOMY_LEVEL_OPTIONS: ReadonlyArray<{ value: HarnessAutonomyLevel; label
 
 type StepAgentsForm = Record<HarnessStage, string>;
 
-function toForm(stepAgents: Partial<Record<HarnessStage, string>> | undefined): StepAgentsForm {
+// This view only ever shows/writes the agent id — no model selector yet
+// (see harness-step-models design.md, Non-Goals). A hand-edited config
+// may still carry the object form for a stage; `normalizeStepAgent`
+// reads its agent id for display, dropping the model rather than
+// erroring — this form has no field to show it in.
+function toForm(stepAgents: HarnessStepAgents | undefined): StepAgentsForm {
   const form = {} as StepAgentsForm;
-  for (const stage of STAGES) form[stage] = stepAgents?.[stage] ?? INHERIT;
+  for (const stage of STAGES) {
+    const entry = stepAgents?.[stage];
+    form[stage] = entry === undefined ? INHERIT : normalizeStepAgent(entry).agent;
+  }
   return form;
 }
 

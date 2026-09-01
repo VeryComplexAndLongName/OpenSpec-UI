@@ -58,6 +58,34 @@ describe("CopilotCliAdapter", () => {
     });
   });
 
+  it("builds a process invocation with a trailing --model <value> after --allow-all-tools when a model is resolved", () => {
+    const adapter = new CopilotCliAdapter();
+    expect(adapter.buildInvocation({ ...command, model: "gpt-5-mini" })).toEqual({
+      kind: "process",
+      executable: "copilot",
+      args: ["-p", "--allow-all-tools", "--model", "gpt-5-mini"],
+    });
+  });
+
+  it("appends --model <value> after --allow-all-tools in the spawned argv when a model is resolved", async () => {
+    async function* fakeEvents(): AsyncGenerator<Event> {
+      yield { kind: "completed", runId: "run-2", timestamp: "t" };
+    }
+    spawnAndStreamMock.mockReturnValue(fakeEvents());
+
+    const modelCommand: Command = { ...command, model: "gpt-5-mini" };
+    const adapter = new CopilotCliAdapter();
+    const invocation = adapter.buildInvocation(modelCommand);
+    for await (const _ of adapter.execute(invocation, modelCommand, "prompt body")) {
+      // drain
+    }
+
+    const call = spawnAndStreamMock.mock.calls[0]?.[0] as { args: string[] };
+    expect(call.args[0]).toBe("-p");
+    expect(call.args[2]).toBe("--allow-all-tools");
+    expect(call.args.slice(3)).toEqual(["--model", "gpt-5-mini"]);
+  });
+
   it("embeds the prompt as a positional argument, not via stdin (unlike claude/codex/gemini)", async () => {
     async function* fakeEvents(): AsyncGenerator<Event> {
       yield { kind: "completed", runId: "run-2", timestamp: "t" };

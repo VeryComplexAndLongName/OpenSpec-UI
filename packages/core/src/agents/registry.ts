@@ -7,11 +7,14 @@ export interface AgentDescriptor {
   /** Matches the `AgentAdapter.name` of the corresponding adapter. */
   id: string;
   label: string;
+  /** The CLI flag this adapter passes a model with; absent means this
+   * adapter accepts no model (see harness-step-models design.md). */
+  modelFlag?: string;
 }
 
 export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
-  { id: "claude-cli", label: "Claude CLI" },
-  { id: "copilot-cli", label: "GitHub Copilot CLI" },
+  { id: "claude-cli", label: "Claude CLI", modelFlag: "--model" },
+  { id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model" },
   { id: "codex-cli", label: "Codex CLI" },
   { id: "gemini-cli", label: "Gemini CLI" },
   { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },

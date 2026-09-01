@@ -44,6 +44,44 @@ describe("buildDefaultAllowlist", () => {
     );
     expect(decision.allowed).toBe(false);
   });
+
+  it("allows the model form for claude-cli", () => {
+    const allowlist = buildDefaultAllowlist();
+    const claudeInvocation = new ClaudeCliAdapter().buildInvocation({ ...command, model: "claude-haiku-4-5" });
+    expect(checkAllowlist("claude-cli", claudeInvocation, allowlist).allowed).toBe(true);
+  });
+
+  const baseClaudeArgs = ["-p", "--output-format", "text", "--dangerously-skip-permissions"];
+
+  it("rejects an argv carrying a second --model", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "claude-cli",
+      { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--model", "m1", "--model", "m2"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects a --model with no value", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "claude-cli",
+      { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--model"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects a model value failing the pattern", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "claude-cli",
+      { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--model", "-bad model"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
 });
 
 describe("buildDefaultAgentRunners / resolveRunner", () => {

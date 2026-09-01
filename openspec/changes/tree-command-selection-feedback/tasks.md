@@ -65,7 +65,7 @@ silent `return` — see design.md, "'Wrong state' ... stays silent").
 - [x] 4.1 `openspec change validate --strict
   tree-command-selection-feedback`.
 - [x] 4.2 typecheck/lint/test for `extension`.
-- [ ] 4.3 Live manual smoke test in a real Extension Development Host
+- [x] 4.3 Live manual smoke test in a real Extension Development Host
   (not just unit tests, per this repository's own apply guidance for
   `server`/`extension` changes): invoke "OpenSpec UI: Archive Change" via
   the Command Palette with no change selected in the tree, confirm the
@@ -76,3 +76,13 @@ silent `return` — see design.md, "'Wrong state' ... stays silent").
 - [x] 4.5 Version bump via `npx changeset` (`openspec-ui-vscode`, patch —
   a genuine user-visible bug fix, unlike this session's earlier
   tooling-only changes).
+
+
+Verified 2026-09-01: invoking `OpenSpec UI: Archive Change` from the
+Command Palette produced `OpenSpec UI: select a change in the tree
+first.` instead of the previous silent no-op. Noted during that check:
+the wording misleads a user who *has* highlighted a row in the tree —
+the Command Palette never passes a tree selection, only the right-click
+menu does. Making the palette path actually use the highlighted row is
+this change's own documented Non-Goal; tracked separately in
+`openspec/changes/tree-command-selection-fallback/`.

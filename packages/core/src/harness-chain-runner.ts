@@ -16,7 +16,7 @@
 
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
-import { type HarnessConfig, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
+import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
 
 /** The subsequence of `HarnessStage` a chain actually drives — deliberately
@@ -281,7 +281,11 @@ export class HarnessChainRunner {
           nextStage,
           // "archive" has no agent (mechanical) — "" reads as "no agent
           // required for the next stage", not "unknown".
-          nextAgentId: nextStage === "archive" ? "" : (harnessConfig.stepAgents[nextStage] ?? ""),
+          nextAgentId: nextStage === "archive"
+            ? ""
+            : (harnessConfig.stepAgents[nextStage] === undefined
+              ? ""
+              : normalizeStepAgent(harnessConfig.stepAgents[nextStage]).agent),
         };
         const checkpointOutcome = await checkpointPromise;
         if (checkpointOutcome === "cancelled") {
@@ -324,14 +328,15 @@ export class HarnessChainRunner {
       return "completed";
     }
 
-    const agentId = harnessConfig.stepAgents[stage];
+    const stepAgent = harnessConfig.stepAgents[stage];
+    const { agent: agentId, model } = stepAgent === undefined ? { agent: undefined, model: undefined } : normalizeStepAgent(stepAgent);
     const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
       yield failedEvent(runId, `no agent available to run the "${stage}" stage`);
       return "failed";
     }
 
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context, runId, agentId };
+    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context, runId, agentId, model };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 

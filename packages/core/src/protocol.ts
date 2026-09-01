@@ -62,6 +62,11 @@ export interface Command {
    * host may use the single configured default agent if the UI layer does
    * not expose agent selection. */
   agentId?: string;
+  /** Model to pass to the agent's CLI, resolved from a `stepAgents`
+   * entry's object form (see harness-config.ts's `normalizeStepAgent`).
+   * Only meaningful for an agent whose registry descriptor declares a
+   * `modelFlag`; ignored otherwise. */
+  model?: string;
 }
 
 export type EventKind =

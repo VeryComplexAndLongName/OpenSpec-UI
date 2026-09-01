@@ -9,6 +9,7 @@ import {
   GlobalCheckpointsDisabledError,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
+  normalizeStepAgent,
   readChangeHarnessConfig,
   readGlobalHarnessConfig,
   resolveHarnessConfig,
@@ -222,6 +223,58 @@ describe("resolveHarnessConfig", () => {
     const resolved = await resolveHarnessConfig(root, "no-override-here");
     expect(resolved.stepAgents).toEqual({ propose: "claude-cli" });
     expect(resolved.reviewGate).toEqual({ mode: "human-required" });
+  });
+});
+
+describe("stepAgents model support", () => {
+  it("still resolves the bare-string form exactly as before (regression guard)", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { propose: "claude-cli" } });
+
+    const config = await readGlobalHarnessConfig(root);
+    expect(config.stepAgents).toEqual({ propose: "claude-cli" });
+    expect(normalizeStepAgent(config.stepAgents.propose!)).toEqual({ agent: "claude-cli" });
+  });
+
+  it("resolves the object form to the same agent, with the model carried", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "claude-cli", model: "claude-haiku-4-5" } },
+    });
+
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({ agent: "claude-cli", model: "claude-haiku-4-5" });
+  });
+
+  it.each([
+    ["a space", "bad model"],
+    ["a quote", 'bad"model'],
+    ["a leading dash", "-bad-model"],
+  ])("rejects a model containing %s", async (_label, model) => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", model } } }),
+    ).rejects.toThrow(InvalidHarnessConfigError);
+  });
+
+  it("rejects a model set for an agent that accepts none, naming the stage and agent", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "local-llm", model: "some-model" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"local-llm"/);
+  });
+
+  it("lets a per-change harness.json model override the global one for that stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "claude-cli", model: "expensive-model" } },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      stepAgents: { apply: { agent: "claude-cli", model: "cheap-model" } },
+    });
+
+    const resolved = await resolveHarnessConfig(root, "demo");
+    expect(normalizeStepAgent(resolved.stepAgents.apply!)).toEqual({ agent: "claude-cli", model: "cheap-model" });
   });
 });
 

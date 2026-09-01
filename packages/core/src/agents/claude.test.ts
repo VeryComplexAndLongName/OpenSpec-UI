@@ -53,6 +53,16 @@ describe("ClaudeCliAdapter", () => {
     );
   });
 
+  it("appends a trailing --model <value> when a model is resolved", () => {
+    const adapter = new ClaudeCliAdapter();
+    const invocation = adapter.buildInvocation({ ...command, model: "claude-haiku-4-5" });
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions", "--model", "claude-haiku-4-5"],
+    });
+  });
+
   it("rejects an http invocation as a programming error", async () => {
     const adapter = new ClaudeCliAdapter();
     await expect(async () => {
