@@ -136,7 +136,22 @@ not only the two ends.
   reached further than it should.
 - [x] 6.5 Version bump via `npx changeset` (`@openspec-ui/core` minor,
   plus the packages whose switches changed).
-- [ ] 6.6 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.6 **Human-only, cannot be completed by an implementing agent**:
   run a real chain on a change whose `tasks.md` overstates one task, and
   confirm from the run's own output that `verify` unchecks it and the
   chain then stops before `archive`. Leave unchecked if you are an agent.
+  Confirmed live 2026-09-01 against a throwaway fixture with three tasks,
+  all checked, of which one claimed a source file that did not exist:
+  - `determineStartStage()` returned `verify` (the chain's first stage was
+    `verify`, not `archive`) — task 2.4;
+  - the stage unchecked only the false task, left the two true ones
+    checked, and did **not** create the claimed file — it reported "the
+    fix is to uncheck, not to implement", which is the prohibition the
+    task text stated;
+  - the chain then stopped, recorded as `cannot archive
+    "zz-verify-smoke-test": 1 task(s) still unchecked; complete or verify
+    them, then archive` — the existing archive gate, which is what task
+    5.6 asserts this change relies on rather than duplicating.
+  Not covered by this run: the chain started at `verify`, so no `apply`
+  preceded it and per task 3.5 no delta was passed. The delta path
+  (3.1-3.5) still needs a chain that actually runs `apply` then `verify`.
