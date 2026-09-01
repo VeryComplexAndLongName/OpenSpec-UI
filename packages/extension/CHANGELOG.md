@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.2
+
+### Patch Changes
+
+- 09ab8bf: Fix 15 tree-scoped commands (`archiveChange`, `unarchiveChange`, `deleteChange`, `deleteTask`, `revealTask`, `runWithHarness`, and 9 others) silently doing nothing when invoked via the Command Palette with no tree item selected. They now show an explicit warning naming the kind of item required, matching the existing `reviewDiff` behavior.
+
 ## 0.30.1
 
 ### Patch Changes
