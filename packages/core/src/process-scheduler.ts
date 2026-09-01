@@ -1,3 +1,4 @@
+import type { AgentUsage } from "./agent-usage.js";
 import {
   WORKSPACE_LEASE_RENEW_INTERVAL_MS,
   describeWorkspaceLeaseConflict,
@@ -31,6 +32,15 @@ export interface WorkbenchProcess {
   progress?: string;
   summary?: string;
   error?: string;
+  /** This process's recorded resource usage, when its audit entry carries
+   * one (see security.ts's `AuditEntry.usage`) — read from the audit log
+   * for display, never stored there as the source of truth (see
+   * openspec/changes/agent-usage-accounting/design.md, "Rejected
+   * alternative: extend WorkbenchProcess"). Absent — not zero — for a
+   * process whose run reported no usage; a host must not render `$0.00`
+   * for it. Nothing in this project populates this field yet: no adapter
+   * produces `AuditEntry.usage` until `acp-agent-adapters` lands. */
+  usage?: AgentUsage;
 }
 
 export interface ProcessExecutionContext {

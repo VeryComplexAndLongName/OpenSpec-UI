@@ -531,6 +531,124 @@ describe("HarnessChainRunner — asAgentRunner", () => {
   });
 });
 
+describe("HarnessChainRunner — budget (task 8.7)", () => {
+  it("stops before the next stage when recorded usage reaches the ceiling, and reports the budget reason", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+      budget: { maxCostUsd: 1 },
+    });
+    mockStatus(false); // propose not done yet -> chain starts at "propose"
+
+    const command = baseCommand(root);
+    let calls = 0;
+    const listAuditEntries = vi.fn(() => {
+      calls += 1;
+      // Nothing recorded before "propose" starts; by the time "review"
+      // is about to start, "propose"'s own run has been recorded with
+      // usage over the ceiling.
+      if (calls === 1) return [];
+      return [
+        {
+          runId: "propose-run",
+          agent: "claude-cli",
+          outcome: "completed" as const,
+          cwd: root,
+          timestamp: "t",
+          changeDir: command.context.changeDir,
+          usage: { costUsd: 5 },
+        },
+      ];
+    });
+
+    const { runner, calls: runnerCalls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // Only "propose" (mapped to "plan") ran — "review" never started.
+    expect(runnerCalls.map((c) => c.kind)).toEqual(["plan"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: expect.stringContaining("budget") });
+    expect(events.some((e) => e.kind === "completed")).toBe(false);
+  });
+
+  it("a chain with no ceiling behaves identically to today, even with high recorded usage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+    });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const command = baseCommand(root);
+    const listAuditEntries = vi.fn(() => [
+      {
+        runId: "propose-run",
+        agent: "claude-cli",
+        outcome: "completed" as const,
+        cwd: root,
+        timestamp: "t",
+        changeDir: command.context.changeDir,
+        usage: { costUsd: 999 },
+      },
+    ]);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("a chain whose runs report no usage runs to completion despite a configured ceiling", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+      budget: { maxCostUsd: 1 },
+    });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const command = baseCommand(root);
+    const listAuditEntries = vi.fn(() => [
+      {
+        runId: "propose-run",
+        agent: "claude-cli",
+        outcome: "completed" as const,
+        cwd: root,
+        timestamp: "t",
+        changeDir: command.context.changeDir,
+        // No `usage` — unmeasured, must not count against the ceiling.
+      },
+    ]);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+});
+
 /** Consumes `iterator` until `predicate` matches, invoking `onMatch`
  * synchronously right after the matching event (before resuming
  * iteration) — used to fire `cancel()`/`confirmCheckpoint()` at exactly

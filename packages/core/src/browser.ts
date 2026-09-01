@@ -21,6 +21,7 @@ export type {
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
 export type {
   HarnessAutonomyLevel,
+  HarnessBudget,
   HarnessCheckpoints,
   HarnessConfig,
   HarnessReviewGate,
@@ -46,3 +47,8 @@ export { resolveRunWithHarnessTarget, type RunWithHarnessTarget } from "./harnes
 // file header comment for why this differs from change-timeline.js's
 // runtime exports, which stay Node-only).
 export * from "./stale-tasks.js";
+// Both zero-Node-import leaf modules (see each file's own header comment)
+// — safe for the browser bundle. usage-report.ts is NOT re-exported here:
+// it imports AuditEntry from security.ts, which pulls in node:fs/node:path.
+export * from "./agent-usage.js";
+export * from "./verified-agent-versions.js";

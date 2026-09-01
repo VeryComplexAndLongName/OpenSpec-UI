@@ -38,6 +38,13 @@ export interface AgentRunnerOptions {
   allowlist: AllowlistConfig;
   auditLog: AuditLog;
   allowExternalCwd?: boolean;
+  /** Best-effort version of the agent CLI this runner drives, as observed
+   * by detection (see agent-detection.ts's `DetectedAgent`). Recorded on
+   * every run's `"started"` audit entry when given — never fetched here:
+   * calling `detectAvailableAgents()` from inside a run would add a
+   * second spawn ADR 0017 decision 6 already rejects. Absent means no
+   * version is recorded, exactly as before this option existed. */
+  agentVersion?: string;
 }
 
 export interface AgentRunner {
@@ -53,7 +60,7 @@ function* failedOnce(runId: string, reason: string): Iterable<Event> {
 }
 
 export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOptions): AgentRunner {
-  const { workspaceRoot, allowlist, auditLog, allowExternalCwd = false } = options;
+  const { workspaceRoot, allowlist, auditLog, allowExternalCwd = false, agentVersion } = options;
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
@@ -65,6 +72,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           outcome: "blocked",
           cwd: command.cwd,
           timestamp: nowIso(),
+          changeDir: command.context.changeDir,
           reason: cwdDecision.reason,
         });
         yield* failedOnce(command.runId, cwdDecision.reason ?? "cwd is outside the workspace");
@@ -80,6 +88,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           outcome: "blocked",
           cwd: command.cwd,
           timestamp: nowIso(),
+          changeDir: command.context.changeDir,
           invocation,
           reason: allowlistDecision.reason,
         });
@@ -95,7 +104,9 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         outcome: "started",
         cwd: command.cwd,
         timestamp: nowIso(),
+        changeDir: command.context.changeDir,
         invocation,
+        ...(agentVersion !== undefined ? { agentVersion } : {}),
       });
 
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
@@ -122,6 +133,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           outcome: lastOutcome,
           cwd: command.cwd,
           timestamp: nowIso(),
+          changeDir: command.context.changeDir,
           invocation,
           reason: lastReason,
           summary: lastSummary,

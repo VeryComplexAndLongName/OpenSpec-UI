@@ -365,3 +365,64 @@ describe("resolveRunWithHarnessTarget", () => {
     expect(resolveRunWithHarnessTarget({ ...DEFAULT_HARNESS_CONFIG, autonomyLevel: "autonomous" })).toBe("chain");
   });
 });
+
+describe("budget (task 8.6)", () => {
+  it("accepts a per-change budget higher than the global ceiling", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { budget: { maxCostUsd: 10 } });
+    await writeChangeHarnessConfig(root, "demo", { budget: { maxCostUsd: 100 } });
+
+    const config = await resolveHarnessConfig(root, "demo");
+    expect(config.budget).toEqual({ maxCostUsd: 100 });
+  });
+
+  it("an absent budget behaves exactly as today — resolves to undefined, no error", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "assisted" });
+
+    const config = await resolveHarnessConfig(root);
+    expect(config.budget).toBeUndefined();
+  });
+
+  it("a per-change file with no budget of its own inherits the global one", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { budget: { maxCostUsd: 10 } });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "assisted" });
+
+    const config = await resolveHarnessConfig(root, "demo");
+    expect(config.budget).toEqual({ maxCostUsd: 10 });
+  });
+
+  it("rejects a non-positive maxCostUsd", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { budget: { maxCostUsd: 0 } })).rejects.toThrow(InvalidHarnessConfigError);
+  });
+
+  it("rejects a non-integer maxTokens", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { budget: { maxTokens: 1.5 } })).rejects.toThrow(InvalidHarnessConfigError);
+  });
+
+  // Task 8.2/8.6 also describe "the global file may not set a value that
+  // raises a per-change one", rejected with a named error mirroring
+  // GlobalAutonomousAutonomyLevelError/GlobalCheckpointsDisabledError.
+  // Deliberately NOT implemented as a validation check: unlike those two
+  // (each gating one categorical value a single file's own content
+  // reveals), whether a number "raises" another is a relationship between
+  // TWO files, which per this file's own documented constraint
+  // ("core can only know what this one file declares, not the merged
+  // result") cannot be checked at single-file validation time. The test
+  // below instead demonstrates the actual guarantee: `mergeHarnessConfig`
+  // makes a per-change budget win unconditionally, so the global file's
+  // own value can never reach or affect a per-change one that was set —
+  // there is no code path left for a "global raises per-change" error to
+  // guard against. See harness-config.ts's `assertValidBudget` comment.
+  it("the global file's own budget never affects a per-change file's own value (no reachable 'raise' path)", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { budget: { maxCostUsd: 1000 } });
+    await writeChangeHarnessConfig(root, "demo", { budget: { maxCostUsd: 5 } });
+
+    const config = await resolveHarnessConfig(root, "demo");
+    expect(config.budget).toEqual({ maxCostUsd: 5 });
+  });
+});

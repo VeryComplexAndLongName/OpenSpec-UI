@@ -23,10 +23,17 @@ function formatPercent(completedTasks: number, totalTasks: number): string | und
   return `${Math.round((completedTasks / totalTasks) * 100)}%`;
 }
 
+/** `undefined` — never `"$0.00"` — when the process's audit entry carried
+ * no usage (see `WorkbenchProcess.usage`'s own doc comment): an absent
+ * cost means unmeasured, not free. */
+function formatCostUsd(costUsd: number | undefined): string | undefined {
+  return costUsd === undefined ? undefined : `$${costUsd.toFixed(2)}`;
+}
+
 export class ProcessTreeItem extends vscode.TreeItem {
   constructor(public readonly process: WorkbenchProcess, percent: string | undefined) {
     super(process.operation, vscode.TreeItemCollapsibleState.None);
-    this.description = [process.changeName, process.agentId, percent, process.state, process.progress]
+    this.description = [process.changeName, process.agentId, percent, process.state, process.progress, formatCostUsd(process.usage?.costUsd)]
       .filter(Boolean)
       .join(" · ");
     this.tooltip = process.error ?? process.summary ?? process.progress;

@@ -11,6 +11,7 @@
 import { appendFile, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
+import type { AgentUsage } from "./agent-usage.js";
 import { instructionsForArtifact } from "./openspec.js";
 import type { CommandContext, CommandKind } from "./protocol.js";
 
@@ -274,6 +275,20 @@ export interface AuditEntry {
   invocation?: AdapterInvocation;
   reason?: string;
   summary?: string;
+  /** Absolute path to the OpenSpec change this run applies to (mirrors
+   * `CommandContext.changeDir`) — the grouping key `usage-report.ts`'s
+   * "by change" totals and `HarnessChainRunner`'s budget check use.
+   * Optional so entries written before this field existed stay valid. */
+  changeDir?: string;
+  /** Resource usage reported for this run, as reported by the agent only
+   * — never estimated or derived (see agent-usage.ts). Absent means no
+   * usage was reported, not zero usage. */
+  usage?: AgentUsage;
+  /** Best-effort version of the agent CLI that performed this run, taken
+   * from detection's existing `--version` probe (see agent-detection.ts)
+   * — never from a second spawn. Absent when it could not be determined;
+   * this never affects whether the run itself is recorded. */
+  agentVersion?: string;
 }
 
 export interface AuditLog {

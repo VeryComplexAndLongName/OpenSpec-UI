@@ -32,6 +32,16 @@ export interface HarnessCheckpoints {
   requireConfirmationBetweenSteps: boolean;
 }
 
+/** A cost/token ceiling `HarnessChainRunner` checks before starting each
+ * stage of a chain — see openspec/changes/agent-usage-accounting/design.md
+ * and spec.md, "A configured budget stops work at stage boundaries". Both
+ * fields optional and independent: a config may cap cost only, tokens
+ * only, both, or (by omitting `budget` entirely) neither. */
+export interface HarnessBudget {
+  maxCostUsd?: number;
+  maxTokens?: number;
+}
+
 export interface HarnessConfig {
   stepAgents: HarnessStepAgents;
   autonomyLevel: HarnessAutonomyLevel;
@@ -43,6 +53,14 @@ export interface HarnessConfig {
    * `harness.json` may set `requireConfirmationBetweenSteps: false`; see
    * `GlobalCheckpointsDisabledError`. */
   checkpoints?: HarnessCheckpoints;
+  /** Absent means unlimited — matches every config written before this
+   * field existed. A per-change `harness.json` may set a ceiling higher
+   * than the global one; unlike `autonomyLevel`/`reviewGate.mode`/
+   * `checkpoints`, there is no value a global file is forbidden from
+   * setting here — see this file's `assertValidBudget` for why a
+   * `GlobalBudgetError`-style check does not apply to a plain numeric
+   * ceiling the way it does to those three. */
+  budget?: HarnessBudget;
 }
 
 /** The config to use when neither the global nor a per-change file
@@ -198,6 +216,38 @@ function assertValidCheckpoints(
   }
 }
 
+/** Structural validation only — a positive finite number for each field
+ * that is present. Unlike `assertValidAutonomyLevel`/`assertValidReviewGate`/
+ * `assertValidCheckpoints`, this takes no `isPerChangeFile` parameter and
+ * gates nothing based on it: those three each forbid one specific,
+ * categorical VALUE ("autonomous", "agent-sufficient", `false`) in the
+ * global file, a check this module can make from one file's own content
+ * alone. Task 8.2's "a per-change value may raise the global ceiling"
+ * (accepted) and "the global file may not set a value that raises a
+ * per-change one" describe a relationship BETWEEN two files' numbers —
+ * `mergeHarnessConfig` below already guarantees it structurally (a
+ * per-change `budget`, when set, always wins over the global one
+ * unconditionally, so the global file can never raise, lower, or
+ * otherwise affect a per-change value that was actually set — see this
+ * file's own earlier note, "core can only know what this one file
+ * declares, not the merged result"), so there is no reachable state here
+ * for a `GlobalBudgetError`-style rejection to guard against, and this
+ * project's own rule against validating scenarios that cannot happen
+ * (CLAUDE.md) argues against inventing one. */
+function assertValidBudget(value: unknown): asserts value is HarnessBudget | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("budget must be an object");
+  }
+  const { maxCostUsd, maxTokens } = value as { maxCostUsd?: unknown; maxTokens?: unknown };
+  if (maxCostUsd !== undefined && !(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
+    throw new InvalidHarnessConfigError("budget.maxCostUsd must be a positive number");
+  }
+  if (maxTokens !== undefined && !(typeof maxTokens === "number" && Number.isInteger(maxTokens) && maxTokens > 0)) {
+    throw new InvalidHarnessConfigError("budget.maxTokens must be a positive integer");
+  }
+}
+
 /** Validates a raw parsed JSON value as a partial `HarnessConfig`.
  * `isPerChangeFile` is `false` for the global file, `true` for a
  * per-change file — gates every field that a global file may not set
@@ -215,6 +265,7 @@ function assertValidHarnessConfigInput(
   assertValidStepAgents(input.stepAgents, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
+  assertValidBudget(input.budget);
 }
 
 function globalHarnessConfigPath(workspaceRoot: string): string {
@@ -249,6 +300,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     autonomyLevel: raw.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
     reviewGate: raw.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: raw.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
+    budget: raw.budget ?? DEFAULT_HARNESS_CONFIG.budget,
   };
 }
 
@@ -277,6 +329,14 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     autonomyLevel: override.autonomyLevel ?? global.autonomyLevel,
     reviewGate: override.reviewGate ?? global.reviewGate,
     checkpoints: override.checkpoints ?? global.checkpoints,
+    // Whole-object override, like autonomyLevel/reviewGate/checkpoints
+    // above — not a key-by-key merge like stepAgents. A per-change budget,
+    // when set, is used exactly as declared regardless of whether it is
+    // higher or lower than the global one (task 8.2's "a per-change value
+    // that is higher than the global ceiling is accepted"); the global
+    // file's own budget can never affect a per-change value that was
+    // actually set, since `override.budget` wins unconditionally.
+    budget: override.budget ?? global.budget,
   };
 }
 
