@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
     deserializeCheckpoint,
@@ -7,7 +7,7 @@ import {
 } from "./checkpoint.js";
 import type { WorkbenchProcess } from "./process-scheduler.js";
 
-export const WORKBENCH_RUN_JOURNAL_VERSION = 1;
+export const WORKBENCH_RUN_JOURNAL_VERSION = 2;
 
 export interface PersistedCheckpointSession {
     processId: string;
@@ -20,8 +20,21 @@ export interface WorkbenchRunJournalData {
     checkpointSessions: PersistedCheckpointSession[];
 }
 
-interface WorkbenchRunJournalDocument extends WorkbenchRunJournalData {
+interface PersistedCheckpointSessionReference {
+    processId: string;
+    changeName?: string;
+}
+
+interface WorkbenchRunJournalDocument {
     version: typeof WORKBENCH_RUN_JOURNAL_VERSION;
+    processes: WorkbenchProcess[];
+    checkpointSessions: PersistedCheckpointSessionReference[];
+}
+
+interface WorkbenchRunJournalDocumentV1 {
+    version: 1;
+    processes: WorkbenchProcess[];
+    checkpointSessions: PersistedCheckpointSession[];
 }
 
 export interface WorkbenchRunJournalOptions {
@@ -68,13 +81,18 @@ function isMissingFile(error: unknown): boolean {
     return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
+const CHECKPOINT_FILE_SUFFIX = ".json";
+
 export class WorkbenchRunJournal {
     readonly filePath: string;
+    private readonly checkpointsDirectory: string;
     private readonly maxProcesses: number;
     private writeQueue = Promise.resolve();
 
     constructor(private readonly root: string, options: WorkbenchRunJournalOptions = {}) {
-        this.filePath = path.join(path.resolve(root), ".openspec-ui", "workbench-runs.json");
+        const openspecDirectory = path.join(path.resolve(root), ".openspec-ui");
+        this.filePath = path.join(openspecDirectory, "workbench-runs.json");
+        this.checkpointsDirectory = path.join(openspecDirectory, "checkpoints");
         this.maxProcesses = options.maxProcesses ?? 100;
     }
 
@@ -87,26 +105,35 @@ export class WorkbenchRunJournal {
             throw error;
         }
 
-        let document: WorkbenchRunJournalDocument;
+        let raw: { version?: unknown; processes?: unknown; checkpointSessions?: unknown };
         try {
-            document = JSON.parse(source) as WorkbenchRunJournalDocument;
+            raw = JSON.parse(source);
         } catch (error) {
             throw new WorkbenchJournalLoadError(
                 `Workbench run journal is not valid JSON. Inspect or restore ${this.filePath}.`,
                 { code: "invalid-json", journalPath: this.filePath, cause: error },
             );
         }
-        if (document.version !== WORKBENCH_RUN_JOURNAL_VERSION) {
+
+        const resolvedRoot = path.resolve(this.root);
+
+        if (raw.version === 1) {
+            return this.loadVersion1(raw as unknown as WorkbenchRunJournalDocumentV1, resolvedRoot);
+        }
+
+        if (raw.version !== WORKBENCH_RUN_JOURNAL_VERSION) {
             throw new WorkbenchJournalLoadError(
-                `Workbench run journal version ${String(document.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                `Workbench run journal version ${String(raw.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
                 {
                     code: "unsupported-journal-version",
                     journalPath: this.filePath,
-                    foundVersion: document.version,
+                    foundVersion: raw.version,
                     supportedVersion: WORKBENCH_RUN_JOURNAL_VERSION,
                 },
             );
         }
+
+        const document = raw as unknown as WorkbenchRunJournalDocument;
         if (!Array.isArray(document.processes) || !Array.isArray(document.checkpointSessions)) {
             throw new WorkbenchJournalLoadError(
                 `Workbench run journal has an invalid shape. Inspect or restore ${this.filePath}.`,
@@ -114,47 +141,24 @@ export class WorkbenchRunJournal {
             );
         }
 
-        const resolvedRoot = path.resolve(this.root);
-        for (const session of document.checkpointSessions) {
-            if (!session || typeof session !== "object" || !session.checkpoint || typeof session.checkpoint !== "object") {
+        const sessions: PersistedCheckpointSession[] = [];
+        const retainedIds = new Set<string>();
+        for (const reference of document.checkpointSessions) {
+            if (!reference || typeof reference !== "object" || typeof reference.processId !== "string") {
                 throw new WorkbenchJournalLoadError(
                     `Workbench run journal contains an invalid checkpoint session. Inspect or restore ${this.filePath}.`,
                     { code: "invalid-shape", journalPath: this.filePath },
                 );
             }
-            if (session.checkpoint.version !== 1) {
-                throw new WorkbenchJournalLoadError(
-                    `Workbench checkpoint version ${String(session.checkpoint.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
-                    {
-                        code: "unsupported-checkpoint-version",
-                        journalPath: this.filePath,
-                        foundVersion: session.checkpoint.version,
-                        supportedVersion: 1,
-                    },
-                );
-            }
-            let checkpoint;
-            try {
-                checkpoint = deserializeCheckpoint(session.checkpoint);
-            } catch (error) {
-                throw new WorkbenchJournalLoadError(
-                    `Workbench run journal contains an invalid checkpoint. Inspect or restore ${this.filePath}.`,
-                    { code: "invalid-checkpoint", journalPath: this.filePath, cause: error },
-                );
-            }
-            if (checkpoint.root !== resolvedRoot) {
-                throw new WorkbenchJournalLoadError(
-                    `Checkpoint root ${checkpoint.root} does not match journal workspace ${resolvedRoot}. Open the journal from its original workspace.`,
-                    { code: "workspace-mismatch", journalPath: this.filePath },
-                );
-            }
+            retainedIds.add(reference.processId);
+            const resolved = await this.resolveCheckpointSession(reference, resolvedRoot);
+            if (resolved) sessions.push(resolved);
         }
+        await this.pruneCheckpointFiles(retainedIds);
+
         return {
             processes: document.processes.map((process) => ({ ...process })),
-            checkpointSessions: document.checkpointSessions.map((session) => ({
-                ...session,
-                checkpoint: structuredClone(session.checkpoint),
-            })),
+            checkpointSessions: sessions,
         };
     }
 
@@ -164,33 +168,182 @@ export class WorkbenchRunJournal {
         return operation;
     }
 
+    /** Version-1 journals embedded full checkpoint content per session, so
+     * every session here is already validated the same way `write()` used to
+     * validate on load. Migration reuses that validation, then writes the
+     * sessions out as files and rewrites the journal as version 2 through
+     * the normal `save()` path, so the on-disk shape never regresses back to
+     * version 1 once this has run. */
+    private async loadVersion1(
+        document: WorkbenchRunJournalDocumentV1,
+        resolvedRoot: string,
+    ): Promise<WorkbenchRunJournalData> {
+        if (!Array.isArray(document.processes) || !Array.isArray(document.checkpointSessions)) {
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal has an invalid shape. Inspect or restore ${this.filePath}.`,
+                { code: "invalid-shape", journalPath: this.filePath },
+            );
+        }
+        const sessions: PersistedCheckpointSession[] = [];
+        for (const session of document.checkpointSessions) {
+            if (!session || typeof session !== "object" || !session.checkpoint || typeof session.checkpoint !== "object") {
+                throw new WorkbenchJournalLoadError(
+                    `Workbench run journal contains an invalid checkpoint session. Inspect or restore ${this.filePath}.`,
+                    { code: "invalid-shape", journalPath: this.filePath },
+                );
+            }
+            this.validateCheckpointSession(session.checkpoint, resolvedRoot);
+            sessions.push({
+                processId: session.processId,
+                changeName: session.changeName,
+                checkpoint: structuredClone(session.checkpoint),
+            });
+        }
+        const data: WorkbenchRunJournalData = {
+            processes: document.processes.map((process) => ({ ...process })),
+            checkpointSessions: sessions,
+        };
+        await this.save(data);
+        return data;
+    }
+
+    /** Reads and validates one referenced checkpoint session's file. A file
+     * that cannot be read or parsed degrades to "no checkpoint" (returns
+     * `undefined`) per the "missing checkpoint store does not fail recovery"
+     * requirement. A file that *is* readable but fails semantic validation
+     * (unsupported version, tampered content, wrong workspace root) still
+     * throws — that is the existing, unchanged unsupported-checkpoint-version
+     * / workspace-mismatch behavior, not a readability problem. */
+    private async resolveCheckpointSession(
+        reference: PersistedCheckpointSessionReference,
+        resolvedRoot: string,
+    ): Promise<PersistedCheckpointSession | undefined> {
+        const filePath = this.checkpointFilePath(reference.processId);
+        let raw: string;
+        try {
+            raw = await readFile(filePath, "utf8");
+        } catch {
+            return undefined;
+        }
+        let checkpoint: SerializedWorkbenchCheckpoint;
+        try {
+            checkpoint = JSON.parse(raw) as SerializedWorkbenchCheckpoint;
+        } catch {
+            return undefined;
+        }
+        this.validateCheckpointSession(checkpoint, resolvedRoot);
+        return { processId: reference.processId, changeName: reference.changeName, checkpoint };
+    }
+
+    private validateCheckpointSession(checkpoint: SerializedWorkbenchCheckpoint, resolvedRoot: string): void {
+        if (checkpoint.version !== 1) {
+            throw new WorkbenchJournalLoadError(
+                `Workbench checkpoint version ${String(checkpoint.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                {
+                    code: "unsupported-checkpoint-version",
+                    journalPath: this.filePath,
+                    foundVersion: checkpoint.version,
+                    supportedVersion: 1,
+                },
+            );
+        }
+        let deserialized: ReturnType<typeof deserializeCheckpoint>;
+        try {
+            deserialized = deserializeCheckpoint(checkpoint);
+        } catch (error) {
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal contains an invalid checkpoint. Inspect or restore ${this.filePath}.`,
+                { code: "invalid-checkpoint", journalPath: this.filePath, cause: error },
+            );
+        }
+        if (deserialized.root !== resolvedRoot) {
+            throw new WorkbenchJournalLoadError(
+                `Checkpoint root ${deserialized.root} does not match journal workspace ${resolvedRoot}. Open the journal from its original workspace.`,
+                { code: "workspace-mismatch", journalPath: this.filePath },
+            );
+        }
+    }
+
+    private checkpointFilePath(processId: string): string {
+        return path.join(this.checkpointsDirectory, `${processId}${CHECKPOINT_FILE_SUFFIX}`);
+    }
+
+    private async fileExists(filePath: string): Promise<boolean> {
+        try {
+            await stat(filePath);
+            return true;
+        } catch (error) {
+            if (isMissingFile(error)) return false;
+            throw error;
+        }
+    }
+
+    /** Deletes checkpoint files under `checkpointsDirectory` that are not in
+     * `retainedIds` — used both after a write (a process fell out of
+     * retention) and after a load (a file was written but a crash landed
+     * before the journal was updated to reference it). Only lists directory
+     * entries and deletes by name; never reads a checkpoint file's content. */
+    private async pruneCheckpointFiles(retainedIds: Set<string>): Promise<void> {
+        let entries: string[];
+        try {
+            entries = await readdir(this.checkpointsDirectory);
+        } catch (error) {
+            if (isMissingFile(error)) return;
+            throw error;
+        }
+        await Promise.all(entries.map(async (entry) => {
+            if (!entry.endsWith(CHECKPOINT_FILE_SUFFIX)) return;
+            const processId = entry.slice(0, -CHECKPOINT_FILE_SUFFIX.length);
+            if (retainedIds.has(processId)) return;
+            await rm(path.join(this.checkpointsDirectory, entry), { force: true });
+        }));
+    }
+
+    private async atomicWriteFile(filePath: string, content: string): Promise<void> {
+        const directory = path.dirname(filePath);
+        const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+        await mkdir(directory, { recursive: true });
+        try {
+            await writeFile(temporaryPath, content, "utf8");
+            try {
+                await rename(temporaryPath, filePath);
+            } catch (error) {
+                const code = error instanceof Error && "code" in error ? error.code : undefined;
+                if (code !== "EEXIST" && code !== "EPERM") throw error;
+                await rm(filePath, { force: true });
+                await rename(temporaryPath, filePath);
+            }
+        } finally {
+            await rm(temporaryPath, { force: true });
+        }
+    }
+
     private async write(data: WorkbenchRunJournalData): Promise<void> {
         const processes = [...data.processes]
             .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
             .slice(0, this.maxProcesses);
         const retainedIds = new Set(processes.map((process) => process.id));
+        const retainedSessions = data.checkpointSessions.filter((session) => retainedIds.has(session.processId));
+
+        // Session files are written before the journal that references
+        // them, and only if they do not already exist: a finalized
+        // checkpoint never changes, so an existing file is never
+        // re-serialized on a process state change.
+        for (const session of retainedSessions) {
+            const filePath = this.checkpointFilePath(session.processId);
+            if (await this.fileExists(filePath)) continue;
+            await this.atomicWriteFile(filePath, JSON.stringify(session.checkpoint));
+        }
+        await this.pruneCheckpointFiles(new Set(retainedSessions.map((session) => session.processId)));
+
         const document: WorkbenchRunJournalDocument = {
             version: WORKBENCH_RUN_JOURNAL_VERSION,
             processes,
-            checkpointSessions: data.checkpointSessions
-                .filter((session) => retainedIds.has(session.processId))
-                .map((session) => ({ ...session, checkpoint: structuredClone(session.checkpoint) })),
+            checkpointSessions: retainedSessions.map((session) => ({
+                processId: session.processId,
+                changeName: session.changeName,
+            })),
         };
-        const directory = path.dirname(this.filePath);
-        const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
-        await mkdir(directory, { recursive: true });
-        try {
-            await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
-            try {
-                await rename(temporaryPath, this.filePath);
-            } catch (error) {
-                const code = error instanceof Error && "code" in error ? error.code : undefined;
-                if (code !== "EEXIST" && code !== "EPERM") throw error;
-                await rm(this.filePath, { force: true });
-                await rename(temporaryPath, this.filePath);
-            }
-        } finally {
-            await rm(temporaryPath, { force: true });
-        }
+        await this.atomicWriteFile(this.filePath, `${JSON.stringify(document, null, 2)}\n`);
     }
 }

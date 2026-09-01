@@ -36,7 +36,7 @@ describe("WorkbenchRecoveryService", () => {
     expect(service.details("run-1")).toMatchObject({ canRollback: true, delta: [{ path: "tracked.txt", kind: "modified" }] });
   });
 
-  it("rewrites historical journals without newly excluded checkpoint paths", async () => {
+  it("filters newly excluded paths from a historical checkpoint in memory, without rewriting its finalized file", async () => {
     const root = await createRoot();
     await writeFile(path.join(root, "tracked.txt"), "before", "utf8");
     const checkpoint = await captureCheckpoint(root);
@@ -57,13 +57,19 @@ describe("WorkbenchRecoveryService", () => {
       checkpointSessions: [{ processId: "run-1", checkpoint: serialized }],
     });
 
-    await WorkbenchRecoveryService.open(root);
+    const service = await WorkbenchRecoveryService.open(root);
+
+    // Exclusion filtering still applies wherever the checkpoint is
+    // deserialized for use (details/rollback), even though the change's
+    // "a finalized checkpoint is written once and is never rewritten"
+    // invariant means the on-disk file below is left untouched.
+    expect(service.details("run-1")?.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
+
     const persisted = await journal.load();
     const restoredCheckpoint = persisted.checkpointSessions[0]!.checkpoint;
-
-    expect(restoredCheckpoint.before.map((item) => item.path)).toEqual(["tracked.txt"]);
-    expect(restoredCheckpoint.after?.map((item) => item.path)).toEqual(["tracked.txt"]);
-    expect(restoredCheckpoint.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
+    expect(restoredCheckpoint.before.map((item) => item.path)).toEqual(
+      expect.arrayContaining([".env", ".mypy_cache/state.json", "tracked.txt"]),
+    );
   });
 
   it("rolls back conflict-free files and reports later conflicts without partial writes", async () => {
