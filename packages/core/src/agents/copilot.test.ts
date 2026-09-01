@@ -140,6 +140,7 @@ describe("CopilotCliAdapter", () => {
       expect(sentPrompt).toContain(command.context.changeDir);
       expect(sentPrompt.toLowerCase()).toContain("read");
       expect(sentPrompt.toLowerCase()).toContain("do not read or modify files under");
+      expect(sentPrompt).toContain("openspec instructions tasks --change <id>");
       // Delivery mechanism (argv, not stdin) is unaffected by the fallback.
       expect(call.args[0]).toBe("-p");
       expect(call.args[2]).toBe("--allow-all-tools");

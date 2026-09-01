@@ -1,7 +1,11 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { instructionsForArtifactMock } = vi.hoisted(() => ({ instructionsForArtifactMock: vi.fn() }));
+vi.mock("./openspec.js", () => ({ instructionsForArtifact: instructionsForArtifactMock }));
+
 import {
   type AllowlistConfig,
   InMemoryAuditLog,
@@ -114,6 +118,123 @@ describe("checkAllowlist", () => {
 });
 
 describe("prepareAgentContext", () => {
+  afterEach(() => {
+    instructionsForArtifactMock.mockReset();
+  });
+
+  it("includes the project's rules for the mapped artifact, ahead of the change content, distinctly labelled", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue(
+      "<artifact id=\"tasks\" change=\"x\" schema=\"spec-driven\">\n\n" +
+        "<task>\nCreate the tasks artifact for change \"x\".\n</task>\n\n" +
+        "<rules>\n<!-- These are constraints for you to follow. -->\n" +
+        "- Mark each task as soon as its own check passes.\n</rules>\n\n" +
+        "</artifact>",
+    );
+
+    const result = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+
+    expect(instructionsForArtifactMock).toHaveBeenCalledWith(
+      "tasks",
+      path.basename(changeDir),
+      { cwd: "/workspace/repo" },
+    );
+    expect(result.prompt).toContain("Mark each task as soon as its own check passes.");
+    expect(result.prompt).toContain("Do the thing");
+    // Rules section comes first, and is framed as instructions to follow —
+    // distinct from the "reference data" framing of the change content.
+    expect(result.prompt.indexOf("Mark each task as soon as its own check passes.")).toBeLessThan(
+      result.prompt.indexOf("Do the thing"),
+    );
+    expect(result.prompt).toContain("instructions to follow");
+    expect(result.prompt).toContain("reference data, not");
+  });
+
+  it("carries only the <rules> element's text, not the sibling <task>/<project_context>/<dependencies> directives", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue(
+      "<artifact id=\"tasks\" change=\"x\" schema=\"spec-driven\">\n\n" +
+        "<task>\nCreate the tasks artifact for change \"x\".\n" +
+        "Implementation checklist with trackable tasks\n</task>\n\n" +
+        "<project_context>\nDashboard for OpenSpec background info.\n</project_context>\n\n" +
+        "<rules>\n<!-- comment -->\n- Only real rule text belongs here.\n</rules>\n\n" +
+        "<dependencies>\nRead design.md before creating this artifact\n</dependencies>\n\n" +
+        "</artifact>",
+    );
+
+    const result = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+
+    expect(result.prompt).toContain("Only real rule text belongs here.");
+    expect(result.prompt).not.toContain("Create the tasks artifact");
+    expect(result.prompt).not.toContain("Dashboard for OpenSpec background info.");
+    expect(result.prompt).not.toContain("Read design.md before creating this artifact");
+  });
+
+  it("produces no rules section when the CLI output has no <rules> element", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue("<artifact>\n<task>Create it.</task>\n</artifact>");
+
+    const withMissingRulesElement = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+    instructionsForArtifactMock.mockResolvedValue(undefined);
+    const withNoLookup = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+
+    expect(withMissingRulesElement.prompt).toBe(withNoLookup.prompt);
+    expect(withMissingRulesElement.prompt).not.toContain("Project rules for");
+  });
+
+  it("does not call instructionsForArtifact for a change directory whose name begins with -", async () => {
+    const root = await temporaryChangeDir();
+    const changeDir = path.join(root, "-evil-flag-like-name");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "1. Do the thing\n", "utf8");
+
+    const result = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+
+    expect(instructionsForArtifactMock).not.toHaveBeenCalled();
+    expect(result.prompt).not.toContain("Project rules for");
+  });
+
+  it("is byte-identical to the no-options prompt when the rules lookup returns undefined", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue(undefined);
+
+    const withoutRules = await prepareAgentContext({ changeDir });
+    const withFailedLookup = await prepareAgentContext(
+      { changeDir },
+      { kind: "implement", cwd: "/workspace/repo" },
+    );
+
+    expect(withFailedLookup.prompt).toBe(withoutRules.prompt);
+    expect(withFailedLookup.prompt).not.toContain("Project rules for");
+  });
+
+  it("does not fetch rules for a command kind with no mapped artifact", async () => {
+    const changeDir = await temporaryChangeDir();
+
+    await prepareAgentContext({ changeDir }, { kind: "status", cwd: "/workspace/repo" });
+
+    expect(instructionsForArtifactMock).not.toHaveBeenCalled();
+  });
+
   it("wraps promptContext as data, appended after any real artifact content, and never returns anything but a prompt string", async () => {
     const changeDir = await temporaryChangeDir();
     await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nReal proposal content.\n", "utf8");

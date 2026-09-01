@@ -21,6 +21,7 @@ const {
   archiveChange,
   createChange,
   initOpenSpec,
+  instructionsForArtifact,
   listChanges,
   listSpecs,
   showChange,
@@ -288,5 +289,53 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow("ENOENT");
+  });
+});
+
+describe("instructionsForArtifact", () => {
+  it("returns the raw text when the subcommand succeeds", async () => {
+    mockSuccessfulSpawn("Mark each task as soon as its own check passes.\n");
+
+    const result = await instructionsForArtifact("tasks", "harness-prompt-project-rules", { cwd: "/repo" });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openspec",
+      ["instructions", "tasks", "--change", "harness-prompt-project-rules"],
+      { cwd: "/repo", windowsHide: true },
+    );
+    expect(result).toContain("Mark each task as soon as its own check passes.");
+  });
+
+  it("returns undefined when the subcommand exits non-zero", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("unknown artifact", "utf8"));
+      child.emit("close", 1);
+    });
+
+    const result = await instructionsForArtifact("tasks", "some-change", { cwd: "/repo" });
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when the process itself errors", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.emit("error", new Error("ENOENT"));
+    });
+
+    const result = await instructionsForArtifact("tasks", "some-change", { cwd: "/repo" });
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when the subcommand prints nothing", async () => {
+    mockSuccessfulSpawn("   \n");
+
+    const result = await instructionsForArtifact("tasks", "some-change", { cwd: "/repo" });
+
+    expect(result).toBeUndefined();
   });
 });
