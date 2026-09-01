@@ -100,22 +100,57 @@ Check each junction, not only the ends.
   it, do not implement it, and do not touch any other task in that file —
   that change is unimplemented and belongs to its own run.
 
-## 8. Verification
+## 8. Budget
 
-- [ ] 8.1 `openspec change validate --strict agent-usage-accounting`.
-- [ ] 8.2 `npm run typecheck` and `npm run test` — green.
+Enforced at stage boundaries only — a run's cost is not known until it
+ends (ADR 0018 decision 7). Do **not** add mid-run interruption here.
+
+- [ ] 8.1 `packages/core/src/harness-config.ts`: `HarnessConfig` gains an
+  optional `budget` with an optional `maxCostUsd` and an optional
+  `maxTokens`. Validate it the same way `autonomyLevel`/`checkpoints`
+  already are.
+- [ ] 8.2 Same file: a per-change `harness.json` value that is *higher*
+  than the global ceiling is accepted; the global file may not set a value
+  that raises a per-change one, and a raise is never inherited silently.
+  Follow the existing `GlobalAutonomousAutonomyLevelError` /
+  `GlobalCheckpointsDisabledError` pattern — a named error, not a silent
+  clamp.
+- [ ] 8.3 `packages/core/src/harness-chain-runner.ts`: before starting each
+  stage, sum the recorded usage for this change's runs and refuse to start
+  when a configured ceiling is reached. The refusal names the budget as its
+  reason — do **not** reuse the generic failure reason, which would make a
+  budget stop indistinguishable from work that broke.
+- [ ] 8.4 Same file: a run already in progress is never interrupted by this
+  check. State the prohibition in code comment form too — the plausible
+  generalization ("also check during the run") is exactly what ADR 0018
+  decision 7 rejects.
+- [ ] 8.5 Runs carrying no `usage` contribute nothing to the total. A
+  change whose runs are all unmeasured therefore never trips the ceiling —
+  correct, per ADR 0017's rejection of estimates.
+- [ ] 8.6 `harness-config.test.ts`: a per-change raise is accepted; a
+  global file raising a per-change value is rejected with the named error;
+  an absent budget behaves exactly as today.
+- [ ] 8.7 `harness-chain-runner.test.ts`: a chain stops before the next
+  stage when recorded usage reaches the ceiling, and reports the budget
+  reason; a chain with no ceiling behaves identically to today; a chain
+  whose runs report no usage runs to completion.
+
+## 9. Verification
+
+- [ ] 9.1 `openspec change validate --strict agent-usage-accounting`.
+- [ ] 9.2 `npm run typecheck` and `npm run test` — green.
   `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
   Windows timeout flakes at 5000 ms under load; do not attempt to fix them
   here.
-- [ ] 8.3 `packages/server/src/static.test.ts`'s esbuild browser-bundle
+- [ ] 9.3 `packages/server/src/static.test.ts`'s esbuild browser-bundle
   check stays green: `agent-usage.ts` and `verified-agent-versions.ts` must
   not pull a Node import into the browser bundle.
-- [ ] 8.4 `git diff packages/core/src/agents/` is **empty**. No adapter is
+- [ ] 9.4 `git diff packages/core/src/agents/` is **empty**. No adapter is
   touched by this change; a diff there means ADR 0017 decision 2 was
   violated.
-- [ ] 8.5 Version bump via `npx changeset` (`@openspec-ui/core` minor, plus
+- [ ] 9.5 Version bump via `npx changeset` (`@openspec-ui/core` minor, plus
   the packages whose presentation changed).
-- [ ] 8.6 **Human-only, cannot be completed by an implementing agent**:
+- [ ] 9.6 **Human-only, cannot be completed by an implementing agent**:
   run a real `implement` and confirm the audit line for it carries
   `agentVersion` and no `usage` — the expected state until
   `acp-agent-adapters` lands a producer. Leave unchecked if you are an

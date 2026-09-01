@@ -24,5 +24,6 @@ Alternatives / Consequences.
 | [0015](0015-agentic-harness-per-stage-model-selection.md) | Agentic Harness per-stage model selection | Accepted |
 | [0016](0016-harness-stage-dispatch-via-vscode-chat.md) | Harness stage dispatch via the VS Code chat | Accepted |
 | [0017](0017-structured-agent-output-parsing.md) | Structured agent output: parsing discipline and graceful degradation | Accepted |
+| [0018](0018-event-driven-harness-orchestration.md) | Event-driven harness orchestration | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
