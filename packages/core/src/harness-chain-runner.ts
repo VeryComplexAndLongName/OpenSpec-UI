@@ -17,7 +17,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentRunner } from "./agent-runner.js";
-import type { Command, CommandKind, Event } from "./protocol.js";
+import { captureCheckpoint, finalizeCheckpoint, type WorkbenchCheckpoint } from "./checkpoint.js";
+import type { Command, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
 import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
 import type { AuditEntry } from "./security.js";
@@ -30,12 +31,13 @@ import { buildUsageReport } from "./usage-report.js";
  * action is out of scope"). Each entry's `AgentRunner` `CommandKind`, where
  * one exists — `"archive"` has none: it is a mechanical operation
  * (`archiveChange`), not a CLI-agent invocation. */
-const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply", CommandKind>> = {
+const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply" | "verify", CommandKind>> = {
   propose: "plan",
   review: "review",
   apply: "implement",
+  verify: "verify",
 };
-const CHAIN_STAGES = ["propose", "review", "apply", "archive"] as const;
+const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive"] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
 
 export interface HarnessChainDeps {
@@ -119,7 +121,7 @@ async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
 /** Determines the first not-yet-complete stage for a change. Whether the
  * `propose` artifacts exist still comes from the `status` command (that is
  * exactly the question artifact presence answers), but the `apply` vs
- * `archive` decision comes from the change's real task checkboxes —
+ * `verify` decision comes from the change's real task checkboxes —
  * `status.progress` is deliberately not consulted here, because it is
  * absent for the CLI shape this repository actually runs, and the value
  * that used to be synthesized in its place counted artifacts, not tasks.
@@ -129,7 +131,10 @@ async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
  * is already done starts at `apply` directly (this session's own `review`,
  * if any, already happened; a chain cannot tell whether an earlier one
  * did, and re-running it unconditionally on every resume would be
- * surprising and wasteful). */
+ * surprising and wasteful). A change whose tasks are all checked but is
+ * not yet archived resumes at `verify`, not `archive` directly — the same
+ * "an agent process exiting 0 is not evidence the work was done" reasoning
+ * `runStage`'s archive gate already applies, applied one stage earlier. */
 async function determineStartStage(cwd: string, changeName: string, changeDir: string): Promise<ChainStage> {
   const status = await statusChange(changeName, { cwd });
   const isDone = (artifactId: string): boolean =>
@@ -144,7 +149,7 @@ async function determineStartStage(cwd: string, changeName: string, changeDir: s
   // Unknown progress picks the reversible stage: a redundant `apply` costs
   // one run, a wrong `archive` costs an unimplemented change.
   if (!tasks) return "apply";
-  return tasks.unchecked > 0 ? "apply" : "archive";
+  return tasks.unchecked > 0 ? "apply" : "verify";
 }
 
 export class HarnessChainRunner {
@@ -302,6 +307,15 @@ export class HarnessChainRunner {
 
     const sequence = CHAIN_STAGES.slice(CHAIN_STAGES.indexOf(startStage));
 
+    // Populated around the "apply" stage only (see `captureApplyCheckpoint`/
+    // `finalizeApplyCheckpoint`), and handed to the "verify" stage's own
+    // Command when that stage runs. Stays `undefined` for any chain that
+    // doesn't run "apply" itself (e.g. resuming directly at "verify") — a
+    // verify stage with no delta available runs with the prompt it would
+    // have produced before this capability existed, per security.ts's
+    // absent-field path.
+    let verifiedDelta: VerifiedDeltaEntry[] | undefined;
+
     for (let index = 0; index < sequence.length; index += 1) {
       const stage = sequence[index] as ChainStage;
       const hasNextStage = index < sequence.length - 1;
@@ -317,7 +331,14 @@ export class HarnessChainRunner {
         return;
       }
 
-      const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state);
+      const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
+
+      const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
+
+      if (stage === "apply" && applyCheckpoint && outcome === "completed") {
+        verifiedDelta = await this.finalizeApplyCheckpoint(applyCheckpoint);
+      }
+
       if (outcome !== "completed") return;
       if (!hasNextStage) return;
       if (state.cancelRequested) {
@@ -394,6 +415,40 @@ export class HarnessChainRunner {
     return undefined;
   }
 
+  /** Best-effort start of the "apply" stage's own checkpoint, so its delta
+   * can later be handed to "verify" — never lets checkpointing stop the
+   * chain: a size-limit error (`captureCheckpoint` throws when the
+   * workspace exceeds its configured limits) or any other failure here
+   * just means "verify" runs without a delta, exactly as if this
+   * capability didn't exist (see security.ts's absent-field path). */
+  private async captureApplyCheckpoint(cwd: string): Promise<WorkbenchCheckpoint | undefined> {
+    try {
+      return await captureCheckpoint(cwd);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Turns a finalized "apply" checkpoint into the `VerifiedDeltaEntry[]`
+   * shape `security.ts` renders into the "verify" stage's prompt — content
+   * comes from the checkpoint's own before/after snapshots, never from
+   * `GitWrapper.diff()` (see design.md's rejected alternative). Best-effort
+   * for the same reason `captureApplyCheckpoint` is. */
+  private async finalizeApplyCheckpoint(checkpoint: WorkbenchCheckpoint): Promise<VerifiedDeltaEntry[] | undefined> {
+    try {
+      const delta = await finalizeCheckpoint(checkpoint);
+      if (delta.length === 0) return undefined;
+      return delta.map((entry) => ({
+        path: entry.path,
+        kind: entry.kind,
+        before: checkpoint.before.get(entry.path)?.content.toString("utf8"),
+        after: checkpoint.after?.get(entry.path)?.content.toString("utf8"),
+      }));
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Runs one stage to its own terminal outcome. For an intermediate stage
    * (`hasNextStage`), the stage's own raw `"completed"` event is
    * deliberately swallowed rather than forwarded — per ADR 0012,
@@ -408,6 +463,7 @@ export class HarnessChainRunner {
     harnessConfig: HarnessConfig,
     command: Command,
     state: ChainState,
+    verifiedDelta: VerifiedDeltaEntry[] | undefined,
   ): AsyncGenerator<Event, "completed" | "failed" | "cancelled"> {
     const { cwd, context, runId } = command;
 
@@ -447,7 +503,13 @@ export class HarnessChainRunner {
       return "failed";
     }
 
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context, runId, agentId, model };
+    // Only the "verify" stage's context carries a delta — every other
+    // stage keeps the exact same `context` object the top-level command
+    // was given, so its prompt stays byte-identical to before this stage
+    // existed (see security.ts, buildVerifiedDeltaSection's absent-field
+    // path).
+    const stageContext = stage === "verify" && verifiedDelta ? { ...context, verifiedDelta } : context;
+    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 

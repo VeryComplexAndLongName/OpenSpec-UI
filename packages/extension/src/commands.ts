@@ -196,7 +196,7 @@ async function runTrackedProcess(
 // whole customization, not a partial file". `git` is deliberately not
 // asked — see design.md, "Why git is not part of the wizard".
 const INHERIT_PICK = "(inherit from global default)";
-const HARNESS_TEMPLATE_STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "archive"];
+const HARNESS_TEMPLATE_STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive"];
 
 const AUTONOMY_LEVEL_PICKS: readonly vscode.QuickPickItem[] = [
   { label: INHERIT_PICK },
@@ -207,7 +207,7 @@ const AUTONOMY_LEVEL_PICKS: readonly vscode.QuickPickItem[] = [
   },
   {
     label: "semi-autonomous",
-    detail: "Runs propose -> review -> apply -> archive as one chain, pausing at a checkpoint between each stage by default.",
+    detail: "Runs propose -> review -> apply -> verify -> archive as one chain, pausing at a checkpoint between each stage by default.",
   },
   {
     label: "autonomous",

@@ -226,6 +226,34 @@ describe("resolveHarnessConfig", () => {
   });
 });
 
+describe("stepAgents.verify (task 5.5)", () => {
+  it("resolves through the same global/per-change merge as every other stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { propose: "claude-cli", verify: "gemini-cli" } });
+    await writeChangeHarnessConfig(root, "demo", { stepAgents: { verify: "codex-cli" } });
+
+    const resolved = await resolveHarnessConfig(root, "demo");
+    expect(resolved.stepAgents).toEqual({ propose: "claude-cli", verify: "codex-cli" });
+    expect(normalizeStepAgent(resolved.stepAgents.verify!)).toEqual({ agent: "codex-cli", dispatch: "cli" });
+  });
+
+  it("an unset stepAgents.verify behaves exactly as an unset review does today", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { propose: "claude-cli" } });
+
+    const resolved = await resolveHarnessConfig(root, "demo");
+    expect(resolved.stepAgents.verify).toBeUndefined();
+    expect(resolved.stepAgents.review).toBeUndefined();
+  });
+
+  it("rejects a stepAgents.verify entry referencing an unknown agent id, like every other stage", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { verify: "not-a-real-agent" } }),
+    ).rejects.toThrow(InvalidHarnessConfigError);
+  });
+});
+
 describe("stepAgents model support", () => {
   it("still resolves the bare-string form exactly as before (regression guard)", async () => {
     const root = await temporaryRoot();

@@ -13,7 +13,7 @@ import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { instructionsForArtifact } from "./openspec.js";
-import type { CommandContext, CommandKind } from "./protocol.js";
+import type { CommandContext, CommandKind, VerifiedDeltaEntry } from "./protocol.js";
 
 export interface AllowlistRule {
   /** Name of the executable/binary, exact match. */
@@ -194,6 +194,64 @@ export interface AgentPromptContextOptions {
    * i.e. `command.cwd`. Required to fetch rules; without it, none are
    * fetched. */
   cwd?: string;
+  /** Files changed by the run a `"verify"` command is reviewing (see
+   * `VerifiedDeltaEntry`, protocol.ts) — sourced by `HarnessChainRunner`
+   * from a checkpoint's before/after snapshots, deliberately NOT from
+   * `GitWrapper.diff()` (a tree-scoped diff would put a concurrent
+   * session's unrelated uncommitted work into a verifying agent's prompt
+   * — see design.md's rejected alternative). Absent or empty means no
+   * section is added, and the prompt is byte-identical to a command with
+   * no `verifiedDelta` at all. */
+  verifiedDelta?: VerifiedDeltaEntry[];
+}
+
+/** Character budget for the verified-delta section — generous enough to
+ * carry a handful of changed files' full before/after content, bounded so
+ * one oversized run cannot blow out the whole prompt. Files are included
+ * whole (never partially truncated) up to this budget; anything past it
+ * is dropped with a visible count, never silently (see design.md, "An
+ * oversized delta is truncated with a marker, never silently dropped"). */
+const MAX_VERIFIED_DELTA_CHARS = 20_000;
+
+function renderVerifiedDeltaEntry(entry: VerifiedDeltaEntry): string {
+  const before = entry.before !== undefined ? `\n\nBefore:\n\`\`\`\n${entry.before}\n\`\`\`` : "";
+  const after = entry.after !== undefined ? `\n\nAfter:\n\`\`\`\n${entry.after}\n\`\`\`` : "";
+  return `## ${entry.path} (${entry.kind})${before}${after}`;
+}
+
+/** Builds the labelled section carrying what the run being verified
+ * changed, distinct from both the rules section and the change-content
+ * body. Returns `undefined` — not an empty section — when there is
+ * nothing to carry, so the prompt stays byte-identical to today's for
+ * every command that doesn't supply a delta. */
+function buildVerifiedDeltaSection(delta: VerifiedDeltaEntry[] | undefined): string | undefined {
+  if (!delta || delta.length === 0) return undefined;
+
+  const rendered: string[] = [];
+  let used = 0;
+  let omitted = 0;
+  for (const entry of delta) {
+    const text = renderVerifiedDeltaEntry(entry);
+    if (used + text.length > MAX_VERIFIED_DELTA_CHARS) {
+      omitted += 1;
+      continue;
+    }
+    rendered.push(text);
+    used += text.length;
+  }
+
+  const omittedNote = omitted > 0
+    ? `\n\n(${omitted} more changed file(s) omitted — the changed set exceeded what this prompt can carry.)`
+    : "";
+
+  return (
+    "# Files changed by the run being verified\n" +
+    "These are the files the implementing run actually changed, scoped to " +
+    "that run only — not the whole working tree.\n\n" +
+    rendered.join("\n\n") +
+    omittedNote +
+    "\n\n"
+  );
 }
 
 /** Fetches the project's own rules for the artifact `options.kind` maps to,
@@ -259,8 +317,11 @@ export async function prepareAgentContext(
     ? artifacts.map((artifact) => `## ${artifact.label}\n\n${artifact.content}`).join("\n\n")
     : "(no artifact files found at this path)";
   const rulesSection = await buildRulesSection(context.changeDir, options);
+  const verifiedDeltaSection = buildVerifiedDeltaSection(options.verifiedDelta);
   return {
-    prompt: (rulesSection ?? "") + header + body + (context.promptContext ? `\n\n${context.promptContext}` : ""),
+    prompt: (rulesSection ?? "") + header + body
+      + (verifiedDeltaSection ? `\n\n${verifiedDeltaSection}` : "")
+      + (context.promptContext ? `\n\n${context.promptContext}` : ""),
   };
 }
 

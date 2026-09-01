@@ -313,6 +313,82 @@ describe("prepareAgentContext", () => {
   });
 });
 
+describe("prepareAgentContext — verified delta (tasks 5.3/5.4)", () => {
+  it("carries the changed paths in their own section, distinct from the rules and change-content sections, when a delta is supplied", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] 1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue(
+      "<artifact><rules>\n- Follow the rules.\n</rules></artifact>",
+    );
+
+    const result = await prepareAgentContext(
+      { changeDir },
+      {
+        kind: "verify",
+        cwd: "/workspace/repo",
+        verifiedDelta: [
+          { path: "src/x.ts", kind: "modified", before: "old content", after: "new content" },
+          { path: "src/new.ts", kind: "added", after: "brand new file" },
+        ],
+      },
+    );
+
+    expect(result.prompt).toContain("Files changed by the run being verified");
+    expect(result.prompt).toContain("src/x.ts (modified)");
+    expect(result.prompt).toContain("old content");
+    expect(result.prompt).toContain("new content");
+    expect(result.prompt).toContain("src/new.ts (added)");
+    expect(result.prompt).toContain("brand new file");
+    // Distinct from the rules section and the change-content body.
+    const deltaIndex = result.prompt.indexOf("Files changed by the run being verified");
+    expect(result.prompt.indexOf("Follow the rules.")).toBeLessThan(deltaIndex);
+    expect(result.prompt.indexOf("Do the thing")).toBeLessThan(deltaIndex);
+  });
+
+  it("is byte-identical to the no-options prompt when no delta is supplied", async () => {
+    const changeDir = await temporaryChangeDir();
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] 1. Do the thing\n", "utf8");
+    instructionsForArtifactMock.mockResolvedValue(undefined);
+
+    const withoutOptions = await prepareAgentContext({ changeDir });
+    const withVerifyNoDelta = await prepareAgentContext({ changeDir }, { kind: "verify", cwd: "/workspace/repo" });
+    const withEmptyDelta = await prepareAgentContext(
+      { changeDir },
+      { kind: "verify", cwd: "/workspace/repo", verifiedDelta: [] },
+    );
+
+    expect(withVerifyNoDelta.prompt).toBe(withoutOptions.prompt);
+    expect(withEmptyDelta.prompt).toBe(withoutOptions.prompt);
+    expect(withoutOptions.prompt).not.toContain("Files changed by the run being verified");
+  });
+
+  it("truncates an oversized delta, stating how many files were omitted, and never produces an empty or absent section", async () => {
+    const changeDir = await temporaryChangeDir();
+    instructionsForArtifactMock.mockResolvedValue(undefined);
+
+    // Each entry's rendered content is well over 1000 chars; comfortably
+    // exceeds the section's budget once a handful are supplied.
+    const bigContent = "x".repeat(8_000);
+    const verifiedDelta = Array.from({ length: 5 }, (_, index) => ({
+      path: `src/file-${index}.ts`,
+      kind: "modified" as const,
+      before: bigContent,
+      after: bigContent,
+    }));
+
+    const result = await prepareAgentContext(
+      { changeDir },
+      { kind: "verify", cwd: "/workspace/repo", verifiedDelta },
+    );
+
+    expect(result.prompt).toContain("Files changed by the run being verified");
+    expect(result.prompt).toMatch(/\d+ more changed file\(s\) omitted/);
+    // At least one file didn't fit, and the section is never empty/absent.
+    const omittedMatch = /(\d+) more changed file\(s\) omitted/.exec(result.prompt);
+    expect(Number(omittedMatch?.[1])).toBeGreaterThan(0);
+  });
+});
+
 describe("InMemoryAuditLog", () => {
   it("records entries in order", () => {
     const log = new InMemoryAuditLog();

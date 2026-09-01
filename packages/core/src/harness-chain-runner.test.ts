@@ -140,11 +140,11 @@ describe("HarnessChainRunner — assisted level", () => {
 });
 
 describe("HarnessChainRunner — semi-autonomous", () => {
-  it("runs propose -> review -> apply -> archive with a checkpoint at each transition", async () => {
+  it("runs propose -> review -> apply -> verify -> archive with a checkpoint at each transition", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {
       autonomyLevel: "semi-autonomous",
-      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli", verify: "claude-cli" },
     });
     mockStatus(false); // propose not done yet -> chain starts at "propose"
     // The chain refuses to archive while any task is unchecked, and the
@@ -167,8 +167,14 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       "propose",
       "review",
       "apply",
+      "verify",
     ]);
-    expect(checkpoints.map((e) => (e as { nextStage: string }).nextStage)).toEqual(["review", "apply", "archive"]);
+    expect(checkpoints.map((e) => (e as { nextStage: string }).nextStage)).toEqual([
+      "review",
+      "apply",
+      "verify",
+      "archive",
+    ]);
     // Intermediate stages' own raw "completed" events are swallowed, not forwarded.
     expect(events.filter((e) => e.kind === "completed")).toHaveLength(1);
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
@@ -215,7 +221,7 @@ describe("HarnessChainRunner — semi-autonomous", () => {
     })();
 
     await vi.waitFor(() => expect(events.at(-1)).toMatchObject({ kind: "completed" }));
-    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement"]);
+    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement", "verify"]);
   });
 
   it("a paused chain does not silently complete while waiting at a checkpoint", async () => {
@@ -267,9 +273,10 @@ describe("HarnessChainRunner — autonomous", () => {
       "propose",
       "review",
       "apply",
+      "verify",
     ]);
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
-    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement"]);
+    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement", "verify"]);
   });
 
   it("refuses autonomous when the independently re-read per-change file does not itself confirm it", async () => {
@@ -296,24 +303,128 @@ describe("HarnessChainRunner — autonomous", () => {
 });
 
 describe("HarnessChainRunner — hard stop before git", () => {
-  it("ends with completed after archive and never starts a git stage", async () => {
+  it("ends with completed after verify -> archive and never starts a git stage", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {
       autonomyLevel: "semi-autonomous",
       stepAgents: { git: "claude-cli" },
     });
     mockStatus(true); // every propose artifact exists
-    await writeTasks(root, 0, 3); // ...and every task is checked -> starts at "archive"
+    await writeTasks(root, 0, 3); // ...and every task is checked -> starts at "verify"
     mockArchiveSucceeds();
 
     const { runner, calls } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
 
     const events: Event[] = [];
-    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "completed"]);
-    expect(calls).toHaveLength(0); // archive is mechanical — no AgentRunner invoked at all
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    // Only "verify" ran through an AgentRunner — archive is mechanical, and
+    // "git" never runs under any configuration (ADR 0012's hard stop).
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+  });
+});
+
+describe("HarnessChainRunner — verify stage (task 5.1/5.6)", () => {
+  it("resolves stepAgents.verify's configured agent for the verify stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "gemini-cli" },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3); // every task checked -> starts at "verify"
+    mockArchiveSucceeds();
+
+    const resolvedAgentIds: (string | undefined)[] = [];
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: (agentId) => {
+        resolvedAgentIds.push(agentId);
+        return runner;
+      },
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(resolvedAgentIds).toEqual(["gemini-cli"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("resolves the default (undefined) agent for the verify stage when stepAgents.verify is unset", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const resolvedAgentIds: (string | undefined)[] = [];
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: (agentId) => {
+        resolvedAgentIds.push(agentId);
+        return runner;
+      },
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(resolvedAgentIds).toEqual([undefined]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  /** Proves this change relies on the pre-existing archive gate rather
+   * than duplicating it: HarnessChainRunner has no verify-specific outcome
+   * handling at all — it just runs the verify stage and lets the SAME
+   * task-count check that already guards `archive` re-read tasks.md. */
+  it("stops before archive when the verify run leaves an unchecked task behind", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 0, 3); // every task checked -> starts at "verify"
+
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        if (command.kind === "verify") {
+          // The verifying agent finds an overstated task and unchecks it —
+          // by editing tasks.md itself, exactly as a real CLI agent would.
+          await writeTasks(root, 1, 2);
+        }
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("1 task(s) still unchecked");
+    expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
   });
 });
 
@@ -334,12 +445,13 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     const events: Event[] = [];
     for await (const event of chain.run(baseCommand(root))) events.push(event);
 
-    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
-    // Only `openspec status` ran — no `openspec archive`.
+    expect(calls.map((c) => c.kind)).toEqual(["implement", "verify"]);
+    // Only `openspec status` ran — no `openspec archive` (verify's fake run
+    // doesn't check any task, so the archive gate still refuses).
     expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status"]);
   });
 
-  it("starts at archive when every task is checked", async () => {
+  it("starts at verify, not archive, when every task is checked", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
     mockStatus(true);
@@ -348,12 +460,16 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
 
     const { runner, calls } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
 
     const events: Event[] = [];
-    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "completed"]);
-    expect(calls).toHaveLength(0);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
     expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status", "archive"]);
   });
 
@@ -369,7 +485,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     const events: Event[] = [];
     for await (const event of chain.run(baseCommand(root))) events.push(event);
 
-    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    expect(calls.map((c) => c.kind)).toEqual(["implement", "verify"]);
     expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status"]);
   });
 

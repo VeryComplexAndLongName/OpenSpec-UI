@@ -225,6 +225,7 @@ describe("registerCommands", () => {
         .mockResolvedValueOnce("Claude CLI") // propose
         .mockResolvedValueOnce(INHERIT) // review
         .mockResolvedValueOnce("GitHub Copilot CLI") // apply
+        .mockResolvedValueOnce(INHERIT) // verify
         .mockResolvedValueOnce(INHERIT) // archive
         .mockResolvedValueOnce({ label: "autonomous" })
         .mockResolvedValueOnce({ label: "agent-sufficient" });
@@ -245,6 +246,7 @@ describe("registerCommands", () => {
       createChangeMock.mockResolvedValue({ ok: true });
       vscodeMock.window.showQuickPick
         .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)
