@@ -51,9 +51,9 @@ most needs to reach. (`CLAUDE.md`'s "Invariants" section already states
 this reasoning for the `context` field; this applies the same logic to
 `rules.tasks`.)
 
-### Four narrow rules, not a style guide
+### Five narrow rules, not a style guide
 
-Chosen: exactly the four failure modes actually observed, each stated as
+Chosen: exactly the five failure modes actually observed, each stated as
 a rule an author can check their own `tasks.md` against.
 
 **Rejected alternative**: a longer authoring guide with examples and
@@ -62,6 +62,28 @@ propose/apply prompt, so its length is a recurring cost paid on every
 call; and the two rules already there set the register (one sentence,
 one testable expectation). A guide belongs in `openspec/README.md` if it
 is ever wanted, not in the injected context.
+
+### Rule 5 marks on verification, not on intent
+
+The rule ties marking to the moment a task's own verification passes, not
+to the moment the agent believes it wrote the code. Both halves are
+stated in one rule deliberately: "mark incrementally" alone invites
+marking ahead of the work (`changeset-version-automation` 1.3's exact
+failure), and "never mark early" alone leaves today's batch-at-the-end
+behavior untouched.
+
+**Rejected alternative**: have the harness infer progress from its own
+event stream instead of asking the agent to mark tasks. Rejected — the
+harness sees opaque stdout text (`spawnAndStream` deliberately does not
+parse structured output), so it cannot know which *task* an agent is on.
+`tasks.md` is the only shared artifact where that mapping exists, and the
+Processes view already reads it.
+
+**Rejected alternative**: make marking a post-run step (the agent reports
+which tasks it finished; the harness edits `tasks.md`). Rejected — it
+reintroduces the same all-or-nothing timing this rule exists to remove,
+and puts the harness in the business of editing a change's own files,
+which nothing else in the product does.
 
 ### Rule 4 (unperformable tasks) is about honesty, not scope
 
