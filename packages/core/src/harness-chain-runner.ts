@@ -20,7 +20,9 @@ import type { AgentRunner } from "./agent-runner.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
 import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
+import type { AuditEntry } from "./security.js";
 import { TASK_CHECKBOX_LINE_RE } from "./task-checklist.js";
+import { buildUsageReport } from "./usage-report.js";
 
 /** The subsequence of `HarnessStage` a chain actually drives — deliberately
  * excludes `"git"`: a chain never invokes the `git` stepAgent under any
@@ -45,6 +47,18 @@ export interface HarnessChainDeps {
    * the default agent for an unset `stepAgents` entry is this function's
    * responsibility, not the chain runner's. */
   resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
+  /** Best-effort accessor for this workspace's recorded audit entries —
+   * used only to sum recorded usage against `harnessConfig.budget` before
+   * starting each stage (see openspec/changes/agent-usage-accounting/
+   * design.md). Absent, or a `harnessConfig` with no `budget` configured,
+   * means no budget enforcement — every stage starts exactly as it did
+   * before this dependency existed. Kept as its own dependency here
+   * rather than as a method on `AuditLog` (security.ts) — that interface
+   * stays a pure write sink; this is the one place in this project that
+   * needs to read audit history back, so the read-back capability lives
+   * with its one caller instead of widening a security-critical
+   * interface for it. */
+  listAuditEntries?: () => AuditEntry[] | Promise<AuditEntry[]>;
 }
 
 type CheckpointOutcome = "confirmed" | "cancelled";
@@ -292,6 +306,17 @@ export class HarnessChainRunner {
       const stage = sequence[index] as ChainStage;
       const hasNextStage = index < sequence.length - 1;
 
+      // Checked BEFORE the stage starts, never during it — a stage
+      // already running is never interrupted by this check (ADR 0018
+      // decision 7: a run's cost is not known until it ends). Do not
+      // "also check during the run" here; that is exactly the mid-run
+      // interruption ADR 0018 rejects.
+      const budgetReason = await this.checkBudget(harnessConfig, context.changeDir);
+      if (budgetReason) {
+        yield failedEvent(runId, budgetReason);
+        return;
+      }
+
       const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state);
       if (outcome !== "completed") return;
       if (!hasNextStage) return;
@@ -339,6 +364,34 @@ export class HarnessChainRunner {
         yield { kind: "stageCompleted", runId, timestamp: nowIso(), stage, nextStage };
       }
     }
+  }
+
+  /** Returns a failure reason naming the budget, or `undefined` when the
+   * stage is free to start. `undefined` whenever there is nothing to
+   * check against: no `budget` configured, no `listAuditEntries`
+   * dependency supplied, or no recorded usage yet for this change — see
+   * spec.md, "A configured budget stops work at stage boundaries" and
+   * task 8.5 (runs with no `usage` contribute nothing to the total, so a
+   * change whose runs are all unmeasured never trips the ceiling). */
+  private async checkBudget(harnessConfig: HarnessConfig, changeDir: string): Promise<string | undefined> {
+    const budget = harnessConfig.budget;
+    if (!budget || (budget.maxCostUsd === undefined && budget.maxTokens === undefined)) return undefined;
+    if (!this.deps.listAuditEntries) return undefined;
+
+    const entries = await this.deps.listAuditEntries();
+    const total = buildUsageReport(entries).totalsByChange[changeDir];
+    if (!total) return undefined;
+
+    if (budget.maxCostUsd !== undefined && total.costUsd >= budget.maxCostUsd) {
+      return `budget exceeded: recorded cost $${total.costUsd.toFixed(2)} for this change has reached the configured ceiling ($${budget.maxCostUsd.toFixed(2)}) — stopping before the next stage, not because a stage failed`;
+    }
+    if (budget.maxTokens !== undefined) {
+      const totalTokens = total.inputTokens + total.outputTokens;
+      if (totalTokens >= budget.maxTokens) {
+        return `budget exceeded: recorded tokens (${totalTokens}) for this change have reached the configured ceiling (${budget.maxTokens}) — stopping before the next stage, not because a stage failed`;
+      }
+    }
+    return undefined;
   }
 
   /** Runs one stage to its own terminal outcome. For an intermediate stage

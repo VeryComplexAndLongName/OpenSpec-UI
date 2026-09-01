@@ -6,10 +6,15 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
-const { detectAvailableAgents } = await import("./agent-detection.js");
+const { detectAvailableAgents, detectAvailableAgentsDetailed, extractVersionToken } = await import("./agent-detection.js");
 
 class FakeChildProcess extends EventEmitter {
   kill = vi.fn();
+  stdout = new EventEmitter();
+}
+
+function emitStdout(child: FakeChildProcess, text: string): void {
+  child.stdout.emit("data", Buffer.from(text, "utf8"));
 }
 
 const originalFetch = globalThis.fetch;
@@ -32,7 +37,7 @@ describe("detectAvailableAgents", () => {
     const result = await detectAvailableAgents();
 
     expect(result["claude-cli"]).toBe(true);
-    expect(spawnMock).toHaveBeenCalledWith("claude", ["--version"], { stdio: "ignore" });
+    expect(spawnMock).toHaveBeenCalledWith("claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
   });
 
   it("reports an agent as detected even when --version exits non-zero (process still ran)", async () => {
@@ -136,5 +141,62 @@ describe("detectAvailableAgents", () => {
     expect(Object.keys(result).sort()).toEqual(
       ["claude-cli", "codex-cli", "copilot-cli", "gemini-cli", "local-llm"].sort(),
     );
+  });
+});
+
+describe("extractVersionToken", () => {
+  it("extracts the version token from the live-confirmed format", () => {
+    expect(extractVersionToken("2.1.237 (Claude Code)")).toBe("2.1.237");
+  });
+
+  it("returns undefined when no version-looking token is present", () => {
+    expect(extractVersionToken("not a version string")).toBeUndefined();
+  });
+});
+
+describe("detectAvailableAgentsDetailed", () => {
+  it("reports a version when the probe's stdout contains one (task 2.4)", async () => {
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      queueMicrotask(() => {
+        emitStdout(child, "2.1.237 (Claude Code)");
+        child.emit("exit", 0);
+      });
+      return child;
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue({});
+
+    const result = await detectAvailableAgentsDetailed();
+
+    expect(result["claude-cli"]).toEqual({ detected: true, version: "2.1.237" });
+  });
+
+  it("reports detected with no version when stdout has no version token (task 2.4)", async () => {
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      queueMicrotask(() => {
+        emitStdout(child, "hello from a CLI with no version flag support");
+        child.emit("exit", 0);
+      });
+      return child;
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue({});
+
+    const result = await detectAvailableAgentsDetailed();
+
+    expect(result["claude-cli"]).toEqual({ detected: true, version: undefined });
+  });
+
+  it("reports not detected, exactly as today, when spawning errors (task 2.4)", async () => {
+    spawnMock.mockImplementation(() => {
+      const child = new FakeChildProcess();
+      queueMicrotask(() => child.emit("error", new Error("ENOENT")));
+      return child;
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue({});
+
+    const result = await detectAvailableAgentsDetailed();
+
+    expect(result["claude-cli"]).toEqual({ detected: false });
   });
 });

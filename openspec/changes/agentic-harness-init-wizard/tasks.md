@@ -30,17 +30,21 @@
   is implemented** (see design.md, "Ordering against
   `acp-agent-adapters`" — otherwise skip this task entirely and file it
   as a fast-follow inside that change instead): if `claude-cli` was
-  chosen for the control or apply role in task 1.2, run `claude
-  --version`, parse the version token from its plain-text output (live-
-  confirmed format: `<version> (Claude Code)`), and compare against the
-  tested-version constant exported by `acp-agent-adapters`'s
-  `claude-cli-acp` module. On mismatch, show a dismissible
-  `showWarningMessage` naming both versions and pointing at
+  chosen for the control or apply role in task 1.2, read the version
+  already captured by `detectAvailableAgentsDetailed()` (from
+  `@openspec-ui/core`'s `agent-detection.ts`, added by
+  `agent-usage-accounting`) for `claude-cli` — do **not** run `claude
+  --version` a second time; that spawn is exactly what ADR 0017 decision
+  6 rejects, since detection already pays for it. Compare the captured
+  version (when present) against the tested-version constant exported by
+  `acp-agent-adapters`'s `claude-cli-acp` module. On mismatch, show a
+  dismissible `showWarningMessage` naming both versions and pointing at
   `docs/adr/0013-acp-agent-adapters.md`; does not block the wizard from
-  continuing. On a `claude --version` spawn failure (binary missing/
-  errored), skip the check silently — `detectAvailableAgents()` already
-  covers presence, this step assumes presence and only adds version
-  detail.
+  continuing. When the captured version is absent (detection's probe
+  produced no readable version, or `claude-cli` was not detected at all),
+  skip the check silently — `detectAvailableAgentsDetailed()`'s own
+  `detected` flag already covers presence; this step only adds version
+  detail on top of it, and must not spawn anything itself to get one.
 - [ ] 1.5 `openspec-ui.initialize`'s existing handler: after a successful
   `initOpenSpec()`, if `openspec/agent-harness.json` does not exist yet,
   shows a dismissible `showInformationMessage` with an action button that

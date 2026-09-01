@@ -58,4 +58,24 @@ describe("ProcessesView", () => {
     const dashes = screen.getAllByText("-");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("shows the recorded cost next to state when the process carries usage (task 6.2)", async () => {
+    const api: ProcessesApi = {
+      ...createApi(),
+      list: vi.fn().mockResolvedValue([
+        { id: "run-1", operation: "implement", changeName: "demo", state: "completed", createdAt: "2026-08-13T00:00:00.000Z", usage: { costUsd: 0.26 } },
+      ]),
+    };
+    render(<ProcessesView api={api} />);
+
+    expect(await screen.findByText("completed · $0.26")).toBeInTheDocument();
+  });
+
+  it("renders the state cell identically to today when the process carries no usage (task 6.3)", async () => {
+    const api = createApi();
+    render(<ProcessesView api={api} />);
+
+    expect(await screen.findByText("interrupted")).toBeInTheDocument();
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
+  });
 });

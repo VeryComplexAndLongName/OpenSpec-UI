@@ -192,3 +192,51 @@ describe("createAgentRunner — audit log records terminal outcome", () => {
     expect(terminal?.reason).toBe("agent crashed");
   });
 });
+
+describe("createAgentRunner — agentVersion on the started audit record (task 3.2)", () => {
+  it("carries agentVersion on the started entry when the runner was given one", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog, agentVersion: "2.1.237" });
+
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-5",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+    for await (const _ of runner.run(command)) {
+      // drain
+    }
+
+    const started = auditLog.entries.find((e) => e.outcome === "started");
+    expect(started?.agentVersion).toBe("2.1.237");
+  });
+
+  it("has no agentVersion key when none was supplied — otherwise identical to before this option existed", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-6",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+    for await (const _ of runner.run(command)) {
+      // drain
+    }
+
+    const started = auditLog.entries.find((e) => e.outcome === "started");
+    expect(started).toBeDefined();
+    expect("agentVersion" in (started as object)).toBe(false);
+    expect(started).toMatchObject({
+      runId: "run-6",
+      agent: "fake-agent",
+      outcome: "started",
+      cwd: workspaceRoot,
+      changeDir: "/workspace/repo/openspec/changes/x",
+    });
+  });
+});

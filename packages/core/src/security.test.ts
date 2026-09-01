@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ vi.mock("./openspec.js", () => ({ instructionsForArtifact: instructionsForArtifa
 
 import {
   type AllowlistConfig,
+  FileAuditLog,
   InMemoryAuditLog,
   checkAllowlist,
   checkCwdSandbox,
@@ -319,5 +320,53 @@ describe("InMemoryAuditLog", () => {
     log.record({ runId: "r1", agent: "claude-cli", outcome: "completed", cwd: "/x", timestamp: "t2" });
     expect(log.entries).toHaveLength(2);
     expect(log.entries.map((e) => e.outcome)).toEqual(["started", "completed"]);
+  });
+});
+
+describe("FileAuditLog", () => {
+  it("round-trips an entry carrying usage and agentVersion through its JSONL line", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const log = new FileAuditLog(filePath);
+
+    log.record({
+      runId: "r1",
+      agent: "claude-cli",
+      outcome: "completed",
+      cwd: "/x",
+      timestamp: "t1",
+      changeDir: "/x/openspec/changes/y",
+      usage: { inputTokens: 10, outputTokens: 20, costUsd: 0.26 },
+      agentVersion: "2.1.237",
+    });
+
+    await vi.waitFor(async () => {
+      const raw = await readFile(filePath, "utf8");
+      expect(raw.trim().length).toBeGreaterThan(0);
+    });
+
+    const lines = (await readFile(filePath, "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0] as string);
+    expect(parsed.usage).toEqual({ inputTokens: 10, outputTokens: 20, costUsd: 0.26 });
+    expect(parsed.agentVersion).toBe("2.1.237");
+  });
+
+  it("writes neither key for an entry carrying no usage or agentVersion — never `\"usage\": null`", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const log = new FileAuditLog(filePath);
+
+    log.record({ runId: "r2", agent: "claude-cli", outcome: "completed", cwd: "/x", timestamp: "t1" });
+
+    await vi.waitFor(async () => {
+      const raw = await readFile(filePath, "utf8");
+      expect(raw.trim().length).toBeGreaterThan(0);
+    });
+
+    const lines = (await readFile(filePath, "utf8")).trim().split("\n");
+    const raw = lines[0] as string;
+    expect(raw).not.toContain("usage");
+    expect(raw).not.toContain("agentVersion");
   });
 });

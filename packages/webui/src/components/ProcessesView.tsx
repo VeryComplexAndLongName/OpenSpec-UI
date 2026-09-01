@@ -12,6 +12,17 @@ export interface ProcessSummary {
   createdAt: string;
   summary?: string;
   error?: string;
+  /** This process's recorded cost, when its audit entry carried usage —
+   * see `WorkbenchProcess.usage` in `@openspec-ui/core`. Absent — not
+   * zero — for a process whose run reported no usage. */
+  usage?: { costUsd?: number };
+}
+
+/** `undefined` — never `"$0.00"` — when the process carries no usage: an
+ * absent cost means unmeasured, not free (mirrors the extension's
+ * `processes-tree.ts`'s `formatCostUsd`). */
+function formatCostUsd(costUsd: number | undefined): string | undefined {
+  return costUsd === undefined ? undefined : `$${costUsd.toFixed(2)}`;
 }
 
 /** Percent-complete is derived from the associated change's real
@@ -125,7 +136,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
               <td>{process.operation}</td><td>{process.changeName ?? "-"}</td>
               <td>{process.agentId ?? "-"}</td>
               <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
-              <td>{process.state}</td><td>{process.createdAt}</td>
+              <td>{[process.state, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
               <td><button type="button" onClick={() => void inspect(process.id)}>Review</button></td>
             </tr>
           ))}</tbody>

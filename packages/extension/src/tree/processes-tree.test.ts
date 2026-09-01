@@ -57,6 +57,21 @@ describe("ProcessTreeItem", () => {
     const item = new ProcessTreeItem(process("archive", "running", { changeName: "demo" }), undefined);
     expect(item.description).toBe("demo · running");
   });
+
+  it("renders identically to today when the process carries no usage (task 6.3)", () => {
+    const item = new ProcessTreeItem(process("implement", "completed", { changeName: "demo" }), undefined);
+    expect(item.description).toBe("demo · completed");
+    expect(item.description).not.toContain("$");
+  });
+
+  it("shows the recorded cost in the description when the process carries usage (task 6.1)", () => {
+    const withCost = {
+      ...process("implement", "completed", { changeName: "demo" }),
+      usage: { costUsd: 0.26 },
+    } as import("@openspec-ui/core").WorkbenchProcess;
+    const item = new ProcessTreeItem(withCost, undefined);
+    expect(item.description).toBe("demo · completed · $0.26");
+  });
 });
 
 describe("ProcessesTreeProvider", () => {
