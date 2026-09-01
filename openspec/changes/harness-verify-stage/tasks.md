@@ -117,10 +117,18 @@ not only the two ends.
 ## 6. Verification
 
 - [x] 6.1 `openspec change validate --strict harness-verify-stage`.
-- [ ] 6.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
+- [x] 6.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
   across all four workspaces. `sprint-report.test.ts` and
   `change-timeline.test.ts` have pre-existing Windows timeout flakes at
-  5000 ms under load; do not attempt to fix them here.
+  5000 ms under load; do not attempt to fix them here. Verified
+  2026-09-01: typecheck clean locally, and those two files pass 19/19 when
+  run alone — confirming the failures are load-related, not regressions.
+  `npm run lint` could not be verified locally: it fails with `ENOENT
+  openspec/changes/agent-detection-timeout/.openspec.yaml`, caused by a
+  concurrent session's uncommitted archive moves rather than by this
+  change. CI runs on a clean checkout where those files exist, and PR
+  #150's "Typecheck, lint, test, and build" job passed — that is what
+  settles this task.
 - [x] 6.3 `packages/server/src/static.test.ts`'s esbuild browser-bundle
   check stays green — task 2.1's constraint on `harness-stage.ts`.
 - [x] 6.4 `git diff packages/core/src/agents/` shows changes to
