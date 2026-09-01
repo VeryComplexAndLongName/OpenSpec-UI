@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -42,16 +42,17 @@ function mockCliJson(stdout: unknown): void {
   });
 }
 
-/** `openspec status --change <name> --json` shape (see
- * `openspec-fixtures/status.json`) — `proposeDone` controls whether
- * `proposal`/`design`/`tasks` all report `"done"`; `remaining` controls
- * `progress.remaining`. */
-function statusFixture(proposeDone: boolean, remaining: number): unknown {
+/** `openspec status --change <name> --json` shape as this repository's CLI
+ * actually emits it (see `openspec-fixtures/status.json`) — `proposeDone`
+ * controls whether `proposal`/`design`/`tasks` all report `"done"`, i.e.
+ * whether those FILES EXIST. No `progress` field: the real CLI reports
+ * none for a change, which is exactly why the chain must not depend on it
+ * (see openspec/changes/harness-chain-archive-gate/proposal.md). */
+function statusFixture(proposeDone: boolean): unknown {
   const artifactStatus = proposeDone ? "done" : "pending";
   return {
     changeName: "demo",
     schemaName: "spec-driven",
-    progress: { total: 3, complete: remaining === 0 ? 3 : 3 - remaining, remaining },
     artifacts: [
       { id: "proposal", outputPath: "proposal.md", status: artifactStatus, requires: [] },
       { id: "design", outputPath: "design.md", status: artifactStatus, requires: [] },
@@ -61,8 +62,24 @@ function statusFixture(proposeDone: boolean, remaining: number): unknown {
   };
 }
 
-function mockStatus(proposeDone: boolean, remaining: number): void {
-  mockCliJson(statusFixture(proposeDone, remaining));
+function mockStatus(proposeDone: boolean): void {
+  mockCliJson(statusFixture(proposeDone));
+}
+
+/** Writes `openspec/changes/demo/tasks.md` with `unchecked` incomplete and
+ * `checked` complete task lines — the only signal the chain is now allowed
+ * to read for "is the implementation done". */
+async function writeTasks(root: string, unchecked: number, checked: number): Promise<void> {
+  const changeDir = path.join(root, "openspec", "changes", "demo");
+  await mkdir(changeDir, { recursive: true });
+  const lines = [
+    "## 1. Tasks",
+    "",
+    ...Array.from({ length: checked }, (_, index) => `- [x] 1.${index + 1} done`),
+    ...Array.from({ length: unchecked }, (_, index) => `- [ ] 2.${index + 1} not done`),
+    "",
+  ];
+  await writeFile(path.join(changeDir, "tasks.md"), lines.join("\n"), "utf8");
 }
 
 function mockArchiveSucceeds(): void {
@@ -129,7 +146,10 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       autonomyLevel: "semi-autonomous",
       stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
     });
-    mockStatus(false, 3); // propose not done yet -> chain starts at "propose"
+    mockStatus(false); // propose not done yet -> chain starts at "propose"
+    // The chain refuses to archive while any task is unchecked, and the
+    // fake agent below does not edit tasks.md — write it already complete.
+    await writeTasks(root, 0, 3);
     mockArchiveSucceeds();
 
     const { runner } = makeCompletingRunner();
@@ -158,7 +178,7 @@ describe("HarnessChainRunner — semi-autonomous", () => {
   it("cancelling at a checkpoint ends the chain without starting the next stage", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
 
     const { runner, calls } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
@@ -177,7 +197,8 @@ describe("HarnessChainRunner — semi-autonomous", () => {
   it("confirming a checkpoint resumes into the next stage's agent", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
     mockArchiveSucceeds();
 
     const { runner, calls } = makeCompletingRunner();
@@ -200,7 +221,7 @@ describe("HarnessChainRunner — semi-autonomous", () => {
   it("a paused chain does not silently complete while waiting at a checkpoint", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
 
     const { runner } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
@@ -231,7 +252,8 @@ describe("HarnessChainRunner — autonomous", () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
     await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
     mockArchiveSucceeds();
 
     const { runner, calls } = makeCompletingRunner();
@@ -280,7 +302,8 @@ describe("HarnessChainRunner — hard stop before git", () => {
       autonomyLevel: "semi-autonomous",
       stepAgents: { git: "claude-cli" },
     });
-    mockStatus(true, 0); // propose done, no tasks remaining -> chain starts at "archive"
+    mockStatus(true); // every propose artifact exists
+    await writeTasks(root, 0, 3); // ...and every task is checked -> starts at "archive"
     mockArchiveSucceeds();
 
     const { runner, calls } = makeCompletingRunner();
@@ -294,11 +317,115 @@ describe("HarnessChainRunner — hard stop before git", () => {
   });
 });
 
+describe("HarnessChainRunner — task completion gates the chain", () => {
+  /** The incident of 2026-09-01, as a test: every artifact file existed, so
+   * the old code read artifact presence as "no tasks remain" and went
+   * straight to `archive`, archiving a change with 0 of 23 tasks done. */
+  it("starts at apply, not archive, when every artifact exists but no task is checked", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 3, 0);
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    // Only `openspec status` ran — no `openspec archive`.
+    expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status"]);
+  });
+
+  it("starts at archive when every task is checked", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.map((e) => e.kind)).toEqual(["started", "completed"]);
+    expect(calls).toHaveLength(0);
+    expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status", "archive"]);
+  });
+
+  it("starts at apply when tasks.md cannot be read at all", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true); // no tasks.md written -> task completion is unknown
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    expect(spawnMock.mock.calls.map((call) => (call[1] as string[])[0])).toEqual(["status"]);
+  });
+
+  it("refuses to archive when tasks remain unchecked, naming the change and the count", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 2, 1);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    // The chain started at `apply` (tasks unchecked) and then refused to
+    // archive — the stage completing successfully is not evidence of work.
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    const reason = (events.at(-1) as { reason: string }).reason;
+    expect(reason).toContain("demo");
+    expect(reason).toContain("2 task(s) still unchecked");
+    expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
+  });
+
+  it("refuses to archive when the task count cannot be determined", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 1, 0);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    // Remove tasks.md after the start-stage decision has been made, so the
+    // archive gate itself is the code path facing an unreadable file.
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) {
+      events.push(event);
+      if (event.kind === "started" && event.command === "implement") {
+        await rm(path.join(root, "openspec", "changes", "demo", "tasks.md"), { force: true });
+      }
+    }
+
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("demo");
+    expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
+  });
+});
+
 describe("HarnessChainRunner — cancellation mid-stage", () => {
   it("mirrors the single-stage cancel convention and ends the chain once the stage's own run ends", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
 
     let releaseStage: (() => void) | undefined;
     const calls: Command[] = [];
@@ -359,7 +486,7 @@ describe("HarnessChainRunner — asAgentRunner", () => {
   it("runs a chain command exactly like run() does", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
 
     const { runner } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
@@ -377,7 +504,7 @@ describe("HarnessChainRunner — asAgentRunner", () => {
   it("routes a cancel command to cancel() instead of rejecting it as non-chain", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
-    mockStatus(false, 3);
+    mockStatus(false);
 
     const { runner } = makeCompletingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });

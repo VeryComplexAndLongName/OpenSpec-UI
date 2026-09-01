@@ -93,7 +93,11 @@ export function registerOpenSpecChatParticipant(
       try {
         if (command === "status") {
           const status = await statusChange(change.name, { cwd: workspaceRoot });
-          response.markdown(`**${status.changeName}**: ${status.progress.complete}/${status.progress.total} tasks complete.`);
+          // `progress` is absent when the CLI reports none — say so rather
+          // than showing a count derived from something else.
+          response.markdown(status.progress
+            ? `**${status.changeName}**: ${status.progress.complete}/${status.progress.total} tasks complete.`
+            : `**${status.changeName}**: task progress not reported.`);
           if (status.instruction) response.markdown(`\n\n${status.instruction}`);
           return;
         }

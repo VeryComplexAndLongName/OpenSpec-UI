@@ -521,14 +521,15 @@ function renderStructuredText(raw: string, index: number): ReactNode {
 
   switch (structured.kind) {
     case "status": {
-      const derivedTotal = structured.value.artifacts.length;
-      const derivedComplete = structured.value.artifacts.filter((artifact) => {
-        const status = artifact.status.toLowerCase();
-        return status === "done" || status === "complete";
-      }).length;
-      const progressTotal = Math.max(structured.value.progress?.total ?? derivedTotal, 1);
-      const progressComplete = structured.value.progress?.complete ?? derivedComplete;
-      const progressPercent = Math.round((progressComplete / progressTotal) * 100);
+      // Progress is shown only when the CLI actually reported it. It used
+      // to fall back to counting `artifacts` whose status is "done", which
+      // reads "2/2" for a change with every task unchecked — the same
+      // conflation that let chains archive unimplemented changes (see
+      // openspec/changes/harness-chain-archive-gate).
+      const progress = structured.value.progress;
+      const progressPercent = progress && progress.total > 0
+        ? Math.round((progress.complete / progress.total) * 100)
+        : undefined;
       const doneTasks = structured.value.tasks?.filter((task) => task.done).length ?? 0;
       const totalTasks = structured.value.tasks?.length ?? 0;
       const nextStep = structured.value.nextSteps?.[0];
@@ -540,12 +541,15 @@ function renderStructuredText(raw: string, index: number): ReactNode {
             <span>{structured.value.state ?? (structured.value.isComplete ? "complete" : "status")}</span>
           </div>
           <p className="openspec-status-card-meta">
-            Schema: {structured.value.schemaName} | Progress: {progressComplete}/{progressTotal}
+            Schema: {structured.value.schemaName}
+            {progress ? ` | Progress: ${progress.complete}/${progress.total}` : ""}
             {totalTasks > 0 ? ` | Tasks: ${doneTasks}/${totalTasks}` : ""}
           </p>
-          <div className="openspec-status-meter" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
-            <div className="openspec-status-meter-fill" style={{ width: `${progressPercent}%` }} />
-          </div>
+          {progressPercent === undefined ? null : (
+            <div className="openspec-status-meter" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
+              <div className="openspec-status-meter-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
+          )}
           {structured.value.artifacts.length > 0 ? (
             <ul className="openspec-status-artifacts">
               {structured.value.artifacts.map((artifact) => (
