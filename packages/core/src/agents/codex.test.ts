@@ -36,7 +36,7 @@ describe("CodexCliAdapter", () => {
     const adapter = new CodexCliAdapter();
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE")) {
+    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE", new AbortController().signal)) {
       events.push(e);
     }
 

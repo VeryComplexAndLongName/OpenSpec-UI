@@ -51,7 +51,7 @@ describe("LocalLlmAdapter", () => {
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE")) {
+    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE", new AbortController().signal)) {
       events.push(e);
     }
 
@@ -73,7 +73,7 @@ describe("LocalLlmAdapter", () => {
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "p")) {
+    for await (const e of adapter.execute(invocation, command, "p", new AbortController().signal)) {
       events.push(e);
     }
 
@@ -89,7 +89,7 @@ describe("LocalLlmAdapter", () => {
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "p")) {
+    for await (const e of adapter.execute(invocation, command, "p", new AbortController().signal)) {
       events.push(e);
     }
 
@@ -103,7 +103,7 @@ describe("LocalLlmAdapter", () => {
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "p")) {
+    for await (const e of adapter.execute(invocation, command, "p", new AbortController().signal)) {
       events.push(e);
     }
 

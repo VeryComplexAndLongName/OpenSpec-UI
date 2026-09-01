@@ -44,7 +44,7 @@ describe("CopilotCliAdapter", () => {
     const adapter = new CopilotCliAdapter();
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE")) {
+    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE", new AbortController().signal)) {
       events.push(e);
     }
 
@@ -55,6 +55,7 @@ describe("CopilotCliAdapter", () => {
       cwd: "/workspace/repo",
       runId: "run-2",
       commandKind: "review",
+      signal: expect.anything(),
     });
   });
 
@@ -76,7 +77,7 @@ describe("CopilotCliAdapter", () => {
     const modelCommand: Command = { ...command, model: "gpt-5-mini" };
     const adapter = new CopilotCliAdapter();
     const invocation = adapter.buildInvocation(modelCommand);
-    for await (const _ of adapter.execute(invocation, modelCommand, "prompt body")) {
+    for await (const _ of adapter.execute(invocation, modelCommand, "prompt body", new AbortController().signal)) {
       // drain
     }
 
@@ -94,7 +95,7 @@ describe("CopilotCliAdapter", () => {
 
     const adapter = new CopilotCliAdapter();
     const invocation = adapter.buildInvocation(command);
-    for await (const _ of adapter.execute(invocation, command, "prompt body")) {
+    for await (const _ of adapter.execute(invocation, command, "prompt body", new AbortController().signal)) {
       // drain
     }
 
@@ -115,7 +116,7 @@ describe("CopilotCliAdapter", () => {
       const invocation = adapter.buildInvocation(command);
       const shortContent = "a".repeat(100);
 
-      for await (const _ of adapter.execute(invocation, command, shortContent)) {
+      for await (const _ of adapter.execute(invocation, command, shortContent, new AbortController().signal)) {
         // drain
       }
 
@@ -129,7 +130,7 @@ describe("CopilotCliAdapter", () => {
       const invocation = adapter.buildInvocation(command);
       const oversizedContent = "x".repeat(10_000);
 
-      for await (const _ of adapter.execute(invocation, command, oversizedContent)) {
+      for await (const _ of adapter.execute(invocation, command, oversizedContent, new AbortController().signal)) {
         // drain
       }
 

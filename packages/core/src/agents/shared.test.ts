@@ -13,6 +13,8 @@ class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
   stderr = new EventEmitter();
   stdin = { write: vi.fn(), end: vi.fn() };
+  pid: number | undefined;
+  kill = vi.fn();
 }
 
 afterEach(() => {
@@ -110,5 +112,83 @@ describe("spawnAndStream", () => {
     child.stdout.emit("data", Buffer.from("\x00\x01binary-garbage\xff"));
     const weird = await weirdPromise;
     expect(weird.value?.kind).toBe("stdout");
+  });
+
+  it("aborting mid-run ends the stream with cancelled and emits no output after it (task 1.2, 1.5)", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 4242;
+    const taskkillChild = new EventEmitter();
+    spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+    const controller = new AbortController();
+    const gen = spawnAndStream({
+      executable: "claude",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-10",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+
+    await gen.next(); // started
+
+    const cancelledPromise = gen.next();
+    controller.abort();
+    const result = await cancelledPromise;
+    expect(result.value).toMatchObject({ kind: "cancelled", runId: "run-10" });
+
+    // The killed process's own exit/output must not surface as further events.
+    child.stdout.emit("data", Buffer.from("late output, must not be emitted\n"));
+    child.emit("close", 0);
+
+    const after = await gen.next();
+    expect(after.done).toBe(true);
+  });
+
+  it("an already-aborted signal yields cancelled without spawning anything (task 1.4)", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const gen = spawnAndStream({
+      executable: "claude",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-11",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+
+    const result = await gen.next();
+    expect(result.value).toMatchObject({ kind: "cancelled", runId: "run-11" });
+    expect((await gen.next()).done).toBe(true);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("terminates the process TREE via the termination helper rather than a bare child.kill() — guards the .cmd-shim case from design.md (task 1.3, 5.6)", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 777;
+    const taskkillChild = new EventEmitter();
+    spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+    const controller = new AbortController();
+    const gen = spawnAndStream({
+      executable: "copilot",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-12",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+    await gen.next(); // started
+
+    const cancelledPromise = gen.next();
+    controller.abort();
+    await cancelledPromise;
+
+    // A bare child.kill() would kill only the .cmd shim on Windows and
+    // leave the real agent process running — the termination helper must
+    // go through taskkill /T instead.
+    expect(spawnMock).toHaveBeenCalledWith("taskkill", ["/T", "/F", "/PID", "777"], expect.anything());
+    expect(child.kill).not.toHaveBeenCalled();
   });
 });

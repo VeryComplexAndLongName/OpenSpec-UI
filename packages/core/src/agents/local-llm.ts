@@ -36,11 +36,20 @@ export class LocalLlmAdapter implements AgentAdapter {
     return { kind: "http", url: `${this.options.baseUrl}/v1/chat/completions`, method: "POST" };
   }
 
-  async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
+  async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
     if (invocation.kind !== "http") {
       throw new Error("LocalLlmAdapter expects invocation.kind === 'http'");
     }
     const { runId, cwd, kind } = command;
+
+    // An already-aborted signal never reaches a request at all — mirrors
+    // spawnAndStream's own "cancellation requested before the process
+    // starts" behavior for the subprocess adapters.
+    if (signal.aborted) {
+      yield { kind: "cancelled", runId, timestamp: nowIso() };
+      return;
+    }
+
     yield { kind: "started", runId, timestamp: nowIso(), command: kind, cwd };
 
     let response: Response;
@@ -56,8 +65,13 @@ export class LocalLlmAdapter implements AgentAdapter {
             { role: "user", content: prompt },
           ],
         }),
+        signal,
       });
     } catch (err) {
+      if (signal.aborted) {
+        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        return;
+      }
       yield { kind: "failed", runId, timestamp: nowIso(), reason: err instanceof Error ? err.message : String(err) };
       return;
     }
@@ -74,12 +88,20 @@ export class LocalLlmAdapter implements AgentAdapter {
 
     try {
       while (true) {
+        if (signal.aborted) {
+          yield { kind: "cancelled", runId, timestamp: nowIso() };
+          return;
+        }
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
         let newlineIndex: number;
         while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          if (signal.aborted) {
+            yield { kind: "cancelled", runId, timestamp: nowIso() };
+            return;
+          }
           const line = buffer.slice(0, newlineIndex).trim();
           buffer = buffer.slice(newlineIndex + 1);
           if (line.length === 0) continue;
@@ -108,6 +130,10 @@ export class LocalLlmAdapter implements AgentAdapter {
         }
       }
     } catch (err) {
+      if (signal.aborted) {
+        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        return;
+      }
       yield { kind: "failed", runId, timestamp: nowIso(), reason: err instanceof Error ? err.message : String(err) };
       return;
     }

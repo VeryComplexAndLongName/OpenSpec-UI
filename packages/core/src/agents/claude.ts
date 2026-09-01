@@ -28,7 +28,7 @@ export class ClaudeCliAdapter implements AgentAdapter {
     return { kind: "process", executable: "claude", args };
   }
 
-  async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
+  async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
       throw new Error("ClaudeCliAdapter expects invocation.kind === 'process'");
     }
@@ -39,6 +39,7 @@ export class ClaudeCliAdapter implements AgentAdapter {
       runId: command.runId,
       commandKind: command.kind,
       stdin: `${commandInstruction(command.kind)}\n\n${prompt}`,
+      signal,
     });
   }
 }
