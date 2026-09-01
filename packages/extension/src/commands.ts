@@ -76,6 +76,14 @@ async function showCommandError(action: string, error: unknown): Promise<void> {
   await vscode.window.showErrorMessage(`OpenSpec UI: ${action} failed (${message}).`);
 }
 
+function warnNoWorkspace(): void {
+  void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+}
+
+function warnNoTreeSelection(kind: "change" | "template" | "task"): void {
+  void vscode.window.showWarningMessage(`OpenSpec UI: select a ${kind} in the tree first.`);
+}
+
 /** Best-effort, non-blocking nudge after a successful archive: if this
  * workspace has adopted Changesets but no changeset is currently pending,
  * offer to run `npx changeset` in an integrated terminal. Never surfaces an
@@ -486,7 +494,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.configureHarnessForChange", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
       const uri = vscode.Uri.file(path.join(item.changeDir, "harness.json"));
       try {
         await vscode.workspace.fs.stat(uri);
@@ -506,7 +515,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.runWithHarness", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.archived) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (item.archived) return;
       try {
         // Resolved fresh on every invocation (never cached) — see
         // agentic-harness-run-menu's design.md, "Menu entry always
@@ -577,7 +588,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.createChange", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        warnNoWorkspace();
         return;
       }
       const changeName = await vscode.window.showInputBox({
@@ -605,7 +616,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.createChangeTemplate", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        warnNoWorkspace();
         return;
       }
       const changeName = await vscode.window.showInputBox({
@@ -662,7 +673,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.validateSelectedChange", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
       try {
         let result: Awaited<ReturnType<typeof validateChange>> | undefined;
         await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
@@ -682,7 +694,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.showChangeTimeline", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
       try {
         const timeline = await getChangeTimeline(workspaceRoot, item.changeName, item.archived);
         const staleThresholdDays = vscode.workspace
@@ -695,7 +708,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.archiveChange", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.archived) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (item.archived) return;
       const answer = await vscode.window.showWarningMessage(
         `Archive ${item.changeName}? Canonical specs may be updated.`,
         { modal: true },
@@ -718,7 +733,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.unarchiveChange", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || !item.archived) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (!item.archived) return;
       const answer = await vscode.window.showWarningMessage(
         `Restore ${item.changeName} to active changes?`,
         { modal: true },
@@ -740,7 +757,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.copyTasksAsTemplate", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || !item.archived) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (!item.archived) return;
       const target = await pickChange(workspaceRoot);
       if (!target) return;
       try {
@@ -764,7 +783,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.customizeTemplate", async (item?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.template.origin !== "built-in") return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("template"); return; }
+      if (item.template.origin !== "built-in") return;
       try {
         await customizeTemplate(workspaceRoot, item.template.manifest.id);
         deps.refreshTemplatesTree();
@@ -790,7 +811,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.insertTemplateIntoChange", async (item?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("template"); return; }
       const target = await pickChange(workspaceRoot);
       if (!target) return;
 
@@ -840,7 +862,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.deleteProjectTemplate", async (item?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.template.origin !== "project") return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("template"); return; }
+      if (item.template.origin !== "project") return;
       const answer = await vscode.window.showWarningMessage(
         `Permanently delete project template "${item.template.manifest.id}"?`,
         { modal: true },
@@ -861,7 +885,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.deleteChange", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
       const answer = await vscode.window.showWarningMessage(
         `Permanently delete ${item.changeName} and all of its artifacts?`,
         { modal: true },
@@ -882,7 +907,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
     }),
     vscode.commands.registerCommand("openspec-ui.revealTask", async (item?: TaskTreeItem) => {
-      if (!item) return;
+      if (!item) { warnNoTreeSelection("task"); return; }
       try {
         const tasksUri = vscode.Uri.file(path.join(item.changeDir, "tasks.md"));
         const document = await vscode.workspace.openTextDocument(tasksUri);
@@ -896,7 +921,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     }),
     vscode.commands.registerCommand("openspec-ui.deleteTask", async (item?: TaskTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.archived || item.done) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("task"); return; }
+      if (item.archived || item.done) return;
       const answer = await vscode.window.showWarningMessage(
         `Permanently delete task "${item.text}" from ${item.changeName}'s tasks.md?`,
         { modal: true },
@@ -920,7 +947,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.startImplementation", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot || !item || item.archived) return;
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (item.archived) return;
       try {
         const processId = await deps.implementationSessions.start(workspaceRoot, item.changeName);
         const prompt = [
@@ -981,7 +1010,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
     }),
     vscode.commands.registerCommand("openspec-ui.rollbackChange", async (item?: ChangeTreeItem) => {
-      if (!item) return;
+      if (!item) { warnNoTreeSelection("change"); return; }
       const details = deps.implementationSessions.changeRollbackDetails(item.changeName);
       if (!details) {
         void vscode.window.showWarningMessage(`OpenSpec UI: no rollback-eligible processes for ${item.changeName}.`);
@@ -1170,7 +1199,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.openAiPanel", (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        warnNoWorkspace();
         return;
       }
       deps.revealAiPanel(dashboardContext(workspaceRoot, item?.changeDir));
