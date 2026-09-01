@@ -92,10 +92,12 @@ ends.
   implemented; do not rewrite them.
 - [x] 6.4 Version bump via `npx changeset` (`@openspec-ui/core` minor —
   new config field and a new event kind, backward compatible).
-- [ ] 6.5 `docs/adr/README.md`: add the ADR 0016 row to the index. **Only
+- [x] 6.5 `docs/adr/README.md`: add the ADR 0016 row to the index. **Only
   once the concurrent uncommitted edits to that file have been
   committed** — otherwise committing it would sweep up another session's
   work. ADR 0015's row is owed too and is blocked on the same thing.
+  Gate cleared 2026-09-01: both rows land together with the 0013/0014
+  rows and their ADR files.
 - [ ] 6.6 **Human-only, cannot be completed by an implementing agent**:
   rebuild and reinstall (`npm run reinstall:local --workspace
   openspec-ui-vscode`), reload the window, set a change's `apply` stage
