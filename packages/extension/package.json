@@ -4,7 +4,7 @@
   "displayName": "OpenSpec Workbench",
   "description": "A dashboard + VS Code extension for OpenSpec, with Claude, Copilot, Codex, and Gemini agents built in.",
   "publisher": "openspec-ui",
-  "version": "0.30.4",
+  "version": "0.30.5",
   "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
