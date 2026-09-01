@@ -69,6 +69,15 @@ rules:
       at the two ends. A task phrased as "widen the type here" is most cheaply
       satisfied by discarding the new value at that layer, which type-checks and
       passes every existing test; explicit junction checks prevent this.
+    - When an implementing agent reaches a task it cannot perform (live,
+      interactive, or manual verification), it SHALL skip that task, continue
+      with the remaining tasks, and report the skipped task as outstanding —
+      it never stops to wait for a human inside a run, since nothing in the
+      harness is listening for that wait — `apply` runs headless, and a chain
+      under `autonomous` has no confirmation channel at all. An author who
+      needs a run to actually stop must express that through `autonomyLevel`
+      (`assisted`, or `semi-autonomous` with
+      `checkpoints.requireConfirmationBetweenSteps`), not through task text.
 
 operations:
   apply:

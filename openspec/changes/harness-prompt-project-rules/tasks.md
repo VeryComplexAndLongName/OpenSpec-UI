@@ -75,12 +75,13 @@ Check each junction, not only the ends.
   written in this change's `specs/` directory — confirm it matches what
   was implemented; do not rewrite it.
 - [x] 5.4 Version bump via `npx changeset` (`@openspec-ui/core`, patch).
-- [ ] 5.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 5.5 **Human-only, cannot be completed by an implementing agent**:
   rebuild and reinstall (`npm run reinstall:local --workspace
   openspec-ui-vscode`), reload the window, run a real `implement`, and
   confirm from the run's own output that the agent received the project
   rules — for example that it marks tasks incrementally without the
   `tasks.md` preamble saying so. Leave unchecked if you are an agent.
+  Confirmed live 2026-09-01 by the person running it; see 8.4.
 
 ## 6. Rules block scope — review follow-up (2026-09-01)
 
@@ -156,8 +157,12 @@ instructions` output → `instructionsForArtifact()` → `extractRulesElement()`
   5000ms under load; do not attempt to fix them here.
 - [x] 8.3 No new changeset — 5.4 already added the `@openspec-ui/core`
   patch for this change, and this section ships in the same release.
-- [ ] 8.4 **Human-only, cannot be completed by an implementing agent**:
+- [x] 8.4 **Human-only, cannot be completed by an implementing agent**:
   run a real `implement` and read the prompt actually sent (the audit log
   or the agent's own echo), confirming it carries the eight `rules.tasks`
   lines and no "Create the tasks artifact" text. Leave unchecked if you
   are an agent. This supersedes 5.5, which may stay unchecked.
+  Confirmed live 2026-09-01: watching a run of `task-human-step-rule` —
+  whose tasks.md carries no marking preamble, so `rules.tasks` was the
+  only possible source — checkboxes appeared one or two at a time as the
+  run progressed, not in a single batch at the end.
