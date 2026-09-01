@@ -1,6 +1,6 @@
 ## 1. Rule
 
-- [ ] 1.1 `openspec/config.yaml`, `rules.tasks`: append one rule to the
+- [x] 1.1 `openspec/config.yaml`, `rules.tasks`: append one rule to the
   end of the existing list, stating that an implementing agent SHALL
   skip a human-only task, continue with the remaining tasks, and report
   it outstanding — it never stops to wait for a human inside a run —
@@ -10,7 +10,7 @@
   Append only: do **not** reword or renumber any of the eight rules
   already in `rules.tasks`, and do **not** touch `rules.proposal`,
   `rules.design`, `context`, or `operations.*`.
-- [ ] 1.2 The new rule must **not** be phrased as a replacement for the
+- [x] 1.2 The new rule must **not** be phrased as a replacement for the
   existing rule "A task that an implementing agent cannot perform ...
   must be reported as outstanding rather than checked off". That rule
   says how such a task is *marked*; this one says what the agent *does*
@@ -19,16 +19,16 @@
 
 ## 2. Verification
 
-- [ ] 2.1 `git diff openspec/config.yaml` shows additions inside
+- [x] 2.1 `git diff openspec/config.yaml` shows additions inside
   `rules.tasks` only — every other section (`context`,
   `rules.proposal`, `rules.design`, `operations.*`) byte-identical to
   before this change.
-- [ ] 2.2 `openspec/config.yaml` still parses as valid YAML — confirm
+- [x] 2.2 `openspec/config.yaml` still parses as valid YAML — confirm
   with `npx openspec change validate --strict task-human-step-rule`,
   which fails to load the project if it does not.
-- [ ] 2.3 `npx openspec instructions` includes the new rule in its
+- [x] 2.3 `npx openspec instructions` includes the new rule in its
   returned `rules.tasks`, confirming it reaches an agent that never
   reads `CLAUDE.md`.
-- [ ] 2.4 No changeset is added (process/tooling only, no `packages/*`
+- [x] 2.4 No changeset is added (process/tooling only, no `packages/*`
   change) — matches the precedent in
   `openspec/changes/archive/2026-09-01-task-granularity-rules/`.
