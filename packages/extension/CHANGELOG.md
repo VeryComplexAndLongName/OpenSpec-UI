@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.31.0
+
+### Minor Changes
+
+- 8a69ea0: Implement harness config strictness for stage runner selection and validation.
+  
+  - Replace legacy `dispatch` usage in `stepAgents` with a dedicated `vscode-chat` step-runner id.
+  - Refuse `model`, `effort`, and `budget` on chat-dispatched stages because those values cannot reach any CLI invocation.
+  - Reject unknown keys in `stepAgents` entries and nested `budget` objects.
+  - Migrate legacy `dispatch: "vscode-chat"` / `dispatch: "cli"` shapes on read and write.
+  - Update core, webui, extension, and server runtime/test coverage for the new strict behavior.
+
+### Patch Changes
+
+- Updated dependencies [8a69ea0]
+  - @openspec-ui/core@0.43.0
+  - @openspec-ui/webui@1.21.0
+  - @openspec-ui/server@1.13.12
+
 ## 0.30.14
 
 ### Patch Changes
