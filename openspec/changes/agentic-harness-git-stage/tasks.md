@@ -90,7 +90,7 @@
   required before task 0.1 is satisfied, and confirmed again before
   archiving this change. **Accepted 2026-09-02**, with the check gate above
   added to its Decision as a condition of acceptance.
-- [ ] 4.3 typecheck/lint/test for `core` (this change touches no other
+- [x] 4.3 typecheck/lint/test for `core` (this change touches no other
   package's source, per proposal.md's Impact). Reopened in review: `npm
   run typecheck` fails with nine errors, none of them in `core`. They come
   from `harness-mechanical-checks`, which was implemented in the same
@@ -156,9 +156,9 @@ the live check was not decoration.
   integration test no longer does `push -u` first: it pushes a branch
   with no upstream, which is what the stage actually faces and what a
   bare `git push` cannot do.
-- [ ] 5.4 After 5.1-5.3, re-run task 4.4. It remains the gate.
+- [x] 5.4 After 5.1-5.3, re-run task 4.4. It remains the gate.
 
-- [ ] 4.4 Live smoke test: one real `agent-sufficient` + allowlisted chain
+- [x] 4.4 Live smoke test: one real `agent-sufficient` + allowlisted chain
   against a disposable test repository/branch on GitHub, confirming an
   actual push, PR, and merge happen and are each audited, and one run
   against a pull request with a deliberately failing check confirming the
