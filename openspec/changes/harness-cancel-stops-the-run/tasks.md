@@ -126,9 +126,7 @@ skipped.
 - [x] 6.1 `openspec change validate --strict harness-cancel-stops-the-run`.
 - [x] 6.2 `npm run typecheck` and `npm run test` — green across all four
   workspaces. See the note at the top of this file about `npm run lint`.
-  `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
-  Windows timeout flakes at 5000 ms under load; do not attempt to fix them
-  here. Reopened 2026-09-01: the local Windows run was fully green
+  Reopened 2026-09-01: the local Windows run was fully green
   (core 342, extension 198, webui 211, server 59), and three
   `shared.test.ts` tests then failed on CI's Linux runner — see tasks 5.7
   and 5.8. `npm run test` passing on the platform it was written on is

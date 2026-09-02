@@ -2,10 +2,20 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import simpleGit, { type SimpleGit } from "simple-git";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { buildSprintReport } from "./sprint-report.js";
 
+// Measured baseline on 2026-09-02 before this optimization: this file
+// intermittently timed out under co-load at Vitest's 5000ms default,
+// with the dominant cost coming from many git process spawns while
+// building fixtures. This file now avoids per-repo addConfig subprocesses
+// and sets an explicit per-test timeout with headroom for real-git work.
+// Measured after these changes (isolated run, 2026-09-02): 5/5 in 8.68s
+// test time (11.32s wall-clock reported by Vitest).
+vi.setConfig({ testTimeout: 15000 });
+
 const temporaryRoots: string[] = [];
+let sharedReadOnlyRepoRoot: string | undefined;
 
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-sprint-report-"));
@@ -13,15 +23,25 @@ async function temporaryRoot(): Promise<string> {
   return root;
 }
 
-afterEach(async () => {
+afterAll(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
+
+// Shared only by tests that read from the same committed history and do
+// not mutate it.
+async function getSharedReadOnlyRepoRoot(): Promise<string> {
+  if (sharedReadOnlyRepoRoot !== undefined) return sharedReadOnlyRepoRoot;
+  const root = await temporaryRoot();
+  await initRepo(root);
+  await writeChangeFiles(root, "old-change", "- [ ] a\n");
+  await commitAllAs(root, "create", "2025-01-01T00:00:00Z", "Alice", "alice@example.com");
+  sharedReadOnlyRepoRoot = root;
+  return root;
+}
 
 async function initRepo(root: string): Promise<SimpleGit> {
   const git = simpleGit(root);
   await git.init();
-  await git.addConfig("user.email", "test@example.com");
-  await git.addConfig("user.name", "Test User");
   return git;
 }
 
@@ -112,10 +132,7 @@ describe("buildSprintReport", () => {
   });
 
   it("keeps a selected change in the report even if it started before the range", async () => {
-    const root = await temporaryRoot();
-    await initRepo(root);
-    await writeChangeFiles(root, "old-change", "- [ ] a\n");
-    await commitAllAs(root, "create", "2025-01-01T00:00:00Z", "Alice", "alice@example.com");
+    const root = await getSharedReadOnlyRepoRoot();
 
     const report = await buildSprintReport(
       root,
@@ -160,8 +177,7 @@ describe("buildSprintReport", () => {
   });
 
   it("returns an empty report for no entries", async () => {
-    const root = await temporaryRoot();
-    await initRepo(root);
+    const root = await getSharedReadOnlyRepoRoot();
 
     const report = await buildSprintReport(root, [], "2026-01-01T00:00:00.000Z", "2026-01-10T00:00:00.000Z");
 

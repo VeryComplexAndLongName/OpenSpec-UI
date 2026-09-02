@@ -135,9 +135,7 @@ single-mutation invariant. Check each junction.
 
 - [x] 8.1 `openspec change validate --strict harness-suspendable-stage`.
 - [x] 8.2 `npm run typecheck` and `npm run test` — green across all four
-  workspaces. `sprint-report.test.ts` and `change-timeline.test.ts` have
-  pre-existing Windows timeout flakes at 5000 ms under load; do not
-  attempt to fix them here. (All green this run, including those two.)
+  workspaces. (All green this run, including those two.)
 - [x] 8.3 `git diff packages/core/src/agents/` and `git diff
   packages/core/src/harness-chain-runner.ts` are both **empty**. This
   change adds a mechanism; wiring a stage to it belongs to the change that
