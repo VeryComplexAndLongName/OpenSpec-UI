@@ -139,7 +139,26 @@ describe("path-unchanged", () => {
   it("refuses a path that escapes the workspace, without spawning anything", async () => {
     const root = await temporaryRoot();
 
-    const result = await runMechanicalCheck("path-unchanged", "..\\outside-the-workspace", makeCtx(root));
+    // A forward slash is a separator on both platforms. The first version
+    // of this test used `..\\outside-the-workspace`, which escapes only on
+    // Windows — on Linux a backslash is an ordinary filename character, so
+    // the path stayed inside the workspace, nothing was refused, and CI
+    // failed on the platform the local run could not speak for.
+    const result = await runMechanicalCheck("path-unchanged", "../outside-the-workspace", makeCtx(root));
+
+    expect(result.pass).toBe(false);
+    expect(result.reason).toMatch(/outside the workspace/);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a rooted path, on Windows and on POSIX alike", async () => {
+    const root = await temporaryRoot();
+
+    // Chosen because it escapes on both platforms, unlike a drive-letter
+    // path: `path.resolve` leaves this as `/etc/passwd` on POSIX and
+    // rewrites it to `<drive>:\etc\passwd` on Windows, and both are
+    // outside a workspace under a temporary directory.
+    const result = await runMechanicalCheck("path-unchanged", "/etc/passwd", makeCtx(root));
 
     expect(result.pass).toBe(false);
     expect(result.reason).toMatch(/outside the workspace/);
