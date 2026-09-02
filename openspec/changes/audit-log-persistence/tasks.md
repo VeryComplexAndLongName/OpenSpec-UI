@@ -148,6 +148,24 @@ do not try to fix it, and do not mark a task complete on it.
   them. This is the assertion that proves the fix is end to end rather
   than a file nobody reads.
 
+- [ ] 4.4 The integration assertion added for 4.2 fails on CI:
+  `ENOENT ... /.openspec-ui/audit.jsonl` (PR #163, "Extension integration
+  and package"). It extends the existing "runs a real `status` command"
+  test, and `status` is one of four kinds `RunController.run()`
+  short-circuits before any runner:
+  `if (command.kind === "status" || "list" || "show" || "validate") {
+  await this.runDirectOpenSpecCommand(command); return; }`. Those go
+  straight to the `openspec` CLI, so **no audit entry is ever recorded for
+  them** and the file cannot exist. Move the assertion onto a command kind
+  that does reach a runner. A missing agent binary is fine: the
+  `"started"` entry is recorded before `execute()` is called, so an entry
+  lands even when the spawn then fails.
+- [ ] 4.5 That assertion must also **wait** for the file rather than
+  reading it once. `record()` is fire-and-forget by design (task 1.1) and
+  no `flush()` exists (task 1.6), so a read immediately after the command
+  returns can race the queued append — the same trap task 1.5 found in the
+  rotation unit test. Size the wait to the work, as 1.5 did.
+
 ## 5. Correct the neighbouring change
 
 - [x] 5.1 `openspec/changes/agent-usage-accounting/tasks.md` task 9.6:
