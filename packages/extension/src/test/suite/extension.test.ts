@@ -2,7 +2,6 @@
 // OpenSpec mode and optional local-server toggle.
 
 import * as assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
 import type { ExtensionTestApi } from "../../extension.js";
 
@@ -86,19 +85,17 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       `expected a terminal event, got: ${events.join(", ")}`,
     );
 
-    // task 4.2, audit-log-persistence: `extension.ts`'s direct-import mode
-    // wires a `FileAuditLog` into `buildDefaultAgentRunners`, so the run
-    // just observed above must have landed in
-    // `.openspec-ui/audit.jsonl` under the real workspace — not just been
-    // discarded into the in-memory default (default-runners.ts's fallback
-    // for a host that supplies no `auditLog`).
-    const auditPath = vscode.Uri.joinPath(workspaceFolder.uri, ".openspec-ui", "audit.jsonl").fsPath;
-    const auditRaw = await readFile(auditPath, "utf8");
-    const auditEntries = auditRaw.trim().split("\n").map((line) => JSON.parse(line) as { outcome: string });
-    assert.ok(
-      auditEntries.some((e) => e.outcome === "started"),
-      `expected a persisted "started" audit entry, got outcomes: ${auditEntries.map((e) => e.outcome).join(", ")}`,
-    );
+    // No audit assertion here, deliberately — audit-log-persistence task
+    // 4.2. An earlier attempt asserted `.openspec-ui/audit.jsonl` gained a
+    // `"started"` entry after this command, and CI showed why it cannot:
+    // `RunController.run()` short-circuits `status`, `list`, `show` and
+    // `validate` into `runDirectOpenSpecCommand()` before any runner, so
+    // those four never produce an audit entry at all. No `vscode.commands`
+    // entry sends a runner-bound kind either — `plan`/`implement`/`review`
+    // reach a runner only through the AI panel's webview. `extension.ts`'s
+    // audit wiring therefore has no command this suite can drive; it is
+    // covered by inspection, while `optional-server.ts`'s identical wiring
+    // is covered executably in `optional-server.test.ts`.
   });
 
   test("Changes tree: tasks.md's checklist items nest under the Tasks artifact, not flat under the Change", async () => {

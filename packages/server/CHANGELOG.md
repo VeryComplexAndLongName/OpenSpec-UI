@@ -1,5 +1,19 @@
 # @openspec-ui/server
 
+## 1.13.8
+
+### Patch Changes
+
+- Updated dependencies [80a097b]
+  - @openspec-ui/core@0.39.0
+
+## 1.13.7
+
+### Patch Changes
+
+- Updated dependencies [d0be00e]
+  - @openspec-ui/core@0.38.0
+
 ## 1.13.6
 
 ### Patch Changes
