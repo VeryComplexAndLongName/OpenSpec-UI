@@ -1,8 +1,8 @@
 # ADR 0014: Agentic Harness `git` stage (push / PR / merge)
 
-Status: Proposed
+Status: Accepted
 
-Date: 2026-08-31
+Date: 2026-08-31 (accepted 2026-09-02)
 
 ## Context
 
@@ -52,6 +52,22 @@ fails, not a pause between each of push/PR/merge individually. A chain
 whose resolved `reviewGate.mode` is the default `"human-required"` still
 stops cleanly after `archive`, unchanged from today.
 
+The merge waits for the pull request's own checks and refuses a pull
+request whose checks have not passed. This is a property of the stage,
+not a configuration option: there is no setting that turns it off, and no
+allowlist entry that grants merging past a red check.
+
+Added when this ADR was accepted (2026-09-02). The decision as first
+written described the sequence as push, `gh pr create`, `gh pr merge`, and
+said nothing about checks — and `gh pr merge` without `--auto` merges
+immediately, whether or not anything has run. The stage exists precisely
+to act without a human present, so under `agent-sufficient` that omission
+would merge a red pull request into `main` and surface the failure only
+afterwards. CI is the one gate that has held for this project all week —
+it caught the `prefer-const` error that a locally red `npm run lint` had
+been hiding for days — and a stage that merges around it removes the
+protection the autonomy it enables depends on.
+
 ## Rejected Alternatives
 
 **A separate, git-specific allowlist/audit mechanism.** Rejected —
@@ -75,6 +91,15 @@ login" as a hard invariant (independently reaffirmed by ADR 0013's
 rejection of the SDK-based Claude bridge for the same reason); `gh`'s own
 `gh auth login` session satisfies the same posture for git-forge actions.
 
+**Making the check gate configurable (a per-change "merge without
+waiting" opt-out).** Rejected — the stage's whole justification is acting
+without a human watching, and the check result is the only evidence
+available in that situation that the change is sound. An opt-out would be
+exercised exactly when someone is in a hurry, which is when it is least
+safe, and it would join the family of settings this project spent the week
+removing: a control that reads as a convenience and is actually a
+correctness gate.
+
 **Support for non-GitHub remotes in this decision.** Rejected as
 out-of-scope — this repository's own remote is GitHub, and `gh` is
 GitHub-specific; broadening host support has no current motivating use
@@ -90,6 +115,12 @@ case and is left to a future decision if one appears.
   already are, with the same global-file rejection pattern.
 - `reviewGate.mode: "agent-sufficient"` has an observable effect for the
   first time since ADR 0011 introduced it.
+- The merge waits for the pull request's checks and fails the stage on a
+  red or absent result, so a chain can leave `main` no less green than it
+  found it. A repository with no checks configured at all is the one case
+  where waiting yields nothing; the stage treats that as a refusal rather
+  than as permission, since a chain running unattended has no other
+  evidence to go on.
 - A change must explicitly opt in via a per-change `harness.json` (both
   `reviewGate.mode: "agent-sufficient"` and a git-stage allowlist) to ever
   reach the `git` stage; every existing configuration and default behavior

@@ -20,7 +20,7 @@ Alternatives / Consequences.
 | [0011](0011-agentic-harness-config-and-autonomy-levels.md) | Agentic Harness config and autonomy levels | Accepted |
 | [0012](0012-agentic-harness-chain-execution-protocol.md) | Agentic Harness chain-execution protocol (`semi-autonomous`/`autonomous`) | Accepted |
 | [0013](0013-acp-agent-adapters.md) | ACP-flavored agent adapters (Agent Client Protocol) | Accepted |
-| [0014](0014-agentic-harness-git-stage.md) | Agentic Harness `git` stage (push / PR / merge) | Proposed |
+| [0014](0014-agentic-harness-git-stage.md) | Agentic Harness `git` stage (push / PR / merge) | Accepted |
 | [0015](0015-agentic-harness-per-stage-model-selection.md) | Agentic Harness per-stage model selection | Accepted |
 | [0016](0016-harness-stage-dispatch-via-vscode-chat.md) | Harness stage dispatch via the VS Code chat | Accepted |
 | [0017](0017-structured-agent-output-parsing.md) | Structured agent output: parsing discipline and graceful degradation | Accepted |
