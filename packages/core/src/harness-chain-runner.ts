@@ -1,11 +1,12 @@
 // Chain execution for the Agentic Harness — see
 // docs/adr/0012-agentic-harness-chain-execution-protocol.md and
 // openspec/changes/agentic-harness-autonomy/design.md. Sequences
-// `propose -> review -> apply -> archive` for a change under one `runId`,
+// `propose -> review -> apply -> verify -> archive -> git` for a change
+// under one `runId`,
 // pausing at a `checkpoint` (semi-autonomous, the default) or continuing
 // immediately via `stageCompleted` (autonomous, or a per-change
-// `checkpoints.requireConfirmationBetweenSteps: false`). Never reaches the
-// `git` stage under any configuration — see "Hard stop" below.
+// `checkpoints.requireConfirmationBetweenSteps: false`). The final `git`
+// stage is gated by per-change `reviewGate.mode: "agent-sufficient"`.
 //
 // Lives in `packages/core`, not `webui`/`extension`: which stage is next,
 // whether a transition pauses, and whether `autonomous` is actually
@@ -16,29 +17,40 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { AgentRunner } from "./agent-runner.js";
+import type { AdapterInvocation, AgentRunner } from "./agent-runner.js";
 import { captureCheckpoint, finalizeCheckpoint, type WorkbenchCheckpoint } from "./checkpoint.js";
-import type { Command, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
+import {
+  buildGhPrCreateInvocation,
+  buildGhPrMergeInvocation,
+  buildGitPushInvocation,
+  createPullRequestGateway,
+  type PullRequestGateway,
+} from "./gh-pr-gateway.js";
+import { createGitWrapper, type GitWrapper } from "./git.js";
+import { runMechanicalCheck, type MechanicalCheckContext, type MechanicalCheckResult } from "./mechanical-checks.js";
+import type { Command, CommandContext, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
 import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
-import type { AuditEntry } from "./security.js";
-import { TASK_CHECKBOX_LINE_RE } from "./task-checklist.js";
+import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
+import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates, type TaskCheckDeclaration } from "./task-checklist.js";
 import { buildUsageReport } from "./usage-report.js";
 
-/** The subsequence of `HarnessStage` a chain actually drives — deliberately
- * excludes `"git"`: a chain never invokes the `git` stepAgent under any
- * configuration (see ADR 0012, "the `git` stepAgent's actual commit/push
- * action is out of scope"). Each entry's `AgentRunner` `CommandKind`, where
- * one exists — `"archive"` has none: it is a mechanical operation
- * (`archiveChange`), not a CLI-agent invocation. */
+/** The subsequence of `HarnessStage` a chain drives. Each entry's
+ * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
+ * have no direct `AgentRunner` command kind: archive is a mechanical
+ * `openspec archive` operation, and git is a dedicated push/PR/merge
+ * sequence run directly by this runner. */
 const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply" | "verify", CommandKind>> = {
   propose: "plan",
   review: "review",
   apply: "implement",
   verify: "verify",
 };
-const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive"] as const;
+const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive", "git"] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
+const GIT_STAGE_AGENT_NAME = "git-stage";
+const DEFAULT_GIT_REMOTE = "origin";
+const DEFAULT_PR_BASE_BRANCH = "main";
 
 export interface HarnessChainDeps {
   /** Resolves the `AgentRunner` for an agent id — same shape each host
@@ -61,6 +73,12 @@ export interface HarnessChainDeps {
    * with its one caller instead of widening a security-critical
    * interface for it. */
   listAuditEntries?: () => AuditEntry[] | Promise<AuditEntry[]>;
+  /** Where git-stage actions are recorded. Optional for compatibility
+   * with tests that do not assert audit output. */
+  auditLog?: AuditLog;
+  /** Override hooks for tests. Production callers use defaults. */
+  createGitWrapper?: (options: { cwd: string }) => GitWrapper;
+  createPullRequestGateway?: (options: { cwd: string }) => PullRequestGateway;
 }
 
 type CheckpointOutcome = "confirmed" | "cancelled";
@@ -83,6 +101,15 @@ function changeNameFromDir(changeDir: string): string {
 
 function failedEvent(runId: string, reason: string): Event {
   return { kind: "failed", runId, timestamp: nowIso(), reason };
+}
+
+function wildcardPatternToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
+function matchesPattern(value: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => wildcardPatternToRegExp(pattern).test(value));
 }
 
 interface TaskCounts {
@@ -116,6 +143,66 @@ async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
     if ((match[1] ?? "").toLowerCase() !== "x") unchecked += 1;
   }
   return { unchecked, total };
+}
+
+interface MechanicalCheckOutcomeEntry {
+  text: string;
+  check: TaskCheckDeclaration;
+  result: MechanicalCheckResult;
+}
+
+interface MechanicalCheckRunOutcome {
+  /** `false` when the change's `tasks.md` declares no checks at all —
+   * task 3.5: behaves exactly as before this capability existed. */
+  ranAny: boolean;
+  passed: MechanicalCheckOutcomeEntry[];
+  failed: MechanicalCheckOutcomeEntry[];
+}
+
+/** Runs every mechanical check the change's `tasks.md` declares (task
+ * 3.1), before the `verify` stage's agent is ever invoked, and writes
+ * each one's pass/fail result onto its own checkbox (task 3.2) — the
+ * ONLY writer of those checkboxes; an agent's own report never reaches
+ * them through this path. Reading and parsing `tasks.md` itself is what
+ * throws `UnknownMechanicalCheckError`/`InvalidMechanicalCheckParameterError`
+ * for a malformed declaration (task-checklist.ts) — this function does
+ * not catch those, so a malformed `tasks.md` fails the stage exactly like
+ * a failing check would (via the caller's own try/catch). */
+async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: string): Promise<MechanicalCheckRunOutcome> {
+  const changeName = changeNameFromDir(changeDir);
+  const items = await readTaskChecklist(workspaceRoot, changeName, false);
+  const withChecks = items.filter((item) => item.check !== undefined);
+  if (withChecks.length === 0) {
+    return { ranAny: false, passed: [], failed: [] };
+  }
+
+  const ctx: MechanicalCheckContext = { workspaceRoot, changeDir, changeName };
+  const passed: MechanicalCheckOutcomeEntry[] = [];
+  const failed: MechanicalCheckOutcomeEntry[] = [];
+  const updates: Array<{ lineNumber: number; expectedText: string; done: boolean }> = [];
+
+  for (const item of withChecks) {
+    const check = item.check as TaskCheckDeclaration;
+    const result = await runMechanicalCheck(check.name, check.param, ctx);
+    updates.push({ lineNumber: item.lineNumber, expectedText: item.text, done: result.pass });
+    (result.pass ? passed : failed).push({ text: item.text, check, result });
+  }
+
+  await writeTaskCheckStates(workspaceRoot, changeName, false, updates);
+  return { ranAny: true, passed, failed };
+}
+
+/** Renders passing checks' results for the verifying agent's own prompt
+ * (task 3.4) — so it is told what is already established and does not
+ * re-run `npm run typecheck`/`lint`/`test`/etc itself. Plain text, not
+ * Markdown the agent could mistake for an instruction — same posture
+ * `security.ts`'s other prompt sections take toward change-file content. */
+function buildEstablishedChecksSection(passed: readonly MechanicalCheckOutcomeEntry[]): string {
+  const lines = passed.map((entry) => {
+    const paramSuffix = entry.check.param ? ` (${entry.check.param})` : "";
+    return `- ${entry.check.name}${paramSuffix}: ${entry.result.reason}`;
+  });
+  return `The following mechanical checks already ran and passed — do not repeat them:\n${lines.join("\n")}`;
 }
 
 /** Determines the first not-yet-complete stage for a change. Whether the
@@ -341,6 +428,21 @@ export class HarnessChainRunner {
 
       if (outcome !== "completed") return;
       if (!hasNextStage) return;
+
+      if (stage === "archive" && sequence[index + 1] === "git") {
+        let shouldRunGitStage: boolean;
+        try {
+          shouldRunGitStage = await this.shouldRunGitStage(cwd, changeName);
+        } catch (error) {
+          yield failedEvent(runId, error instanceof Error ? error.message : String(error));
+          return;
+        }
+        if (!shouldRunGitStage) {
+          yield { kind: "completed", runId, timestamp: nowIso(), summary: `archived ${changeName}` };
+          return;
+        }
+      }
+
       if (state.cancelRequested) {
         yield { kind: "cancelled", runId, timestamp: nowIso() };
         return;
@@ -467,6 +569,10 @@ export class HarnessChainRunner {
   ): AsyncGenerator<Event, "completed" | "failed" | "cancelled"> {
     const { cwd, context, runId } = command;
 
+    if (stage === "git") {
+      return yield* this.runGitStage(command, harnessConfig, hasNextStage);
+    }
+
     if (stage === "archive") {
       // The archive stage is irreversible, and a stage exiting successfully
       // is not evidence the work was done — an agent process can exit `0`
@@ -495,6 +601,30 @@ export class HarnessChainRunner {
       return "completed";
     }
 
+    let verifyCheckOutcome: MechanicalCheckRunOutcome | undefined;
+    if (stage === "verify") {
+      // Mechanical checks (task-checklist.ts's `check` declarations) run
+      // BEFORE the verifying agent — task 3.1/3.3. A failure here skips
+      // the agent entirely: asking a model to review work that a
+      // mechanical check already found broken spends a run to learn what
+      // an exit code already said. A change whose tasks.md declares no
+      // checks (`ranAny: false`) falls straight through unchanged — task
+      // 3.5.
+      try {
+        verifyCheckOutcome = await runMechanicalChecksForVerify(cwd, context.changeDir);
+      } catch (error) {
+        yield failedEvent(runId, error instanceof Error ? error.message : String(error));
+        return "failed";
+      }
+      if (verifyCheckOutcome.failed.length > 0) {
+        const failedSummary = verifyCheckOutcome.failed
+          .map((entry) => `${entry.check.name}${entry.check.param ? `(${entry.check.param})` : ""}: ${entry.result.reason}`)
+          .join("; ");
+        yield failedEvent(runId, `mechanical checks failed, verifying agent was not invoked: ${failedSummary}`);
+        return "failed";
+      }
+    }
+
     const stepAgent = harnessConfig.stepAgents[stage];
     const { agent: agentId, model, effort, budget } = stepAgent === undefined
       ? { agent: undefined, model: undefined, effort: undefined, budget: undefined }
@@ -505,12 +635,24 @@ export class HarnessChainRunner {
       return "failed";
     }
 
-    // Only the "verify" stage's context carries a delta — every other
-    // stage keeps the exact same `context` object the top-level command
-    // was given, so its prompt stays byte-identical to before this stage
-    // existed (see security.ts, buildVerifiedDeltaSection's absent-field
-    // path).
-    const stageContext = stage === "verify" && verifiedDelta ? { ...context, verifiedDelta } : context;
+    // Only the "verify" stage's context carries a delta and/or an
+    // "established checks" section — every other stage keeps the exact
+    // same `context` object the top-level command was given, so its
+    // prompt stays byte-identical to before this stage existed (see
+    // security.ts, buildVerifiedDeltaSection's absent-field path).
+    let stageContext: CommandContext = context;
+    if (stage === "verify") {
+      if (verifiedDelta) stageContext = { ...stageContext, verifiedDelta };
+      if (verifyCheckOutcome && verifyCheckOutcome.ranAny && verifyCheckOutcome.passed.length > 0) {
+        const establishedSection = buildEstablishedChecksSection(verifyCheckOutcome.passed);
+        stageContext = {
+          ...stageContext,
+          promptContext: stageContext.promptContext
+            ? `${stageContext.promptContext}\n\n${establishedSection}`
+            : establishedSection,
+        };
+      }
+    }
     const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
@@ -531,5 +673,173 @@ export class HarnessChainRunner {
     state.currentRunner = undefined;
     state.currentCommand = undefined;
     return outcome;
+  }
+
+  private async shouldRunGitStage(workspaceRoot: string, changeName: string): Promise<boolean> {
+    const changeOverride = await readChangeHarnessConfig(workspaceRoot, changeName);
+    return changeOverride?.reviewGate?.mode === "agent-sufficient";
+  }
+
+  private buildGitStageAllowlist(harnessConfig: HarnessConfig): AllowlistConfig {
+    const remotes = harnessConfig.gitStageAllowlist?.remotes ?? [];
+    const branches = harnessConfig.gitStageAllowlist?.branches ?? [];
+    return {
+      [GIT_STAGE_AGENT_NAME]: [
+        {
+          executable: "git",
+          argsAllowed: (args: string[]) => {
+            if (args[0] !== "push") return false;
+            const remote = args[1] ?? "";
+            const branch = args[2] ?? "";
+            return matchesPattern(remote, remotes) && matchesPattern(branch, branches);
+          },
+        },
+        {
+          executable: "gh",
+          argsAllowed: (args: string[]) => {
+            if (args[0] !== "pr") return false;
+            if (args[1] === "create") {
+              const headIndex = args.indexOf("--head");
+              const baseIndex = args.indexOf("--base");
+              const headBranch = headIndex >= 0 ? args[headIndex + 1] ?? "" : "";
+              const baseBranch = baseIndex >= 0 ? args[baseIndex + 1] ?? "" : "";
+              return matchesPattern(DEFAULT_GIT_REMOTE, remotes)
+                && matchesPattern(headBranch, branches)
+                && matchesPattern(baseBranch, branches);
+            }
+            if (args[1] === "merge") {
+              return matchesPattern(DEFAULT_GIT_REMOTE, remotes);
+            }
+            return false;
+          },
+        },
+      ],
+    };
+  }
+
+  private recordGitAction(
+    command: Command,
+    invocation: AdapterInvocation,
+    outcome: "blocked" | "started" | "completed" | "failed",
+    details?: { reason?: string; summary?: string },
+  ): void {
+    this.deps.auditLog?.record({
+      runId: command.runId,
+      agent: GIT_STAGE_AGENT_NAME,
+      outcome,
+      cwd: command.cwd,
+      timestamp: nowIso(),
+      changeDir: command.context.changeDir,
+      invocation,
+      reason: details?.reason,
+      summary: details?.summary,
+    });
+  }
+
+  private async *runGitStage(
+    command: Command,
+    harnessConfig: HarnessConfig,
+    hasNextStage: boolean,
+  ): AsyncGenerator<Event, "completed" | "failed" | "cancelled"> {
+    const allowlistRules = harnessConfig.gitStageAllowlist;
+    if (!allowlistRules) {
+      yield failedEvent(command.runId, "git stage requires a per-change gitStageAllowlist");
+      return "failed";
+    }
+
+    const git = (this.deps.createGitWrapper ?? createGitWrapper)({ cwd: command.cwd });
+    const prGateway = (this.deps.createPullRequestGateway ?? createPullRequestGateway)({ cwd: command.cwd });
+    const allowlist = this.buildGitStageAllowlist(harnessConfig);
+
+    const branch = await git.currentBranch();
+    if (!branch) {
+      yield failedEvent(command.runId, "git stage failed: could not resolve current branch");
+      return "failed";
+    }
+
+    const pushInvocation: AdapterInvocation = {
+      kind: "process",
+      ...buildGitPushInvocation(DEFAULT_GIT_REMOTE, branch),
+    };
+    const pushDecision = checkAllowlist(GIT_STAGE_AGENT_NAME, pushInvocation, allowlist);
+    if (!pushDecision.allowed) {
+      this.recordGitAction(command, pushInvocation, "blocked", { reason: pushDecision.reason });
+      yield failedEvent(command.runId, `git stage failed at push: ${pushDecision.reason ?? "blocked by allowlist"}`);
+      return "failed";
+    }
+    this.recordGitAction(command, pushInvocation, "started");
+    try {
+      await git.push(DEFAULT_GIT_REMOTE, branch);
+      this.recordGitAction(command, pushInvocation, "completed", { summary: `pushed ${branch}` });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.recordGitAction(command, pushInvocation, "failed", { reason });
+      yield failedEvent(command.runId, `git stage failed at push: ${reason}`);
+      return "failed";
+    }
+
+    const createInvocation: AdapterInvocation = {
+      kind: "process",
+      ...buildGhPrCreateInvocation(branch, DEFAULT_PR_BASE_BRANCH),
+    };
+    const createDecision = checkAllowlist(GIT_STAGE_AGENT_NAME, createInvocation, allowlist);
+    if (!createDecision.allowed) {
+      this.recordGitAction(command, createInvocation, "blocked", { reason: createDecision.reason });
+      yield failedEvent(command.runId, `git stage failed at pull-request creation: ${createDecision.reason ?? "blocked by allowlist"}`);
+      return "failed";
+    }
+
+    this.recordGitAction(command, createInvocation, "started");
+    let pr: { number: number; url: string };
+    try {
+      pr = await prGateway.createPullRequest(branch, DEFAULT_PR_BASE_BRANCH);
+      this.recordGitAction(command, createInvocation, "completed", { summary: `created PR ${pr.url}` });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.recordGitAction(command, createInvocation, "failed", { reason });
+      yield failedEvent(command.runId, `git stage failed at pull-request creation: ${reason}`);
+      return "failed";
+    }
+
+    let checks;
+    try {
+      checks = await prGateway.waitForChecks(pr.number);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      yield failedEvent(command.runId, `git stage failed while checking pull-request checks: ${reason}`);
+      return "failed";
+    }
+    if (checks.state !== "pass") {
+      const suffix = checks.reason ? `: ${checks.reason}` : "";
+      yield failedEvent(command.runId, `git stage failed at pull-request checks${suffix}`);
+      return "failed";
+    }
+
+    const mergeInvocation: AdapterInvocation = {
+      kind: "process",
+      ...buildGhPrMergeInvocation(pr.number),
+    };
+    const mergeDecision = checkAllowlist(GIT_STAGE_AGENT_NAME, mergeInvocation, allowlist);
+    if (!mergeDecision.allowed) {
+      this.recordGitAction(command, mergeInvocation, "blocked", { reason: mergeDecision.reason });
+      yield failedEvent(command.runId, `git stage failed at pull-request merge: ${mergeDecision.reason ?? "blocked by allowlist"}`);
+      return "failed";
+    }
+
+    this.recordGitAction(command, mergeInvocation, "started");
+    try {
+      await prGateway.mergePullRequest(pr.number);
+      this.recordGitAction(command, mergeInvocation, "completed", { summary: `merged PR ${pr.url}` });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.recordGitAction(command, mergeInvocation, "failed", { reason });
+      yield failedEvent(command.runId, `git stage failed at pull-request merge: ${reason}`);
+      return "failed";
+    }
+
+    if (!hasNextStage) {
+      yield { kind: "completed", runId: command.runId, timestamp: nowIso(), summary: `merged ${pr.url}` };
+    }
+    return "completed";
   }
 }

@@ -193,6 +193,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const chainRunner = new HarnessChainRunner({
     resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
     listAuditEntries: auditLog ? () => (auditLog as FileAuditLog).readEntries() : undefined,
+    auditLog,
   });
 
   const aiPanel = new AiPanel({

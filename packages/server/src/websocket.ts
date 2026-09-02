@@ -17,6 +17,7 @@ import {
   VSCODE_CHAT_STEP_AGENT_ID,
   type WorkbenchRecoveryService,
   normalizeStepAgent,
+  stepAgentFor,
   resolveHarnessConfig,
   resolveRunner,
   serializeEvent,
@@ -54,7 +55,7 @@ async function rejectIfChatDispatch(socket: WebSocket, command: Command): Promis
     return false; // malformed config surfaces elsewhere; don't block the run on it here
   }
 
-  const stepAgent = harnessConfig.stepAgents[stage];
+  const stepAgent = stepAgentFor(harnessConfig.stepAgents, stage);
   if (stepAgent === undefined || normalizeStepAgent(stepAgent).agent !== VSCODE_CHAT_STEP_AGENT_ID) return false;
 
   if (socket.readyState === socket.OPEN) {

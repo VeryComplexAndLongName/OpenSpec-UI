@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   AGENT_REGISTRY,
   HARNESS_AGENT_CAPABILITIES,
+  isHarnessStepAgentStage,
   normalizeStepAgent,
   VSCODE_CHAT_STEP_AGENT_ID,
   type HarnessAutonomyLevel,
@@ -10,6 +11,7 @@ import {
   type HarnessReviewGateMode,
   type HarnessStage,
   type HarnessStepAgent,
+  type HarnessStepAgentStage,
   type HarnessStepAgents,
 } from "@openspec-ui/core/browser";
 
@@ -26,6 +28,12 @@ export interface HarnessSettingsApi {
 }
 
 const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive", "git"];
+/** Every stage is listed — `archive` runs, and hiding it would
+ * misrepresent the chain — but only these can carry an entry. `archive`
+ * is mechanical: it invokes no agent, so it has nothing to configure and
+ * is rendered without pickers rather than with pickers that write a
+ * setting nothing reads. See harness-mechanical-checks tasks.md 4.4. */
+const CONFIGURABLE_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarnessStepAgentStage);
 const INHERIT = "" as const;
 const STAGE_RUNNER_OPTIONS = [
   ...AGENT_REGISTRY,
@@ -38,10 +46,10 @@ const AUTONOMY_LEVEL_OPTIONS: ReadonlyArray<{ value: HarnessAutonomyLevel; label
   { value: "autonomous", label: "autonomous (not yet implemented)" },
 ];
 
-type StepAgentsForm = Record<HarnessStage, string>;
+type StepAgentsForm = Record<HarnessStepAgentStage, string>;
 // "" (INHERIT) means unset in both, same sentinel as StepAgentsForm.
-type StepEffortForm = Record<HarnessStage, string>;
-type StepBudgetForm = Record<HarnessStage, string>;
+type StepEffortForm = Record<HarnessStepAgentStage, string>;
+type StepBudgetForm = Record<HarnessStepAgentStage, string>;
 
 // This view only ever shows/writes the agent id — no model selector yet
 // (see harness-step-models design.md, Non-Goals). A hand-edited config
@@ -50,7 +58,7 @@ type StepBudgetForm = Record<HarnessStage, string>;
 // erroring — this form has no field to show it in.
 function toForm(stepAgents: HarnessStepAgents | undefined): StepAgentsForm {
   const form = {} as StepAgentsForm;
-  for (const stage of STAGES) {
+  for (const stage of CONFIGURABLE_STAGES) {
     const entry = stepAgents?.[stage];
     form[stage] = entry === undefined ? INHERIT : normalizeStepAgent(entry).agent;
   }
@@ -59,7 +67,7 @@ function toForm(stepAgents: HarnessStepAgents | undefined): StepAgentsForm {
 
 function toEffortForm(stepAgents: HarnessStepAgents | undefined): StepEffortForm {
   const form = {} as StepEffortForm;
-  for (const stage of STAGES) {
+  for (const stage of CONFIGURABLE_STAGES) {
     const entry = stepAgents?.[stage];
     form[stage] = entry === undefined || typeof entry === "string" ? INHERIT : entry.effort ?? INHERIT;
   }
@@ -68,7 +76,7 @@ function toEffortForm(stepAgents: HarnessStepAgents | undefined): StepEffortForm
 
 function toBudgetForm(stepAgents: HarnessStepAgents | undefined): StepBudgetForm {
   const form = {} as StepBudgetForm;
-  for (const stage of STAGES) {
+  for (const stage of CONFIGURABLE_STAGES) {
     const entry = stepAgents?.[stage];
     if (entry === undefined || typeof entry === "string" || entry.budget === undefined) {
       form[stage] = INHERIT;
@@ -87,7 +95,7 @@ function toBudgetForm(stepAgents: HarnessStepAgents | undefined): StepBudgetForm
  * "byte-identical" guarantee, applied to this surface's own output. */
 function toStepAgents(agentForm: StepAgentsForm, effortForm: StepEffortForm, budgetForm: StepBudgetForm): HarnessStepAgents {
   const result: HarnessStepAgents = {};
-  for (const stage of STAGES) {
+  for (const stage of CONFIGURABLE_STAGES) {
     if (agentForm[stage] === INHERIT) continue;
     const agentId = agentForm[stage];
     const capabilities = HARNESS_AGENT_CAPABILITIES[agentId];
@@ -110,6 +118,20 @@ function toStepAgents(agentForm: StepAgentsForm, effortForm: StepEffortForm, bud
     result[stage] = entry;
   }
   return result;
+}
+
+/** `archive` is listed so the chain reads honestly, and carries no
+ * pickers: it invokes no agent, so an agent, effort or budget set here
+ * would be a setting nothing reads. */
+function MechanicalStageRow({ stage }: { stage: HarnessStage }) {
+  return (
+    <div className="openspec-harness-stage-row">
+      <span className="openspec-shell-field">
+        {stage}
+        <span className="openspec-shell-note">runs mechanically — no agent</span>
+      </span>
+    </div>
+  );
 }
 
 function AgentSelect({ stage, value, onChange, includeInherit, ariaLabel }: { stage: string; value: string; onChange: (value: string) => void; includeInherit: boolean; ariaLabel: string }) {
@@ -275,7 +297,9 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
           the Agent Selection picker — never enforces one.
         </p>
         {globalMessage ? <p className="openspec-shell-note" role="status">{globalMessage}</p> : null}
-        {STAGES.map((stage) => (
+        {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
+          <MechanicalStageRow key={stage} stage={stage} />
+        ) : (
           <div key={stage} className="openspec-harness-stage-row">
             <AgentSelect
               stage={stage}
@@ -299,7 +323,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
               onChange={(value) => setGlobalBudget((prev) => ({ ...prev, [stage]: value }))}
             />
           </div>
-        ))}
+        )))}
         <label className="openspec-shell-field">
           Autonomy level
           <select
@@ -345,7 +369,9 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
         {changeMessage ? <p className="openspec-shell-note" role="status">{changeMessage}</p> : null}
         {changeOverride !== undefined ? (
           <>
-            {STAGES.map((stage) => (
+            {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
+              <MechanicalStageRow key={stage} stage={stage} />
+            ) : (
               <div key={stage} className="openspec-harness-stage-row">
                 <AgentSelect
                   stage={stage}
@@ -369,7 +395,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
                   onChange={(value) => setChangeBudget((prev) => ({ ...prev, [stage]: value }))}
                 />
               </div>
-            ))}
+            )))}
             <label className="openspec-shell-field">
               Autonomy level
               <select

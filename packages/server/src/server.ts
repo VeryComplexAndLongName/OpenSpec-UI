@@ -128,6 +128,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
   const chainRunner = new HarnessChainRunner({
     resolveRunner: (agentId) => resolveRunner(runners, agentId),
     listAuditEntries: fileAuditLog ? () => fileAuditLog.readEntries() : undefined,
+    auditLog: options.auditLog,
   });
   const recoveryServices = new Map<string, Promise<WorkbenchRecoveryService>>();
   const resolveRecoveryService = (cwd: string): Promise<WorkbenchRecoveryService> => {

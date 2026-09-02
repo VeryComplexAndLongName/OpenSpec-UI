@@ -8,6 +8,7 @@ import {
   GlobalAgentSufficientReviewGateError,
   GlobalAutonomousAutonomyLevelError,
   GlobalCheckpointsDisabledError,
+  GlobalGitAllowlistError,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
   normalizeStepAgent,
@@ -113,6 +114,26 @@ describe("readGlobalHarnessConfig", () => {
 
     await expect(readGlobalHarnessConfig(root)).rejects.toThrow(GlobalCheckpointsDisabledError);
   });
+
+  it("rejects a global file that sets gitStageAllowlist", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await expect(
+      writeGlobalHarnessConfig(root, { gitStageAllowlist: { remotes: ["origin"], branches: ["feature/*"] } }),
+    ).rejects.toThrow(GlobalGitAllowlistError);
+  });
+
+  it("rejects reading a hand-edited global file that sets gitStageAllowlist", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ gitStageAllowlist: { remotes: ["origin"], branches: ["feature/*"] } }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(GlobalGitAllowlistError);
+  });
 });
 
 describe("readChangeHarnessConfig", () => {
@@ -145,6 +166,16 @@ describe("readChangeHarnessConfig", () => {
 
     const override = await readChangeHarnessConfig(root, "some-change");
     expect(override?.checkpoints).toEqual({ requireConfirmationBetweenSteps: false });
+  });
+
+  it("accepts gitStageAllowlist at the per-change level", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "some-change", {
+      gitStageAllowlist: { remotes: ["origin"], branches: ["feature/*", "hotfix/*"] },
+    });
+
+    const override = await readChangeHarnessConfig(root, "some-change");
+    expect(override?.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["feature/*", "hotfix/*"] });
   });
 });
 
@@ -411,6 +442,70 @@ describe("stepAgents chat-runner strictness and legacy dispatch migration", () =
     );
 
     await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/cannot reach anything/);
+  });
+
+  it("drops a global stepAgents.archive entry, warns naming the file, and honours the rest", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    const configPath = path.join(root, "openspec", "agent-harness.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({ stepAgents: { archive: "claude-cli", apply: "claude-cli" } }),
+      "utf8",
+    );
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.stepAgents).toEqual({ apply: "claude-cli" });
+    expect("archive" in config.stepAgents).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain(configPath);
+    expect(warn.mock.calls[0]?.[0]).toContain("stepAgents.archive was dropped");
+    warn.mockRestore();
+  });
+
+  it("drops a per-change stepAgents.archive entry, warns naming the file, and honours the rest", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec", "changes", "demo"), { recursive: true });
+    const configPath = path.join(root, "openspec", "changes", "demo", "harness.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({ stepAgents: { archive: { agent: "claude-cli" }, verify: "claude-cli" } }),
+      "utf8",
+    );
+
+    const override = await readChangeHarnessConfig(root, "demo");
+
+    expect(override?.stepAgents).toEqual({ verify: "claude-cli" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain(configPath);
+    warn.mockRestore();
+  });
+
+  it("a config without stepAgents.archive is unaffected (no warning, stepAgents unchanged)", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { apply: "claude-cli" } }),
+      "utf8",
+    );
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.stepAgents).toEqual({ apply: "claude-cli" });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("rejects a freshly-written config that sets stepAgents.archive", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { stepAgents: { archive: "claude-cli" } as never })).rejects.toThrow(
+      /stepAgents\.archive is not accepted/,
+    );
   });
 
   it("keeps accepting this repository's real openspec/agent-harness.json", async () => {

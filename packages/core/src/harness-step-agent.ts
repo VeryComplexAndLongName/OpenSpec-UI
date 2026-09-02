@@ -25,7 +25,36 @@ export const VSCODE_CHAT_STEP_AGENT_ID = "vscode-chat";
 export type HarnessStepAgent =
   | string
   | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget };
-export type HarnessStepAgents = Partial<Record<HarnessStage, HarnessStepAgent>>;
+/** The subset of `HarnessStage` a `stepAgents` entry may name. `archive`
+ * is deliberately excluded — it is a real stage (`CHAIN_STAGES` in
+ * harness-chain-runner.ts still drives it), but a mechanical one that
+ * never invokes an agent, so there is nothing for an entry to configure.
+ * See openspec/changes/harness-mechanical-checks/design.md, "`stepAgents`
+ * narrows; existing configurations are migrated" — a config that already
+ * sets `stepAgents.archive` is read and has that entry dropped with a
+ * warning (harness-config.ts), not rejected. */
+export type HarnessStepAgentStage = Exclude<HarnessStage, "archive">;
+export type HarnessStepAgents = Partial<Record<HarnessStepAgentStage, HarnessStepAgent>>;
+
+/** Narrows a stage to one a `stepAgents` entry may name. A consumer
+ * holding a plain `HarnessStage` — every dispatch and settings surface
+ * does — needs this rather than an index, which the narrowed record
+ * cannot accept. */
+export function isHarnessStepAgentStage(stage: HarnessStage): stage is HarnessStepAgentStage {
+  return stage !== "archive";
+}
+
+/** The entry for `stage`, or `undefined` when the stage is one no entry
+ * can name. Keeping the `archive` case here, rather than at each call
+ * site, is what stops `stepAgents.archive`'s removal from turning into
+ * six subtly different guards. */
+export function stepAgentFor(
+  stepAgents: HarnessStepAgents | undefined,
+  stage: HarnessStage,
+): HarnessStepAgent | undefined {
+  if (stepAgents === undefined || !isHarnessStepAgentStage(stage)) return undefined;
+  return stepAgents[stage];
+}
 
 /** Allow-list of characters a model id may contain: cannot start with
  * `-` (so it can never be read as a second flag) and cannot contain

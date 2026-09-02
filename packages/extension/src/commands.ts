@@ -30,8 +30,10 @@ import {
   initOpenSpec,
   listBootstrapProjectTypes,
   listChanges,
+  isHarnessStepAgentStage,
   listSpecs,
   normalizeStepAgent,
+  stepAgentFor,
   readArchivedChangeTasksTemplate,
   readGlobalHarnessConfig,
   renderSprintReportPdf,
@@ -261,6 +263,12 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
   const NO_EFFORT_PICK = "(none)";
   const stepAgents: Partial<Record<HarnessStage, HarnessStepAgent>> = {};
   for (const stage of HARNESS_TEMPLATE_STAGES) {
+    // `archive` stays part of the stage sequence this wizard walks (it is
+    // a real stage — hiding it from HARNESS_TEMPLATE_STAGES would
+    // misrepresent the chain), but it is mechanical and invokes no agent,
+    // so it is never asked about — see harness-mechanical-checks
+    // tasks.md 4.4, and the `git` precedent just above this loop.
+    if (!isHarnessStepAgentStage(stage)) continue;
     const pick = await vscode.window.showQuickPick(
       [INHERIT_PICK, ...AGENT_REGISTRY.map((agent) => agent.label)],
       { title: `Agent for "${stage}" (${changeName})` },
@@ -360,7 +368,7 @@ async function fileExists(uri: vscode.Uri): Promise<boolean> {
 }
 
 function currentAgentFor(stepAgents: HarnessConfig["stepAgents"], stage: HarnessStage): string | undefined {
-  const entry = stepAgents[stage];
+  const entry = stepAgentFor(stepAgents, stage);
   return entry === undefined ? undefined : normalizeStepAgent(entry).agent;
 }
 
