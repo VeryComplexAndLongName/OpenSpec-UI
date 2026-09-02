@@ -51,9 +51,9 @@ most needs to reach. (`CLAUDE.md`'s "Invariants" section already states
 this reasoning for the `context` field; this applies the same logic to
 `rules.tasks`.)
 
-### Five narrow rules, not a style guide
+### Six narrow rules, not a style guide
 
-Chosen: exactly the five failure modes actually observed, each stated as
+Chosen: exactly the six failure modes actually observed, each stated as
 a rule an author can check their own `tasks.md` against.
 
 **Rejected alternative**: a longer authoring guide with examples and
@@ -62,6 +62,31 @@ propose/apply prompt, so its length is a recurring cost paid on every
 call; and the two rules already there set the register (one sentence,
 one testable expectation). A guide belongs in `openspec/README.md` if it
 is ever wanted, not in the injected context.
+
+### Rule 6 names the path, because the failure is silent at every junction
+
+The three-round failure in `harness-step-models` is worth stating
+precisely, because it is not a case of an agent doing less than it was
+told. Each round it did exactly what the task said. The task said "widen
+the type at this layer"; the layer's code then had to compile against a
+value it had no use for, and the cheapest correct-looking way to do that
+is to drop the field. Types pass. Unit tests pass, because each layer's
+tests assert that layer's own contract, which the flattening satisfies.
+Nothing in the change is red. Only running the real thing and reading the
+spawned command line shows the value never arrived.
+
+The rule therefore asks for two things a "widen the type" task does not:
+the path written out end to end, and a check owning each junction rather
+than only the ends.
+
+**Rejected alternative**: rely on an end-to-end test instead of a rule.
+Rejected — the end of this particular path is a spawned process's argv,
+reachable only by a live run, which is exactly the human-only kind of
+check rule 4 already exists to keep honest. An automated end-to-end test
+would have to fake the process boundary, at which point it no longer
+covers the junction that actually broke. The rule and such a test are
+complementary; the rule is what makes someone write the test at the right
+seam.
 
 ### Rule 5 marks on verification, not on intent
 
