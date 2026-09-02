@@ -11,3 +11,12 @@
 // openspec/changes/agent-usage-accounting/tasks.md 4.2.
 
 export const VERIFIED_CLAUDE_CLI_VERSION = "2.1.237";
+
+/** Minimum `claude` CLI version `--max-budget-usd` requires (upstream
+ * docs, cited in openspec/changes/harness-step-effort-and-budget/
+ * proposal.md) — recorded beside `VERIFIED_CLAUDE_CLI_VERSION` rather
+ * than in a second place. Not compared against anything at runtime: a
+ * second `--version` spawn just to check this is what ADR 0017 decision
+ * 6 rejects; this constant is for a human/consumer comparing against an
+ * already-observed version (see agent-usage-accounting). */
+export const CLAUDE_MAX_BUDGET_USD_MIN_VERSION = "2.1.217";

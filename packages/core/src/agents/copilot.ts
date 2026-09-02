@@ -51,6 +51,8 @@ export class CopilotCliAdapter implements AgentAdapter {
   buildInvocation(command: Command): AdapterInvocation {
     const args = ["-p", "--allow-all-tools"];
     if (command.model) args.push("--model", command.model);
+    if (command.effort) args.push("--effort", command.effort);
+    if (command.budget?.maxAiCredits !== undefined) args.push("--max-ai-credits", String(command.budget.maxAiCredits));
     return { kind: "process", executable: "copilot", args };
   }
 
@@ -64,6 +66,8 @@ export class CopilotCliAdapter implements AgentAdapter {
       : buildFallbackPrompt(command.kind, command.context.changeDir);
     const args = ["-p", fullPrompt, "--allow-all-tools"];
     if (command.model) args.push("--model", command.model);
+    if (command.effort) args.push("--effort", command.effort);
+    if (command.budget?.maxAiCredits !== undefined) args.push("--max-ai-credits", String(command.budget.maxAiCredits));
     yield* spawnAndStream({
       executable: invocation.executable,
       args,

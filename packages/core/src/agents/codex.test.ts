@@ -26,6 +26,24 @@ describe("CodexCliAdapter", () => {
     });
   });
 
+  it("appends -c model_reasoning_effort=\"<level>\" when an effort is resolved", () => {
+    const adapter = new CodexCliAdapter();
+    expect(adapter.buildInvocation({ ...command, effort: "medium" })).toEqual({
+      kind: "process",
+      executable: "codex",
+      args: ["exec", "--skip-git-repo-check", "-c", 'model_reasoning_effort="medium"'],
+    });
+  });
+
+  it("renders nothing for a budget — no mechanism exists for codex", () => {
+    const adapter = new CodexCliAdapter();
+    expect(adapter.buildInvocation({ ...command, budget: { maxCostUsd: 5 } })).toEqual({
+      kind: "process",
+      executable: "codex",
+      args: ["exec", "--skip-git-repo-check"],
+    });
+  });
+
   it("delegates to spawnAndStream and passes through its event stream unchanged", async () => {
     async function* fakeEvents(): AsyncGenerator<Event> {
       yield { kind: "started", runId: "run-3", timestamp: "t", command: "plan", cwd: "/workspace/repo" };

@@ -878,7 +878,8 @@ export function AiPanel({
     const stage = COMMAND_KIND_TO_HARNESS_STAGE[kind];
     const configuredEntry = stage ? stepAgents?.[stage] : undefined;
     const configuredAgent = configuredEntry ? normalizeStepAgent(configuredEntry).agent : undefined;
-    const model = configuredEntry && configuredAgent === agentId ? normalizeStepAgent(configuredEntry).model : undefined;
+    const normalizedConfigured = configuredEntry && configuredAgent === agentId ? normalizeStepAgent(configuredEntry) : undefined;
+    const { model, effort, budget } = normalizedConfigured ?? {};
 
     const command: Command = {
       kind,
@@ -886,6 +887,8 @@ export function AiPanel({
       runId: newRunId,
       agentId: AGENT_COMMANDS.includes(kind) ? agentId : undefined,
       ...(model !== undefined && { model }),
+      ...(effort !== undefined && { effort }),
+      ...(budget !== undefined && { budget }),
       context: { changeDir: effectiveChangeDir, promptContext },
     };
     transport.send(command);

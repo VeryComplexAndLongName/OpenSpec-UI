@@ -46,6 +46,14 @@ vi.mock("@openspec-ui/core", () => ({
   ],
   DEFAULT_HARNESS_CONFIG: { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
   DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
+  COPILOT_MIN_AI_CREDITS: 30,
+  HARNESS_AGENT_CAPABILITIES: {
+    "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
+    "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
+    "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
+    "gemini-cli": {},
+    "local-llm": {},
+  },
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
@@ -218,13 +226,18 @@ describe("registerCommands", () => {
     });
 
     it("writes only the explicitly customized fields", async () => {
+      // Gemini CLI / Local LLM: neither has an effort or budget mechanism
+      // (HARNESS_AGENT_CAPABILITIES), so choosing them triggers no
+      // follow-up prompts — keeps this test's mock sequence to exactly
+      // the fields under test (agent id only). See the dedicated
+      // "writes effort and budget..." test below for agents that do.
       vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
       createChangeMock.mockResolvedValue({ ok: true });
       vscodeMock.window.showQuickPick
         .mockResolvedValueOnce("Customize Agentic Harness for this change")
-        .mockResolvedValueOnce("Claude CLI") // propose
+        .mockResolvedValueOnce("Gemini CLI") // propose
         .mockResolvedValueOnce(INHERIT) // review
-        .mockResolvedValueOnce("GitHub Copilot CLI") // apply
+        .mockResolvedValueOnce("Local LLM (OpenAI-compatible)") // apply
         .mockResolvedValueOnce(INHERIT) // verify
         .mockResolvedValueOnce(INHERIT) // archive
         .mockResolvedValueOnce({ label: "autonomous" })
@@ -235,9 +248,64 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
 
       expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
-        stepAgents: { propose: "claude-cli", apply: "copilot-cli" },
+        stepAgents: { propose: "gemini-cli", apply: "local-llm" },
         autonomyLevel: "autonomous",
         reviewGate: { mode: "agent-sufficient" },
+      });
+    });
+
+    it("writes effort and budget as the object form when the wizard's per-agent prompts are answered (harness-step-effort-and-budget)", async () => {
+      vscodeMock.window.showInputBox
+        .mockResolvedValueOnce("demo-change") // change name
+        .mockResolvedValueOnce("5") // propose (claude-cli) max cost usd
+        .mockResolvedValueOnce("50"); // apply (copilot-cli) max ai credits
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce("Claude CLI") // propose agent
+        .mockResolvedValueOnce("medium") // propose effort
+        .mockResolvedValueOnce(INHERIT) // review agent
+        .mockResolvedValueOnce("GitHub Copilot CLI") // apply agent
+        .mockResolvedValueOnce("none") // apply effort
+        .mockResolvedValueOnce(INHERIT) // verify agent
+        .mockResolvedValueOnce(INHERIT) // archive agent
+        .mockResolvedValueOnce({ label: "autonomous" })
+        .mockResolvedValueOnce({ label: "agent-sufficient" });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        stepAgents: {
+          propose: { agent: "claude-cli", effort: "medium", budget: { maxCostUsd: 5 } },
+          apply: { agent: "copilot-cli", effort: "none", budget: { maxAiCredits: 50 } },
+        },
+        autonomyLevel: "autonomous",
+        reviewGate: { mode: "agent-sufficient" },
+      });
+    });
+
+    it("does not prompt for effort/budget for an agent with no such mechanism (gemini-cli)", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce("Gemini CLI") // propose agent — no capabilities, no follow-up prompts
+        .mockResolvedValueOnce(INHERIT) // review
+        .mockResolvedValueOnce(INHERIT) // apply
+        .mockResolvedValueOnce(INHERIT) // verify
+        .mockResolvedValueOnce(INHERIT) // archive
+        .mockResolvedValueOnce({ label: INHERIT })
+        .mockResolvedValueOnce({ label: INHERIT });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      expect(vscodeMock.window.showInputBox).toHaveBeenCalledTimes(1); // only the change name
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        stepAgents: { propose: "gemini-cli" },
       });
     });
 

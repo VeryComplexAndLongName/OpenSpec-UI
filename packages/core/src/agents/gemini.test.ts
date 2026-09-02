@@ -26,6 +26,15 @@ describe("GeminiCliAdapter", () => {
     });
   });
 
+  it("renders nothing for effort or budget — gemini has no mechanism for either", () => {
+    const adapter = new GeminiCliAdapter();
+    expect(adapter.buildInvocation({ ...command, effort: "high", budget: { maxCostUsd: 5 } })).toEqual({
+      kind: "process",
+      executable: "gemini",
+      args: ["--yolo"],
+    });
+  });
+
   it("delegates to spawnAndStream and passes through its event stream unchanged", async () => {
     async function* fakeEvents(): AsyncGenerator<Event> {
       yield { kind: "started", runId: "run-4", timestamp: "t", command: "status", cwd: "/workspace/repo" };

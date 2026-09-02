@@ -25,6 +25,12 @@ export class ClaudeCliAdapter implements AgentAdapter {
   buildInvocation(command: Command): AdapterInvocation {
     const args = ["-p", "--output-format", "text", "--dangerously-skip-permissions"];
     if (command.model) args.push("--model", command.model);
+    if (command.effort) args.push("--effort", command.effort);
+    // `--max-budget-usd` only works alongside `--print`, which this
+    // adapter already always passes as `-p` — see proposal.md's
+    // investigation table and verified-agent-versions.ts for the CLI
+    // version this flag requires.
+    if (command.budget?.maxCostUsd !== undefined) args.push("--max-budget-usd", String(command.budget.maxCostUsd));
     return { kind: "process", executable: "claude", args };
   }
 

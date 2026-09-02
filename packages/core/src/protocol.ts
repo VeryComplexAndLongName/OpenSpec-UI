@@ -6,6 +6,7 @@
 // transport (REST/WS, message bridge) and must not define their own variants.
 
 import { STAGES, type HarnessStage } from "./harness-stage.js";
+import type { HarnessEffort, HarnessStepBudget } from "./harness-step-agent.js";
 
 export type CommandKind =
   | "plan"
@@ -89,6 +90,16 @@ export interface Command {
    * Only meaningful for an agent whose registry descriptor declares a
    * `modelFlag`; ignored otherwise. */
   model?: string;
+  /** Reasoning effort to pass to the agent's CLI, resolved the same way
+   * as `model`. Only meaningful for an agent whose
+   * `HARNESS_AGENT_CAPABILITIES` entry declares accepted `effort`
+   * values — see harness-step-agent.ts. */
+  effort?: HarnessEffort;
+  /** Spending cap to pass to the agent's CLI, in that agent's own unit —
+   * see harness-step-agent.ts's `HarnessStepBudget`. Only meaningful for
+   * an agent whose `HARNESS_AGENT_CAPABILITIES` entry declares a
+   * `budgetField`. */
+  budget?: HarnessStepBudget;
 }
 
 export type EventKind =

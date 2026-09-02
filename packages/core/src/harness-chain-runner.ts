@@ -496,7 +496,9 @@ export class HarnessChainRunner {
     }
 
     const stepAgent = harnessConfig.stepAgents[stage];
-    const { agent: agentId, model } = stepAgent === undefined ? { agent: undefined, model: undefined } : normalizeStepAgent(stepAgent);
+    const { agent: agentId, model, effort, budget } = stepAgent === undefined
+      ? { agent: undefined, model: undefined, effort: undefined, budget: undefined }
+      : normalizeStepAgent(stepAgent);
     const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
       yield failedEvent(runId, `no agent available to run the "${stage}" stage`);
@@ -509,7 +511,7 @@ export class HarnessChainRunner {
     // existed (see security.ts, buildVerifiedDeltaSection's absent-field
     // path).
     const stageContext = stage === "verify" && verifiedDelta ? { ...context, verifiedDelta } : context;
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model };
+    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 

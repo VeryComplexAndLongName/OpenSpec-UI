@@ -456,6 +456,75 @@ describe("AiPanel Agentic Harness stepAgents pre-fill", () => {
         } satisfies Command);
     });
 
+    it("sends effort and budget on the command when the selected agent matches the stage's configured agent", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes"
+                generateRunId={() => "run-effort-budget"}
+                stepAgents={{ apply: { agent: "claude-cli", effort: "high", budget: { maxCostUsd: 5 } } }}
+            />,
+        );
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-effort-budget",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-effort-budget", timestamp: "t" });
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "implement",
+            cwd: "/repo",
+            runId: "run-effort-budget",
+            agentId: "claude-cli",
+            effort: "high",
+            budget: { maxCostUsd: 5 },
+            context: { changeDir: "/repo/openspec/changes/some-change", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("omits effort and budget from the command when the user picks a different agent than configured", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes"
+                generateRunId={() => "run-effort-budget-override"}
+                stepAgents={{ apply: { agent: "claude-cli", effort: "high", budget: { maxCostUsd: 5 } } }}
+            />,
+        );
+
+        fireEvent.click(screen.getByTestId("load-changes-button"));
+        emit({
+            kind: "stdout",
+            runId: "run-effort-budget-override",
+            timestamp: "t",
+            chunk: JSON.stringify({ changes: [{ name: "some-change" }] }),
+        });
+        emit({ kind: "completed", runId: "run-effort-budget-override", timestamp: "t" });
+
+        fireEvent.change(screen.getByTestId("command-picker"), { target: { value: "implement" } });
+        fireEvent.change(screen.getByTestId("agent-picker"), { target: { value: "gemini-cli" } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "implement",
+            cwd: "/repo",
+            runId: "run-effort-budget-override",
+            agentId: "gemini-cli",
+            context: { changeDir: "/repo/openspec/changes/some-change", promptContext: undefined },
+        } satisfies Command);
+    });
+
     it("omits model from the command when the user picks a different agent than configured", () => {
         const { transport, emit, send } = createFakeTransport();
         render(

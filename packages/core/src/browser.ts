@@ -33,10 +33,16 @@ export type {
 // resolveRunWithHarnessTarget comes from harness-dispatch.js below — see
 // harness-step-agent.ts's header comment.
 export {
+  COPILOT_MIN_AI_CREDITS,
+  HARNESS_AGENT_CAPABILITIES,
+  HARNESS_EFFORT_VALUES,
   normalizeStepAgent,
+  type HarnessAgentCapabilities,
+  type HarnessEffort,
   type HarnessStageDispatch,
   type HarnessStepAgent,
   type HarnessStepAgents,
+  type HarnessStepBudget,
 } from "./harness-step-agent.js";
 // resolveRunWithHarnessTarget is a real value export (not just a type) —
 // imported from its own zero-Node-import leaf module, not from
