@@ -21,8 +21,8 @@ afterEach(() => {
 
 function process(
   operation: string,
-  state: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted",
-  extra: Partial<{ changeName: string; agentId: string }> = {},
+  state: "queued" | "running" | "suspended" | "completed" | "failed" | "cancelled" | "interrupted",
+  extra: Partial<{ changeName: string; agentId: string; waitingFor: string }> = {},
 ) {
   return {
     id: `${operation}-${state}`,
@@ -71,6 +71,19 @@ describe("ProcessTreeItem", () => {
     } as import("@openspec-ui/core").WorkbenchProcess;
     const item = new ProcessTreeItem(withCost, undefined);
     expect(item.description).toBe("demo · completed · $0.26");
+  });
+
+  it("renders a suspended process as waiting, with its wait reason, distinctly from running (harness-suspendable-stage task 6.1)", () => {
+    const running = new ProcessTreeItem(process("implement", "running", { changeName: "demo" }), undefined);
+    const suspended = new ProcessTreeItem(
+      process("implement", "suspended", { changeName: "demo", waitingFor: "a CI run to finish" }),
+      undefined,
+    );
+
+    expect(suspended.description).toBe("demo · suspended · a CI run to finish");
+    expect(suspended.tooltip).toBe("a CI run to finish");
+    expect(suspended.iconPath).not.toEqual(running.iconPath);
+    expect((suspended.iconPath as { id: string }).id).not.toBe("sync~spin");
   });
 });
 

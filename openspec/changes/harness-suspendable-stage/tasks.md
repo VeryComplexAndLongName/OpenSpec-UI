@@ -8,14 +8,14 @@ single-mutation invariant. Check each junction.
 
 ## 1. The state
 
-- [ ] 1.1 `packages/core/src/process-scheduler.ts`: add `"suspended"` to
+- [x] 1.1 `packages/core/src/process-scheduler.ts`: add `"suspended"` to
   `WorkbenchProcessState`. Additive only — do not change the meaning of
   any existing state.
-- [ ] 1.2 Same file: `WorkbenchProcess` gains an optional field naming
+- [x] 1.2 Same file: `WorkbenchProcess` gains an optional field naming
   what the process is waiting for, set when it suspends and cleared when
   it resumes. This is what the UIs render; a suspended process with no
   stated reason is indistinguishable from a stalled one.
-- [ ] 1.3 Same file, the constructor's recovery loop: a persisted
+- [x] 1.3 Same file, the constructor's recovery loop: a persisted
   `"suspended"` process is rewritten to `"interrupted"`, alongside the
   `"queued"`/`"running"` cases already there, with a reason naming that
   the host owning the wait is gone. Do **not** restore it as suspended —
@@ -24,99 +24,114 @@ single-mutation invariant. Check each junction.
 
 ## 2. Suspending and resuming
 
-- [ ] 2.1 `packages/core/src/process-scheduler.ts`,
+- [x] 2.1 `packages/core/src/process-scheduler.ts`,
   `ProcessExecutionContext`: add `suspend(reason: string, options: {
   timeoutMs: number }): Promise<void>`, which an execution awaits. It
   resolves when the process is resumed and rejects when the suspension
   times out or the process is cancelled.
-- [ ] 2.2 Same file: while a suspension is pending, the process's state is
+- [x] 2.2 Same file: while a suspension is pending, the process's state is
   `"suspended"` and `mutationLocked` is **false**, so `drain()` may admit
   another mutating process. Call `drain()` on suspension — without it the
   released lock changes nothing until some unrelated process finishes.
-- [ ] 2.3 Same file: add `resumeProcess(id: string): boolean`, returning
+- [x] 2.3 Same file: add `resumeProcess(id: string): boolean`, returning
   `false` for a process that is not suspended. A resumed process goes back
   to `"queued"` and is admitted by `drain()` under the existing
   `canRun()` rule. Do **not** set it directly to `"running"` — two
   processes suspended at once would both resume into a mutation.
-- [ ] 2.4 Same file: on timeout, the process finishes as `"failed"` with a
+- [x] 2.4 Same file: on timeout, the process finishes as `"failed"` with a
   reason naming what it was waiting for and how long it waited. Do not
   reuse a generic failure reason.
-- [ ] 2.5 Same file: cancelling a suspended process ends it immediately as
+- [x] 2.5 Same file: cancelling a suspended process ends it immediately as
   `"cancelled"`, matching how cancelling a queued process already behaves.
 
 ## 3. The cross-host lease
 
-- [ ] 3.1 `packages/core/src/process-scheduler.ts`: on suspension, stop
+- [x] 3.1 `packages/core/src/process-scheduler.ts`: on suspension, stop
   the lease renewal timer and release the lease, exactly as the existing
   `finally` block does at the end of a mutating run.
-- [ ] 3.2 Same file: when a resumed process is admitted, re-acquire the
+- [x] 3.2 Same file: when a resumed process is admitted, re-acquire the
   lease and restart the renewal timer before it runs again. A resume that
   cannot acquire the lease stays queued — it must **not** proceed without
   it.
-- [ ] 3.3 `packages/core/src/process-scheduler.test.ts`: with a stub lease
+- [x] 3.3 `packages/core/src/process-scheduler.test.ts`: with a stub lease
   manager, suspension releases and resume re-acquires; a resume whose
-  acquisition fails leaves the process queued and unrun.
+  acquisition fails leaves the process queued and unrun. (Uses a real
+  `WorkspaceLeaseManager` over a temporary directory, matching this
+  file's existing lease tests, rather than a stub — a live conflicting
+  lease deterministically forces the acquisition-fails path.)
 
 ## 4. Persistence
 
-- [ ] 4.1 `packages/core/src/workbench-run-journal.ts`: a suspended
+- [x] 4.1 `packages/core/src/workbench-run-journal.ts`: a suspended
   process and its wait reason round-trip through the journal. Do not
   change the journal's version constant — the union widened, the format
-  did not.
-- [ ] 4.2 `packages/core/src/workbench-recovery.ts`: recovery handles the
+  did not. (The journal already round-trips `WorkbenchProcess` opaquely,
+  with no per-field validation, so no code change was needed here — added
+  a test in `workbench-run-journal.test.ts` proving it.)
+- [x] 4.2 `packages/core/src/workbench-recovery.ts`: recovery handles the
   suspended-to-interrupted rewrite from task 1.3 without special-casing it
-  beyond what `"running"` already needs.
+  beyond what `"running"` already needs. (Verified: `initialize()`
+  constructs its scheduler via `new WorkbenchProcessScheduler(restored.
+  processes, this.lease)`, so the constructor's rewrite from task 1.3
+  already applies before recovery's own `state !== "interrupted"` check
+  runs — no code change needed.)
 
 ## 5. The external waiter
 
-- [ ] 5.1 New `packages/core/src/external-waiter.ts`: a generic poller —
+- [x] 5.1 New `packages/core/src/external-waiter.ts`: a generic poller —
   given a check function, an interval and a maximum duration, it calls the
   check on that interval and resolves when the check reports a change.
   Holds no lock and owns no process.
-- [ ] 5.2 Same file: it stops polling when it resolves, when it exceeds
+- [x] 5.2 Same file: it stops polling when it resolves, when it exceeds
   its maximum duration, and when its `AbortSignal` fires. A poller that
   outlives its consumer is a leak with no symptom.
-- [ ] 5.3 Same file: nothing GitHub-specific, and no import of `git.ts`,
+- [x] 5.3 Same file: nothing GitHub-specific, and no import of `git.ts`,
   `openspec.ts` or any adapter. What is watched arrives with the consumer.
-- [ ] 5.4 `packages/core/src/external-waiter.test.ts`: resolves on the
+- [x] 5.4 `packages/core/src/external-waiter.test.ts`: resolves on the
   first check reporting a change; stops on abort; fails on its maximum
   duration; performs no further checks after any of the three.
 
 ## 6. Presentation
 
-- [ ] 6.1 `packages/extension/src/tree/processes-tree.ts`: a suspended
+- [x] 6.1 `packages/extension/src/tree/processes-tree.ts`: a suspended
   process renders as waiting, with its wait reason, distinctly from
   running. Do **not** render it as running — that is the confusion this
   state exists to remove.
-- [ ] 6.2 `packages/webui/src/components/ProcessesView.tsx`: the same, in
+- [x] 6.2 `packages/webui/src/components/ProcessesView.tsx`: the same, in
   the standalone UI.
-- [ ] 6.3 A percent-complete or progress indicator, if either surface
+- [x] 6.3 A percent-complete or progress indicator, if either surface
   computes one, must not treat a suspended process as making progress.
+  (Both surfaces' `formatPercent` already derive solely from the
+  associated change's `tasks.md` checkbox counts, never from process
+  state — verified, no code change needed.)
 
 ## 7. End-to-end test
 
-- [ ] 7.1 `packages/core/src/process-scheduler.test.ts`: one test covering
+- [x] 7.1 `packages/core/src/process-scheduler.test.ts`: one test covering
   the whole path — a mutating process suspends; a second mutating process
   is admitted **and finishes** while the first waits; the first is
   resumed, is admitted, and completes. Assert the second process actually
   ran: a test that only checks states would pass even if the lock were
   never really released.
-- [ ] 7.2 Same file: a suspension that times out fails the process and
+- [x] 7.2 Same file: a suspension that times out fails the process and
   leaves the lock free for the next queued mutation.
 
 ## 8. Verification
 
-- [ ] 8.1 `openspec change validate --strict harness-suspendable-stage`.
-- [ ] 8.2 `npm run typecheck` and `npm run test` — green across all four
+- [x] 8.1 `openspec change validate --strict harness-suspendable-stage`.
+- [x] 8.2 `npm run typecheck` and `npm run test` — green across all four
   workspaces. `sprint-report.test.ts` and `change-timeline.test.ts` have
   pre-existing Windows timeout flakes at 5000 ms under load; do not
-  attempt to fix them here.
-- [ ] 8.3 `git diff packages/core/src/agents/` and `git diff
+  attempt to fix them here. (All green this run, including those two.)
+- [x] 8.3 `git diff packages/core/src/agents/` and `git diff
   packages/core/src/harness-chain-runner.ts` are both **empty**. This
   change adds a mechanism; wiring a stage to it belongs to the change that
   has a stage to wire.
-- [ ] 8.4 Version bump via `npx changeset` (`@openspec-ui/core` minor,
-  plus the packages whose views changed).
+- [x] 8.4 Version bump via `npx changeset` (`@openspec-ui/core` minor,
+  plus the packages whose views changed). (`.changeset/
+  harness-suspendable-stage.md`: `@openspec-ui/core` minor,
+  `openspec-ui-vscode`/`@openspec-ui/webui` patch for their Processes
+  view rendering.)
 - [ ] 8.5 **Human-only, cannot be completed by an implementing agent**:
   with a temporary command that suspends for a few seconds and resumes,
   confirm in a real UI that the process shows as waiting, that another

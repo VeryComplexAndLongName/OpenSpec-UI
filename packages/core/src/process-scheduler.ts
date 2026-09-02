@@ -9,6 +9,7 @@ import {
 export type WorkbenchProcessState =
   | "queued"
   | "running"
+  | "suspended"
   | "completed"
   | "failed"
   | "cancelled"
@@ -32,6 +33,11 @@ export interface WorkbenchProcess {
   progress?: string;
   summary?: string;
   error?: string;
+  /** What a `"suspended"` process is waiting for — set by `suspend()` and
+   * cleared by `resumeProcess()`. This is what a UI renders; a suspended
+   * process with no stated reason is indistinguishable from a stalled
+   * one. Absent for any process that has never suspended. */
+  waitingFor?: string;
   /** This process's recorded resource usage, when its audit entry carries
    * one (see security.ts's `AuditEntry.usage`) — read from the audit log
    * for display, never stored there as the source of truth (see
@@ -46,6 +52,13 @@ export interface WorkbenchProcess {
 export interface ProcessExecutionContext {
   signal: AbortSignal;
   report: (progress: string) => void;
+  /** Suspends this execution until `resumeProcess(id)` is called, releasing
+   * the workspace mutation lock (and the cross-host lease, where one is
+   * configured) for as long as it waits — see
+   * openspec/changes/harness-suspendable-stage/design.md. Resolves once
+   * resumed and re-admitted; rejects if `timeoutMs` elapses first or if
+   * the process is cancelled while suspended. */
+  suspend: (reason: string, options: { timeoutMs: number }) => Promise<void>;
 }
 
 export interface StartProcessOptions {
@@ -63,11 +76,33 @@ export interface WorkbenchProcessHandle {
   cancel: () => boolean;
 }
 
+/** Bookkeeping for one pending suspend() call — created when an execution
+ * suspends and cleared the moment it settles (resumed, timed out, or
+ * cancelled). Its mere presence on a `PendingProcess` is also how `drain()`
+ * tells a resumed process (re-enter the still-running `execute()` call)
+ * apart from one that has never started (call `execute()` for the first
+ * time), and how `cancel()` tells a suspended-or-resuming process (reject
+ * the suspend() promise) apart from one whose `execute()` has not started
+ * suspending at all. */
+interface PendingSuspension {
+  reason: string;
+  resolveResume: () => void;
+  rejectResume: (error: Error) => void;
+}
+
 interface PendingProcess {
   process: WorkbenchProcess;
   controller: AbortController;
   execute: StartProcessOptions["execute"];
   resolve: (process: WorkbenchProcess) => void;
+  /** Set at the top of every `run()`/`resumeRun()` attempt so `suspend()`
+   * and the eventual `finally` in `run()` — which keeps executing across a
+   * suspend/resume cycle, since resuming does not call `execute()` again —
+   * always see this run's *current* lease renewal timer and lease flag,
+   * not a stale value captured before the process last suspended. */
+  renewTimer?: ReturnType<typeof setInterval>;
+  leasedMutation?: boolean;
+  suspension?: PendingSuspension;
 }
 
 export class WorkbenchProcessScheduler {
@@ -88,6 +123,15 @@ export class WorkbenchProcessScheduler {
         process.state = "interrupted";
         process.finishedAt = new Date().toISOString();
         process.error = "Workbench host stopped before this process completed";
+      } else if (process.state === "suspended") {
+        // Not restored as suspended — see design.md, "A suspension does not
+        // survive a host restart": the poller and the in-memory promise
+        // `suspend()` was awaiting belonged to the host that is gone, so
+        // this process could never be resumed.
+        process.state = "interrupted";
+        process.finishedAt = new Date().toISOString();
+        process.error = `Workbench host stopped while this process was waiting for: ${process.waitingFor ?? "an external signal"}`;
+        process.waitingFor = undefined;
       }
       this.processes.set(process.id, process);
     }
@@ -170,12 +214,41 @@ export class WorkbenchProcessScheduler {
 
   cancel(id: string): boolean {
     const pending = this.pending.get(id);
-    if (!pending || !["queued", "running"].includes(pending.process.state)) return false;
+    if (!pending) return false;
+    // A suspended process, or one requeued after `resumeProcess()` but not
+    // yet re-admitted, is still inside the original `run()` call's
+    // try/catch — that call is simply parked on the promise `suspend()`
+    // returned. Rejecting that promise (after aborting, so `run()`'s catch
+    // block reports "cancelled" rather than "failed") lets that same
+    // try/catch/finally finish the process exactly once; calling
+    // `finish()` here too would race it and finish the process twice.
+    if (pending.suspension) {
+      pending.controller.abort();
+      pending.suspension.rejectResume(new Error("Process was cancelled while suspended"));
+      return true;
+    }
+    if (!["queued", "running"].includes(pending.process.state)) return false;
     pending.controller.abort();
     if (pending.process.state === "queued") {
       this.finish(pending, "cancelled");
       this.drain();
     }
+    return true;
+  }
+
+  /** Returns `false` for a process that is not currently suspended. A
+   * resumed process re-enters the queue rather than resuming directly into
+   * "running" — see design.md, "A resumed process re-enters the queue" —
+   * so that two processes suspended at once can never both resume into a
+   * mutation at the same time. */
+  resumeProcess(id: string): boolean {
+    const pending = this.pending.get(id);
+    if (!pending || pending.process.state !== "suspended") return false;
+    pending.process.state = "queued";
+    pending.process.waitingFor = undefined;
+    this.queue.push(id);
+    this.emit();
+    this.drain();
     return true;
   }
 
@@ -188,13 +261,102 @@ export class WorkbenchProcessScheduler {
       const pending = this.pending.get(id);
       if (!pending || pending.process.state !== "queued" || !this.canRun(pending.process)) continue;
       this.queue.splice(this.queue.indexOf(id), 1);
-      void this.run(pending);
+      // `pending.suspension` still present means this id was requeued by
+      // `resumeProcess()`, not started fresh by `start()` — re-admit it
+      // into the `execute()` call already in flight instead of invoking
+      // `execute()` a second time.
+      if (pending.suspension) {
+        void this.resumeRun(pending);
+      } else {
+        void this.run(pending);
+      }
     }
+  }
+
+  /** Suspends `pending`'s in-flight execution until `resumeProcess(pending.
+   * process.id)` is called, releasing the in-process mutation lock and the
+   * cross-host lease (when configured) for the duration — see
+   * design.md's "Suspension releases the cross-host lease" and "Every
+   * suspension is bounded". Rejects on timeout or on `cancel()`. */
+  private async suspend(pending: PendingProcess, reason: string, options: { timeoutMs: number }): Promise<void> {
+    const process = pending.process;
+    if (pending.renewTimer) {
+      clearInterval(pending.renewTimer);
+      pending.renewTimer = undefined;
+    }
+    if (process.mutating) this.mutationLocked = false;
+    if (pending.leasedMutation) await this.lease!.release();
+
+    process.state = "suspended";
+    process.waitingFor = reason;
+    this.emit();
+
+    return new Promise<void>((resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        pending.suspension = undefined;
+        reject(new Error(`Suspension timed out after ${options.timeoutMs}ms waiting for: ${reason}`));
+      }, options.timeoutMs);
+      pending.suspension = {
+        reason,
+        resolveResume: () => {
+          clearTimeout(timeoutHandle);
+          pending.suspension = undefined;
+          resolve();
+        },
+        rejectResume: (error: Error) => {
+          clearTimeout(timeoutHandle);
+          pending.suspension = undefined;
+          reject(error);
+        },
+      };
+      // Releasing the lock above changes nothing on its own — nothing else
+      // re-examines the queue until some unrelated process finishes. Since
+      // this process no longer holds it, another queued mutation must be
+      // considered right away.
+      this.drain();
+    });
+  }
+
+  /** Re-admits a process that suspended and was then resumed: reacquires
+   * the cross-host lease (when configured) and the in-process lock, then
+   * unblocks the `suspend()` call the original `run()` invocation is still
+   * parked on — it does not call `execute()` again. A lease that cannot be
+   * reacquired leaves the process queued rather than proceeding unlocked;
+   * see design.md, "resume must re-acquire it". */
+  private async resumeRun(pending: PendingProcess): Promise<void> {
+    const process = pending.process;
+    const leasedMutation = process.mutating && this.lease !== undefined;
+    pending.leasedMutation = leasedMutation;
+
+    if (leasedMutation) {
+      const result = await this.lease!.acquireOrRenew();
+      if (!result.ok) {
+        this.queue.push(process.id);
+        this.emit();
+        return;
+      }
+      if (result.reclaimedFrom) {
+        process.progress = describeWorkspaceLeaseReclamation(result.reclaimedFrom);
+      }
+    }
+
+    if (process.mutating) this.mutationLocked = true;
+    process.state = "running";
+    this.emit();
+
+    pending.renewTimer = leasedMutation
+      ? setInterval(() => {
+          void this.lease!.acquireOrRenew().catch(() => undefined);
+        }, WORKSPACE_LEASE_RENEW_INTERVAL_MS)
+      : undefined;
+
+    pending.suspension?.resolveResume();
   }
 
   private async run(pending: PendingProcess): Promise<void> {
     const process = pending.process;
     const leasedMutation = process.mutating && this.lease !== undefined;
+    pending.leasedMutation = leasedMutation;
 
     if (leasedMutation) {
       const result = await this.lease!.acquireOrRenew();
@@ -216,7 +378,7 @@ export class WorkbenchProcessScheduler {
     process.startedAt = new Date().toISOString();
     this.emit();
 
-    const renewTimer = leasedMutation
+    pending.renewTimer = leasedMutation
       ? setInterval(() => {
           void this.lease!.acquireOrRenew().catch(() => undefined);
         }, WORKSPACE_LEASE_RENEW_INTERVAL_MS)
@@ -228,6 +390,12 @@ export class WorkbenchProcessScheduler {
     // another mutating run (exactly the cross-host scenario this lease
     // exists for) must be able to rely on all of this run's cleanup —
     // including the lease release — having already happened.
+    //
+    // This same try/catch/finally spans a suspend/resume cycle: `suspend()`
+    // parks the promise `pending.execute()` is awaiting internally without
+    // this `await` below ever observing it settle, so a resumed process
+    // re-enters here (via `resumeRun()` unblocking that same parked
+    // promise), not via a second call to `run()`.
     let terminalState: WorkbenchProcessState;
     try {
       const summary = await pending.execute({
@@ -236,6 +404,7 @@ export class WorkbenchProcessScheduler {
           process.progress = progress;
           this.emit();
         },
+        suspend: (reason, suspendOptions) => this.suspend(pending, reason, suspendOptions),
       });
       if (pending.controller.signal.aborted) {
         terminalState = "cancelled";
@@ -251,9 +420,14 @@ export class WorkbenchProcessScheduler {
         terminalState = "failed";
       }
     } finally {
-      if (renewTimer) clearInterval(renewTimer);
+      // Read from `pending`, not the `leasedMutation`/`renewTimer` this
+      // function's own top set — a suspend/resume cycle may have replaced
+      // both (or cleared the timer to `undefined`) since then, and this
+      // `finally` must clean up whichever is current, not a stale value
+      // closed over before the process last suspended.
+      if (pending.renewTimer) clearInterval(pending.renewTimer);
       if (process.mutating) this.mutationLocked = false;
-      if (leasedMutation) await this.lease!.release();
+      if (pending.leasedMutation) await this.lease!.release();
     }
     this.finish(pending, terminalState);
     this.drain();

@@ -5,6 +5,10 @@ function iconForState(state: WorkbenchProcess["state"]): string {
   switch (state) {
     case "queued": return "clock";
     case "running": return "sync~spin";
+    // Distinct from "running" — see harness-suspendable-stage/tasks.md
+    // task 6.1: rendering a suspended process as running is the confusion
+    // this state exists to remove.
+    case "suspended": return "watch";
     case "completed": return "pass-filled";
     case "failed": return "error";
     case "cancelled": return "circle-slash";
@@ -33,10 +37,18 @@ function formatCostUsd(costUsd: number | undefined): string | undefined {
 export class ProcessTreeItem extends vscode.TreeItem {
   constructor(public readonly process: WorkbenchProcess, percent: string | undefined) {
     super(process.operation, vscode.TreeItemCollapsibleState.None);
-    this.description = [process.changeName, process.agentId, percent, process.state, process.progress, formatCostUsd(process.usage?.costUsd)]
+    this.description = [
+      process.changeName,
+      process.agentId,
+      percent,
+      process.state,
+      process.waitingFor,
+      process.progress,
+      formatCostUsd(process.usage?.costUsd),
+    ]
       .filter(Boolean)
       .join(" · ");
-    this.tooltip = process.error ?? process.summary ?? process.progress;
+    this.tooltip = process.error ?? process.waitingFor ?? process.summary ?? process.progress;
     this.iconPath = new vscode.ThemeIcon(iconForState(process.state));
     const active = process.state === "queued" || process.state === "running";
     if (process.operation === "implement") {

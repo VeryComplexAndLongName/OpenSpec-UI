@@ -12,6 +12,10 @@ export interface ProcessSummary {
   createdAt: string;
   summary?: string;
   error?: string;
+  /** What a `"suspended"` process is waiting for — mirrors
+   * `WorkbenchProcess.waitingFor` in `@openspec-ui/core`. Absent for any
+   * process that has never suspended. */
+  waitingFor?: string;
   /** This process's recorded cost, when its audit entry carried usage —
    * see `WorkbenchProcess.usage` in `@openspec-ui/core`. Absent — not
    * zero — for a process whose run reported no usage. */
@@ -136,7 +140,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
               <td>{process.operation}</td><td>{process.changeName ?? "-"}</td>
               <td>{process.agentId ?? "-"}</td>
               <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
-              <td>{[process.state, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
+              <td>{[process.state, process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
               <td><button type="button" onClick={() => void inspect(process.id)}>Review</button></td>
             </tr>
           ))}</tbody>
@@ -145,7 +149,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
       {details ? (
         <div className="openspec-process-details">
           <h3>{details.process.operation}: {details.process.state}</h3>
-          <p>{details.process.summary ?? details.process.error ?? "No summary"}</p>
+          <p>{details.process.waitingFor ? `Waiting for: ${details.process.waitingFor}` : details.process.summary ?? details.process.error ?? "No summary"}</p>
           <h4>Changed files</h4>
           <ul>{(details.delta ?? []).map((item) => <li key={item.path}>{item.kind}: {item.path}</li>)}</ul>
           <h4>Checkpoint coverage</h4>
