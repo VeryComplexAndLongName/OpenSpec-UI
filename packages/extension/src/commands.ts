@@ -11,6 +11,7 @@ import {
   HARNESS_AGENT_CAPABILITIES,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
+  VERIFIED_CLAUDE_CLI_VERSION,
   TaskListChangedError,
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
@@ -22,6 +23,7 @@ import {
   deleteChange,
   deleteProjectTemplate,
   deleteTaskLine,
+  detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
   getChangeTimelines,
@@ -29,7 +31,9 @@ import {
   listBootstrapProjectTypes,
   listChanges,
   listSpecs,
+  normalizeStepAgent,
   readArchivedChangeTasksTemplate,
+  readGlobalHarnessConfig,
   renderSprintReportPdf,
   renderTemplate,
   resolveHarnessConfig,
@@ -42,6 +46,8 @@ import {
   writeDependabotConfig,
   writeGlobalHarnessConfig,
   writeSubtypeInstructions,
+  type AgentDescriptor,
+  type DetectedAgent,
   type StartProcessOptions,
   type WorkbenchProcessScheduler,
   type ChangeTimeline,
@@ -185,6 +191,24 @@ async function remindAboutPendingChangeset(workspaceRoot: string): Promise<void>
   }
 }
 
+/** Dismissible suggestion, not a blocking follow-up dialog — see tasks.md
+ * 1.5 and design.md, "Suggestion is dismissible, not a blocking follow-up
+ * dialog". Only offered when there is no existing global config yet, so an
+ * already-configured workspace is never re-prompted. */
+async function suggestAgenticHarnessSetup(workspaceRoot: string): Promise<void> {
+  const harnessConfigExists = await fileExists(
+    vscode.Uri.file(path.join(workspaceRoot, "openspec", "agent-harness.json")),
+  );
+  if (harnessConfigExists) return;
+  const action = await vscode.window.showInformationMessage(
+    "OpenSpec UI: set up the Agentic Harness for this workspace now?",
+    "Set Up Agentic Harness",
+  );
+  if (action === "Set Up Agentic Harness") {
+    await vscode.commands.executeCommand("openspec-ui.setUpAgenticHarness");
+  }
+}
+
 async function runTrackedProcess(
   sessions: ImplementationSessionManager,
   workspaceRoot: string,
@@ -313,6 +337,148 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
   if (autonomyPick.label !== INHERIT_PICK) config.autonomyLevel = autonomyPick.label as HarnessAutonomyLevel;
   if (reviewGatePick.label !== INHERIT_PICK) config.reviewGate = { mode: reviewGatePick.label as HarnessReviewGateMode };
   return config;
+}
+
+// openspec-ui.setUpAgenticHarness — the guided first-run flow for the
+// *global* Agentic Harness default. See openspec/changes/agentic-harness-
+// init-wizard/design.md: unlike promptHarnessCustomization above (which
+// discards everything on Esc, since a partially-filled per-change override
+// is ambiguous state), every question here writes directly and immediately
+// to the global file via writeGlobalHarnessConfig ("Writes progressively,
+// not once at the end") — cancelling (Esc) simply stops asking further
+// questions, without discarding what was already written.
+const CONTROL_STAGES: readonly HarnessStage[] = ["propose", "review", "archive"];
+const SETUP_AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous"];
+
+async function fileExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.stat(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function currentAgentFor(stepAgents: HarnessConfig["stepAgents"], stage: HarnessStage): string | undefined {
+  const entry = stepAgents[stage];
+  return entry === undefined ? undefined : normalizeStepAgent(entry).agent;
+}
+
+/** `showQuickPick` has no real "preselected item" concept for a single
+ * pick — putting the current value first in the list is this wizard's
+ * stand-in, per design.md's "every question's QuickPick reads the current
+ * resolved value first and shows it as the pre-selected/first item". */
+function orderWithCurrentFirst<T extends { id: string }>(items: readonly T[], currentId: string | undefined): T[] {
+  if (currentId === undefined) return [...items];
+  return [...items].sort((a, b) => (a.id === currentId ? -1 : b.id === currentId ? 1 : 0));
+}
+
+async function promptAgentForRole(
+  title: string,
+  detectedAgents: readonly AgentDescriptor[],
+  currentId: string | undefined,
+): Promise<string | undefined> {
+  const items = orderWithCurrentFirst(detectedAgents, currentId).map((agent) => ({
+    label: agent.label,
+    description: agent.id === currentId ? "current" : undefined,
+    id: agent.id,
+  }));
+  const pick = await vscode.window.showQuickPick(items, { title });
+  return pick?.id;
+}
+
+/** `autonomous` is never in this list at all — see design.md, "`autonomous`
+ * is not offered at all, not offered-then-rejected": offering a choice
+ * `writeGlobalHarnessConfig` is guaranteed to reject is worse UX than not
+ * offering it. */
+async function promptAutonomyLevelForSetup(current: HarnessAutonomyLevel): Promise<HarnessAutonomyLevel | undefined> {
+  const ordered = [...SETUP_AUTONOMY_LEVELS].sort((a, b) => (a === current ? -1 : b === current ? 1 : 0));
+  const items = ordered.map((level) => ({ label: level, description: level === current ? "current" : undefined }));
+  const pick = await vscode.window.showQuickPick(items, { title: "Autonomy level" });
+  return pick?.label as HarnessAutonomyLevel | undefined;
+}
+
+/** Only ever triggered for the raw `claude-cli` id, never its `-acp`
+ * sibling — see design.md, "scoped to claude-cli alone". Reads the version
+ * `detectAvailableAgentsDetailed()` already captured this run; must not
+ * spawn `claude --version` again (ADR 0017 decision 6, and this change's
+ * own tasks.md 1.4 as corrected by agent-usage-accounting's task 7.1). */
+function warnOnClaudeCliVersionMismatch(detected: Record<string, DetectedAgent>): void {
+  const version = detected["claude-cli"]?.version;
+  if (version === undefined || version === VERIFIED_CLAUDE_CLI_VERSION) return;
+  void vscode.window.showWarningMessage(
+    `OpenSpec UI: installed Claude CLI version ${version} differs from the version this project's ` +
+      `claude-cli ACP translation layer was last verified against (${VERIFIED_CLAUDE_CLI_VERSION}). ` +
+      "See docs/adr/0013-acp-agent-adapters.md.",
+    "Continue anyway",
+  );
+}
+
+async function offerGenerateAgentInstructions(workspaceRoot: string): Promise<void> {
+  const claudeMdExists = await fileExists(vscode.Uri.file(path.join(workspaceRoot, "CLAUDE.md")));
+  const agentsMdExists = await fileExists(vscode.Uri.file(path.join(workspaceRoot, "AGENTS.md")));
+  if (claudeMdExists && agentsMdExists) return;
+
+  const generate = await vscode.window.showQuickPick(["Yes", "No"], {
+    title: "Generate CLAUDE.md / AGENTS.md now?",
+  });
+  if (generate !== "Yes") return;
+
+  // Reuses openspec-ui.generateAgentInstructions's exact call verbatim —
+  // see tasks.md 1.3.
+  const picked = await vscode.window.showQuickPick(
+    listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
+    { title: "Generate Agent Instructions", placeHolder: "Select a project type" },
+  );
+  if (!picked) return;
+  await writeAgentInstructions(workspaceRoot, picked.id);
+}
+
+async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
+  const detected = await detectAvailableAgentsDetailed();
+  const detectedAgents = AGENT_REGISTRY.filter((agent) => detected[agent.id]?.detected);
+
+  if (detectedAgents.length === 0) {
+    void vscode.window.showInformationMessage(
+      "OpenSpec UI: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
+        "and autonomy-level questions.",
+    );
+    await offerGenerateAgentInstructions(workspaceRoot);
+    return;
+  }
+
+  let current = await readGlobalHarnessConfig(workspaceRoot);
+
+  const controlAgentId = await promptAgentForRole(
+    "Control agent (propose / review / archive)",
+    detectedAgents,
+    currentAgentFor(current.stepAgents, "propose"),
+  );
+  if (controlAgentId === undefined) return;
+  current = {
+    ...current,
+    stepAgents: Object.fromEntries([
+      ...Object.entries(current.stepAgents),
+      ...CONTROL_STAGES.map((stage) => [stage, controlAgentId] as const),
+    ]) as HarnessConfig["stepAgents"],
+  };
+  await writeGlobalHarnessConfig(workspaceRoot, current);
+
+  const applyAgentId = await promptAgentForRole("Apply agent", detectedAgents, currentAgentFor(current.stepAgents, "apply"));
+  if (applyAgentId === undefined) return;
+  current = { ...current, stepAgents: { ...current.stepAgents, apply: applyAgentId } };
+  await writeGlobalHarnessConfig(workspaceRoot, current);
+
+  const autonomyLevel = await promptAutonomyLevelForSetup(current.autonomyLevel);
+  if (autonomyLevel === undefined) return;
+  current = { ...current, autonomyLevel };
+  await writeGlobalHarnessConfig(workspaceRoot, current);
+
+  if (controlAgentId === "claude-cli" || applyAgentId === "claude-cli") {
+    warnOnClaudeCliVersionMismatch(detected);
+  }
+
+  await offerGenerateAgentInstructions(workspaceRoot);
 }
 
 function formatShowMarkdown(result: OpenSpecShowResult): string {
@@ -565,8 +731,18 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         });
         deps.refreshTrees();
         void vscode.window.showInformationMessage("OpenSpec UI: workspace initialized.");
+        void suggestAgenticHarnessSetup(workspaceRoot);
       } catch (error) {
         await showCommandError("initialize workspace", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.setUpAgenticHarness", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      try {
+        await runSetUpAgenticHarness(workspaceRoot);
+      } catch (error) {
+        await showCommandError("set up Agentic Harness", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.generateAgentInstructions", async () => {
