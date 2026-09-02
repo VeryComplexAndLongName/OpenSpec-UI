@@ -36,8 +36,18 @@ needed.
   renders the way `archive` already does — present in the stage list,
   with no agent, effort or budget control. The `MechanicalStageRow` path
   exists; add the case, do not build a second one.
-- [ ] 3.2 `packages/extension/src/commands.ts`: `git` is skipped by the
-  wizard's per-stage questions the way `archive` already is.
+- [ ] 3.2 `packages/extension/src/commands.ts`: **confirm, do not edit.**
+  `HARNESS_TEMPLATE_STAGES` lists `propose`, `review`, `apply`, `verify`
+  and `archive`, and the wizard never asks about `git` — so VS Code
+  already behaves correctly and the two hosts disagree today. Found while
+  checking `HARNESS.md` against the implementation for
+  `agentic-harness-documentation` task 6.7; the document had said both
+  UIs offered the picker, and has been corrected.
+
+  Worth noticing why it is right by accident: `git` is absent from that
+  list because the list predates the `git` stage, not because anyone
+  decided it should not be asked about. Task 5.4's assertion is what turns
+  that into a property rather than a coincidence.
 - [ ] 3.3 Do **not** remove `git` from either stage list. It runs, and
   hiding it would misrepresent the chain.
 

@@ -97,17 +97,23 @@ Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 | `effort` | One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — restricted per agent; see the reference table below. |
 | `budget` | `{ "maxCostUsd": <positive number> }` or `{ "maxAiCredits": <positive integer, minimum 30> }` — whichever field the chosen agent's own capabilities accept; the other field is rejected. |
 
-**`stepAgents.git` is accepted by this schema, and both UIs offer an
-agent picker for it — but it is never read.** `HarnessChainRunner`'s
-`runStage` routes the `"git"` stage straight to its own push/PR/merge
-sequence (`runGitStage`) without ever consulting `stepAgents.git`; no
-`CommandKind` exists for it, and no CLI agent runs during this stage under
-any configuration. This is the settings-that-read-as-effective-and-are-not
-gap this document's own proposal names directly ("an entry naming an
-agent that is never invoked") — it is a known defect, not documented
-intended behavior, and not fixed here. Do not set `stepAgents.git`
-expecting it to select anything; see "The `git` stage" below for what
-actually runs it.
+**`stepAgents.git` is accepted by this schema, and the standalone
+settings surface offers an agent picker for it — but it is never read.**
+`HarnessChainRunner`'s `runStage` routes the `"git"` stage straight to its
+own push/PR/merge sequence (`runGitStage`) without ever consulting
+`stepAgents.git`; no `CommandKind` exists for it, and no CLI agent runs
+during this stage under any configuration. This is the
+settings-that-read-as-effective-and-are-not gap this document's own
+proposal names directly ("an entry naming an agent that is never
+invoked") — it is a known defect, not documented intended behavior, and
+not fixed here. Tracked as `harness-git-stage-no-agent`. Do not set
+`stepAgents.git` expecting it to select anything; see "The `git` stage"
+below for what actually runs it.
+
+VS Code's wizard does **not** offer it: `HARNESS_TEMPLATE_STAGES` in
+`commands.ts` lists `propose`, `review`, `apply`, `verify` and `archive`,
+and never asks about `git`. So the two hosts disagree today, which is its
+own small defect and is covered by the same change.
 
 ### `autonomyLevel`
 
