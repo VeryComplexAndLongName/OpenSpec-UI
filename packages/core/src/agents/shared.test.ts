@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.fn();
 vi.mock("cross-spawn", () => ({
@@ -17,8 +17,19 @@ class FakeChildProcess extends EventEmitter {
   kill = vi.fn();
 }
 
+// `terminateProcessTree`'s POSIX branch calls the real `process.kill` — the
+// fake pids used below (4242, 777, ...) do not correspond to real processes,
+// so on a POSIX CI runner the unmocked call would throw ESRCH and crash the
+// test rather than exercise the code path under test.
+let killSpy: ReturnType<typeof vi.fn<(pid: number, signal?: string | number) => true>>;
+beforeEach(() => {
+  killSpy = vi.fn<(pid: number, signal?: string | number) => true>(() => true);
+  vi.spyOn(process, "kill").mockImplementation(killSpy);
+});
+
 afterEach(() => {
   spawnMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe("spawnAndStream", () => {
@@ -37,7 +48,20 @@ describe("spawnAndStream", () => {
 
     const started = await gen.next();
     expect(started.value).toMatchObject({ kind: "started", runId: "run-1", command: "implement", cwd: "/workspace/repo" });
-    expect(spawnMock).toHaveBeenCalledWith("claude", ["-p"], { cwd: "/workspace/repo", stdio: ["pipe", "pipe", "pipe"] });
+    // `detached` is POSIX-only (task 1.3) — assert the keys always present
+    // via objectContaining, then check `detached` separately per platform,
+    // rather than an exact-object match that only holds on one OS (task 5.7).
+    expect(spawnMock).toHaveBeenCalledWith(
+      "claude",
+      ["-p"],
+      expect.objectContaining({ cwd: "/workspace/repo", stdio: ["pipe", "pipe", "pipe"] }),
+    );
+    const spawnOptions = spawnMock.mock.calls[0]?.[2] as Record<string, unknown>;
+    if (process.platform === "win32") {
+      expect(spawnOptions.detached).toBeUndefined();
+    } else {
+      expect(spawnOptions.detached).toBe(true);
+    }
     expect(child.stdin.write).toHaveBeenCalledWith("hello prompt");
     expect(child.stdin.end).toHaveBeenCalled();
 
@@ -187,8 +211,15 @@ describe("spawnAndStream", () => {
 
     // A bare child.kill() would kill only the .cmd shim on Windows and
     // leave the real agent process running — the termination helper must
-    // go through taskkill /T instead.
-    expect(spawnMock).toHaveBeenCalledWith("taskkill", ["/T", "/F", "/PID", "777"], expect.anything());
+    // go through taskkill /T instead. On POSIX there is no shim to route
+    // through `cmd.exe`, so the termination helper signals the process
+    // group directly instead of spawning anything.
+    if (process.platform === "win32") {
+      expect(spawnMock).toHaveBeenCalledWith("taskkill", ["/T", "/F", "/PID", "777"], expect.anything());
+    } else {
+      expect(killSpy).toHaveBeenCalledWith(-777, "SIGKILL");
+      expect(spawnMock).not.toHaveBeenCalledWith("taskkill", expect.anything(), expect.anything());
+    }
     expect(child.kill).not.toHaveBeenCalled();
   });
 });

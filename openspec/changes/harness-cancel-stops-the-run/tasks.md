@@ -106,7 +106,7 @@ mark a task complete on the strength of it.
   test cannot observe an orphaned grandchild. State in the test's own name
   that it guards the `.cmd`-shim case from design.md.
 
-- [ ] 5.7 `packages/core/src/agents/shared.test.ts`: three tests assert
+- [x] 5.7 `packages/core/src/agents/shared.test.ts`: three tests assert
   `crossSpawn` was called with an exact options object, which now differs
   by platform — task 1.3 adds `detached: true` on POSIX and not on
   Windows, so the same assertion passes on Windows and fails on Linux.
@@ -114,7 +114,7 @@ mark a task complete on the strength of it.
   [ 'claude', [ '-p' ], { …(2) } ]`), after a fully green local run on
   Windows. Make the assertions platform-correct: match the keys that are
   always present, and assert `detached` only where it belongs.
-- [ ] 5.8 Do **not** remove `detached: true` to make those tests pass.
+- [x] 5.8 Do **not** remove `detached: true` to make those tests pass.
   It is what puts the child in its own process group so
   `terminateProcessTree` can signal the group on POSIX; deleting it makes
   the tests green and silently reverts POSIX tree termination to killing
@@ -124,7 +124,7 @@ mark a task complete on the strength of it.
 ## 6. Verification
 
 - [x] 6.1 `openspec change validate --strict harness-cancel-stops-the-run`.
-- [ ] 6.2 `npm run typecheck` and `npm run test` — green across all four
+- [x] 6.2 `npm run typecheck` and `npm run test` — green across all four
   workspaces. See the note at the top of this file about `npm run lint`.
   `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
   Windows timeout flakes at 5000 ms under load; do not attempt to fix them
