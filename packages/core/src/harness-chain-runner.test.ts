@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, Event } from "./protocol.js";
 import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-config.js";
+import { FileAuditLog, auditLogPath } from "./security.js";
 
 // `HarnessChainRunner` shells out to the real `openspec` CLI for
 // `statusChange`/`archiveChange` (via `openspec.ts`) — mock `cross-spawn`
@@ -762,6 +763,116 @@ describe("HarnessChainRunner — budget (task 8.7)", () => {
     }
 
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+});
+
+describe("HarnessChainRunner — budget from persisted audit history (task 4.3, audit-log-persistence)", () => {
+  it("counts entries recorded by a FileAuditLog before this process's own listAuditEntries reader was constructed", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+      budget: { maxCostUsd: 1 },
+    });
+    mockStatus(false); // propose not done yet -> chain starts at "propose"
+
+    const command = baseCommand(root);
+
+    // Simulates a run recorded by an EARLIER process (e.g. before a host
+    // restart) — a separate `FileAuditLog` instance, written and flushed
+    // to `.openspec-ui/audit.jsonl` before this test's own chain ever
+    // starts, standing in for "yesterday's process, already exited".
+    const priorProcessAuditLog = new FileAuditLog(auditLogPath(root));
+    priorProcessAuditLog.record({
+      runId: "prior-process-run",
+      agent: "claude-cli",
+      outcome: "completed",
+      cwd: root,
+      timestamp: "t0",
+      changeDir: command.context.changeDir,
+      usage: { costUsd: 5 },
+    });
+    await vi.waitFor(async () => {
+      expect(await priorProcessAuditLog.readEntries()).toHaveLength(1);
+    });
+
+    // This process's own reader — a fresh `FileAuditLog` instance over the
+    // same file, exactly as `server.ts`/`extension.ts` construct one on
+    // startup with no in-memory knowledge of the run recorded above.
+    const currentProcessAuditLog = new FileAuditLog(auditLogPath(root));
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      listAuditEntries: () => currentProcessAuditLog.readEntries(),
+    });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // The budget was already exceeded by the prior process's recorded
+    // spend, so "propose" never even starts — proving the reader picked up
+    // history from disk, not from anything held in this process's memory.
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: expect.stringContaining("budget") });
+    expect(events.some((e) => e.kind === "completed")).toBe(false);
+  });
+});
+
+describe("HarnessChainRunner — stepAgents effort and budget reach the stage Command (harness-step-effort-and-budget)", () => {
+  it("threads a stage's resolved effort and budget into the Command handed to the runner", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: {
+        apply: { agent: "claude-cli", model: "claude-haiku-4-5", effort: "high", budget: { maxCostUsd: 5 } },
+      },
+    });
+    mockStatus(true); // artifacts already done, tasks unchecked -> chain starts at "apply"
+    await writeTasks(root, 3, 0);
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const applyCall = calls.find((c) => c.kind === "implement");
+    expect(applyCall).toMatchObject({
+      agentId: "claude-cli",
+      model: "claude-haiku-4-5",
+      effort: "high",
+      budget: { maxCostUsd: 5 },
+    });
+  });
+
+  it("leaves effort and budget undefined for a stage whose stepAgents entry sets neither", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli" },
+    });
+    mockStatus(true);
+    await writeTasks(root, 3, 0);
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const applyCall = calls.find((c) => c.kind === "implement");
+    expect(applyCall?.effort).toBeUndefined();
+    expect(applyCall?.budget).toBeUndefined();
   });
 });
 

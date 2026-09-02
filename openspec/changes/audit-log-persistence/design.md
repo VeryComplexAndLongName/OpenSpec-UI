@@ -85,6 +85,31 @@ block on disk, and its existing interface is what every call site is
 written against. A caller that needs certainty does not exist yet, and
 inventing one to justify the change would be building for a hypothetical.
 
+### No `flush()` is added; tests size their own `vi.waitFor` timeout instead
+
+`FileAuditLog` gains no method to await its pending writes. `writeQueue`
+stays private, `record()` stays `void` (see "The write path stays
+fire-and-forget" above), and every test of this class continues to poll
+for the write to land via `vi.waitFor(...)`, sized to that test's own
+workload (see tasks.md 1.5, where the 8-record rotation test's wait was
+given an explicit `{ timeout: 5000, interval: 25 }` after it flaked under
+a full `npm run test` run at vitest's 1000ms default).
+
+**Rejected alternative**: add a `flush(): Promise<void>` that awaits
+`writeQueue`, used only by tests. Rejected — no production caller needs
+to know a write has landed (that is exactly what "fire-and-forget" means,
+per task 1.1), so the only consumer of a flush method would be tests
+themselves; adding public API surface whose sole purpose is to make
+polling in tests less awkward is building for the test suite's
+convenience, not a real need. `vi.waitFor` with a timeout sized to the
+work already solves this without widening `FileAuditLog`'s contract, and
+it is the same tool the rest of this file's tests already use.
+
+**Consequence**: if a future test in this describe block queues enough
+`record()` calls to risk the same 1000ms-default flake, its `vi.waitFor`
+should get the same explicit-timeout treatment as task 1.5's, rather than
+the class growing a flush method to route around it.
+
 ### Both hosts construct it, rather than core defaulting to it
 
 `default-runners.ts` keeps `config.auditLog ?? new InMemoryAuditLog()`;

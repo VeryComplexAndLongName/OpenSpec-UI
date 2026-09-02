@@ -246,7 +246,19 @@ ends (ADR 0018 decision 7). Do **not** add mid-run interruption here.
   `updateInternalDependents: "always"` in the existing config — not
   something this task added by hand).
 - [ ] 9.6 **Human-only, cannot be completed by an implementing agent**:
-  run a real `implement` and confirm the audit line for it carries
-  `agentVersion` and no `usage` — the expected state until
-  `acp-agent-adapters` lands a producer. Leave unchecked if you are an
-  agent.
+  run a real `implement` and, once `audit-log-persistence` has landed and
+  the entries are actually written to `.openspec-ui/audit.jsonl` (before
+  that change, there was no persisted line to read at all — this task
+  could not be performed, full stop), read that run's audit line and
+  confirm it carries **neither** `usage` **nor** `agentVersion`. Both are
+  inert in production today, not just `usage`: `agentVersion` was
+  corrected from this task's original wording, which expected it to be
+  present — `packages/core/src/agent-runner.ts`'s `AgentRunnerOptions.
+  agentVersion` (added by task 3.1 above) is a real field, but no host
+  (`default-runners.ts`, `server.ts`, `extension.ts`) ever constructs a
+  runner with it set, so it is always `undefined`; wiring an actually-
+  detected version into it remains nobody's task (`audit-log-persistence`
+  proposal.md, "Explicitly out of scope"). This is the expected state
+  until `acp-agent-adapters` lands a usage producer and some host wires a
+  detected version — not a defect in either change. Leave unchecked if you
+  are an agent.

@@ -84,6 +84,18 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       events.includes("completed") || events.includes("failed"),
       `expected a terminal event, got: ${events.join(", ")}`,
     );
+
+    // No audit assertion here, deliberately — audit-log-persistence task
+    // 4.2. An earlier attempt asserted `.openspec-ui/audit.jsonl` gained a
+    // `"started"` entry after this command, and CI showed why it cannot:
+    // `RunController.run()` short-circuits `status`, `list`, `show` and
+    // `validate` into `runDirectOpenSpecCommand()` before any runner, so
+    // those four never produce an audit entry at all. No `vscode.commands`
+    // entry sends a runner-bound kind either — `plan`/`implement`/`review`
+    // reach a runner only through the AI panel's webview. `extension.ts`'s
+    // audit wiring therefore has no command this suite can drive; it is
+    // covered by inspection, while `optional-server.ts`'s identical wiring
+    // is covered executably in `optional-server.test.ts`.
   });
 
   test("Changes tree: tasks.md's checklist items nest under the Tasks artifact, not flat under the Change", async () => {

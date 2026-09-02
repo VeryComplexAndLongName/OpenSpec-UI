@@ -8,7 +8,7 @@
 //      gets run or where.
 // All checks run BEFORE the process is spawned / the HTTP call is made.
 
-import { appendFile, readFile, readdir } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
 import type { AgentUsage } from "./agent-usage.js";
@@ -365,16 +365,85 @@ export class InMemoryAuditLog implements AuditLog {
   }
 }
 
-/** File-backed audit log (JSONL, append-only). Best-effort: a write
- * failure is logged to stderr and swallowed — per tasks.md 3.4, the audit
- * log must not block agent execution. */
+/** Where a workspace's persisted audit log lives — the single source of
+ * truth for this path, so `server`'s `cli.ts`/`optional-server.ts` and
+ * `extension`'s `extension.ts`/`optional-server.ts` all point a
+ * `FileAuditLog` at the same file for a given workspace rather than each
+ * host picking its own name (see proposal.md, "name is a design
+ * decision"). Mirrors `WorkbenchRunJournal`'s `.openspec-ui/` placement. */
+export function auditLogPath(workspaceRoot: string): string {
+  return path.join(path.resolve(workspaceRoot), ".openspec-ui", "audit.jsonl");
+}
+
+/** Bound on `FileAuditLog`'s persisted entry count, with rotation dropping
+ * the *oldest* entries first — never emptying the file (see design.md,
+ * "Rotation preserves the newest, and drops the oldest"). Measured: a
+ * realistic "completed" entry — full `invocation`, `changeDir`, `usage`,
+ * `agentVersion` and a one-sentence `summary`, i.e. the largest shape a
+ * single entry realistically takes — serializes to ~560 bytes as one JSONL
+ * line. At 5,000 entries the file's ceiling is therefore ~2.8 MB: three
+ * orders of magnitude below the 356.6 MB an unbounded per-event file
+ * (`.openspec-ui/workbench-runs.json`) reached within days (see
+ * proposal.md, "checkpoint-storage-split... three days ago"). Each run
+ * writes 2-3 entries ("blocked": 1 entry; "started" + one terminal
+ * outcome: 2 entries), so 5,000 entries cover roughly 1,600-2,500 runs of a
+ * single change's history before the oldest are dropped. */
+const MAX_AUDIT_ENTRIES = 5_000;
+
+/** File-backed audit log (JSONL, append-only, bounded — see
+ * MAX_AUDIT_ENTRIES). Best-effort: a write failure is logged to stderr and
+ * swallowed — the audit log must not block agent execution (see
+ * agent-runner.ts, which calls `record()` inline in a run's lifecycle).
+ * Writes are queued per instance so the rotation triggered by one
+ * `record()` cannot interleave with the next `record()`'s append. */
 export class FileAuditLog implements AuditLog {
-  constructor(private readonly filePath: string) {}
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  constructor(
+    private readonly filePath: string,
+    private readonly maxEntries: number = MAX_AUDIT_ENTRIES,
+  ) {}
 
   record(entry: AuditEntry): void {
     const line = JSON.stringify(entry) + "\n";
-    appendFile(this.filePath, line, "utf8").catch((err: unknown) => {
-      console.error(`[audit] failed to write to ${this.filePath}:`, err);
-    });
+    this.writeQueue = this.writeQueue
+      .catch(() => undefined)
+      .then(() => this.appendAndRotate(line))
+      .catch((err: unknown) => {
+        console.error(`[audit] failed to write to ${this.filePath}:`, err);
+      });
+  }
+
+  private async appendAndRotate(line: string): Promise<void> {
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    await appendFile(this.filePath, line, "utf8");
+    const raw = await readIfExists(this.filePath);
+    if (raw === undefined) return;
+    const lines = raw.split("\n").filter((entryLine) => entryLine.length > 0);
+    if (lines.length > this.maxEntries) {
+      const kept = lines.slice(lines.length - this.maxEntries);
+      await writeFile(this.filePath, kept.join("\n") + "\n", "utf8");
+    }
+  }
+
+  /** Reads back persisted entries, oldest first. A missing file yields none
+   * — not an error (design.md, "Reading is a separate operation, and
+   * failure to read is not failure to run"). A line that fails to parse
+   * (e.g. a torn final line from a write interrupted mid-append — `record()`
+   * is fire-and-forget, see the doc comment above) is skipped; every
+   * complete entry before and after it is still returned. */
+  async readEntries(): Promise<AuditEntry[]> {
+    const raw = await readIfExists(this.filePath);
+    if (raw === undefined) return [];
+    const entries: AuditEntry[] = [];
+    for (const line of raw.split("\n")) {
+      if (line.length === 0) continue;
+      try {
+        entries.push(JSON.parse(line) as AuditEntry);
+      } catch {
+        // Skip an unparseable/torn line — see doc comment above.
+      }
+    }
+    return entries;
   }
 }
