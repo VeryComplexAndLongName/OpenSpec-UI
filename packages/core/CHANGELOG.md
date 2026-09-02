@@ -1,5 +1,32 @@
 # @openspec-ui/core
 
+## 0.46.0
+
+### Minor Changes
+
+- 348ee61: Add `copilot-cli-acp` and `claude-cli-acp` rows to `HARNESS_AGENT_CAPABILITIES`,
+  matching their plain counterparts' reasoning-effort and spending-cap
+  mechanisms exactly (each ACP adapter spawns the same binary with the same
+  flags, already permitted by the same allowlist entries). Add explicit empty
+  rows for `codex-cli-acp` and `gemini-cli-acp`, whose adapters deliberately
+  render neither flag — an absent row is what let this drift silently before.
+  
+  `{ "agent": "copilot-cli-acp", "budget": { "maxAiCredits": 100 } }` and the
+  equivalent `effort` setting now resolve instead of being refused; the unit
+  and floor checks (`maxCostUsd` rejected for `copilot-cli-acp`, `maxAiCredits`
+  rejected for `claude-cli-acp`, Copilot's 30-credit minimum) are unchanged.
+- 348ee61: A harness configuration file (`openspec/agent-harness.json` or a per-change
+  `harness.json`) carrying a top-level key that is not `stepAgents`,
+  `autonomyLevel`, `reviewGate`, `checkpoints`, `budget`, or
+  `gitStageAllowlist` is now refused, naming the unrecognized key and the
+  accepted set. Previously such a file resolved silently to the default
+  configuration wherever the misplaced key's effect would have applied —
+  found via a per-change `harness.json` whose `apply` sat at the top level
+  instead of inside `stepAgents`, which loaded without error or warning and
+  was never once applied. When the unrecognized key is a stage name
+  (`propose`, `review`, `apply`, `verify`, `archive`, `git`), the error names
+  `stepAgents.<key>` as a possible fix.
+
 ## 0.45.0
 
 ### Minor Changes
