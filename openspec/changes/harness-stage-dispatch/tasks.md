@@ -83,9 +83,7 @@ ends.
 - [x] 6.1 `openspec change validate --strict harness-stage-dispatch`.
 - [x] 6.2 `npm run typecheck`/`lint`/`test` for `@openspec-ui/core`,
   `@openspec-ui/server`, `@openspec-ui/webui`, `openspec-ui-vscode` —
-  all green, including `server/src/static.test.ts`. Note:
-  `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
-  Windows timeout flakes under load; do not attempt to fix them here.
+  all green, including `server/src/static.test.ts`.
 - [x] 6.3 `openspec/specs/agentic-harness/spec.md` and
   `openspec/specs/execution-core/spec.md` deltas are already written in
   this change's `specs/` directory — confirm they match what was

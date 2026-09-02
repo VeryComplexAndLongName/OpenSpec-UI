@@ -67,9 +67,7 @@ skipped.
 
 - [x] 4.1 `openspec change validate --strict ai-panel-cancel-run`.
 - [x] 4.2 `npm run typecheck` and `npm run test` — green across all four
-  workspaces. See the note at the top of this file. `sprint-report.test.ts`
-  and `change-timeline.test.ts` have pre-existing Windows timeout flakes
-  at 5000 ms under load; do not attempt to fix them here.
+  workspaces. See the note at the top of this file.
 - [x] 4.3 `git diff packages/core/` is **empty**. Cancellation behavior
   shipped in `harness-cancel-stops-the-run`; this change only makes it
   reachable, and a core diff means it reached further than it should.

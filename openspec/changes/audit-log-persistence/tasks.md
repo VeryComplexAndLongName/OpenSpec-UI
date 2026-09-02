@@ -197,10 +197,7 @@ skipped.
 - [x] 6.1 `openspec change validate --strict audit-log-persistence` and
   `... --strict agent-usage-accounting`.
 - [x] 6.2 `npm run typecheck` and `npm run test` — green across all four
-  workspaces. See the note at the top of this file.
-  `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
-  Windows timeout flakes at 5000 ms under load; do not attempt to fix them
-  here. Reopened 2026-09-02: the full suite fails
+  workspaces. See the note at the top of this file. Reopened 2026-09-02: the full suite fails
   `security.test.ts > FileAuditLog > drops the oldest entries...`, which
   passes 36/36 when that file runs alone — a timing gap, not a flake of
   the documented kind. See tasks 1.5 and 1.6. A suite that is green in

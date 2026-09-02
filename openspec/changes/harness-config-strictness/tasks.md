@@ -117,16 +117,15 @@ recorded instance behind it.
 ## 7. Verification
 
 - [x] 7.1 `openspec change validate --strict harness-config-strictness`.
-- [ ] 7.2 `npm run typecheck`, `npm run lint` and `npm run test` — green
-  across all four workspaces. Typecheck and lint are green; tests are
-  green except `core`'s `change-timeline.test.ts` and
-  `sprint-report.test.ts`, which fail on this machine with `EBUSY:
-  resource busy or locked, rmdir` and 5-second timeouts while cleaning up
-  their git fixtures. Reproduced in isolation, unrelated to this change
-  (it touches neither file, nor anything either imports), and the subject
-  of `git-fixture-test-cost`. `harness-chain-runner.test.ts` also failed
-  in the full run and passes alone — load-induced, not a regression.
-  Left unchecked until CI's Linux runner confirms the suite green.
+- [x] 7.2 `npm run typecheck`, `npm run lint` and `npm run test` — green
+  across all four workspaces. Typecheck and lint were green locally; the
+  three core test files that failed were `change-timeline.test.ts` and
+  `sprint-report.test.ts` (`EBUSY: resource busy or locked, rmdir` and
+  5-second timeouts around their git fixtures, since fixed by
+  `git-fixture-test-cost`) and `harness-chain-runner.test.ts` (passes
+  alone, load-induced). None of the three is touched by this change, nor
+  is anything any of them imports. Closed on CI's Linux runner, which ran
+  the full suite green on PR #175.
 - [x] 7.3 `git diff packages/core/src/agents/` is **empty** apart from
   `registry.ts`'s comment and the new id. This change is about naming and
   validation, not about how any agent runs.

@@ -109,9 +109,6 @@ skipped.
 - [x] 6.1 `openspec change validate --strict checkpoint-storage-split`.
 - [x] 6.2 `npm run typecheck` and `npm run test` — green across all four
   workspaces. See the note at the top of this file about `npm run lint`.
-  `sprint-report.test.ts` and `change-timeline.test.ts` have pre-existing
-  Windows timeout flakes at 5000 ms under load; do not attempt to fix them
-  here.
 - [x] 6.3 `git diff packages/core/src/checkpoint.ts` is **empty**. What a
   checkpoint captures, and its `maxFiles`/`maxBytes` limits, are
   deliberately unchanged — this change makes the same data cheap to store,

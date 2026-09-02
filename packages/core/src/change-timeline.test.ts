@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import simpleGit, { type SimpleGit } from "simple-git";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   blameLineDates,
   getChangeArchivedDate,
@@ -11,7 +11,17 @@ import {
   getFileCreatedDate,
 } from "./change-timeline.js";
 
+// Measured baseline on 2026-09-02 before this optimization: this file
+// passed 14/14 in 14.7s and 16.1s on two idle runs. One repository-
+// building test spawned 3 git processes for init/config plus 2 per
+// commit. This file now removes per-repo addConfig spawns and sets an
+// explicit per-test timeout with headroom over remaining real-git cost.
+// Measured after these changes (isolated run, 2026-09-02): 14/14 in
+// 15.31s test time (17.69s wall-clock reported by Vitest).
+vi.setConfig({ testTimeout: 15000 });
+
 const temporaryRoots: string[] = [];
+let sharedReadOnlyRepoRoot: string | undefined;
 
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-change-timeline-"));
@@ -19,20 +29,35 @@ async function temporaryRoot(): Promise<string> {
   return root;
 }
 
-afterEach(async () => {
+afterAll(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
+
+// Shared only by tests that read from an unchanging "initialized repo"
+// shape and never mutate it.
+async function getSharedReadOnlyRepoRoot(): Promise<string> {
+  if (sharedReadOnlyRepoRoot !== undefined) return sharedReadOnlyRepoRoot;
+  const root = await temporaryRoot();
+  await initRepo(root);
+  sharedReadOnlyRepoRoot = root;
+  return root;
+}
 
 async function initRepo(root: string): Promise<SimpleGit> {
   const git = simpleGit(root);
   await git.init();
-  await git.addConfig("user.email", "test@example.com");
-  await git.addConfig("user.name", "Test User");
   return git;
 }
 
 async function commitAll(root: string, message: string, isoDate: string): Promise<void> {
-  const git = simpleGit(root).env({ GIT_AUTHOR_DATE: isoDate, GIT_COMMITTER_DATE: isoDate });
+  const git = simpleGit(root).env({
+    GIT_AUTHOR_DATE: isoDate,
+    GIT_COMMITTER_DATE: isoDate,
+    GIT_AUTHOR_NAME: "Test User",
+    GIT_AUTHOR_EMAIL: "test@example.com",
+    GIT_COMMITTER_NAME: "Test User",
+    GIT_COMMITTER_EMAIL: "test@example.com",
+  });
   await git.add(".");
   await git.commit(message);
 }
@@ -113,8 +138,7 @@ describe("getFileCreatedDate", () => {
   });
 
   it("returns null when the file was never committed", async () => {
-    const root = await temporaryRoot();
-    await initRepo(root);
+    const root = await getSharedReadOnlyRepoRoot();
 
     expect(await getFileCreatedDate(root, path.join(root, "never-committed.md"))).toBeNull();
   });
@@ -263,8 +287,7 @@ describe("getChangeTimeline", () => {
   });
 
   it("returns empty content and no tasks for a change that does not exist", async () => {
-    const root = await temporaryRoot();
-    await initRepo(root);
+    const root = await getSharedReadOnlyRepoRoot();
 
     const timeline = await getChangeTimeline(root, "missing-change", false);
 
