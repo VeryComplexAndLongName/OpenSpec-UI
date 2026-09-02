@@ -43,8 +43,11 @@ export interface SpawnAndStreamOptions {
  * `cross-spawn` resolves a `.cmd` shim (e.g. `copilot` on Windows) through
  * `cmd.exe` — killing only the direct child would kill the shim and leave
  * the real agent process running (see this file's header comment and
- * design.md, "Termination kills the process tree"). */
-function terminateProcessTree(pid: number): void {
+ * design.md, "Termination kills the process tree"). Exported for reuse by
+ * acp-session-driver.ts, whose ACP-flavored adapters spawn the same kind
+ * of `.cmd`-shimmed processes but stream over ACP JSON-RPC instead of
+ * this module's own spawnAndStream. */
+export function terminateProcessTree(pid: number): void {
   if (process.platform === "win32") {
     const killer = crossSpawn("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore" });
     killer.on("error", () => {
@@ -85,10 +88,15 @@ export function commandInstruction(kind: CommandKind): string {
       return "Stop the current execution for the change described below.";
     case "chain":
     case "confirmCheckpoint":
+    case "resolvePermission":
       // HarnessChainRunner decomposes a chain into calls to this same
       // spawnAndStream path using each stage's own single-stage
       // CommandKind (`plan`/`review`/`implement`/...) — it never invokes
       // a CLI agent with "chain" or "confirmCheckpoint" itself.
+      // "resolvePermission" likewise never reaches a CLI agent: it only
+      // ever resolves an AcpSessionDriver's already-pending permission
+      // promise for a run started by some earlier command (see
+      // acp-session-driver.ts's `resolvePermission`).
       throw new Error(`commandInstruction: "${kind}" is not a single-agent command kind`);
   }
 }

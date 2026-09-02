@@ -16,7 +16,9 @@
   "dependencies": {
     "simple-git": "^3.27.0",
     "cross-spawn": "^7.0.6",
-    "pdfkit": "^0.20.1"
+    "pdfkit": "^0.20.1",
+    "@agentclientprotocol/sdk": "^1.4.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

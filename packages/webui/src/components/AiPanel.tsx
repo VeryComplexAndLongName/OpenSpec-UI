@@ -515,6 +515,10 @@ function describeEvent(event: Event): string {
       return `checkpoint: ${event.stage} → ${event.nextStage} (${event.nextAgentId})`;
     case "handedOff":
       return `handed off: ${event.stage} → VS Code chat`;
+    case "agentUpdate":
+      return `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
+    case "permissionRequest":
+      return `permission requested: ${event.description}`;
   }
 }
 
@@ -695,6 +699,20 @@ function renderStructuredText(raw: string, index: number): ReactNode {
   }
 }
 
+/** Best-effort plain text out of an ACP `session/update` (or, for
+ * `claude-cli-acp`, its own translated stream-json line — see
+ * claude-acp.ts) payload's `content.text` field, present on
+ * `agent_message_chunk`/`agent_thought_chunk` updates and on that
+ * adapter's own `"assistant"` message updates. `undefined` for every
+ * other update kind (tool calls, plans, ...) — those fall back to
+ * `describeEvent()`'s one-line summary rather than a guess at rendering
+ * their own differently-shaped payload. */
+function extractAgentUpdateText(update: Record<string, unknown>): string | undefined {
+  const content = update.content;
+  if (isObjectRecord(content) && typeof content.text === "string") return content.text;
+  return undefined;
+}
+
 export function renderEventBody(event: Event, index: number): ReactNode {
   switch (event.kind) {
     case "stdout":
@@ -703,6 +721,10 @@ export function renderEventBody(event: Event, index: number): ReactNode {
       return renderStructuredText(event.chunk, index);
     case "completed":
       return event.summary ? renderStructuredText(`completed: ${event.summary}`, index) : "completed";
+    case "agentUpdate": {
+      const text = extractAgentUpdateText(event.update);
+      return text ? renderStructuredText(text, index) : describeEvent(event);
+    }
     default:
       return describeEvent(event);
   }
@@ -775,6 +797,13 @@ export function AiPanel({
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
+  // Tracks which permissionRequest ids the user has already answered —
+  // there is no server-emitted "resolved" event to key off of (design.md's
+  // `resolvePermission` is fire-and-forget from AiPanel's point of view;
+  // the underlying run's own next agentUpdate/completed/failed is the
+  // real confirmation), so the Allow/Deny control hides itself locally,
+  // immediately on click, rather than waiting for one.
+  const [resolvedPermissionRequestIds, setResolvedPermissionRequestIds] = useState<Set<string>>(new Set());
   const runIdRef = useRef<string | null>(null);
   const activeCommandKindRef = useRef<CommandKind>("list");
   const activeChangeDirRef = useRef<string>("");
@@ -829,6 +858,22 @@ export function AiPanel({
   const collapsedEvents = useMemo(() => collapseStreamEvents(events), [events]);
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);
 
+  // Most recent still-unanswered permissionRequest, if any — mirrors
+  // HarnessChainPanel's own `pendingCheckpoint` pattern (find the latest
+  // matching event, not an accumulated list) for the same reason: only
+  // ever one request is actually pending at a time (the ACP driver blocks
+  // the underlying agent on it — see acp-session-driver.ts), so the most
+  // recent one is the only one that can still be live.
+  const pendingPermissionRequest = useMemo(() => {
+    for (let i = collapsedEvents.length - 1; i >= 0; i--) {
+      const event = collapsedEvents[i];
+      if (event?.kind === "permissionRequest" && !resolvedPermissionRequestIds.has(event.requestId)) {
+        return event;
+      }
+    }
+    return undefined;
+  }, [collapsedEvents, resolvedPermissionRequestIds]);
+
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const requiresSelectedChange = CHANGE_REQUIRED_COMMANDS.includes(commandKind);
   const canRunCommand = !isRunning && (!requiresSelectedChange || selectedChange.length > 0);
@@ -871,6 +916,7 @@ export function AiPanel({
     activeChangeDirRef.current = effectiveChangeDir;
     setRunId(newRunId);
     setEvents([]);
+    setResolvedPermissionRequestIds(new Set());
     if (kind === "list") {
       setSelectionHint(null);
     }
@@ -911,6 +957,20 @@ export function AiPanel({
 
   function handleLoadChanges() {
     runCommand("list");
+  }
+
+  function handleResolvePermission(requestId: string, outcome: "allow" | "deny") {
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+    transport.send({
+      kind: "resolvePermission",
+      cwd,
+      runId: activeRunId,
+      context: { changeDir: activeChangeDirRef.current, promptContext },
+      permissionRequestId: requestId,
+      permissionOutcome: outcome,
+    });
+    setResolvedPermissionRequestIds((prev) => new Set(prev).add(requestId));
   }
 
   return (
@@ -982,6 +1042,29 @@ export function AiPanel({
         {statusLabel}
       </p>
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
+      {pendingPermissionRequest ? (
+        <div className="openspec-shell-note" data-testid="permission-request">
+          <p>
+            Permission requested: <strong>{pendingPermissionRequest.description}</strong>
+          </p>
+          <div className="openspec-ai-panel-controls">
+            <button
+              type="button"
+              data-testid="allow-permission-button"
+              onClick={() => handleResolvePermission(pendingPermissionRequest.requestId, "allow")}
+            >
+              Allow
+            </button>
+            <button
+              type="button"
+              data-testid="deny-permission-button"
+              onClick={() => handleResolvePermission(pendingPermissionRequest.requestId, "deny")}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      ) : null}
       {collapsedEvents.length > 0 ? (
         <section className="openspec-run-insights" data-testid="run-insights">
           <h3>Run analysis</h3>

@@ -15,6 +15,14 @@ describe("describeEvent", () => {
       [{ ...base, kind: "completed" }, "[completed]"],
       [{ ...base, kind: "failed", reason: "boom" }, "[failed] boom"],
       [{ ...base, kind: "cancelled" }, "[cancelled]"],
+      [
+        { ...base, kind: "agentUpdate", update: { sessionUpdate: "plan" } },
+        "[agent update] plan",
+      ],
+      [
+        { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to x" },
+        "[permission requested] Write to x",
+      ],
     ];
     for (const [event, expected] of cases) {
       expect(describeEvent(event)).toBe(expected);

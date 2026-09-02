@@ -35,6 +35,15 @@ export interface AgentAdapter {
    * process's `spawnAndStream`, or an HTTP request), or it is a silently
    * non-cancellable agent. */
   execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event>;
+  /** Only implemented by an ACP-flavored adapter (see
+   * acp-session-driver.ts's `AcpSessionDriver.resolvePermission`) —
+   * resolves a still-pending `permissionRequest` this adapter emitted for
+   * `runId`/`requestId`. Absent on every adapter that never emits
+   * `permissionRequest` (identical in spirit to `modelFlag`/`effort`
+   * being adapter-specific optional capabilities elsewhere in this
+   * codebase). Returns `false` (a no-op, not an error) when there is no
+   * such pending request. */
+  resolvePermission?(runId: string, requestId: string, outcome: "allow" | "deny"): boolean;
 }
 
 export interface AgentRunnerOptions {
@@ -80,6 +89,21 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         // unknown runId is not an error").
         activeRuns.get(command.runId)?.abort();
         yield { kind: "cancelled", runId: command.runId, timestamp: nowIso() };
+        return;
+      }
+
+      if (command.kind === "resolvePermission") {
+        // Bypasses the cwd sandbox / allowlist / audit-log path entirely,
+        // exactly like "cancel" above: this command never builds an
+        // invocation or spawns anything of its own — it only ever reaches
+        // into an adapter that is already mid-run for this same runId and
+        // resolves a promise it is already awaiting (see
+        // acp-session-driver.ts). No event is yielded here; the resolved
+        // run's own event stream (a separate, still-open call to `run()`
+        // for the same runId) is what continues.
+        if (command.permissionRequestId !== undefined && command.permissionOutcome !== undefined) {
+          adapter.resolvePermission?.(command.runId, command.permissionRequestId, command.permissionOutcome);
+        }
         return;
       }
 

@@ -9,9 +9,13 @@
 // existing security.ts mechanism.
 
 import { ClaudeCliAdapter } from "./agents/claude.js";
+import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
+import { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
 import { CodexCliAdapter } from "./agents/codex.js";
+import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
+import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { HARNESS_AGENT_CAPABILITIES, MODEL_ID_PATTERN } from "./harness-config.js";
@@ -115,6 +119,32 @@ export function buildDefaultAllowlist(): AllowlistConfig {
     }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],
+    // ACP-flavored adapters (acp-agent-adapters) — mirrors each one's own
+    // buildInvocation(), same as every entry above. No `--allow-all-
+    // tools`/`--yolo` counterpart to permit here: see copilot-acp.ts's and
+    // gemini-acp.ts's own header comments for why those adapters never
+    // render such a flag in the first place.
+    "copilot-cli-acp": [{
+      executable: "copilot",
+      argsAllowed: exactWithOptionalArgs(["--acp"], [
+        { flag: "--model", validate: (v) => MODEL_ID_PATTERN.test(v) },
+        { flag: "--effort", validate: effortValidator("copilot-cli") },
+        { flag: "--max-ai-credits", validate: isPositiveInteger },
+      ]),
+    }],
+    "gemini-cli-acp": [{ executable: "gemini", argsAllowed: exact(["--experimental-acp"]) }],
+    "codex-cli-acp": [{ executable: "codex-acp", argsAllowed: exact([]) }],
+    "claude-cli-acp": [{
+      executable: "claude",
+      argsAllowed: exactWithOptionalArgs(
+        ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"],
+        [
+          { flag: "--model", validate: (v) => MODEL_ID_PATTERN.test(v) },
+          { flag: "--effort", validate: effortValidator("claude-cli") },
+          { flag: "--max-budget-usd", validate: isPositiveDecimal },
+        ],
+      ),
+    }],
   };
 }
 
@@ -137,6 +167,10 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
       baseUrl: config.localLlmBaseUrl ?? "http://localhost:30000",
       model: config.localLlmModel ?? "default",
     }),
+    "copilot-cli-acp": new CopilotCliAcpAdapter(),
+    "gemini-cli-acp": new GeminiCliAcpAdapter(),
+    "codex-cli-acp": new CodexCliAcpAdapter(),
+    "claude-cli-acp": new ClaudeCliAcpAdapter(),
   };
 
   const runners = new Map<string, AgentRunner>();

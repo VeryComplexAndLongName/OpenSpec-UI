@@ -454,6 +454,88 @@ describe("AiPanel harness process tracking", () => {
     });
 });
 
+// acp-agent-adapters (tasks.md 4.2): the message-bridge transport needs no
+// code change of its own for agentUpdate/permissionRequest/
+// resolvePermission — reveal()'s onEvent subscription already posts any
+// event generically, and dispatchOrRun() already forwards any command
+// with no STAGE_FOR_COMMAND_KIND entry (resolvePermission has none)
+// straight to the resolved AgentRunner. These tests are the contract
+// proof for that claim, matching server.test.ts's own coverage for the
+// WS transport.
+describe("AiPanel message-bridge pass-through of agentUpdate/permissionRequest/resolvePermission", () => {
+    function createFixture() {
+        const eventListeners: Array<(event: unknown) => void> = [];
+        const runController = {
+            onEvent: vi.fn((listener: (event: unknown) => void) => {
+                eventListeners.push(listener);
+                return vi.fn();
+            }),
+            run: vi.fn(),
+        };
+        const panel = createPanelFixture();
+        const aiPanel = new AiPanel({
+            extensionUri: vscodeMock.Uri.file("/extension") as never,
+            runController: runController as never,
+            resolveRunner: () => ({ name: "claude-cli", run: vi.fn() }) as never,
+            chainRunner: createFakeChainRunner() as never,
+            getLocalServerUrl: () => undefined,
+        });
+        aiPanel.reveal();
+
+        const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
+        const emit = (event: unknown) => eventListeners.forEach((listener) => listener(event));
+        return { panel, runController, receiveMessage, emit };
+    }
+
+    it("posts an agentUpdate event to the webview exactly as received, with no special-casing", () => {
+        const { panel, emit } = createFixture();
+        panel.webview.postMessage.mockClear();
+
+        const event = { kind: "agentUpdate", runId: "run-1", timestamp: "t", update: { sessionUpdate: "plan" } };
+        emit(event);
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "openspec-ui/event", event });
+    });
+
+    it("posts a permissionRequest event to the webview exactly as received, with no special-casing", () => {
+        const { panel, emit } = createFixture();
+        panel.webview.postMessage.mockClear();
+
+        const event = {
+            kind: "permissionRequest",
+            runId: "run-1",
+            timestamp: "t",
+            requestId: "perm-1",
+            description: "Write to x",
+        };
+        emit(event);
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith({ type: "openspec-ui/event", event });
+    });
+
+    it("forwards a resolvePermission command straight to the resolved AgentRunner, exactly like plan/review/implement", () => {
+        const { receiveMessage, runController } = createFixture();
+
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "resolvePermission",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-1",
+                agentId: "claude-cli",
+                permissionRequestId: "perm-1",
+                permissionOutcome: "allow",
+            },
+        });
+
+        expect(runController.run).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "claude-cli" }),
+            expect.objectContaining({ kind: "resolvePermission", permissionRequestId: "perm-1", permissionOutcome: "allow" }),
+        );
+    });
+});
+
 describe("AiPanel vscode-chat stage dispatch", () => {
     async function createChatDispatchFixture() {
         resolveHarnessConfigMock.mockResolvedValue({

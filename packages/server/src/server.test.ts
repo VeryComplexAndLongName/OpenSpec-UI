@@ -83,6 +83,10 @@ const ALL_EVENT_VARIANTS: Event[] = [
   { kind: "stdout", runId: "run-1", timestamp: "t2", chunk: "building...\n" },
   { kind: "stderr", runId: "run-1", timestamp: "t3", chunk: "warning\n" },
   { kind: "progress", runId: "run-1", timestamp: "t4", message: "3/7" },
+  // acp-agent-adapters: additive, non-terminal — a thin pass-through, no
+  // server-side special-casing, same as every kind above (ADR 0001).
+  { kind: "agentUpdate", runId: "run-1", timestamp: "t4a", update: { sessionUpdate: "plan", entries: [] } },
+  { kind: "permissionRequest", runId: "run-1", timestamp: "t4b", requestId: "perm-1", description: "Write to x" },
   { kind: "completed", runId: "run-1", timestamp: "t5", summary: "diff --git a/x b/x" },
   { kind: "failed", runId: "run-1", timestamp: "t6", reason: "boom" },
   { kind: "cancelled", runId: "run-1", timestamp: "t7" },
@@ -1071,6 +1075,52 @@ describe("server — WebSocket /api/ws", () => {
     await done;
 
     expect(received).toEqual([expect.objectContaining({ kind: "failed", runId: "run-1" })]);
+    client.close();
+  });
+
+  it("passes a resolvePermission command through to the resolved AgentRunner unchanged, with no server-side handling of its own", async () => {
+    const receivedCommands: Command[] = [];
+    const recordingRunner: AgentRunner = {
+      run(command: Command): AsyncIterable<Event> {
+        receivedCommands.push(command);
+        // Deliberately yields nothing — mirrors createAgentRunner's own
+        // "resolvePermission" branch (agent-runner.ts), which resolves a
+        // pending promise on some other still-open call and produces no
+        // event of its own for this call.
+        return { [Symbol.asyncIterator]: () => ({ next: async () => ({ value: undefined, done: true }) }) };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["fake-agent", recordingRunner]]));
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+
+    const resolvePermissionCommand: Command = {
+      kind: "resolvePermission",
+      cwd: wsImplementCommand.cwd,
+      runId: "run-1",
+      agentId: "fake-agent",
+      context: { changeDir: wsImplementCommand.context.changeDir },
+      permissionRequestId: "perm-1",
+      permissionOutcome: "allow",
+    };
+    client.send(JSON.stringify(resolvePermissionCommand));
+    // No terminal/other event is expected back for this command — instead
+    // wait for a subsequent, ordinary command's own response to confirm
+    // the connection stayed open and usable.
+    const received: Event[] = [];
+    const done = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        received.push(JSON.parse(raw.toString()) as Event);
+        resolve();
+      });
+    });
+    client.send(JSON.stringify({ ...wsImplementCommand, agentId: "does-not-exist" }));
+    await done;
+
+    expect(receivedCommands).toEqual([expect.objectContaining(resolvePermissionCommand)]);
+    expect(received).toEqual([expect.objectContaining({ kind: "failed" })]);
     client.close();
   });
 
