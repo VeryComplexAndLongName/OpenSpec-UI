@@ -602,3 +602,80 @@ describe("AiPanel auto-loads the change list", () => {
         expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "list" }));
     });
 });
+
+describe("AiPanel cancel control", () => {
+    it("shows the Cancel button only while a run is in flight", () => {
+        const { transport, emit } = createFakeTransport();
+        // No cwd yet, so the panel does not auto-load changes and the
+        // idle -> running -> terminal transition is observable on its own.
+        render(<AiPanel transport={transport} cwd="" changeDir="/x" generateRunId={() => "run-cancel-visibility"} />);
+
+        expect(screen.queryByTestId("cancel-run-button")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        expect(screen.getByTestId("cancel-run-button")).toBeInTheDocument();
+
+        emit({ kind: "completed", runId: "run-cancel-visibility", timestamp: "t" });
+        expect(screen.queryByTestId("cancel-run-button")).not.toBeInTheDocument();
+    });
+
+    it("sends exactly one cancel command naming the run that was started", () => {
+        const { transport, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-cancel-id"} />);
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        send.mockClear();
+        fireEvent.click(screen.getByTestId("cancel-run-button"));
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenLastCalledWith(
+            expect.objectContaining({ kind: "cancel", runId: "run-cancel-id" }),
+        );
+    });
+
+    it("carries the same changeDir the run was started with, including the list case", () => {
+        const { transport, send } = createFakeTransport();
+        // cwd="" so the panel does not auto-fire its own "list" run first —
+        // the run under test must be the one whose changeDir the cancel echoes.
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/some-change"
+                generateRunId={() => "run-cancel-changedir"}
+            />,
+        );
+
+        // Default commandKind is "list": effectiveChangeDir is the changes
+        // root, not the specific change directory.
+        fireEvent.click(screen.getByTestId("run-button"));
+        fireEvent.click(screen.getByTestId("cancel-run-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "cancel",
+            cwd: "/repo",
+            runId: "run-cancel-changedir",
+            context: { changeDir: "/repo/openspec/changes", promptContext: undefined },
+        } satisfies Command);
+    });
+
+    it("cancelling a run that just reached a terminal event sends the command without throwing", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/x" generateRunId={() => "run-cancel-race"} />);
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        const cancelButton = screen.getByTestId("cancel-run-button");
+
+        // The race: the click and the run's terminal event are in flight at
+        // the same time. The panel already treats a cancel for an unknown
+        // runId as a no-op elsewhere (agent-runner.ts) — this asserts the
+        // button side never throws either, and the terminal state still wins.
+        expect(() => fireEvent.click(cancelButton)).not.toThrow();
+        expect(() => emit({ kind: "completed", runId: "run-cancel-race", timestamp: "t" })).not.toThrow();
+
+        expect(send).toHaveBeenCalledWith(
+            expect.objectContaining({ kind: "cancel", runId: "run-cancel-race" }),
+        );
+        expect(screen.getByTestId("run-status-label")).toHaveTextContent("Completed");
+    });
+});

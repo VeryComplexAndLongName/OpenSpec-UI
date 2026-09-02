@@ -160,7 +160,7 @@
       },
       {
         "command": "openspec-ui.cancelProcess",
-        "title": "OpenSpec UI: Cancel Process",
+        "title": "OpenSpec UI: Cancel Implementation Session",
         "icon": "$(debug-stop)"
       },
       {
