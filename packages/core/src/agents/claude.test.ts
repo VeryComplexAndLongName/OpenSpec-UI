@@ -36,7 +36,7 @@ describe("ClaudeCliAdapter", () => {
     const adapter = new ClaudeCliAdapter();
     const invocation = adapter.buildInvocation(command);
     const events: Event[] = [];
-    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE")) {
+    for await (const e of adapter.execute(invocation, command, "FILE CONTENT HERE", new AbortController().signal)) {
       events.push(e);
     }
 
@@ -66,7 +66,7 @@ describe("ClaudeCliAdapter", () => {
   it("rejects an http invocation as a programming error", async () => {
     const adapter = new ClaudeCliAdapter();
     await expect(async () => {
-      for await (const _ of adapter.execute({ kind: "http", url: "x", method: "POST" }, command, "p")) {
+      for await (const _ of adapter.execute({ kind: "http", url: "x", method: "POST" }, command, "p", new AbortController().signal)) {
         // no-op
       }
     }).rejects.toThrow();

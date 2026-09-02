@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.fn();
 vi.mock("cross-spawn", () => ({
@@ -13,10 +13,23 @@ class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
   stderr = new EventEmitter();
   stdin = { write: vi.fn(), end: vi.fn() };
+  pid: number | undefined;
+  kill = vi.fn();
 }
+
+// `terminateProcessTree`'s POSIX branch calls the real `process.kill` — the
+// fake pids used below (4242, 777, ...) do not correspond to real processes,
+// so on a POSIX CI runner the unmocked call would throw ESRCH and crash the
+// test rather than exercise the code path under test.
+let killSpy: ReturnType<typeof vi.fn<(pid: number, signal?: string | number) => true>>;
+beforeEach(() => {
+  killSpy = vi.fn<(pid: number, signal?: string | number) => true>(() => true);
+  vi.spyOn(process, "kill").mockImplementation(killSpy);
+});
 
 afterEach(() => {
   spawnMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe("spawnAndStream", () => {
@@ -35,7 +48,20 @@ describe("spawnAndStream", () => {
 
     const started = await gen.next();
     expect(started.value).toMatchObject({ kind: "started", runId: "run-1", command: "implement", cwd: "/workspace/repo" });
-    expect(spawnMock).toHaveBeenCalledWith("claude", ["-p"], { cwd: "/workspace/repo", stdio: ["pipe", "pipe", "pipe"] });
+    // `detached` is POSIX-only (task 1.3) — assert the keys always present
+    // via objectContaining, then check `detached` separately per platform,
+    // rather than an exact-object match that only holds on one OS (task 5.7).
+    expect(spawnMock).toHaveBeenCalledWith(
+      "claude",
+      ["-p"],
+      expect.objectContaining({ cwd: "/workspace/repo", stdio: ["pipe", "pipe", "pipe"] }),
+    );
+    const spawnOptions = spawnMock.mock.calls[0]?.[2] as Record<string, unknown>;
+    if (process.platform === "win32") {
+      expect(spawnOptions.detached).toBeUndefined();
+    } else {
+      expect(spawnOptions.detached).toBe(true);
+    }
     expect(child.stdin.write).toHaveBeenCalledWith("hello prompt");
     expect(child.stdin.end).toHaveBeenCalled();
 
@@ -110,5 +136,90 @@ describe("spawnAndStream", () => {
     child.stdout.emit("data", Buffer.from("\x00\x01binary-garbage\xff"));
     const weird = await weirdPromise;
     expect(weird.value?.kind).toBe("stdout");
+  });
+
+  it("aborting mid-run ends the stream with cancelled and emits no output after it (task 1.2, 1.5)", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 4242;
+    const taskkillChild = new EventEmitter();
+    spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+    const controller = new AbortController();
+    const gen = spawnAndStream({
+      executable: "claude",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-10",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+
+    await gen.next(); // started
+
+    const cancelledPromise = gen.next();
+    controller.abort();
+    const result = await cancelledPromise;
+    expect(result.value).toMatchObject({ kind: "cancelled", runId: "run-10" });
+
+    // The killed process's own exit/output must not surface as further events.
+    child.stdout.emit("data", Buffer.from("late output, must not be emitted\n"));
+    child.emit("close", 0);
+
+    const after = await gen.next();
+    expect(after.done).toBe(true);
+  });
+
+  it("an already-aborted signal yields cancelled without spawning anything (task 1.4)", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const gen = spawnAndStream({
+      executable: "claude",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-11",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+
+    const result = await gen.next();
+    expect(result.value).toMatchObject({ kind: "cancelled", runId: "run-11" });
+    expect((await gen.next()).done).toBe(true);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("terminates the process TREE via the termination helper rather than a bare child.kill() — guards the .cmd-shim case from design.md (task 1.3, 5.6)", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 777;
+    const taskkillChild = new EventEmitter();
+    spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+    const controller = new AbortController();
+    const gen = spawnAndStream({
+      executable: "copilot",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-12",
+      commandKind: "implement",
+      signal: controller.signal,
+    });
+    await gen.next(); // started
+
+    const cancelledPromise = gen.next();
+    controller.abort();
+    await cancelledPromise;
+
+    // A bare child.kill() would kill only the .cmd shim on Windows and
+    // leave the real agent process running — the termination helper must
+    // go through taskkill /T instead. On POSIX there is no shim to route
+    // through `cmd.exe`, so the termination helper signals the process
+    // group directly instead of spawning anything.
+    if (process.platform === "win32") {
+      expect(spawnMock).toHaveBeenCalledWith("taskkill", ["/T", "/F", "/PID", "777"], expect.anything());
+    } else {
+      expect(killSpy).toHaveBeenCalledWith(-777, "SIGKILL");
+      expect(spawnMock).not.toHaveBeenCalledWith("taskkill", expect.anything(), expect.anything());
+    }
+    expect(child.kill).not.toHaveBeenCalled();
   });
 });

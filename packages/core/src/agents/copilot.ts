@@ -54,7 +54,7 @@ export class CopilotCliAdapter implements AgentAdapter {
     return { kind: "process", executable: "copilot", args };
   }
 
-  async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
+  async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
       throw new Error("CopilotCliAdapter expects invocation.kind === 'process'");
     }
@@ -70,6 +70,7 @@ export class CopilotCliAdapter implements AgentAdapter {
       cwd: command.cwd,
       runId: command.runId,
       commandKind: command.kind,
+      signal,
     });
   }
 }

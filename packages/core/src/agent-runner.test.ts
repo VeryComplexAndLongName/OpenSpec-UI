@@ -29,9 +29,9 @@ function makeFakeAdapter(executeImpl: AgentAdapter["execute"]): {
       buildInvocationCalls.push([command]);
       return { kind: "process", executable: "fake-cli", args: ["-p"] };
     },
-    execute(invocation, command, prompt) {
+    execute(invocation, command, prompt, signal) {
       executeCalls.push([invocation, command, prompt]);
-      return executeImpl(invocation, command, prompt);
+      return executeImpl(invocation, command, prompt, signal);
     },
   };
   return { adapter, executeCalls, buildInvocationCalls };
@@ -190,6 +190,112 @@ describe("createAgentRunner — audit log records terminal outcome", () => {
     const terminal = auditLog.entries.find((e) => e.outcome === "failed");
     expect(terminal).toBeDefined();
     expect(terminal?.reason).toBe("agent crashed");
+  });
+});
+
+describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () => {
+  it("a cancel command never calls buildInvocation or execute, and yields cancelled", async () => {
+    const { adapter, executeCalls, buildInvocationCalls } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const cancelCommand: Command = {
+      kind: "cancel",
+      cwd: workspaceRoot,
+      runId: "run-cancel-1",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    const events: Event[] = [];
+    for await (const e of runner.run(cancelCommand)) events.push(e);
+
+    expect(events).toEqual([expect.objectContaining({ kind: "cancelled", runId: "run-cancel-1" })]);
+    // Asserting the absences explicitly: asserting only the `cancelled`
+    // event passes even with today's defect present, where a cancel
+    // spawns a second billable agent process.
+    expect(buildInvocationCalls).toHaveLength(0);
+    expect(executeCalls).toHaveLength(0);
+    expect(auditLog.entries.some((e) => e.outcome === "started")).toBe(false);
+  });
+
+  it("a cancel for an unknown runId yields cancelled without throwing", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const cancelCommand: Command = {
+      kind: "cancel",
+      cwd: workspaceRoot,
+      runId: "never-started",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    const events: Event[] = [];
+    await expect(
+      (async () => {
+        for await (const e of runner.run(cancelCommand)) events.push(e);
+      })(),
+    ).resolves.toBeUndefined();
+
+    expect(events).toEqual([expect.objectContaining({ kind: "cancelled", runId: "never-started" })]);
+  });
+});
+
+describe("createAgentRunner — cancelling a running run (task 3.1, 3.2, 3.4, 5.5)", () => {
+  it("ends that run's stream with cancelled and records audit outcome cancelled, with no second started entry for the cancel command", async () => {
+    let notifyStarted: () => void = () => {};
+    const startedPromise = new Promise<void>((resolve) => {
+      notifyStarted = resolve;
+    });
+
+    async function* controllableEvents(runId: string, signal: AbortSignal): AsyncGenerator<Event> {
+      yield { kind: "started", runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      notifyStarted();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      yield { kind: "cancelled", runId, timestamp: "t" };
+    }
+
+    const { adapter } = makeFakeAdapter((invocation, command, prompt, signal) =>
+      controllableEvents(command.runId, signal),
+    );
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const runId = "run-cancel-running";
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId,
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    const events: Event[] = [];
+    const runPromise = (async () => {
+      for await (const e of runner.run(command)) events.push(e);
+    })();
+
+    await startedPromise;
+
+    const cancelCommand: Command = { ...command, kind: "cancel" };
+    const cancelEvents: Event[] = [];
+    for await (const e of runner.run(cancelCommand)) cancelEvents.push(e);
+
+    await runPromise;
+
+    expect(events.map((e) => e.kind)).toEqual(["started", "cancelled"]);
+    expect(cancelEvents).toEqual([expect.objectContaining({ kind: "cancelled", runId })]);
+
+    const startedEntries = auditLog.entries.filter((e) => e.outcome === "started");
+    expect(startedEntries).toHaveLength(1); // only the real run — not the cancel command
+
+    const terminal = auditLog.entries.find((e) => e.runId === runId && e.outcome === "cancelled");
+    expect(terminal).toBeDefined();
   });
 });
 

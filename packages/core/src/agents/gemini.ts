@@ -12,7 +12,7 @@ export class GeminiCliAdapter implements AgentAdapter {
     return { kind: "process", executable: "gemini", args: ["--yolo"] };
   }
 
-  async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
+  async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
       throw new Error("GeminiCliAdapter expects invocation.kind === 'process'");
     }
@@ -23,6 +23,7 @@ export class GeminiCliAdapter implements AgentAdapter {
       runId: command.runId,
       commandKind: command.kind,
       stdin: `${commandInstruction(command.kind)}\n\n${prompt}`,
+      signal,
     });
   }
 }

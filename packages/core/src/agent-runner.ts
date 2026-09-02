@@ -29,8 +29,12 @@ export interface AgentAdapter {
   buildInvocation(command: Command): AdapterInvocation;
   /** Executes an already-validated run and streams protocol events.
    * Only called after the allowlist/cwd checks have passed.
-   * `prompt` is the result of prepareAgentContext (data, not an instruction). */
-  execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event>;
+   * `prompt` is the result of prepareAgentContext (data, not an instruction).
+   * `signal` aborts when a `"cancel"` command names this run — every
+   * adapter forwards it to whatever it uses to reach the agent (a spawned
+   * process's `spawnAndStream`, or an HTTP request), or it is a silently
+   * non-cancellable agent. */
+  execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event>;
 }
 
 export interface AgentRunnerOptions {
@@ -61,9 +65,24 @@ function* failedOnce(runId: string, reason: string): Iterable<Event> {
 
 export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOptions): AgentRunner {
   const { workspaceRoot, allowlist, auditLog, allowExternalCwd = false, agentVersion } = options;
+  // One entry per run this runner itself started, from just before
+  // `adapter.execute()` is called until that run's own `finally` below
+  // deletes it. A `"cancel"` command never builds an invocation or spawns
+  // anything — it only ever looks a `runId` up here and aborts it.
+  const activeRuns = new Map<string, AbortController>();
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
+      if (command.kind === "cancel") {
+        // Unknown runId (already finished, already cancelled, or never
+        // started here) is not an error — the run may have ended between
+        // the click and the command's arrival (design.md, "Cancelling an
+        // unknown runId is not an error").
+        activeRuns.get(command.runId)?.abort();
+        yield { kind: "cancelled", runId: command.runId, timestamp: nowIso() };
+        return;
+      }
+
       const cwdDecision = checkCwdSandbox(command.cwd, workspaceRoot, { allowExternalCwd });
       if (!cwdDecision.allowed) {
         auditLog.record({
@@ -113,11 +132,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         ...(agentVersion !== undefined ? { agentVersion } : {}),
       });
 
+      const controller = new AbortController();
+      activeRuns.set(command.runId, controller);
+
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
       let lastSummary: string | undefined;
       let lastReason: string | undefined;
       try {
-        for await (const event of adapter.execute(invocation, command, prompt)) {
+        for await (const event of adapter.execute(invocation, command, prompt, controller.signal)) {
           if (event.kind === "completed") lastSummary = event.summary;
           if (event.kind === "failed") {
             lastOutcome = "failed";
@@ -131,6 +153,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         lastReason = err instanceof Error ? err.message : String(err);
         yield { kind: "failed", runId: command.runId, timestamp: nowIso(), reason: lastReason };
       } finally {
+        activeRuns.delete(command.runId);
         auditLog.record({
           runId: command.runId,
           agent: adapter.name,

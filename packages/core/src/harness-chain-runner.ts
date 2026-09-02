@@ -190,16 +190,16 @@ export class HarnessChainRunner {
   }
 
   /** Ends a chain — immediately if it is paused at a checkpoint (fully
-   * within this runner's control), or marks it for cancellation once the
-   * currently running stage's own execution ends otherwise. This product
-   * has no hard child-process-kill mechanism for any single-stage run
-   * today (see `agents/shared.ts`'s `spawnAndStream` — no `AbortSignal` is
-   * wired to the spawned process); mid-stage cancellation mirrors the
-   * existing single-stage convention (`RunController.cancel()`: re-send a
-   * `"cancel"`-kind `Command` to the same runner) as a best effort, and
-   * guarantees the CHAIN itself stops advancing to a further stage — it
-   * does not guarantee the underlying CLI process exits early. Returns
-   * `false` only if `runId` names no active chain at all. */
+   * within this runner's control), or by cancelling the currently running
+   * stage's own run otherwise. Mid-stage cancellation reuses the existing
+   * single-stage convention (`RunController.cancel()`: re-send a
+   * `"cancel"`-kind `Command` to the same runner) — that runner (see
+   * `agent-runner.ts`'s `createAgentRunner`) now aborts the `AbortSignal`
+   * it gave that run's adapter, which every adapter forwards to
+   * `spawnAndStream`, which terminates the spawned process tree (not only
+   * the direct child — see `agents/shared.ts`). The chain stops advancing
+   * to a further stage AND the underlying CLI process is terminated.
+   * Returns `false` only if `runId` names no active chain at all. */
   cancel(runId: string): boolean {
     const state = this.active.get(runId);
     if (!state) return false;

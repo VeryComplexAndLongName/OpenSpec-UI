@@ -33,6 +33,31 @@ export interface SpawnAndStreamOptions {
   commandKind: CommandKind;
   /** Written to the process's stdin (e.g. the prompt for CLIs that read it from stdin). */
   stdin?: string;
+  /** Optional — an adapter that does not pass one behaves exactly as
+   * before this option existed. When given and it aborts, the spawned
+   * process tree is terminated and the stream ends with `cancelled`. */
+  signal?: AbortSignal;
+}
+
+/** Terminates the process tree rooted at `pid`, not only that one process.
+ * `cross-spawn` resolves a `.cmd` shim (e.g. `copilot` on Windows) through
+ * `cmd.exe` — killing only the direct child would kill the shim and leave
+ * the real agent process running (see this file's header comment and
+ * design.md, "Termination kills the process tree"). */
+function terminateProcessTree(pid: number): void {
+  if (process.platform === "win32") {
+    const killer = crossSpawn("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore" });
+    killer.on("error", () => {
+      // Best-effort: if taskkill itself cannot be spawned, there is no
+      // further fallback that also reaches a .cmd shim's real descendant.
+    });
+  } else {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      process.kill(pid, "SIGKILL");
+    }
+  }
 }
 
 /** Instruction that depends ONLY on `command.kind` (a trusted value set by
@@ -69,11 +94,26 @@ export function commandInstruction(kind: CommandKind): string {
 }
 
 export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGenerator<Event> {
-  const { executable, args, cwd, runId, commandKind, stdin } = options;
+  const { executable, args, cwd, runId, commandKind, stdin, signal } = options;
+
+  // An already-aborted signal never reaches a spawn at all — no process,
+  // no partial output, just `cancelled` (design.md, "Cancellation
+  // requested before the process starts").
+  if (signal?.aborted) {
+    yield { kind: "cancelled", runId, timestamp: nowIso() };
+    return;
+  }
 
   let child: ChildProcessWithoutNullStreams;
   try {
-    child = crossSpawn(executable, args, { cwd, stdio: ["pipe", "pipe", "pipe"] }) as ChildProcessWithoutNullStreams;
+    child = crossSpawn(executable, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      // POSIX only: makes the child the leader of its own process group so
+      // `terminateProcessTree` can kill the whole group. Windows tracks
+      // parent/child relationships itself; `taskkill /T` needs no such flag.
+      ...(process.platform !== "win32" ? { detached: true } : {}),
+    }) as ChildProcessWithoutNullStreams;
   } catch (err) {
     yield {
       kind: "failed",
@@ -89,7 +129,11 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
   }
   child.stdin.end();
 
-  type QueueItem = Event | { kind: "__exit__"; code: number | null } | { kind: "__error__"; error: Error };
+  type QueueItem =
+    | Event
+    | { kind: "__exit__"; code: number | null }
+    | { kind: "__error__"; error: Error }
+    | { kind: "__aborted__" };
   const queue: QueueItem[] = [];
   let resolveWake: (() => void) | null = null;
   const wake = () => {
@@ -101,52 +145,79 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     wake();
   };
 
+  // Once aborted, further process events are ignored — the terminal
+  // `cancelled` event has already been queued, and ADR 0012 forbids any
+  // event after a terminal one (task 1.5).
+  let aborted = false;
+
   // Listeners are attached synchronously, BEFORE the first `yield` — this
   // guarantees that no process event is lost between spawning and the
   // start of queue consumption (all code before the first await/yield
   // runs in a single synchronous tick, before the event loop can deliver
   // data from the child process).
   child.stdout.on("data", (data: Buffer) => {
+    if (aborted) return;
     push({ kind: "stdout", runId, timestamp: nowIso(), chunk: data.toString("utf8") });
   });
   child.stderr.on("data", (data: Buffer) => {
+    if (aborted) return;
     push({ kind: "stderr", runId, timestamp: nowIso(), chunk: data.toString("utf8") });
   });
   child.on("error", (error) => {
+    if (aborted) return;
     push({ kind: "__error__", error });
   });
   child.on("close", (code) => {
+    if (aborted) return;
     push({ kind: "__exit__", code });
   });
 
-  yield { kind: "started", runId, timestamp: nowIso(), command: commandKind, cwd };
+  const onAbort = () => {
+    if (aborted) return;
+    aborted = true;
+    if (child.pid !== undefined) terminateProcessTree(child.pid);
+    // Drop anything already buffered — a run the user stopped reports no
+    // further output, only the terminal `cancelled` event (task 1.5).
+    queue.length = 0;
+    push({ kind: "__aborted__" });
+  };
+  signal?.addEventListener("abort", onAbort);
 
-  let done = false;
-  while (!done) {
-    if (queue.length === 0) {
-      await new Promise<void>((resolve) => {
-        resolveWake = resolve;
-      });
-      continue;
-    }
-    const item = queue.shift() as QueueItem;
-    if (item.kind === "__exit__") {
-      done = true;
-      if (item.code === 0) {
-        yield { kind: "completed", runId, timestamp: nowIso() };
-      } else {
-        yield {
-          kind: "failed",
-          runId,
-          timestamp: nowIso(),
-          reason: `${executable} exited with code ${item.code ?? "unknown"}`,
-        };
+  try {
+    yield { kind: "started", runId, timestamp: nowIso(), command: commandKind, cwd };
+
+    let done = false;
+    while (!done) {
+      if (queue.length === 0) {
+        await new Promise<void>((resolve) => {
+          resolveWake = resolve;
+        });
+        continue;
       }
-    } else if (item.kind === "__error__") {
-      done = true;
-      yield { kind: "failed", runId, timestamp: nowIso(), reason: item.error.message };
-    } else {
-      yield item;
+      const item = queue.shift() as QueueItem;
+      if (item.kind === "__aborted__") {
+        done = true;
+        yield { kind: "cancelled", runId, timestamp: nowIso() };
+      } else if (item.kind === "__exit__") {
+        done = true;
+        if (item.code === 0) {
+          yield { kind: "completed", runId, timestamp: nowIso() };
+        } else {
+          yield {
+            kind: "failed",
+            runId,
+            timestamp: nowIso(),
+            reason: `${executable} exited with code ${item.code ?? "unknown"}`,
+          };
+        }
+      } else if (item.kind === "__error__") {
+        done = true;
+        yield { kind: "failed", runId, timestamp: nowIso(), reason: item.error.message };
+      } else {
+        yield item;
+      }
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 }

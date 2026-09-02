@@ -12,7 +12,7 @@ export class CodexCliAdapter implements AgentAdapter {
     return { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check"] };
   }
 
-  async *execute(invocation: AdapterInvocation, command: Command, prompt: string): AsyncIterable<Event> {
+  async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
     if (invocation.kind !== "process") {
       throw new Error("CodexCliAdapter expects invocation.kind === 'process'");
     }
@@ -23,6 +23,7 @@ export class CodexCliAdapter implements AgentAdapter {
       runId: command.runId,
       commandKind: command.kind,
       stdin: `${commandInstruction(command.kind)}\n\n${prompt}`,
+      signal,
     });
   }
 }
