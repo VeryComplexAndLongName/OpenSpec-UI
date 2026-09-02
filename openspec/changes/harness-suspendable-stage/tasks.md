@@ -91,6 +91,14 @@ single-mutation invariant. Check each junction.
   first check reporting a change; stops on abort; fails on its maximum
   duration; performs no further checks after any of the three.
 
+- [ ] 5.5 `packages/core/src/external-waiter.ts` lines 43-44: eslint
+  `prefer-const` — `intervalHandle` and `timeoutHandle` are never
+  reassigned. Found by CI on PR #164, not locally, because `npm run lint`
+  fails on this machine at `lint:english` (ENOENT on a concurrent
+  session's uncommitted archive moves) **before** eslint runs at all.
+  Run `npm run lint --workspace @openspec-ui/core`, which skips
+  `lint:english` and reaches eslint, to verify the fix.
+
 ## 6. Presentation
 
 - [x] 6.1 `packages/extension/src/tree/processes-tree.ts`: a suspended
