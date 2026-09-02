@@ -95,7 +95,18 @@ test.describe("standalone harness screenshots", () => {
       await page.getByRole("button", { name: "Load override" }).click();
       await expect(page.getByLabel("Change autonomy level")).toHaveValue("semi-autonomous", { timeout: 15000 });
       await expect(page.getByLabel("Change review gate mode")).toHaveValue("", { timeout: 15000 });
-      await page.screenshot({ path: path.join(IMAGES_DIR, "harness-change-override.png"), fullPage: true });
+      // Scoped to the override section, not `fullPage`. A full-page
+      // capture here contains the whole global section as well, so the
+      // second image was a strict superset of the first — two
+      // illustrations of the same screen presented as two different
+      // things, and 2131 pixels tall for a reader who only needed the
+      // half that differs.
+      // `.last()` because the view nests one section inside another, so
+      // the filter matches the outer wrapper as well; the inner one comes
+      // second in DOM order and is the section this image is about.
+      await page.locator("section", { has: page.getByRole("heading", { name: "Per-change override" }) })
+        .last()
+        .screenshot({ path: path.join(IMAGES_DIR, "harness-change-override.png") });
 
       // 3. A run in progress, paused at a checkpoint.
       await page.getByRole("tab", { name: "Change Editor" }).click();
