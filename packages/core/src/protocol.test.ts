@@ -27,6 +27,8 @@ const samples: Event[] = [
     nextAgentId: "claude-cli",
   },
   { ...base, kind: "handedOff", stage: "apply" },
+  { ...base, kind: "agentUpdate", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } } },
+  { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
 ];
 
 describe("protocol Event serialization", () => {
@@ -75,11 +77,25 @@ describe("protocol Event serialization", () => {
     expect(isEvent({ ...base, kind: "handedOff", stage: "not-a-stage" })).toBe(false);
   });
 
+  it("accepts well-formed agentUpdate and rejects a missing/non-object update", () => {
+    expect(isEvent({ ...base, kind: "agentUpdate", update: { sessionUpdate: "plan" } })).toBe(true);
+    expect(isEvent({ ...base, kind: "agentUpdate" })).toBe(false);
+    expect(isEvent({ ...base, kind: "agentUpdate", update: "not-an-object" })).toBe(false);
+    expect(isEvent({ ...base, kind: "agentUpdate", update: null })).toBe(false);
+  });
+
+  it("accepts well-formed permissionRequest and rejects a missing requestId/description", () => {
+    expect(isEvent({ ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to x" })).toBe(true);
+    expect(isEvent({ ...base, kind: "permissionRequest", description: "Write to x" })).toBe(false);
+    expect(isEvent({ ...base, kind: "permissionRequest", requestId: "perm-1" })).toBe(false);
+    expect(isEvent({ ...base, kind: "permissionRequest", requestId: 42, description: "Write to x" })).toBe(false);
+  });
 });
 
 describe("COMMAND_KINDS", () => {
-  it("contains 'verify', additive alongside every previously present kind", () => {
+  it("contains 'verify' and 'resolvePermission', additive alongside every previously present kind", () => {
     expect(COMMAND_KINDS).toContain("verify");
+    expect(COMMAND_KINDS).toContain("resolvePermission");
     for (const kind of ["plan", "implement", "review", "status", "list", "show", "validate", "cancel", "chain", "confirmCheckpoint"]) {
       expect(COMMAND_KINDS).toContain(kind);
     }

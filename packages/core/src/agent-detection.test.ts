@@ -128,7 +128,7 @@ describe("detectAvailableAgents", () => {
     expect(result["local-llm"]).toBe(false);
   });
 
-  it("resolves all five registered agent ids", async () => {
+  it("resolves all nine registered agent ids, including the four ACP-flavored ones", async () => {
     spawnMock.mockImplementation(() => {
       const child = new FakeChildProcess();
       queueMicrotask(() => child.emit("exit", 0));
@@ -139,7 +139,17 @@ describe("detectAvailableAgents", () => {
     const result = await detectAvailableAgents();
 
     expect(Object.keys(result).sort()).toEqual(
-      ["claude-cli", "codex-cli", "copilot-cli", "gemini-cli", "local-llm"].sort(),
+      [
+        "claude-cli",
+        "claude-cli-acp",
+        "codex-cli",
+        "codex-cli-acp",
+        "copilot-cli",
+        "copilot-cli-acp",
+        "gemini-cli",
+        "gemini-cli-acp",
+        "local-llm",
+      ].sort(),
     );
   });
 });

@@ -22,5 +22,9 @@ export function describeEvent(event: Event): string {
       return `[checkpoint] ${event.stage} -> ${event.nextStage} (${event.nextAgentId})`;
     case "handedOff":
       return `[handed off] ${event.stage} -> VS Code chat`;
+    case "agentUpdate":
+      return `[agent update] ${String(event.update.sessionUpdate ?? "update")}`;
+    case "permissionRequest":
+      return `[permission requested] ${event.description}`;
   }
 }

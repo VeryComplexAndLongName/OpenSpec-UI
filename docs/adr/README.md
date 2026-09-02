@@ -25,5 +25,6 @@ Alternatives / Consequences.
 | [0016](0016-harness-stage-dispatch-via-vscode-chat.md) | Harness stage dispatch via the VS Code chat | Accepted |
 | [0017](0017-structured-agent-output-parsing.md) | Structured agent output: parsing discipline and graceful degradation | Accepted |
 | [0018](0018-event-driven-harness-orchestration.md) | Event-driven harness orchestration | Accepted |
+| [0019](0019-mechanical-task-checks.md) | Mechanical task checks | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

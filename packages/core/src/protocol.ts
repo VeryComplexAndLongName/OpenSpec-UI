@@ -24,7 +24,15 @@ export type CommandKind =
    * event — a client that counts `"started"` events per `runId` will see
    * one per stage. */
   | "chain"
-  | "confirmCheckpoint";
+  | "confirmCheckpoint"
+  /** Answers a `permissionRequest` event by id with an `"allow"`/`"deny"`
+   * outcome — see `permissionRequestId`/`permissionOutcome` below and
+   * `acp-session-driver.ts`'s `resolvePermission`. Only meaningful for a
+   * run started against an ACP-flavored adapter that actually emitted a
+   * `permissionRequest`; a target that never emitted one treats it as a
+   * no-op (see acp-agent-adapters spec.md's "Permission request
+   * answered" scenario). */
+  | "resolvePermission";
 
 /** Runtime enumeration of `CommandKind`, kept in this one place so
  * transport-boundary shape checks (e.g. `packages/server/src/wire.ts`'s
@@ -41,6 +49,7 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "cancel",
   "chain",
   "confirmCheckpoint",
+  "resolvePermission",
 ];
 
 /** One file changed by the run a `"verify"` command is reviewing, carried
@@ -100,6 +109,14 @@ export interface Command {
    * an agent whose `HARNESS_AGENT_CAPABILITIES` entry declares a
    * `budgetField`. */
   budget?: HarnessStepBudget;
+  /** Only meaningful for a `"resolvePermission"` command: the `requestId`
+   * of the `PermissionRequestEvent` being answered (see protocol.ts's
+   * `PermissionRequestEvent`). Ignored for every other command kind. */
+  permissionRequestId?: string;
+  /** Only meaningful for a `"resolvePermission"` command: the answer to
+   * give the underlying ACP `session/request_permission` call named by
+   * `permissionRequestId`. Ignored for every other command kind. */
+  permissionOutcome?: "allow" | "deny";
 }
 
 export type EventKind =
@@ -112,7 +129,21 @@ export type EventKind =
   | "cancelled"
   | "stageCompleted"
   | "checkpoint"
-  | "handedOff";
+  | "handedOff"
+  /** A structured `session/update` from an ACP-flavored adapter's
+   * underlying agent (plan/tool-call/message/diff progress) — see
+   * acp-session-driver.ts. Non-terminal, like `stageCompleted`/
+   * `checkpoint`: a client that does not recognize it still sees a
+   * coherent, if less detailed, event log. */
+  | "agentUpdate"
+  /** An ACP-flavored adapter's underlying agent asked, via `session/
+   * request_permission`, before taking a sensitive action — only emitted
+   * by an adapter whose agent genuinely issues that call (see
+   * acp-agent-adapters spec.md's "Permission requests are surfaced only
+   * where the underlying agent genuinely supports them"). Answered by a
+   * `"resolvePermission"` command naming this event's `requestId`.
+   * Non-terminal. */
+  | "permissionRequest";
 
 interface BaseEvent {
   runId: string;
@@ -184,6 +215,31 @@ export interface HandedOffEvent extends BaseEvent {
   stage: HarnessStage;
 }
 
+/** A structured `session/update` from an ACP-flavored adapter's
+ * underlying agent — see `EventKind`'s `"agentUpdate"` member and
+ * acp-session-driver.ts. `update` carries the ACP peer's own
+ * `SessionUpdate` payload (a `sessionUpdate` discriminant plus a
+ * variant-specific shape — `agent_message_chunk`/`tool_call`/
+ * `tool_call_update`/`plan`/... per the ACP schema) opaque to this
+ * protocol layer, exactly as `stdout`'s `chunk` is opaque text for the
+ * raw-text adapters — rendering it is a UI concern, not this layer's. */
+export interface AgentUpdateEvent extends BaseEvent {
+  kind: "agentUpdate";
+  update: Record<string, unknown>;
+}
+
+/** An ACP-flavored adapter's underlying agent asked for permission before
+ * a sensitive action — see `EventKind`'s `"permissionRequest"` member. */
+export interface PermissionRequestEvent extends BaseEvent {
+  kind: "permissionRequest";
+  /** Names this request for a later `"resolvePermission"` command's
+   * `permissionRequestId`. */
+  requestId: string;
+  /** Human-readable description of the action being requested (from the
+   * ACP `session/request_permission` payload's tool-call title). */
+  description: string;
+}
+
 export type Event =
   | StartedEvent
   | StdoutEvent
@@ -194,7 +250,9 @@ export type Event =
   | CancelledEvent
   | StageCompletedEvent
   | CheckpointEvent
-  | HandedOffEvent;
+  | HandedOffEvent
+  | AgentUpdateEvent
+  | PermissionRequestEvent;
 
 /** Type guard helper: serializing an Event is just JSON, but we verify
  * that `kind` is one of the known variants when deserializing from an
@@ -235,6 +293,10 @@ export function isEvent(value: unknown): value is Event {
       );
     case "handedOff":
       return typeof v.stage === "string" && STAGES.includes(v.stage as HarnessStage);
+    case "agentUpdate":
+      return typeof v.update === "object" && v.update !== null;
+    case "permissionRequest":
+      return typeof v.requestId === "string" && typeof v.description === "string";
     default:
       return false;
   }

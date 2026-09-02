@@ -346,3 +346,56 @@ describe("createAgentRunner — agentVersion on the started audit record (task 3
     });
   });
 });
+
+describe("createAgentRunner — resolvePermission command", () => {
+  it("delegates to the adapter's resolvePermission, never calls buildInvocation/execute, and yields no event", async () => {
+    const resolvePermissionCalls: unknown[][] = [];
+    const { adapter, buildInvocationCalls, executeCalls } = makeFakeAdapter((_invocation, command) =>
+      okEvents(command.runId),
+    );
+    (adapter as { resolvePermission?: AgentAdapter["resolvePermission"] }).resolvePermission = (
+      runId,
+      requestId,
+      outcome,
+    ) => {
+      resolvePermissionCalls.push([runId, requestId, outcome]);
+      return true;
+    };
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "resolvePermission",
+      cwd: workspaceRoot,
+      runId: "run-7",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+      permissionRequestId: "perm-1",
+      permissionOutcome: "allow",
+    };
+    const events: Event[] = [];
+    for await (const e of runner.run(command)) events.push(e);
+
+    expect(events).toEqual([]);
+    expect(buildInvocationCalls).toHaveLength(0);
+    expect(executeCalls).toHaveLength(0);
+    expect(resolvePermissionCalls).toEqual([["run-7", "perm-1", "allow"]]);
+  });
+
+  it("is a no-op (no throw) against an adapter with no resolvePermission method", async () => {
+    const { adapter } = makeFakeAdapter((_invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "resolvePermission",
+      cwd: workspaceRoot,
+      runId: "run-8",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+      permissionRequestId: "perm-1",
+      permissionOutcome: "deny",
+    };
+    const events: Event[] = [];
+    for await (const e of runner.run(command)) events.push(e);
+    expect(events).toEqual([]);
+  });
+});

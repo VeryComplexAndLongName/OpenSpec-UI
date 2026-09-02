@@ -2,6 +2,15 @@
 // lists the available agents by their `AgentAdapter.name` identifier.
 // `webui` builds the agent selection in the AI panel from this registry,
 // not from its own hardcoded list (see shared-ui tasks.md 5.1).
+//
+// ACP-flavored adapter id scheme (resolves acp-agent-adapters design.md's
+// "Exact registry id / naming scheme" Open Question): each of the four
+// ACP-flavored adapters gets a sibling id formed by appending `-acp` to
+// its raw-text counterpart's id (`copilot-cli` -> `copilot-cli-acp`, and
+// likewise for `gemini-cli`/`codex-cli`/`claude-cli`) — a separate
+// registry entry, not a `variant` field on the existing one, per
+// design.md's "ACP-flavored adapters are new, additional AgentAdapters,
+// not replacements".
 
 export interface AgentDescriptor {
   /** Matches the `AgentAdapter.name` of the corresponding adapter. */
@@ -18,6 +27,16 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { id: "codex-cli", label: "Codex CLI" },
   { id: "gemini-cli", label: "Gemini CLI" },
   { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
+  // ACP-flavored adapters (acp-agent-adapters) — additional entries, not
+  // replacements for the four above (see this file's header comment).
+  { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model" },
+  { id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
+  { id: "codex-cli-acp", label: "Codex CLI (ACP)" },
+  // Label states the limitation inline, not just in the picker's own
+  // copy (webui's AiPanel.tsx) — see design.md's risk mitigation
+  // "the UI presenting this adapter must say so explicitly ... not leave
+  // it to be discovered" and claude-acp.ts's own header comment for why.
+  { id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model" },
 ];
 
 /** Agent used when a `Command` does not specify `agentId`. Lives here

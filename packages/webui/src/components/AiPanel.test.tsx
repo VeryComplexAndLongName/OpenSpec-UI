@@ -67,7 +67,17 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(agentPicker.value).toBe("claude-cli");
         expect(agentPicker).toBeDisabled();
         const options = Array.from(agentPicker.querySelectorAll("option")).map((option) => option.value);
-        expect(options).toEqual(["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]);
+        expect(options).toEqual([
+            "claude-cli",
+            "copilot-cli",
+            "codex-cli",
+            "gemini-cli",
+            "local-llm",
+            "copilot-cli-acp",
+            "gemini-cli-acp",
+            "codex-cli-acp",
+            "claude-cli-acp",
+        ]);
     });
 
     it("enables the agent picker for plan/implement/review and sends the selected agentId", () => {
@@ -128,6 +138,10 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "codex-cli",
             "gemini-cli",
             "local-llm",
+            "copilot-cli-acp",
+            "gemini-cli-acp",
+            "codex-cli-acp",
+            "claude-cli-acp",
         ]);
         expect(options.find((o) => o.value === "claude-cli")?.textContent).toContain("(detected)");
         expect(options.find((o) => o.value === "copilot-cli")?.textContent).toContain("(not detected)");
@@ -159,6 +173,96 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         const log = screen.getByTestId("event-log");
         expect(log.querySelectorAll("li")).toHaveLength(1);
         expect(screen.getByTestId("event-0")).toHaveTextContent("keep");
+    });
+
+    it("renders an agentUpdate event's text content when present (agent_message_chunk-shaped)", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-au-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "agentUpdate",
+            runId: "run-au-1",
+            timestamp: "t",
+            update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hello there" } },
+        });
+
+        expect(screen.getByTestId("event-0")).toHaveTextContent("hello there");
+    });
+
+    it("falls back to a one-line summary for an agentUpdate event with no text content (e.g. a tool_call)", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-au-2"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "agentUpdate",
+            runId: "run-au-2",
+            timestamp: "t",
+            update: { sessionUpdate: "tool_call", toolCallId: "tool-1" },
+        });
+
+        expect(screen.getByTestId("event-0")).toHaveTextContent("agent update: tool_call");
+    });
+
+    it("shows an Allow/Deny control for a permissionRequest, sends resolvePermission on click, and hides afterward", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
+
+        emit({
+            kind: "permissionRequest",
+            runId: "run-perm-1",
+            timestamp: "t",
+            requestId: "perm-1",
+            description: "Write to src/index.ts",
+        });
+
+        expect(screen.getByTestId("permission-request")).toHaveTextContent("Write to src/index.ts");
+
+        fireEvent.click(screen.getByTestId("allow-permission-button"));
+
+        expect(send).toHaveBeenLastCalledWith({
+            kind: "resolvePermission",
+            cwd: "/repo",
+            runId: "run-perm-1",
+            context: { changeDir: "/x", promptContext: undefined },
+            permissionRequestId: "perm-1",
+            permissionOutcome: "allow",
+        } satisfies Command);
+        expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
+    });
+
+    it("sends resolvePermission with outcome deny when Deny is clicked", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-2"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        emit({
+            kind: "permissionRequest",
+            runId: "run-perm-2",
+            timestamp: "t",
+            requestId: "perm-2",
+            description: "Run rm -rf build/",
+        });
+        fireEvent.click(screen.getByTestId("deny-permission-button"));
+
+        expect(send).toHaveBeenLastCalledWith(
+            expect.objectContaining({ kind: "resolvePermission", permissionRequestId: "perm-2", permissionOutcome: "deny" }),
+        );
+    });
+
+    it("claude-cli-acp's picker entry states it provides progress detail only, no permission gating", () => {
+        const { transport } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);
+
+        const agentPicker = screen.getByTestId("agent-picker") as HTMLSelectElement;
+        const claudeAcpOption = Array.from(agentPicker.querySelectorAll("option")).find(
+            (option) => option.value === "claude-cli-acp",
+        );
+        expect(claudeAcpOption?.textContent?.toLowerCase()).toContain("no permission gate");
     });
 
     it("coalesces fragmented stdout chunks into a readable event", () => {

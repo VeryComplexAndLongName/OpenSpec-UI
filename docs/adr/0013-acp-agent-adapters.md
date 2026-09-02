@@ -169,6 +169,29 @@ substitute for what this decision needs.
   to a usable `copilot-cli`. If it does not, that is a finding worth
   having: it would mean the denial is not about the absence of an
   interactive surface, and the upstream report needs amending.
+
+  **Outcome, live-verified 2026-09-02 — a third case neither branch above
+  anticipated.** Against a real `copilot --acp` (v1.0.78) driven through
+  this project's own session driver, in isolated temporary directories
+  and with no mocks: a file-write prompt created the file with the
+  requested content, and a shell-command prompt executed and returned
+  real output. In both cases **`session/request_permission` was never
+  called**, so no `permissionRequest` was ever emitted. No permission-mode
+  override exists in `~/.copilot/config.json` or `settings.json` on that
+  machine, so this is the flag's own default behavior.
+
+  So the conclusion this ADR wanted holds — ACP is the path back to a
+  usable `copilot-cli` — but not by the mechanism it predicted. Copilot
+  under `--acp` does not need somebody to ask; it simply does not hit the
+  "Permission denied and could not request permission from user" failure
+  that raw `-p` mode does. That narrows the upstream report rather than
+  amending it: the denial is specific to `-p`, not to headless operation
+  in general.
+
+  What remains unverified is only whether that binary ever calls
+  `session/request_permission` in some other version or configuration.
+  The driver's own handling of such a call is verified separately, against
+  a spec-compliant mocked peer.
 - `claude-cli-acp` provides observability without a permission gate; this
   is a structural limitation of Claude's current CLI surface, not
   something this decision can close without either metered API billing or

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { checkAllowlist } from "./security.js";
 import { buildDefaultAgentRunners, buildDefaultAllowlist, DEFAULT_AGENT_ID, resolveRunner } from "./default-runners.js";
+import { AGENT_REGISTRY } from "./agents/registry.js";
 import { ClaudeCliAdapter } from "./agents/claude.js";
+import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
+import { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
 import { CodexCliAdapter } from "./agents/codex.js";
+import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
+import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
 import type { Command } from "./protocol.js";
 
@@ -33,6 +38,46 @@ describe("buildDefaultAllowlist", () => {
 
     const localLlmInvocation = new LocalLlmAdapter({ baseUrl: "http://x", model: "m" }).buildInvocation(command);
     expect(checkAllowlist("local-llm", localLlmInvocation, allowlist).allowed).toBe(true);
+  });
+
+  it("allows exactly what each real ACP-flavored adapter's buildInvocation() produces", () => {
+    const allowlist = buildDefaultAllowlist();
+
+    const copilotAcpInvocation = new CopilotCliAcpAdapter().buildInvocation(command);
+    expect(checkAllowlist("copilot-cli-acp", copilotAcpInvocation, allowlist).allowed).toBe(true);
+
+    const geminiAcpInvocation = new GeminiCliAcpAdapter().buildInvocation(command);
+    expect(checkAllowlist("gemini-cli-acp", geminiAcpInvocation, allowlist).allowed).toBe(true);
+
+    const codexAcpInvocation = new CodexCliAcpAdapter().buildInvocation(command);
+    expect(checkAllowlist("codex-cli-acp", codexAcpInvocation, allowlist).allowed).toBe(true);
+
+    const claudeAcpInvocation = new ClaudeCliAcpAdapter().buildInvocation(command);
+    expect(checkAllowlist("claude-cli-acp", claudeAcpInvocation, allowlist).allowed).toBe(true);
+  });
+
+  it("rejects copilot-cli-acp's invocation with --allow-all-tools appended (that flag belongs only to the raw-text adapter)", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "copilot-cli-acp",
+      { kind: "process", executable: "copilot", args: ["--acp", "--allow-all-tools"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects claude-cli-acp's invocation missing --dangerously-skip-permissions", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "claude-cli-acp",
+      {
+        kind: "process",
+        executable: "claude",
+        args: ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],
+      },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
   });
 
   it("rejects an invocation with extra/different args than the adapter builds", () => {
@@ -201,9 +246,9 @@ describe("buildDefaultAllowlist", () => {
 });
 
 describe("buildDefaultAgentRunners / resolveRunner", () => {
-  it("builds a runner for every registered agent id", () => {
+  it("builds a runner for every registered agent id, including the four ACP-flavored ones", () => {
     const runners = buildDefaultAgentRunners({ workspaceRoot: "/workspace/repo" });
-    for (const id of ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]) {
+    for (const id of AGENT_REGISTRY.map((a) => a.id)) {
       expect(runners.has(id)).toBe(true);
     }
   });

@@ -39,6 +39,13 @@ export { GeminiCliAdapter } from "./agents/gemini.js";
 export { LocalLlmAdapter, type LocalLlmAdapterOptions } from "./agents/local-llm.js";
 export { AGENT_REGISTRY, type AgentDescriptor } from "./agents/registry.js";
 
+// ACP-flavored adapters (acp-agent-adapters) — see agents/acp-session-driver.ts.
+export { AcpSessionDriver } from "./agents/acp-session-driver.js";
+export { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
+export { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
+export { CodexCliAcpAdapter } from "./agents/codex-acp.js";
+export { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
+
 export {
   DEFAULT_AGENT_ID,
   buildDefaultAllowlist,
