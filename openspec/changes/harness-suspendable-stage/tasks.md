@@ -91,13 +91,20 @@ single-mutation invariant. Check each junction.
   first check reporting a change; stops on abort; fails on its maximum
   duration; performs no further checks after any of the three.
 
-- [ ] 5.5 `packages/core/src/external-waiter.ts` lines 43-44: eslint
+- [x] 5.5 `packages/core/src/external-waiter.ts` lines 43-44: eslint
   `prefer-const` — `intervalHandle` and `timeoutHandle` are never
   reassigned. Found by CI on PR #164, not locally, because `npm run lint`
   fails on this machine at `lint:english` (ENOENT on a concurrent
   session's uncommitted archive moves) **before** eslint runs at all.
   Run `npm run lint --workspace @openspec-ui/core`, which skips
-  `lint:english` and reaches eslint, to verify the fix.
+  `lint:english` and reaches eslint, to verify the fix. Fixed by review
+  2026-09-02, not by a naive `let` -> `const`: with `const`, the
+  already-aborted early path called `settleReject` -> `stop()`, which
+  reads both handles before their initialization and would hit the
+  temporal dead zone rather than the `undefined` a `let` gave. The early
+  abort now rejects directly and returns before anything is scheduled, so
+  `stop()` is only ever reachable after both handles exist. eslint,
+  typecheck and the 25 tests of external-waiter/process-scheduler green.
 
 ## 6. Presentation
 

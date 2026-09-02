@@ -38,14 +38,23 @@ export function waitForExternalSignal(options: ExternalWaiterOptions): Promise<v
   const { check, intervalMs, maxDurationMs, signal } = options;
 
   return new Promise<void>((resolve, reject) => {
+    // Handled before anything is scheduled, and without going through
+    // `settleReject`: that would call `stop()`, which reads the two timer
+    // handles below. They are `const` (eslint prefer-const), so reading
+    // them from this path would hit the temporal dead zone rather than the
+    // `undefined` a `let` would have given. Returning here means `stop()`
+    // is only ever reachable after both are initialized.
+    if (signal?.aborted) {
+      reject(new ExternalWaiterAbortedError());
+      return;
+    }
+
     let settled = false;
     let checking = false;
-    let intervalHandle: ReturnType<typeof setInterval> | undefined;
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
     function stop(): void {
-      if (intervalHandle !== undefined) clearInterval(intervalHandle);
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      clearInterval(intervalHandle);
+      clearTimeout(timeoutHandle);
       signal?.removeEventListener("abort", onAbort);
     }
 
@@ -77,18 +86,12 @@ export function waitForExternalSignal(options: ExternalWaiterOptions): Promise<v
       }
     }
 
-    if (signal) {
-      if (signal.aborted) {
-        settleReject(new ExternalWaiterAbortedError());
-        return;
-      }
-      signal.addEventListener("abort", onAbort);
-    }
+    signal?.addEventListener("abort", onAbort);
 
-    timeoutHandle = setTimeout(() => {
+    const timeoutHandle = setTimeout(() => {
       settleReject(new ExternalWaiterTimeoutError(maxDurationMs));
     }, maxDurationMs);
-    intervalHandle = setInterval(() => {
+    const intervalHandle = setInterval(() => {
       void poll();
     }, intervalMs);
     void poll();
