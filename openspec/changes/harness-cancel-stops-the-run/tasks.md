@@ -6,11 +6,11 @@ a controller nobody is listening to, or that kills a `cmd.exe` shim while
 the agent keeps running, satisfies a naive test and leaves the defect in
 place. Check each junction.
 
-Note on local checks: `npm run lint` currently fails on this machine with
-`ENOENT ... openspec/changes/agent-detection-timeout/.openspec.yaml`,
-caused by a concurrent session's uncommitted archive moves. That failure
-is **unrelated to this change** — do not attempt to fix it, and do not
-mark a task complete on the strength of it.
+Note on local checks: `npm run lint` is expected **green** here. It did
+fail with `ENOENT ... openspec/changes/agent-detection-timeout/.openspec.yaml`
+until 2026-09-01, when the uncommitted archive moves behind it were
+committed; a failure now is this change's own and must be fixed, not
+skipped.
 
 ## 1. Cancellable spawn
 

@@ -5,10 +5,11 @@ sums a change's history rather than one session's. A `FileAuditLog` that
 is constructed but never handed to the runner satisfies a shallow test and
 persists nothing; check every junction.
 
-Note on local checks: `npm run lint` currently fails here with `ENOENT ...
-openspec/changes/agent-detection-timeout/.openspec.yaml`, from a
-concurrent session's uncommitted archive moves. Unrelated to this change —
-do not try to fix it, and do not mark a task complete on it.
+Note on local checks: `npm run lint` is expected **green** here. It did
+fail with `ENOENT ... openspec/changes/agent-detection-timeout/.openspec.yaml`
+until 2026-09-01, when the uncommitted archive moves behind it were
+committed; a failure now is this change's own and must be fixed, not
+skipped.
 
 ## 1. Bounded writing
 
