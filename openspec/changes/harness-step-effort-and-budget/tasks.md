@@ -6,12 +6,13 @@ three separate rounds to close, because each round widened one layer and
 the next layer quietly dropped the value. Check every junction, not the
 two ends.
 
-Notes on local checks, both unrelated to this change:
-`npm run lint` fails here with `ENOENT ...
-openspec/changes/agent-detection-timeout/.openspec.yaml`, from a
-concurrent session's uncommitted archive moves. And a green local run
-proves nothing about POSIX-only branches — CI's Linux runner is the only
-place they execute (see `harness-cancel-stops-the-run` tasks 5.7/5.8).
+Notes on local checks. `npm run lint` is expected **green** here. It did
+fail with `ENOENT ... openspec/changes/agent-detection-timeout/.openspec.yaml`
+until 2026-09-01, when the uncommitted archive moves behind it were
+committed; a failure now is this change's own and must be fixed, not
+skipped. And a green local run proves nothing about POSIX-only branches —
+CI's Linux runner is the only place they execute (see
+`harness-cancel-stops-the-run` tasks 5.7/5.8).
 
 ## 1. Configuration shape
 

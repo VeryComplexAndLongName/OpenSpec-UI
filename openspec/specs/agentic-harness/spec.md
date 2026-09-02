@@ -490,13 +490,15 @@ run this flow.
 
 ### Requirement: Choosing `claude-cli` warns on a CLI version mismatch, without blocking
 
-Implemented only once `acp-agent-adapters` has landed (see design.md,
-"Ordering against `acp-agent-adapters`" — this requirement does not apply
-before then). When `claude-cli` is chosen for the control or apply role,
-the flow SHALL check the installed `claude` CLI's version against the
-version `acp-agent-adapters`'s `claude-cli-acp` translation layer was last
-verified against, and show a dismissible warning on a mismatch, without
-blocking the flow from continuing.
+When `claude-cli` is chosen for the control or apply role, the flow SHALL
+check the installed `claude` CLI's version against the version this
+project last verified against, and show a dismissible warning on a
+mismatch, without blocking the flow from continuing.
+
+That version SHALL be read from the single neutral constant every
+consumer shares, not from any one consumer's own module: the version is
+one fact about the environment, and a second copy of it beside a second
+consumer is what ADR 0017 decision 7 exists to prevent.
 
 #### Scenario: Installed Claude CLI version matches the tested version
 
