@@ -1,0 +1,4 @@
+{
+  "autonomyLevel": "assisted",
+  "stepAgents": { "apply": { "agent": "claude-cli", "model": "claude-sonnet-5" } }
+}

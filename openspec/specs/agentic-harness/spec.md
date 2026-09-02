@@ -265,3 +265,172 @@ configuration in either case.
 - **THEN** the second invocation dispatches according to the newly edited
   configuration, not a value cached from the first invocation
 
+### Requirement: A chain decides its stages from task completion, not artifact presence
+
+A chain SHALL determine whether implementation work remains from the
+change's own task list, not from whether its artifact files exist. When
+task completion cannot be determined, the chain SHALL choose the
+implementation stage rather than the archive stage, so an unknown signal
+never selects the irreversible one.
+
+Before archiving, a chain SHALL refuse when any task remains incomplete,
+reporting how many remain. A stage's own successful termination SHALL NOT
+by itself be treated as evidence that the change is ready to archive.
+
+#### Scenario: Every artifact file exists but no task is done
+
+- **WHEN** a chain starts on a change whose proposal, design, tasks and
+  spec files all exist and whose tasks are all incomplete
+- **THEN** it starts at the implementation stage, and does not archive
+
+#### Scenario: Task completion cannot be determined
+
+- **WHEN** a chain cannot read the change's task list
+- **THEN** it starts at the implementation stage rather than archiving
+
+#### Scenario: Tasks remain incomplete at the archive stage
+
+- **WHEN** a chain reaches the archive stage while at least one task is
+  incomplete
+- **THEN** nothing is archived, and the chain fails with a message naming
+  the change and how many tasks remain
+
+#### Scenario: Every task is complete
+
+- **WHEN** a chain reaches the archive stage and no task remains
+  incomplete
+- **THEN** the change is archived, as before
+
+### Requirement: The chain reviews the implementation after applying it
+
+The chain SHALL run a verification stage after the stage that implements a
+change and before the stage that archives it. The stage SHALL have its own
+configurable agent, resolved through the same global and per-change
+configuration as every other stage.
+
+The verification stage SHALL examine the implementation against the
+change's tasks and its specification delta, and SHALL record any task whose
+stated verification does not hold as not done.
+
+This stage SHALL NOT be described or relied upon as sufficient
+verification. Tasks that an implementing agent cannot perform remain
+outstanding for a human, unchanged.
+
+#### Scenario: A chain reaches verification
+
+- **WHEN** a chain completes the stage that implements a change
+- **THEN** it runs the verification stage next, before archiving
+
+#### Scenario: Verification finds an overstated task
+
+- **WHEN** the verification stage finds a task recorded as done whose
+  stated verification does not hold
+- **THEN** that task is recorded as not done, and the chain does not
+  archive the change
+
+#### Scenario: A stage agent is not configured for verification
+
+- **WHEN** no agent is configured for the verification stage
+- **THEN** it resolves the same way an unconfigured stage resolves today
+
+#### Scenario: Resuming a change whose tasks are all done
+
+- **WHEN** a chain is started for a change whose tasks are all recorded as
+  done and which is not yet archived
+- **THEN** it starts at the verification stage rather than at archiving
+
+### Requirement: The verifying agent is given what the run changed
+
+The prompt for a verification stage SHALL carry the set of files the
+implementing run changed, in a section distinct from the change's own
+content.
+
+That set SHALL be scoped to the run being verified. The system SHALL NOT
+substitute the state of the whole working tree, which may contain unrelated
+work.
+
+Where the set does not fit the prompt, it SHALL be reduced and the prompt
+SHALL state that it was reduced and by how much. It SHALL NOT be omitted
+silently.
+
+#### Scenario: The changed files are available
+
+- **WHEN** a verification stage runs after an implementing run whose
+  changes are known
+- **THEN** its prompt carries those files in their own section
+
+#### Scenario: The changed files are not available
+
+- **WHEN** the changes of the run being verified cannot be determined
+- **THEN** the prompt is built as it would be without them, and the stage
+  still runs
+
+#### Scenario: More changed files than the prompt can carry
+
+- **WHEN** the changed files exceed what the prompt can carry
+- **THEN** the prompt carries as many as it can and states how many were
+  omitted
+
+### Requirement: A stage's instruction describes the stage's actual position
+
+Each stage's instruction to its agent SHALL describe the work available at
+the point in the chain where that stage runs.
+
+#### Scenario: The stage that runs before implementation
+
+- **WHEN** the stage that runs before a change is implemented instructs its
+  agent
+- **THEN** the instruction describes reviewing the change's proposal, not
+  an implementation that does not exist yet
+
+### Requirement: A harness stage may select a model alongside its agent
+
+A `stepAgents` entry SHALL accept either an agent id on its own, or an
+agent id together with a model. When a model is given, it SHALL be passed
+to that agent's CLI, which continues to own its own authentication. The
+existing agent-id-only form SHALL keep its current meaning, so
+configurations written before this capability remain valid unchanged.
+
+A model SHALL be rejected when the configuration is read — not when a run
+starts — if it does not match the permitted character set, or if it is
+set for an agent that accepts no model.
+
+#### Scenario: A stage names only an agent
+
+- **WHEN** a stage's entry is an agent id on its own
+- **THEN** the stage runs on that agent exactly as before, with no model
+  passed to its CLI
+
+#### Scenario: A stage names an agent and a model
+
+- **WHEN** a stage's entry names both an agent and a model, and that
+  agent accepts a model
+- **THEN** the stage runs on that agent with that model selected
+
+#### Scenario: A model set for an agent that accepts none
+
+- **WHEN** a stage names a model for an agent whose registry entry
+  declares no model support
+- **THEN** reading the configuration fails with an error naming the stage
+  and the agent, and no run is started
+
+#### Scenario: A malformed model value
+
+- **WHEN** a stage's model contains whitespace, a quote, or a leading
+  dash
+- **THEN** reading the configuration fails with an error naming the
+  stage, and the value never reaches the spawned process
+
+#### Scenario: The user runs a stage on a different agent than configured
+
+- **WHEN** a stage has a model configured for one agent, and the user
+  starts that stage on a different agent
+- **THEN** no model is passed, because a model id is specific to the CLI
+  it was configured for
+
+#### Scenario: A per-change file overrides the global model
+
+- **WHEN** the global configuration sets one model for a stage and a
+  change's own harness file sets another
+- **THEN** the change's model is used for that stage
+
