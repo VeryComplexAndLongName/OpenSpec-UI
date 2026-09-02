@@ -777,6 +777,7 @@ export function AiPanel({
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const activeCommandKindRef = useRef<CommandKind>("list");
+  const activeChangeDirRef = useRef<string>("");
   // The `cwd` the change list was already auto-loaded for, so opening the
   // panel populates the picker exactly once per working directory.
   const autoLoadedCwdRef = useRef<string | null>(null);
@@ -867,6 +868,7 @@ export function AiPanel({
     const newRunId = generateRunId();
     runIdRef.current = newRunId;
     activeCommandKindRef.current = kind;
+    activeChangeDirRef.current = effectiveChangeDir;
     setRunId(newRunId);
     setEvents([]);
     if (kind === "list") {
@@ -891,6 +893,17 @@ export function AiPanel({
 
   function handleRun() {
     runCommand(commandKind);
+  }
+
+  function handleCancel() {
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+    transport.send({
+      kind: "cancel",
+      cwd,
+      runId: activeRunId,
+      context: { changeDir: activeChangeDirRef.current, promptContext },
+    });
   }
 
   function handleLoadChanges() {
@@ -956,6 +969,11 @@ export function AiPanel({
         <button type="button" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
           Run
         </button>
+        {isRunning ? (
+          <button type="button" data-testid="cancel-run-button" onClick={handleCancel}>
+            Cancel
+          </button>
+        ) : null}
       </div>
       <p className="openspec-run-status" data-testid="run-status-label">
         {statusLabel}
