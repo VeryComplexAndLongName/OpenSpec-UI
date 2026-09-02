@@ -3,15 +3,33 @@ import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { STAGES, type HarnessStage } from "./harness-stage.js";
 import {
+  COPILOT_MIN_AI_CREDITS,
+  HARNESS_AGENT_CAPABILITIES,
+  HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
   normalizeStepAgent,
+  type HarnessAgentCapabilities,
+  type HarnessEffort,
   type HarnessStageDispatch,
   type HarnessStepAgent,
   type HarnessStepAgents,
+  type HarnessStepBudget,
 } from "./harness-step-agent.js";
 
 export { STAGES, type HarnessStage };
-export { MODEL_ID_PATTERN, normalizeStepAgent, type HarnessStageDispatch, type HarnessStepAgent, type HarnessStepAgents };
+export {
+  COPILOT_MIN_AI_CREDITS,
+  HARNESS_AGENT_CAPABILITIES,
+  HARNESS_EFFORT_VALUES,
+  MODEL_ID_PATTERN,
+  normalizeStepAgent,
+  type HarnessAgentCapabilities,
+  type HarnessEffort,
+  type HarnessStageDispatch,
+  type HarnessStepAgent,
+  type HarnessStepAgents,
+  type HarnessStepBudget,
+};
 
 // Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
 // autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
@@ -131,10 +149,14 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
     let agentId: unknown;
     let model: unknown;
     let dispatch: unknown;
+    let effort: unknown;
+    let budget: unknown;
     if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
       agentId = (entry as { agent?: unknown }).agent;
       model = (entry as { model?: unknown }).model;
       dispatch = (entry as { dispatch?: unknown }).dispatch;
+      effort = (entry as { effort?: unknown }).effort;
+      budget = (entry as { budget?: unknown }).budget;
     } else {
       agentId = entry;
     }
@@ -163,6 +185,60 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
         throw new InvalidHarnessConfigError(
           `stepAgents.${stage} sets dispatch "vscode-chat", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
         );
+      }
+    }
+
+    const capabilities: HarnessAgentCapabilities | undefined = HARNESS_AGENT_CAPABILITIES[agentId as string];
+
+    if (effort !== undefined) {
+      if (typeof effort !== "string" || !HARNESS_EFFORT_VALUES.includes(effort as HarnessEffort)) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.effort must be one of: ${HARNESS_EFFORT_VALUES.join(", ")}`);
+      }
+      const accepted = capabilities?.effort;
+      if (!accepted || accepted.length === 0) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage} sets effort, but agent "${agentId}" has no command-line reasoning-effort control`,
+        );
+      }
+      if (!accepted.includes(effort as HarnessEffort)) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.effort "${effort}" is not accepted by agent "${agentId}" (accepted: ${accepted.join(", ")})`,
+        );
+      }
+    }
+
+    if (budget !== undefined) {
+      if (typeof budget !== "object" || budget === null || Array.isArray(budget)) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget must be an object`);
+      }
+      const { maxCostUsd, maxAiCredits } = budget as { maxCostUsd?: unknown; maxAiCredits?: unknown };
+      if (maxCostUsd === undefined && maxAiCredits === undefined) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget must set maxCostUsd or maxAiCredits`);
+      }
+      if (maxCostUsd !== undefined) {
+        if (!(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
+          throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget.maxCostUsd must be a positive number`);
+        }
+        if (capabilities?.budgetField !== "maxCostUsd") {
+          throw new InvalidHarnessConfigError(
+            `stepAgents.${stage} sets budget.maxCostUsd, but agent "${agentId}" does not accept a cost cap in USD`,
+          );
+        }
+      }
+      if (maxAiCredits !== undefined) {
+        if (!(typeof maxAiCredits === "number" && Number.isInteger(maxAiCredits) && maxAiCredits > 0)) {
+          throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget.maxAiCredits must be a positive integer`);
+        }
+        if (capabilities?.budgetField !== "maxAiCredits") {
+          throw new InvalidHarnessConfigError(
+            `stepAgents.${stage} sets budget.maxAiCredits, but agent "${agentId}" does not accept a credit cap`,
+          );
+        }
+        if (maxAiCredits < COPILOT_MIN_AI_CREDITS) {
+          throw new InvalidHarnessConfigError(
+            `stepAgents.${stage}.budget.maxAiCredits must be at least ${COPILOT_MIN_AI_CREDITS} (copilot-cli's own minimum)`,
+          );
+        }
       }
     }
   }

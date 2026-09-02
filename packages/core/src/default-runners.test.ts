@@ -82,6 +82,122 @@ describe("buildDefaultAllowlist", () => {
     );
     expect(decision.allowed).toBe(false);
   });
+
+  describe("effort and budget (harness-step-effort-and-budget)", () => {
+    const baseCopilotArgs = ["-p", "--allow-all-tools"];
+
+    it("allows claude-cli invoked with --effort and --max-budget-usd via the real adapter", () => {
+      const allowlist = buildDefaultAllowlist();
+      const invocation = new ClaudeCliAdapter().buildInvocation({ ...command, effort: "high", budget: { maxCostUsd: 5 } });
+      expect(checkAllowlist("claude-cli", invocation, allowlist).allowed).toBe(true);
+    });
+
+    it("allows copilot-cli invoked with --effort and --max-ai-credits via the real adapter", () => {
+      const allowlist = buildDefaultAllowlist();
+      const invocation = new CopilotCliAdapter().buildInvocation({ ...command, effort: "none", budget: { maxAiCredits: 30 } });
+      expect(checkAllowlist("copilot-cli", invocation, allowlist).allowed).toBe(true);
+    });
+
+    it("allows codex-cli invoked with -c model_reasoning_effort=\"<level>\" via the real adapter", () => {
+      const allowlist = buildDefaultAllowlist();
+      const invocation = new CodexCliAdapter().buildInvocation({ ...command, effort: "low" });
+      expect(checkAllowlist("codex-cli", invocation, allowlist).allowed).toBe(true);
+    });
+
+    it("rejects an unknown trailing flag after the expected prefix", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "claude-cli",
+        { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--unknown-flag", "x"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects an effort value outside claude-cli's accepted set", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "claude-cli",
+        { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--effort", "none"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects a non-numeric --max-budget-usd value", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "claude-cli",
+        { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--max-budget-usd", "a-lot"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects a negative --max-budget-usd value", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "claude-cli",
+        { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--max-budget-usd", "-5"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects an optional pair carried out of order (--effort before --model)", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "claude-cli",
+        { kind: "process", executable: "claude", args: [...baseClaudeArgs, "--effort", "high", "--model", "m"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects a non-integer --max-ai-credits value", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "copilot-cli",
+        { kind: "process", executable: "copilot", args: [...baseCopilotArgs, "--max-ai-credits", "12.5"] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects -c carrying any key other than model_reasoning_effort", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "codex-cli",
+        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "-c", 'approval_policy="never"'] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects -c model_reasoning_effort with a level codex does not accept", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "codex-cli",
+        { kind: "process", executable: "codex", args: ["exec", "--skip-git-repo-check", "-c", 'model_reasoning_effort="max"'] },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+
+    it("rejects a second -c pair appended after a valid one", () => {
+      const allowlist = buildDefaultAllowlist();
+      const decision = checkAllowlist(
+        "codex-cli",
+        {
+          kind: "process",
+          executable: "codex",
+          args: ["exec", "--skip-git-repo-check", "-c", 'model_reasoning_effort="low"', "-c", 'sandbox_mode="danger-full-access"'],
+        },
+        allowlist,
+      );
+      expect(decision.allowed).toBe(false);
+    });
+  });
 });
 
 describe("buildDefaultAgentRunners / resolveRunner", () => {

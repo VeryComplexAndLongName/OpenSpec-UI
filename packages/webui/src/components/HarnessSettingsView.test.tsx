@@ -100,3 +100,100 @@ describe("HarnessSettingsView", () => {
     expect(await screen.findByText("Load failed: network down")).toBeInTheDocument();
   });
 });
+
+describe("HarnessSettingsView effort and budget (harness-step-effort-and-budget)", () => {
+  it("does not offer an effort or budget field for an agent with no such mechanism (gemini-cli)", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
+
+    expect(screen.queryByLabelText("apply effort")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("apply budget")).not.toBeInTheDocument();
+  });
+
+  it("offers only claude-cli's accepted effort values, and the maxCostUsd budget field", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "claude-cli" } });
+
+    const effortSelect = screen.getByLabelText("apply effort") as HTMLSelectElement;
+    const options = Array.from(effortSelect.querySelectorAll("option")).map((o) => o.value);
+    expect(options).toEqual(["", "low", "medium", "high", "xhigh", "max"]);
+    expect(screen.getByLabelText("apply budget")).toBeInTheDocument();
+  });
+
+  it("saves the global config with effort and budget set on a stage, as the object form", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "claude-cli" } });
+    fireEvent.change(screen.getByLabelText("apply effort"), { target: { value: "high" } });
+    fireEvent.change(screen.getByLabelText("apply budget"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save global config" }));
+
+    await waitFor(() =>
+      expect(api.writeGlobal).toHaveBeenCalledWith({
+        stepAgents: {
+          propose: "claude-cli",
+          apply: { agent: "claude-cli", effort: "high", budget: { maxCostUsd: 5 } },
+        },
+        autonomyLevel: "assisted",
+      }),
+    );
+  });
+
+  it("saves a stage as the plain bare-string form when effort/budget are left unset", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "claude-cli" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save global config" }));
+
+    await waitFor(() =>
+      expect(api.writeGlobal).toHaveBeenCalledWith({
+        stepAgents: { propose: "claude-cli", apply: "claude-cli" },
+        autonomyLevel: "assisted",
+      }),
+    );
+  });
+
+  it("loads an existing per-change effort/budget override and re-saves it unchanged", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: { apply: { agent: "copilot-cli", effort: "none", budget: { maxAiCredits: 30 } } },
+      }),
+    });
+    render(<HarnessSettingsView api={api} />);
+
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+
+    expect(await screen.findByLabelText("change apply effort")).toHaveValue("none");
+    expect(screen.getByLabelText("change apply budget")).toHaveValue(30);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save override" }));
+
+    await waitFor(() =>
+      expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", {
+        stepAgents: { apply: { agent: "copilot-cli", effort: "none", budget: { maxAiCredits: 30 } } },
+      }),
+    );
+  });
+
+  it("hides the per-change effort/budget fields for a stage still inheriting its agent", async () => {
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue(null) });
+    render(<HarnessSettingsView api={api} />);
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByLabelText("change propose agent");
+
+    expect(screen.queryByLabelText("change propose effort")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("change propose budget")).not.toBeInTheDocument();
+  });
+});

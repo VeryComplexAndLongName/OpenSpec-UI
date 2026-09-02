@@ -6,7 +6,9 @@ import path from "node:path";
 import * as vscode from "vscode";
 import {
   AGENT_REGISTRY,
+  COPILOT_MIN_AI_CREDITS,
   DEFAULT_HARNESS_CONFIG,
+  HARNESS_AGENT_CAPABILITIES,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   TASK_CHECKBOX_LINE_RE,
   TaskListChangedError,
@@ -46,8 +48,10 @@ import {
   type Command,
   type HarnessAutonomyLevel,
   type HarnessConfig,
+  type HarnessEffort,
   type HarnessReviewGateMode,
   type HarnessStage,
+  type HarnessStepAgent,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
 } from "@openspec-ui/core";
@@ -230,7 +234,8 @@ const REVIEW_GATE_PICKS: readonly vscode.QuickPickItem[] = [
  * set away from "(inherit)"/the default — possibly empty, if every
  * question was left at inherit/default. */
 async function promptHarnessCustomization(changeName: string): Promise<Partial<HarnessConfig> | undefined> {
-  const stepAgents: Partial<Record<HarnessStage, string>> = {};
+  const NO_EFFORT_PICK = "(none)";
+  const stepAgents: Partial<Record<HarnessStage, HarnessStepAgent>> = {};
   for (const stage of HARNESS_TEMPLATE_STAGES) {
     const pick = await vscode.window.showQuickPick(
       [INHERIT_PICK, ...AGENT_REGISTRY.map((agent) => agent.label)],
@@ -239,7 +244,58 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
     if (pick === undefined) return undefined;
     if (pick === INHERIT_PICK) continue;
     const agent = AGENT_REGISTRY.find((candidate) => candidate.label === pick);
-    if (agent) stepAgents[stage] = agent.id;
+    if (!agent) continue;
+
+    // Only offer effort/budget for an agent whose capabilities actually
+    // accept them (task 5.3's "never offer a value the validator would
+    // reject", applied to this wizard too) — see harness-step-agent.ts's
+    // `HARNESS_AGENT_CAPABILITIES`, the single source of truth this and
+    // the webui settings view both read.
+    const capabilities = HARNESS_AGENT_CAPABILITIES[agent.id];
+    let effort: HarnessEffort | undefined;
+    if (capabilities?.effort && capabilities.effort.length > 0) {
+      const effortPick = await vscode.window.showQuickPick([NO_EFFORT_PICK, ...capabilities.effort], {
+        title: `Reasoning effort for "${stage}" / ${agent.label} (${changeName})`,
+      });
+      if (effortPick === undefined) return undefined;
+      if (effortPick !== NO_EFFORT_PICK) effort = effortPick as HarnessEffort;
+    }
+
+    let maxCostUsd: number | undefined;
+    let maxAiCredits: number | undefined;
+    if (capabilities?.budgetField !== undefined) {
+      const budgetLabel = capabilities.budgetField === "maxCostUsd" ? "max cost in USD" : `max AI credits (minimum ${COPILOT_MIN_AI_CREDITS})`;
+      const budgetInput = await vscode.window.showInputBox({
+        title: `Spending cap for "${stage}" / ${agent.label} (${changeName})`,
+        prompt: `Leave empty for no cap. Enter a ${budgetLabel}.`,
+        validateInput: (value) => {
+          if (value.trim().length === 0) return undefined;
+          const numeric = Number(value);
+          if (!Number.isFinite(numeric) || numeric <= 0) return "Enter a positive number.";
+          if (capabilities.budgetField === "maxAiCredits" && (!Number.isInteger(numeric) || numeric < COPILOT_MIN_AI_CREDITS)) {
+            return `Enter a whole number of at least ${COPILOT_MIN_AI_CREDITS}.`;
+          }
+          return undefined;
+        },
+      });
+      if (budgetInput === undefined) return undefined;
+      if (budgetInput.trim().length > 0) {
+        if (capabilities.budgetField === "maxCostUsd") maxCostUsd = Number(budgetInput);
+        else maxAiCredits = Number(budgetInput);
+      }
+    }
+
+    if (effort === undefined && maxCostUsd === undefined && maxAiCredits === undefined) {
+      stepAgents[stage] = agent.id;
+    } else {
+      stepAgents[stage] = {
+        agent: agent.id,
+        ...(effort !== undefined && { effort }),
+        ...((maxCostUsd !== undefined || maxAiCredits !== undefined) && {
+          budget: { ...(maxCostUsd !== undefined && { maxCostUsd }), ...(maxAiCredits !== undefined && { maxAiCredits }) },
+        }),
+      };
+    }
   }
 
   const autonomyPick = await vscode.window.showQuickPick(AUTONOMY_LEVEL_PICKS, {

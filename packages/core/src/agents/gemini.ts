@@ -9,6 +9,13 @@ export class GeminiCliAdapter implements AgentAdapter {
   readonly name = "gemini-cli";
 
   buildInvocation(_command: Command): AdapterInvocation {
+    // No effort or budget flag is rendered here: gemini has no
+    // command-line reasoning-effort control (only the interactive
+    // `/model` menu) and no spending-cap mechanism. `harness-config.ts`
+    // already refuses either setting for this agent at configuration
+    // time — see harness-step-effort-and-budget design.md, "An agent
+    // that cannot express a setting refuses it" — so `command.effort`/
+    // `command.budget` should never actually be set here in practice.
     return { kind: "process", executable: "gemini", args: ["--yolo"] };
   }
 

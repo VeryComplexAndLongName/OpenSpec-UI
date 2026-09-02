@@ -87,6 +87,41 @@ describe("CopilotCliAdapter", () => {
     expect(call.args.slice(3)).toEqual(["--model", "gpt-5-mini"]);
   });
 
+  it("builds a process invocation with a trailing --effort <level> when an effort is resolved", () => {
+    const adapter = new CopilotCliAdapter();
+    expect(adapter.buildInvocation({ ...command, effort: "none" })).toEqual({
+      kind: "process",
+      executable: "copilot",
+      args: ["-p", "--allow-all-tools", "--effort", "none"],
+    });
+  });
+
+  it("builds a process invocation with a trailing --max-ai-credits <credits> when a budget is resolved", () => {
+    const adapter = new CopilotCliAdapter();
+    expect(adapter.buildInvocation({ ...command, budget: { maxAiCredits: 50 } })).toEqual({
+      kind: "process",
+      executable: "copilot",
+      args: ["-p", "--allow-all-tools", "--max-ai-credits", "50"],
+    });
+  });
+
+  it("appends --effort and --max-ai-credits after --model in the spawned argv, in that order", async () => {
+    async function* fakeEvents(): AsyncGenerator<Event> {
+      yield { kind: "completed", runId: "run-2", timestamp: "t" };
+    }
+    spawnAndStreamMock.mockReturnValue(fakeEvents());
+
+    const modelCommand: Command = { ...command, model: "gpt-5-mini", effort: "high", budget: { maxAiCredits: 40 } };
+    const adapter = new CopilotCliAdapter();
+    const invocation = adapter.buildInvocation(modelCommand);
+    for await (const _ of adapter.execute(invocation, modelCommand, "prompt body", new AbortController().signal)) {
+      // drain
+    }
+
+    const call = spawnAndStreamMock.mock.calls[0]?.[0] as { args: string[] };
+    expect(call.args.slice(3)).toEqual(["--model", "gpt-5-mini", "--effort", "high", "--max-ai-credits", "40"]);
+  });
+
   it("embeds the prompt as a positional argument, not via stdin (unlike claude/codex/gemini)", async () => {
     async function* fakeEvents(): AsyncGenerator<Event> {
       yield { kind: "completed", runId: "run-2", timestamp: "t" };

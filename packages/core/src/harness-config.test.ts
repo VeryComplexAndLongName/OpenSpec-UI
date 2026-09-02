@@ -454,3 +454,107 @@ describe("budget (task 8.6)", () => {
     expect(config.budget).toEqual({ maxCostUsd: 5 });
   });
 });
+
+describe("stepAgents effort and budget (harness-step-effort-and-budget)", () => {
+  it("resolves a global-only effort", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", effort: "high" } } });
+
+    const config = await resolveHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
+      agent: "claude-cli",
+      dispatch: "cli",
+      effort: "high",
+    });
+  });
+
+  it("resolves a per-change-only budget, inheriting the global agent for that stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { apply: "claude-cli" } });
+    await writeChangeHarnessConfig(root, "demo", {
+      stepAgents: { apply: { agent: "claude-cli", budget: { maxCostUsd: 5 } } },
+    });
+
+    const config = await resolveHarnessConfig(root, "demo");
+    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
+      agent: "claude-cli",
+      dispatch: "cli",
+      budget: { maxCostUsd: 5 },
+    });
+  });
+
+  it("a per-change effort overrides a global effort for the same stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", effort: "low" } } });
+    await writeChangeHarnessConfig(root, "demo", {
+      stepAgents: { apply: { agent: "claude-cli", effort: "max" } },
+    });
+
+    const config = await resolveHarnessConfig(root, "demo");
+    expect(normalizeStepAgent(config.stepAgents.apply!).effort).toBe("max");
+  });
+
+  it("rejects an effort value outside the closed set", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", effort: "hihg" as never } } }),
+    ).rejects.toThrow(InvalidHarnessConfigError);
+  });
+
+  it("rejects an effort accepted by another agent but not this stage's agent", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", effort: "none" } } }),
+    ).rejects.toThrow(/stepAgents\.apply\.effort "none" is not accepted by agent "claude-cli"/);
+  });
+
+  it("rejects effort set for gemini-cli, which has no command-line effort mechanism", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "gemini-cli", effort: "low" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"gemini-cli".*reasoning-effort/);
+  });
+
+  it("rejects maxCostUsd set for copilot-cli, which only accepts maxAiCredits", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "copilot-cli", budget: { maxCostUsd: 5 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*maxCostUsd.*"copilot-cli"/);
+  });
+
+  it("rejects maxAiCredits set for claude-cli, which only accepts maxCostUsd", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "claude-cli", budget: { maxAiCredits: 100 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*maxAiCredits.*"claude-cli"/);
+  });
+
+  it("rejects a copilot-cli maxAiCredits below the CLI's own 30-credit minimum", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "copilot-cli", budget: { maxAiCredits: 29 } } },
+      }),
+    ).rejects.toThrow(/at least 30/);
+  });
+
+  it("accepts a copilot-cli maxAiCredits at exactly the 30-credit minimum", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "copilot-cli", budget: { maxAiCredits: 30 } } },
+    });
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!).budget).toEqual({ maxAiCredits: 30 });
+  });
+
+  it("rejects a budget object with neither field set", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", budget: {} } } }),
+    ).rejects.toThrow(InvalidHarnessConfigError);
+  });
+});

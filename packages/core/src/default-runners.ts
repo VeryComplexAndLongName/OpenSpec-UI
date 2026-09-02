@@ -14,7 +14,7 @@ import { CodexCliAdapter } from "./agents/codex.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
-import { MODEL_ID_PATTERN } from "./harness-config.js";
+import { HARNESS_AGENT_CAPABILITIES, MODEL_ID_PATTERN } from "./harness-config.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
 import type { AllowlistConfig, AuditLog } from "./security.js";
 import { InMemoryAuditLog } from "./security.js";
@@ -33,20 +33,58 @@ function exact(expected: string[]): (args: string[]) => boolean {
   return (args) => args.length === expected.length && args.every((a, i) => a === expected[i]);
 }
 
-/** Permits `expected` exactly, or `expected` followed by exactly the
- * given `modelFlag` and one value matching `MODEL_ID_PATTERN` —
- * nothing else (see harness-step-models design.md, "The allowlist
- * matcher admits one pair, positionally last"). */
-function exactWithOptionalModel(expected: string[], modelFlag: string): (args: string[]) => boolean {
+interface OptionalArg {
+  flag: string;
+  validate: (value: string) => boolean;
+}
+
+/** Permits `expected` exactly, or `expected` followed by any subset of
+ * `optionalArgs`' flag+value pairs, each present or absent
+ * independently but — when present — appearing in the exact order
+ * `optionalArgs` lists them, with a value passing that pair's own
+ * validator. Nothing else is permitted: an unknown flag, a flag out of
+ * order, or a flag with no value / a value its validator rejects all
+ * fail the whole match — see harness-step-effort-and-budget design.md,
+ * "The allowlist grows to a set of validated optional pairs, still
+ * closed". Generalizes harness-step-models' single-pair
+ * `exactWithOptionalModel`. */
+function exactWithOptionalArgs(expected: string[], optionalArgs: OptionalArg[]): (args: string[]) => boolean {
   return (args) => {
-    if (args.length === expected.length) return exact(expected)(args);
-    if (args.length !== expected.length + 2) return false;
-    return (
-      exact(expected)(args.slice(0, expected.length)) &&
-      args[expected.length] === modelFlag &&
-      MODEL_ID_PATTERN.test(args[expected.length + 1] ?? "")
-    );
+    if (args.length < expected.length) return false;
+    if (!exact(expected)(args.slice(0, expected.length))) return false;
+
+    let idx = expected.length;
+    for (const { flag, validate } of optionalArgs) {
+      if (idx >= args.length || args[idx] !== flag) continue;
+      if (idx + 1 >= args.length || !validate(args[idx + 1] ?? "")) return false;
+      idx += 2;
+    }
+    return idx === args.length;
   };
+}
+
+function isPositiveDecimal(value: string): boolean {
+  return /^\d+(\.\d+)?$/.test(value) && Number(value) > 0;
+}
+
+function isPositiveInteger(value: string): boolean {
+  return /^\d+$/.test(value) && Number(value) > 0;
+}
+
+function effortValidator(agentId: string): (value: string) => boolean {
+  const accepted: readonly string[] = HARNESS_AGENT_CAPABILITIES[agentId]?.effort ?? [];
+  return (value) => accepted.includes(value);
+}
+
+/** Matches `-c model_reasoning_effort="<level>"` for exactly codex's own
+ * accepted levels — task 4.3: "match the whole pair including the key
+ * ... and nothing else beginning with -c". Any other `-c key=value`
+ * (sandbox mode, approval policy, provider, ...) fails this validator
+ * and so fails the whole invocation, closing the rest of codex's
+ * configuration surface off from this allowlist. */
+function codexReasoningEffortValidator(): (value: string) => boolean {
+  const accepted: readonly string[] = HARNESS_AGENT_CAPABILITIES["codex-cli"]?.effort ?? [];
+  return (value) => accepted.some((level) => value === `model_reasoning_effort="${level}"`);
 }
 
 /** Default allowlist: permits exactly what each adapter already builds
@@ -55,13 +93,26 @@ export function buildDefaultAllowlist(): AllowlistConfig {
   return {
     "claude-cli": [{
       executable: "claude",
-      argsAllowed: exactWithOptionalModel(["-p", "--output-format", "text", "--dangerously-skip-permissions"], "--model"),
+      argsAllowed: exactWithOptionalArgs(["-p", "--output-format", "text", "--dangerously-skip-permissions"], [
+        { flag: "--model", validate: (v) => MODEL_ID_PATTERN.test(v) },
+        { flag: "--effort", validate: effortValidator("claude-cli") },
+        { flag: "--max-budget-usd", validate: isPositiveDecimal },
+      ]),
     }],
     "copilot-cli": [{
       executable: "copilot",
-      argsAllowed: exactWithOptionalModel(["-p", "--allow-all-tools"], "--model"),
+      argsAllowed: exactWithOptionalArgs(["-p", "--allow-all-tools"], [
+        { flag: "--model", validate: (v) => MODEL_ID_PATTERN.test(v) },
+        { flag: "--effort", validate: effortValidator("copilot-cli") },
+        { flag: "--max-ai-credits", validate: isPositiveInteger },
+      ]),
     }],
-    "codex-cli": [{ executable: "codex", argsAllowed: exact(["exec", "--skip-git-repo-check"]) }],
+    "codex-cli": [{
+      executable: "codex",
+      argsAllowed: exactWithOptionalArgs(["exec", "--skip-git-repo-check"], [
+        { flag: "-c", validate: codexReasoningEffortValidator() },
+      ]),
+    }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],
   };

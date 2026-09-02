@@ -63,6 +63,46 @@ describe("ClaudeCliAdapter", () => {
     });
   });
 
+  it("appends a trailing --effort <level> when an effort is resolved", () => {
+    const adapter = new ClaudeCliAdapter();
+    const invocation = adapter.buildInvocation({ ...command, effort: "high" });
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions", "--effort", "high"],
+    });
+  });
+
+  it("appends a trailing --max-budget-usd <amount> when a budget is resolved", () => {
+    const adapter = new ClaudeCliAdapter();
+    const invocation = adapter.buildInvocation({ ...command, budget: { maxCostUsd: 5 } });
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions", "--max-budget-usd", "5"],
+    });
+  });
+
+  it("appends model, effort, and budget together in that order", () => {
+    const adapter = new ClaudeCliAdapter();
+    const invocation = adapter.buildInvocation({
+      ...command,
+      model: "claude-haiku-4-5",
+      effort: "max",
+      budget: { maxCostUsd: 12.5 },
+    });
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: [
+        "-p", "--output-format", "text", "--dangerously-skip-permissions",
+        "--model", "claude-haiku-4-5",
+        "--effort", "max",
+        "--max-budget-usd", "12.5",
+      ],
+    });
+  });
+
   it("rejects an http invocation as a programming error", async () => {
     const adapter = new ClaudeCliAdapter();
     await expect(async () => {
