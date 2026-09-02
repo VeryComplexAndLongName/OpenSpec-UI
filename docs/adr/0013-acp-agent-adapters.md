@@ -161,6 +161,27 @@ substitute for what this decision needs.
 - `gemini-cli-acp`'s and `codex-cli-acp`'s permission-relay is assumed,
   not yet live-verified — each adapter's own tasks require live
   verification before being considered complete.
+
+  **Standing limitation, recorded 2026-09-02.** That requirement was
+  lifted, because it cannot be met where this project is developed:
+  neither `gemini-cli` nor `codex-cli` is installed on the maintainer's
+  machine, and neither is expected to be. So **no ACP-flavored adapter
+  for `gemini` or `codex` has ever been run against its real binary by
+  this project.** Both are implemented, unit-tested against a
+  spec-compliant mocked peer, allowlisted and registered; what is
+  untested is whether `gemini --experimental-acp` and `codex-acp` behave
+  as their documentation says.
+
+  This is stated here rather than left as an open checkbox because a gate
+  nobody can pass is not a gate — it is a change that can never close,
+  and an unverified claim that looks like pending work rather than a known
+  limit. The first user who has either binary is where that verification
+  will come from, and until then the honest description of these two
+  adapters is "written to the documented interface, never met it".
+
+  What *is* verified, and carries over to them: the shared driver they
+  both use, exercised against a spec-compliant peer, and — for `copilot`,
+  the one native ACP flag available here — a real end-to-end run.
 - `copilot-cli-acp` receives the full prompt over stdio, so
   `copilot.ts`'s `MAX_ARGV_PROMPT_LENGTH` truncation and its fallback
   prompt do not apply to it. The raw-text `copilot-cli` adapter keeps

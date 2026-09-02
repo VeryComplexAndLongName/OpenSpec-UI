@@ -187,7 +187,16 @@ message-bridge currently special-case (both already serialize/deserialize
 
 ## Risks / Trade-offs
 
-- **[Risk]** `gemini --experimental-acp` and `codex-acp`'s permission-relay
+- **[Standing limitation, 2026-09-02]** The mitigation below — "tasks.md
+  requires a live-verification task per adapter" — was lifted for
+  `gemini-cli-acp` and `codex-cli-acp`: neither `gemini-cli` nor
+  `codex-cli` is installed where this project is developed, and neither
+  is expected to be. **No ACP-flavored adapter for those two has ever
+  been run against its real binary by this project.** Both are
+  implemented, unit-tested against a spec-compliant mocked peer,
+  allowlisted and registered; whether the real binaries behave as
+  documented is untested and now recorded as a known limit rather than
+  pending work. See `docs/adr/0013-acp-agent-adapters.md`'s Consequences.- **[Risk]** `gemini --experimental-acp` and `codex-acp`'s permission-relay
   are assumed, not live-verified on this machine (only `copilot`'s native
   `--acp` flag and `claude`'s lack of one were confirmed live this
   session). → **Mitigation**: tasks.md requires a live-verification task per

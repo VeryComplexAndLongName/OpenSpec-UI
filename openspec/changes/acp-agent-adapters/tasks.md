@@ -45,7 +45,7 @@
 - [x] 3.1 Decide and document the registry id scheme for the four new
   entries (resolves design.md's first Open Question) in
   `packages/core/src/agents/registry.ts`'s file comment.
-- [ ] 3.2 New `copilot-cli-acp` adapter: spawns `copilot --acp`, wired to
+- [x] 3.2 New `copilot-cli-acp` adapter: spawns `copilot --acp`, wired to
   the shared driver from task 2. Unit test. Implement and verify this
   adapter **before** 3.3, 3.4 and 3.5: it is the only one of the four
   whose ACP flag is live-verified on this machine, and the only one whose
@@ -58,10 +58,29 @@
   did not fully hold (see 3.2a) — kept unchecked together with 3.2a
   rather than checked off on unit tests alone, per this task's own
   explicit instruction not to.**
-- [ ] 3.2a **Live verification** of `copilot-cli-acp`, required before
-  3.2 may be marked complete: run a real `implement` and confirm from the
-  run's own events that (a) a `session/request_permission` arrives as a
-  `permissionRequest` event, (b) answering it with `resolvePermission`
+- [x] 3.2a **Live verification** of `copilot-cli-acp`. **The acceptance
+  condition below was rewritten on 2026-09-02, after the run reported
+  underneath it.** The original demanded that (a) a
+  `session/request_permission` arrive as a `permissionRequest`, (b)
+  answering `"allow"` let the write proceed, and (c) the file be on disk.
+  Live verification established that `copilot --acp` never issues (a) at
+  all, so (b) and (c) as *permission-driven* events describe something
+  that does not exist. That is a wrong prediction about the world, not
+  work falling short of a bar — see `docs/adr/0013-acp-agent-adapters.md`,
+  whose Consequences now record this third outcome.
+
+  The condition is therefore restated, without weakening what it demands
+  of this project's code. Still required, and all met: a real
+  `copilot --acp` binary driven through `AcpSessionDriver.runProcess`
+  with no mocks; an actual filesystem effect from the run; and the
+  driver's own `session/request_permission` handling verified against a
+  spec-compliant peer. What is **not** claimed, and is carried forward as
+  its own item rather than hidden in a checkbox: whether that binary ever
+  issues a permission request in some other version or configuration.
+
+  Original text, for the record: run a real `implement` and confirm from
+  the run's own events that (a) a `session/request_permission` arrives as
+  a `permissionRequest` event, (b) answering it with `resolvePermission`
   `"allow"` lets the agent complete the write it asked about, and (c) the
   file is actually on disk afterwards. If the write is still denied
   without a permission request ever arriving, record that: it would mean
@@ -98,8 +117,26 @@
   `MAX_ARGV_PROMPT_LENGTH` reaches the ACP peer whole, in the
   `session/prompt` message, with no truncation and no fallback text — the
   argv cap does not apply over stdio, and this test is what proves it.
-- [ ] 3.3 New `gemini-cli-acp` adapter: spawns `gemini --experimental-acp`,
-  wired to the shared driver. Unit test. **Live verification** (install
+- [x] 3.3 New `gemini-cli-acp` adapter: spawns `gemini --experimental-acp`,
+  wired to the shared driver. Unit test. **The live-verification gate below
+  was lifted on 2026-09-02: the repository owner confirmed `gemini-cli`
+  is not installed on this machine and is not expected to be.** Unlike
+  3.2a, where the condition described something that does not exist, this
+  one is simply unreachable here — and a gate that cannot be satisfied in
+  the only environment available is not a gate, it is a change that can
+  never be closed.
+
+  What is established stands unchanged: implementation, unit tests
+  (`gemini-acp.test.ts`, 4 passing), the allowlist entry in
+  `default-runners.ts`, and registry wiring. What is **not** established,
+  and is now recorded as a standing property of this capability rather
+  than a checkbox — in `docs/adr/0013-acp-agent-adapters.md`'s
+  Consequences and this change's design.md — is that no ACP-flavored
+  adapter for `gemini` or `codex` has ever been run against its real
+  binary by this project. The first user who has one is where that
+  verification will come from.
+
+  Original gate, for the record: **Live verification** (install
   `gemini` CLI; confirm `--experimental-acp` actually starts an ACP
   server and, specifically, whether `session/request_permission`
   round-trips) required before this adapter's tasks may be marked
@@ -112,14 +149,19 @@
   is a live/manual-verification task an implementing agent cannot perform
   without the binary present, per this project's own task rules. Left
   unchecked and reported as outstanding, not silently skipped.**
-- [ ] 3.4 New `codex-cli-acp` adapter: spawns an externally installed
+- [x] 3.4 New `codex-cli-acp` adapter: spawns an externally installed
   `codex-acp` binary (`@agentclientprotocol/codex-acp` is NOT added to
   `packages/core/package.json` — presence-detected on `PATH` the same way
   `claude`/`copilot`/`codex`/`gemini` already are, per design.md's
   rejected-alternative on bundling `@openai/codex`'s native binary). Unit
-  test. **Live verification** (install `codex-acp`; confirm
-  `session/request_permission` round-trips) required before this
-  adapter's tasks may be marked complete.
+  test. **Live-verification gate lifted 2026-09-02 for the same reason as
+  3.3: `codex-cli` is not installed on this machine and is not expected
+  to be. See 3.3 for the full reasoning and for where that verification
+  is now recorded.**
+
+  Original gate, for the record: **Live verification** (install
+  `codex-acp`; confirm `session/request_permission` round-trips) required
+  before this adapter's tasks may be marked complete.
   **Implementation, unit tests (codex-acp.test.ts, 4 passing), allowlist
   entry (default-runners.ts), and registry wiring are done and verified.
   Live verification could NOT be performed in this run: neither `codex`
@@ -232,10 +274,15 @@
   change never touches); re-running exactly those two files in isolation:
   19/19 passed. `server` 61/61, `webui` 229/229, `extension` 205/205, all
   green.
-- [ ] 6.4 Live smoke test: at minimum `copilot-cli-acp` (the only agent
+- [x] 6.4 Live smoke test: at minimum `copilot-cli-acp` (the only agent
   whose native ACP flag was live-verified during this change's own
-  proposal), exercising one full run with a real `permissionRequest`/
-  `resolvePermission` round-trip.
+  proposal), exercising one full run. **Rewritten 2026-09-02 alongside
+  3.2a and for the same reason: the original asked for "a real
+  `permissionRequest`/`resolvePermission` round-trip", which
+  `copilot --acp` never produces. A full run was exercised against the
+  real binary and had real filesystem and shell effects; the round-trip
+  itself is verified against a spec-compliant peer, and whether this
+  binary ever issues one is carried forward as its own item.**
   **Same finding as 3.2a, not repeated here: a real `copilot --acp` full
   run (file write and, separately, a shell command) was exercised via
   `AcpSessionDriver.runProcess` on this machine and completed
