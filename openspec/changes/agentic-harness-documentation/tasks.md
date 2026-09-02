@@ -63,6 +63,78 @@ finding the third.
   table. Until then the document states the current behavior and links
   the change.
 
+## 2A. Where a chain starts, and what a user can steer
+
+- [ ] 2A.1 `HARNESS.md`: a chain does not always start at `propose`.
+  `determineStartStage` (`harness-chain-runner.ts`) reads the change's own
+  artifacts and task counts and enters at the first stage that has work:
+  `propose` while proposal, design or tasks are unfinished; then `apply`
+  while any task is unchecked; then `verify`. Describe this as resuming,
+  because that is what a user sees when they run a chain twice.
+- [ ] 2A.2 Same file: when progress cannot be determined the chain enters
+  at `apply`, deliberately — a redundant `apply` costs one run, a wrong
+  `archive` costs an unimplemented change. Say why, not just what: the
+  rule is a safety choice and reads as arbitrary without it.
+- [ ] 2A.3 Same file: **a chain runs forward only.** There is no control
+  that steps a running chain back to an earlier stage. Going back means
+  running that one stage on its own — the panel's per-stage commands
+  (`plan`, `review`, `implement`, `verify`) go through `RunController`,
+  not through the chain, and each is independent of any chain. That is
+  the answer to "can I move up and down inside a change", and it must be
+  stated as the two separate mechanisms it actually is, not implied.
+- [ ] 2A.4 Same file: what a checkpoint offers. Under `semi-autonomous` a
+  chain pauses between stages and waits for confirmation, and cancelling
+  there ends the chain without starting the next stage. Confirm, cancel;
+  there is no "redo the previous stage" answer at a checkpoint.
+- [ ] 2A.5 Same file: **only one mutating run at a time, for the whole
+  workspace.** `WorkbenchProcessScheduler` holds a single `mutationLocked`
+  flag and a queue, so starting an implementation for a second change
+  while one is running enqueues it rather than running both — and ADR
+  0010's cross-host lease extends the same rule to a second editor or a
+  second host on the same workspace. A reader will otherwise assume they
+  can run two changes at once, which is the natural assumption and the
+  wrong one.
+- [ ] 2A.6 Same file: what *is* concurrent — a non-mutating run (status,
+  list, show, validate) is not blocked by a mutating one. Name the
+  distinction, since it is the difference between "the UI is stuck" and
+  "the queue is doing its job".
+
+## 2B. The `git` stage
+
+- [ ] 2B.1 `HARNESS.md`: a section on the `git` stage — what it does
+  (push the change's branch, open a pull request, merge it), and that it
+  is the last stage, after `archive`.
+- [ ] 2B.2 Same section: it runs **only** when the resolved
+  `reviewGate.mode` is `"agent-sufficient"`, which only a per-change
+  `harness.json` may set. Under the default `"human-required"` a chain
+  ends cleanly after `archive` and nothing is pushed. State this first,
+  before the configuration: a reader must not have to work out that the
+  default is safe.
+- [ ] 2B.3 Same section: the per-change `gitStageAllowlist`
+  (`remotes`, `branches`, simple `*` wildcards), that a global file may
+  not set it, and that an action matching nothing is blocked before any
+  `git` or `gh` process starts. Give a worked example that would actually
+  load.
+- [ ] 2B.4 Same section: **the merge waits for the pull request's checks
+  and refuses one whose checks have not passed.** Not configurable — no
+  setting and no allowlist entry permits merging past a red check — and
+  an absent result, or checks that all skipped, is a refusal rather than
+  permission. On refusal the pushed branch and the open pull request
+  remain, so the work survives for a person to pick up. This is ADR 0014;
+  cite it.
+- [ ] 2B.5 Same section: the prerequisites — `gh` on `PATH` and already
+  authenticated (`gh auth login`). This project never handles credentials
+  itself, which is why the tool's own session is what authorises the
+  push.
+- [ ] 2B.6 Same section: every push, pull-request creation and merge is
+  written to the audit log, blocked attempts included. Say where the log
+  is, so the sentence is actionable.
+- [ ] 2B.7 Same section: state plainly that **no one has run this stage
+  end to end yet** — `agentic-harness-git-stage` task 4.4 is open, and
+  three of the four defects found in review sat precisely behind it. A
+  user deciding whether to let an agent merge their code is entitled to
+  know that before they decide, not after.
+
 ## 3. Screenshots
 
 - [ ] 3.1 New Playwright spec under `packages/server/e2e/` whose product
@@ -151,3 +223,8 @@ finding the third.
   read `HARNESS.md` beside the running settings surface in both hosts and
   confirm each described control exists where the document says it does.
   Nothing automated can compare a sentence to a screen.
+- [ ] 6.8 Section 2B describes a stage nothing here has run. Every
+  sentence in it must be traceable to `harness-chain-runner.ts`'s
+  `runGitStage`, `gh-pr-gateway.ts`, or ADR 0014 — not to how such a
+  stage would reasonably behave. Task 2B.7 says as much to the reader;
+  this task says it to whoever writes the section.

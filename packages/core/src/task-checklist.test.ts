@@ -218,3 +218,41 @@ describe("getArchivedChangeSummary", () => {
     });
   });
 });
+
+// tasks.md 6.3: none of this repository's own real tasks.md files use the
+// new `` `check(...)` `` syntax, so every one of them must still parse
+// with the exact same items an independent, syntax-agnostic count of
+// `- [ ]`/`- [x]` lines produces — this is what would break if the
+// parser's understanding of an ordinary task line shifted even slightly
+// (task 2.2's "every existing tasks.md ... must parse identically").
+describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.md (task 6.3)", () => {
+  it("parses every real tasks.md without throwing, with counts matching an independent line count", async () => {
+    const repoRoot = path.resolve(__dirname, "..", "..", "..");
+    const changesRoot = path.join(repoRoot, "openspec", "changes");
+    const entries = await import("node:fs/promises").then((fs) => fs.readdir(changesRoot, { withFileTypes: true }));
+    const changeDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    expect(changeDirs.length).toBeGreaterThan(0);
+
+    for (const changeName of changeDirs) {
+      const tasksPath = path.join(changesRoot, changeName, "tasks.md");
+      let raw: string;
+      try {
+        raw = await readFile(tasksPath, "utf8");
+      } catch {
+        continue; // no tasks.md for this change — nothing to compare
+      }
+      // Independent of TASK_CHECKBOX_LINE_RE: a plain count of checkbox
+      // lines by eye, the same shape a human reviewer would count.
+      const expectedCount = raw.split(/\r?\n/).filter((line) => /^[ \t]*-\s\[[ xX]\]/.test(line)).length;
+
+      const items = await readTaskChecklist(repoRoot, changeName, false);
+      expect(items.length).toBe(expectedCount);
+      // None of these files' actual task lines declare a check today —
+      // prose describing the syntax (as this very change's own tasks.md
+      // does, e.g. "may carry a `check(...)` declaration") is not the
+      // same as a task line ending in one, so this asserts on the parsed
+      // result, not a raw-text search that would also match that prose.
+      expect(items.every((item) => item.check === undefined)).toBe(true);
+    }
+  });
+});

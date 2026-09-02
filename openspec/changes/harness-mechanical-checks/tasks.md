@@ -111,18 +111,18 @@ failure is the old one.
 - [x] 6.1 `openspec change validate --strict harness-mechanical-checks`.
 - [x] 6.2 `npm run typecheck`, `npm run lint` and `npm run test` — green
   across all four workspaces.
-- [ ] 6.3 Every existing `tasks.md` under `openspec/changes/` still
+- [x] 6.3 Every existing `tasks.md` under `openspec/changes/` still
   parses, with the same task counts as before. Assert this over the real
   directory, not a fixture: the parser change is the one thing here that
   could silently alter every change in the repository.
 
-  Not done, and still worth doing. `task-checklist.test.ts` gained five
-  tests for the new syntax, all over fixtures; none reads the real
-  `openspec/changes/` tree. The parser is the one change here whose blast
-  radius is every change in the repository, and a fixture cannot show
-  that. This is the same shape as `harness-config-strictness` task 6.4,
-  which passed for days while resolving a path one level above the
-  repository and asserting the defaults it therefore got back.
+  Done: `task-checklist.test.ts` now has a dedicated describe block
+  ("...over this repository's own openspec/changes/*/tasks.md (task
+  6.3)") that reads `openspec/changes/*/tasks.md` from disk directly (no
+  fixture), asserts none of them already use the new `` `check(...)` ``
+  syntax, and compares `readTaskChecklist`'s item count against an
+  independent line-count of `- [ ]`/`- [x]` lines for every one. Passes
+  today (17/17 in that file).
 - [x] 6.4 `git diff packages/core/src/agents/` is **empty**. This change
   touches how tasks are checked, not how agents are run.
 - [x] 6.5 Version bump via `npx changeset` (`@openspec-ui/core` minor,
