@@ -41,6 +41,10 @@
         "title": "OpenSpec UI: Generate Agent Instructions (CLAUDE.md / AGENTS.md)"
       },
       {
+        "command": "openspec-ui.setUpAgenticHarness",
+        "title": "OpenSpec UI: Set Up Agentic Harness"
+      },
+      {
         "command": "openspec-ui.configureDependabot",
         "title": "OpenSpec UI: Configure Dependabot"
       },

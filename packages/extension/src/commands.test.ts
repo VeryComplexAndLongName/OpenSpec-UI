@@ -32,6 +32,8 @@ const writeGlobalHarnessConfigMock = vi.fn();
 const writeChangeHarnessConfigMock = vi.fn();
 const resolveHarnessConfigMock = vi.fn();
 const resolveRunWithHarnessTargetMock = vi.fn();
+const detectAvailableAgentsDetailedMock = vi.fn();
+const readGlobalHarnessConfigMock = vi.fn();
 class TemplateAlreadyExistsError extends Error {}
 class UnknownProjectTemplateError extends Error {}
 class TaskListChangedError extends Error {}
@@ -62,6 +64,7 @@ vi.mock("@openspec-ui/core", () => ({
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
   deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
   deleteTaskLine: (...args: unknown[]) => deleteTaskLineMock(...args),
+  detectAvailableAgentsDetailed: (...args: unknown[]) => detectAvailableAgentsDetailedMock(...args),
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
   getChangeTimeline: (...args: unknown[]) => getChangeTimelineMock(...args),
   getChangeTimelines: (...args: unknown[]) => getChangeTimelinesMock(...args),
@@ -72,7 +75,12 @@ vi.mock("@openspec-ui/core", () => ({
   ],
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
+  normalizeStepAgent: (entry: unknown) =>
+    typeof entry === "string"
+      ? { agent: entry, dispatch: "cli" }
+      : { dispatch: "cli", ...(entry as Record<string, unknown>) },
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
+  readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   resolveHarnessConfig: (...args: unknown[]) => resolveHarnessConfigMock(...args),
@@ -83,6 +91,7 @@ vi.mock("@openspec-ui/core", () => ({
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   unarchiveChange: (...args: unknown[]) => unarchiveChangeMock(...args),
+  VERIFIED_CLAUDE_CLI_VERSION: "2.1.237",
   writeAgentInstructions: (...args: unknown[]) => writeAgentInstructionsMock(...args),
   writeChangeHarnessConfig: (...args: unknown[]) => writeChangeHarnessConfigMock(...args),
   writeDependabotConfig: (...args: unknown[]) => writeDependabotConfigMock(...args),
@@ -1122,6 +1131,237 @@ describe("registerCommands", () => {
       );
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
       expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openspec-ui.initialize", () => {
+    it("suggests Set Up Agentic Harness when no global harness config exists yet, and the action invokes it", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(["claude"]);
+      initOpenSpecMock.mockResolvedValue(undefined);
+      vscodeMock.window.showInformationMessage
+        .mockResolvedValueOnce(undefined) // "workspace initialized." has no action to click
+        .mockResolvedValueOnce("Set Up Agentic Harness");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.initialize")?.();
+
+      await vi.waitFor(() => {
+        expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+          "OpenSpec UI: set up the Agentic Harness for this workspace now?",
+          "Set Up Agentic Harness",
+        );
+      });
+      await vi.waitFor(() => {
+        expect(vscodeMock.commands.executeCommand).toHaveBeenCalledWith("openspec-ui.setUpAgenticHarness");
+      });
+    });
+
+    it("does not suggest Set Up Agentic Harness when a global harness config already exists", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(["claude"]);
+      initOpenSpecMock.mockResolvedValue(undefined);
+      vscodeMock.workspace.fs.stat.mockResolvedValueOnce({});
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.initialize")?.();
+
+      await vi.waitFor(() => {
+        expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith("OpenSpec UI: workspace initialized.");
+      });
+      expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalledWith(
+        "OpenSpec UI: set up the Agentic Harness for this workspace now?",
+        "Set Up Agentic Harness",
+      );
+      expect(vscodeMock.commands.executeCommand).not.toHaveBeenCalledWith("openspec-ui.setUpAgenticHarness");
+    });
+  });
+
+  describe("openspec-ui.setUpAgenticHarness", () => {
+    function baseGlobalConfig() {
+      return { stepAgents: {}, autonomyLevel: "assisted" as const, reviewGate: { mode: "human-required" as const } };
+    }
+
+    it("skips the agent/autonomy questions and goes straight to the CLAUDE.md/AGENTS.md question when nothing is detected", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce("No");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      expect(readGlobalHarnessConfigMock).not.toHaveBeenCalled();
+      expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+        expect.stringContaining("no supported CLI agent was detected"),
+      );
+      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledTimes(1);
+      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledWith(
+        ["Yes", "No"],
+        expect.objectContaining({ title: "Generate CLAUDE.md / AGENTS.md now?" }),
+      );
+    });
+
+    it("writes each answered question immediately, not accumulated until the end", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+        "claude-cli": { detected: true, version: "2.1.237" },
+        "copilot-cli": { detected: true },
+      });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" }) // control
+        .mockResolvedValueOnce({ label: "GitHub Copilot CLI", id: "copilot-cli" }) // apply
+        .mockResolvedValueOnce({ label: "semi-autonomous" }) // autonomy
+        .mockResolvedValueOnce("No"); // generate instructions
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(3);
+      expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(1, "/workspace/repo", {
+        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      });
+      expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(2, "/workspace/repo", {
+        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      });
+      expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(3, "/workspace/repo", {
+        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        autonomyLevel: "semi-autonomous",
+        reviewGate: { mode: "human-required" },
+      });
+    });
+
+    it("cancelling after the control-agent question leaves that answer persisted and asks nothing further", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+        "claude-cli": { detected: true },
+        "copilot-cli": { detected: true },
+      });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" }) // control
+        .mockResolvedValueOnce(undefined); // apply — cancelled
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(1);
+      expect(writeGlobalHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", {
+        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      });
+      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledTimes(2);
+    });
+
+    it("never offers autonomous in the autonomy-level QuickPick", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({ "claude-cli": { detected: true } });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" }) // control
+        .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" }) // apply
+        .mockResolvedValueOnce(undefined); // cancel at autonomy
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      const autonomyItems = vscodeMock.window.showQuickPick.mock.calls[2]?.[0] as Array<{ label: string }>;
+      expect(autonomyItems).toBeDefined();
+      expect(autonomyItems.map((item) => item.label)).toEqual(["assisted", "semi-autonomous"]);
+    });
+
+    it("does not ask to generate CLAUDE.md/AGENTS.md when both already exist", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
+      vscodeMock.workspace.fs.stat.mockResolvedValueOnce({}).mockResolvedValueOnce({});
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+      expect(writeAgentInstructionsMock).not.toHaveBeenCalled();
+    });
+
+    it("writes agent instructions when the user opts in and picks a project type", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Yes")
+        .mockResolvedValueOnce({ label: "Node.js / TypeScript", id: "node" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      expect(writeAgentInstructionsMock).toHaveBeenCalledWith("/workspace/repo", "node");
+    });
+
+    describe("claude-cli version-compatibility warning", () => {
+      it("shows no warning when the installed version matches the tested version", async () => {
+        detectAvailableAgentsDetailedMock.mockResolvedValueOnce({ "claude-cli": { detected: true, version: "2.1.237" } });
+        readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+        vscodeMock.window.showQuickPick
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "assisted" })
+          .mockResolvedValueOnce("No");
+        registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+        await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+        expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      });
+
+      it("shows a dismissible warning naming both versions, without blocking, on a mismatch", async () => {
+        detectAvailableAgentsDetailedMock.mockResolvedValueOnce({ "claude-cli": { detected: true, version: "2.0.0" } });
+        readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+        vscodeMock.window.showQuickPick
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "assisted" })
+          .mockResolvedValueOnce("No");
+        registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+        await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+        expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledTimes(1);
+        const [message] = vscodeMock.window.showWarningMessage.mock.calls[0] as [string, string];
+        expect(message).toContain("2.0.0");
+        expect(message).toContain("2.1.237");
+        expect(message).toContain("docs/adr/0013-acp-agent-adapters.md");
+        // Does not block: the flow still reaches the generate-instructions question.
+        expect(vscodeMock.window.showQuickPick).toHaveBeenCalledTimes(4);
+      });
+
+      it("skips the check silently when no version was captured (spawn or parse failure)", async () => {
+        detectAvailableAgentsDetailedMock.mockResolvedValueOnce({ "claude-cli": { detected: true } });
+        readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+        vscodeMock.window.showQuickPick
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "Claude CLI", id: "claude-cli" })
+          .mockResolvedValueOnce({ label: "assisted" })
+          .mockResolvedValueOnce("No");
+        registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+        await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+        expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      });
+
+      it("never runs when claude-cli was not chosen for either role", async () => {
+        detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+          "claude-cli": { detected: true, version: "9.9.9" },
+          "copilot-cli": { detected: true },
+        });
+        readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+        vscodeMock.window.showQuickPick
+          .mockResolvedValueOnce({ label: "GitHub Copilot CLI", id: "copilot-cli" })
+          .mockResolvedValueOnce({ label: "GitHub Copilot CLI", id: "copilot-cli" })
+          .mockResolvedValueOnce({ label: "assisted" })
+          .mockResolvedValueOnce("No");
+        registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+        await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+        expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      });
     });
   });
 
