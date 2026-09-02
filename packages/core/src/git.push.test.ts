@@ -2,9 +2,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import simpleGit from "simple-git";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { createGitWrapper } from "./git.js";
 
+// No raised timeout here, deliberately. This file takes ~2.6 s alone and
+// hangs past 20 s beside another worker on Windows, so the cause is
+// contention between vitest's parallel workers over real git subprocesses
+// and temp directories, not duration — and a ceiling would only change
+// which number the failure reports. Tracked as
+// core-test-worker-contention.
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(prefix: string): Promise<string> {
@@ -13,7 +19,11 @@ async function temporaryRoot(prefix: string): Promise<string> {
   return root;
 }
 
-afterEach(async () => {
+// afterAll, not afterEach: the git processes holding these directories
+// have exited by then, which is what stops the `EBUSY: resource busy or
+// locked, rmdir` failures — the same fix git-fixture-test-cost applied to
+// change-timeline.test.ts and sprint-report.test.ts.
+afterAll(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 

@@ -118,6 +118,11 @@ const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(
 );
 const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
 const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
+/** The only keys `assertValidHarnessConfigInput` accepts at the top level
+ * of a harness configuration file — the single place that set is written
+ * (task 1.2), so a key added to `HarnessConfig` without being added here
+ * is refused on every file that uses it rather than silently ignored. */
+const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "gitStageAllowlist"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -490,6 +495,25 @@ function assertValidGitStageAllowlist(
   }
 }
 
+/** A top-level key the schema does not define is refused, naming the key
+ * and the accepted set — see proposal.md, the `harness-stage-dispatch`
+ * file whose `apply` sat at the top level and was silently never read.
+ * Runs before the per-key checks below (task 1.4) so a file with both
+ * problems reports the unknown key, not a confusing message about a key
+ * its author did not mean to write. */
+function assertNoUnknownTopLevelKeys(value: Record<string, unknown>): void {
+  const unknownKey = Object.keys(value).find((key) => !(TOP_LEVEL_CONFIG_KEYS as readonly string[]).includes(key));
+  if (unknownKey === undefined) return;
+
+  // Deliberately does not rewrite the key — see design.md, "No migration,
+  // and no guessing". The hint names a possibility, phrased as a
+  // question, never an assertion (task 1.6).
+  const hint = STAGES.includes(unknownKey as HarnessStage) ? ` Did you mean "stepAgents.${unknownKey}"?` : "";
+  throw new InvalidHarnessConfigError(
+    `unrecognized top-level key "${unknownKey}" (accepted keys: ${formatAcceptedKeys(TOP_LEVEL_CONFIG_KEYS)}).${hint}`,
+  );
+}
+
 /** Validates a raw parsed JSON value as a partial `HarnessConfig`.
  * `isPerChangeFile` is `false` for the global file, `true` for a
  * per-change file — gates every field that a global file may not set
@@ -502,6 +526,7 @@ function assertValidHarnessConfigInput(
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("root value must be an object");
   }
+  assertNoUnknownTopLevelKeys(value as Record<string, unknown>);
   const input = value as Partial<HarnessConfig>;
   assertValidAutonomyLevel(input.autonomyLevel, isPerChangeFile);
   assertValidStepAgents(input.stepAgents, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);

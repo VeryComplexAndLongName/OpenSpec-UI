@@ -171,6 +171,17 @@ enough, the same as using it from a terminal. See the root repository
 `README.md`'s "Agent Selection" section for the full picture, including
 how this differs from the `@openspec` Chat Participant above.
 
+## Agentic Harness
+
+**OpenSpec UI: Configure Harness Settings** and **OpenSpec UI: Configure
+Harness for this Change** set the per-stage agent, autonomy level, and
+review gate the commands above (and a chain run) use by default;
+**OpenSpec UI: Run with Agentic Harness** starts a single-stage run or a
+chain depending on the resolved autonomy level. See the root repository's
+[`HARNESS.md`](../../HARNESS.md) for every setting these commands can and
+cannot reach, and [`LIMITS.md`](../../LIMITS.md) for what actually caps a
+run's spending.
+
 ## Settings
 
 - `openspec-ui.transport.localServer.enabled`: use the optional standalone

@@ -110,7 +110,18 @@ export interface HarnessAgentCapabilities {
  * `model_reasoning_effort` config values, not verified live here — see
  * tasks.md 6.7, outstanding. `gemini-cli` and `local-llm` have no
  * mechanism for either setting and are deliberately left with empty
- * capabilities so any configured value is refused. */
+ * capabilities so any configured value is refused.
+ *
+ * `copilot-cli-acp`/`claude-cli-acp` are derived from their plain
+ * counterparts: each ACP adapter spawns the same binary with the same
+ * `--effort`/`--max-ai-credits`/`--max-budget-usd` flags (see
+ * agents/copilot-acp.ts and agents/claude-acp.ts) and is permitted the
+ * same way in default-runners.ts, so the capability set cannot honestly
+ * differ. `codex-cli-acp`/`gemini-cli-acp` get an explicit empty entry —
+ * their adapters deliberately render neither flag (see agents/codex-
+ * acp.ts and agents/gemini-acp.ts's own header comments) — an absent row
+ * is what let the plain/ACP tables drift apart before this change (see
+ * acp-agent-capabilities proposal.md). */
 export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCapabilities>> = {
   "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
   "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
@@ -118,6 +129,10 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   "gemini-cli": {},
   "local-llm": {},
   [VSCODE_CHAT_STEP_AGENT_ID]: {},
+  "copilot-cli-acp": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
+  "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
+  "codex-cli-acp": {},
+  "gemini-cli-acp": {},
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,

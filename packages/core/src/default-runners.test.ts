@@ -149,6 +149,19 @@ describe("buildDefaultAllowlist", () => {
       expect(checkAllowlist("codex-cli", invocation, allowlist).allowed).toBe(true);
     });
 
+    it("allows copilot-cli-acp invoked with --effort and --max-ai-credits via the real ACP adapter (acp-agent-capabilities)", () => {
+      const allowlist = buildDefaultAllowlist();
+      const invocation = new CopilotCliAcpAdapter().buildInvocation({ ...command, effort: "high", budget: { maxAiCredits: 100 } });
+      expect(invocation.kind === "process" && invocation.args).toEqual(["--acp", "--effort", "high", "--max-ai-credits", "100"]);
+      expect(checkAllowlist("copilot-cli-acp", invocation, allowlist).allowed).toBe(true);
+    });
+
+    it("allows claude-cli-acp invoked with --effort and --max-budget-usd via the real ACP adapter (acp-agent-capabilities)", () => {
+      const allowlist = buildDefaultAllowlist();
+      const invocation = new ClaudeCliAcpAdapter().buildInvocation({ ...command, effort: "high", budget: { maxCostUsd: 5 } });
+      expect(checkAllowlist("claude-cli-acp", invocation, allowlist).allowed).toBe(true);
+    });
+
     it("rejects an unknown trailing flag after the expected prefix", () => {
       const allowlist = buildDefaultAllowlist();
       const decision = checkAllowlist(

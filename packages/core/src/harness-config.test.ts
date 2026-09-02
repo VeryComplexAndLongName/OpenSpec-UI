@@ -1,14 +1,16 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AGENT_REGISTRY } from "./agents/registry.js";
 import {
   DEFAULT_HARNESS_CONFIG,
   GlobalAgentSufficientReviewGateError,
   GlobalAutonomousAutonomyLevelError,
   GlobalCheckpointsDisabledError,
   GlobalGitAllowlistError,
+  HARNESS_AGENT_CAPABILITIES,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
   normalizeStepAgent,
@@ -728,5 +730,237 @@ describe("stepAgents effort and budget (harness-step-effort-and-budget)", () => 
     await expect(
       writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "claude-cli", budget: {} } } }),
     ).rejects.toThrow(InvalidHarnessConfigError);
+  });
+});
+
+describe("ACP adapter capabilities match their plain counterparts (acp-agent-capabilities)", () => {
+  it("resolves an effort on copilot-cli-acp, the same value copilot-cli accepts", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "copilot-cli-acp", effort: "high" } },
+    });
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
+      agent: "copilot-cli-acp",
+      effort: "high",
+    });
+  });
+
+  it("resolves a maxAiCredits budget on copilot-cli-acp, the same field copilot-cli accepts", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      stepAgents: { apply: { agent: "copilot-cli-acp", budget: { maxAiCredits: 100 } } },
+    });
+    const config = await readGlobalHarnessConfig(root);
+    expect(normalizeStepAgent(config.stepAgents.apply!).budget).toEqual({ maxAiCredits: 100 });
+  });
+
+  it("every id in AGENT_REGISTRY has a row in HARNESS_AGENT_CAPABILITIES", () => {
+    for (const { id } of AGENT_REGISTRY) {
+      expect(HARNESS_AGENT_CAPABILITIES).toHaveProperty(id);
+    }
+  });
+
+  it("rejects maxCostUsd set for copilot-cli-acp, which only accepts maxAiCredits, same as copilot-cli", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "copilot-cli-acp", budget: { maxCostUsd: 5 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*maxCostUsd.*"copilot-cli-acp"/);
+  });
+
+  it("rejects maxAiCredits set for claude-cli-acp, which only accepts maxCostUsd, same as claude-cli", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "claude-cli-acp", budget: { maxAiCredits: 100 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*maxAiCredits.*"claude-cli-acp"/);
+  });
+
+  it("rejects a copilot-cli-acp maxAiCredits below the CLI's own 30-credit minimum, same as copilot-cli", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "copilot-cli-acp", budget: { maxAiCredits: 29 } } },
+      }),
+    ).rejects.toThrow(/at least 30/);
+  });
+
+  it("rejects effort set for codex-cli-acp, which has no command-line effort mechanism", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "codex-cli-acp", effort: "low" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"codex-cli-acp".*reasoning-effort/);
+  });
+
+  it("rejects a budget set for codex-cli-acp, which has no spending-cap mechanism", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "codex-cli-acp", budget: { maxCostUsd: 5 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*"codex-cli-acp"/);
+  });
+
+  it("rejects effort set for gemini-cli-acp, which has no command-line effort mechanism", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "gemini-cli-acp", effort: "low" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"gemini-cli-acp".*reasoning-effort/);
+  });
+
+  it("rejects a budget set for gemini-cli-acp, which has no spending-cap mechanism", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeGlobalHarnessConfig(root, {
+        stepAgents: { apply: { agent: "gemini-cli-acp", budget: { maxAiCredits: 100 } } },
+      }),
+    ).rejects.toThrow(/stepAgents\.apply.*"gemini-cli-acp"/);
+  });
+});
+
+describe("top-level key validation (harness-config-top-level-keys)", () => {
+  it("rejects a global file with an unrecognized top-level key, naming the key and the accepted set", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(path.join(root, "openspec", "agent-harness.json"), JSON.stringify({ notARealKey: true }), "utf8");
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/unrecognized top-level key "notARealKey"/);
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(
+      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, gitStageAllowlist/,
+    );
+  });
+
+  it("rejects a per-change file with an unrecognized top-level key, naming the key and the accepted set", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "demo");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "harness.json"), JSON.stringify({ notARealKey: true }), "utf8");
+
+    await expect(readChangeHarnessConfig(root, "demo")).rejects.toThrow(/unrecognized top-level key "notARealKey"/);
+    await expect(readChangeHarnessConfig(root, "demo")).rejects.toThrow(
+      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, gitStageAllowlist/,
+    );
+  });
+
+  it("refuses the exact shape found in this repository's harness-stage-dispatch harness.json — a stage at the top level, no stepAgents wrapper", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "harness-stage-dispatch");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "harness.json"),
+      JSON.stringify({ apply: { agent: "claude-cli", dispatch: "vscode-chat" } }),
+      "utf8",
+    );
+
+    await expect(readChangeHarnessConfig(root, "harness-stage-dispatch")).rejects.toThrow(
+      /unrecognized top-level key "apply"/,
+    );
+    await expect(readChangeHarnessConfig(root, "harness-stage-dispatch")).rejects.toThrow(/"stepAgents\.apply"/);
+  });
+
+  it("reports the unknown top-level key, not a downstream complaint, when the rest of the file is otherwise invalid too", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { propose: "not-a-real-agent" }, bogusKey: true }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/unrecognized top-level key "bogusKey"/);
+  });
+
+  it("still migrates and warns a legacy dispatch when it sits inside a correctly-wrapped stepAgents", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } } }),
+      "utf8",
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(normalizeStepAgent(config.stepAgents.apply!).agent).toBe(VSCODE_CHAT_STEP_AGENT_ID);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("migrated to stepAgents.apply.agent"));
+    warnSpy.mockRestore();
+  });
+
+  it("still loads every harness.json under openspec/changes/ and the real openspec/agent-harness.json in this repository", async () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const workspaceRoot = path.resolve(here, "..", "..", "..");
+
+    await expect(stat(path.join(workspaceRoot, "openspec", "agent-harness.json"))).resolves.toBeDefined();
+    await expect(readGlobalHarnessConfig(workspaceRoot)).resolves.toBeDefined();
+
+    const changesRoot = path.join(workspaceRoot, "openspec", "changes");
+    const entries = await readdir(changesRoot, { recursive: true, withFileTypes: true });
+    const harnessFiles = entries.filter((entry) => entry.isFile() && entry.name === "harness.json");
+    // Confirms the scan itself found real files, not that an empty list
+    // vacuously "all loaded" — the same trap tasks.md 2.3 names.
+    expect(harnessFiles.length).toBeGreaterThan(0);
+
+    for (const entry of harnessFiles) {
+      const changeName = path.relative(changesRoot, entry.parentPath);
+      await expect(
+        readChangeHarnessConfig(workspaceRoot, changeName),
+        `${path.join(entry.parentPath, entry.name)} failed to load`,
+      ).resolves.toBeDefined();
+    }
+  });
+});
+
+// openspec/changes/agentic-harness-documentation tasks 6.2/6.3 — the
+// reference document is asserted against the real registry and the real
+// resolver, not just read by a human, so a new adapter or a broken worked
+// example is caught here rather than trusted.
+describe("HARNESS.md", () => {
+  async function readHarnessMd(): Promise<string> {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const workspaceRoot = path.resolve(here, "..", "..", "..");
+    return readFile(path.join(workspaceRoot, "HARNESS.md"), "utf8");
+  }
+
+  it("lists every AGENT_REGISTRY id, plus vscode-chat, in its agent reference table", async () => {
+    const doc = await readHarnessMd();
+    const sectionStart = doc.indexOf("## Agents, models, effort, and spending caps");
+    expect(sectionStart, "HARNESS.md's agent reference section header not found").toBeGreaterThanOrEqual(0);
+    const nextSection = doc.indexOf("\n## ", sectionStart + 1);
+    const section = doc.slice(sectionStart, nextSection === -1 ? undefined : nextSection);
+
+    const documentedIds = new Set(
+      [...section.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map((match) => match[1]),
+    );
+    // Confirms the table itself was actually found and parsed, not that
+    // an empty match set vacuously "contains everything".
+    expect(documentedIds.size).toBeGreaterThan(0);
+
+    const expectedIds = [...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID];
+    for (const id of expectedIds) {
+      expect(documentedIds.has(id), `HARNESS.md's agent table is missing "${id}"`).toBe(true);
+    }
+  });
+
+  it("loads both worked harness.json examples through resolveHarnessConfig without error", async () => {
+    const doc = await readHarnessMd();
+    const sectionStart = doc.indexOf("## Worked examples");
+    expect(sectionStart, "HARNESS.md's Worked examples section header not found").toBeGreaterThanOrEqual(0);
+    const section = doc.slice(sectionStart);
+
+    const jsonBlocks = [...section.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1]);
+    expect(jsonBlocks, "expected exactly the global and per-change worked examples").toHaveLength(2);
+
+    const globalExample = JSON.parse(jsonBlocks[0]!);
+    const changeExample = JSON.parse(jsonBlocks[1]!);
+
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, globalExample);
+    await writeChangeHarnessConfig(root, "harness-md-worked-example", changeExample);
+
+    await expect(resolveHarnessConfig(root, "harness-md-worked-example")).resolves.toBeDefined();
   });
 });
