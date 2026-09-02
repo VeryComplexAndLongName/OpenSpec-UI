@@ -2,6 +2,7 @@
 // OpenSpec mode and optional local-server toggle.
 
 import * as assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
 import type { ExtensionTestApi } from "../../extension.js";
 
@@ -83,6 +84,20 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.ok(
       events.includes("completed") || events.includes("failed"),
       `expected a terminal event, got: ${events.join(", ")}`,
+    );
+
+    // task 4.2, audit-log-persistence: `extension.ts`'s direct-import mode
+    // wires a `FileAuditLog` into `buildDefaultAgentRunners`, so the run
+    // just observed above must have landed in
+    // `.openspec-ui/audit.jsonl` under the real workspace — not just been
+    // discarded into the in-memory default (default-runners.ts's fallback
+    // for a host that supplies no `auditLog`).
+    const auditPath = vscode.Uri.joinPath(workspaceFolder.uri, ".openspec-ui", "audit.jsonl").fsPath;
+    const auditRaw = await readFile(auditPath, "utf8");
+    const auditEntries = auditRaw.trim().split("\n").map((line) => JSON.parse(line) as { outcome: string });
+    assert.ok(
+      auditEntries.some((e) => e.outcome === "started"),
+      `expected a persisted "started" audit entry, got outcomes: ${auditEntries.map((e) => e.outcome).join(", ")}`,
     );
   });
 

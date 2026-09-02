@@ -445,4 +445,96 @@ describe("FileAuditLog", () => {
     expect(raw).not.toContain("usage");
     expect(raw).not.toContain("agentVersion");
   });
+
+  it("appends one line per recorded entry", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const log = new FileAuditLog(filePath);
+
+    log.record({ runId: "r1", agent: "claude-cli", outcome: "started", cwd: "/x", timestamp: "t1" });
+    log.record({ runId: "r1", agent: "claude-cli", outcome: "completed", cwd: "/x", timestamp: "t2" });
+    log.record({ runId: "r2", agent: "claude-cli", outcome: "started", cwd: "/x", timestamp: "t3" });
+
+    await vi.waitFor(async () => {
+      const raw = await readFile(filePath, "utf8");
+      expect(raw.trim().split("\n")).toHaveLength(3);
+    });
+  });
+
+  it("drops the oldest entries and keeps the newest once the bound is exceeded, and never empties the file", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const log = new FileAuditLog(filePath, 5);
+
+    for (let i = 0; i < 8; i++) {
+      log.record({ runId: `r${i}`, agent: "claude-cli", outcome: "started", cwd: "/x", timestamp: `t${i}` });
+    }
+
+    // 8 record() calls, each queued through writeQueue as
+    // mkdir + appendFile + readFile (+ writeFile once the bound is
+    // exceeded) — that's ~28 serialized fs ops, which comfortably exceeds
+    // vitest's 1000ms default wait under a full `npm run test` run
+    // (see tasks.md 1.5: passes in isolation, flakes under full-suite load).
+    //
+    // The wait condition checks for the exact final runId sequence, not
+    // merely "5 lines": the queue passes through an *intermediate* state of
+    // exactly 5 lines (r0..r4, right before rotation first kicks in at
+    // record 6) on its way to the final rotated state (r3..r7) — a
+    // length-only check can resolve on that false positive and then read a
+    // still-mid-rotation file (e.g. 6 lines, "r2".."r7") once the loop
+    // catches up, which is what tasks.md 1.5 actually reproduced.
+    await vi.waitFor(
+      async () => {
+        const raw = await readFile(filePath, "utf8");
+        const runIds = raw.trim().split("\n").map((line) => (JSON.parse(line) as { runId: string }).runId);
+        expect(runIds).toEqual(["r3", "r4", "r5", "r6", "r7"]);
+      },
+      { timeout: 5000, interval: 25 },
+    );
+
+    const lines = (await readFile(filePath, "utf8")).trim().split("\n");
+    expect(lines.length).toBeGreaterThan(0);
+    const runIds = lines.map((line) => (JSON.parse(line) as { runId: string }).runId);
+    // The newest 5 of 8 (r0..r7) survive rotation — r3 through r7.
+    expect(runIds).toEqual(["r3", "r4", "r5", "r6", "r7"]);
+  });
+});
+
+describe("FileAuditLog.readEntries", () => {
+  it("returns no entries for a missing file, without error", async () => {
+    const root = await temporaryChangeDir();
+    const log = new FileAuditLog(path.join(root, "does-not-exist.jsonl"));
+
+    await expect(log.readEntries()).resolves.toEqual([]);
+  });
+
+  it("round-trips a well-formed file, oldest first", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const log = new FileAuditLog(filePath);
+
+    log.record({ runId: "r1", agent: "claude-cli", outcome: "started", cwd: "/x", timestamp: "t1" });
+    log.record({ runId: "r1", agent: "claude-cli", outcome: "completed", cwd: "/x", timestamp: "t2" });
+
+    await vi.waitFor(async () => {
+      expect(await log.readEntries()).toHaveLength(2);
+    });
+
+    const entries = await log.readEntries();
+    expect(entries.map((e) => e.outcome)).toEqual(["started", "completed"]);
+  });
+
+  it("skips a torn final line and returns every complete entry before it", async () => {
+    const root = await temporaryChangeDir();
+    const filePath = path.join(root, "audit.jsonl");
+    const complete = JSON.stringify({ runId: "r1", agent: "claude-cli", outcome: "started", cwd: "/x", timestamp: "t1" });
+    const torn = '{"runId":"r2","agent":"claude-cli","outcome":"star';
+    await writeFile(filePath, `${complete}\n${torn}`, "utf8");
+
+    const log = new FileAuditLog(filePath);
+    const entries = await log.readEntries();
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.runId).toBe("r1");
+  });
 });

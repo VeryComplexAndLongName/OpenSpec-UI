@@ -10,6 +10,7 @@ import { WebSocketServer } from "ws";
 import {
   getCoreVersion,
   resolveRunner,
+  FileAuditLog,
   HarnessChainRunner,
   WorkbenchRecoveryService,
   type AgentRunner,
@@ -59,6 +60,15 @@ export interface ServerOptions {
    * Keep false by default.
    */
   allowExternalCwd?: boolean;
+  /** The same `AuditLog` passed to the `runners` this server was given
+   * (see `buildDefaultAgentRunners`'s `auditLog` config) — not used to
+   * record here, only to read back persisted history for the budget check
+   * below. When it is a `FileAuditLog`, its `readEntries()` becomes this
+   * server's `HarnessChainRunner`'s `listAuditEntries`, so a spending
+   * ceiling sums a change's persisted runs, not just this process's (see
+   * openspec/changes/audit-log-persistence/design.md). Any other
+   * `AuditLog` (e.g. `InMemoryAuditLog` in tests) leaves budget
+   * enforcement off, exactly as before this option was wired. */
   auditLog?: AuditLog;
   /** Tests only: substitutes the `AgentRunner` registry instead of the
    * real CLI adapters (see server.test.ts) — not used in production. */
@@ -114,8 +124,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
   // harness-chain-runner.ts), so `websocket.ts` must reuse the same
   // instance across `"chain"`/`"confirmCheckpoint"`/`"cancel"` messages,
   // not construct a fresh one per message.
+  const fileAuditLog = options.auditLog instanceof FileAuditLog ? options.auditLog : undefined;
   const chainRunner = new HarnessChainRunner({
     resolveRunner: (agentId) => resolveRunner(runners, agentId),
+    listAuditEntries: fileAuditLog ? () => fileAuditLog.readEntries() : undefined,
   });
   const recoveryServices = new Map<string, Promise<WorkbenchRecoveryService>>();
   const resolveRecoveryService = (cwd: string): Promise<WorkbenchRecoveryService> => {

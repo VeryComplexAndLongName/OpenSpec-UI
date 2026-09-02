@@ -28,15 +28,20 @@ export class OptionalServerManager {
 
   async start(): Promise<string> {
     if (this.server && this.address) return this.launchUrl as string;
-    const [{ createServer }, { buildDefaultAgentRunners }] = await Promise.all([
+    const [{ createServer }, { FileAuditLog, auditLogPath, buildDefaultAgentRunners }] = await Promise.all([
       import("@openspec-ui/server"),
       import("@openspec-ui/core"),
     ]);
+    // Shared between the runners this local server audits and its own
+    // budget reader below — see cli.ts's identical pairing and
+    // openspec/changes/audit-log-persistence/design.md.
+    const auditLog = new FileAuditLog(auditLogPath(this.workspaceRoot));
     this.server = createServer({
       workspaceRoot: this.workspaceRoot,
       host: "127.0.0.1",
       port: 0,
-      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot }),
+      auditLog,
+      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog }),
       staticAssets: {
         indexHtmlPath: path.join(this.distDir, "standalone", "index.html"),
         appJsPath: path.join(this.distDir, "standalone", "app.js"),

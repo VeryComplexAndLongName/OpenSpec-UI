@@ -6,10 +6,12 @@
 import * as vscode from "vscode";
 import type { AgentRunner } from "@openspec-ui/core";
 import {
+  FileAuditLog,
   HarnessChainRunner,
   WorkbenchProcessScheduler,
   WorkbenchRunJournal,
   WorkspaceLeaseManager,
+  auditLogPath,
   buildDefaultAgentRunners,
   resolveRunner as resolveAgentRunner,
 } from "@openspec-ui/core";
@@ -31,6 +33,7 @@ import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
 let runners: Map<string, AgentRunner> | undefined;
+let auditLog: FileAuditLog | undefined;
 let optionalServer: OptionalServerManager | undefined;
 
 /** Exported via `vscode.extensions.getExtension(...).exports` — for
@@ -175,7 +178,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       void optionalServer.start();
     }
 
-    runners = buildDefaultAgentRunners({ workspaceRoot });
+    auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
+    runners = buildDefaultAgentRunners({ workspaceRoot, auditLog });
   } else {
     void vscode.window.showWarningMessage("OpenSpec UI: no folder open — open a workspace to use it.");
   }
@@ -188,6 +192,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // agents to bind at construction time.
   const chainRunner = new HarnessChainRunner({
     resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
+    listAuditEntries: auditLog ? () => (auditLog as FileAuditLog).readEntries() : undefined,
   });
 
   const aiPanel = new AiPanel({

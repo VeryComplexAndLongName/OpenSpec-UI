@@ -35,12 +35,16 @@ function mockCliJson(stdout: unknown): void {
   });
 }
 import {
+  FileAuditLog,
+  auditLogPath,
+  createAgentRunner,
   getCoreVersion,
   OpenSpecCliCompatibilityError,
   WorkbenchRunJournal,
   captureCheckpoint,
   finalizeCheckpoint,
   serializeCheckpoint,
+  type AgentAdapter,
   type AgentRunner,
   type Command,
   type Event,
@@ -1289,5 +1293,97 @@ describe("server — WebSocket /api/ws", () => {
     await cancelled;
 
     client.close();
+  });
+});
+
+describe("server — audit persistence (task 4.1, audit-log-persistence)", () => {
+  // This describe's tests create and close their own local server
+  // instance(s) (`firstServer`/`secondServer` below) rather than the
+  // shared `server` variable other blocks' `beforeEach` reassigns —
+  // `startServer` here keeps that shared variable pointing at a live
+  // server too, so the top-level `afterEach`'s `server?.close()` has a
+  // real, not-already-closed server to close.
+  beforeEach(async () => {
+    await startServer(new Map());
+  });
+
+  it("a run recorded through the server's runners appears in the audit file, and a second server instance over the same workspace reads it back", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const command: Command = {
+      ...implementCommand,
+      cwd: workspaceRoot,
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "x") },
+    };
+
+    // Mirrors cli.ts's real wiring: one `FileAuditLog` shared between the
+    // runner it audits and the server's `auditLog` option.
+    const firstAuditLog = new FileAuditLog(auditLogPath(workspaceRoot));
+    const fakeAdapter: AgentAdapter = {
+      name: "fake-agent",
+      buildInvocation: () => ({ kind: "process", executable: "fake", args: [] }),
+      async *execute(): AsyncIterable<Event> {
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const auditedRunner = createAgentRunner(fakeAdapter, {
+      workspaceRoot,
+      allowlist: { "fake-agent": [{ executable: "fake", argsAllowed: () => true }] },
+      auditLog: firstAuditLog,
+    });
+
+    const firstServer = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      auditLog: firstAuditLog,
+      runners: new Map([["fake-agent", auditedRunner]]),
+    });
+
+    try {
+      const address = await firstServer.listen();
+      const res = await fetch(`http://127.0.0.1:${address.port}/api/status`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify(command),
+      });
+      expect(res.status).toBe(200);
+
+      const auditPath = auditLogPath(workspaceRoot);
+      // Two entries are recorded for this run ("started", then "completed"
+      // in the finally block) — wait for both, not just the first, before
+      // closing the server and reading back from a second instance.
+      await vi.waitFor(async () => {
+        const raw = await readFile(auditPath, "utf8");
+        expect(raw.trim().split("\n").length).toBeGreaterThanOrEqual(2);
+      });
+    } finally {
+      await firstServer.close();
+    }
+
+    // A second, fresh server instance over the same workspace root — its
+    // own `FileAuditLog`, pointed at the same file — reads back what the
+    // first instance persisted, proving the entries survive past the
+    // process that wrote them rather than living only in the first
+    // instance's memory.
+    const secondAuditLog = new FileAuditLog(auditLogPath(workspaceRoot));
+    const secondServer = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      auditLog: secondAuditLog,
+      runners: new Map<string, AgentRunner>(),
+    });
+    try {
+      await secondServer.listen();
+      const entries = await secondAuditLog.readEntries();
+      expect(entries.some((e) => e.runId === command.runId && e.outcome === "started")).toBe(true);
+      expect(entries.some((e) => e.runId === command.runId && e.outcome === "completed")).toBe(true);
+    } finally {
+      await secondServer.close();
+    }
   });
 });
