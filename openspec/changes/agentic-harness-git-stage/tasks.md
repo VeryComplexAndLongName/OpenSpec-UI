@@ -165,9 +165,49 @@ the live check was not decoration.
   merge does **not** happen — per this
   project's established live-verification requirement, and given this
   change's own security-rigor rationale, not optional here.
-  Note: not executed in this session because it requires a real GitHub
-  repository plus authenticated `gh` credentials and branch/pull-request
-  side effects.
+
+  **Run 2026-09-02** against `VeryComplexAndLongName/TestRepo`, a scratch
+  repository the owner provided for this. Seeded with a workflow whose
+  single job fails when a `SHOULD_FAIL` marker file is present, so both
+  outcomes could be produced on demand. Driven through the real
+  `GitWrapper` and the real `PullRequestGateway` — real `git`, real `gh`,
+  no mocks — from a temporary test file that was deleted afterwards
+  rather than committed, since it pushes to a live repository and has no
+  place in a suite CI runs.
+
+  Passing path (PR #1): a branch **with no upstream** pushed through
+  `push("origin", branch)`; `gh pr create` opened the pull request and
+  the number was read from the URL it printed; `waitForChecks` returned
+  `{ state: "pass" }`; the merge succeeded and `gh pr view` reported
+  `MERGED`.
+
+  Refusing path (PR #2): the same sequence with the marker committed.
+  `waitForChecks` returned `{ state: "fail", reason: "check failed:
+  Verify (failure)" }`, the merge was never attempted, and `gh pr view`
+  reported `OPEN` — the pushed branch and open pull request left for a
+  person, as ADR 0014 requires. That pull request is deliberately still
+  open in the scratch repository as the evidence.
+
+  Each of the three defects review found is one this run would have
+  caught and no mocked test could: `--json` on `gh pr create` is refused
+  by the real binary, `SKIPPED` appears only in real check output, and a
+  branch with no upstream is the only place a bare `git push` fails.
+
+- [ ] 4.4a **Not covered by the run above, and still open**: the chain's
+  own wiring around the stage — `shouldRunGitStage` re-reading the
+  per-change `harness.json`, the allowlist check and the audit entry for
+  each of the three actions, and the `completed` event after the merge.
+  Reaching it live needs the `archive` stage to succeed first, which
+  needs the disposable repository to be an OpenSpec project, and that is
+  a larger setup than this task described.
+
+  Those junctions are covered by `harness-chain-runner.test.ts` with a
+  stubbed gateway — `under human-required, stops after archive and never
+  executes git actions`, `under agent-sufficient plus allowlist, runs git
+  push -> pr create -> merge`, `blocks a non-allowlisted git target
+  before any push/pr/merge call`, and the two refusal cases. That is the
+  right level for wiring, and it is not the same as having watched it.
+  Say which is which rather than letting the checkmark above imply both.
 - [x] 4.5 Run `npx changeset` for `core`, in the same PR as the code —
   this creates a changeset *proposal* file only; it does not itself bump
   `package.json`'s version (see `.changeset/README.md` — applying pending
