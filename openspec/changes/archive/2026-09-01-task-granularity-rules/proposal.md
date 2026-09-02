@@ -36,6 +36,20 @@ usable resume point when a run dies part-way. The opposite failure —
 marking a task before doing it — is exactly what `changeset-version-
 automation` 1.3 did, so the rule has to state both halves.
 
+A sixth rule comes from `harness-step-models`, where the same live check
+failed **three times in a row**, at a different layer each time. The
+change threads one new value (a stage's model) from a config file to a
+process argument. Each round's tasks named the layer that was known to be
+missing, the implementing agent did exactly that, and the value was then
+dropped at the next layer along — twice by code written specifically to
+make the widened type compile, which is the cheapest way to satisfy a
+type checker and was forbidden by no task. Nothing caught it: types
+passed, every unit test passed, and only a human running the real thing
+and reading the spawned process's command line exposed it. The tasks
+never named the path — `harness.json` → `resolveHarnessConfig` →
+transport → `Command` → `buildInvocation()` → argv — so no task ever
+owned the junctions between the two ends.
+
 The implementing agent has none of the conversation that produced the
 proposal: it sees only the change directory. `openspec/config.yaml`'s
 `rules.tasks` already exists for exactly this and is mechanically
@@ -59,7 +73,10 @@ unlike `CLAUDE.md`, which only reaches Claude Code sessions and not the
      instead of being marked done;
   5. the implementing agent marks each task `[x]` as soon as that task's
      own verification passes — incrementally, not in one batch at the
-     end, and never ahead of the work.
+     end, and never ahead of the work;
+  6. when a change threads a new value through layers, the tasks name the
+     complete path it travels and require a check at each junction, not
+     only at the two ends.
 - No change to `rules.proposal`/`rules.design`, to `context`, or to any
   `operations.*` guidance.
 

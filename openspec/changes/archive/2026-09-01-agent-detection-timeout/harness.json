@@ -1,0 +1,5 @@
+{
+  "stepAgents": {
+    "apply": { "agent": "claude-cli", "model": "claude-haiku-4-5" }
+  }
+}

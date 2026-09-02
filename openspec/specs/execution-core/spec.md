@@ -33,16 +33,45 @@ agent specifics into the same protocol event stream.
   without crashing the run
 
 ### Requirement: Repository contents are data, not executable instructions
+
 The system SHALL pass repository file content (change proposals, issue text,
 etc.) to agents strictly as context data. The system SHALL NOT allow this
 content to influence command allowlist, execution cwd, or which command is
-actually run.
+actually run. When preparing that context for a `plan`/`review`/`implement`
+run, the system SHALL read and embed the actual `proposal.md`/`design.md`/
+`tasks.md` and delta-spec content of the change named by the run's
+`changeDir`, skipping any that do not exist, rather than sending an
+otherwise-empty prompt. The prepared context SHALL explicitly instruct the
+agent to work only within the named `changeDir` and not read or modify
+files under any other `openspec/changes/<id>/` directory.
 
 #### Scenario: Change file contains an injected instruction
+
 - **WHEN** `proposal.md` for a change contains text framed as an instruction
   to bypass constraints
 - **THEN** it does not alter allowlist/cwd execution behavior and is included
   only as prompt content
+
+#### Scenario: A run embeds the actual change content
+
+- **WHEN** a `plan`/`review`/`implement` run is prepared for a change whose
+  `proposal.md`, `design.md`, and `tasks.md` all exist
+- **THEN** the prepared prompt contains the real content of all three files,
+  not only a reference to the change's directory path
+
+#### Scenario: Missing artifacts are skipped, not an error
+
+- **WHEN** a run is prepared for a change that has a `proposal.md` but no
+  `tasks.md` yet
+- **THEN** the prepared prompt embeds `proposal.md`'s content and contains
+  no placeholder or error for the missing `tasks.md`
+
+#### Scenario: The agent is told to stay within the named change
+
+- **WHEN** a run is prepared for any change
+- **THEN** the prepared prompt explicitly instructs the agent not to read or
+  modify files under any `openspec/changes/<id>/` directory other than the
+  one named by `changeDir`
 
 ### Requirement: Each run is constrained by allowlist and cwd sandbox
 The system SHALL validate requested command/args against allowlist and working
@@ -228,4 +257,70 @@ list of command kind literals.
 - **THEN** every adapter's shape-check-based validation recognizes it as
   valid without a matching hand-edit to a separately maintained literal
   list
+
+### Requirement: The Copilot CLI adapter degrades gracefully for an oversized prompt
+
+Because `copilot -p` delivers the prompt only as a positional CLI
+argument (no stdin path), the `copilot-cli` adapter SHALL fall back to a
+short prompt naming the change's `changeDir` and instructing the agent to
+read its artifact files itself, rather than embedding the full content
+inline, whenever the full embedded prompt would exceed a safety margin
+under the operating system's command-line length limit. Below that
+threshold, the adapter SHALL embed the full content as normal.
+
+#### Scenario: A prompt under the threshold embeds full content
+
+- **WHEN** a `plan`/`review`/`implement` run's constructed prompt for
+  `copilot-cli` is under the length threshold
+- **THEN** the spawned process receives the full embedded artifact
+  content as its positional prompt argument, unchanged from today
+
+#### Scenario: A prompt over the threshold falls back to a path-pointing prompt
+
+- **WHEN** a run's constructed prompt for `copilot-cli` exceeds the
+  length threshold
+- **THEN** the spawned process instead receives a short prompt naming the
+  change's directory and instructing the agent to read its artifact
+  files itself, and does not receive the oversized content inline
+
+### Requirement: The Claude CLI adapter bypasses interactive permission checks for non-interactive runs
+
+Because `claude -p` (non-interactive print mode) still enforces its
+normal interactive tool-approval model by default, and there is no TTY
+to answer an approval prompt in a headless run, the `claude-cli` adapter
+SHALL pass `--dangerously-skip-permissions` to every spawned process, so
+tool use (`Edit`, `Write`, `Bash`, etc.) does not stall on an unanswerable
+approval prompt.
+
+#### Scenario: A claude-cli run edits a file within its working directory
+
+- **WHEN** a `plan`/`review`/`implement` run for `claude-cli` needs to
+  create or modify a file within its spawned `cwd`
+- **THEN** the edit succeeds without stalling on an interactive
+  permission-approval prompt
+
+### Requirement: Presence detection allows a slow CLI enough time to start
+
+Agent presence detection SHALL allow an executable enough time to start
+before concluding it is absent, so that an installed CLI on a loaded
+machine is not reported as missing. An executable that cannot be found
+SHALL still resolve immediately rather than waiting out that budget.
+
+#### Scenario: An installed CLI is slow to start
+
+- **WHEN** an agent's executable exists but takes several seconds to
+  respond to a version probe
+- **THEN** detection reports that agent as present
+
+#### Scenario: The executable does not exist
+
+- **WHEN** an agent's executable cannot be found on the machine
+- **THEN** detection reports that agent as absent without waiting for the
+  probe budget to elapse
+
+#### Scenario: A probe never completes
+
+- **WHEN** a probe neither exits nor fails within the budget
+- **THEN** detection reports that agent as absent rather than waiting
+  indefinitely
 
