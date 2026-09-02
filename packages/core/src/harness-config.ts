@@ -7,10 +7,10 @@ import {
   HARNESS_AGENT_CAPABILITIES,
   HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
+  VSCODE_CHAT_STEP_AGENT_ID,
   normalizeStepAgent,
   type HarnessAgentCapabilities,
   type HarnessEffort,
-  type HarnessStageDispatch,
   type HarnessStepAgent,
   type HarnessStepAgents,
   type HarnessStepBudget,
@@ -22,10 +22,10 @@ export {
   HARNESS_AGENT_CAPABILITIES,
   HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
+  VSCODE_CHAT_STEP_AGENT_ID,
   normalizeStepAgent,
   type HarnessAgentCapabilities,
   type HarnessEffort,
-  type HarnessStageDispatch,
   type HarnessStepAgent,
   type HarnessStepAgents,
   type HarnessStepBudget,
@@ -91,8 +91,54 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
 
 const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous", "autonomous"];
 const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
-const KNOWN_AGENT_IDS = new Set(AGENT_REGISTRY.map((agent) => agent.id));
+const KNOWN_AGENT_IDS = new Set([...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID]);
 const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
+const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget"] as const;
+const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
+
+function formatAcceptedKeys(keys: readonly string[]): string {
+  return keys.join(", ");
+}
+
+function migrateLegacyDispatchInConfig(raw: unknown): { value: unknown; reports: string[] } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { value: raw, reports: [] };
+
+  const reports: string[] = [];
+  const rootRecord = raw as Record<string, unknown>;
+  const stepAgents = rootRecord.stepAgents;
+  if (typeof stepAgents !== "object" || stepAgents === null || Array.isArray(stepAgents)) {
+    return { value: raw, reports };
+  }
+
+  let anyMigrated = false;
+  const migratedStepAgents: Record<string, unknown> = { ...(stepAgents as Record<string, unknown>) };
+  for (const [stage, entry] of Object.entries(migratedStepAgents)) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+    const entryRecord = entry as Record<string, unknown>;
+    if (!("dispatch" in entryRecord)) continue;
+    const dispatch = entryRecord.dispatch;
+    if (dispatch === "cli") {
+      const { dispatch: _unused, ...rest } = entryRecord;
+      migratedStepAgents[stage] = rest;
+      anyMigrated = true;
+      continue;
+    }
+    if (dispatch === "vscode-chat") {
+      const { dispatch: _unused, ...rest } = entryRecord;
+      migratedStepAgents[stage] = { ...rest, agent: VSCODE_CHAT_STEP_AGENT_ID };
+      reports.push(`stepAgents.${stage}.dispatch "vscode-chat" was migrated to stepAgents.${stage}.agent "${VSCODE_CHAT_STEP_AGENT_ID}"`);
+      anyMigrated = true;
+    }
+  }
+
+  if (!anyMigrated) return { value: raw, reports };
+  return { value: { ...rootRecord, stepAgents: migratedStepAgents }, reports };
+}
+
+function reportDispatchMigration(filePath: string, reports: readonly string[]): void {
+  if (reports.length === 0) return;
+  console.warn(`Migrated legacy harness dispatch settings in ${filePath}: ${reports.join("; ")}`);
+}
 
 export class InvalidHarnessConfigError extends Error {
   constructor(reason: string) {
@@ -148,13 +194,20 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
 
     let agentId: unknown;
     let model: unknown;
-    let dispatch: unknown;
     let effort: unknown;
     let budget: unknown;
     if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+      const entryRecord = entry as Record<string, unknown>;
+      const unknownEntryKey = Object.keys(entryRecord).find(
+        (key) => !(STEP_AGENT_KEYS as readonly string[]).includes(key),
+      );
+      if (unknownEntryKey !== undefined) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage} has unknown key "${unknownEntryKey}" (accepted keys: ${formatAcceptedKeys(STEP_AGENT_KEYS)})`,
+        );
+      }
       agentId = (entry as { agent?: unknown }).agent;
       model = (entry as { model?: unknown }).model;
-      dispatch = (entry as { dispatch?: unknown }).dispatch;
       effort = (entry as { effort?: unknown }).effort;
       budget = (entry as { budget?: unknown }).budget;
     } else {
@@ -168,7 +221,18 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
       throw new InvalidHarnessConfigError(`stepAgents.${stage} references unknown agent id "${agentId}"`);
     }
 
+    if (agentId === VSCODE_CHAT_STEP_AGENT_ID && autonomyLevel !== "assisted") {
+      throw new InvalidHarnessConfigError(
+        `stepAgents.${stage} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
+      );
+    }
+
     if (model !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.model cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
       if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage}.model "${String(model)}" is not a valid model id`);
       }
@@ -177,20 +241,14 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
       }
     }
 
-    if (dispatch !== undefined) {
-      if (dispatch !== "cli" && dispatch !== "vscode-chat") {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.dispatch must be "cli" or "vscode-chat"`);
-      }
-      if (dispatch === "vscode-chat" && autonomyLevel !== "assisted") {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage} sets dispatch "vscode-chat", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
-        );
-      }
-    }
-
     const capabilities: HarnessAgentCapabilities | undefined = HARNESS_AGENT_CAPABILITIES[agentId as string];
 
     if (effort !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.effort cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
       if (typeof effort !== "string" || !HARNESS_EFFORT_VALUES.includes(effort as HarnessEffort)) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage}.effort must be one of: ${HARNESS_EFFORT_VALUES.join(", ")}`);
       }
@@ -208,8 +266,22 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
     }
 
     if (budget !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.budget cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
       if (typeof budget !== "object" || budget === null || Array.isArray(budget)) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget must be an object`);
+      }
+      const budgetRecord = budget as Record<string, unknown>;
+      const unknownBudgetKey = Object.keys(budgetRecord).find(
+        (key) => !(STEP_BUDGET_KEYS as readonly string[]).includes(key),
+      );
+      if (unknownBudgetKey !== undefined) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.budget has unknown key "${unknownBudgetKey}" (accepted keys: ${formatAcceptedKeys(STEP_BUDGET_KEYS)})`,
+        );
       }
       const { maxCostUsd, maxAiCredits } = budget as { maxCostUsd?: unknown; maxAiCredits?: unknown };
       if (maxCostUsd === undefined && maxAiCredits === undefined) {
@@ -367,16 +439,20 @@ async function readJsonFile(filePath: string): Promise<unknown | undefined> {
  * silently ignored) if the file is malformed or sets `reviewGate.mode:
  * "agent-sufficient"` at the global level. */
 export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<HarnessConfig> {
-  const raw = await readJsonFile(globalHarnessConfigPath(workspaceRoot));
+  const filePath = globalHarnessConfigPath(workspaceRoot);
+  const raw = await readJsonFile(filePath);
   if (raw === undefined) return { ...DEFAULT_HARNESS_CONFIG, stepAgents: {} };
 
-  assertValidHarnessConfigInput(raw, false);
+  const migrated = migrateLegacyDispatchInConfig(raw);
+  reportDispatchMigration(filePath, migrated.reports);
+  assertValidHarnessConfigInput(migrated.value, false);
+  const input = migrated.value as Partial<HarnessConfig>;
   return {
-    stepAgents: raw.stepAgents ?? {},
-    autonomyLevel: raw.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
-    reviewGate: raw.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
-    checkpoints: raw.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
-    budget: raw.budget ?? DEFAULT_HARNESS_CONFIG.budget,
+    stepAgents: input.stepAgents ?? {},
+    autonomyLevel: input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
+    reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
+    checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
+    budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
   };
 }
 
@@ -387,11 +463,14 @@ export async function readChangeHarnessConfig(
   workspaceRoot: string,
   changeName: string,
 ): Promise<Partial<HarnessConfig> | undefined> {
-  const raw = await readJsonFile(changeHarnessConfigPath(workspaceRoot, changeName));
+  const filePath = changeHarnessConfigPath(workspaceRoot, changeName);
+  const raw = await readJsonFile(filePath);
   if (raw === undefined) return undefined;
 
-  assertValidHarnessConfigInput(raw, true);
-  return raw;
+  const migrated = migrateLegacyDispatchInConfig(raw);
+  reportDispatchMigration(filePath, migrated.reports);
+  assertValidHarnessConfigInput(migrated.value, true);
+  return migrated.value as Partial<HarnessConfig>;
 }
 
 /** Deep-merges a per-change override over the global config, key by key
@@ -440,8 +519,9 @@ async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
 /** Validates before writing — never writes a structurally invalid file
  * (see tasks.md 1.5). */
 export async function writeGlobalHarnessConfig(workspaceRoot: string, config: Partial<HarnessConfig>): Promise<void> {
-  assertValidHarnessConfigInput(config, false);
-  await writeJsonFile(globalHarnessConfigPath(workspaceRoot), config);
+  const migrated = migrateLegacyDispatchInConfig(config);
+  assertValidHarnessConfigInput(migrated.value, false);
+  await writeJsonFile(globalHarnessConfigPath(workspaceRoot), migrated.value);
 }
 
 export async function writeChangeHarnessConfig(
@@ -449,6 +529,7 @@ export async function writeChangeHarnessConfig(
   changeName: string,
   config: Partial<HarnessConfig>,
 ): Promise<void> {
-  assertValidHarnessConfigInput(config, true);
-  await writeJsonFile(changeHarnessConfigPath(workspaceRoot, changeName), config);
+  const migrated = migrateLegacyDispatchInConfig(config);
+  assertValidHarnessConfigInput(migrated.value, true);
+  await writeJsonFile(changeHarnessConfigPath(workspaceRoot, changeName), migrated.value);
 }

@@ -3,6 +3,7 @@ import {
   AGENT_REGISTRY,
   HARNESS_AGENT_CAPABILITIES,
   normalizeStepAgent,
+  VSCODE_CHAT_STEP_AGENT_ID,
   type HarnessAutonomyLevel,
   type HarnessConfig,
   type HarnessEffort,
@@ -26,6 +27,10 @@ export interface HarnessSettingsApi {
 
 const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive", "git"];
 const INHERIT = "" as const;
+const STAGE_RUNNER_OPTIONS = [
+  ...AGENT_REGISTRY,
+  { id: VSCODE_CHAT_STEP_AGENT_ID, label: "VS Code Chat (dispatch target)" },
+];
 
 const AUTONOMY_LEVEL_OPTIONS: ReadonlyArray<{ value: HarnessAutonomyLevel; label: string }> = [
   { value: "assisted", label: "assisted" },
@@ -113,7 +118,7 @@ function AgentSelect({ stage, value, onChange, includeInherit, ariaLabel }: { st
       {stage}
       <select aria-label={ariaLabel} value={value} onChange={(e) => onChange(e.target.value)}>
         {includeInherit ? <option value={INHERIT}>(inherit)</option> : <option value={INHERIT}>(none)</option>}
-        {AGENT_REGISTRY.map((agent) => (
+        {STAGE_RUNNER_OPTIONS.map((agent) => (
           <option key={agent.id} value={agent.id}>
             {agent.label}
           </option>
