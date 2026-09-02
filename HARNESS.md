@@ -6,6 +6,18 @@ describes what exists; it changes no setting, default, or validation rule.
 For spending ceilings specifically (what caps a run, in what unit, and
 what does **not** cap it), see [`LIMITS.md`](LIMITS.md).
 
+## Find what you need
+
+| I want to... | Go to |
+| --- | --- |
+| Understand the run from proposal to merge | [The stage sequence](#the-stage-sequence) |
+| Configure global defaults or one change | [Two configuration files](#two-configuration-files) and [Every key](#every-key-and-its-accepted-values) |
+| Find a setting in the standalone app or VS Code | [Where each setting is edited](#where-each-setting-is-edited) |
+| See how checkpoints and resumed chains behave | [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer) |
+| Allow push, pull-request creation, and merge | [The `git` stage](#the-git-stage) |
+| Compare agents, models, effort, and caps | [Agent reference](#agents-models-effort-and-spending-caps) |
+| Set a spending ceiling | [Harness Spending Limits](LIMITS.md) |
+
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →
 archive → git`. Configuration lives in two JSON files —
@@ -167,12 +179,27 @@ settings screen that doesn't have the control:
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
 
-Screenshots of the standalone settings surface (global default, and a
-loaded per-change override):
+### Standalone settings, in pictures
 
-![Standalone Harness Settings tab: global default with per-stage agent, effort and budget controls, the mechanical archive row, and the autonomy level select](docs/images/standalone/harness-settings.png)
+The captures below come from the running application, not a mock. Select
+either image to open the original PNG at full resolution.
 
-![Standalone Harness Settings tab: a loaded per-change override, showing inherited stages alongside explicit ones and the semi-autonomous autonomy level](docs/images/standalone/harness-change-override.png)
+#### Global defaults
+
+[![Standalone Harness Settings tab: global default with per-stage agent, effort and budget controls, the mechanical archive row, and the autonomy level select](./docs/images/standalone/harness-settings.png)](./docs/images/standalone/harness-settings.png)
+
+*The global view shows the stage runner, effort, and per-invocation budget
+controls together with the workspace autonomy level. The footer records
+the package versions rendered by the capture.*
+
+#### Per-change override
+
+[![Standalone Harness Settings tab: a loaded per-change override, showing inherited stages alongside explicit ones and the semi-autonomous autonomy level](./docs/images/standalone/harness-change-override.png)](./docs/images/standalone/harness-change-override.png)
+
+*Only this section is captured: inherited stages remain visible, while
+explicit values show exactly what the change overrides. The visible
+`(not yet implemented)` suffix is stale UI copy; semi-autonomous chains
+are implemented and described under [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer).*
 
 Both are produced by `packages/server/e2e/harness-screenshots.spec.ts`,
 which also produces the checkpoint screenshot in "What a checkpoint
@@ -182,11 +209,10 @@ offers" below. Regenerate all three with, from `packages/server`:
 npm run test:browser -- harness-screenshots.spec.ts
 ```
 
-The VS Code screenshots below are captured by hand — nothing in this
-environment can drive the extension's own host (see
-`audit-log-persistence` task 4.2) — and are each labelled with the date
-and extension version they show, as the honest substitute for the same
-guarantee.
+There is no VS Code harness screenshot in this guide yet. The extension
+host cannot be captured by this Playwright workflow, so adding one remains
+the human-only task 3.4 in `agentic-harness-documentation`. This guide does
+not present a standalone screenshot as though it represented both hosts.
 
 ## Mechanical checks
 
@@ -275,7 +301,10 @@ or `cancel` command. Confirming continues to the next stage; cancelling
 ends the chain cleanly without starting it. **There is no third option** —
 a checkpoint never offers "redo the previous stage."
 
-![Standalone Change Editor: "Run with Agentic Harness" paused at a checkpoint between the apply and verify stages, showing the Continue/Cancel choice and the event log so far](docs/images/standalone/harness-checkpoint.png)
+[![Standalone Change Editor: "Run with Agentic Harness" paused at a checkpoint between the apply and verify stages, showing the Continue/Cancel choice and the event log so far](./docs/images/standalone/harness-checkpoint.png)](./docs/images/standalone/harness-checkpoint.png)
+
+*A real chain paused before `verify`. Select the image to inspect the event
+log and checkpoint controls at full resolution.*
 
 ### Only one mutating run at a time, for the whole workspace
 
@@ -388,20 +417,12 @@ ACP-flavored — see `README.md`'s "Agent Selection" section for the full
 statement. If you configure either and it misbehaves, that is the most
 likely reason.
 
-### Known, current defect: `copilot-cli-acp` and `claude-cli-acp` refuse `effort`/`budget`
+### ACP effort and budget capabilities
 
-**`copilot-cli-acp` and `claude-cli-acp` currently refuse `effort` and
-`budget` in a `stepAgents` entry, even though their adapters render the
-corresponding CLI flags and the execution allowlist permits them.** The
-table above states the capabilities these two adapters are *documented*
-to share with their plain counterparts (`copilot-cli`/`claude-cli`) — that
-is the intended design, per `harness-step-agent.ts`'s own header comment.
-The current refusal is a defect, not documented intended behavior, and is
-**not fixed by this document**: it is tracked as
-`openspec/changes/acp-agent-capabilities/`. Whichever change lands second
-— this one or that one — updates this table to match. Until then, a
-`stepAgents` entry setting `effort` or `budget` on either `-acp` id is
-rejected at configuration time.
+`copilot-cli-acp` and `claude-cli-acp` accept the same `effort` and
+per-invocation `budget` fields as their plain counterparts. This is read
+from `HARNESS_AGENT_CAPABILITIES`, so configuration validation and both
+settings surfaces use the same capability set as the table above.
 
 ### What changes when an `-acp` id is chosen
 

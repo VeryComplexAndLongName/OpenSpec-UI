@@ -5,6 +5,17 @@ What actually stops an Agentic Harness run, in what unit, evaluated when
 everything else the harness can be configured to do, see
 [`HARNESS.md`](HARNESS.md).
 
+## At a glance
+
+| Scope | Configuration | Unit | Enforced |
+| --- | --- | --- | --- |
+| Whole chain | `budget.maxCostUsd` / `budget.maxTokens` | USD and/or tokens | Before each stage starts |
+| One agent invocation | `stepAgents.<stage>.budget` | The selected agent's native unit | By that agent's CLI |
+| Elapsed time | Not available | — | No wall-clock or per-stage timeout exists |
+
+The important boundary is simple: a chain ceiling can prevent the **next**
+stage from starting; it cannot interrupt the stage that is already running.
+
 ## Two independent levels
 
 There are exactly two ceilings, checked in two different places, in two
@@ -39,6 +50,16 @@ the chosen agent's own CLI accepts (see the table below) — passed straight
 through as that CLI's own flag for a single invocation. This is not a
 chain-wide ceiling; it bounds one stage's one agent run.
 
+The standalone **Harness Settings** view reveals the budget input only
+after an agent with a supported budget unit is selected. In this generated
+capture, `claude-cli` exposes **propose max cost (USD)**:
+
+[![Standalone Harness Settings showing the Claude CLI effort and max-cost controls](./docs/images/standalone/harness-settings.png)](./docs/images/standalone/harness-settings.png)
+
+*Select the image for the full-resolution settings view. See
+[`HARNESS.md`](HARNESS.md#where-each-setting-is-edited) for the complete
+control map and the screenshot regeneration command.*
+
 ## Why there is no single `budget: number`
 
 A portable, unit-agnostic `budget` field was rejected, for three concrete
@@ -63,8 +84,8 @@ conversion happens at all, so nothing to silently drift.
 
 | Agent | Field | CLI flag | Notes |
 | --- | --- | --- | --- |
-| `claude-cli` (and `claude-cli-acp`, once `acp-agent-capabilities` lands — see `HARNESS.md`) | `maxCostUsd` | `--max-budget-usd` | Requires Claude Code v2.1.217 or later. |
-| `copilot-cli` (and `copilot-cli-acp`, once `acp-agent-capabilities` lands) | `maxAiCredits` | `--max-ai-credits` | Minimum 30 — a configured value below this is rejected before any run starts. |
+| `claude-cli`, `claude-cli-acp` | `maxCostUsd` | `--max-budget-usd` | Requires Claude Code v2.1.217 or later. |
+| `copilot-cli`, `copilot-cli-acp` | `maxAiCredits` | `--max-ai-credits` | Minimum 30 — a configured value below this is rejected before any run starts. |
 | `codex-cli`, `gemini-cli`, `local-llm`, `codex-cli-acp`, `gemini-cli-acp`, `vscode-chat` | Neither | — | No spending-cap mechanism at all; a `stepAgents` entry setting either field for one of these is rejected. |
 
 **A mismatched field is refused when the configuration resolves, not
