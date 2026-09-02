@@ -8,17 +8,33 @@ the standalone server and the VS Code extension host.
 ## Requirements
 ### Requirement: Unified command and event protocol
 The system SHALL expose the same command set (`plan`, `implement`, `review`,
-`status`, `cancel`) and event stream (`started`, `stdout`, `stderr`,
-`progress`, `completed`, `failed`, `cancelled`) regardless of which CLI agent
-runs and which transport (REST/WS or message bridge) delivers results. The
-system SHALL NOT contain separate execution logic implementations in protocol
-consumers.
+`status`, `cancel`, `chain`, `confirmCheckpoint`, `resolvePermission`) and
+event stream (`started`, `stdout`, `stderr`, `progress`, `completed`,
+`failed`, `cancelled`, `stageCompleted`, `checkpoint`, `agentUpdate`,
+`permissionRequest`) regardless of which CLI agent runs and which transport
+(REST/WS or message bridge) delivers results. The system SHALL NOT contain
+separate execution logic implementations in protocol consumers. `chain`,
+`confirmCheckpoint`, `stageCompleted`, and `checkpoint` are unchanged from
+`agentic-harness-autonomy`; `resolvePermission`, `agentUpdate`, and
+`permissionRequest` are additive members introduced by this change. A
+transport or client that never sends `resolvePermission` and never
+special-cases `agentUpdate`/`permissionRequest` sees no behavior change —
+both new event kinds are non-terminal, exactly like `stageCompleted`/
+`checkpoint`, so a consumer that does not recognize them can still render a
+coherent (if less detailed) event log.
 
 #### Scenario: Same command via different transports
 - **WHEN** `implement` is started via REST/WS server and, separately, via a
   message bridge inside VS Code
 - **THEN** both consumers receive an identical sequence of event kinds for the
   same real execution
+
+#### Scenario: Client unaware of the new event kinds still renders a coherent log
+- **WHEN** an ACP-flavored adapter's run emits `agentUpdate` and
+  `permissionRequest` events alongside the existing kinds
+- **THEN** a client built before this change, which does not recognize
+  `agentUpdate`/`permissionRequest`, does not crash or misinterpret the run
+  as terminated, because neither new kind is terminal
 
 ### Requirement: AgentRunner abstracts specific CLI agents
 The system SHALL provide one execution interface that hides differences between
@@ -323,4 +339,99 @@ SHALL still resolve immediately rather than waiting out that budget.
 - **WHEN** a probe neither exits nor fails within the budget
 - **THEN** detection reports that agent as absent rather than waiting
   indefinitely
+
+### Requirement: A status result does not claim task progress it does not have
+
+When the underlying tool reports no task progress for a change, the
+status result SHALL report that progress is unknown, rather than
+substituting a value derived from which artifact files exist. An
+artifact's completeness means the file is present; it says nothing about
+whether the change's tasks are done, and the two SHALL NOT be reported
+through the same value.
+
+#### Scenario: The tool reports task progress
+
+- **WHEN** the underlying tool includes task progress for a change
+- **THEN** it is reported unchanged
+
+#### Scenario: The tool reports no task progress
+
+- **WHEN** the underlying tool includes no task progress
+- **THEN** the result reports progress as unknown, and no value is
+  derived from artifact presence
+
+### Requirement: A run's prompt carries the project's rules for the work being done
+
+The prompt built for an agent run SHALL include the project's own
+instructions for the artifact the run works on, in addition to the
+change's content. The rules SHALL be presented as rules the run is
+expected to follow, distinctly from the change's files, which remain
+reference data.
+
+The section SHALL carry only the constraints that govern how the work is
+carried out. Directives addressed to a run that authors the artifact —
+including any instruction to create it, and any list of files to read
+before creating it — SHALL NOT appear in the prompt, because the run
+receiving them is carrying the artifact out rather than writing it.
+
+When those instructions cannot be obtained, the run SHALL proceed with
+the prompt it would otherwise have built, rather than failing.
+
+#### Scenario: Rules are available
+
+- **WHEN** a prompt is built for a run whose command kind maps to an
+  artifact, and the project's instructions for that artifact can be
+  obtained
+- **THEN** the prompt contains them in their own section, labelled as
+  rules to follow and separate from the change's content
+
+#### Scenario: The source of the rules also carries authoring directives
+
+- **WHEN** the project's instructions for an artifact are obtained from a
+  source whose output also contains directives to author that artifact
+- **THEN** only the constraints governing the work reach the prompt, and
+  the authoring directives do not
+
+#### Scenario: Rules cannot be obtained
+
+- **WHEN** the project's instructions cannot be obtained
+- **THEN** the prompt is built exactly as it would have been without
+  them, with no empty section, and the run proceeds
+
+#### Scenario: An adapter that cannot carry the full prompt
+
+- **WHEN** an adapter must fall back to a shortened prompt because the
+  full one exceeds what it can deliver
+- **THEN** the shortened prompt names how the agent can obtain the
+  project's rules itself, rather than omitting them silently
+
+### Requirement: The default allowlist admits one validated model argument
+
+For an adapter that accepts a model, the default allowlist SHALL permit
+that adapter's fixed argument shape optionally followed by exactly one
+model flag and exactly one model value, and SHALL permit no other
+variation. The model value SHALL satisfy the same character restriction
+enforced when the configuration was read.
+
+For an adapter that accepts no model, the allowlist SHALL keep matching
+its argument shape exactly, unchanged.
+
+#### Scenario: Invocation without a model
+
+- **WHEN** a model-capable adapter is invoked with its fixed arguments
+  and no model
+- **THEN** the allowlist permits it, exactly as before this capability
+  existed
+
+#### Scenario: Invocation with one valid model argument
+
+- **WHEN** a model-capable adapter is invoked with its fixed arguments
+  followed by one model flag and one permitted value
+- **THEN** the allowlist permits it
+
+#### Scenario: Invocation carrying more than one model argument
+
+- **WHEN** an invocation carries a second model flag, a model flag with
+  no value, or a value outside the permitted character set
+- **THEN** the allowlist refuses it and the process is not started
 

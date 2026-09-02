@@ -232,13 +232,36 @@ streams events over the same protocol already used for
 `status`/`list`/`show`/`validate`. Available agents (see
 `packages/core/src/agents/registry.ts`):
 
-| Agent | Underlying CLI |
-| --- | --- |
-| Claude CLI | `claude` |
-| GitHub Copilot CLI | `copilot` |
-| Codex CLI | `codex` |
-| Gemini CLI | `gemini` |
-| Local LLM (OpenAI-compatible) | HTTP to `http://localhost:30000` by default |
+| Agent | Underlying CLI | Run against the real binary here? |
+| --- | --- | --- |
+| Claude CLI | `claude` | Yes — used continuously in development |
+| GitHub Copilot CLI | `copilot` | Yes |
+| Codex CLI | `codex` | **No — never** |
+| Gemini CLI | `gemini` | **No — never** |
+| Local LLM (OpenAI-compatible) | HTTP to `http://localhost:30000` by default | Not exercised live |
+| Claude CLI (ACP) | `claude --input-format stream-json --output-format stream-json` | Progress only — no permission gate, see below |
+| GitHub Copilot CLI (ACP) | `copilot --acp` | Yes |
+| Codex CLI (ACP) | externally installed `codex-acp` | **No — never** |
+| Gemini CLI (ACP) | `gemini --experimental-acp` | **No — never** |
+
+**On that last column, plainly: `codex` and `gemini` have never been run
+by this project at all.** Neither CLI is installed on the maintainer's
+machine and neither is expected to be, so their adapters — raw and
+ACP-flavored alike — are written to the vendors' documented interfaces
+and unit-tested against a spec-compliant mocked peer, but have never met
+the real thing. If you use either and it misbehaves, that is the most
+likely reason, and a report would be genuinely useful. See
+`docs/adr/0013-acp-agent-adapters.md`'s Consequences for the full record.
+
+The ACP-flavored adapters speak the [Agent Client Protocol](https://agentclientprotocol.com),
+which carries structured progress and, where the agent supports it, a
+permission request the UI can answer — instead of the opaque text the
+raw adapters pass through. Two caveats worth knowing before choosing one:
+`claude` has no native ACP mode, so its ACP adapter translates
+`claude`'s own structured output and **never** emits a permission
+request; and `copilot --acp`, live-verified here, completes file writes
+and shell commands **without ever asking for permission**, so its
+permission gate is likewise not something to rely on.
 
 Each CLI tool must already be installed and authenticated on the machine
 running the server/extension — this app never handles API keys or

@@ -136,9 +136,24 @@ place they execute (see `harness-cancel-stops-the-run` tasks 5.7/5.8).
   process's own command line that both reached argv — the check that
   caught `harness-step-models` failing three times. Then set a different
   value in a per-change `harness.json` and confirm it overrides.
-- [ ] 6.7 **Human-only, and blocked**: `codex-cli`'s and `gemini-cli`'s
+- [x] 6.7 **Gate lifted 2026-09-02.** `codex-cli`'s and `gemini-cli`'s
   behavior is taken from upstream documentation — neither binary is
-  installed on this machine. Before tasks 3.3 and 3.4 may be considered
-  verified, run each CLI's `--help` on a machine that has it and confirm
-  the mechanism. Until then this task stays outstanding, and the safe
-  defaults hold: `codex` renders one narrow override, `gemini` refuses.
+  installed on this machine, and the repository owner has confirmed
+  neither is expected to be. A gate that cannot be passed in the only
+  environment available is not a gate: it is a change that can never
+  close, and an unverified claim wearing the costume of pending work.
+
+  The fact is promoted instead of parked. `README.md`'s agent table now
+  carries a "Run against the real binary here?" column saying **never**
+  for both, with the reason, so a user choosing one of those adapters
+  learns it before the run rather than after. The same limitation is
+  recorded in `docs/adr/0013-acp-agent-adapters.md`'s Consequences.
+
+  The safe defaults stand unchanged and are what makes lifting this
+  tolerable: `codex` renders one narrow `-c model_reasoning_effort=`
+  override and nothing else beginning with `-c`, and `gemini` refuses an
+  effort setting outright rather than accepting one it cannot express.
+
+  Original gate, for the record: before tasks 3.3 and 3.4 may be
+  considered verified, run each CLI's `--help` on a machine that has it
+  and confirm the mechanism.
