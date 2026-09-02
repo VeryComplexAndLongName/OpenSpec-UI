@@ -69,6 +69,7 @@ vi.mock("@openspec-ui/core", () => ({
   getChangeTimeline: (...args: unknown[]) => getChangeTimelineMock(...args),
   getChangeTimelines: (...args: unknown[]) => getChangeTimelinesMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
+  isHarnessStepAgentStage: (stage: string) => stage !== "archive",
   listBootstrapProjectTypes: () => [
     { id: "node", label: "Node.js / TypeScript" },
     { id: "python", label: "Python" },
@@ -79,6 +80,8 @@ vi.mock("@openspec-ui/core", () => ({
     typeof entry === "string"
       ? { agent: entry }
       : { ...(entry as Record<string, unknown>) },
+  stepAgentFor: (stepAgents: Record<string, unknown> | undefined, stage: string) =>
+    stage === "archive" || stepAgents === undefined ? undefined : stepAgents[stage],
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
@@ -248,7 +251,6 @@ describe("registerCommands", () => {
         .mockResolvedValueOnce(INHERIT) // review
         .mockResolvedValueOnce("Local LLM (OpenAI-compatible)") // apply
         .mockResolvedValueOnce(INHERIT) // verify
-        .mockResolvedValueOnce(INHERIT) // archive
         .mockResolvedValueOnce({ label: "autonomous" })
         .mockResolvedValueOnce({ label: "agent-sufficient" });
       const deps = makeDeps();
@@ -277,7 +279,6 @@ describe("registerCommands", () => {
         .mockResolvedValueOnce("GitHub Copilot CLI") // apply agent
         .mockResolvedValueOnce("none") // apply effort
         .mockResolvedValueOnce(INHERIT) // verify agent
-        .mockResolvedValueOnce(INHERIT) // archive agent
         .mockResolvedValueOnce({ label: "autonomous" })
         .mockResolvedValueOnce({ label: "agent-sufficient" });
       const deps = makeDeps();
@@ -295,6 +296,34 @@ describe("registerCommands", () => {
       });
     });
 
+    it("never prompts for an archive agent — archive is mechanical (harness-mechanical-checks 4.4)", async () => {
+      vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
+      createChangeMock.mockResolvedValue({ ok: true });
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce("Customize Agentic Harness for this change")
+        .mockResolvedValueOnce(INHERIT) // propose
+        .mockResolvedValueOnce(INHERIT) // review
+        .mockResolvedValueOnce(INHERIT) // apply
+        .mockResolvedValueOnce(INHERIT) // verify
+        // No answer queued for archive: if the wizard asked for it, the
+        // next two calls below (autonomy level / review gate) would each
+        // consume the wrong queued answer, and the assertions on their
+        // written values would fail.
+        .mockResolvedValueOnce({ label: "autonomous" })
+        .mockResolvedValueOnce({ label: "agent-sufficient" });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.createChangeTemplate")?.();
+
+      const prompts = vscodeMock.window.showQuickPick.mock.calls.map((call) => call[1]?.title as string | undefined);
+      expect(prompts.some((title) => title?.includes('"archive"'))).toBe(false);
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        autonomyLevel: "autonomous",
+        reviewGate: { mode: "agent-sufficient" },
+      });
+    });
+
     it("does not prompt for effort/budget for an agent with no such mechanism (gemini-cli)", async () => {
       vscodeMock.window.showInputBox.mockResolvedValue("demo-change");
       createChangeMock.mockResolvedValue({ ok: true });
@@ -304,7 +333,6 @@ describe("registerCommands", () => {
         .mockResolvedValueOnce(INHERIT) // review
         .mockResolvedValueOnce(INHERIT) // apply
         .mockResolvedValueOnce(INHERIT) // verify
-        .mockResolvedValueOnce(INHERIT) // archive
         .mockResolvedValueOnce({ label: INHERIT })
         .mockResolvedValueOnce({ label: INHERIT });
       const deps = makeDeps();
@@ -323,7 +351,6 @@ describe("registerCommands", () => {
       createChangeMock.mockResolvedValue({ ok: true });
       vscodeMock.window.showQuickPick
         .mockResolvedValueOnce("Customize Agentic Harness for this change")
-        .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)
         .mockResolvedValueOnce(INHERIT)

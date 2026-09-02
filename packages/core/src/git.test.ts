@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 const statusMock = vi.fn();
 const diffMock = vi.fn();
 const commitMock = vi.fn();
+const pushMock = vi.fn();
 const simpleGitFactory = vi.fn(() => ({
   status: statusMock,
   diff: diffMock,
   commit: commitMock,
+  push: pushMock,
 }));
 
 vi.mock("simple-git", () => ({ default: simpleGitFactory }));
@@ -59,6 +61,18 @@ describe("createGitWrapper", () => {
     const result = await wrapper.commit("fix: something");
     expect(commitMock).toHaveBeenCalledWith("fix: something");
     expect(result).toEqual({ commit: "abc123" });
+  });
+
+  it("pushes exactly the remote and branch it was given, and nothing else", async () => {
+    pushMock.mockResolvedValue(undefined);
+    const wrapper = createGitWrapper({ cwd: "/workspace/repo" });
+    await wrapper.push("origin", "feature-branch");
+    // Asserted argument-for-argument: the git stage checks
+    // `git push <remote> <branch>` against its allowlist and audits that
+    // argv before calling this. An extra flag here, or a bare push that
+    // resolves the target from the branch's upstream, would mean the
+    // command that runs is not the command that was checked.
+    expect(pushMock).toHaveBeenCalledWith("origin", "feature-branch");
   });
 
   it("currentBranch reads status().current", async () => {

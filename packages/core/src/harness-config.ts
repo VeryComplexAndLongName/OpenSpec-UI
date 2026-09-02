@@ -8,10 +8,13 @@ import {
   HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
   VSCODE_CHAT_STEP_AGENT_ID,
+  isHarnessStepAgentStage,
   normalizeStepAgent,
+  stepAgentFor,
   type HarnessAgentCapabilities,
   type HarnessEffort,
   type HarnessStepAgent,
+  type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessStepBudget,
 } from "./harness-step-agent.js";
@@ -23,13 +26,17 @@ export {
   HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
   VSCODE_CHAT_STEP_AGENT_ID,
+  isHarnessStepAgentStage,
   normalizeStepAgent,
+  stepAgentFor,
   type HarnessAgentCapabilities,
   type HarnessEffort,
   type HarnessStepAgent,
+  type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessStepBudget,
 };
+
 
 // Agentic Harness config — see docs/adr/0011-agentic-harness-config-and-
 // autonomy-levels.md and openspec/changes/agentic-harness/. Deliberately
@@ -60,6 +67,11 @@ export interface HarnessBudget {
   maxTokens?: number;
 }
 
+export interface HarnessGitStageAllowlist {
+  remotes: string[];
+  branches: string[];
+}
+
 export interface HarnessConfig {
   stepAgents: HarnessStepAgents;
   autonomyLevel: HarnessAutonomyLevel;
@@ -79,6 +91,11 @@ export interface HarnessConfig {
    * `GlobalBudgetError`-style check does not apply to a plain numeric
    * ceiling the way it does to those three. */
   budget?: HarnessBudget;
+  /** Allowlist that gates git-stage push/PR/merge actions. Per-change
+   * only: the global `openspec/agent-harness.json` may not set this.
+   * `remotes`/`branches` are simple wildcard patterns (`*` supported).
+   * An action that does not match is blocked before any `git`/`gh` call. */
+  gitStageAllowlist?: HarnessGitStageAllowlist;
 }
 
 /** The config to use when neither the global nor a per-change file
@@ -94,7 +111,13 @@ const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "
 const KNOWN_AGENT_IDS = new Set([...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID]);
 const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
 const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget"] as const;
+/** The stages `stepAgents` may set — `STAGES` minus `"archive"`, which is
+ * a mechanical stage with nothing for an entry to configure (task 4.1). */
+const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(
+  (stage): stage is HarnessStepAgentStage => stage !== "archive",
+);
 const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
+const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -133,6 +156,33 @@ function migrateLegacyDispatchInConfig(raw: unknown): { value: unknown; reports:
 
   if (!anyMigrated) return { value: raw, reports };
   return { value: { ...rootRecord, stepAgents: migratedStepAgents }, reports };
+}
+
+/** Drops a `stepAgents.archive` entry, if present, rather than rejecting
+ * the file — see design.md, "`stepAgents` narrows; existing
+ * configurations are migrated". `archive` is a mechanical stage
+ * (`HarnessChainRunner`'s `runStage` never looks up an agent for it); a
+ * setting that names one there never did anything, so removing it here
+ * is silent to every reader except the warning this returns, which
+ * `reportDispatchMigration`'s caller surfaces exactly like a legacy
+ * `dispatch` migration. */
+function dropArchiveStepAgent(raw: unknown): { value: unknown; reports: string[] } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { value: raw, reports: [] };
+
+  const rootRecord = raw as Record<string, unknown>;
+  const stepAgents = rootRecord.stepAgents;
+  if (typeof stepAgents !== "object" || stepAgents === null || Array.isArray(stepAgents)) {
+    return { value: raw, reports: [] };
+  }
+
+  const stepAgentsRecord = stepAgents as Record<string, unknown>;
+  if (!("archive" in stepAgentsRecord)) return { value: raw, reports: [] };
+
+  const { archive: _unused, ...rest } = stepAgentsRecord;
+  return {
+    value: { ...rootRecord, stepAgents: rest },
+    reports: [`stepAgents.archive was dropped — "archive" is a mechanical stage and never invokes an agent`],
+  };
 }
 
 function reportDispatchMigration(filePath: string, reports: readonly string[]): void {
@@ -177,6 +227,15 @@ export class GlobalCheckpointsDisabledError extends InvalidHarnessConfigError {
   }
 }
 
+/** `gitStageAllowlist` is only ever valid in a per-change file — mirrors
+ * the same per-change-only guard pattern as other high-impact settings. */
+export class GlobalGitAllowlistError extends InvalidHarnessConfigError {
+  constructor() {
+    super("gitStageAllowlist is only valid in a per-change harness.json, never in the global openspec/agent-harness.json");
+    this.name = "GlobalGitAllowlistError";
+  }
+}
+
 /** `autonomyLevel` is the value resolved for the same file being
  * validated (its own `autonomyLevel`, or the default when absent) — see
  * design.md, "Validation splits between core and the host": core can
@@ -188,8 +247,13 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
     throw new InvalidHarnessConfigError("stepAgents must be an object");
   }
   for (const [stage, entry] of Object.entries(value)) {
-    if (!STAGES.includes(stage as HarnessStage)) {
-      throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STAGES.join(", ")})`);
+    if (stage === "archive") {
+      throw new InvalidHarnessConfigError(
+        `stepAgents.archive is not accepted — "archive" is a mechanical stage and never invokes an agent`,
+      );
+    }
+    if (!STEP_AGENT_STAGES.includes(stage as HarnessStepAgentStage)) {
+      throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STEP_AGENT_STAGES.join(", ")})`);
     }
 
     let agentId: unknown;
@@ -396,6 +460,36 @@ function assertValidBudget(value: unknown): asserts value is HarnessBudget | und
   }
 }
 
+function assertValidGitStageAllowlist(
+  value: unknown,
+  isPerChangeFile: boolean,
+): asserts value is HarnessGitStageAllowlist | undefined {
+  if (value === undefined) return;
+  if (!isPerChangeFile) {
+    throw new GlobalGitAllowlistError();
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("gitStageAllowlist must be an object");
+  }
+
+  const record = value as Record<string, unknown>;
+  const unknownKey = Object.keys(record).find((key) => !(GIT_STAGE_ALLOWLIST_KEYS as readonly string[]).includes(key));
+  if (unknownKey !== undefined) {
+    throw new InvalidHarnessConfigError(
+      `gitStageAllowlist has unknown key "${unknownKey}" (accepted keys: ${formatAcceptedKeys(GIT_STAGE_ALLOWLIST_KEYS)})`,
+    );
+  }
+
+  const remotes = record.remotes;
+  const branches = record.branches;
+  if (!Array.isArray(remotes) || remotes.length === 0 || remotes.some((item) => typeof item !== "string" || item.length === 0)) {
+    throw new InvalidHarnessConfigError("gitStageAllowlist.remotes must be a non-empty string array");
+  }
+  if (!Array.isArray(branches) || branches.length === 0 || branches.some((item) => typeof item !== "string" || item.length === 0)) {
+    throw new InvalidHarnessConfigError("gitStageAllowlist.branches must be a non-empty string array");
+  }
+}
+
 /** Validates a raw parsed JSON value as a partial `HarnessConfig`.
  * `isPerChangeFile` is `false` for the global file, `true` for a
  * per-change file — gates every field that a global file may not set
@@ -414,6 +508,7 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidBudget(input.budget);
+  assertValidGitStageAllowlist(input.gitStageAllowlist, isPerChangeFile);
 }
 
 function globalHarnessConfigPath(workspaceRoot: string): string {
@@ -444,15 +539,17 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
   if (raw === undefined) return { ...DEFAULT_HARNESS_CONFIG, stepAgents: {} };
 
   const migrated = migrateLegacyDispatchInConfig(raw);
-  reportDispatchMigration(filePath, migrated.reports);
-  assertValidHarnessConfigInput(migrated.value, false);
-  const input = migrated.value as Partial<HarnessConfig>;
+  const archiveDropped = dropArchiveStepAgent(migrated.value);
+  reportDispatchMigration(filePath, [...migrated.reports, ...archiveDropped.reports]);
+  assertValidHarnessConfigInput(archiveDropped.value, false);
+  const input = archiveDropped.value as Partial<HarnessConfig>;
   return {
     stepAgents: input.stepAgents ?? {},
     autonomyLevel: input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
     reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
+    gitStageAllowlist: input.gitStageAllowlist ?? DEFAULT_HARNESS_CONFIG.gitStageAllowlist,
   };
 }
 
@@ -468,9 +565,10 @@ export async function readChangeHarnessConfig(
   if (raw === undefined) return undefined;
 
   const migrated = migrateLegacyDispatchInConfig(raw);
-  reportDispatchMigration(filePath, migrated.reports);
-  assertValidHarnessConfigInput(migrated.value, true);
-  return migrated.value as Partial<HarnessConfig>;
+  const archiveDropped = dropArchiveStepAgent(migrated.value);
+  reportDispatchMigration(filePath, [...migrated.reports, ...archiveDropped.reports]);
+  assertValidHarnessConfigInput(archiveDropped.value, true);
+  return archiveDropped.value as Partial<HarnessConfig>;
 }
 
 /** Deep-merges a per-change override over the global config, key by key
@@ -492,6 +590,7 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // file's own budget can never affect a per-change value that was
     // actually set, since `override.budget` wins unconditionally.
     budget: override.budget ?? global.budget,
+    gitStageAllowlist: override.gitStageAllowlist ?? global.gitStageAllowlist,
   };
 }
 

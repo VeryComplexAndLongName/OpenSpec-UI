@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import {
   detectAvailableAgents,
   normalizeStepAgent,
+  stepAgentFor,
   resolveHarnessConfig,
   VSCODE_CHAT_STEP_AGENT_ID,
   type AgentRunner,
@@ -171,7 +172,7 @@ export class AiPanel {
    * unchanged as well. */
   private dispatchOrRun(panel: vscode.WebviewPanel, command: Command): void {
     const stage = STAGE_FOR_COMMAND_KIND[command.kind];
-    const stepAgent = stage ? this.panelContext?.stepAgents?.[stage] : undefined;
+    const stepAgent = stage ? stepAgentFor(this.panelContext?.stepAgents, stage) : undefined;
     if (stepAgent !== undefined && normalizeStepAgent(stepAgent).agent === VSCODE_CHAT_STEP_AGENT_ID) {
       const changeName = command.context.changeDir
         .split(/[\\/]+/)

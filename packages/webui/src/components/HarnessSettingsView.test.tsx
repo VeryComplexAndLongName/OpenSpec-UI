@@ -42,6 +42,27 @@ describe("HarnessSettingsView", () => {
     );
   });
 
+  it("shows archive as a mechanical row with no agent picker, in both the global and per-change forms (harness-mechanical-checks 4.4)", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue(null),
+    });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    expect(screen.queryByLabelText("archive agent")).not.toBeInTheDocument();
+    expect(screen.getAllByText("archive").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("runs mechanically — no agent").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByLabelText("change propose agent");
+
+    expect(screen.queryByLabelText("change archive agent")).not.toBeInTheDocument();
+    // one "archive" row per form (global + change) plus the mechanical note.
+    expect(screen.getAllByText("archive").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("runs mechanically — no agent").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("global stepAgents select has no inherit option (there is nothing to inherit from)", async () => {
     const api = createApi();
     render(<HarnessSettingsView api={api} />);

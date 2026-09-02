@@ -18,7 +18,7 @@ export type CommandKind =
   | "show"
   | "validate"
   | "cancel"
-  /** Runs `propose → review → apply → verify → archive` in sequence under
+  /** Runs `propose → review → apply → verify → archive → git` in sequence under
    * one `runId`, per `HarnessChainRunner`. Unlike every other command
    * kind, a chain's `runId` is not guaranteed exactly one `"started"`
    * event — a client that counts `"started"` events per `runId` will see

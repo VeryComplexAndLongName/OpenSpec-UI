@@ -1,12 +1,14 @@
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentRunner } from "./agent-runner.js";
+import type { PullRequestGateway } from "./gh-pr-gateway.js";
+import type { GitWrapper } from "./git.js";
 import type { Command, Event } from "./protocol.js";
 import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-config.js";
-import { FileAuditLog, auditLogPath } from "./security.js";
+import { FileAuditLog, InMemoryAuditLog, auditLogPath } from "./security.js";
 
 // `HarnessChainRunner` shells out to the real `openspec` CLI for
 // `statusChange`/`archiveChange` (via `openspec.ts`) — mock `cross-spawn`
@@ -106,6 +108,13 @@ function makeCompletingRunner(): { runner: AgentRunner; calls: Command[] } {
 }
 
 const temporaryRoots: string[] = [];
+
+// Measured 2026-09-02 for "confirming a checkpoint resumes into the next
+// stage's agent": ~453ms isolated, and ~1823ms during deliberate full-suite
+// co-load. Keep explicit headroom so waitFor still detects hangs but no
+// longer times out on normal load-sensitive scheduling.
+const CHAIN_WAIT_FOR_TIMEOUT_MS = 5000;
+
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-harness-chain-"));
   temporaryRoots.push(root);
@@ -123,6 +132,49 @@ function baseCommand(cwd: string): Command {
     cwd,
     runId: "chain-run-1",
     context: { changeDir: path.join(cwd, "openspec", "changes", "demo") },
+  };
+}
+
+function makeGitStageDeps(options: {
+  branch?: string;
+  createPrError?: string;
+  checksState?: "pass" | "fail" | "none";
+  checksReason?: string;
+} = {}) {
+  const calls = {
+    gitPush: 0,
+    prCreate: 0,
+    prMerge: 0,
+  };
+  const git: GitWrapper = {
+    status: vi.fn(),
+    diff: vi.fn(),
+    commit: vi.fn(),
+    currentBranch: vi.fn(async () => options.branch ?? "feature/demo"),
+    push: vi.fn(async () => {
+      calls.gitPush += 1;
+    }),
+  };
+  const gateway: PullRequestGateway = {
+    createPullRequest: vi.fn(async () => {
+      calls.prCreate += 1;
+      if (options.createPrError) throw new Error(options.createPrError);
+      return { number: 7, url: "https://github.com/example/repo/pull/7" };
+    }),
+    waitForChecks: vi.fn(async () => ({ state: options.checksState ?? "pass", reason: options.checksReason })),
+    mergePullRequest: vi.fn(async () => {
+      calls.prMerge += 1;
+    }),
+  };
+
+  return {
+    calls,
+    deps: {
+      createGitWrapper: () => git,
+      createPullRequestGateway: () => gateway,
+    },
+    gateway,
+    git,
   };
 }
 
@@ -221,7 +273,10 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       }
     })();
 
-    await vi.waitFor(() => expect(events.at(-1)).toMatchObject({ kind: "completed" }));
+    await vi.waitFor(
+      () => expect(events.at(-1)).toMatchObject({ kind: "completed" }),
+      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+    );
     expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement", "verify"]);
   });
 
@@ -239,7 +294,10 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       for await (const event of chain.run(command)) events.push(event);
     })();
 
-    await vi.waitFor(() => expect(events.some((e) => e.kind === "checkpoint")).toBe(true));
+    await vi.waitFor(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+    );
     expect(events.some((e) => e.kind === "completed" || e.kind === "failed" || e.kind === "cancelled")).toBe(false);
     // Still genuinely tracked (not garbage-collected/forgotten) — confirming resumes it.
     expect(chain.confirmCheckpoint(command.runId)).toBe(true);
@@ -247,7 +305,10 @@ describe("HarnessChainRunner — semi-autonomous", () => {
     // Resuming runs "review" and pauses at the next checkpoint too — still
     // not silently complete. End the test here (not the concern of this
     // test) via cancel, rather than draining the whole sequence.
-    await vi.waitFor(() => expect(events.filter((e) => e.kind === "checkpoint")).toHaveLength(2));
+    await vi.waitFor(
+      () => expect(events.filter((e) => e.kind === "checkpoint")).toHaveLength(2),
+      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+    );
     expect(events.some((e) => e.kind === "completed" || e.kind === "failed" || e.kind === "cancelled")).toBe(false);
     expect(chain.cancel(command.runId)).toBe(true);
     await pump;
@@ -303,8 +364,8 @@ describe("HarnessChainRunner — autonomous", () => {
   });
 });
 
-describe("HarnessChainRunner — hard stop before git", () => {
-  it("ends with completed after verify -> archive and never starts a git stage", async () => {
+describe("HarnessChainRunner — git stage gating", () => {
+  it("under human-required, stops after archive and never executes git actions", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {
       autonomyLevel: "semi-autonomous",
@@ -315,7 +376,11 @@ describe("HarnessChainRunner — hard stop before git", () => {
     mockArchiveSucceeds();
 
     const { runner, calls } = makeCompletingRunner();
-    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const gitStage = makeGitStageDeps();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      ...gitStage.deps,
+    });
     const command = baseCommand(root);
 
     const events: Event[] = [];
@@ -326,8 +391,192 @@ describe("HarnessChainRunner — hard stop before git", () => {
 
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
     // Only "verify" ran through an AgentRunner — archive is mechanical, and
-    // "git" never runs under any configuration (ADR 0012's hard stop).
+    // the default review gate still blocks the git stage.
     expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+    expect(gitStage.calls.gitPush).toBe(0);
+    expect(gitStage.calls.prCreate).toBe(0);
+    expect(gitStage.calls.prMerge).toBe(0);
+  });
+
+  it("under agent-sufficient plus allowlist, runs git push -> pr create -> merge", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "claude-cli" },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      reviewGate: { mode: "agent-sufficient" },
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main", "feature/*"] },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const gitStage = makeGitStageDeps();
+    const auditLog = new InMemoryAuditLog();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      auditLog,
+      ...gitStage.deps,
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+    expect(gitStage.calls.gitPush).toBe(1);
+    expect(gitStage.calls.prCreate).toBe(1);
+    expect(gitStage.calls.prMerge).toBe(1);
+    expect(auditLog.entries.filter((entry) => entry.agent === "git-stage" && entry.outcome === "completed")).toHaveLength(3);
+  });
+
+  it("blocks a non-allowlisted git target before any push/pr/merge call", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "claude-cli" },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      reviewGate: { mode: "agent-sufficient" },
+      gitStageAllowlist: { remotes: ["upstream"], branches: ["release/*"] },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const gitStage = makeGitStageDeps();
+    const auditLog = new InMemoryAuditLog();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      auditLog,
+      ...gitStage.deps,
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("allowlist");
+    expect(gitStage.calls.gitPush).toBe(0);
+    expect(gitStage.calls.prCreate).toBe(0);
+    expect(gitStage.calls.prMerge).toBe(0);
+    expect(auditLog.entries.some((entry) => entry.agent === "git-stage" && entry.outcome === "blocked")).toBe(true);
+  });
+
+  it("fails with a PR-creation-specific reason when push succeeds but PR creation fails", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "claude-cli" },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      reviewGate: { mode: "agent-sufficient" },
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main", "feature/*"] },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const gitStage = makeGitStageDeps({ createPrError: "pr create exploded" });
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      ...gitStage.deps,
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(gitStage.calls.gitPush).toBe(1);
+    expect(gitStage.calls.prCreate).toBe(1);
+    expect(gitStage.calls.prMerge).toBe(0);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("pull-request creation");
+  });
+
+  it("refuses merge when checks fail", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "claude-cli" },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      reviewGate: { mode: "agent-sufficient" },
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main", "feature/*"] },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const gitStage = makeGitStageDeps({ checksState: "fail", checksReason: "check failed: lint" });
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      ...gitStage.deps,
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(gitStage.calls.gitPush).toBe(1);
+    expect(gitStage.calls.prCreate).toBe(1);
+    expect(gitStage.calls.prMerge).toBe(0);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("pull-request checks");
+  });
+
+  it("refuses merge when no check result is available", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { verify: "claude-cli" },
+    });
+    await writeChangeHarnessConfig(root, "demo", {
+      reviewGate: { mode: "agent-sufficient" },
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main", "feature/*"] },
+    });
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const gitStage = makeGitStageDeps({ checksState: "none", checksReason: "no check result was available" });
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      ...gitStage.deps,
+    });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(gitStage.calls.gitPush).toBe(1);
+    expect(gitStage.calls.prCreate).toBe(1);
+    expect(gitStage.calls.prMerge).toBe(0);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("no check result was available");
   });
 });
 
@@ -426,6 +675,150 @@ describe("HarnessChainRunner — verify stage (task 5.1/5.6)", () => {
     expect(events.at(-1)).toMatchObject({ kind: "failed" });
     expect((events.at(-1) as { reason: string }).reason).toContain("1 task(s) still unchecked");
     expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
+  });
+});
+
+/** `changeset-present` is used throughout this block deliberately — it is
+ * the one registered check that needs no `cross-spawn` mock at all (it
+ * only reads `.changeset/` from disk via `checkChangesetReminder`), so
+ * these tests exercise the real registry function end to end without
+ * fighting this file's spawn-call-ordering constraints (see
+ * `mockCliJson`'s own comment on why timing matters there). */
+async function setupChangeset(root: string, pending: boolean): Promise<void> {
+  const changesetDir = path.join(root, ".changeset");
+  await mkdir(changesetDir, { recursive: true });
+  await writeFile(path.join(changesetDir, "config.json"), "{}", "utf8");
+  if (pending) {
+    await writeFile(path.join(changesetDir, "demo-change.md"), "---\n---\n\nSummary\n", "utf8");
+  }
+}
+
+async function writeTasksRaw(root: string, content: string): Promise<void> {
+  const changeDir = path.join(root, "openspec", "changes", "demo");
+  await mkdir(changeDir, { recursive: true });
+  await writeFile(path.join(changeDir, "tasks.md"), content, "utf8");
+}
+
+async function readTasksRaw(root: string): Promise<string> {
+  return readFile(path.join(root, "openspec", "changes", "demo", "tasks.md"), "utf8");
+}
+
+describe("HarnessChainRunner — mechanical checks in the verify stage (tasks 5.2-5.4)", () => {
+  it("a passing check marks its task and the verifying agent still runs", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true); // propose already done; the one task below is unchecked -> starts at "apply"
+    await setupChangeset(root, true);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement", "verify"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(await readTasksRaw(root)).toContain("- [x] 1.1 has a changeset.");
+    // task 3.4: the passing result is handed to the verifying agent's own
+    // prompt, so it is told what already ran rather than repeating it.
+    expect(calls[1]?.context.promptContext).toContain("changeset-present");
+    expect(calls[1]?.context.promptContext).toContain("already ran and passed");
+  });
+
+  it("a failing check ends the stage as failed, names the failing check, and never invokes the agent", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await setupChangeset(root, false); // no pending changeset file -> the check fails
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // "apply" ran (the fake agent completes it, moving the chain into
+    // "verify"); "verify" itself never reached its agent — the failing
+    // check stopped the stage first.
+    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason).toContain("changeset-present");
+    expect((events.at(-1) as { reason: string }).reason).toContain("verifying agent was not invoked");
+    expect(await readTasksRaw(root)).toContain("- [ ] 1.1 has a changeset.");
+  });
+
+  it("an agent's own completion report never marks a checked task the check itself did not pass", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await setupChangeset(root, false); // the check will fail
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    // If this runner's "verify" branch ever ran, it would claim the task
+    // done in its own summary — proving the harness never reads that
+    // summary to decide a checked task's checkbox (task 3.2/5.3). Because
+    // the check fails first, this branch must never execute at all.
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: "1.1 has a changeset: done" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    expect(await readTasksRaw(root)).toContain("- [ ] 1.1 has a changeset.");
+  });
+
+  it("a change declaring no checks behaves exactly as before this capability existed", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", stepAgents: { verify: "claude-cli" } });
+    mockStatus(true);
+    await writeTasks(root, 0, 3); // every task checked, none declares a check -> starts at "verify"
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
   });
 });
 
@@ -633,7 +1026,10 @@ describe("HarnessChainRunner — asAgentRunner", () => {
       for await (const event of adapter.run(command)) events.push(event);
     })();
 
-    await vi.waitFor(() => expect(events.some((e) => e.kind === "checkpoint")).toBe(true));
+    await vi.waitFor(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+    );
 
     // A "cancel" sent through the adapter (mirroring how RunController
     // re-sends one to "the active runner") must resolve the pending

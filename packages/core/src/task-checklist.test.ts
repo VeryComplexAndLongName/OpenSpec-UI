@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  InvalidMechanicalCheckParameterError,
   TaskListChangedError,
+  UnknownMechanicalCheckError,
   deleteTaskLine,
   getArchivedChangeSummary,
   readTaskChecklist,
@@ -62,6 +64,75 @@ describe("readTaskChecklist", () => {
   it("returns an empty list for an unknown change name", async () => {
     const root = await temporaryRoot();
     expect(await readTaskChecklist(root, "does-not-exist", false)).toEqual([]);
+  });
+});
+
+describe("readTaskChecklist — mechanical check declarations", () => {
+  it("parses a task without a check exactly as before (no `check` field)", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "active-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] Plain task, no declaration\n");
+
+    const items = await readTaskChecklist(root, "active-change", false);
+
+    expect(items).toEqual([{ lineNumber: 0, text: "Plain task, no declaration", done: false }]);
+    expect(items[0]?.check).toBeUndefined();
+  });
+
+  it("parses a task carrying a bare check declaration", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "active-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] npm run typecheck is green. `check(typecheck)`\n");
+
+    const items = await readTaskChecklist(root, "active-change", false);
+
+    expect(items).toEqual([
+      {
+        lineNumber: 0,
+        text: "npm run typecheck is green. `check(typecheck)`",
+        done: false,
+        check: { name: "typecheck" },
+      },
+    ]);
+  });
+
+  it("parses a task carrying a check declaration with a parameter", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "active-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "- [ ] `git diff packages/core/src/agents/` is empty. `check(path-unchanged, packages/core/src/agents/)`\n",
+    );
+
+    const items = await readTaskChecklist(root, "active-change", false);
+
+    expect(items[0]?.check).toEqual({ name: "path-unchanged", param: "packages/core/src/agents/" });
+  });
+
+  it("throws UnknownMechanicalCheckError for an unrecognized check name", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "active-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] A misspelled check. `check(typechek)`\n");
+
+    await expect(readTaskChecklist(root, "active-change", false)).rejects.toThrow(UnknownMechanicalCheckError);
+  });
+
+  it("throws InvalidMechanicalCheckParameterError for a path-unchanged path that escapes the workspace", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "active-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "- [ ] Sneaky task. `check(path-unchanged, ../../outside-the-repo)`\n",
+    );
+
+    await expect(readTaskChecklist(root, "active-change", false)).rejects.toThrow(
+      InvalidMechanicalCheckParameterError,
+    );
   });
 });
 
