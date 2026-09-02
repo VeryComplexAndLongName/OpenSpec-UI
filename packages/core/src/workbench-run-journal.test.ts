@@ -52,6 +52,31 @@ describe("WorkbenchRunJournal", () => {
         expect(restored.checkpointSessions[0]!.changeName).toBe("demo");
     });
 
+    it("round-trips a suspended process and its wait reason (harness-suspendable-stage task 4.1)", async () => {
+        const root = await temporaryRoot();
+        const journal = new WorkbenchRunJournal(root);
+        await journal.save({
+            processes: [{
+                id: "run-1",
+                operation: "implement",
+                changeName: "demo",
+                mutating: true,
+                state: "suspended",
+                waitingFor: "a CI run to finish",
+                createdAt: "2026-08-08T10:00:00.000Z",
+            }],
+            checkpointSessions: [],
+        });
+
+        const restored = await journal.load();
+
+        expect(restored.processes).toEqual([expect.objectContaining({
+            id: "run-1",
+            state: "suspended",
+            waitingFor: "a CI run to finish",
+        })]);
+    });
+
     it("does not rewrite a finalized checkpoint file when only process state changes", async () => {
         const root = await temporaryRoot();
         await writeFile(path.join(root, "large.bin"), Buffer.alloc(200_000, "a"));

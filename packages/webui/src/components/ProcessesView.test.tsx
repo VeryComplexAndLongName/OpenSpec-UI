@@ -78,4 +78,29 @@ describe("ProcessesView", () => {
     expect(await screen.findByText("interrupted")).toBeInTheDocument();
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
   });
+
+  it("shows a suspended process as waiting, with its wait reason, in the list and in details (harness-suspendable-stage task 6.2)", async () => {
+    const api: ProcessesApi = {
+      ...createApi(),
+      list: vi.fn().mockResolvedValue([
+        {
+          id: "run-1", operation: "implement", changeName: "demo", state: "suspended",
+          waitingFor: "a CI run to finish", createdAt: "2026-08-13T00:00:00.000Z",
+        },
+      ]),
+      details: vi.fn().mockResolvedValue({
+        process: {
+          id: "run-1", operation: "implement", state: "suspended",
+          waitingFor: "a CI run to finish", createdAt: "2026-08-13T00:00:00.000Z",
+        },
+        canRollback: false,
+      }),
+    };
+    render(<ProcessesView api={api} />);
+
+    expect(await screen.findByText("suspended · a CI run to finish")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(await screen.findByText("Waiting for: a CI run to finish")).toBeInTheDocument();
+  });
 });
