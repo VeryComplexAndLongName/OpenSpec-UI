@@ -296,6 +296,18 @@ there. Neither replaces the other: the native path is VS Code-only and
 uses VS Code's own model picker; the agent picker described here works
 identically in both hosts through this app's own CLI-runner protocol.
 
+## Agentic Harness
+
+The Agentic Harness sequences the agent picker above across a whole
+change — `propose → review → apply → verify → archive → git` — with
+per-stage agent/model/effort/budget choices, an autonomy level, review
+gates, and checkpoints, all read from `openspec/agent-harness.json` and a
+per-change `openspec/changes/<id>/harness.json`. See
+[`HARNESS.md`](HARNESS.md) for the full reference (every setting, what
+accepts it, and where each is edited in both hosts) and
+[`LIMITS.md`](LIMITS.md) for what actually caps a run's spending — and
+what does not.
+
 ## CI CLI (merge gate)
 
 `packages/cli` (see `docs/adr/0007-ci-cli-third-delivery-target.md`) is a

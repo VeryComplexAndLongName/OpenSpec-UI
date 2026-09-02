@@ -19,6 +19,10 @@ Pointers, not duplicates: edit the source document, not this page.
    (`execution-core`, `shared-ui`, `standalone-app`, `vscode-extension`),
    each with `proposal.md`/`design.md`/`tasks.md`/`specs/`. Start
    implementation from `tasks.md` in that order, not from scratch.
+4. [`HARNESS.md`](HARNESS.md) and [`LIMITS.md`](LIMITS.md) — before
+   touching Agentic Harness configuration, settings surfaces, or spending
+   limits: every key, its accepted values, and what actually caps a run.
+   Pointers only — do not duplicate their settings tables here.
 
 ## Governance (mandatory)
 

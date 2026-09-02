@@ -226,6 +226,11 @@ describe("getArchivedChangeSummary", () => {
 // parser's understanding of an ordinary task line shifted even slightly
 // (task 2.2's "every existing tasks.md ... must parse identically").
 describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.md (task 6.3)", () => {
+  // Reads and parses every tasks.md in the repository — around twenty
+  // files today and one more with each change — so it grows with the
+  // repository and needs a ceiling that does not. Measured at ~2 s alone;
+  // it timed out at the 5000 ms default under a full-suite run. See
+  // load-sensitive-test-timeouts.
   it("parses every real tasks.md without throwing, with counts matching an independent line count", async () => {
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
     const changesRoot = path.join(repoRoot, "openspec", "changes");

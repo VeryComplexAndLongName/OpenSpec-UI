@@ -45,7 +45,10 @@ streamed output in the same view.
 Recommend a CLI agent per OpenSpec-change stage, then start a run — a
 single-stage picker or a supervised/unsupervised chain, depending on the
 resolved autonomy level — without leaving the Change Editor. See
-`openspec/README.md`'s "Agentic Harness — how to work with it".
+`openspec/README.md`'s "Agentic Harness — how to work with it", and the
+root repository's [`HARNESS.md`](../../HARNESS.md) /
+[`LIMITS.md`](../../LIMITS.md) for the full settings and spending-limit
+reference.
 
 ![Standalone Harness Settings tab showing per-stage agent recommendations and autonomy level](../../docs/images/standalone/harness-settings.png)
 
