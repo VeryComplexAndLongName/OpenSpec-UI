@@ -127,12 +127,28 @@ failure is the old one.
   touches how tasks are checked, not how agents are run.
 - [x] 6.5 Version bump via `npx changeset` (`@openspec-ui/core` minor,
   plus the packages whose settings surface changed).
-- [ ] 6.6 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.6 **Human-observed live run completed 2026-09-02**:
   run a chain on a change whose `tasks.md` declares a failing mechanical
   check, and confirm from the run's own output that the verifying agent
   was never invoked and that the failing check is named. Then fix the
   cause, re-run, and confirm the task is marked without an agent having
   claimed it.
+
+  Human confirmation received from the repository owner on 2026-09-02.
+
+  Run against a disposable, OpenSpec-initialized local Git repository.
+  Its checked task declared `` `check(path-unchanged, README.md)` `` and
+  README had a deliberate uncommitted edit. The first real chain emitted
+  `mechanical checks failed, verifying agent was not invoked`, named
+  `path-unchanged(README.md)` and the changed path, made zero agent calls,
+  and cleared the task checkbox.
+
+  After restoring README exactly to its committed content, the second
+  chain resumed at `apply`, entered `verify`, and completed archive. A
+  recording runner read `tasks.md` at the verify-agent boundary and found
+  the task already `[x]`; the mechanical result, not an agent claim, had
+  marked it. The temporary fixture and driver lived outside this
+  repository and were not added to the test suite.
 
 ## 5. Reopened in review, 2026-09-02
 

@@ -951,7 +951,13 @@ describe("HARNESS.md", () => {
     expect(sectionStart, "HARNESS.md's Worked examples section header not found").toBeGreaterThanOrEqual(0);
     const section = doc.slice(sectionStart);
 
-    const jsonBlocks = [...section.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1]);
+    // `\r?\n`, not `\n`: HARNESS.md is checked out with CRLF endings on
+    // Windows (500 pairs, no bare LF), so an LF-only fence pattern matches
+    // nothing there while matching both blocks on CI's Linux runner. That
+    // combination is the worst one — green in CI, red on the machine of
+    // whoever is editing the document — and it is what this assertion was
+    // doing before the `\r?` was added.
+    const jsonBlocks = [...section.matchAll(/```json\r?\n([\s\S]*?)```/g)].map((match) => match[1]);
     expect(jsonBlocks, "expected exactly the global and per-change worked examples").toHaveLength(2);
 
     const globalExample = JSON.parse(jsonBlocks[0]!);
