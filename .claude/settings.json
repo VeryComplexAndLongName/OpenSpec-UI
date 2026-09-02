@@ -10,7 +10,8 @@
       "Bash(netstat -ano)",
       "Bash(taskkill //F //PID 22084)",
       "Bash(rm -f 'C:\\\\Users\\\\ivanov.a/sprint-smoke-server.log' 'C:\\\\Users\\\\ivanov.a/sprint-report-smoke.pdf')",
-      "Bash(openspec change *)"
+      "Bash(openspec change *)",
+      "Bash(git push *)"
     ]
   }
 }

@@ -29,16 +29,24 @@ Pointers, not duplicates: edit the source document, not this page.
 - Architecture changes must go through ADR in `docs/adr/` and be referenced by
    the related OpenSpec change.
 
-## Invariants (see `openspec/config.yaml`, `context` field)
+## Invariants
 
-- All business logic lives only in `packages/core`. `server`/`extension` are
-  thin transport adapters, with no duplicated logic.
-- The command protocol (`plan`/`implement`/`review`/`status`/`cancel`) and
-  the event protocol (`started`/`stdout`/`stderr`/`progress`/`completed`/
-  `failed`/`cancelled`) are defined only in `packages/core`.
-- The CLI-agent orchestration security model (allowlist, cwd sandbox, audit,
-  repository file contents as data, not executable instructions) is a
-  required part of `execution-core`, not an optional follow-up.
+Source of truth: `openspec/config.yaml`'s `context` field — edit there, not
+here. That field is what `openspec instructions` mechanically returns to
+every `openspec-propose`/`apply`/`explore`/`sync`/`update` call before it
+writes anything, so it is the version that actually reaches a change
+proposal; this section is a summary for whoever is reading this file
+directly (or a CLI-agent run started without going through those skills)
+and must not drift from it.
+
+Summary: all business logic lives only in `packages/core` (`server`/
+`extension` are thin transport adapters, no duplicated logic); the command
+protocol (`plan`/`implement`/`review`/`status`/`cancel`) and event protocol
+(`started`/`stdout`/`stderr`/`progress`/`completed`/`failed`/`cancelled`)
+are defined only in `packages/core`; the CLI-agent orchestration security
+model (allowlist, cwd sandbox, audit, repository file contents as data, not
+executable instructions) is a required part of `execution-core`, not an
+optional follow-up.
 
 ## Checks before committing
 
