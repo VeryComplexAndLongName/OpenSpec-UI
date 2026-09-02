@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_HARNESS_CONFIG,
   GlobalAgentSufficientReviewGateError,
@@ -14,6 +15,7 @@ import {
   readGlobalHarnessConfig,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
+  VSCODE_CHAT_STEP_AGENT_ID,
   writeChangeHarnessConfig,
   writeGlobalHarnessConfig,
 } from "./harness-config.js";
@@ -234,7 +236,7 @@ describe("stepAgents.verify (task 5.5)", () => {
 
     const resolved = await resolveHarnessConfig(root, "demo");
     expect(resolved.stepAgents).toEqual({ propose: "claude-cli", verify: "codex-cli" });
-    expect(normalizeStepAgent(resolved.stepAgents.verify!)).toEqual({ agent: "codex-cli", dispatch: "cli" });
+    expect(normalizeStepAgent(resolved.stepAgents.verify!)).toEqual({ agent: "codex-cli" });
   });
 
   it("an unset stepAgents.verify behaves exactly as an unset review does today", async () => {
@@ -261,7 +263,7 @@ describe("stepAgents model support", () => {
 
     const config = await readGlobalHarnessConfig(root);
     expect(config.stepAgents).toEqual({ propose: "claude-cli" });
-    expect(normalizeStepAgent(config.stepAgents.propose!)).toEqual({ agent: "claude-cli", dispatch: "cli" });
+    expect(normalizeStepAgent(config.stepAgents.propose!)).toEqual({ agent: "claude-cli" });
   });
 
   it("resolves the object form to the same agent, with the model carried", async () => {
@@ -274,7 +276,6 @@ describe("stepAgents model support", () => {
     expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
       agent: "claude-cli",
       model: "claude-haiku-4-5",
-      dispatch: "cli",
     });
   });
 
@@ -309,74 +310,152 @@ describe("stepAgents model support", () => {
     expect(normalizeStepAgent(resolved.stepAgents.apply!)).toEqual({
       agent: "claude-cli",
       model: "cheap-model",
-      dispatch: "cli",
     });
   });
 });
 
-describe("stepAgents dispatch", () => {
-  it("defaults dispatch to \"cli\" for both the bare-string and { agent, model } forms", async () => {
+describe("stepAgents chat-runner strictness and legacy dispatch migration", () => {
+  it("rejects model on vscode-chat because it cannot reach anything in chat-dispatch mode", async () => {
     const root = await temporaryRoot();
-    await writeGlobalHarnessConfig(root, {
-      stepAgents: { propose: "claude-cli", apply: { agent: "claude-cli", model: "claude-haiku-4-5" } },
-    });
-
-    const config = await readGlobalHarnessConfig(root);
-    expect(normalizeStepAgent(config.stepAgents.propose!).dispatch).toBe("cli");
-    expect(normalizeStepAgent(config.stepAgents.apply!).dispatch).toBe("cli");
+    await expect(
+      writeChangeHarnessConfig(root, "demo", {
+        stepAgents: { apply: { agent: VSCODE_CHAT_STEP_AGENT_ID, model: "claude-opus-5" } },
+      }),
+    ).rejects.toThrow(/cannot reach anything/);
   });
 
-  it("rejects an unknown dispatch value, naming the stage", async () => {
+  it("rejects effort on vscode-chat because it cannot reach anything in chat-dispatch mode", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeChangeHarnessConfig(root, "demo", {
+        stepAgents: { apply: { agent: VSCODE_CHAT_STEP_AGENT_ID, effort: "high" } },
+      }),
+    ).rejects.toThrow(/cannot reach anything/);
+  });
+
+  it("rejects budget on vscode-chat because it cannot reach anything in chat-dispatch mode", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      writeChangeHarnessConfig(root, "demo", {
+        stepAgents: { apply: { agent: VSCODE_CHAT_STEP_AGENT_ID, budget: { maxCostUsd: 10 } } },
+      }),
+    ).rejects.toThrow(/cannot reach anything/);
+  });
+
+  it("rejects an unknown top-level stepAgents key, naming the key and accepted set", async () => {
     const root = await temporaryRoot();
     await mkdir(path.join(root, "openspec"), { recursive: true });
     await writeFile(
       path.join(root, "openspec", "agent-harness.json"),
-      JSON.stringify({ stepAgents: { propose: { agent: "claude-cli", dispatch: "carrier-pigeon" } } }),
+      JSON.stringify({ stepAgents: { propose: { agent: "claude-cli", modle: "claude-opus-5" } } }),
       "utf8",
     );
 
-    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/stepAgents\.propose\.dispatch/);
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/unknown key "modle"/);
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/accepted keys: agent, model, effort, budget/);
   });
 
-  it("rejects dispatch \"vscode-chat\" when autonomyLevel is semi-autonomous", async () => {
+  it("rejects an unknown budget key, naming the key and accepted set", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { propose: { agent: "claude-cli", budget: { maxCostUsd: 5, maxCostUSd: 10 } } } }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/unknown key "maxCostUSd"/);
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/accepted keys: maxCostUsd, maxAiCredits/);
+  });
+
+  it("migrates legacy dispatch:vscode-chat to agent:vscode-chat and reports once", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec", "changes", "demo"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "changes", "demo", "harness.json"),
+      JSON.stringify({ stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } } }),
+      "utf8",
+    );
+
+    const override = await readChangeHarnessConfig(root, "demo");
+    expect(override?.stepAgents?.apply).toEqual({ agent: VSCODE_CHAT_STEP_AGENT_ID });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('stepAgents.apply.agent "vscode-chat"');
+    warn.mockRestore();
+  });
+
+  it("migrates legacy dispatch:cli silently", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { apply: { agent: "claude-cli", dispatch: "cli", model: "claude-opus-5" } } }),
+      "utf8",
+    );
+
+    const config = await readGlobalHarnessConfig(root);
+    expect(config.stepAgents.apply).toEqual({ agent: "claude-cli", model: "claude-opus-5" });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("legacy dispatch:vscode-chat with model now fails because model cannot reach anything", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "agent-harness.json"),
+      JSON.stringify({ stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat", model: "claude-opus-5" } } }),
+      "utf8",
+    );
+
+    await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/cannot reach anything/);
+  });
+
+  it("keeps accepting this repository's real openspec/agent-harness.json", async () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    // Three segments from `packages/core/src`, not four. Four reached
+    // above the repository, where no config file exists, so
+    // `readGlobalHarnessConfig` fell back to `DEFAULT_HARNESS_CONFIG` —
+    // whose `autonomyLevel` and `reviewGate.mode` are exactly the two
+    // values asserted below. The test passed without ever reading the
+    // file it names, which is the failure tasks.md 6.4 exists to catch.
+    const workspaceRoot = path.resolve(here, "..", "..", "..");
+    const configPath = path.join(workspaceRoot, "openspec", "agent-harness.json");
+    // Assert the file first, so a moved or renamed config fails here
+    // rather than passing on the defaults again.
+    await expect(stat(configPath)).resolves.toBeDefined();
+
+    const config = await readGlobalHarnessConfig(workspaceRoot);
+    // Non-empty `stepAgents` is what the defaults cannot produce, and is
+    // the part a schema change would break.
+    expect(Object.keys(config.stepAgents).length).toBeGreaterThan(0);
+    for (const entry of Object.values(config.stepAgents)) {
+      expect(normalizeStepAgent(entry!).agent.length).toBeGreaterThan(0);
+    }
+    expect(config.autonomyLevel).toBe("assisted");
+    expect(config.reviewGate.mode).toBe("human-required");
+  });
+
+  it("rejects the chat runner under semi-autonomous", async () => {
     const root = await temporaryRoot();
     await expect(
       writeChangeHarnessConfig(root, "demo", {
         autonomyLevel: "semi-autonomous",
-        stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+        stepAgents: { apply: VSCODE_CHAT_STEP_AGENT_ID },
       }),
-    ).rejects.toThrow(/stepAgents\.apply.*vscode-chat/);
+    ).rejects.toThrow(/only valid under autonomyLevel "assisted"/);
   });
 
-  it("rejects dispatch \"vscode-chat\" when autonomyLevel is autonomous", async () => {
+  it("rejects the chat runner under autonomous", async () => {
     const root = await temporaryRoot();
     await expect(
       writeChangeHarnessConfig(root, "demo", {
         autonomyLevel: "autonomous",
-        stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+        stepAgents: { apply: VSCODE_CHAT_STEP_AGENT_ID },
       }),
-    ).rejects.toThrow(/stepAgents\.apply.*vscode-chat/);
-  });
-
-  it("accepts dispatch \"vscode-chat\" under autonomyLevel assisted", async () => {
-    const root = await temporaryRoot();
-    await writeChangeHarnessConfig(root, "demo", {
-      autonomyLevel: "assisted",
-      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
-    });
-
-    const override = await readChangeHarnessConfig(root, "demo");
-    expect(override?.stepAgents?.apply).toEqual({ agent: "claude-cli", dispatch: "vscode-chat" });
-  });
-
-  it("accepts dispatch \"vscode-chat\" when autonomyLevel is left absent (defaults to assisted)", async () => {
-    const root = await temporaryRoot();
-    await writeGlobalHarnessConfig(root, {
-      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
-    });
-
-    const config = await readGlobalHarnessConfig(root);
-    expect(normalizeStepAgent(config.stepAgents.apply!).dispatch).toBe("vscode-chat");
+    ).rejects.toThrow(/only valid under autonomyLevel "assisted"/);
   });
 });
 
@@ -463,7 +542,6 @@ describe("stepAgents effort and budget (harness-step-effort-and-budget)", () => 
     const config = await resolveHarnessConfig(root);
     expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
       agent: "claude-cli",
-      dispatch: "cli",
       effort: "high",
     });
   });
@@ -478,7 +556,6 @@ describe("stepAgents effort and budget (harness-step-effort-and-budget)", () => 
     const config = await resolveHarnessConfig(root, "demo");
     expect(normalizeStepAgent(config.stepAgents.apply!)).toEqual({
       agent: "claude-cli",
-      dispatch: "cli",
       budget: { maxCostUsd: 5 },
     });
   });

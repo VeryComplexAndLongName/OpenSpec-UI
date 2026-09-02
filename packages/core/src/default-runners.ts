@@ -119,6 +119,9 @@ export function buildDefaultAllowlist(): AllowlistConfig {
     }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],
+    // `vscode-chat` is intentionally absent: it is a Harness step-runner
+    // id that dispatches to VS Code chat and starts no subprocess, so
+    // there is no executable/argv to allowlist.
     // ACP-flavored adapters (acp-agent-adapters) — mirrors each one's own
     // buildInvocation(), same as every entry above. No `--allow-all-
     // tools`/`--yolo` counterpart to permit here: see copilot-acp.ts's and

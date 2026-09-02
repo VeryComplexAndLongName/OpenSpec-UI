@@ -102,6 +102,17 @@ describe("HarnessSettingsView", () => {
 });
 
 describe("HarnessSettingsView effort and budget (harness-step-effort-and-budget)", () => {
+  it("offers VS Code chat as a stage runner and hides effort/budget controls for it", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "vscode-chat" } });
+
+    expect(screen.queryByLabelText("apply effort")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("apply budget")).not.toBeInTheDocument();
+  });
+
   it("does not offer an effort or budget field for an agent with no such mechanism (gemini-cli)", async () => {
     const api = createApi();
     render(<HarnessSettingsView api={api} />);

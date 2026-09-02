@@ -14,6 +14,7 @@ import {
   type Command,
   type HarnessChainRunner,
   type HarnessStage,
+  VSCODE_CHAT_STEP_AGENT_ID,
   type WorkbenchRecoveryService,
   normalizeStepAgent,
   resolveHarnessConfig,
@@ -37,7 +38,7 @@ const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
 };
 
 /** The standalone server has no chat to hand a stage to — ADR 0016
- * requires refusing `dispatch: "vscode-chat"` here with an error, never a
+ * requires refusing the `vscode-chat` step-runner here with an error, never a
  * silent fallback to spawning the CLI the user did not ask for. Returns
  * `true` (and has already sent the `failed` event) when `command` was
  * refused for exactly this reason. */
@@ -54,7 +55,7 @@ async function rejectIfChatDispatch(socket: WebSocket, command: Command): Promis
   }
 
   const stepAgent = harnessConfig.stepAgents[stage];
-  if (stepAgent === undefined || normalizeStepAgent(stepAgent).dispatch !== "vscode-chat") return false;
+  if (stepAgent === undefined || normalizeStepAgent(stepAgent).agent !== VSCODE_CHAT_STEP_AGENT_ID) return false;
 
   if (socket.readyState === socket.OPEN) {
     socket.send(
@@ -62,7 +63,7 @@ async function rejectIfChatDispatch(socket: WebSocket, command: Command): Promis
         kind: "failed",
         runId: command.runId,
         timestamp: nowIso(),
-        reason: `stage "${stage}" is configured with dispatch "vscode-chat", which the standalone server cannot honour — run it from the VS Code extension instead`,
+        reason: `stage "${stage}" selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which the standalone server cannot honour — run it from the VS Code extension instead`,
       }),
     );
   }

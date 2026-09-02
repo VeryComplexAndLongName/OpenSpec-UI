@@ -11,21 +11,20 @@
 
 import type { HarnessStage } from "./harness-stage.js";
 
-/** How a stage's entry runs: `"cli"` (default) spawns the configured
- * agent as a subprocess, as every stage has always run; `"vscode-chat"`
- * hands the stage's prompt to VS Code's own chat instead — see
+/** Stage-runner id meaning "dispatch this stage to VS Code's own chat"
+ * instead of spawning a CLI agent process — see
  * docs/adr/0016-harness-stage-dispatch-via-vscode-chat.md. */
-export type HarnessStageDispatch = "cli" | "vscode-chat";
+export const VSCODE_CHAT_STEP_AGENT_ID = "vscode-chat";
 
-/** A stage's entry names an agent, either on its own (the bare-string
- * form, unchanged from before this capability) or together with a
- * model, a dispatch mode, a reasoning effort, and/or a spending cap.
- * Widened, not replaced — see harness-step-models design.md, "Widen the
- * entry, keep the string form working", and harness-step-effort-and-
- * budget design.md for `effort`/`budget`. */
+/** A stage's entry names what runs that stage, either on its own (the
+ * bare-string form, unchanged from before this capability) or together
+ * with a model, reasoning effort, and/or spending cap. Widened, not
+ * replaced — see harness-step-models design.md, "Widen the entry, keep
+ * the string form working", and harness-step-effort-and-budget design.md
+ * for `effort`/`budget`. */
 export type HarnessStepAgent =
   | string
-  | { agent: string; model?: string; dispatch?: HarnessStageDispatch; effort?: HarnessEffort; budget?: HarnessStepBudget };
+  | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget };
 export type HarnessStepAgents = Partial<Record<HarnessStage, HarnessStepAgent>>;
 
 /** Allow-list of characters a model id may contain: cannot start with
@@ -89,15 +88,15 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
   "gemini-cli": {},
   "local-llm": {},
+  [VSCODE_CHAT_STEP_AGENT_ID]: {},
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,
- * model?, dispatch, effort?, budget? }` — the single place that knows
- * both shapes exist, so no consumer has to. `dispatch` defaults to
- * `"cli"` when the entry doesn't set one. */
+ * model?, effort?, budget? }` — the single place that knows both shapes
+ * exist, so no consumer has to. */
 export function normalizeStepAgent(
   entry: HarnessStepAgent,
-): { agent: string; model?: string; dispatch: HarnessStageDispatch; effort?: HarnessEffort; budget?: HarnessStepBudget } {
-  if (typeof entry === "string") return { agent: entry, dispatch: "cli" };
-  return { agent: entry.agent, model: entry.model, dispatch: entry.dispatch ?? "cli", effort: entry.effort, budget: entry.budget };
+): { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget } {
+  if (typeof entry === "string") return { agent: entry };
+  return { agent: entry.agent, model: entry.model, effort: entry.effort, budget: entry.budget };
 }

@@ -1127,7 +1127,7 @@ describe("server — WebSocket /api/ws", () => {
   it("rejects a stage configured with dispatch \"vscode-chat\" instead of running a CLI", async () => {
     const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
     await writeGlobalHarnessConfig(wsImplementCommand.cwd, {
-      stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+      stepAgents: { apply: "vscode-chat" },
     });
 
     const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);

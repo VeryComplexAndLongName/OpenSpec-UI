@@ -77,8 +77,8 @@ vi.mock("@openspec-ui/core", () => ({
   listSpecs: (...args: unknown[]) => listSpecsMock(...args),
   normalizeStepAgent: (entry: unknown) =>
     typeof entry === "string"
-      ? { agent: entry, dispatch: "cli" }
-      : { dispatch: "cli", ...(entry as Record<string, unknown>) },
+      ? { agent: entry }
+      : { ...(entry as Record<string, unknown>) },
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),

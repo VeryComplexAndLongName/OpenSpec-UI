@@ -1,9 +1,21 @@
 {
   "stepAgents": {
-    "propose": "claude-cli",
-    "review": "claude-cli",
-    "apply": "copilot-cli",
-    "archive": "claude-cli"
+    "propose": {
+      "agent": "claude-cli",
+      "model": "claude-opus-5"
+    },
+    "review": {
+      "agent": "claude-cli",
+      "model": "claude-opus-5"
+    },
+    "apply": {
+      "agent": "claude-cli",
+      "model": "claude-sonnet-5"
+    },
+    "archive": {
+      "agent": "claude-cli",
+      "model": "claude-haiku-4.5"
+    }
   },
   "autonomyLevel": "assisted",
   "reviewGate": {

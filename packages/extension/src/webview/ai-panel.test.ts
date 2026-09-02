@@ -539,7 +539,7 @@ describe("AiPanel message-bridge pass-through of agentUpdate/permissionRequest/r
 describe("AiPanel vscode-chat stage dispatch", () => {
     async function createChatDispatchFixture() {
         resolveHarnessConfigMock.mockResolvedValue({
-            stepAgents: { apply: { agent: "claude-cli", dispatch: "vscode-chat" } },
+            stepAgents: { apply: "vscode-chat" },
             autonomyLevel: "assisted",
             reviewGate: { mode: "human-required" },
         });

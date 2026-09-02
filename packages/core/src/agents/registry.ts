@@ -11,6 +11,12 @@
 // registry entry, not a `variant` field on the existing one, per
 // design.md's "ACP-flavored adapters are new, additional AgentAdapters,
 // not replacements".
+//
+// Harness config strictness adds `vscode-chat` as a step-runner id (see
+// `VSCODE_CHAT_STEP_AGENT_ID` in harness-step-agent.ts): this name is a
+// delivery target, not a model family, so its meaning is explicit in the
+// config entry itself ("dispatch stage to VS Code chat") and avoids
+// implying that a CLI process will run.
 
 export interface AgentDescriptor {
   /** Matches the `AgentAdapter.name` of the corresponding adapter. */

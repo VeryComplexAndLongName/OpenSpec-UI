@@ -8,6 +8,7 @@ import {
   detectAvailableAgents,
   normalizeStepAgent,
   resolveHarnessConfig,
+  VSCODE_CHAT_STEP_AGENT_ID,
   type AgentRunner,
   type Command,
   type HarnessChainRunner,
@@ -155,7 +156,8 @@ export class AiPanel {
    * spawned `AgentRunner` (default, unchanged) or, when the
    * corresponding stage's `stepAgents` entry — already resolved once per
    * reveal by `resolveAndPostStepAgents()`, the same recommendation the
-   * webview's picker pre-fill uses — declares `dispatch: "vscode-chat"`,
+    * webview's picker pre-fill uses — selects the
+    * `VSCODE_CHAT_STEP_AGENT_ID` target,
    * to VS Code's own chat instead — see
    * docs/adr/0016-harness-stage-dispatch-via-vscode-chat.md. Reading the
    * already-resolved `this.panelContext.stepAgents` here (rather than
@@ -170,7 +172,7 @@ export class AiPanel {
   private dispatchOrRun(panel: vscode.WebviewPanel, command: Command): void {
     const stage = STAGE_FOR_COMMAND_KIND[command.kind];
     const stepAgent = stage ? this.panelContext?.stepAgents?.[stage] : undefined;
-    if (stepAgent !== undefined && normalizeStepAgent(stepAgent).dispatch === "vscode-chat") {
+    if (stepAgent !== undefined && normalizeStepAgent(stepAgent).agent === VSCODE_CHAT_STEP_AGENT_ID) {
       const changeName = command.context.changeDir
         .split(/[\\/]+/)
         .filter((segment) => segment.length > 0)

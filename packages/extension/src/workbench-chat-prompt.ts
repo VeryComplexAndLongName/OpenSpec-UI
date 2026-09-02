@@ -1,7 +1,7 @@
 // The single prompt builder for handing an OpenSpec change to VS Code's
 // own chat via `workbench.action.chat.open` — used both by
 // `openspec-ui.startImplementation` (commands.ts, "Implement with VS Code
-// Agent") and by a harness stage configured with `dispatch: "vscode-chat"`
+// Agent") and by a harness stage selecting the `vscode-chat` step-runner
 // (webview/ai-panel.ts) — see
 // docs/adr/0016-harness-stage-dispatch-via-vscode-chat.md, "The product
 // already contains a dispatch that does not have this problem." One
@@ -23,7 +23,7 @@ export interface WorkbenchChatPromptParams {
   changeDir: string;
   /** Only set by `openspec-ui.startImplementation`, which tracks a
    * Workbench checkpoint session for the run. Absent for a harness stage
-   * dispatched via `dispatch: "vscode-chat"`, which has no such session. */
+   * dispatched via the `vscode-chat` step-runner, which has no such session. */
   processId?: string;
 }
 
