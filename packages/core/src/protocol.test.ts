@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMAND_KINDS,
   type Event,
+  type EventKind,
   deserializeEvent,
   isEvent,
   serializeEvent,
@@ -9,26 +10,44 @@ import {
 
 const base = { runId: "run-1", timestamp: "2026-08-03T00:00:00.000Z" };
 
-const samples: Event[] = [
-  { ...base, kind: "started", command: "implement", cwd: "/workspace/repo" },
-  { ...base, kind: "stdout", chunk: "some output\n" },
-  { ...base, kind: "stderr", chunk: "warning: something\n" },
-  { ...base, kind: "progress", message: "applying task 3/7" },
-  { ...base, kind: "completed", summary: "diff --git a/x b/x" },
-  { ...base, kind: "completed" },
-  { ...base, kind: "failed", reason: "allowlist rejected command" },
-  { ...base, kind: "cancelled" },
-  { ...base, kind: "stageCompleted", stage: "propose", nextStage: "review" },
-  {
+// One valid sample per event kind, typed as a Record over `EventKind` so
+// that adding a kind without adding a sample here is a COMPILE error.
+// That is the only mechanism in this file that does not depend on someone
+// remembering: `isEvent`'s switch ends in `default: return false`, so a
+// new kind compiles cleanly while the guard silently rejects it — the gap
+// `cancelling` and `usageReported` each went through, one after the
+// other, each time leaving a shipped feature inert over both transports.
+const sampleByKind: Record<EventKind, Event> = {
+  started: { ...base, kind: "started", command: "implement", cwd: "/workspace/repo" },
+  stdout: { ...base, kind: "stdout", chunk: "some output\n" },
+  stderr: { ...base, kind: "stderr", chunk: "warning: something\n" },
+  progress: { ...base, kind: "progress", message: "applying task 3/7" },
+  completed: { ...base, kind: "completed", summary: "diff --git a/x b/x" },
+  failed: { ...base, kind: "failed", reason: "allowlist rejected command" },
+  cancelled: { ...base, kind: "cancelled" },
+  cancelling: { ...base, kind: "cancelling", attempted: "termination-requested" },
+  usageReported: { ...base, kind: "usageReported", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } },
+  stageCompleted: { ...base, kind: "stageCompleted", stage: "propose", nextStage: "review" },
+  checkpoint: {
     ...base,
     kind: "checkpoint",
     stage: "review",
     nextStage: "apply",
     nextAgentId: "claude-cli",
   },
-  { ...base, kind: "handedOff", stage: "apply" },
-  { ...base, kind: "agentUpdate", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } } },
-  { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
+  handedOff: { ...base, kind: "handedOff", stage: "apply" },
+  agentUpdate: {
+    ...base,
+    kind: "agentUpdate",
+    update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } },
+  },
+  permissionRequest: { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
+};
+
+const samples: Event[] = [
+  ...Object.values(sampleByKind),
+  // Variants beyond the one-per-kind record above.
+  { ...base, kind: "completed" },
 ];
 
 describe("protocol Event serialization", () => {
@@ -39,6 +58,30 @@ describe("protocol Event serialization", () => {
       expect(parsed).toEqual(sample);
     });
   }
+
+  it("accepts every kind the protocol defines", () => {
+    // Every entry, not just the ones a previous author remembered: the
+    // record's type makes the list exhaustive, and this walks it. An
+    // event kind the core can emit but `isEvent` rejects is discarded by
+    // both webui transports without an error anywhere.
+    for (const [kind, sample] of Object.entries(sampleByKind)) {
+      expect(isEvent(sample), `isEvent rejected a valid "${kind}" event`).toBe(true);
+    }
+  });
+
+  it("rejects a cancelling event whose attempted value is not one of the two permitted", () => {
+    expect(isEvent({ ...base, kind: "cancelling", attempted: "termination-requested" })).toBe(true);
+    expect(isEvent({ ...base, kind: "cancelling", attempted: "nothing-to-cancel" })).toBe(true);
+    expect(isEvent({ ...base, kind: "cancelling", attempted: "maybe" })).toBe(false);
+    expect(isEvent({ ...base, kind: "cancelling" })).toBe(false);
+  });
+
+  it("rejects a usageReported event carrying no usage object", () => {
+    expect(isEvent({ ...base, kind: "usageReported", usage: {} })).toBe(true);
+    expect(isEvent({ ...base, kind: "usageReported" })).toBe(false);
+    expect(isEvent({ ...base, kind: "usageReported", usage: null })).toBe(false);
+    expect(isEvent({ ...base, kind: "usageReported", usage: "0.26" })).toBe(false);
+  });
 
   it("rejects unknown kind", () => {
     expect(() => deserializeEvent(JSON.stringify({ ...base, kind: "bogus" }))).toThrow();

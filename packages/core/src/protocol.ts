@@ -320,6 +320,10 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.reason === "string";
     case "cancelled":
       return true;
+    case "cancelling":
+      return v.attempted === "termination-requested" || v.attempted === "nothing-to-cancel";
+    case "usageReported":
+      return typeof v.usage === "object" && v.usage !== null;
     case "stageCompleted":
       return (
         typeof v.stage === "string" &&
