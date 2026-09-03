@@ -64,3 +64,43 @@ describe("MessageBridgeTransport", () => {
     expect(received).toEqual([event]);
   });
 });
+
+describe("MessageBridgeTransport — every event kind reaches the webview", () => {
+  // Where the defect was actually felt. `isEvent` is the gate this
+  // transport puts in front of every incoming event, and a kind it does
+  // not recognize is dropped here with no error anywhere — so
+  // `cancelling` and `usageReported` were emitted by the core, posted by
+  // the extension, and silently discarded one line before the UI.
+  const cases: Event[] = [
+    { kind: "cancelling", runId: "run-1", timestamp: "t", attempted: "termination-requested" },
+    { kind: "cancelling", runId: "run-1", timestamp: "t", attempted: "nothing-to-cancel" },
+    { kind: "usageReported", runId: "run-1", timestamp: "t", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } },
+  ];
+
+  for (const event of cases) {
+    it(`delivers a ${event.kind} event`, () => {
+      const fakeTarget = new EventTarget();
+      const transport = new MessageBridgeTransport({ vscodeApi: { postMessage: vi.fn() }, eventTarget: fakeTarget });
+      const received: Event[] = [];
+      transport.subscribe((e) => received.push(e));
+
+      fakeTarget.dispatchEvent(new MessageEvent("message", { data: { type: "openspec-ui/event", event } }));
+
+      expect(received).toEqual([event]);
+    });
+  }
+
+  it("still drops a payload whose kind the protocol does not define", () => {
+    const fakeTarget = new EventTarget();
+    const transport = new MessageBridgeTransport({ vscodeApi: { postMessage: vi.fn() }, eventTarget: fakeTarget });
+    const received: Event[] = [];
+    transport.subscribe((e) => received.push(e));
+
+    fakeTarget.dispatchEvent(
+      new MessageEvent("message", { data: { type: "openspec-ui/event", event: { kind: "bogus", runId: "r", timestamp: "t" } } }),
+    );
+
+    expect(received).toHaveLength(0);
+  });
+});
+
