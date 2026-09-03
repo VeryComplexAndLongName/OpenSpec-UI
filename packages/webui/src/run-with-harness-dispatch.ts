@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { resolveRunWithHarnessTarget, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { resolveRunWithHarnessTarget, type HarnessBudget, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { resolveHarnessConfig } from "./harness-config-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
 import { buildDefaultChangeDir } from "./shell-ui.js";
@@ -18,6 +18,12 @@ export interface RunWithHarnessDispatch {
    * either target, since the `"picker"` path also needs it to pre-load
    * the "Run a Command" tab. */
   changeDir: string;
+  /** The resolved config's `budget`, carried out of the same resolution
+   * rather than fetched again — the chain panel shows it beside a run's
+   * recorded usage so a configured ceiling is legible. `undefined` when
+   * none is configured, which is what makes the panel say nothing about
+   * limits at all. */
+  budget?: HarnessBudget;
 }
 
 /** Resolves the change's harness config fresh (never cached — see
@@ -34,5 +40,5 @@ export async function resolveRunWithHarnessDispatch(
   const target = resolveRunWithHarnessTarget(config);
   const separator = cwd.includes("\\") ? "\\" : "/";
   const changeDir = `${buildDefaultChangeDir(cwd)}${separator}${changeName}`;
-  return { target, changeDir };
+  return { target, changeDir, ...(config.budget ? { budget: config.budget } : {}) };
 }

@@ -15,6 +15,7 @@ import {
   type Event,
   type HarnessChainRunner,
   type HarnessStage,
+  type HarnessBudget,
   type HarnessStepAgents,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
@@ -41,6 +42,12 @@ export interface AiPanelContext {
    * (see harness-step-models tasks.md section 9 — flattening at this
    * layer silently dropped the model on its way to argv). */
   stepAgents?: HarnessStepAgents;
+  /** The resolved harness `budget`, resolved in the same call that
+   * resolves `stepAgents` and delivered in the same follow-up context
+   * message. The chain panel shows it beside a run's recorded usage;
+   * nothing in the webview enforces it — `HarnessChainRunner.checkBudget`
+   * remains the only thing that does. */
+  budget?: HarnessBudget;
   /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`) when
    * the caller already resolved (Node-side, before ever revealing a
    * panel) that this change's harness config targets `"chain"` rather
@@ -465,7 +472,7 @@ export class AiPanel {
       // Passed through as resolved, not flattened to agent ids — the
       // object form carries the stage's model, which the panel needs for
       // the `Command` it sends. JSON-serializes over `postMessage` as is.
-      this.panelContext = { ...this.panelContext, stepAgents: harnessConfig.stepAgents };
+      this.panelContext = { ...this.panelContext, stepAgents: harnessConfig.stepAgents, budget: harnessConfig.budget };
       void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });
     }).catch(() => {
       // Malformed harness config is reported elsewhere (Harness Settings

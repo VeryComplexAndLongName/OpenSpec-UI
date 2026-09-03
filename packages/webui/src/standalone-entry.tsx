@@ -45,7 +45,7 @@ import { HarnessSettingsView, type HarnessSettingsApi } from "./components/Harne
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessStepAgents } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -227,6 +227,7 @@ function StandaloneApp() {
   const [newChangeDescription, setNewChangeDescription] = useState("");
   const [editorMessage, setEditorMessage] = useState<string | null>(null);
   const [chainChangeDir, setChainChangeDir] = useState<string | null>(null);
+  const [chainBudget, setChainBudget] = useState<HarnessBudget | undefined>(undefined);
   const [runHarnessLoading, setRunHarnessLoading] = useState(false);
   const [runHarnessMessage, setRunHarnessMessage] = useState<string | null>(null);
   const [timelineSelection, setTimelineSelection] = useState("");
@@ -413,9 +414,10 @@ function StandaloneApp() {
     setRunHarnessLoading(true);
     setRunHarnessMessage(null);
     try {
-      const { target, changeDir: targetChangeDir } = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
+      const { target, changeDir: targetChangeDir, budget } = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
       if (target === "chain") {
         setChainChangeDir(targetChangeDir);
+        setChainBudget(budget);
       } else {
         setChainChangeDir(null);
         setChangeDir(targetChangeDir);
@@ -1095,7 +1097,7 @@ function StandaloneApp() {
         {editorMessage ? <p className="openspec-shell-note">{editorMessage}</p> : null}
         {runHarnessMessage ? <p className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</p> : null}
         {chainChangeDir ? (
-          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={chainChangeDir} />
+          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={chainChangeDir} budget={chainBudget} />
         ) : null}
 
         <div className="openspec-editor-tabs">

@@ -27,6 +27,7 @@ const sampleByKind: Record<EventKind, Event> = {
   cancelled: { ...base, kind: "cancelled" },
   cancelling: { ...base, kind: "cancelling", attempted: "termination-requested" },
   usageReported: { ...base, kind: "usageReported", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } },
+  stageStarted: { ...base, kind: "stageStarted", stage: "propose", agentId: "claude-cli" },
   stageCompleted: { ...base, kind: "stageCompleted", stage: "propose", nextStage: "review" },
   checkpoint: {
     ...base,

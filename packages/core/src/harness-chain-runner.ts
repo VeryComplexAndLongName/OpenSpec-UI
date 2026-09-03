@@ -457,6 +457,26 @@ export class HarnessChainRunner {
         }
       }
 
+      // Announced only once every check that could refuse this stage has
+      // passed, so "announced" always means "actually ran". A stage
+      // refused at the budget ceiling above returns before reaching here
+      // and is never announced as started — a display that showed it
+      // would be naming a stage that spent nothing.
+      yield {
+        kind: "stageStarted",
+        runId,
+        timestamp: nowIso(),
+        stage,
+        // "" for the stages that run no agent at all ("archive", "git"),
+        // matching `checkpoint`'s `nextAgentId` convention rather than
+        // inventing a second spelling for the same idea.
+        agentId: !isHarnessStepAgentStage(stage)
+          ? ""
+          : (harnessConfig.stepAgents[stage] === undefined
+            ? ""
+            : normalizeStepAgent(harnessConfig.stepAgents[stage]).agent),
+      };
+
       const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
 
       const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
