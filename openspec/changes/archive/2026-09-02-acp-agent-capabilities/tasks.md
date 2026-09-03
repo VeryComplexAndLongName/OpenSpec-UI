@@ -52,11 +52,12 @@ it anywhere else would be treating the wrong end.
 - [x] 3.1 `openspec change validate --strict acp-agent-capabilities`.
 - [x] 3.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
   across all four workspaces. (Five workspaces exist: cli, core, extension,
-  server, webui — all green. `packages/core` and `packages/extension`
-  needed `--pool=forks --poolOptions.forks.singleFork=true` to avoid
-  pre-existing Windows worker-pool/temp-dir resource contention in this
-  environment's parallel test runner; unrelated to this change, confirmed
-  by the same two tests passing standalone before this change's edits.)
+  server, webui — all green. The earlier manual
+  `--pool=forks --poolOptions.forks.singleFork=true` workaround was a
+  diagnostic signal, not the fix: the two failures came from Windows/MSYS
+  process-spawn contention, now tracked by `core-test-worker-contention`.
+  That change isolates the real-git test in its Vitest configuration, so
+  this verification result remains unrelated to this change.)
 - [x] 3.3 `git diff packages/core/src/agents/` and `git diff
   packages/core/src/default-runners.ts` are both **empty**. If either is
   not, the fix went to the wrong end of the path.

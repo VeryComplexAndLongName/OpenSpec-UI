@@ -55,12 +55,13 @@ wrong proves nothing.
 
 - [x] 3.1 `openspec change validate --strict harness-config-top-level-keys`.
 - [x] 3.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
-  across all four workspaces. (`typecheck` and `lint` fully green.
+  across all five workspaces. (`typecheck` and `lint` fully green.
   `test`: 508/510 in `core` on the first full run — the 2 failures,
   `git.push.test.ts` and `task-checklist.test.ts`'s real-tasks.md test,
   both pass individually and on a rerun; both are the pre-existing
-  co-load timeout flakiness already tracked by the open
-  `load-sensitive-test-timeouts` change, not caused by this change.
+  Windows/MSYS process-spawn contention now tracked by
+  `core-test-worker-contention`, not caused by this change or a short
+  test timeout. `extension`/`server`/`webui` fully green.)
   `extension`/`server`/`webui` fully green.)
 - [x] 3.3 Run every `harness.json` under `openspec/changes/` and the
   global `openspec/agent-harness.json` through `readChangeHarnessConfig`
