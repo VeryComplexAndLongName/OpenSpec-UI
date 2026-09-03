@@ -377,7 +377,6 @@ describe("HarnessChainRunner — git stage gating", () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {
       autonomyLevel: "semi-autonomous",
-      stepAgents: { git: "claude-cli" },
     });
     mockStatus(true); // every propose artifact exists
     await writeTasks(root, 0, 3); // ...and every task is checked -> starts at "verify"
@@ -1284,6 +1283,25 @@ describe("HarnessChainRunner — stepAgents effort and budget reach the stage Co
     const applyCall = calls.find((c) => c.kind === "implement");
     expect(applyCall?.effort).toBeUndefined();
     expect(applyCall?.budget).toBeUndefined();
+  });
+});
+
+describe("CHAIN_STAGE_COMMAND / HarnessStepAgentStage consistency (harness-git-stage-no-agent 5.4)", () => {
+  it("excludes from HarnessStepAgentStage every CHAIN_STAGES entry that has no CHAIN_STAGE_COMMAND", async () => {
+    // This is the assertion that would have caught the original miss:
+    // `git` was added to CHAIN_STAGES without a CHAIN_STAGE_COMMAND entry,
+    // and to HarnessStage, in the same pull request that left it out of
+    // HarnessStepAgentStage's exclusion list. Reads the real, exported
+    // consts rather than a hand-copied list, so the next stage added the
+    // same way fails this test instead of slipping through silently.
+    const { CHAIN_STAGES, CHAIN_STAGE_COMMAND } = await import("./harness-chain-runner.js");
+    const { isHarnessStepAgentStage } = await import("./harness-config.js");
+
+    const stagesWithoutCommand = CHAIN_STAGES.filter((stage) => !(stage in CHAIN_STAGE_COMMAND));
+    expect(stagesWithoutCommand.length).toBeGreaterThan(0);
+    for (const stage of stagesWithoutCommand) {
+      expect(isHarnessStepAgentStage(stage)).toBe(false);
+    }
   });
 });
 

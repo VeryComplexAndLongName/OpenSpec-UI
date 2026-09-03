@@ -63,6 +63,25 @@ describe("HarnessSettingsView", () => {
     expect(screen.getAllByText("runs mechanically — no agent").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("shows git as a mechanical row with no agent picker, in both the global and per-change forms (harness-git-stage-no-agent 3.1)", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue(null),
+    });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    expect(screen.queryByLabelText("git agent")).not.toBeInTheDocument();
+    expect(screen.getAllByText("git").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByLabelText("change propose agent");
+
+    expect(screen.queryByLabelText("change git agent")).not.toBeInTheDocument();
+    // one "git" row per form (global + change) plus the mechanical note.
+    expect(screen.getAllByText("git").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("global stepAgents select has no inherit option (there is nothing to inherit from)", async () => {
     const api = createApi();
     render(<HarnessSettingsView api={api} />);

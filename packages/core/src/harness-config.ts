@@ -111,11 +111,19 @@ const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "
 const KNOWN_AGENT_IDS = new Set([...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID]);
 const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
 const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget"] as const;
-/** The stages `stepAgents` may set — `STAGES` minus `"archive"`, which is
- * a mechanical stage with nothing for an entry to configure (task 4.1). */
-const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(
-  (stage): stage is HarnessStepAgentStage => stage !== "archive",
-);
+/** Stages `stepAgents` used to accept an entry for, before each was found
+ * to invoke no agent — `archive` (harness-mechanical-checks), then `git`
+ * (harness-git-stage-no-agent). A config's on-disk entry for either is
+ * dropped rather than rejected — see `dropNoAgentStepAgents` below. One
+ * list feeding both that migration and the validation error below it, so
+ * the next stage found to invoke no agent is added here once, not in two
+ * places that can drift apart — which is how `git` was missed the first
+ * time. */
+const NO_AGENT_STAGES = ["archive", "git"] as const;
+/** The stages `stepAgents` may set — `STAGES` minus `NO_AGENT_STAGES`,
+ * which are mechanical/dedicated-sequence stages with nothing for an
+ * entry to configure (task 4.1). */
+const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarnessStepAgentStage);
 const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
 const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
 /** The only keys `assertValidHarnessConfigInput` accepts at the top level
@@ -163,15 +171,19 @@ function migrateLegacyDispatchInConfig(raw: unknown): { value: unknown; reports:
   return { value: { ...rootRecord, stepAgents: migratedStepAgents }, reports };
 }
 
-/** Drops a `stepAgents.archive` entry, if present, rather than rejecting
- * the file — see design.md, "`stepAgents` narrows; existing
- * configurations are migrated". `archive` is a mechanical stage
- * (`HarnessChainRunner`'s `runStage` never looks up an agent for it); a
- * setting that names one there never did anything, so removing it here
- * is silent to every reader except the warning this returns, which
- * `reportDispatchMigration`'s caller surfaces exactly like a legacy
- * `dispatch` migration. */
-function dropArchiveStepAgent(raw: unknown): { value: unknown; reports: string[] } {
+/** Drops a `stepAgents` entry for any stage in `NO_AGENT_STAGES`, if
+ * present, rather than rejecting the file — see design.md, "`stepAgents`
+ * narrows; existing configurations are migrated". Each such stage is
+ * mechanical or a dedicated non-agent sequence (`HarnessChainRunner`'s
+ * `runStage` never looks up an agent for it); a setting that names one
+ * there never did anything, so removing it here is silent to every reader
+ * except the warning this returns, which `reportDispatchMigration`'s
+ * caller surfaces exactly like a legacy `dispatch` migration. One
+ * function for every stage in `NO_AGENT_STAGES`, not one per stage — see
+ * harness-git-stage-no-agent tasks.md 2.2: two functions doing the same
+ * thing to two stage names is how the next one gets forgotten, which is
+ * how `git` came to need this change in the first place. */
+function dropNoAgentStepAgents(raw: unknown): { value: unknown; reports: string[] } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { value: raw, reports: [] };
 
   const rootRecord = raw as Record<string, unknown>;
@@ -181,12 +193,17 @@ function dropArchiveStepAgent(raw: unknown): { value: unknown; reports: string[]
   }
 
   const stepAgentsRecord = stepAgents as Record<string, unknown>;
-  if (!("archive" in stepAgentsRecord)) return { value: raw, reports: [] };
+  const droppedStages = NO_AGENT_STAGES.filter((stage) => stage in stepAgentsRecord);
+  if (droppedStages.length === 0) return { value: raw, reports: [] };
 
-  const { archive: _unused, ...rest } = stepAgentsRecord;
+  const rest = { ...stepAgentsRecord };
+  for (const stage of droppedStages) delete rest[stage];
+
   return {
     value: { ...rootRecord, stepAgents: rest },
-    reports: [`stepAgents.archive was dropped — "archive" is a mechanical stage and never invokes an agent`],
+    reports: droppedStages.map(
+      (stage) => `stepAgents.${stage} was dropped — "${stage}" is a mechanical stage and never invokes an agent`,
+    ),
   };
 }
 
@@ -252,9 +269,9 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
     throw new InvalidHarnessConfigError("stepAgents must be an object");
   }
   for (const [stage, entry] of Object.entries(value)) {
-    if (stage === "archive") {
+    if ((NO_AGENT_STAGES as readonly string[]).includes(stage)) {
       throw new InvalidHarnessConfigError(
-        `stepAgents.archive is not accepted — "archive" is a mechanical stage and never invokes an agent`,
+        `stepAgents.${stage} is not accepted — "${stage}" is a mechanical stage and never invokes an agent`,
       );
     }
     if (!STEP_AGENT_STAGES.includes(stage as HarnessStepAgentStage)) {
@@ -564,10 +581,10 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
   if (raw === undefined) return { ...DEFAULT_HARNESS_CONFIG, stepAgents: {} };
 
   const migrated = migrateLegacyDispatchInConfig(raw);
-  const archiveDropped = dropArchiveStepAgent(migrated.value);
-  reportDispatchMigration(filePath, [...migrated.reports, ...archiveDropped.reports]);
-  assertValidHarnessConfigInput(archiveDropped.value, false);
-  const input = archiveDropped.value as Partial<HarnessConfig>;
+  const noAgentDropped = dropNoAgentStepAgents(migrated.value);
+  reportDispatchMigration(filePath, [...migrated.reports, ...noAgentDropped.reports]);
+  assertValidHarnessConfigInput(noAgentDropped.value, false);
+  const input = noAgentDropped.value as Partial<HarnessConfig>;
   return {
     stepAgents: input.stepAgents ?? {},
     autonomyLevel: input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
@@ -590,10 +607,10 @@ export async function readChangeHarnessConfig(
   if (raw === undefined) return undefined;
 
   const migrated = migrateLegacyDispatchInConfig(raw);
-  const archiveDropped = dropArchiveStepAgent(migrated.value);
-  reportDispatchMigration(filePath, [...migrated.reports, ...archiveDropped.reports]);
-  assertValidHarnessConfigInput(archiveDropped.value, true);
-  return archiveDropped.value as Partial<HarnessConfig>;
+  const noAgentDropped = dropNoAgentStepAgents(migrated.value);
+  reportDispatchMigration(filePath, [...migrated.reports, ...noAgentDropped.reports]);
+  assertValidHarnessConfigInput(noAgentDropped.value, true);
+  return noAgentDropped.value as Partial<HarnessConfig>;
 }
 
 /** Deep-merges a per-change override over the global config, key by key

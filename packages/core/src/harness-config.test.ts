@@ -486,6 +486,51 @@ describe("stepAgents chat-runner strictness and legacy dispatch migration", () =
     warn.mockRestore();
   });
 
+  it("drops a global stepAgents.git entry, warns naming the file, and honours the rest", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    const configPath = path.join(root, "openspec", "agent-harness.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({ stepAgents: { git: "claude-cli", apply: "claude-cli" } }),
+      "utf8",
+    );
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.stepAgents).toEqual({ apply: "claude-cli" });
+    expect("git" in config.stepAgents).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain(configPath);
+    expect(warn.mock.calls[0]?.[0]).toContain("stepAgents.git was dropped");
+    warn.mockRestore();
+  });
+
+  it("drops both stepAgents.archive and stepAgents.git from one config, warning about each", async () => {
+    const root = await temporaryRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mkdir(path.join(root, "openspec"), { recursive: true });
+    const configPath = path.join(root, "openspec", "agent-harness.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        stepAgents: { archive: "claude-cli", git: { agent: "claude-cli" }, apply: "claude-cli" },
+      }),
+      "utf8",
+    );
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.stepAgents).toEqual({ apply: "claude-cli" });
+    expect("archive" in config.stepAgents).toBe(false);
+    expect("git" in config.stepAgents).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain("stepAgents.archive was dropped");
+    expect(warn.mock.calls[0]?.[0]).toContain("stepAgents.git was dropped");
+    warn.mockRestore();
+  });
+
   it("a config without stepAgents.archive is unaffected (no warning, stepAgents unchanged)", async () => {
     const root = await temporaryRoot();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -507,6 +552,13 @@ describe("stepAgents chat-runner strictness and legacy dispatch migration", () =
     const root = await temporaryRoot();
     await expect(writeGlobalHarnessConfig(root, { stepAgents: { archive: "claude-cli" } as never })).rejects.toThrow(
       /stepAgents\.archive is not accepted/,
+    );
+  });
+
+  it("rejects a freshly-written config that sets stepAgents.git", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { stepAgents: { git: "claude-cli" } as never })).rejects.toThrow(
+      /stepAgents\.git is not accepted/,
     );
   });
 

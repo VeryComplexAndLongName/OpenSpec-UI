@@ -131,9 +131,19 @@ recorded instance behind it.
   validation, not about how any agent runs.
 - [x] 7.4 Version bump via `npx changeset` (`@openspec-ui/core` minor,
   plus the packages whose settings surface changed).
-- [ ] 7.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 7.5 **Human-only, cannot be completed by an implementing agent**:
   set a stage to the chat agent and confirm the chat opens and the panel
   shows the stage handed off — the behavior ADR 0016 specified, unchanged
   by the rename. Then add `"effort": "high"` to that entry and confirm
   the configuration is **refused with a message naming why**, rather than
   loading and doing nothing.
+
+  Live verification of the configuration half completed 2026-09-02:
+  `harness-config.test.ts`'s six focused `vscode-chat` cases passed,
+  including the named rejection for `stepAgents.apply.effort`. The real
+  VS Code Extension Development Host integration suite also passed 10/10
+  on VS Code 1.136.0. The remaining handoff half is still human-only:
+  the existing integration harness does not drive a webview message into
+  `AiPanel.dispatchToChat`, so a person must set `vscode-chat`, run the
+  stage, and observe `started` -> `handedOff` in the panel and the opened
+  Chat view.

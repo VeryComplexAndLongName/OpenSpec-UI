@@ -25,15 +25,19 @@ export const VSCODE_CHAT_STEP_AGENT_ID = "vscode-chat";
 export type HarnessStepAgent =
   | string
   | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget };
-/** The subset of `HarnessStage` a `stepAgents` entry may name. `archive`
- * is deliberately excluded — it is a real stage (`CHAIN_STAGES` in
- * harness-chain-runner.ts still drives it), but a mechanical one that
- * never invokes an agent, so there is nothing for an entry to configure.
- * See openspec/changes/harness-mechanical-checks/design.md, "`stepAgents`
- * narrows; existing configurations are migrated" — a config that already
- * sets `stepAgents.archive` is read and has that entry dropped with a
- * warning (harness-config.ts), not rejected. */
-export type HarnessStepAgentStage = Exclude<HarnessStage, "archive">;
+/** Stages `CHAIN_STAGES` (harness-chain-runner.ts) drives that never
+ * invoke a CLI agent — each is either a mechanical operation (`archive`
+ * calls `openspec archive` directly) or a dedicated non-agent sequence
+ * (`git` runs its own push/PR/merge sequence), so neither has anything
+ * for a `stepAgents` entry to configure. `archive` was excluded first
+ * (openspec/changes/harness-mechanical-checks); `git` joined it here
+ * (openspec/changes/harness-git-stage-no-agent) after being missed in the
+ * same pull request that added `git` to `CHAIN_STAGES` without adding it
+ * to `CHAIN_STAGE_COMMAND`. Both are listed together, and any future
+ * stage that runs without invoking an agent belongs on this same list,
+ * not on a new one of its own — see harness-config.ts's `NO_AGENT_STAGES`,
+ * built from this same pair. */
+export type HarnessStepAgentStage = Exclude<HarnessStage, "archive" | "git">;
 export type HarnessStepAgents = Partial<Record<HarnessStepAgentStage, HarnessStepAgent>>;
 
 /** Narrows a stage to one a `stepAgents` entry may name. A consumer
@@ -41,13 +45,13 @@ export type HarnessStepAgents = Partial<Record<HarnessStepAgentStage, HarnessSte
  * does — needs this rather than an index, which the narrowed record
  * cannot accept. */
 export function isHarnessStepAgentStage(stage: HarnessStage): stage is HarnessStepAgentStage {
-  return stage !== "archive";
+  return stage !== "archive" && stage !== "git";
 }
 
 /** The entry for `stage`, or `undefined` when the stage is one no entry
- * can name. Keeping the `archive` case here, rather than at each call
- * site, is what stops `stepAgents.archive`'s removal from turning into
- * six subtly different guards. */
+ * can name. Keeping the `archive`/`git` cases here, rather than at each
+ * call site, is what stops their removal from turning into six subtly
+ * different guards. */
 export function stepAgentFor(
   stepAgents: HarnessStepAgents | undefined,
   stage: HarnessStage,

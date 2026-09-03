@@ -80,3 +80,10 @@ skipped.
   agent's process is gone and that no second agent process was spawned by
   the cancel. This is the check `harness-cancel-stops-the-run` task 6.5
   could not perform, because the control did not exist.
+
+  Focused automated coverage passed 40/40 on 2026-09-02
+  (`packages/webui/src/components/AiPanel.test.tsx`), including Cancel
+  visibility, the active run id and change directory, and a terminal-event
+  race. The required live process-list observation remains open: these
+  tests do not start a real long-lived agent or prove that Cancel does not
+  spawn a second process.

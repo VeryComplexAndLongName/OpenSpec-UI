@@ -28,11 +28,13 @@ export interface HarnessSettingsApi {
 }
 
 const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify", "archive", "git"];
-/** Every stage is listed — `archive` runs, and hiding it would
- * misrepresent the chain — but only these can carry an entry. `archive`
- * is mechanical: it invokes no agent, so it has nothing to configure and
- * is rendered without pickers rather than with pickers that write a
- * setting nothing reads. See harness-mechanical-checks tasks.md 4.4. */
+/** Every stage is listed — each runs, and hiding one would misrepresent
+ * the chain — but only these can carry an entry. `archive` (mechanical)
+ * and `git` (its own push/PR/merge sequence) invoke no agent, so neither
+ * has anything to configure and both are rendered without pickers rather
+ * than with pickers that write a setting nothing reads. See
+ * harness-mechanical-checks tasks.md 4.4 (`archive`) and
+ * harness-git-stage-no-agent tasks.md 3.1 (`git`, added here later). */
 const CONFIGURABLE_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarnessStepAgentStage);
 const INHERIT = "" as const;
 const STAGE_RUNNER_OPTIONS = [
@@ -120,9 +122,9 @@ function toStepAgents(agentForm: StepAgentsForm, effortForm: StepEffortForm, bud
   return result;
 }
 
-/** `archive` is listed so the chain reads honestly, and carries no
- * pickers: it invokes no agent, so an agent, effort or budget set here
- * would be a setting nothing reads. */
+/** `archive` and `git` are listed so the chain reads honestly, and carry
+ * no pickers: neither invokes an agent, so an agent, effort or budget set
+ * here would be a setting nothing reads. */
 function MechanicalStageRow({ stage }: { stage: HarnessStage }) {
   return (
     <div className="openspec-harness-stage-row">

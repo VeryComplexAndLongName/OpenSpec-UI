@@ -91,10 +91,11 @@ either file.
 ### `stepAgents`
 
 An object whose keys are stage names — `propose`, `review`, `apply`,
-`verify`, `git` — and whose values name what runs that stage. **Not**
-`archive`: it is a mechanical stage with nothing to configure, and a
-`stepAgents.archive` entry from before this restriction existed is read
-and dropped with a warning, not rejected outright.
+`verify` — and whose values name what runs that stage. **Not**
+`archive` or `git`: each is a mechanical or dedicated-sequence stage with
+nothing to configure, and a `stepAgents.archive`/`stepAgents.git` entry
+from before this restriction existed is read and dropped with a warning,
+not rejected outright.
 
 Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 
@@ -109,23 +110,20 @@ Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 | `effort` | One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — restricted per agent; see the reference table below. |
 | `budget` | `{ "maxCostUsd": <positive number> }` or `{ "maxAiCredits": <positive integer, minimum 30> }` — whichever field the chosen agent's own capabilities accept; the other field is rejected. |
 
-**`stepAgents.git` is accepted by this schema, and the standalone
-settings surface offers an agent picker for it — but it is never read.**
-`HarnessChainRunner`'s `runStage` routes the `"git"` stage straight to its
-own push/PR/merge sequence (`runGitStage`) without ever consulting
-`stepAgents.git`; no `CommandKind` exists for it, and no CLI agent runs
-during this stage under any configuration. This is the
-settings-that-read-as-effective-and-are-not gap this document's own
-proposal names directly ("an entry naming an agent that is never
-invoked") — it is a known defect, not documented intended behavior, and
-not fixed here. Tracked as `harness-git-stage-no-agent`. Do not set
-`stepAgents.git` expecting it to select anything; see "The `git` stage"
-below for what actually runs it.
+**`stepAgents.git` is not accepted by this schema.** `HarnessChainRunner`'s
+`runStage` routes the `"git"` stage straight to its own push/PR/merge
+sequence (`runGitStage`); no `CommandKind` exists for it, and no CLI agent
+runs during this stage under any configuration. Neither settings surface
+offers an agent, effort or budget control for it. A `stepAgents.git`
+entry written before this restriction existed is read and dropped with a
+warning, not rejected outright, the same way `stepAgents.archive` is. See
+"The `git` stage" below for what actually runs it.
 
-VS Code's wizard does **not** offer it: `HARNESS_TEMPLATE_STAGES` in
-`commands.ts` lists `propose`, `review`, `apply`, `verify` and `archive`,
-and never asks about `git`. So the two hosts disagree today, which is its
-own small defect and is covered by the same change.
+VS Code's wizard does not offer either `archive` or `git`:
+`HARNESS_TEMPLATE_STAGES` in `commands.ts` lists `propose`, `review`,
+`apply`, `verify` and `archive`, and its loop skips any stage that is not
+a `stepAgents`-configurable one — so it never asks about `archive` or
+`git` either. Both hosts agree.
 
 ### `autonomyLevel`
 
@@ -171,10 +169,10 @@ settings screen that doesn't have the control:
 
 | Setting | Standalone (webui) | VS Code |
 | --- | --- | --- |
-| `stepAgents.<stage>.agent`, `.effort`, `.budget` | **Harness Settings** tab, both the "Global default" and "Per-change override" sections (`HarnessSettingsView.tsx`) — the effort/budget fields only appear once a stage's agent accepts them. | **OpenSpec UI: Configure Harness Settings** / **OpenSpec UI: Configure Harness for this Change** commands — a sequential Quick Pick wizard, one agent pick per stage, followed by an effort pick and/or a budget input only for a stage whose chosen agent accepts them. |
+| `stepAgents.<stage>.agent`, `.effort`, `.budget` | **Harness Settings** tab, both the "Global default" and "Per-change override" sections (`HarnessSettingsView.tsx`) — the effort/budget fields only appear once a stage's agent accepts them. | **OpenSpec UI: Configure Harness Settings** opens `openspec/agent-harness.json`; **OpenSpec UI: Configure Harness for this Change** opens that change's `harness.json`. Edit the JSON directly. The commands do not provide a Quick Pick wizard. |
 | `stepAgents.<stage>.model` | **Not editable in either UI.** Hand-edit the JSON file's object-form entry directly. | Same — not editable in either UI. |
-| `autonomyLevel` | Both sections of the Harness Settings tab. | Both wizards above. |
-| `reviewGate.mode` | Per-change override section only (the global value is fixed at `"human-required"` and shown, not editable). | Per-change wizard only. |
+| `autonomyLevel` | Both sections of the Harness Settings tab. | Edit the JSON opened by either command above. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
+| `reviewGate.mode` | Per-change override section only (the global value is fixed at `"human-required"` and shown, not editable). | Edit the per-change `harness.json`; the Configure Harness commands open the file directly. |
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |

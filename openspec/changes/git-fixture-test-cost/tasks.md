@@ -102,6 +102,13 @@ processes, never from mocking the one being measured.
   here — this change's own task 2.4 forbids reaching past the two files
   it names, and a fix that quietly widened would be the thing it was
   written to prevent.
+
+  Rechecked 2026-09-02 on the current branch: the target `git.push.test.ts`
+  also fails in isolation during cleanup with `EBUSY: resource busy or
+  locked` and its 5000ms test timeout. The full core suite without a pool
+  workaround was `43/44` files and `511/512` tests, with that same test as
+  the only failure. This confirms task 6.3 is still blocked by the active
+  `core-test-worker-contention` change, not ready to mark complete here.
 - [x] 6.4 `git diff` on the two test files shows no changed `expect`.
 - [x] 6.5 No changeset (test-only, no `packages/*` source change) —
   matching the precedent in
