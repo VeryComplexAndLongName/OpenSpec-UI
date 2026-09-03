@@ -27,6 +27,7 @@ import {
   type Stream,
   type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
+import type { AgentUsage } from "../agent-usage.js";
 import type { CommandKind, Event } from "../protocol.js";
 import { KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
 
@@ -93,6 +94,45 @@ export interface RunAcpProcessOptions {
   /** Set by `runProcess`, which owns the child and therefore owns the
    * terminal event on abort — see the `__aborted__` branch in `run()`. */
   deferAbortTerminalEvent?: boolean;
+}
+
+/** Builds this project's own usage shape from what ACP reported, taking
+ * only fields the agent actually sent.
+ *
+ * `PromptResponse.usage` is the better source — per-turn totals rather
+ * than a context gauge — and the SDK marks it `UNSTABLE`/`@experimental`,
+ * which is exactly why the streamed cost is a fallback rather than an
+ * afterthought: a ceiling that silently stops working at the next SDK
+ * bump is worse than one that never worked, because by then someone
+ * trusts it.
+ *
+ * Returns `undefined` when nothing was reported. An absent usage means
+ * "not reported", which `checkBudget` fails open on; a zero would convert
+ * that into "it cost nothing". */
+export function buildAcpUsage(
+  responseUsage: unknown,
+  streamedCost: { amount: number; currency: string } | undefined,
+): AgentUsage | undefined {
+  const usage: AgentUsage = {};
+  const reported = responseUsage as Record<string, unknown> | null | undefined;
+
+  if (reported && typeof reported === "object") {
+    if (typeof reported.inputTokens === "number") usage.inputTokens = reported.inputTokens;
+    if (typeof reported.outputTokens === "number") usage.outputTokens = reported.outputTokens;
+    if (typeof reported.thoughtTokens === "number") usage.thoughtTokens = reported.thoughtTokens;
+    if (typeof reported.cacheReadTokens === "number") usage.cacheReadInputTokens = reported.cacheReadTokens;
+    if (typeof reported.cacheCreationTokens === "number") usage.cacheCreationInputTokens = reported.cacheCreationTokens;
+  }
+
+  if (streamedCost) {
+    // USD goes in the field named for it; anything else keeps its own
+    // currency rather than being converted at a rate this project would
+    // have to invent.
+    if (streamedCost.currency.toUpperCase() === "USD") usage.costUsd = streamedCost.amount;
+    else usage.cost = streamedCost;
+  }
+
+  return Object.keys(usage).length > 0 ? usage : undefined;
 }
 
 function describeToolCall(toolCall: ToolCallUpdate): string {
@@ -201,17 +241,31 @@ export class AcpSessionDriver {
       await ctx.request("initialize", { protocolVersion: PROTOCOL_VERSION });
       await ctx.buildSession(cwd).withSession(async (session) => {
         const promptResult = session.prompt(prompt);
+        // The last cost an in-flight `usage_update` reported. Only its
+        // `cost` is kept: `used` is tokens currently *in context*, which
+        // goes down after a compaction, so recording it as consumption
+        // would under-count a long run exactly when it compacts.
+        let streamedCost: { amount: number; currency: string } | undefined;
         for (;;) {
           const message = await session.nextUpdate();
           if (message.kind === "stop") break;
-          push({
-            kind: "agentUpdate",
-            runId,
-            timestamp: nowIso(),
-            update: message.notification.update as unknown as Record<string, unknown>,
-          });
+          const update = message.notification.update as unknown as Record<string, unknown>;
+          if (update.sessionUpdate === "usage_update") {
+            const cost = update.cost as { amount?: unknown; currency?: unknown } | null | undefined;
+            if (cost && typeof cost.amount === "number" && typeof cost.currency === "string") {
+              streamedCost = { amount: cost.amount, currency: cost.currency };
+            }
+          }
+          // Forwarded verbatim, exactly as before — this observes the
+          // stream, it does not filter it.
+          push({ kind: "agentUpdate", runId, timestamp: nowIso(), update });
         }
         const response = await promptResult;
+        const usage = buildAcpUsage(
+          (response as { usage?: unknown }).usage,
+          streamedCost,
+        );
+        if (usage) push({ kind: "usageReported", runId, timestamp: nowIso(), usage });
         push({ kind: "__stop__", stopReason: response.stopReason });
       });
     };

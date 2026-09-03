@@ -14,6 +14,7 @@ vi.mock("cross-spawn", () => ({
   default: (...args: unknown[]) => spawnMock(...args),
 }));
 
+import type { AgentUsage } from "../agent-usage.js";
 import type { Event } from "../protocol.js";
 import { AcpSessionDriver } from "./acp-session-driver.js";
 
@@ -198,5 +199,99 @@ describe("AcpSessionDriver", () => {
 
     child.emit("close", 0);
     expect((await terminal).value).toMatchObject({ kind: "cancelled", runId: "run-5" });
+  });
+});
+
+describe("AcpSessionDriver — reporting what the agent said it spent", () => {
+  function usageEventsOf(events: Event[]): AgentUsage[] {
+    return events.flatMap((event) => (event.kind === "usageReported" ? [event.usage] : []));
+  }
+
+  it("reports the usage a prompt response carried", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => ({
+        stopReason: "end_turn",
+        usage: { inputTokens: 1200, outputTokens: 340, thoughtTokens: 55, totalTokens: 1595 },
+      }));
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-u1", commandKind: "implement", prompt: "do it" }),
+    );
+
+    expect(usageEventsOf(events)).toEqual([{ inputTokens: 1200, outputTokens: 340, thoughtTokens: 55 }]);
+    expect(events.at(-1)?.kind).toBe("completed");
+  });
+
+  it("reports nothing at all when the prompt response carried no usage", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => ({ stopReason: "end_turn" }));
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-u2", commandKind: "implement", prompt: "do it" }),
+    );
+
+    // No usageReported at all — not a usageReported carrying zeros. A run
+    // that said nothing must stay distinguishable from one that said "free".
+    expect(usageEventsOf(events)).toEqual([]);
+    expect(events.at(-1)?.kind).toBe("completed");
+  });
+
+  it("captures a streamed usage_update's cost, and never its `used` as tokens spent", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async ({ params, client }) => {
+        await client.notify(CLIENT_METHODS.session_update, {
+          sessionId: params.sessionId,
+          update: { sessionUpdate: "usage_update", used: 90_000, size: 200_000, cost: { amount: 0.42, currency: "USD" } },
+        });
+        return { stopReason: "end_turn" };
+      });
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-u3", commandKind: "implement", prompt: "do it" }),
+    );
+
+    const [usage] = usageEventsOf(events);
+    expect(usage).toEqual({ costUsd: 0.42 });
+    // `used` is context occupancy, and it falls after a compaction.
+    // Recording it as consumption would under-count exactly the long runs
+    // that compact.
+    expect(usage?.inputTokens).toBeUndefined();
+    expect(usage?.outputTokens).toBeUndefined();
+    // The notification is still forwarded verbatim — observing the stream
+    // must not filter it.
+    expect(events.some((event) => event.kind === "agentUpdate" && event.update.sessionUpdate === "usage_update")).toBe(
+      true,
+    );
+  });
+
+  it("keeps a non-USD cost whole instead of writing it into costUsd", async () => {
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async ({ params, client }) => {
+        await client.notify(CLIENT_METHODS.session_update, {
+          sessionId: params.sessionId,
+          update: { sessionUpdate: "usage_update", used: 10, size: 100, cost: { amount: 3, currency: "EUR" } },
+        });
+        return { stopReason: "end_turn", usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 } };
+      });
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-u4", commandKind: "implement", prompt: "do it" }),
+    );
+
+    expect(usageEventsOf(events)).toEqual([
+      { inputTokens: 7, outputTokens: 2, cost: { amount: 3, currency: "EUR" } },
+    ]);
   });
 });

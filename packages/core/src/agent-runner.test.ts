@@ -193,6 +193,71 @@ describe("createAgentRunner — audit log records terminal outcome", () => {
   });
 });
 
+describe("createAgentRunner — recording reported usage (usage-from-acp)", () => {
+  it("writes the agent's reported usage into the terminal audit entry", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, command) {
+      yield { kind: "started", runId: command.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } };
+      yield { kind: "completed", runId: command.runId, timestamp: "t", summary: "done" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    for await (const _ of runner.run({
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-usage-1",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    })) { /* drain */ }
+
+    const terminal = auditLog.entries.find((entry) => entry.outcome === "completed");
+    expect(terminal?.usage).toEqual({ inputTokens: 10, outputTokens: 4, costUsd: 0.26 });
+  });
+
+  it("records no usage field at all when the agent reported none", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    for await (const _ of runner.run({
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-usage-2",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    })) { /* drain */ }
+
+    // Asserted explicitly, and not as a zero: `AuditEntry.usage`'s
+    // contract is that absent means "not reported", and `checkBudget`
+    // fails open on absence. A zero would turn "we do not know" into "it
+    // cost nothing" — the reading this change exists to remove.
+    const terminal = auditLog.entries.find((entry) => entry.outcome === "completed");
+    expect(terminal).toBeDefined();
+    expect("usage" in (terminal as object)).toBe(false);
+  });
+
+  it("keeps the last report when an agent reports progressively", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, command) {
+      yield { kind: "started", runId: command.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage: { outputTokens: 1 } };
+      yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage: { outputTokens: 9 } };
+      yield { kind: "completed", runId: command.runId, timestamp: "t" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    for await (const _ of runner.run({
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-usage-3",
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    })) { /* drain */ }
+
+    // The final report describes the whole run, not the increment.
+    const terminal = auditLog.entries.find((entry) => entry.outcome === "completed");
+    expect(terminal?.usage).toEqual({ outputTokens: 9 });
+  });
+});
+
 describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () => {
   it("a cancel command never calls buildInvocation or execute, and reports cancelling", async () => {
     const { adapter, executeCalls, buildInvocationCalls } = makeFakeAdapter((invocation, command) => okEvents(command.runId));

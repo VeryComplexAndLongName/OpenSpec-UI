@@ -20,6 +20,8 @@ export function describeEvent(event: Event): string {
       return event.attempted === "nothing-to-cancel"
         ? "[cancelling] nothing was running"
         : "[cancelling] asked the agent process to stop";
+    case "usageReported":
+      return "[usage] reported by the agent";
     case "stageCompleted":
       return `[stage completed] ${event.stage} -> ${event.nextStage}`;
     case "checkpoint":

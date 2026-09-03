@@ -9,12 +9,17 @@ everything else the harness can be configured to do, see
 
 | Scope | Configuration | Unit | Enforced |
 | --- | --- | --- | --- |
-| Whole chain | `budget.maxCostUsd` / `budget.maxTokens` | USD and/or tokens | Before each stage starts |
+| Whole chain | `budget.maxCostUsd` / `budget.maxTokens` | USD and/or tokens | Before each stage starts — **only for agents that report usage** (see below) |
 | One agent invocation | `stepAgents.<stage>.budget` | The selected agent's native unit | By that agent's CLI |
 | Elapsed time | Not available | — | No wall-clock or per-stage timeout exists |
 
-The important boundary is simple: a chain ceiling can prevent the **next**
-stage from starting; it cannot interrupt the stage that is already running.
+Two boundaries matter, and both are easy to assume away:
+
+1. A chain ceiling can prevent the **next** stage from starting; it
+   cannot interrupt the stage that is already running.
+2. A chain ceiling counts only what an agent **reported**. Over an agent
+   that reports nothing, it counts nothing and never fires — see
+   [Which agents report usage](#which-agents-report-usage).
 
 ## Two independent levels
 
@@ -32,7 +37,8 @@ configuration may cap cost only, tokens only, both, or (by omitting
 `budget` entirely) neither.
 
 `HarnessChainRunner.checkBudget` sums this change's own recorded audit
-usage and compares it against this ceiling **before starting each stage**
+usage — usage the agent reported, for the agents that report any — and
+compares it against this ceiling **before starting each stage**
 — never during one. **This cannot stop a stage already running.** A stage
 that is mid-run when the ceiling is crossed is allowed to finish; the
 chain simply does not start the next one. This is a deliberate property
@@ -142,6 +148,37 @@ trips the chain-level `budget` ceiling — not because it stayed under
 budget, but because there is nothing recorded to compare against. This is
 the same "fail open when the evidence is absent" posture
 `HarnessChainRunner.checkBudget` documents explicitly for itself.
+[Which agents report usage](#which-agents-report-usage) below says which
+agents those are.
+
+## Which agents report usage
+
+A chain ceiling is only as wide as the reporting behind it. Which agent
+ran a stage decides whether that stage counted toward the ceiling at all.
+
+| Agent | Reports usage | Source |
+| --- | --- | --- |
+| `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
+| `copilot-cli-acp`, `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | ACP's `PromptResponse.usage` and `usage_update` notifications |
+| `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Plain text output — there is no figure in it to record |
+| `vscode-chat` | Nothing | The run is handed to VS Code chat; this project never sees its cost |
+
+Two consequences worth stating outright:
+
+- **The raw-text CLIs report nothing, so a ceiling over them counts
+  nothing and cannot fire.** `claude-cli` and `claude-cli-acp` drive the
+  same underlying `claude` binary, but only the latter asks for the
+  structured output the figure lives in. If a chain ceiling matters to
+  you, that choice of agent is what decides whether it can act.
+- **For the three genuine ACP agents, what is recorded is whatever that
+  CLI chose to send.** ACP marks the usage field on a prompt response
+  `UNSTABLE`/`@experimental`, and a given CLI version may send token
+  totals, a cost, both, or neither. Nothing is invented to fill a gap.
+
+One figure is deliberately **not** recorded: an ACP `usage_update`'s
+`used` is how much of the context window is currently occupied, and it
+goes *down* after a compaction. Counting it as consumption would
+under-count exactly the long runs that compact.
 
 ## CI job timeouts (not a harness setting)
 

@@ -15,6 +15,7 @@ import {
   type Command,
   type CommandKind,
   type Event,
+  type AgentUsage,
   type HarnessStepAgents,
 } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
@@ -508,6 +509,21 @@ function parseStructuredText(raw: string): StructuredText {
   return { kind: "plain", text: raw };
 }
 
+/** Only what the agent reported — an omitted field is omitted here, not
+ * shown as zero. See `AgentUsage`: absent means unreported. */
+export function describeUsage(usage: AgentUsage): string {
+  const parts: string[] = [];
+  if (usage.inputTokens !== undefined) parts.push(`${usage.inputTokens.toLocaleString()} in`);
+  if (usage.outputTokens !== undefined) parts.push(`${usage.outputTokens.toLocaleString()} out`);
+  if (usage.thoughtTokens !== undefined) parts.push(`${usage.thoughtTokens.toLocaleString()} thinking`);
+  if (usage.cacheReadInputTokens !== undefined) parts.push(`${usage.cacheReadInputTokens.toLocaleString()} cached`);
+  if (usage.costUsd !== undefined) parts.push(`$${usage.costUsd.toFixed(2)}`);
+  // A non-USD cost keeps its own currency rather than being converted at
+  // a rate this project would have to invent.
+  if (usage.cost !== undefined) parts.push(`${usage.cost.amount} ${usage.cost.currency}`);
+  return parts.length > 0 ? parts.join(", ") : "reported, but empty";
+}
+
 function describeEvent(event: Event): string {
   switch (event.kind) {
     case "started":
@@ -528,6 +544,8 @@ function describeEvent(event: Event): string {
       return event.attempted === "nothing-to-cancel"
         ? "cancelling: nothing was running"
         : "cancelling: asked the agent process to stop";
+    case "usageReported":
+      return `usage: ${describeUsage(event.usage)}`;
     case "stageCompleted":
       return `stage completed: ${event.stage} → ${event.nextStage}`;
     case "checkpoint":

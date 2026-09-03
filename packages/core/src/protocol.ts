@@ -6,6 +6,7 @@
 // transport (REST/WS, message bridge) and must not define their own variants.
 
 import { STAGES, type HarnessStage } from "./harness-stage.js";
+import type { AgentUsage } from "./agent-usage.js";
 import type { HarnessEffort, HarnessStepBudget } from "./harness-step-agent.js";
 
 export type CommandKind =
@@ -128,6 +129,7 @@ export type EventKind =
   | "failed"
   | "cancelled"
   | "cancelling"
+  | "usageReported"
   | "stageCompleted"
   | "checkpoint"
   | "handedOff"
@@ -207,6 +209,23 @@ export interface CancelledEvent extends BaseEvent {
  * had before it existed, because ignoring a non-terminal event changes
  * nothing. `attempted` says what was actually tried, so a surface can
  * tell "nothing was running" from "we asked the process to stop". */
+/** What the agent reported spending on this run so far.
+ *
+ * **Not terminal.** Usage arrives while a run is working — ACP's
+ * `usage_update` notifications during the turn, and its
+ * `PromptResponse.usage` at the end — so this is an observation, not an
+ * outcome. A consumer that ignores it behaves exactly as before it
+ * existed.
+ *
+ * Carries only what the agent said. Nothing here is estimated, derived
+ * from a price table, or converted between currencies — see
+ * `AgentUsage`, and ADR 0017 decision 5. An agent that reports nothing
+ * produces no event at all, which is different from reporting zero. */
+export interface UsageReportedEvent extends BaseEvent {
+  kind: "usageReported";
+  usage: AgentUsage;
+}
+
 export interface CancellingEvent extends BaseEvent {
   kind: "cancelling";
   attempted: "termination-requested" | "nothing-to-cancel";
@@ -272,6 +291,7 @@ export type Event =
   | FailedEvent
   | CancelledEvent
   | CancellingEvent
+  | UsageReportedEvent
   | StageCompletedEvent
   | CheckpointEvent
   | HandedOffEvent

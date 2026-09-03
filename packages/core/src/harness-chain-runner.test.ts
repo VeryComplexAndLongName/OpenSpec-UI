@@ -3,11 +3,12 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promise
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AgentRunner } from "./agent-runner.js";
+import { type AgentAdapter, type AgentRunner, createAgentRunner } from "./agent-runner.js";
 import type { PullRequestGateway } from "./gh-pr-gateway.js";
 import type { GitWrapper } from "./git.js";
 import type { Command, Event } from "./protocol.js";
 import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-config.js";
+import type { AllowlistConfig } from "./security.js";
 import { FileAuditLog, InMemoryAuditLog, auditLogPath } from "./security.js";
 
 // `HarnessChainRunner` shells out to the real `openspec` CLI for
@@ -1179,6 +1180,59 @@ describe("HarnessChainRunner — budget (task 8.7)", () => {
     }
 
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+});
+
+describe("HarnessChainRunner — a real run's reported usage stops the chain (usage-from-acp task 4.4)", () => {
+  it("stops at the next stage boundary on usage an adapter reported, recorded by the real runner", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli-acp", review: "claude-cli-acp", apply: "claude-cli-acp" },
+      budget: { maxCostUsd: 1 },
+    });
+    mockStatus(false); // propose not done yet -> the chain starts at "propose"
+
+    // The whole path this change exists to close, with nothing hand-written
+    // in the middle: an adapter reports usage -> the real `createAgentRunner`
+    // writes it into its own audit entry -> `buildUsageReport` sums it ->
+    // the chain refuses to start the next stage. The other budget tests
+    // above fabricate the audit entry, so they pass whether or not any
+    // adapter can ever produce one.
+    const adapter: AgentAdapter = {
+      name: "claude-cli-acp",
+      buildInvocation: () => ({ kind: "process", executable: "usage-cli", args: ["-p"] }),
+      async *execute(invocation, command) {
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield {
+          kind: "usageReported",
+          runId: command.runId,
+          timestamp: "t",
+          usage: { inputTokens: 900, outputTokens: 120, costUsd: 5 },
+        };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
+      },
+    };
+    const allowlist: AllowlistConfig = { "claude-cli-acp": [{ executable: "usage-cli", argsAllowed: () => true }] };
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot: root, allowlist, auditLog });
+
+    const command = baseCommand(root);
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      listAuditEntries: () => auditLog.entries,
+    });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // The first stage ran and reported; the second never started.
+    expect(auditLog.entries.some((entry) => entry.outcome === "completed" && entry.usage?.costUsd === 5)).toBe(true);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: expect.stringContaining("budget") });
+    expect(events.some((event) => event.kind === "completed" && event.summary === "review done")).toBe(false);
   });
 });
 

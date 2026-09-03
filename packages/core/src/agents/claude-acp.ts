@@ -25,6 +25,7 @@
 // `resolvePermission` method at all, not even a stub).
 
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
+import type { AgentUsage, AgentUsageByModel } from "../agent-usage.js";
 import type { AgentUpdateEvent, Command, Event } from "../protocol.js";
 import { commandInstruction, spawnAndStream } from "./shared.js";
 
@@ -46,6 +47,60 @@ function tryParseClaudeStreamLine(line: string): Record<string, unknown> | undef
   } catch {
     return undefined;
   }
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Reads what `claude`'s own terminal `"result"` line reported it spent.
+ * This adapter does not speak ACP (see the header comment), so it has no
+ * `PromptResponse.usage` to read — but the stream it does parse carries
+ * the same facts, vendor-computed, on that one line: `total_cost_usd`, a
+ * `usage` object in the API's snake_case, and a per-model `modelUsage`
+ * split. Nothing here is derived from a price table, and a field the line
+ * did not carry stays absent (see agent-usage.ts). Returns `undefined`
+ * when the line reported nothing at all, so "not reported" never becomes
+ * a zero. */
+export function buildClaudeResultUsage(parsed: Record<string, unknown>): AgentUsage | undefined {
+  const usage: AgentUsage = {};
+
+  const costUsd = numberOrUndefined(parsed.total_cost_usd);
+  if (costUsd !== undefined) usage.costUsd = costUsd;
+
+  const reported = parsed.usage as Record<string, unknown> | null | undefined;
+  if (reported && typeof reported === "object") {
+    const inputTokens = numberOrUndefined(reported.input_tokens);
+    const outputTokens = numberOrUndefined(reported.output_tokens);
+    const cacheCreation = numberOrUndefined(reported.cache_creation_input_tokens);
+    const cacheRead = numberOrUndefined(reported.cache_read_input_tokens);
+    if (inputTokens !== undefined) usage.inputTokens = inputTokens;
+    if (outputTokens !== undefined) usage.outputTokens = outputTokens;
+    if (cacheCreation !== undefined) usage.cacheCreationInputTokens = cacheCreation;
+    if (cacheRead !== undefined) usage.cacheReadInputTokens = cacheRead;
+  }
+
+  const modelUsage = parsed.modelUsage as Record<string, unknown> | null | undefined;
+  if (modelUsage && typeof modelUsage === "object") {
+    const byModel: Record<string, AgentUsageByModel> = {};
+    for (const [model, raw] of Object.entries(modelUsage)) {
+      if (!raw || typeof raw !== "object") continue;
+      const entry = raw as Record<string, unknown>;
+      const perModel: AgentUsageByModel = {};
+      const inputTokens = numberOrUndefined(entry.inputTokens);
+      const outputTokens = numberOrUndefined(entry.outputTokens);
+      // `costUSD` — this line's own spelling for the per-model field,
+      // which differs from `total_cost_usd` beside it.
+      const perModelCost = numberOrUndefined(entry.costUSD);
+      if (inputTokens !== undefined) perModel.inputTokens = inputTokens;
+      if (outputTokens !== undefined) perModel.outputTokens = outputTokens;
+      if (perModelCost !== undefined) perModel.costUsd = perModelCost;
+      if (Object.keys(perModel).length > 0) byModel[model] = perModel;
+    }
+    if (Object.keys(byModel).length > 0) usage.byModel = byModel;
+  }
+
+  return Object.keys(usage).length > 0 ? usage : undefined;
 }
 
 function extractResult(parsed: Record<string, unknown>): ClaudeStreamResult | undefined {
@@ -70,10 +125,16 @@ function extractResult(parsed: Record<string, unknown>): ClaudeStreamResult | un
 export async function* translateClaudeStream(source: AsyncGenerator<Event>, runId: string): AsyncGenerator<Event> {
   let buffer = "";
   let lastResult: ClaudeStreamResult | undefined;
+  let lastUsage: AgentUsage | undefined;
 
   for await (const event of source) {
     if (event.kind !== "stdout") {
       if (event.kind === "completed" && lastResult) {
+        // Emitted before the terminal event, because agent-runner.ts
+        // writes the run's audit entry as soon as the stream ends — a
+        // report arriving after the terminal event would be recorded
+        // nowhere.
+        if (lastUsage) yield { kind: "usageReported", runId, timestamp: nowIso(), usage: lastUsage };
         yield lastResult.isError
           ? { kind: "failed", runId, timestamp: nowIso(), reason: lastResult.summary ?? "claude reported an error" }
           : { kind: "completed", runId, timestamp: nowIso(), summary: lastResult.summary };
@@ -93,7 +154,12 @@ export async function* translateClaudeStream(source: AsyncGenerator<Event>, runI
         continue;
       }
       const result = extractResult(parsed);
-      if (result) lastResult = result;
+      if (result) {
+        lastResult = result;
+        // Kept only when this line actually carried numbers: a later
+        // result line reporting none must not erase an earlier report.
+        lastUsage = buildClaudeResultUsage(parsed) ?? lastUsage;
+      }
       const update: AgentUpdateEvent = {
         kind: "agentUpdate",
         runId,
