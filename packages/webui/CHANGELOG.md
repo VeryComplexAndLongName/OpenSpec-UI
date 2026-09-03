@@ -1,5 +1,13 @@
 # @openspec-ui/webui
 
+## 1.23.2
+
+### Patch Changes
+
+- Updated dependencies [eca84bc]
+- Updated dependencies [d161b50]
+  - @openspec-ui/core@0.47.0
+
 ## 1.23.1
 
 ### Patch Changes
