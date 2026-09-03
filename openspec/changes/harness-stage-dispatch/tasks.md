@@ -99,10 +99,20 @@ ends.
 - [ ] 6.6 **Human-only, cannot be completed by an implementing agent**:
   rebuild and reinstall (`npm run reinstall:local --workspace
   openspec-ui-vscode`), reload the window, set a change's `apply` stage
-  to `{ "agent": "claude-cli", "dispatch": "vscode-chat" }` with
-  `autonomyLevel: assisted`, run it, and confirm the VS Code chat opens
-  with the prompt and the panel shows the stage as handed off rather
-  than completed. Leave unchecked if you are an agent.
+  to `{ "agent": "vscode-chat" }` with `autonomyLevel: assisted`, run it,
+  and confirm the VS Code chat opens with the prompt and the panel shows
+  the stage as handed off rather than completed. Leave unchecked if you
+  are an agent.
+
+  **Configuration corrected 2026-09-03.** This task was written as
+  `{ "agent": "claude-cli", "dispatch": "vscode-chat" }`, which is the
+  shape `harness-config-strictness` retired: chat dispatch became an
+  agent id, and naming `claude-cli` beside it was the pointless entry
+  that change removed. The old shape still loads — it is migrated with a
+  warning, deliberately, since this repository's own files used it — so
+  following the original text would have exercised the migration path
+  rather than the current one. Both reach the same dispatch; only one is
+  what a reader should copy.
 
   The real Extension Development Host is available and its integration
   suite passed 10/10 on VS Code 1.136.0 on 2026-09-02. That suite verifies
@@ -111,3 +121,14 @@ ends.
   `AiPanel.dispatchToChat` path. The required Chat handoff and the
   `started` -> `handedOff` panel state therefore still need a person to
   perform the configured `apply` run and observe the UI.
+
+  That gap is worth closing rather than restating each time this task is
+  attempted. `ExtensionTestApi` exposes runners, the run controller, the
+  dashboard context and two trees — not the panel — so nothing in the
+  suite can deliver the one message that reaches `dispatchToChat`. It is
+  the same message a real webview sends, so exposing a way to post it is
+  not a back door into private behaviour; it is the suite being able to
+  do what the product already does. Tracked as
+  `dispatch-to-chat-integration-coverage`; what stays human afterwards is
+  narrower — that the chat window visibly opens — rather than the whole
+  path.
