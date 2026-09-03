@@ -1,5 +1,34 @@
 # @openspec-ui/core
 
+## 0.50.0
+
+### Minor Changes
+
+- a61bfbe: Record the resource usage an agent reports, so a configured budget can act on it.
+  
+  `AgentUsage` / `AuditEntry.usage` / `buildUsageReport` / `checkBudget` were a complete chain with nothing feeding it: no adapter had ever produced a usage figure, so the chain-level ceiling had never once fired. Two adapters now report what their agent said it spent — `claude-cli-acp` from `claude`'s own terminal `result` line, and the ACP session driver from `PromptResponse.usage` and `usage_update` notifications — and the runner writes it into the run's terminal audit entry.
+  
+  A run whose agent reported nothing records no `usage` field at all, never a zero: absent means unreported, and a ceiling compared against an absent figure still permits the work. An ACP `usage_update`'s `used` is context occupancy rather than consumption and is deliberately not recorded; a non-USD cost is kept in its own currency rather than converted. `LIMITS.md` now says which agents report usage and which do not.
+- ae78a82: Show what a chain run has spent, while it is still running.
+  
+  A run recorded its usage but nothing displayed it: the figure lived in `.openspec-ui/audit.jsonl` and in one line of the event log. A chain now renders a usage summary beside its event log — a row per stage that has started, with tokens and money, and the configured ceiling beside the recorded total when one is configured.
+  
+  Attribution needed a new event. A chain publishes every stage under one `runId` and announced a stage only when it *ended*, so the first stage's usage had no stage to belong to, and a chain that stopped mid-stage never named the stage that spent the money. `stageStarted` is emitted immediately before each stage begins — after any check that could refuse it, so a stage stopped at the budget ceiling is never announced as having started. It is non-terminal, like `agentUpdate`/`cancelling`/`usageReported`.
+  
+  Two kinds of figure are kept apart. The recorded total is what agents reported for finished runs and is what a ceiling is compared against. A live figure — an ACP `usage_update` arriving during a run, previously rendered as `agent update: usage_update` and discarded — is shown as the agent's own running report; its `used` is context occupancy, falls after a compaction, and never enters a token total. Nothing here enforces anything: `HarnessChainRunner.checkBudget` remains the only thing that does.
+  
+  A stage whose agent reported nothing reads "not reported", never `$0.00`, and a run in which nothing reported says so outright rather than showing an empty panel that looks broken.
+
+### Patch Changes
+
+- af32105: Let every event kind survive a transport — `cancelling` and `usageReported` were being dropped.
+  
+  `isEvent()` switches on `kind` and ends in `default: return false`, so a kind added to `EventKind` and to the `Event` union compiles cleanly while the guard silently rejects it. Two kinds had already gone through that gap: the VS Code webview discarded them (`message-bridge-transport` gates on `isEvent`) and the standalone app discarded them too (`fetch-transport`'s `deserializeEvent` throws inside a conservative `catch {}`). Nothing logged, nothing failed.
+  
+  Both shipped features built on those events were therefore inert over both transports: the "Cancelling..." status from `cancel-reports-what-happened`, and the usage display from `usage-from-acp`. Recording and budget enforcement were unaffected — `agent-runner.ts` consumes the event in-process, never through a transport.
+  
+  The samples in `protocol.test.ts` are now a `Record<EventKind, Event>`, so adding a kind without a guard case is a compile error rather than something to remember.
+
 ## 0.49.0
 
 ### Minor Changes
