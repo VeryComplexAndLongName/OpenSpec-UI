@@ -841,7 +841,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // Harness for this Change" immediately before running.
         const config = await resolveHarnessConfig(workspaceRoot, item.changeName);
         const target = resolveRunWithHarnessTarget(config);
-        deps.revealAiPanel({ ...dashboardContext(workspaceRoot, item.changeDir), startChain: target === "chain" });
+        // `runChange` only for the picker target: a chain has one button
+        // and nothing to pre-select, so seeding a command kind there
+        // would describe a control that is not on screen.
+        deps.revealAiPanel({
+          ...dashboardContext(workspaceRoot, item.changeDir),
+          startChain: target === "chain",
+          runChange: target !== "chain",
+        });
       } catch (error) {
         await showCommandError("resolve Agentic Harness config", error);
       }

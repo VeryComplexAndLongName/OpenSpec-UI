@@ -1410,6 +1410,10 @@ describe("registerCommands", () => {
         cwd: "/workspace/repo",
         changeDir: "/workspace/repo/openspec/changes/demo-change",
         startChain: false,
+        // The picker target opened to run this change, so the panel
+        // starts on `implement` rather than `list` — which is also what
+        // makes its existing agent pre-selection reachable.
+        runChange: true,
       });
     });
 
@@ -1421,7 +1425,12 @@ describe("registerCommands", () => {
 
       await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
 
-      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ startChain: true }));
+      // And not `runChange`: the chain view has one button and nothing
+      // to pre-select, so seeding a command kind there would describe a
+      // control that is not on screen.
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(
+        expect.objectContaining({ startChain: true, runChange: false }),
+      );
     });
 
     it("does nothing for an archived change", async () => {

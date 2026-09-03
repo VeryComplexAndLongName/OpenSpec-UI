@@ -49,6 +49,12 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
   const [stepAgents, setStepAgents] = useState(initialContext.stepAgents);
   const [startChain, setStartChain] = useState(initialContext.startChain ?? false);
+  // Seeded once, from the first render's context: the panel was opened to
+  // run this change, so it starts on `implement` rather than `list`.
+  // Deliberately not re-set by later context messages — the user may have
+  // changed the command kind by then, and a follow-up message must not
+  // undo that.
+  const [runChange] = useState(initialContext.runChange ?? false);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
 
   useEffect(() => {
@@ -118,7 +124,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         startChain ? (
           <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} />
         ) : (
-          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} />
+          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} initialCommandKind={runChange ? "implement" : undefined} />
         )
       ) : (
         <p>Enter cwd and change directory to enable the AI panel.</p>
