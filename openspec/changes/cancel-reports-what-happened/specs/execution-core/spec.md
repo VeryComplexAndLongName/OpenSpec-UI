@@ -39,6 +39,35 @@ that, and SHALL NOT report a cancellation that did not occur.
 - **THEN** the events it produces are exactly what they were before this
   requirement
 
+### Requirement: A cancellation reaches the run it names
+
+A cancellation SHALL be delivered to whatever is running the run it
+names, whichever agent that run was started against.
+
+Where the request does not carry enough information to identify that,
+the system SHALL determine it from the run rather than fall back to a
+default. A default is a guess, and a cancellation delivered to the wrong
+place reports that there was nothing to cancel while the run continues.
+
+A cancellation SHALL NOT itself be recorded as a unit of work. It is a
+signal about a run, not a run.
+
+#### Scenario: Cancelling a run on a non-default agent
+
+- **WHEN** a run started against an agent other than the default is
+  cancelled
+- **THEN** the cancellation reaches that run, and the run stops
+
+#### Scenario: A cancellation carrying no agent
+
+- **WHEN** a cancellation names a run but not the agent running it
+- **THEN** the system resolves the agent from the run itself
+
+#### Scenario: What a cancellation leaves behind
+
+- **WHEN** a cancellation is issued
+- **THEN** no new unit of work appears in the list of processes for it
+
 ### Requirement: A cancellation that has not taken effect can be repeated
 
 While a run continues to produce output after a cancellation was

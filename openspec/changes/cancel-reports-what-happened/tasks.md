@@ -99,17 +99,14 @@ kills something real over one that asserts a mock was called.
   polite signal is still reported as cancelled once it is gone, and a
   process that cannot be killed produces the failure from task 2.2 rather
   than a `cancelled`. Use a real child; a mock cannot fail to die.
-- [ ] 5.4 `acp-session-driver.test.ts`: cancelling an ACP run does not
+- [x] 5.4 `acp-session-driver.test.ts`: cancelling an ACP run does not
   emit `cancelled` before the process has exited.
 
-  **Outstanding, and it is the one that matters most.** The report came
-  from `copilot-cli-acp`, and `runProcess`'s new wait-for-exit path is
-  the part of this change nothing yet exercises. The existing suite
-  drives `run()` against an in-process ACP peer with no child, so it
-  cannot reach the branch that waits on a real `close`. Writing it needs
-  a fake child the test can hold open, which is the same shape
-  `shared.test.ts` already uses — do that rather than leave the reported
-  adapter covered only by its sibling.
+  Covered by a held-open fake child in `runProcess()`: after abort, its
+  terminal `next()` remains pending until the test emits the child's
+  `close` event, at which point it yields `cancelled`. This exercises the
+  reported ACP adapter's wait-for-exit path rather than only `run()`'s
+  in-process peer path.
 - [x] 5.5 `HarnessChainPanel.test.tsx` and `AiPanel.test.tsx`: after a
   cancellation that has not taken effect — the in-flight event followed
   by more output — the Cancel control is still rendered and can be
@@ -136,3 +133,57 @@ kills something real over one that asserts a mock was called.
   still arriving, and the Cancel control is still there if it did not
   work. The first is the fix; the third is what makes the failure
   survivable when the first does not hold.
+
+## 7. Reopened by task 6.5, 2026-09-03
+
+The human check found the fix did not work. A chain on `copilot-cli-acp`,
+Cancel pressed four times: four "cancel" entries appeared in Processes and
+hung, and the agent finished its work undisturbed. Three separate defects,
+one of them introduced by this change.
+
+- [x] 7.1 **A cancellation went to the wrong runner, so nothing was ever
+  aborted.** The webview sends no `agentId` on a cancel — it does not know
+  one — so `resolveRunner(command.agentId)` fell through to
+  `DEFAULT_AGENT_ID` and handed the cancel to `claude-cli`'s runner.
+  `activeRuns` is a closure per runner instance, so the run registered
+  under `copilot-cli-acp` was invisible to it: the cancel reported
+  "nothing to cancel" and the agent carried on.
+
+  **Cancelling any agent other than `claude-cli` had never worked.** This
+  change only made the failure legible, by giving the report an
+  `attempted` field. `AiPanel` now remembers which agent each `runId` was
+  started against and routes the cancel there.
+
+- [x] 7.2 **A regression from this change: cancel processes that never
+  end.** Because 7.1 sent the cancel down the ordinary-command path,
+  `trackHarnessProcess` registered a `WorkbenchProcess` whose `execute`
+  promise waits for `completed`/`failed`/`cancelled`. Before this change a
+  cancel emitted `cancelled` and the promise settled; now it emits
+  `cancelling`, which fell into `default: return` — so the promise never
+  settled and each press left an entry hanging forever.
+
+  Two fixes, because either alone leaves the other latent: a cancel no
+  longer registers a process at all, and that `switch` lists every
+  non-terminal kind by name instead of a bare `default`.
+
+- [x] 7.3 **`default:` is where a protocol change goes unnoticed.** Adding
+  `cancelling` failed the build in the two exhaustive switches over
+  `Event["kind"]` and said nothing here, because a `default` handles
+  everything including what it has never heard of. The two that broke were
+  the two that were safe. Worth remembering the next time an event kind is
+  added.
+
+- [x] 7.4 **The extension's chain path emitted nothing on a successful
+  cancel.** `chainRunner.cancel()` returning `true` simply returned, so
+  between the click and the chain's own `cancelled` — which now arrives
+  only once the process is gone — the panel showed nothing at all. It now
+  posts `cancelling`, the same event the standalone host gets from
+  `asAgentRunner()`, which this path bypasses.
+
+- [x] 7.5 Tests for 7.1 and 7.2, both verified to fail with the fix
+  removed and pass with it — checked by actually reverting the two guards
+  and re-running, not by reasoning about it.
+
+- [ ] 7.6 **Human-only**: repeat 6.5 on `copilot-cli-acp`. The agent's
+  process must stop; no "cancel" entry may appear in Processes; and the
+  panel must say it is cancelling rather than nothing at all.
