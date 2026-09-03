@@ -15,6 +15,7 @@ import {
   checkCwdSandbox,
   prepareAgentContext,
 } from "./security.js";
+import type { AgentUsage } from "./agent-usage.js";
 import type { Command, Event } from "./protocol.js";
 
 export type AdapterInvocation =
@@ -174,6 +175,12 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
       let lastSummary: string | undefined;
       let lastReason: string | undefined;
+      // What the agent reported spending, if it reported anything. Stays
+      // undefined otherwise — never zeroed. `AuditEntry.usage`'s contract
+      // is that absent means "not reported", and `checkBudget` fails open
+      // on absence; a zero would turn "we do not know" into "it cost
+      // nothing", which is the reading this change exists to stop.
+      let lastUsage: AgentUsage | undefined;
       try {
         for await (const event of adapter.execute(invocation, command, prompt, controller.signal)) {
           if (event.kind === "completed") lastSummary = event.summary;
@@ -182,6 +189,9 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
             lastReason = event.reason;
           }
           if (event.kind === "cancelled") lastOutcome = "cancelled";
+          // Last one wins: an agent may report progressively, and the
+          // final report is the one describing the whole run.
+          if (event.kind === "usageReported") lastUsage = event.usage;
           yield event;
         }
       } catch (err) {
@@ -200,6 +210,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           invocation,
           reason: lastReason,
           summary: lastSummary,
+          ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
         });
       }
     },

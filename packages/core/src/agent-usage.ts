@@ -27,4 +27,18 @@ export interface AgentUsage {
    * agent does not report a per-model breakdown, or when a run used only
    * one model. */
   byModel?: Record<string, AgentUsageByModel>;
+  /** Reasoning/thought tokens, where the agent separates them from output
+   * (ACP's `Usage.thoughtTokens`). Not folded into `outputTokens`: an
+   * agent that reports both would otherwise be double-counted. */
+  thoughtTokens?: number;
+  /** A vendor-reported cost in a currency that is **not** USD, kept whole
+   * rather than converted.
+   *
+   * ACP's `Cost` carries `{ amount, currency }`, and `costUsd` above is
+   * named for dollars. Writing a euro amount into it would read correctly
+   * for a year and then bill someone wrongly, and converting would mean
+   * inventing an exchange rate — the same reasoning that kept
+   * `maxCostUsd` and `maxAiCredits` as separate fields rather than one
+   * `budget: number`. */
+  cost?: { amount: number; currency: string };
 }

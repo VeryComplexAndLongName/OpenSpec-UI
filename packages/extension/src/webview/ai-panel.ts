@@ -199,6 +199,7 @@ export class AiPanel {
               case "stdout":
               case "stderr":
               case "cancelling":
+              case "usageReported":
               case "stageCompleted":
               case "checkpoint":
               case "handedOff":

@@ -211,3 +211,97 @@ describe("translateClaudeStream", () => {
     ]);
   });
 });
+
+describe("translateClaudeStream — usage from the result line (usage-from-acp)", () => {
+  function streamOf(lines: unknown[]): () => AsyncGenerator<Event> {
+    return async function* () {
+      yield { kind: "started", runId: "r", timestamp: "t", command: "implement", cwd: "/x" };
+      for (const line of lines) {
+        yield { kind: "stdout", runId: "r", timestamp: "t", chunk: `${JSON.stringify(line)}
+` };
+      }
+      yield { kind: "completed", runId: "r", timestamp: "t" };
+    };
+  }
+
+  async function collect(source: () => AsyncGenerator<Event>): Promise<Event[]> {
+    const events: Event[] = [];
+    for await (const e of translateClaudeStream(source(), "r")) events.push(e);
+    return events;
+  }
+
+  it("reports the cost, tokens and per-model split the result line carried", async () => {
+    const events = await collect(
+      streamOf([
+        { type: "assistant", message: { content: "working" } },
+        {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: "done",
+          total_cost_usd: 0.1234,
+          usage: {
+            input_tokens: 500,
+            output_tokens: 200,
+            cache_creation_input_tokens: 10,
+            cache_read_input_tokens: 4000,
+          },
+          modelUsage: {
+            "claude-opus-5": { inputTokens: 400, outputTokens: 180, costUSD: 0.12 },
+            "claude-haiku-4-5": { inputTokens: 100, outputTokens: 20, costUSD: 0.0034 },
+          },
+        },
+      ]),
+    );
+
+    const usageEvent = events.find((event) => event.kind === "usageReported");
+    expect(usageEvent).toMatchObject({
+      usage: {
+        costUsd: 0.1234,
+        inputTokens: 500,
+        outputTokens: 200,
+        cacheCreationInputTokens: 10,
+        cacheReadInputTokens: 4000,
+        byModel: {
+          "claude-opus-5": { inputTokens: 400, outputTokens: 180, costUsd: 0.12 },
+          "claude-haiku-4-5": { inputTokens: 100, outputTokens: 20, costUsd: 0.0034 },
+        },
+      },
+    });
+
+    // Before the terminal event, or agent-runner.ts's audit entry — written
+    // the moment the stream ends — would never see it.
+    const usageIndex = events.findIndex((event) => event.kind === "usageReported");
+    const terminalIndex = events.findIndex((event) => event.kind === "completed");
+    expect(usageIndex).toBeGreaterThanOrEqual(0);
+    expect(usageIndex).toBeLessThan(terminalIndex);
+  });
+
+  it("reports usage for a failed run too — a run that failed still spent what it spent", async () => {
+    const events = await collect(
+      streamOf([
+        {
+          type: "result",
+          subtype: "error_during_execution",
+          is_error: true,
+          total_cost_usd: 0.5,
+          usage: { input_tokens: 9, output_tokens: 1 },
+        },
+      ]),
+    );
+
+    expect(events.find((event) => event.kind === "usageReported")).toMatchObject({
+      usage: { costUsd: 0.5, inputTokens: 9, outputTokens: 1 },
+    });
+    expect(events.at(-1)?.kind).toBe("failed");
+  });
+
+  it("reports nothing when the result line carried no usage at all", async () => {
+    const events = await collect(streamOf([{ type: "result", subtype: "success", is_error: false, result: "done" }]));
+
+    // Absent, not zero: `checkBudget` fails open on absence by design, and
+    // a zero would claim the run was free.
+    expect(events.some((event) => event.kind === "usageReported")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ kind: "completed", summary: "done" });
+  });
+});
