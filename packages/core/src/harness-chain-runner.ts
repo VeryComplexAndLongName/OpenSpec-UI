@@ -341,8 +341,22 @@ export class HarnessChainRunner {
     return {
       run: (command: Command): AsyncIterable<Event> => {
         if (command.kind === "cancel") {
-          this.cancel(command.runId);
-          return (async function* empty() { })();
+          const known = this.cancel(command.runId);
+          // Reports that the request registered. The chain's own stream
+          // says `cancelled` later, once the stage's run has actually
+          // ended — which, since cancel-reports-what-happened, means once
+          // its process is gone. Returning nothing here left the panel
+          // with no sign the click had landed, on exactly the path the
+          // 2026-09-03 report came from.
+          const runId = command.runId;
+          return (async function* cancelling(): AsyncGenerator<Event> {
+            yield {
+              kind: "cancelling",
+              runId,
+              timestamp: nowIso(),
+              attempted: known ? "termination-requested" : "nothing-to-cancel",
+            };
+          })();
         }
         return this.run(command);
       },

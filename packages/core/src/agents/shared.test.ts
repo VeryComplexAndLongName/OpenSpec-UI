@@ -158,15 +158,46 @@ describe("spawnAndStream", () => {
 
     const cancelledPromise = gen.next();
     controller.abort();
+    // The process actually dies, and its late output is still discarded.
+    // `cancelled` is emitted on this exit, not on the abort — see
+    // cancel-reports-what-happened: emitting it at the request is what let
+    // a run report itself stopped while it was still working.
+    child.stdout.emit("data", Buffer.from("late output, must not be emitted\n"));
+    child.emit("close", 0);
     const result = await cancelledPromise;
     expect(result.value).toMatchObject({ kind: "cancelled", runId: "run-10" });
 
-    // The killed process's own exit/output must not surface as further events.
-    child.stdout.emit("data", Buffer.from("late output, must not be emitted\n"));
-    child.emit("close", 0);
-
     const after = await gen.next();
     expect(after.done).toBe(true);
+  });
+
+  it("reports failed, not cancelled, when the process outlives the termination request", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 4343;
+    const taskkillChild = new EventEmitter();
+    spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+    const controller = new AbortController();
+    const gen = spawnAndStream({
+      executable: "claude",
+      args: ["-p"],
+      cwd: "/workspace/repo",
+      runId: "run-10b",
+      commandKind: "implement",
+      signal: controller.signal,
+      killConfirmationTimeoutMs: 20,
+    });
+    await gen.next(); // started
+
+    const pending = gen.next();
+    controller.abort();
+    // No `close`: this child survives its own termination. The previous
+    // behaviour reported `cancelled` here regardless, which is exactly
+    // what the user saw while their agent carried on editing files.
+    const result = await pending;
+
+    expect(result.value).toMatchObject({ kind: "failed", runId: "run-10b" });
+    expect((result.value as { reason: string }).reason).toContain("may still be running");
   });
 
   it("an already-aborted signal yields cancelled without spawning anything (task 1.4)", async () => {
@@ -207,6 +238,7 @@ describe("spawnAndStream", () => {
 
     const cancelledPromise = gen.next();
     controller.abort();
+    child.emit("close", 0);
     await cancelledPromise;
 
     // A bare child.kill() would kill only the .cmd shim on Windows and

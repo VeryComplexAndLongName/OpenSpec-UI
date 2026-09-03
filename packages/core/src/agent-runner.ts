@@ -87,8 +87,20 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         // started here) is not an error — the run may have ended between
         // the click and the command's arrival (design.md, "Cancelling an
         // unknown runId is not an error").
-        activeRuns.get(command.runId)?.abort();
-        yield { kind: "cancelled", runId: command.runId, timestamp: nowIso() };
+        // Reports what was attempted, not that it worked. The run itself
+        // emits `cancelled` when its process is actually gone (see
+        // agents/shared.ts); emitting it here meant a surface that treats
+        // terminal events as end-of-run withdrew the Cancel control while
+        // the agent carried on working. `cancelling` is non-terminal
+        // precisely so nothing does that.
+        const controller = activeRuns.get(command.runId);
+        controller?.abort();
+        yield {
+          kind: "cancelling",
+          runId: command.runId,
+          timestamp: nowIso(),
+          attempted: controller ? "termination-requested" : "nothing-to-cancel",
+        };
         return;
       }
 

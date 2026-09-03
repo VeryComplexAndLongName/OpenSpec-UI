@@ -28,7 +28,7 @@ import {
   type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import type { CommandKind, Event } from "../protocol.js";
-import { terminateProcessTree } from "./shared.js";
+import { KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -77,6 +77,9 @@ export interface AcpRunOptions {
    * argv (see design.md / ADR 0013's argv-cap finding). */
   prompt: string;
   signal?: AbortSignal;
+  /** Set by `runProcess`, which owns the child and therefore owns the
+   * terminal event on abort — see the `__aborted__` branch in `run()`. */
+  deferAbortTerminalEvent?: boolean;
 }
 
 export interface RunAcpProcessOptions {
@@ -87,6 +90,9 @@ export interface RunAcpProcessOptions {
   commandKind: CommandKind;
   prompt: string;
   signal: AbortSignal;
+  /** Set by `runProcess`, which owns the child and therefore owns the
+   * terminal event on abort — see the `__aborted__` branch in `run()`. */
+  deferAbortTerminalEvent?: boolean;
 }
 
 function describeToolCall(toolCall: ToolCallUpdate): string {
@@ -228,7 +234,14 @@ export class AcpSessionDriver {
         const item = queue.shift() as QueueItem;
         if (item.kind === "__aborted__") {
           done = true;
-          yield { kind: "cancelled", runId, timestamp: nowIso() };
+          // When a caller owns the process (`runProcess`), it owns the
+          // terminal event too: only the child's own exit can say the
+          // cancellation took effect, and this generator cannot see it.
+          // Emitting `cancelled` here is what let a run report itself
+          // stopped while `copilot --acp` carried on working.
+          if (!options.deferAbortTerminalEvent) {
+            yield { kind: "cancelled", runId, timestamp: nowIso() };
+          }
         } else if (item.kind === "__stop__") {
           done = true;
           if (item.stopReason === "cancelled") {
@@ -283,15 +296,55 @@ export class AcpSessionDriver {
     }
 
     const { target, child } = spawned;
+
+    // The child's own exit is the only authority on whether cancellation
+    // took effect. An ACP process is long-lived, which is why this
+    // adapter kills a tree at all — and why it is the adapter the
+    // "cancelled but still working" report came from.
+    let exited = false;
+    const exitedPromise = new Promise<void>((resolve) => {
+      child.once("close", () => {
+        exited = true;
+        resolve();
+      });
+    });
+
+    let killFailure: string | undefined;
     const onAbort = () => {
-      if (child.pid !== undefined) terminateProcessTree(child.pid);
+      if (child.pid === undefined) return;
+      void terminateProcessTree(child.pid).then((outcome) => {
+        if (!outcome.attempted) killFailure = outcome.reason;
+      });
     };
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-      yield* this.run({ target, cwd, runId, commandKind, prompt, signal });
+      yield* this.run({ target, cwd, runId, commandKind, prompt, signal, deferAbortTerminalEvent: true });
+
+      if (signal.aborted) {
+        // `run()` deferred the terminal event to here. Wait for the
+        // process to actually go, and say so only then.
+        if (!exited) {
+          await Promise.race([
+            exitedPromise,
+            new Promise<void>((resolve) => setTimeout(resolve, KILL_CONFIRMATION_TIMEOUT_MS)),
+          ]);
+        }
+        if (exited) {
+          yield { kind: "cancelled", runId, timestamp: nowIso() };
+        } else {
+          yield {
+            kind: "failed",
+            runId,
+            timestamp: nowIso(),
+            reason: killFailure
+              ? `cancellation could not be carried out: ${killFailure}. The agent process may still be running.`
+              : `the agent process did not exit within ${KILL_CONFIRMATION_TIMEOUT_MS / 1000}s of being terminated, and may still be running.`,
+          };
+        }
+      }
     } finally {
       signal.removeEventListener("abort", onAbort);
-      if (child.pid !== undefined) terminateProcessTree(child.pid);
+      if (child.pid !== undefined) void terminateProcessTree(child.pid);
     }
   }
 }

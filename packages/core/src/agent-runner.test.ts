@@ -194,7 +194,7 @@ describe("createAgentRunner — audit log records terminal outcome", () => {
 });
 
 describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () => {
-  it("a cancel command never calls buildInvocation or execute, and yields cancelled", async () => {
+  it("a cancel command never calls buildInvocation or execute, and reports cancelling", async () => {
     const { adapter, executeCalls, buildInvocationCalls } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
     const auditLog = new InMemoryAuditLog();
     const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
@@ -209,7 +209,12 @@ describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () =>
     const events: Event[] = [];
     for await (const e of runner.run(cancelCommand)) events.push(e);
 
-    expect(events).toEqual([expect.objectContaining({ kind: "cancelled", runId: "run-cancel-1" })]);
+    expect(events).toEqual([
+      // `cancelling`, not `cancelled`: nothing was running, so nothing
+      // stopped. Reporting a cancellation that did not happen is the
+      // defect cancel-reports-what-happened removes.
+      expect.objectContaining({ kind: "cancelling", attempted: "nothing-to-cancel", runId: "run-cancel-1" }),
+    ]);
     // Asserting the absences explicitly: asserting only the `cancelled`
     // event passes even with today's defect present, where a cancel
     // spawns a second billable agent process.
@@ -218,7 +223,7 @@ describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () =>
     expect(auditLog.entries.some((e) => e.outcome === "started")).toBe(false);
   });
 
-  it("a cancel for an unknown runId yields cancelled without throwing", async () => {
+  it("a cancel for an unknown runId says there was nothing to cancel, without throwing", async () => {
     const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
     const auditLog = new InMemoryAuditLog();
     const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
@@ -237,7 +242,9 @@ describe("createAgentRunner — cancel command (task 3.2, 3.3, 5.3, 5.4)", () =>
       })(),
     ).resolves.toBeUndefined();
 
-    expect(events).toEqual([expect.objectContaining({ kind: "cancelled", runId: "never-started" })]);
+    expect(events).toEqual([
+      expect.objectContaining({ kind: "cancelling", attempted: "nothing-to-cancel", runId: "never-started" }),
+    ]);
   });
 });
 
@@ -289,7 +296,12 @@ describe("createAgentRunner — cancelling a running run (task 3.1, 3.2, 3.4, 5.
     await runPromise;
 
     expect(events.map((e) => e.kind)).toEqual(["started", "cancelled"]);
-    expect(cancelEvents).toEqual([expect.objectContaining({ kind: "cancelled", runId })]);
+    // The cancel command itself reports only that termination was
+    // requested. The run's own stream above is what says it ended — and
+    // it only says so once the process is actually gone.
+    expect(cancelEvents).toEqual([
+      expect.objectContaining({ kind: "cancelling", attempted: "termination-requested", runId }),
+    ]);
 
     const startedEntries = auditLog.entries.filter((e) => e.outcome === "started");
     expect(startedEntries).toHaveLength(1); // only the real run — not the cancel command

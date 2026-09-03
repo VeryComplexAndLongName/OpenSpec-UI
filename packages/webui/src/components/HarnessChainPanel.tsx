@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Command, CheckpointEvent, Event } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
-import { collapseStreamEvents, isTerminal, renderEventBody } from "./AiPanel.js";
+import { collapseStreamEvents, isCancelling, isTerminal, renderEventBody } from "./AiPanel.js";
 
 export interface HarnessChainPanelProps {
   transport: Transport;
@@ -61,7 +61,12 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
 
   const statusLabel = pendingCheckpoint
     ? "Paused at checkpoint"
-    : isRunning
+    : isRunning && isCancelling(collapsedEvents)
+      // Not "Cancelled": the request has been made and the process has
+      // not gone yet. Saying it ended while its output is still arriving
+      // is the original complaint this wording answers.
+      ? "Cancelling..."
+      : isRunning
       ? "Running..."
       : latestEvent?.kind === "failed"
         ? `Failed: ${latestEvent.reason}`

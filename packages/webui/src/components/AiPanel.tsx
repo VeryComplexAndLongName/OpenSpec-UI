@@ -140,6 +140,21 @@ export function isTerminal(event: Event): boolean {
   return event.kind === "completed" || event.kind === "failed" || event.kind === "cancelled";
 }
 
+/** `cancelling` is deliberately absent from `isTerminal`: a run whose
+ * cancellation has not taken effect is still running, so `isRunning` stays
+ * true and the Cancel control stays on screen. That is the fix for the
+ * 2026-09-03 report — the panel used to treat the immediate `cancelled`
+ * as end-of-run and withdraw the only way to ask again while the agent
+ * kept working. */
+export function isCancelling(events: readonly Event[]): boolean {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!;
+    if (isTerminal(event)) return false;
+    if (event.kind === "cancelling") return true;
+  }
+  return false;
+}
+
 function parseStepItems(text: string): StepItem[] | null {
   const lines = text
     .split(/\r?\n/)
@@ -509,6 +524,10 @@ function describeEvent(event: Event): string {
       return `failed: ${event.reason}`;
     case "cancelled":
       return "cancelled";
+    case "cancelling":
+      return event.attempted === "nothing-to-cancel"
+        ? "cancelling: nothing was running"
+        : "cancelling: asked the agent process to stop";
     case "stageCompleted":
       return `stage completed: ${event.stage} → ${event.nextStage}`;
     case "checkpoint":
@@ -878,7 +897,9 @@ export function AiPanel({
   const requiresSelectedChange = CHANGE_REQUIRED_COMMANDS.includes(commandKind);
   const canRunCommand = !isRunning && (!requiresSelectedChange || selectedChange.length > 0);
   const latestEvent = collapsedEvents[collapsedEvents.length - 1];
-  const statusLabel = isRunning
+  const statusLabel = isRunning && isCancelling(collapsedEvents)
+    ? "Cancelling..."
+    : isRunning
     ? "Loading..."
     : latestEvent?.kind === "failed"
       ? `Failed: ${latestEvent.reason}`
