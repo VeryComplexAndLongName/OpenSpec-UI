@@ -88,7 +88,7 @@ jobs:
       - run: npm install --global npm@${NPM_VERSION}
       - run: npm ci
       - name: Create or update version PR
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         env:
           GH_TOKEN: ${{ github.token }}
 
