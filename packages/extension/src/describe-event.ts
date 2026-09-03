@@ -16,6 +16,10 @@ export function describeEvent(event: Event): string {
       return `[failed] ${event.reason}`;
     case "cancelled":
       return "[cancelled]";
+    case "cancelling":
+      return event.attempted === "nothing-to-cancel"
+        ? "[cancelling] nothing was running"
+        : "[cancelling] asked the agent process to stop";
     case "stageCompleted":
       return `[stage completed] ${event.stage} -> ${event.nextStage}`;
     case "checkpoint":

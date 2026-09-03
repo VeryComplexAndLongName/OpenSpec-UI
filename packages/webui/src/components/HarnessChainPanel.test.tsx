@@ -108,6 +108,39 @@ describe("HarnessChainPanel", () => {
     } satisfies Command);
   });
 
+  it("keeps the Cancel control, and can be pressed again, while a cancellation has not taken effect", () => {
+    const { transport, send, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+
+    fireEvent.click(screen.getByTestId("cancel-chain-button"));
+    emit({ kind: "cancelling", runId: "chain-1", timestamp: "t2", attempted: "termination-requested" });
+    // The agent keeps working, which is the whole scenario reported on
+    // 2026-09-03: the panel used to call the run finished here and remove
+    // the only control, leaving nothing to press while files kept
+    // changing.
+    emit({ kind: "stdout", runId: "chain-1", timestamp: "t3", chunk: "still editing files\n" });
+
+    expect(screen.getByTestId("chain-status-label").textContent).toBe("Cancelling...");
+    expect(screen.getByTestId("cancel-chain-button")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("cancel-chain-button"));
+    expect(send).toHaveBeenCalledTimes(3); // chain, cancel, cancel again
+  });
+
+  it("withdraws the Cancel control once the run has actually ended", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    emit({ kind: "cancelling", runId: "chain-1", timestamp: "t2", attempted: "termination-requested" });
+    emit({ kind: "cancelled", runId: "chain-1", timestamp: "t3" });
+
+    expect(screen.getByTestId("chain-status-label").textContent).toBe("Cancelled");
+    expect(screen.queryByTestId("cancel-chain-button")).toBeNull();
+  });
+
   it("shows a completed summary and re-enables starting a new chain", () => {
     const { transport, emit } = createFakeTransport();
     render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);

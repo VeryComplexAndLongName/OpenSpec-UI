@@ -1051,7 +1051,13 @@ describe("HarnessChainRunner — asAgentRunner", () => {
     // HarnessChainRunner.run({kind:"cancel"}) call would be.
     const cancelEvents: Event[] = [];
     for await (const event of adapter.run({ ...command, kind: "cancel" })) cancelEvents.push(event);
-    expect(cancelEvents).toEqual([]);
+    // Acknowledges the request without claiming the chain has ended — the
+    // chain's own stream says `cancelled` below, after the stage's run
+    // actually returns. Returning nothing here left the panel with no
+    // sign the click had landed.
+    expect(cancelEvents).toEqual([
+      expect.objectContaining({ kind: "cancelling", attempted: "termination-requested" }),
+    ]);
 
     await pump;
     expect(events.at(-1)).toMatchObject({ kind: "cancelled" });

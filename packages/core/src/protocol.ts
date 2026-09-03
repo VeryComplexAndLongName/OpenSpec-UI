@@ -127,6 +127,7 @@ export type EventKind =
   | "completed"
   | "failed"
   | "cancelled"
+  | "cancelling"
   | "stageCompleted"
   | "checkpoint"
   | "handedOff"
@@ -185,8 +186,30 @@ export interface FailedEvent extends BaseEvent {
   reason: string;
 }
 
+/** The run ended because it was cancelled. Emitted only once the process
+ * is gone — see `cancelling` below, and
+ * openspec/changes/cancel-reports-what-happened/. */
 export interface CancelledEvent extends BaseEvent {
   kind: "cancelled";
+}
+
+/** Cancellation was asked for and has not taken effect yet.
+ *
+ * **Not terminal.** A run in this state is still running, and everything
+ * that follows from a run being active still follows — most importantly,
+ * the control that cancels it stays available. That is the whole reason
+ * this kind exists: `cancelled` used to be emitted the instant the
+ * request arrived, so a surface that treats terminal events as
+ * end-of-run withdrew the user's only lever while the agent carried on
+ * working (reported 2026-09-03 against `copilot-cli-acp`).
+ *
+ * A consumer that does not know this kind degrades to the behaviour it
+ * had before it existed, because ignoring a non-terminal event changes
+ * nothing. `attempted` says what was actually tried, so a surface can
+ * tell "nothing was running" from "we asked the process to stop". */
+export interface CancellingEvent extends BaseEvent {
+  kind: "cancelling";
+  attempted: "termination-requested" | "nothing-to-cancel";
 }
 
 /** A chain stage finished and the next one is starting immediately (no
@@ -248,6 +271,7 @@ export type Event =
   | CompletedEvent
   | FailedEvent
   | CancelledEvent
+  | CancellingEvent
   | StageCompletedEvent
   | CheckpointEvent
   | HandedOffEvent

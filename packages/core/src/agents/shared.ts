@@ -21,6 +21,11 @@ import crossSpawn from "cross-spawn";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { CommandKind, Event } from "../protocol.js";
 
+/** Ten seconds. Terminating a tree that can be terminated takes
+ * milliseconds, so this is not a budget for the normal case — it is how
+ * long to wait before admitting the process outlived the request. */
+export const KILL_CONFIRMATION_TIMEOUT_MS = 10_000;
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -37,6 +42,22 @@ export interface SpawnAndStreamOptions {
    * before this option existed. When given and it aborts, the spawned
    * process tree is terminated and the stream ends with `cancelled`. */
   signal?: AbortSignal;
+  /** How long to wait for the process to actually exit after termination
+   * was requested, before reporting that it outlived the request.
+   * Defaults to `KILL_CONFIRMATION_TIMEOUT_MS`; overridable so a test can
+   * exercise the survived-the-kill path without waiting ten seconds — a
+   * constant a test cannot reach is a path a test does not cover. */
+  killConfirmationTimeoutMs?: number;
+}
+
+export interface TerminationOutcome {
+  /** Whether the kill could be issued at all. `false` means the caller
+   * never got as far as asking the operating system — a different
+   * situation from "asked and the process survived", and one the user can
+   * act on differently. Neither is a promise that the process died: only
+   * its own exit says that. */
+  attempted: boolean;
+  reason?: string;
 }
 
 /** Terminates the process tree rooted at `pid`, not only that one process.
@@ -46,19 +67,45 @@ export interface SpawnAndStreamOptions {
  * design.md, "Termination kills the process tree"). Exported for reuse by
  * acp-session-driver.ts, whose ACP-flavored adapters spawn the same kind
  * of `.cmd`-shimmed processes but stream over ACP JSON-RPC instead of
- * this module's own spawnAndStream. */
-export function terminateProcessTree(pid: number): void {
+ * this module's own spawnAndStream.
+ *
+ * Never rejects: callers use it in cleanup paths where a tidy-up failure
+ * must not become the run's outcome. It reports the outcome instead, which
+ * is what the previous version discarded — a swallowed `taskkill` error
+ * was how a failed kill could be reported to the user as a successful
+ * cancellation. */
+export function terminateProcessTree(pid: number): Promise<TerminationOutcome> {
   if (process.platform === "win32") {
-    const killer = crossSpawn("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore" });
-    killer.on("error", () => {
-      // Best-effort: if taskkill itself cannot be spawned, there is no
-      // further fallback that also reaches a .cmd shim's real descendant.
+    return new Promise<TerminationOutcome>((resolve) => {
+      const killer = crossSpawn("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore" });
+      killer.on("error", (error) => {
+        // No further fallback reaches a .cmd shim's real descendant — but
+        // that is a reason to report it, not to discard it.
+        resolve({ attempted: false, reason: `taskkill could not be started: ${error.message}` });
+      });
+      killer.on("close", (code) => {
+        // A non-zero taskkill usually means the process was already gone
+        // (128) — which is success from this function's point of view,
+        // since the caller only needs to know the request was issued.
+        resolve({ attempted: true, reason: code === 0 ? undefined : `taskkill exited with code ${code ?? "unknown"}` });
+      });
     });
-  } else {
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+    return Promise.resolve({ attempted: true });
+  } catch (groupError) {
     try {
-      process.kill(-pid, "SIGKILL");
-    } catch {
       process.kill(pid, "SIGKILL");
+      return Promise.resolve({ attempted: true });
+    } catch (error) {
+      // ESRCH means the process is already gone, which is the outcome the
+      // caller wanted — not a failure to report as one.
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      if (code === "ESRCH") return Promise.resolve({ attempted: true });
+      const message = error instanceof Error ? error.message : String(error);
+      const groupMessage = groupError instanceof Error ? groupError.message : String(groupError);
+      return Promise.resolve({ attempted: false, reason: `${message} (process group: ${groupMessage})` });
     }
   }
 }
@@ -103,6 +150,7 @@ export function commandInstruction(kind: CommandKind): string {
 
 export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGenerator<Event> {
   const { executable, args, cwd, runId, commandKind, stdin, signal } = options;
+  const killConfirmationTimeoutMs = options.killConfirmationTimeoutMs ?? KILL_CONFIRMATION_TIMEOUT_MS;
 
   // An already-aborted signal never reaches a spawn at all — no process,
   // no partial output, just `cancelled` (design.md, "Cancellation
@@ -141,7 +189,8 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     | Event
     | { kind: "__exit__"; code: number | null }
     | { kind: "__error__"; error: Error }
-    | { kind: "__aborted__" };
+    | { kind: "__cancelled__" }
+    | { kind: "__kill_timed_out__" };
   const queue: QueueItem[] = [];
   let resolveWake: (() => void) | null = null;
   const wake = () => {
@@ -157,6 +206,8 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
   // `cancelled` event has already been queued, and ADR 0012 forbids any
   // event after a terminal one (task 1.5).
   let aborted = false;
+  let killFailure: string | undefined;
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Listeners are attached synchronously, BEFORE the first `yield` — this
   // guarantees that no process event is lost between spawning and the
@@ -176,18 +227,48 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     push({ kind: "__error__", error });
   });
   child.on("close", (code) => {
-    if (aborted) return;
+    // Deliberately NOT suppressed while aborted: this is the one signal
+    // that says the process actually died, and it is what turns a
+    // cancellation request into a `cancelled` event.
+    if (aborted) {
+      push({ kind: "__cancelled__" });
+      return;
+    }
     push({ kind: "__exit__", code });
   });
 
   const onAbort = () => {
     if (aborted) return;
     aborted = true;
-    if (child.pid !== undefined) terminateProcessTree(child.pid);
     // Drop anything already buffered — a run the user stopped reports no
-    // further output, only the terminal `cancelled` event (task 1.5).
+    // further output, only the terminal event (task 1.5).
     queue.length = 0;
-    push({ kind: "__aborted__" });
+
+    if (child.pid === undefined) {
+      // No process to kill, so there is nothing to wait for.
+      push({ kind: "__cancelled__" });
+      return;
+    }
+
+    // The child's own `close` is the authority on whether it died; this
+    // only says whether the kill could be attempted. Previously
+    // `cancelled` was pushed right here, so the run reported itself
+    // stopped while the process was still alive and still writing to the
+    // workspace — the defect this change removes.
+    void terminateProcessTree(child.pid).then((outcome) => {
+      if (outcome.attempted) return;
+      killFailure = outcome.reason;
+    });
+
+    // Ten seconds: terminating a tree that can be terminated takes
+    // milliseconds, so this is not a budget for the normal case — it is
+    // how long to wait before admitting the process outlived the request.
+    // Wrong in the cheap direction: a slow-but-successful kill still
+    // reports `cancelled`, and only a genuinely surviving process reaches
+    // the failure.
+    killTimer = setTimeout(() => {
+      push({ kind: "__kill_timed_out__" });
+    }, killConfirmationTimeoutMs);
   };
   signal?.addEventListener("abort", onAbort);
 
@@ -203,9 +284,23 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
         continue;
       }
       const item = queue.shift() as QueueItem;
-      if (item.kind === "__aborted__") {
+      if (item.kind === "__cancelled__") {
         done = true;
         yield { kind: "cancelled", runId, timestamp: nowIso() };
+      } else if (item.kind === "__kill_timed_out__") {
+        done = true;
+        // Not `cancelled`: the process outlived the request, and saying
+        // otherwise is the whole defect. Name which of the two situations
+        // this is — a kill that could not be attempted and a kill that
+        // ran and was survived call for different actions.
+        yield {
+          kind: "failed",
+          runId,
+          timestamp: nowIso(),
+          reason: killFailure
+            ? `cancellation could not be carried out: ${killFailure}. The agent process may still be running.`
+            : `the agent process did not exit within ${killConfirmationTimeoutMs / 1000}s of being terminated, and may still be running.`,
+        };
       } else if (item.kind === "__exit__") {
         done = true;
         if (item.code === 0) {
