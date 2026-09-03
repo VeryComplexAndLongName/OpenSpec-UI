@@ -42,6 +42,52 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         } satisfies Command);
     });
 
+    it("starts on the change it was opened for, and on the seeded command kind", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="implement"
+            />,
+        );
+
+        // Before any `list` has loaded. Right-clicking a change and
+        // choosing Run with Agentic Harness used to open a panel with
+        // none of this filled in, so the user re-entered what they had
+        // just said by right-clicking.
+        expect((screen.getByTestId("command-picker") as HTMLSelectElement).value).toBe("implement");
+        expect((screen.getByTestId("change-picker") as HTMLSelectElement).value).toBe("demo");
+    });
+
+    it("selects the configured agent for the seeded stage, without being told the agent", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="implement"
+                stepAgents={{ apply: "copilot-cli" }}
+            />,
+        );
+
+        // Nothing here selects the agent directly: the existing effect
+        // maps `implement` to the `apply` stage and reads `stepAgents`.
+        // With the kind stuck at `list` that mapping produced no stage,
+        // which is the whole reason the configured agent never appeared.
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("copilot-cli");
+    });
+
+    it("keeps the previous defaults when no seed is given", () => {
+        const { transport } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/demo" />);
+
+        // Every other entry point opens the panel without naming a run.
+        expect((screen.getByTestId("command-picker") as HTMLSelectElement).value).toBe("list");
+    });
+
     it("shows direct OpenSpec commands and agent commands in command picker", () => {
         const { transport } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" />);

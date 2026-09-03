@@ -790,6 +790,25 @@ export interface AiPanelProps {
    * agent before running; this never enforces the recommendation. May
    * include a model for the selected agent. */
   stepAgents?: HarnessStepAgents;
+  /** What the panel should start on, when the host opened it to run one
+   * specific change — "Run with Agentic Harness" does. Omitted for every
+   * other reveal, which keeps the previous `list`: a host that named no
+   * change has nothing to run, and offering to implement an unnamed one
+   * would be worse than offering to list them.
+   *
+   * Only a starting point. Seeding the kind is also what makes the agent
+   * pre-selection below reachable — that effect maps the command kind to
+   * a stage, and `list` maps to none, which is why a configured agent
+   * never appeared despite being resolved and delivered. */
+  initialCommandKind?: CommandKind;
+}
+
+/** The change a `changeDir` names, for seeding the picker before any
+ * `list` has loaded. Pure string work on a path the host already sends —
+ * no new message, and no filesystem access from the webview. */
+function changeNameFromDir(changeDir: string | undefined): string {
+  if (!changeDir) return "";
+  return changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0).pop() ?? "";
 }
 
 const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply">> = {
@@ -808,11 +827,21 @@ export function AiPanel({
   onRefreshAgents,
   onRunTerminal,
   stepAgents,
+  initialCommandKind,
 }: AiPanelProps) {
-  const [commandKind, setCommandKind] = useState<CommandKind>("list");
+  const [commandKind, setCommandKind] = useState<CommandKind>(initialCommandKind ?? "list");
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
-  const [availableChanges, setAvailableChanges] = useState<string[]>([]);
-  const [selectedChange, setSelectedChange] = useState<string>("");
+  // Seeded with the change the panel was opened for, so the picker can
+  // actually show it before any `list` has run. Seeding only the
+  // selection is not enough: a `<select>` cannot hold a value it has no
+  // option for, so the selection would silently fall back to empty. The
+  // reconciling effect below replaces this with the real list and keeps
+  // the selection if it appears there.
+  const [availableChanges, setAvailableChanges] = useState<string[]>(() => {
+    const seeded = changeNameFromDir(changeDir);
+    return seeded.length > 0 ? [seeded] : [];
+  });
+  const [selectedChange, setSelectedChange] = useState<string>(() => changeNameFromDir(changeDir));
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [runId, setRunId] = useState<string | null>(null);

@@ -51,6 +51,15 @@ export interface AiPanelContext {
    * `data-start-chain`), not delivered as a follow-up message. Absent (or
    * `false`) for every other reveal — the existing single-stage picker. */
   startChain?: boolean;
+  /** Set by `openspec-ui.runWithHarness` when this change's config
+   * resolves to the single-stage picker rather than a chain: the panel
+   * was opened to run *this* change, so it starts on `implement` instead
+   * of `list`. Like `startChain`, it must be known on the first render,
+   * so it rides in the initial HTML rather than a follow-up message.
+   *
+   * Absent for every other reveal — a panel opened without naming a
+   * change has nothing to implement, and `list` remains right there. */
+  runChange?: boolean;
 }
 
 interface BridgeCommandMessage {
@@ -473,6 +482,7 @@ export class AiPanel {
     // decides which component mounts — so it is baked into the initial
     // HTML here, not posted afterward.
     const startChain = panelContext?.startChain ? "true" : "false";
+    const runChange = panelContext?.runChange ? "true" : "false";
     return `<!doctype html>
 <html>
   <head>
@@ -481,7 +491,7 @@ export class AiPanel {
     <title>OpenSpec UI</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;
