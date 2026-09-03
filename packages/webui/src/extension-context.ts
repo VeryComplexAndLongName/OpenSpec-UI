@@ -14,6 +14,12 @@ export interface DashboardContext {
      * import — see openspec/changes/agentic-harness/. Absent when no
      * harness config exists for the workspace/change. */
     stepAgents?: Partial<Record<"propose" | "review" | "apply", string>>;
+    /** The resolved harness `budget` for the current change, resolved by
+     * the extension host alongside `stepAgents` and delivered in the same
+     * follow-up context message. Shown beside a chain's recorded usage so
+     * a configured ceiling is legible; nothing in the webview enforces it.
+     * Absent means no ceiling is shown at all — never a ceiling of zero. */
+    budget?: { maxCostUsd?: number; maxTokens?: number };
     /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`)
      * when the resolved harness config for the change targets `"chain"`
      * rather than `"picker"` (see `resolveRunWithHarnessTarget` in

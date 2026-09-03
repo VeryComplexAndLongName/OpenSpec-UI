@@ -22,6 +22,8 @@ export function describeEvent(event: Event): string {
         : "[cancelling] asked the agent process to stop";
     case "usageReported":
       return "[usage] reported by the agent";
+    case "stageStarted":
+      return `[stage started] ${event.stage}${event.agentId ? ` (${event.agentId})` : ""}`;
     case "stageCompleted":
       return `[stage completed] ${event.stage} -> ${event.nextStage}`;
     case "checkpoint":

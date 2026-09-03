@@ -48,6 +48,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [changeDir, setChangeDir] = useState(initialContext.changeDir);
   const [detectedAgents, setDetectedAgents] = useState(initialContext.detectedAgents);
   const [stepAgents, setStepAgents] = useState(initialContext.stepAgents);
+  const [budget, setBudget] = useState(initialContext.budget);
   const [startChain, setStartChain] = useState(initialContext.startChain ?? false);
   // Seeded once, from the first render's context: the panel was opened to
   // run this change, so it starts on `implement` rather than `list`.
@@ -75,6 +76,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       }
       if (event.data.context.stepAgents) {
         setStepAgents(event.data.context.stepAgents);
+      }
+      if (event.data.context.budget) {
+        setBudget(event.data.context.budget);
       }
       // Unlike detectedAgents/stepAgents (append-only follow-ups), this
       // must reset to false on a reveal that doesn't request a chain —
@@ -122,7 +126,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
         startChain ? (
-          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} />
+          <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} budget={budget} />
         ) : (
           <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} initialCommandKind={runChange ? "implement" : undefined} />
         )

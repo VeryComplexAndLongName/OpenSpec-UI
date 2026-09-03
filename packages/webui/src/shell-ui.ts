@@ -487,6 +487,60 @@ export const shellThemeCss = `
     background: #effaf6;
   }
 
+  .openspec-usage-summary {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin: 10px 0;
+    background: var(--surface-2);
+    font-size: 12px;
+  }
+
+  .openspec-usage-summary-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  .openspec-usage-budget,
+  .openspec-usage-note {
+    margin: 6px 0 0;
+    color: var(--muted);
+  }
+
+  .openspec-usage-stages {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .openspec-usage-stage {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto;
+    gap: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: var(--surface);
+  }
+
+  .openspec-usage-stage-name {
+    font-weight: 600;
+  }
+
+  .openspec-usage-stage-figure {
+    text-align: right;
+    color: var(--ink);
+  }
+
+  .openspec-usage-stage-live {
+    grid-column: 1 / -1;
+    color: var(--muted);
+  }
+
   .openspec-diff {
     border: 1px solid var(--line);
     border-radius: 10px;
@@ -935,6 +989,12 @@ export const vscodeThemeCss = `
   .openspec-extension-app .openspec-event--completed {
     background: color-mix(in srgb, var(--vscode-testing-iconPassed) 10%, var(--surface));
     border-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 45%, var(--line));
+  }
+
+  .openspec-extension-app .openspec-usage-summary,
+  .openspec-extension-app .openspec-usage-stage {
+    background: var(--vscode-editorWidget-background, var(--surface-2));
+    border-color: var(--vscode-editorWidget-border, var(--line));
   }
 
   .openspec-extension-app .openspec-status-meter {

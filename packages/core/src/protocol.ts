@@ -130,6 +130,7 @@ export type EventKind =
   | "cancelled"
   | "cancelling"
   | "usageReported"
+  | "stageStarted"
   | "stageCompleted"
   | "checkpoint"
   | "handedOff"
@@ -231,6 +232,28 @@ export interface CancellingEvent extends BaseEvent {
   attempted: "termination-requested" | "nothing-to-cancel";
 }
 
+/** A chain stage is about to begin. Emitted once per stage that actually
+ * runs, immediately before it starts — after any check that could refuse
+ * it, so a stage refused at a budget ceiling is never announced as having
+ * started.
+ *
+ * Exists because a chain publishes every stage under one `runId` and
+ * otherwise names a stage only when it *ends* (`stageCompleted`/
+ * `checkpoint`). Without this, a surface cannot attribute anything to the
+ * FIRST stage (no boundary precedes it) or to the stage a chain stopped
+ * during (no boundary follows it) — which is precisely the stage that
+ * spent the money. Non-terminal and carries no decision: a consumer that
+ * ignores it behaves exactly as before it existed.
+ *
+ * `agentId` is `""` for a stage that runs no agent (`archive`, `git`),
+ * the same convention `CheckpointEvent.nextAgentId` already uses — it
+ * reads as "no agent required", not "unknown". */
+export interface StageStartedEvent extends BaseEvent {
+  kind: "stageStarted";
+  stage: HarnessStage;
+  agentId: string;
+}
+
 /** A chain stage finished and the next one is starting immediately (no
  * confirmation required for this transition). */
 export interface StageCompletedEvent extends BaseEvent {
@@ -292,6 +315,7 @@ export type Event =
   | CancelledEvent
   | CancellingEvent
   | UsageReportedEvent
+  | StageStartedEvent
   | StageCompletedEvent
   | CheckpointEvent
   | HandedOffEvent
@@ -324,6 +348,10 @@ export function isEvent(value: unknown): value is Event {
       return v.attempted === "termination-requested" || v.attempted === "nothing-to-cancel";
     case "usageReported":
       return typeof v.usage === "object" && v.usage !== null;
+    case "stageStarted":
+      return (
+        typeof v.stage === "string" && STAGES.includes(v.stage as HarnessStage) && typeof v.agentId === "string"
+      );
     case "stageCompleted":
       return (
         typeof v.stage === "string" &&

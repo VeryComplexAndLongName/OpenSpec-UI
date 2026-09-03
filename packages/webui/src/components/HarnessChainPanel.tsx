@@ -9,15 +9,21 @@
 // delivery targets' UX.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Command, CheckpointEvent, Event } from "@openspec-ui/core/browser";
+import type { Command, CheckpointEvent, Event, HarnessBudget } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import { collapseStreamEvents, isCancelling, isTerminal, renderEventBody } from "./AiPanel.js";
+import { UsageSummaryView } from "./UsageSummaryView.js";
 
 export interface HarnessChainPanelProps {
   transport: Transport;
   cwd: string;
   changeDir: string;
   generateRunId?: () => string;
+  /** The resolved harness `budget`, when the host resolved one. Passed
+   * through to the usage summary purely so the ceiling is legible beside
+   * the recorded total — nothing here enforces it (see
+   * UsageSummaryView.tsx's header). */
+  budget?: HarnessBudget;
 }
 
 function defaultRunId(): string {
@@ -28,7 +34,7 @@ function isCheckpointEvent(event: Event | undefined): event is CheckpointEvent {
   return event?.kind === "checkpoint";
 }
 
-export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = defaultRunId }: HarnessChainPanelProps) {
+export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = defaultRunId, budget }: HarnessChainPanelProps) {
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -111,6 +117,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           </div>
         </div>
       ) : null}
+      <UsageSummaryView events={collapsedEvents} budget={budget} />
       <ul className="openspec-ai-panel-events" data-testid="chain-event-log">
         {collapsedEvents.map((event, index) => (
           <li key={index} data-testid={`chain-event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>

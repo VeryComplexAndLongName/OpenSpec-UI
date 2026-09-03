@@ -1183,6 +1183,94 @@ describe("HarnessChainRunner — budget (task 8.7)", () => {
   });
 });
 
+describe("HarnessChainRunner — stageStarted (usage-visible-while-running)", () => {
+  it("announces every stage that runs, in order, with the agent that will run it", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli-acp", verify: "claude-cli" },
+    });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const started = events.filter((event) => event.kind === "stageStarted") as (Event & {
+      stage: string;
+      agentId: string;
+    })[];
+    expect(started.map((event) => event.stage)).toEqual(["propose", "review", "apply", "verify", "archive"]);
+    // The agent that will actually run it, per stage — and "" for
+    // "archive", which runs no agent at all.
+    expect(started.map((event) => event.agentId)).toEqual([
+      "claude-cli",
+      "claude-cli",
+      "claude-cli-acp",
+      "claude-cli",
+      "",
+    ]);
+    // Announced before the stage does anything, so a surface can
+    // attribute the FIRST stage's output to it — the case no
+    // stageCompleted could ever cover.
+    expect(events[0]).toMatchObject({ kind: "started" });
+    expect(events.findIndex((event) => event.kind === "stageStarted")).toBeLessThan(
+      events.findIndex((event) => event.kind === "checkpoint"),
+    );
+  });
+
+  it("does not announce a stage refused at the budget ceiling", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli" },
+      budget: { maxCostUsd: 1 },
+    });
+    mockStatus(false);
+
+    const command = baseCommand(root);
+    let calls = 0;
+    const listAuditEntries = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) return [];
+      return [
+        {
+          runId: "propose-run",
+          agent: "claude-cli",
+          outcome: "completed" as const,
+          cwd: root,
+          timestamp: "t",
+          changeDir: command.context.changeDir,
+          usage: { costUsd: 5 },
+        },
+      ];
+    });
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // "propose" ran and was announced; "review" was refused before it
+    // started, so announcing it would name a stage that spent nothing.
+    const started = events.filter((event) => event.kind === "stageStarted") as (Event & { stage: string })[];
+    expect(started.map((event) => event.stage)).toEqual(["propose"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: expect.stringContaining("budget") });
+  });
+});
+
 describe("HarnessChainRunner — a real run's reported usage stops the chain (usage-from-acp task 4.4)", () => {
   it("stops at the next stage boundary on usage an adapter reported, recorded by the real runner", async () => {
     const root = await temporaryRoot();

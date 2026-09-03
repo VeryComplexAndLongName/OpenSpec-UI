@@ -180,6 +180,26 @@ One figure is deliberately **not** recorded: an ACP `usage_update`'s
 goes *down* after a compaction. Counting it as consumption would
 under-count exactly the long runs that compact.
 
+## Watching it while it runs
+
+A chain run shows what it has spent as it goes: a usage summary beside
+the event log, with a row per stage that has started, and the configured
+ceiling beside the recorded total when one is configured.
+
+Two things there are deliberately not the same number:
+
+- **The recorded total** is what agents reported for stages that have
+  finished. It is the figure a ceiling is compared against.
+- **A live figure**, where an agent sends one, is that agent's own
+  running report during a stage — including how much of its context
+  window is occupied, which falls after a compaction and is never an
+  amount spent. It is shown as the agent's commentary and counts toward
+  nothing.
+
+A stage whose agent reported nothing reads "not reported", never
+`$0.00`. Reaching a ceiling stops the chain before the next stage; it
+does not interrupt the stage already running.
+
 ## CI job timeouts (not a harness setting)
 
 `.github/workflows/quality.yml` sets a `timeout-minutes` per job — these

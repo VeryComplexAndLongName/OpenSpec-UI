@@ -1330,6 +1330,10 @@ describe("server — WebSocket /api/ws", () => {
 
     expect(received).toEqual([
       expect.objectContaining({ kind: "started", command: "chain" }),
+      // The chain announces a stage before it begins, so a surface can
+      // attribute the first stage's output — including what it spent — to
+      // it (usage-visible-while-running).
+      expect.objectContaining({ kind: "stageStarted", stage: "propose", agentId: "claude-cli" }),
       expect.objectContaining({ kind: "started", command: "plan" }),
       expect.objectContaining({ kind: "checkpoint", stage: "propose", nextStage: "review" }),
     ]);
