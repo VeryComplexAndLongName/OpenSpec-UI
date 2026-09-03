@@ -20,6 +20,22 @@ export interface WorkbenchRunJournalData {
     checkpointSessions: PersistedCheckpointSession[];
 }
 
+/** What `load()` returns for a checkpoint session: the reference the
+ * journal actually stores, plus a way to read the payload when something
+ * needs it. Deliberately not a `PersistedCheckpointSession` — a type that
+ * carries the checkpoint is a type every caller can read without meaning
+ * to, which is how activation came to read every file on disk. */
+export interface RestoredCheckpointSession {
+    processId: string;
+    changeName?: string;
+    loadCheckpoint(): Promise<PersistedCheckpointSession | undefined>;
+}
+
+export interface RestoredWorkbenchRunJournalData {
+    processes: WorkbenchProcess[];
+    checkpointSessions: RestoredCheckpointSession[];
+}
+
 interface PersistedCheckpointSessionReference {
     processId: string;
     changeName?: string;
@@ -39,7 +55,17 @@ interface WorkbenchRunJournalDocumentV1 {
 
 export interface WorkbenchRunJournalOptions {
     maxProcesses?: number;
+    /** Separate from `maxProcesses` on purpose — see `write()`. */
+    maxCheckpointSessions?: number;
 }
+
+/** Ten, measured rather than picked: this repository's own checkpoints
+ * ran 12–24 MB each on 2026-09-03, so ten is roughly 150–200 MB of disk
+ * and about half a day of its activity. A hundred — what sharing
+ * `maxProcesses` implied — was 531 MB when the slow activation that
+ * prompted this was investigated, and had no ceiling short of two
+ * gigabytes. */
+export const DEFAULT_MAX_CHECKPOINT_SESSIONS = 10;
 
 export type WorkbenchJournalLoadErrorCode =
     | "invalid-json"
@@ -73,7 +99,7 @@ export class WorkbenchJournalLoadError extends Error {
     }
 }
 
-function emptyJournal(): WorkbenchRunJournalData {
+function emptyJournal(): RestoredWorkbenchRunJournalData {
     return { processes: [], checkpointSessions: [] };
 }
 
@@ -87,6 +113,7 @@ export class WorkbenchRunJournal {
     readonly filePath: string;
     private readonly checkpointsDirectory: string;
     private readonly maxProcesses: number;
+    private readonly maxCheckpointSessions: number;
     private writeQueue = Promise.resolve();
 
     constructor(private readonly root: string, options: WorkbenchRunJournalOptions = {}) {
@@ -94,9 +121,10 @@ export class WorkbenchRunJournal {
         this.filePath = path.join(openspecDirectory, "workbench-runs.json");
         this.checkpointsDirectory = path.join(openspecDirectory, "checkpoints");
         this.maxProcesses = options.maxProcesses ?? 100;
+        this.maxCheckpointSessions = options.maxCheckpointSessions ?? DEFAULT_MAX_CHECKPOINT_SESSIONS;
     }
 
-    async load(): Promise<WorkbenchRunJournalData> {
+    async load(): Promise<RestoredWorkbenchRunJournalData> {
         let source: string;
         try {
             source = await readFile(this.filePath, "utf8");
@@ -141,7 +169,13 @@ export class WorkbenchRunJournal {
             );
         }
 
-        const sessions: PersistedCheckpointSession[] = [];
+        // References only. Reading each payload here is what made
+        // activation cost half a gigabyte on this repository — see
+        // checkpoint-retention-and-lazy-load: the storage split moved the
+        // bytes out of this file and then read them straight back in.
+        // `loadCheckpoint` is how a caller asks for one, at the moment it
+        // has something to do with it.
+        const sessions: RestoredCheckpointSession[] = [];
         const retainedIds = new Set<string>();
         for (const reference of document.checkpointSessions) {
             if (!reference || typeof reference !== "object" || typeof reference.processId !== "string") {
@@ -151,9 +185,16 @@ export class WorkbenchRunJournal {
                 );
             }
             retainedIds.add(reference.processId);
-            const resolved = await this.resolveCheckpointSession(reference, resolvedRoot);
-            if (resolved) sessions.push(resolved);
+            const { processId, changeName } = reference;
+            sessions.push({
+                processId,
+                changeName,
+                loadCheckpoint: () => this.resolveCheckpointSession({ processId, changeName }, resolvedRoot),
+            });
         }
+        // Kept on the load path deliberately: it lists directory entries
+        // and deletes by name, never reading content, so it costs nothing
+        // and it is what removes a file a crash orphaned.
         await this.pruneCheckpointFiles(retainedIds);
 
         return {
@@ -177,7 +218,7 @@ export class WorkbenchRunJournal {
     private async loadVersion1(
         document: WorkbenchRunJournalDocumentV1,
         resolvedRoot: string,
-    ): Promise<WorkbenchRunJournalData> {
+    ): Promise<RestoredWorkbenchRunJournalData> {
         if (!Array.isArray(document.processes) || !Array.isArray(document.checkpointSessions)) {
             throw new WorkbenchJournalLoadError(
                 `Workbench run journal has an invalid shape. Inspect or restore ${this.filePath}.`,
@@ -204,7 +245,17 @@ export class WorkbenchRunJournal {
             checkpointSessions: sessions,
         };
         await this.save(data);
-        return data;
+        // Migration is the one place the payloads are already in memory,
+        // so the restored shape hands them back directly rather than
+        // re-reading the files `save()` has just written.
+        return {
+            processes: data.processes,
+            checkpointSessions: sessions.map((session) => ({
+                processId: session.processId,
+                changeName: session.changeName,
+                loadCheckpoint: async () => session,
+            })),
+        };
     }
 
     /** Reads and validates one referenced checkpoint session's file. A file
@@ -323,7 +374,30 @@ export class WorkbenchRunJournal {
             .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
             .slice(0, this.maxProcesses);
         const retainedIds = new Set(processes.map((process) => process.id));
-        const retainedSessions = data.checkpointSessions.filter((session) => retainedIds.has(session.processId));
+        // Two limits, because the two quantities differ by six orders of
+        // magnitude: a process entry is tens of bytes, a checkpoint tens
+        // of megabytes. Sharing `maxProcesses` between them meant a
+        // hundred retained processes could mean two gigabytes of
+        // checkpoints, read at every activation.
+        //
+        // By recency, never by state: `canRollback` covers "completed",
+        // "failed" and "interrupted", so evicting terminal runs would
+        // quietly withdraw a rollback the product offers.
+        // Choose by recency, then write in the caller's original order.
+        // Reordering the persisted list is not free: `rollbackChange`
+        // reads the sessions back in stored order to find the earliest
+        // state to restore to, so a newest-first list turns a rollback
+        // into a conflict. Selection and ordering are separate concerns
+        // and this keeps them separate.
+        const orderById = new Map(processes.map((process, index) => [process.id, index]));
+        const keptIds = new Set(
+            data.checkpointSessions
+                .filter((session) => retainedIds.has(session.processId))
+                .map((session) => session.processId)
+                .sort((left, right) => (orderById.get(left) ?? 0) - (orderById.get(right) ?? 0))
+                .slice(0, this.maxCheckpointSessions),
+        );
+        const retainedSessions = data.checkpointSessions.filter((session) => keptIds.has(session.processId));
 
         // Session files are written before the journal that references
         // them, and only if they do not already exist: a finalized
