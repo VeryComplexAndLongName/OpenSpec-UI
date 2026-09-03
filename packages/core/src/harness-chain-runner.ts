@@ -242,7 +242,7 @@ async function determineStartStage(cwd: string, changeName: string, changeDir: s
 export class HarnessChainRunner {
   private readonly active = new Map<string, ChainState>();
 
-  constructor(private readonly deps: HarnessChainDeps) {}
+  constructor(private readonly deps: HarnessChainDeps) { }
 
   /** Starts a chain for a `"chain"` command. Returns an async generator —
    * every event (including every constituent stage's own `stdout`/
@@ -331,7 +331,7 @@ export class HarnessChainRunner {
       run: (command: Command): AsyncIterable<Event> => {
         if (command.kind === "cancel") {
           this.cancel(command.runId);
-          return (async function* empty() {})();
+          return (async function* empty() { })();
         }
         return this.run(command);
       },
@@ -418,6 +418,20 @@ export class HarnessChainRunner {
         return;
       }
 
+      // Re-derive the high-impact gate from the change's own file
+      // immediately before archive moves that file out of the active
+      // changes directory. Reading it after a successful archive always
+      // resolves to "not configured" and silently skips the git stage.
+      let shouldRunGitAfterArchive: boolean | undefined;
+      if (stage === "archive" && sequence[index + 1] === "git") {
+        try {
+          shouldRunGitAfterArchive = await this.shouldRunGitStage(cwd, changeName);
+        } catch (error) {
+          yield failedEvent(runId, error instanceof Error ? error.message : String(error));
+          return;
+        }
+      }
+
       const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
 
       const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
@@ -430,14 +444,7 @@ export class HarnessChainRunner {
       if (!hasNextStage) return;
 
       if (stage === "archive" && sequence[index + 1] === "git") {
-        let shouldRunGitStage: boolean;
-        try {
-          shouldRunGitStage = await this.shouldRunGitStage(cwd, changeName);
-        } catch (error) {
-          yield failedEvent(runId, error instanceof Error ? error.message : String(error));
-          return;
-        }
-        if (!shouldRunGitStage) {
+        if (!shouldRunGitAfterArchive) {
           yield { kind: "completed", runId, timestamp: nowIso(), summary: `archived ${changeName}` };
           return;
         }

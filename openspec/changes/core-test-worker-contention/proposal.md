@@ -7,9 +7,17 @@ ceiling does not help.
 and **hangs past 20 s** when one other test file runs beside it. The same
 two files pass together in 7.7 s with
 `--pool=forks --poolOptions.forks.singleFork=true`. So the cause is not
-duration: it is contention between vitest's parallel workers over real
-`git` subprocesses and temporary directories on Windows. A timeout only
-changes which number the failure reports.
+duration: a timeout only changes which number the failure reports.
+
+**But a single fork is not the whole answer either.** A full
+`packages/core` run with that same flag — all 44 files in one process —
+still fails this file at the 5000 ms default. So "vitest's parallel
+workers contend" is too narrow a description: something accumulates over
+a long run and makes spawning eight `git` processes slow or blocking,
+whether or not a second worker exists. The two-file experiment that
+suggested a single fork was sufficient was simply too small to see it.
+Naming the cause precisely is task 1.1, and this correction is why that
+task says not to skip to a fix.
 
 This has been misdiagnosed twice already, in this repository's own task
 notes. `harness-config-top-level-keys` task 3.2 recorded two failures as

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -85,8 +85,16 @@ async function writeTasks(root: string, unchecked: number, checked: number): Pro
   await writeFile(path.join(changeDir, "tasks.md"), lines.join("\n"), "utf8");
 }
 
-function mockArchiveSucceeds(): void {
-  mockCliJson({});
+function mockArchiveSucceeds(onArchive?: () => void | Promise<void>): void {
+  spawnMock.mockImplementationOnce(() => {
+    const child = new FakeChildProcess();
+    queueMicrotask(async () => {
+      await onArchive?.();
+      child.stdout.emit("data", Buffer.from("{}", "utf8"));
+      child.emit("close", 0);
+    });
+    return child;
+  });
 }
 
 /** A fake `AgentRunner` whose `run()` yields `started` then `completed` for
@@ -410,7 +418,14 @@ describe("HarnessChainRunner — git stage gating", () => {
     });
     mockStatus(true);
     await writeTasks(root, 0, 3);
-    mockArchiveSucceeds();
+    mockArchiveSucceeds(async () => {
+      const archiveRoot = path.join(root, "openspec", "changes", "archive");
+      await mkdir(archiveRoot, { recursive: true });
+      await rename(
+        path.join(root, "openspec", "changes", "demo"),
+        path.join(archiveRoot, "demo"),
+      );
+    });
 
     const { runner, calls } = makeCompletingRunner();
     const gitStage = makeGitStageDeps();

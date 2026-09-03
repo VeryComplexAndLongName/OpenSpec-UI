@@ -193,21 +193,53 @@ the live check was not decoration.
   by the real binary, `SKIPPED` appears only in real check output, and a
   branch with no upstream is the only place a bare `git push` fails.
 
-- [ ] 4.4a **Not covered by the run above, and still open**: the chain's
+- [x] 4.4a The chain's
   own wiring around the stage — `shouldRunGitStage` re-reading the
   per-change `harness.json`, the allowlist check and the audit entry for
   each of the three actions, and the `completed` event after the merge.
-  Reaching it live needs the `archive` stage to succeed first, which
-  needs the disposable repository to be an OpenSpec project, and that is
-  a larger setup than this task described.
 
-  Those junctions are covered by `harness-chain-runner.test.ts` with a
-  stubbed gateway — `under human-required, stops after archive and never
-  executes git actions`, `under agent-sufficient plus allowlist, runs git
-  push -> pr create -> merge`, `blocks a non-allowlisted git target
-  before any push/pr/merge call`, and the two refusal cases. That is the
-  right level for wiring, and it is not the same as having watched it.
-  Say which is which rather than letting the checkmark above imply both.
+  **Run 2026-09-02** against an OpenSpec-initialized clone of
+  `VeryComplexAndLongName/TestRepo`. A valid, already-completed change
+  entered at `verify`, completed the real `openspec archive`, then ran the
+  real git stage. The first attempt exposed that `shouldRunGitStage` read
+  the active per-change `harness.json` only after archive had moved it,
+  so the chain ended with `archived full-chain-smoke` and silently skipped
+  git. Fixed by re-deriving the gate immediately before archive and
+  retaining that decision for the archive-to-git transition; the existing
+  successful unit scenario now physically moves the change directory to
+  guard this exact regression.
+
+  The corrected live chain emitted `stageCompleted` for `verify ->
+  archive` and `archive -> git`, pushed the allowlisted branch, created
+  and merged `VeryComplexAndLongName/TestRepo` PR #3 after both real
+  `Verify` check runs reported `SUCCESS`, recorded completed audit entries
+  for the exact `git push`, `gh pr create`, and `gh pr merge` invocations,
+  and ended with `completed: merged
+  https://github.com/VeryComplexAndLongName/TestRepo/pull/3`.
+
+  **A defect was then found in exactly this gap, 2026-09-02.**
+  `shouldRunGitStage` reads `openspec/changes/<name>/harness.json`, and it
+  ran **after** the `archive` stage had moved that directory to
+  `openspec/changes/archive/`. So the read always found nothing, always
+  resolved to "not configured", and the `git` stage was **always skipped**
+  — it could never have run at the end of a real chain, under any
+  configuration.
+
+  The unit tests could not see it because `mockArchiveSucceeds` only
+  returned success; nothing moved, so the file was still there when the
+  gate read it. A mock that succeeds without doing what success does is a
+  mock that certifies the wrong thing.
+
+  Fixed by reading the gate immediately **before** `archive` runs — the
+  last moment the file exists — and by making the archive mock perform the
+  move. Verified by reverting the source fix and re-running: the test fails
+  with zero push calls, and passes with it.
+
+  Two things follow. The live run recorded under 4.4 verified push, pull
+  request, checks and merge and did **not** verify this, which is why 4.4a
+  was written; the bug sat precisely inside the boundary that task drew.
+  And a malformed `harness.json` now fails the chain before `archive`
+  rather than after, which is the better order for an irreversible step.
 - [x] 4.5 Run `npx changeset` for `core`, in the same PR as the code —
   this creates a changeset *proposal* file only; it does not itself bump
   `package.json`'s version (see `.changeset/README.md` — applying pending
