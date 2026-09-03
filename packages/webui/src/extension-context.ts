@@ -23,6 +23,11 @@ export interface DashboardContext {
      * also read from the initial HTML dataset, not only follow-up
      * messages. */
     startChain?: boolean;
+    /** The panel was opened to run this specific change — see
+     * `AiPanelContext.runChange` on the extension side. Read from the
+     * first render's HTML, like `startChain`, because the panel's initial
+     * command kind depends on it. */
+    runChange?: boolean;
 }
 
 export interface DashboardContextMessage {
@@ -38,6 +43,7 @@ export function resolveInitialDashboardContext(
         cwd: container.dataset.workspaceRoot || readStoredValue("cwd"),
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
         startChain: container.dataset.startChain === "true",
+        runChange: container.dataset.runChange === "true",
     };
 }
 
