@@ -1,5 +1,20 @@
 # @openspec-ui/webui
 
+## 1.24.0
+
+### Minor Changes
+
+- 2ec29df: Report cancellation when it happens, not when it is requested.
+  
+  - New non-terminal `cancelling` event. `cancelled` is now emitted only once the agent's process has actually exited; a process that outlives the request produces a `failed` naming that, not a `cancelled` that did not happen.
+  - `terminateProcessTree` reports whether the kill could be issued instead of swallowing the result, and treats POSIX `ESRCH` as success.
+  - The Cancel control stays available while a run is still producing output after a cancellation, and accepts a second press.
+
+### Patch Changes
+
+- Updated dependencies [2ec29df]
+  - @openspec-ui/core@0.49.0
+
 ## 1.23.3
 
 ### Patch Changes
