@@ -29,7 +29,13 @@ import {
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { runMechanicalCheck, type MechanicalCheckContext, type MechanicalCheckResult } from "./mechanical-checks.js";
 import type { Command, CommandContext, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
-import { type HarnessConfig, normalizeStepAgent, readChangeHarnessConfig, resolveHarnessConfig } from "./harness-config.js";
+import {
+  type HarnessConfig,
+  isHarnessStepAgentStage,
+  normalizeStepAgent,
+  readChangeHarnessConfig,
+  resolveHarnessConfig,
+} from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates, type TaskCheckDeclaration } from "./task-checklist.js";
@@ -39,14 +45,19 @@ import { buildUsageReport } from "./usage-report.js";
  * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
  * have no direct `AgentRunner` command kind: archive is a mechanical
  * `openspec archive` operation, and git is a dedicated push/PR/merge
- * sequence run directly by this runner. */
-const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply" | "verify", CommandKind>> = {
+ * sequence run directly by this runner. Exported (along with
+ * `CHAIN_STAGES`) only so a test can assert that every stage missing an
+ * entry here stays excluded from `HarnessStepAgentStage` — see
+ * harness-git-stage-no-agent tasks.md 5.4: `git` was added here without
+ * a `CHAIN_STAGE_COMMAND` entry, and to `HarnessStage`, in the same pull
+ * request that forgot to also exclude it from `HarnessStepAgentStage`. */
+export const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply" | "verify", CommandKind>> = {
   propose: "plan",
   review: "review",
   apply: "implement",
   verify: "verify",
 };
-const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive", "git"] as const;
+export const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive", "git"] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
 const GIT_STAGE_AGENT_NAME = "git-stage";
 const DEFAULT_GIT_REMOTE = "origin";
@@ -477,9 +488,13 @@ export class HarnessChainRunner {
           timestamp: nowIso(),
           stage,
           nextStage,
-          // "archive" has no agent (mechanical) — "" reads as "no agent
-          // required for the next stage", not "unknown".
-          nextAgentId: nextStage === "archive"
+          // "archive"/"git" have no agent (mechanical, or a dedicated
+          // non-agent sequence) — "" reads as "no agent required for the
+          // next stage", not "unknown". Reused from harness-config.ts
+          // rather than re-listing the two stage names here — see
+          // harness-step-agent.ts's `HarnessStepAgentStage` comment for
+          // why they are kept on one list, together.
+          nextAgentId: !isHarnessStepAgentStage(nextStage)
             ? ""
             : (harnessConfig.stepAgents[nextStage] === undefined
               ? ""
