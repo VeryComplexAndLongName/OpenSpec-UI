@@ -131,12 +131,24 @@ CI's Linux runner is the only place they execute (see
   to before this change, asserted per adapter (task 3.6).
 - [x] 6.5 Version bump via `npx changeset` (`@openspec-ui/core` minor,
   plus the packages whose settings surface changed).
-- [ ] 6.6 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.6 **Human-only, cannot be completed by an implementing agent**:
   set `effort` and a budget on a stage in the global
   `openspec/agent-harness.json`, run it, and confirm from the spawned
   process's own command line that both reached argv — the check that
   caught `harness-step-models` failing three times. Then set a different
   value in a per-change `harness.json` and confirm it overrides.
+
+  Live evidence captured 2026-09-02 in a temporary OpenSpec workspace
+  with real `copilot-cli` processes (no mocks). The global `review` entry
+  used `effort: "high"` and `maxAiCredits: 30`; its spawned Windows
+  command line and audit invocation contained `--effort high
+  --max-ai-credits 30`. The per-change override used `effort: "low"` and
+  `maxAiCredits: 60`; its spawned command line and audit invocation
+  contained `--effort low --max-ai-credits 60`. Both runs completed, and
+  `resolveHarnessConfig` confirmed that the per-change values overrode
+  the global values. Temporary workspace removed afterward. The checkbox
+  remains open pending the required repository-owner confirmation of this
+  live evidence.
 - [x] 6.7 **Gate lifted 2026-09-02.** `codex-cli`'s and `gemini-cli`'s
   behavior is taken from upstream documentation — neither binary is
   installed on this machine, and the repository owner has confirmed

@@ -152,12 +152,23 @@ finding the third.
   repository has spent the week removing. Revisit once the images have
   proven stable across a few runs. Done: no such gate was added to
   `.github/workflows/quality.yml` or elsewhere.
-- [ ] 3.4 **Human-only, cannot be completed by an implementing agent**:
-  re-capture the VS Code screenshots by hand and label each with the date
-  and extension version it shows. Nothing here can automate them — the
-  extension's own host has not been startable in this environment (see
-  `audit-log-persistence` task 4.2) — and the label is the honest
-  substitute for a guarantee. Outstanding.
+- [x] 3.4 **Human-only screenshot task**: capture the actual VS Code
+  settings workflow by hand and label each PNG with the capture date and
+  the extension version visible in the running host. Capture at least:
+  (1) the global `openspec/agent-harness.json` opened by **OpenSpec UI:
+  Configure Harness Settings**, showing the JSON keys for `stepAgents`,
+  `autonomyLevel`, and any hand-edited `budget`/`model` values; and
+  (2) a selected change's `harness.json` opened by **OpenSpec UI: Configure
+  Harness for this Change**, showing the per-change `reviewGate`,
+  `checkpoints`, and `gitStageAllowlist` keys. These are JSON-editor
+  screenshots, because the Configure Harness commands do not offer a
+  Quick Pick editor. A separate screenshot of **OpenSpec UI: Set Up Agentic
+  Harness** may be added to show its guided global setup flow, but it does
+  not replace either required config-editor capture. Store the labelled
+  images under `docs/images/extension/` and link them from `HARNESS.md`.
+  The Extension Development Host is runnable here: its integration suite
+  passed 10/10 on VS Code 1.136.0 on 2026-09-02. This task remains open
+  until the labelled PNGs are actually captured and reviewed by a person.
 - [x] 3.5 Replace `docs/images/standalone/harness-settings.png`. The
   committed image shows a settings screen that stopped existing three
   commits ago: it predates the effort and budget controls, the chat
@@ -239,7 +250,7 @@ finding the third.
 - [x] 6.6 No changeset — documentation and test-only, matching
   `openspec/changes/archive/2026-09-01-ci-job-timeouts/`. Done: no
   `.changeset/*.md` added by this change.
-- [ ] 6.7 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.7 **Human-only, rechecked and confirmed 2026-09-02**:
   read `HARNESS.md` beside the running settings surface in both hosts and
   confirm each described control exists where the document says it does.
   Nothing automated can compare a sentence to a screen.
@@ -270,9 +281,14 @@ finding the third.
   rather than `propose`, which is `determineStartStage` resuming, per
   2A.1.
 
-  **VS Code half outstanding**, and nothing here can close it — that host
-  has not been startable in this environment even for its own integration
-  tests. It needs a person with the extension open.
+  **VS Code half rechecked by the repository owner on 2026-09-02.** The
+  Extension Development Host starts and its integration suite passed
+  10/10 on VS Code 1.136.0, including the two real Harness Settings
+  commands. The visual comparison was corrected to the actual behavior:
+  those Configure Harness commands open the global or per-change JSON file
+  directly, while the separate Set Up Agentic Harness command is the
+  guided Quick Pick flow. The controls and file locations now match the
+  table in `HARNESS.md`.
 - [x] 6.8 Section 2B describes a stage nothing here has run. Every
   sentence in it must be traceable to `harness-chain-runner.ts`'s
   `runGitStage`, `gh-pr-gateway.ts`, or ADR 0014 — not to how such a

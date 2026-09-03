@@ -103,3 +103,11 @@ ends.
   `autonomyLevel: assisted`, run it, and confirm the VS Code chat opens
   with the prompt and the panel shows the stage as handed off rather
   than completed. Leave unchecked if you are an agent.
+
+  The real Extension Development Host is available and its integration
+  suite passed 10/10 on VS Code 1.136.0 on 2026-09-02. That suite verifies
+  extension activation and the real harness configuration commands, but
+  it does not drive a webview message into the private
+  `AiPanel.dispatchToChat` path. The required Chat handoff and the
+  `started` -> `handedOff` panel state therefore still need a person to
+  perform the configured `apply` run and observe the UI.

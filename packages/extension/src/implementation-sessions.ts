@@ -8,6 +8,7 @@ import {
   type CheckpointDelta,
   type CheckpointCoverage,
   type PersistedCheckpointSession,
+  type RestoredCheckpointSession,
   type RollbackResult,
   type StartProcessOptions,
   type WorkbenchCheckpoint,
@@ -31,9 +32,20 @@ export class ImplementationSessionManager {
     private readonly onDidChange: () => void = () => undefined,
   ) { }
 
-  async restore(persisted: PersistedCheckpointSession[]): Promise<void> {
+  /** Takes references, and reads each payload through `loadCheckpoint()`.
+   * The read is still eager, for the same reason it is in
+   * `WorkbenchRecoveryService.initialize()`: `rollback` and
+   * `describeDelta` want a `WorkbenchCheckpoint` in hand, synchronously.
+   * What bounds the cost is retention — ten sessions rather than a
+   * hundred — and the remaining half is recorded in
+   * checkpoint-retention-and-lazy-load task 2.4. A reference whose file
+   * is gone is skipped, which is what lets an evicted checkpoint leave a
+   * run listable but not rollbackable. */
+  async restore(persisted: RestoredCheckpointSession[]): Promise<void> {
     for (const item of persisted) {
-      const checkpoint = deserializeCheckpoint(item.checkpoint);
+      const resolved = await item.loadCheckpoint();
+      if (!resolved) continue;
+      const checkpoint = deserializeCheckpoint(resolved.checkpoint);
       const session: CheckpointSession = {
         processId: item.processId,
         changeName: item.changeName,

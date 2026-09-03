@@ -142,3 +142,10 @@ skipped.
   2026-09-01 for PID 20420), the workspace lease stops being renewed, and
   no second agent process was spawned by the cancel itself. Leave
   unchecked if you are an agent.
+
+  The real Extension Development Host is available; its integration suite
+  passed 10/10 on VS Code 1.136.0 on 2026-09-02. That suite does not start
+  a deliberately long-lived agent run and inspect the OS process list or
+  lease file around a Cancel action. The three observations above still
+  require a person to perform the live cancellation and watch the process
+  and workspace lease directly.

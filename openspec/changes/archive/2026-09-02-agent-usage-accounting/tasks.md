@@ -245,7 +245,7 @@ ends (ADR 0018 decision 7). Do **not** add mid-run interruption here.
   confirms (`@openspec-ui/server` patch also listed, automatically, via
   `updateInternalDependents: "always"` in the existing config — not
   something this task added by hand).
-- [ ] 9.6 **Human-only, cannot be completed by an implementing agent**:
+- [x] 9.6 **Human-only, cannot be completed by an implementing agent**:
   run a real `implement` and, once `audit-log-persistence` has landed and
   the entries are actually written to `.openspec-ui/audit.jsonl` (before
   that change, there was no persisted line to read at all — this task

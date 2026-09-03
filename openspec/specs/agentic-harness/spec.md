@@ -520,3 +520,390 @@ consumer is what ADR 0017 decision 7 exists to prevent.
   --version` fails
 - **THEN** the check is skipped silently and no warning is shown
 
+### Requirement: An adapter's accepted settings do not depend on which flavour of it was selected
+
+Where two agent ids run the same binary with the same command-line
+mechanisms — a plain adapter and its ACP counterpart — the system SHALL
+accept the same reasoning-effort values and the same spending-cap field
+for both.
+
+A setting SHALL NOT be refused on the grounds that an agent has no
+mechanism for it when that agent's own invocation renders the
+corresponding flag.
+
+#### Scenario: A reasoning effort on an ACP adapter
+
+- **WHEN** a stage selects an ACP adapter whose invocation renders a
+  reasoning-effort flag, and sets an effort its underlying agent accepts
+- **THEN** the configuration resolves, and the flag reaches the spawned
+  process
+
+#### Scenario: A spending cap on an ACP adapter
+
+- **WHEN** a stage selects an ACP adapter whose invocation renders a
+  spending-cap flag, and sets a cap in that agent's own unit
+- **THEN** the configuration resolves, and the flag reaches the spawned
+  process
+
+#### Scenario: An adapter that renders no such flag
+
+- **WHEN** a stage selects an adapter whose invocation deliberately
+  renders no reasoning-effort or spending-cap flag
+- **THEN** setting either is still refused, naming the agent
+
+#### Scenario: The unit is still checked
+
+- **WHEN** a stage sets a spending cap in a unit its selected agent does
+  not honour, whichever flavour was selected
+- **THEN** the configuration is refused, exactly as it is for the plain
+  adapter
+
+### Requirement: Every registered agent declares its capabilities explicitly
+
+Every agent id the system offers SHALL have an explicit capabilities
+entry, including agents that accept neither a reasoning effort nor a
+spending cap.
+
+An absent entry SHALL NOT be the way an agent is described as having no
+mechanism: an omission and a deliberate absence are indistinguishable to
+a reader and to the validator, and the difference is what a user's
+configuration is judged against.
+
+#### Scenario: An agent with no mechanism
+
+- **WHEN** an agent has no command-line reasoning-effort or spending-cap
+  mechanism
+- **THEN** it carries an explicit, empty capabilities entry, and both
+  settings are refused for it
+
+#### Scenario: A newly registered agent
+
+- **WHEN** an agent id is added to the registry without a capabilities
+  entry
+- **THEN** this is detected, rather than silently refusing every optional
+  setting for that agent
+
+### Requirement: An unrecognized key at the top level of a harness configuration is an error
+
+A harness configuration file carrying a top-level key the system does not
+define SHALL be refused. The refusal SHALL name the unrecognized key and
+list the keys that are defined.
+
+This SHALL apply to the workspace-wide configuration and to a per-change
+configuration alike.
+
+The system SHALL NOT accept such a file with the unrecognized key
+disregarded, and SHALL NOT infer what the key was meant to be.
+
+#### Scenario: A stage named at the top level
+
+- **WHEN** a per-change configuration names a stage at its top level,
+  outside the key that holds stage entries
+- **THEN** the file is refused, naming that key, and the message may
+  name the correct location as a possibility
+
+#### Scenario: A misspelled top-level key
+
+- **WHEN** a configuration carries a top-level key the system does not
+  define
+- **THEN** the file is refused, naming that key and the defined ones
+
+#### Scenario: The workspace-wide file
+
+- **WHEN** the workspace-wide configuration carries such a key
+- **THEN** it is refused the same way as a per-change one
+
+#### Scenario: A configuration with only defined keys
+
+- **WHEN** every top-level key in a configuration is one the system
+  defines
+- **THEN** the file is accepted as before, and settings that used to
+  migrate still migrate
+
+### Requirement: A task may declare a check the system performs itself
+
+A task SHALL be able to declare a check by name, from a set the system
+defines. A task that declares none SHALL behave exactly as it does
+without this capability.
+
+The system SHALL perform a declared check itself and SHALL record its
+result on that task. An agent's report SHALL NOT record a result for a
+task that declares a check.
+
+A declared name the system does not define SHALL be reported as an error
+naming the unknown check and the ones it defines, rather than being
+ignored.
+
+#### Scenario: A declared check passes
+
+- **WHEN** a task declares a check and that check passes
+- **THEN** the task is recorded as done, without an agent being asked
+  about it
+
+#### Scenario: A declared check fails
+
+- **WHEN** a task declares a check and that check fails
+- **THEN** the task is not recorded as done, and the failure names what
+  was checked and what came back
+
+#### Scenario: An agent reports a checked task as done
+
+- **WHEN** an agent reports that a task declaring a check is done, and
+  the check did not pass
+- **THEN** the task is not recorded as done
+
+#### Scenario: A task declares no check
+
+- **WHEN** a task declares no check
+- **THEN** it is handled exactly as before this capability existed
+
+#### Scenario: An unknown check name
+
+- **WHEN** a task declares a check the system does not define
+- **THEN** it is reported as an error naming the unknown check and the
+  defined ones
+
+### Requirement: A change may only select from checks the system defines
+
+The system SHALL NOT accept a command, an argument list, or any other
+executable text from a change's files as a check.
+
+Where a check takes a location, that location SHALL be confined to the
+workspace.
+
+#### Scenario: A location outside the workspace
+
+- **WHEN** a declared check names a location outside the workspace
+- **THEN** it is refused
+
+### Requirement: Declared checks run before the verifying agent
+
+Where a stage both performs declared checks and invokes an agent, the
+checks SHALL run first.
+
+If any declared check fails, that stage SHALL NOT invoke its agent, and
+SHALL report which checks failed.
+
+Where all declared checks pass, their results SHALL be available to that
+agent, so that it need not repeat them.
+
+#### Scenario: A check fails before the agent runs
+
+- **WHEN** a declared check fails during a stage that would otherwise
+  invoke an agent
+- **THEN** no agent is invoked and the failing checks are named
+
+#### Scenario: All checks pass
+
+- **WHEN** every declared check passes
+- **THEN** the agent is invoked and is told what has already been
+  established
+
+### Requirement: A stage that invokes no agent offers none to configure
+
+Where a stage performs a mechanical operation rather than invoking an
+agent, the configuration SHALL NOT accept an agent for it, and no surface
+SHALL offer one.
+
+Such a stage SHALL still be presented as part of the sequence, because it
+runs.
+
+A configuration that already names an agent for such a stage SHALL be
+accepted, with that entry discarded and reported, rather than refused.
+
+#### Scenario: Configuring an agent for a mechanical stage
+
+- **WHEN** a configuration names an agent for a stage that invokes none
+- **THEN** the configuration is accepted, that entry is discarded, and
+  the discard is reported
+
+#### Scenario: Presenting the stages
+
+- **WHEN** the stages are presented for configuration
+- **THEN** a mechanical stage appears among them without an agent choice
+
+### Requirement: A stage may set a reasoning effort and a spending cap
+
+A stage's configuration entry SHALL be able to carry a reasoning effort
+and a spending cap for the agent that runs it.
+
+Both SHALL be settable in the repository-wide configuration and in a
+change's own configuration, resolving through the same merge as every
+other stage setting. Neither SHALL be restricted to one of the two files.
+
+An entry that sets neither SHALL produce exactly the command it produced
+before these settings existed.
+
+#### Scenario: A repository-wide effort
+
+- **WHEN** the repository-wide configuration sets an effort for a stage
+- **THEN** a run of that stage is invoked with it
+
+#### Scenario: A change overrides the repository-wide value
+
+- **WHEN** a change's own configuration sets a different effort for a
+  stage that the repository-wide configuration also sets
+- **THEN** a run of that stage for that change uses the change's value
+
+#### Scenario: Neither setting is configured
+
+- **WHEN** a stage entry carries neither setting
+- **THEN** the agent is invoked exactly as it was before these settings
+  existed
+
+### Requirement: A setting an agent cannot honour is refused, never ignored
+
+Where an agent has no way to express a configured setting, the system
+SHALL refuse that configuration and SHALL name the agent and the setting.
+
+Where an agent expresses a setting but does not accept the configured
+value, the system SHALL refuse it and SHALL name the values it accepts.
+
+A refusal SHALL happen when the configuration is resolved, before any run
+starts. The system SHALL NOT accept a setting and then invoke the agent
+without it.
+
+#### Scenario: The agent has no such control
+
+- **WHEN** a stage sets a reasoning effort for an agent that has no
+  command-line control for it
+- **THEN** the configuration is refused, naming that agent and that
+  setting
+
+#### Scenario: The agent does not accept the value
+
+- **WHEN** a stage sets a reasoning effort the configured agent does not
+  accept
+- **THEN** the configuration is refused, naming the values that agent
+  accepts
+
+#### Scenario: A spending cap in the wrong unit
+
+- **WHEN** a stage sets a spending cap in a unit its agent does not use
+- **THEN** the configuration is refused
+
+### Requirement: Spending caps are carried in each agent's own unit
+
+The system SHALL carry a spending cap in the unit the agent itself uses,
+and SHALL NOT convert between units.
+
+#### Scenario: Two agents with different units
+
+- **WHEN** two stages set spending caps for agents that measure spending
+  differently
+- **THEN** each carries its own unit, and neither value is converted into
+  the other
+
+### Requirement: The permitted command shape stays closed
+
+The set of arguments an agent may be invoked with SHALL remain a fixed
+prefix plus a known set of optional arguments, each with its own permitted
+values.
+
+An argument outside that set, or a permitted argument carrying a value
+outside its permitted values, SHALL prevent the run.
+
+Where a setting is expressed through an agent's general configuration
+mechanism, only the specific setting SHALL be permitted — not that
+mechanism in general.
+
+#### Scenario: A permitted optional argument
+
+- **WHEN** a run is invoked with the expected arguments plus a permitted
+  optional argument carrying a permitted value
+- **THEN** it is allowed
+
+#### Scenario: A permitted argument with an unpermitted value
+
+- **WHEN** a run is invoked with a permitted optional argument carrying a
+  value outside its permitted values
+- **THEN** it is refused
+
+#### Scenario: A general configuration mechanism carrying another setting
+
+- **WHEN** a run is invoked with an agent's general configuration
+  mechanism carrying any setting other than the one this system
+  configures
+- **THEN** it is refused
+
+### Requirement: What runs a stage is named once
+
+A stage's configuration SHALL name what runs it in a single selection.
+Dispatching a stage to the editor's own chat SHALL be one of the things
+that can be selected, not a modifier applied to a selection that is then
+disregarded.
+
+A configuration written in the earlier form, where a chat dispatch
+accompanied an agent it overrode, SHALL be accepted and mapped to the
+single selection, and the mapping SHALL be reported.
+
+#### Scenario: Selecting chat dispatch
+
+- **WHEN** a stage selects the editor's chat as what runs it
+- **THEN** the stage is dispatched there, and no agent process is started
+
+#### Scenario: A configuration in the earlier form
+
+- **WHEN** a configuration accompanies an agent with a chat-dispatch
+  modifier
+- **THEN** it is accepted, mapped to the single selection, and the
+  mapping is reported
+
+### Requirement: A parameter that cannot reach anything is refused
+
+A stage entry SHALL be refused when it sets a parameter that whatever
+runs that stage has no way to carry.
+
+Where a stage is dispatched to the editor's chat, no parameter intended
+for an agent's invocation can be carried, and setting one SHALL be
+refused. The refusal SHALL say that the parameter cannot reach anything
+in that mode — not merely that it is unaccepted.
+
+A configuration SHALL NOT be accepted with such a parameter disregarded.
+
+#### Scenario: A model set on a chat-dispatched stage
+
+- **WHEN** a stage dispatched to the editor's chat sets a model
+- **THEN** the configuration is refused, saying the model cannot reach
+  anything in that mode
+
+#### Scenario: A reasoning effort set on a chat-dispatched stage
+
+- **WHEN** a stage dispatched to the editor's chat sets a reasoning
+  effort
+- **THEN** the configuration is refused for the same reason
+
+#### Scenario: A spending cap set on a chat-dispatched stage
+
+- **WHEN** a stage dispatched to the editor's chat sets a spending cap
+- **THEN** the configuration is refused for the same reason
+
+### Requirement: An unrecognized setting is an error, not an omission
+
+A stage entry carrying a setting the system does not define SHALL be
+refused. The refusal SHALL name the unrecognized setting and the ones
+that are defined.
+
+This SHALL apply to settings nested inside another setting as well as to
+top-level ones.
+
+The system SHALL NOT accept such an entry with the unrecognized setting
+disregarded, and SHALL NOT merely report it while continuing.
+
+#### Scenario: A misspelled setting
+
+- **WHEN** a stage entry carries a setting whose name the system does not
+  define
+- **THEN** the configuration is refused, naming that setting and the
+  defined ones
+
+#### Scenario: A misspelled setting inside a spending cap
+
+- **WHEN** a spending cap carries a setting the system does not define
+- **THEN** the configuration is refused the same way
+
+#### Scenario: A configuration with only defined settings
+
+- **WHEN** every setting in a stage entry is one the system defines
+- **THEN** the configuration is accepted as before
+

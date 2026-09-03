@@ -172,11 +172,23 @@ export class WorkbenchRecoveryService {
   private async initialize(): Promise<void> {
     const restored = await this.journal.load();
     this.scheduler = new WorkbenchProcessScheduler(restored.processes, this.lease);
+    // Still eager here, and deliberately so: `details()` is synchronous
+    // and answers `delta`, `coverage` and `canRollback` out of the
+    // checkpoint, so this service cannot defer the read without that
+    // method becoming async and the change reaching the transport
+    // protocol and both surfaces. Retention is what bounds the cost for
+    // now — ten sessions rather than a hundred. Making `details()`
+    // answerable from the reference alone (by persisting the small parts
+    // and reading only the large `after` snapshot on rollback) is the
+    // remaining half, recorded in checkpoint-retention-and-lazy-load
+    // task 2.4.
     for (const persisted of restored.checkpointSessions) {
+      const resolved = await persisted.loadCheckpoint();
+      if (!resolved) continue;
       this.sessions.set(persisted.processId, {
         processId: persisted.processId,
         changeName: persisted.changeName,
-        checkpoint: deserializeCheckpoint(persisted.checkpoint),
+        checkpoint: deserializeCheckpoint(resolved.checkpoint),
       });
     }
 

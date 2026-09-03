@@ -230,3 +230,15 @@ skipped.
   `.openspec-ui/audit.jsonl` still holds that run's entries. Then set a
   small budget on a change, run past it, restart, and confirm the ceiling
   still counts the earlier spend — the behaviour that was silently absent.
+
+  Persistence half verified live 2026-09-02 in a temporary OpenSpec
+  workspace with a real `copilot-cli` review run. The run emitted
+  `started` and `completed`; `.openspec-ui/audit.jsonl` contained both
+  entries, and a fresh `FileAuditLog` instance read the same entries after
+  the simulated host close/reopen. The temporary workspace was removed.
+
+  Budget continuation was not claimed: this runner reported no
+  `AuditEntry.usage`, and `HarnessChainRunner` deliberately counts only
+  reported usage. A real budget-stop-after-restart observation therefore
+  needs an agent/host that reports usage plus a person with a suitable
+  workspace. The task remains open pending that human verification.

@@ -145,7 +145,7 @@ single-mutation invariant. Check each junction.
   harness-suspendable-stage.md`: `@openspec-ui/core` minor,
   `openspec-ui-vscode`/`@openspec-ui/webui` patch for their Processes
   view rendering.)
-- [ ] 8.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 8.5 **Human-only, cannot be completed by an implementing agent**:
   with a temporary command that suspends for a few seconds and resumes,
   confirm in a real UI that the process shows as waiting, that another
   mutating action can be started and completes while it waits, and that

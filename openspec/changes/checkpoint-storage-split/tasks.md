@@ -121,3 +121,12 @@ skipped.
   session, that rollback still works for a run that predates the change,
   and that starting a stage no longer rewrites hundreds of megabytes.
   Leave unchecked if you are an agent.
+
+  Focused automated coverage passed 30/30 on 2026-09-02
+  (`workbench-run-journal.test.ts`, `workbench-recovery.test.ts`, and
+  `checkpoint.test.ts`). The current workspace is not a valid substitute
+  for this human smoke: its `.openspec-ui/workbench-runs.json` is only
+  about 44 KB and has one checkpoint, so it does not exercise migration of
+  a large legacy journal or the requested before/after size observation.
+  The large-journal migration, pre-change rollback, and no-rewrite visual
+  confirmation remain open for a person with a suitable workspace.
