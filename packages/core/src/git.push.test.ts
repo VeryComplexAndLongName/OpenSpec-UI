@@ -6,11 +6,14 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createGitWrapper } from "./git.js";
 
 // No raised timeout here, deliberately. This file takes ~2.6 s alone and
-// hangs past 20 s beside another worker on Windows, so the cause is
-// contention between vitest's parallel workers over real git subprocesses
-// and temp directories, not duration — and a ceiling would only change
-// which number the failure reports. Tracked as
-// core-test-worker-contention.
+// hangs past 20 s beside another worker on Windows, because Git for
+// Windows' MSYS/Cygwin fork-emulation races when the ~8 real `git`
+// subprocesses this file spawns run concurrently with another worker's
+// (or, over a long run, a prior file's) own git subprocesses — not because
+// the test is slow. A ceiling would only change which number the failure
+// reports. This is why this file runs isolated in its own single-fork
+// vitest project (see ../vitest.workspace.ts) instead of sharing a worker
+// with the rest of packages/core. Tracked as core-test-worker-contention.
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(prefix: string): Promise<string> {
