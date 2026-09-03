@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.34.0
+
+### Minor Changes
+
+- eca84bc: Bound retained checkpoints on their own limit and stop reading every one at startup.
+  
+  - `WorkbenchRunJournal.load()` returns checkpoint references with a `loadCheckpoint()` reader instead of reading and parsing every payload. On this repository that read was 531 MB on every activation.
+  - New `maxCheckpointSessions` (default 10), separate from `maxProcesses`: a process entry is tens of bytes, a checkpoint tens of megabytes, and one limit over both is not a limit.
+  - Retention is by recency, never by process state — `canRollback` covers completed and failed runs, so evicting them by state would withdraw a rollback the product offers.
+
+### Patch Changes
+
+- Updated dependencies [eca84bc]
+- Updated dependencies [d161b50]
+  - @openspec-ui/core@0.47.0
+  - @openspec-ui/server@1.13.16
+  - @openspec-ui/webui@1.23.2
+
+## 0.33.1
+
+### Patch Changes
+
+- Updated dependencies [348ee61]
+- Updated dependencies [348ee61]
+  - @openspec-ui/core@0.46.0
+  - @openspec-ui/server@1.13.15
+  - @openspec-ui/webui@1.23.1
+
 ## 0.33.0
 
 ### Minor Changes
