@@ -66,7 +66,7 @@ describe("WorkbenchRecoveryService", () => {
     expect(service.details("run-1")?.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
 
     const persisted = await journal.load();
-    const restoredCheckpoint = persisted.checkpointSessions[0]!.checkpoint;
+    const restoredCheckpoint = (await persisted.checkpointSessions[0]!.loadCheckpoint())!.checkpoint;
     expect(restoredCheckpoint.before.map((item) => item.path)).toEqual(
       expect.arrayContaining([".env", ".mypy_cache/state.json", "tracked.txt"]),
     );

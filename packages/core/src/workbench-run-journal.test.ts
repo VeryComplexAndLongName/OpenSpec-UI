@@ -48,7 +48,7 @@ describe("WorkbenchRunJournal", () => {
 
         const restored = await journal.load();
         expect(restored.processes).toHaveLength(1);
-        expect(restored.checkpointSessions[0]!.checkpoint.before[0]!.path).toBe("tracked.txt");
+        expect((await restored.checkpointSessions[0]!.loadCheckpoint())!.checkpoint.before[0]!.path).toBe("tracked.txt");
         expect(restored.checkpointSessions[0]!.changeName).toBe("demo");
     });
 
@@ -131,7 +131,7 @@ describe("WorkbenchRunJournal", () => {
 
         const restored = await journal.load();
         expect(restored.processes).toHaveLength(1);
-        expect(restored.checkpointSessions[0]!.checkpoint.before[0]!.path).toBe("tracked.txt");
+        expect((await restored.checkpointSessions[0]!.loadCheckpoint())!.checkpoint.before[0]!.path).toBe("tracked.txt");
         expect(restored.checkpointSessions[0]!.changeName).toBe("demo");
 
         const rewritten = JSON.parse(await readFile(journal.filePath, "utf8")) as {
@@ -162,7 +162,12 @@ describe("WorkbenchRunJournal", () => {
 
         const restored = await journal.load();
         expect(restored.processes).toHaveLength(1);
-        expect(restored.checkpointSessions).toEqual([]);
+        // The reference survives; only its content is gone. `load()` no
+        // longer reads payloads, so "no checkpoint" is now what
+        // `loadCheckpoint()` answers rather than something `load()` can
+        // know — and a run whose content was evicted still lists.
+        expect(restored.checkpointSessions.map((session) => session.processId)).toEqual(["run-1"]);
+        expect(await restored.checkpointSessions[0]!.loadCheckpoint()).toBeUndefined();
     });
 
     it("removes a checkpoint file that no journal entry references", async () => {

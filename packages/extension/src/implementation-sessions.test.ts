@@ -59,7 +59,11 @@ describe("ImplementationSessionManager", () => {
     await manager.restore([{
       processId: "recovered",
       changeName: "demo",
-      checkpoint: serializeCheckpoint(checkpoint),
+      loadCheckpoint: async () => ({
+        processId: "recovered",
+        changeName: "demo",
+        checkpoint: serializeCheckpoint(checkpoint),
+      }),
     }]);
 
     expect(scheduler.list()[0]).toMatchObject({ state: "interrupted", summary: "1 changed file ready for review" });
@@ -92,7 +96,7 @@ describe("ImplementationSessionManager", () => {
     await manager.restore([{
       processId: "recovered",
       changeName: "demo",
-      checkpoint: serialized,
+      loadCheckpoint: async () => ({ processId: "recovered", changeName: "demo", checkpoint: serialized }),
     }]);
 
     expect(manager.exportPersisted()[0]!.checkpoint.before.map((item) => item.path)).toEqual(["code.ts"]);

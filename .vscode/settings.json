@@ -16,7 +16,16 @@
   "vitest.enable": true,
   "files.exclude": {
     "**/.turbo": true,
-    "**/dist": true
+    "**/dist": true,
+    "**/.openspec-ui": true
+  },
+  "files.watcherExclude": {
+    "**/.openspec-ui/**": true,
+    "**/.turbo/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/.openspec-ui": true
   },
   "files.eol": "\n"
 }
