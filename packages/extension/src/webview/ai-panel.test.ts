@@ -325,6 +325,80 @@ describe("AiPanel harness process tracking", () => {
         );
     });
 
+    it("never registers a process for a cancel command", () => {
+        const { scheduler, receiveMessage } = createHarnessFixture();
+
+        sendImplementCommand(receiveMessage);
+        scheduler.start.mockClear();
+
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "cancel",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-1",
+            },
+        });
+
+        // A cancel is a signal about a run, not a run. Registering one
+        // produced a Processes entry called "cancel" whose promise waited
+        // for a terminal event a cancel never emits — four presses, four
+        // entries, hanging forever (reported 2026-09-03).
+        expect(scheduler.start).not.toHaveBeenCalled();
+    });
+
+    it("routes a cancel to the runner that owns the run, not to the default agent", () => {
+        const panel = createPanelFixture();
+        const eventListeners: Array<(event: unknown) => void> = [];
+        const runController = {
+            onEvent: vi.fn((listener: (event: unknown) => void) => {
+                eventListeners.push(listener);
+                return vi.fn();
+            }),
+            run: vi.fn(),
+        };
+        const resolveRunner = vi.fn((agentId: string | undefined) => ({ name: agentId ?? "claude-cli", run: vi.fn() }));
+        const aiPanel = new AiPanel({
+            extensionUri: vscodeMock.Uri.file("/extension") as never,
+            runController: runController as never,
+            resolveRunner: resolveRunner as never,
+            chainRunner: createFakeChainRunner() as never,
+            getLocalServerUrl: () => undefined,
+        });
+        aiPanel.reveal();
+        const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
+
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "implement",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-acp",
+                agentId: "copilot-cli-acp",
+            },
+        });
+        resolveRunner.mockClear();
+
+        // The webview's cancel carries no agentId — it does not know one.
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "cancel",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-acp",
+            },
+        });
+
+        // Without the run's remembered agent this resolved to
+        // DEFAULT_AGENT_ID, handing the cancel to claude-cli's runner —
+        // whose `activeRuns` has never heard of this runId. The cancel
+        // reported "nothing to cancel" and the real agent kept working.
+        expect(resolveRunner).toHaveBeenCalledWith("copilot-cli-acp");
+    });
+
     it("does not register a process when no scheduler is supplied", () => {
         const panel = createPanelFixture();
         const runController = { onEvent: vi.fn(() => vi.fn()), run: vi.fn() };

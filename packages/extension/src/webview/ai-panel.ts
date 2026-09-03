@@ -101,6 +101,17 @@ export interface AiPanelDeps {
 export class AiPanel {
   private panel: vscode.WebviewPanel | undefined;
   private panelContext: AiPanelContext | undefined;
+  /** Which agent each live run was started against.
+   *
+   * A `"cancel"` command carries no `agentId` — the webview does not know
+   * one, and for a chain there is no single answer anyway. Without this,
+   * `resolveRunner(command.agentId)` fell back to `DEFAULT_AGENT_ID`, so
+   * a cancel for a run on any other agent was handed to `claude-cli`'s
+   * runner, whose `activeRuns` map has never heard of that `runId`. The
+   * cancel then reported "nothing to cancel" and the real agent carried
+   * on working — reported 2026-09-03 against `copilot-cli-acp`, where it
+   * looked like the Cancel button doing nothing at all. */
+  private readonly runAgentIds = new Map<string, string | undefined>();
 
   constructor(private readonly deps: AiPanelDeps) { }
 
@@ -111,6 +122,13 @@ export class AiPanel {
   private trackHarnessProcess(command: Command): void {
     const scheduler = this.deps.scheduler;
     if (!scheduler) return;
+    // A cancel is a signal about a run, not a run. It reached here only
+    // because `dispatchOrRun` is the "everything not handled above"
+    // branch, and the result was a Processes entry called "cancel" whose
+    // `execute` promise waited for a terminal event that a cancel command
+    // does not produce — four presses, four entries, hanging forever
+    // (reported 2026-09-03).
+    if (command.kind === "cancel") return;
 
     const changeName = command.context.changeDir
       .split(/[\\/]+/)
@@ -145,7 +163,21 @@ export class AiPanel {
                 handle?.cancel();
                 resolve();
                 return;
-              default:
+              // Every remaining kind is non-terminal and simply does not
+              // settle this promise. Listed by name rather than left to
+              // `default:` — a bare default is what let `cancelling` be
+              // added to the protocol without anything here noticing,
+              // while the two exhaustive switches elsewhere failed the
+              // build immediately. A new terminal kind must break here.
+              case "started":
+              case "stdout":
+              case "stderr":
+              case "cancelling":
+              case "stageCompleted":
+              case "checkpoint":
+              case "handedOff":
+              case "agentUpdate":
+              case "permissionRequest":
                 return;
             }
           });
@@ -184,7 +216,13 @@ export class AiPanel {
       }
     }
 
-    const runner = this.deps.resolveRunner(command.agentId);
+    // A cancel goes to the runner that owns the run, not to whichever
+    // agent `DEFAULT_AGENT_ID` names. `activeRuns` lives per runner
+    // instance, so asking the wrong one is the same as not asking.
+    const agentId = command.kind === "cancel"
+      ? this.runAgentIds.get(command.runId) ?? command.agentId
+      : command.agentId;
+    const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
       void panel.webview.postMessage({
         type: EVENT_MESSAGE_TYPE,
@@ -197,6 +235,7 @@ export class AiPanel {
       });
       return;
     }
+    if (command.kind !== "cancel") this.runAgentIds.set(command.runId, agentId);
     this.trackHarnessProcess(command);
     void this.deps.runController.run(runner, command);
   }
@@ -294,6 +333,21 @@ export class AiPanel {
         return;
       }
       if (command.kind === "cancel" && this.deps.chainRunner.cancel(command.runId)) {
+        // Tell the webview the request landed. Returning silently left
+        // the panel with nothing between the click and the chain's own
+        // `cancelled`, which arrives only once the stage's process is
+        // actually gone — so the button appeared to do nothing. The
+        // standalone host gets this from the chain runner's own
+        // `asAgentRunner()`; this path bypasses it.
+        void panel.webview.postMessage({
+          type: EVENT_MESSAGE_TYPE,
+          event: {
+            kind: "cancelling",
+            runId: command.runId,
+            timestamp: new Date().toISOString(),
+            attempted: "termination-requested",
+          },
+        });
         return;
       }
       if (command.kind === "chain") {

@@ -5,9 +5,35 @@
 // acp-session-driver.ts on why `run()` is decoupled from spawning).
 
 import { AGENT_METHODS, CLIENT_METHODS, PROTOCOL_VERSION, agent } from "@agentclientprotocol/sdk";
-import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const spawnMock = vi.fn();
+vi.mock("cross-spawn", () => ({
+  default: (...args: unknown[]) => spawnMock(...args),
+}));
+
 import type { Event } from "../protocol.js";
 import { AcpSessionDriver } from "./acp-session-driver.js";
+
+class FakeChildProcess extends EventEmitter {
+  stdout = new PassThrough();
+  stderr = new PassThrough();
+  stdin = new PassThrough();
+  pid: number | undefined;
+}
+
+let killSpy: ReturnType<typeof vi.fn<(pid: number, signal?: string | number) => true>>;
+beforeEach(() => {
+  killSpy = vi.fn<(pid: number, signal?: string | number) => true>(() => true);
+  vi.spyOn(process, "kill").mockImplementation(killSpy);
+});
+
+afterEach(() => {
+  spawnMock.mockReset();
+  vi.restoreAllMocks();
+});
 
 async function collect(gen: AsyncGenerator<Event>, onEvent?: (event: Event) => void): Promise<Event[]> {
   const events: Event[] = [];
@@ -139,5 +165,38 @@ describe("AcpSessionDriver", () => {
     );
 
     expect(events).toEqual([{ kind: "cancelled", runId: "run-4", timestamp: events[0]?.timestamp }]);
+  });
+
+  it("does not emit cancelled for an aborted ACP process before the child exits (task 5.4)", async () => {
+    const child = new FakeChildProcess();
+    child.pid = 4242;
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const driver = new AcpSessionDriver();
+    const run = driver.runProcess({
+      executable: "copilot",
+      args: ["--acp"],
+      cwd: "/tmp/work",
+      runId: "run-5",
+      commandKind: "implement",
+      prompt: "do it",
+      signal: controller.signal,
+    });
+
+    expect((await run.next()).value).toMatchObject({ kind: "started", runId: "run-5" });
+
+    const terminal = run.next();
+    controller.abort();
+    await Promise.resolve();
+
+    let settled = false;
+    void terminal.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    child.emit("close", 0);
+    expect((await terminal).value).toMatchObject({ kind: "cancelled", runId: "run-5" });
   });
 });
