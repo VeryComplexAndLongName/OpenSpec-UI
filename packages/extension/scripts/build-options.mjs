@@ -71,15 +71,18 @@ export function timelineWebviewBuildOptions() {
   };
 }
 
-/** Integration test suite (tasks.md 4.1/4.2) — two separate output files
- * (index.js + extension.test.js), not a single bundle: `index.ts`'s
- * `run()` finds test files via `glob("**\/*.test.js")` next to itself —
- * the pattern from `@vscode/test-electron`'s documentation. */
+/** Integration test suite (tasks.md 4.1/4.2) — one output file per test
+ * suite entry point (index.js + one per *.test.ts), not a single bundle:
+ * `index.ts`'s `run()` finds test files via `glob("**\/*.test.js")` next
+ * to itself — the pattern from `@vscode/test-electron`'s documentation.
+ * A new `*.test.ts` file under `src/test/suite/` must be added here too
+ * — esbuild does not glob its own entry points. */
 export function testSuiteBuildOptions() {
   return {
     entryPoints: [
       path.resolve(here, "../src/test/suite/index.ts"),
       path.resolve(here, "../src/test/suite/extension.test.ts"),
+      path.resolve(here, "../src/test/suite/chat-dispatch.test.ts"),
     ],
     outdir: path.resolve(here, "../dist/test-suite"),
     bundle: true,

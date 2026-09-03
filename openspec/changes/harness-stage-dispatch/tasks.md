@@ -100,9 +100,22 @@ ends.
   rebuild and reinstall (`npm run reinstall:local --workspace
   openspec-ui-vscode`), reload the window, set a change's `apply` stage
   to `{ "agent": "vscode-chat" }` with `autonomyLevel: assisted`, run it,
-  and confirm the VS Code chat opens with the prompt and the panel shows
-  the stage as handed off rather than completed. Leave unchecked if you
-  are an agent.
+  and confirm the VS Code chat window visibly opens with the built
+  prompt in it. Leave unchecked if you are an agent.
+
+  **Narrowed 2026-09-03 by `dispatch-to-chat-integration-coverage`.**
+  This task no longer needs to check the `started` -> `handedOff` event
+  sequence or that the panel shows the run as handed off rather than
+  completed — `packages/extension/src/test/suite/chat-dispatch.test.ts`
+  now asserts that ADR 0016 contract executably, driving a real webview
+  command into the panel through `ExtensionTestApi.deliverWebviewCommand`
+  (`AiPanel.deliverWebviewCommandForTesting`) and observing the resulting
+  events through `ExtensionTestApi.onWebviewEvent`
+  (`AiPanel.onWebviewEventForTesting`) — the same message a real webview
+  sends and the same messages it receives back, not a shortcut into
+  `dispatchToChat` itself. What remains here is only what that suite
+  cannot check: whether VS Code's chat window actually becomes visible on
+  screen with the prompt in it.
 
   **Configuration corrected 2026-09-03.** This task was written as
   `{ "agent": "claude-cli", "dispatch": "vscode-chat" }`, which is the
@@ -113,22 +126,3 @@ ends.
   following the original text would have exercised the migration path
   rather than the current one. Both reach the same dispatch; only one is
   what a reader should copy.
-
-  The real Extension Development Host is available and its integration
-  suite passed 10/10 on VS Code 1.136.0 on 2026-09-02. That suite verifies
-  extension activation and the real harness configuration commands, but
-  it does not drive a webview message into the private
-  `AiPanel.dispatchToChat` path. The required Chat handoff and the
-  `started` -> `handedOff` panel state therefore still need a person to
-  perform the configured `apply` run and observe the UI.
-
-  That gap is worth closing rather than restating each time this task is
-  attempted. `ExtensionTestApi` exposes runners, the run controller, the
-  dashboard context and two trees — not the panel — so nothing in the
-  suite can deliver the one message that reaches `dispatchToChat`. It is
-  the same message a real webview sends, so exposing a way to post it is
-  not a back door into private behaviour; it is the suite being able to
-  do what the product already does. Tracked as
-  `dispatch-to-chat-integration-coverage`; what stays human afterwards is
-  narrower — that the chat window visibly opens — rather than the whole
-  path.

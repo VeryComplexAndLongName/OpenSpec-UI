@@ -4,7 +4,7 @@
 // openspec/changes/vscode-extension/design.md).
 
 import * as vscode from "vscode";
-import type { AgentRunner } from "@openspec-ui/core";
+import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import {
   FileAuditLog,
   HarnessChainRunner,
@@ -45,6 +45,29 @@ export interface ExtensionTestApi {
   getDashboardContext: () => AiPanelContext | undefined;
   changesTree: ChangesTreeProvider | undefined;
   templatesTree: TemplatesTreeProvider | undefined;
+  /** Test-only in intent, real API in effect: delivers `command` to the
+   * AI panel through the exact same handler a real webview message
+   * reaches (`AiPanel.deliverWebviewCommandForTesting()`), so an
+   * integration test exercises the actual webview → extension routing
+   * (including the `vscode-chat` step-agent dispatch) instead of a
+   * shortcut around it. Deliberately does NOT expose `AiPanel` itself or
+   * its private `dispatchToChat()` — see
+   * openspec/changes/dispatch-to-chat-integration-coverage/proposal.md.
+   * No-op if the AI panel has never been revealed. */
+  deliverWebviewCommand: (command: Command) => void;
+  /** The receiving half of `deliverWebviewCommand` above: observes every
+   * `"openspec-ui/event"` message the AI panel posts back to the webview
+   * (`AiPanel.onWebviewEventForTesting()`) — the wire-level artifact a
+   * real webview's own `window.addEventListener("message", ...)` would
+   * see, not a hook into `AiPanel`'s internals. Needed so an integration
+   * test can assert ADR 0016's `started` → `handedOff` event sequence
+   * for a `vscode-chat` dispatch, which never reaches
+   * `runController.onEvent` (see ai-panel.ts's `dispatchToChat()` header
+   * comment — nothing observes the chat session's work through the
+   * ordinary runner path). Returns a `Disposable` that stops observing;
+   * works whether registered before or after the AI panel has been
+   * revealed. */
+  onWebviewEvent: (listener: (event: Event) => void) => vscode.Disposable;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
@@ -242,6 +265,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     getDashboardContext: () => aiPanel.getContext(),
     changesTree,
     templatesTree,
+    deliverWebviewCommand: (command) => aiPanel.deliverWebviewCommandForTesting(command),
+    onWebviewEvent: (listener) => aiPanel.onWebviewEventForTesting(listener),
   };
 }
 

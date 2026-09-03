@@ -12,6 +12,7 @@ import {
   VSCODE_CHAT_STEP_AGENT_ID,
   type AgentRunner,
   type Command,
+  type Event,
   type HarnessChainRunner,
   type HarnessStage,
   type HarnessStepAgents,
@@ -113,7 +114,23 @@ export class AiPanel {
    * looked like the Cancel button doing nothing at all. */
   private readonly runAgentIds = new Map<string, string | undefined>();
 
+  /** Test-only observers of every `"openspec-ui/event"` message this
+   * panel posts to the webview — see `onWebviewEventForTesting()` below.
+   * Empty (and untouched) outside a test run; production behaviour is
+   * unchanged because `postEventMessage()` always still calls
+   * `panel.webview.postMessage()` regardless of whether any listener is
+   * registered. */
+  private readonly testEventListeners = new Set<(event: Event) => void>();
+
   constructor(private readonly deps: AiPanelDeps) { }
+
+  /** The one place every `"openspec-ui/event"` message reaches the
+   * webview from, so `onWebviewEventForTesting()` has a single seam to
+   * observe rather than one per call site. */
+  private postEventMessage(panel: vscode.WebviewPanel, event: Event): void {
+    for (const listener of this.testEventListeners) listener(event);
+    void panel.webview.postMessage({ type: EVENT_MESSAGE_TYPE, event });
+  }
 
   /** Registers a `WorkbenchProcess` for a `plan`/`implement`/`review`/
    * `chain` command, purely observing `runController`'s existing event
@@ -224,14 +241,11 @@ export class AiPanel {
       : command.agentId;
     const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
-      void panel.webview.postMessage({
-        type: EVENT_MESSAGE_TYPE,
-        event: {
-          kind: "failed",
-          runId: command.runId,
-          timestamp: new Date().toISOString(),
-          reason: "AI agent execution is disabled in direct OpenSpec mode.",
-        },
+      this.postEventMessage(panel, {
+        kind: "failed",
+        runId: command.runId,
+        timestamp: new Date().toISOString(),
+        reason: "AI agent execution is disabled in direct OpenSpec mode.",
       });
       return;
     }
@@ -251,15 +265,12 @@ export class AiPanel {
     stage: HarnessStage,
     changeName: string,
   ): Promise<void> {
-    void panel.webview.postMessage({
-      type: EVENT_MESSAGE_TYPE,
-      event: {
-        kind: "started",
-        runId: command.runId,
-        timestamp: new Date().toISOString(),
-        command: command.kind,
-        cwd: command.cwd,
-      },
+    this.postEventMessage(panel, {
+      kind: "started",
+      runId: command.runId,
+      timestamp: new Date().toISOString(),
+      command: command.kind,
+      cwd: command.cwd,
     });
 
     const prompt = buildWorkbenchChatPrompt({
@@ -270,10 +281,7 @@ export class AiPanel {
     });
     await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt, mode: "agent" });
 
-    void panel.webview.postMessage({
-      type: EVENT_MESSAGE_TYPE,
-      event: { kind: "handedOff", runId: command.runId, timestamp: new Date().toISOString(), stage },
-    });
+    this.postEventMessage(panel, { kind: "handedOff", runId: command.runId, timestamp: new Date().toISOString(), stage });
   }
 
   reveal(panelContext?: AiPanelContext): void {
@@ -308,55 +316,11 @@ export class AiPanel {
     this.resolveAndPostStepAgents();
 
     const unsubscribeEvents = this.deps.runController.onEvent((event) => {
-      void panel.webview.postMessage({ type: EVENT_MESSAGE_TYPE, event });
+      this.postEventMessage(panel, event);
     });
 
     const messageSub = panel.webview.onDidReceiveMessage((message: unknown) => {
-      if (!isBridgeCommandMessage(message)) return;
-      const command = message.command;
-
-      if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
-        void this.deps.runController.run(undefined, command);
-        return;
-      }
-
-      // "confirmCheckpoint" and a "cancel" targeting an active chain never
-      // reach a single AgentRunner — they signal the one long-lived
-      // HarnessChainRunner already driving that runId (see
-      // harness-chain-runner.ts). The chain's own events keep flowing to
-      // the webview through the existing `runController.onEvent`
-      // subscription above (unchanged) — a chain is started through
-      // `runController.run()` below just like any other command, so no
-      // separate event-forwarding path is needed for it.
-      if (command.kind === "confirmCheckpoint") {
-        this.deps.chainRunner.confirmCheckpoint(command.runId);
-        return;
-      }
-      if (command.kind === "cancel" && this.deps.chainRunner.cancel(command.runId)) {
-        // Tell the webview the request landed. Returning silently left
-        // the panel with nothing between the click and the chain's own
-        // `cancelled`, which arrives only once the stage's process is
-        // actually gone — so the button appeared to do nothing. The
-        // standalone host gets this from the chain runner's own
-        // `asAgentRunner()`; this path bypasses it.
-        void panel.webview.postMessage({
-          type: EVENT_MESSAGE_TYPE,
-          event: {
-            kind: "cancelling",
-            runId: command.runId,
-            timestamp: new Date().toISOString(),
-            attempted: "termination-requested",
-          },
-        });
-        return;
-      }
-      if (command.kind === "chain") {
-        this.trackHarnessProcess(command);
-        void this.deps.runController.run(this.deps.chainRunner.asAgentRunner(), command);
-        return;
-      }
-
-      this.dispatchOrRun(panel, command);
+      this.handleWebviewMessage(panel, message);
     });
 
     panel.onDidDispose(() => {
@@ -364,6 +328,91 @@ export class AiPanel {
       messageSub.dispose();
       this.panel = undefined;
     });
+  }
+
+  /** The single handler for every message a webview posts, wired up by
+   * `reveal()` above via `panel.webview.onDidReceiveMessage()`. Pulled
+   * out to a named method (rather than left inline) so
+   * `deliverWebviewCommandForTesting()` below can hand it the exact same
+   * code path — including `dispatchOrRun()`/`dispatchToChat()` — instead
+   * of a test needing its own copy of this routing. */
+  private handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown): void {
+    if (!isBridgeCommandMessage(message)) return;
+    const command = message.command;
+
+    if (command.kind === "status" || command.kind === "list" || command.kind === "show" || command.kind === "validate") {
+      void this.deps.runController.run(undefined, command);
+      return;
+    }
+
+    // "confirmCheckpoint" and a "cancel" targeting an active chain never
+    // reach a single AgentRunner — they signal the one long-lived
+    // HarnessChainRunner already driving that runId (see
+    // harness-chain-runner.ts). The chain's own events keep flowing to
+    // the webview through the existing `runController.onEvent`
+    // subscription above (unchanged) — a chain is started through
+    // `runController.run()` below just like any other command, so no
+    // separate event-forwarding path is needed for it.
+    if (command.kind === "confirmCheckpoint") {
+      this.deps.chainRunner.confirmCheckpoint(command.runId);
+      return;
+    }
+    if (command.kind === "cancel" && this.deps.chainRunner.cancel(command.runId)) {
+      // Tell the webview the request landed. Returning silently left
+      // the panel with nothing between the click and the chain's own
+      // `cancelled`, which arrives only once the stage's process is
+      // actually gone — so the button appeared to do nothing. The
+      // standalone host gets this from the chain runner's own
+      // `asAgentRunner()`; this path bypasses it.
+      this.postEventMessage(panel, {
+        kind: "cancelling",
+        runId: command.runId,
+        timestamp: new Date().toISOString(),
+        attempted: "termination-requested",
+      });
+      return;
+    }
+    if (command.kind === "chain") {
+      this.trackHarnessProcess(command);
+      void this.deps.runController.run(this.deps.chainRunner.asAgentRunner(), command);
+      return;
+    }
+
+    this.dispatchOrRun(panel, command);
+  }
+
+  /** Test-only in intent, real API in effect: delivers `command` through
+   * the exact same `handleWebviewMessage()` a real webview's
+   * `acquireVsCodeApi().postMessage(...)` reaches, wrapped in the same
+   * `{ type: "openspec-ui/command", command }` envelope
+   * `isBridgeCommandMessage()` expects. It exists only because VS Code's
+   * test API provides no way for an Extension Development Host test to
+   * simulate an incoming webview message, and `packages/extension/src/
+   * test/suite/` needs to exercise the real webview → extension routing
+   * (including `dispatchToChat()`) rather than reaching around it by
+   * calling a private method directly — see
+   * openspec/changes/dispatch-to-chat-integration-coverage/proposal.md.
+   * Deliberately does NOT expose `AiPanel` itself or `dispatchToChat()` —
+   * only this one command-delivery seam. No-op if `reveal()` has not
+   * been called yet (there is no panel to deliver to). */
+  deliverWebviewCommandForTesting(command: Parameters<AgentRunner["run"]>[0]): void {
+    if (!this.panel) return;
+    this.handleWebviewMessage(this.panel, { type: COMMAND_MESSAGE_TYPE, command });
+  }
+
+  /** Test-only in intent, real API in effect: the receiving half of
+   * `deliverWebviewCommandForTesting()` above — observes every
+   * `"openspec-ui/event"` message this panel posts to the webview
+   * (`postEventMessage()`), exactly as a real webview's own
+   * `window.addEventListener("message", ...)` would. Needed because a
+   * VS Code `WebviewPanel`'s `postMessage()` has no return channel a
+   * Node-side test can otherwise observe. Registering a listener never
+   * changes what gets posted or when — every existing `postMessage()`
+   * call still fires unconditionally; this only taps the same stream.
+   * Returns a `Disposable` that stops observing. */
+  onWebviewEventForTesting(listener: (event: Event) => void): vscode.Disposable {
+    this.testEventListeners.add(listener);
+    return { dispose: () => this.testEventListeners.delete(listener) };
   }
 
   getContext(): AiPanelContext | undefined {
