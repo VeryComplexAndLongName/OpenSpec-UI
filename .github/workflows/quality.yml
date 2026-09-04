@@ -28,7 +28,50 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
+
+  # Deliberately declares no `needs`, and nothing declares `needs` on it:
+  # every other job in this workflow gates on `quality`, so while the
+  # audit lived there as its last step, an outage at npm's advisory
+  # service skipped the merge gate, the integration suite and the browser
+  # suite on pull requests that had nothing to do with dependencies.
+  # Observed twice on #210: seven minutes of retries against a 503 from
+  # registry.npmjs.org/-/npm/v1/security/audits/quick, then the 10-minute
+  # job limit, with `npm run verify` and `npm run build` already green.
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - name: Audit production dependencies
+        run: |
+          # `npm audit` exits non-zero both for "found a high-severity
+          # advisory" and for "could not reach the advisory service", and
+          # the second must not be reported as the first: an audit that
+          # did not run says nothing about these dependencies, in either
+          # direction. So the report is read rather than the exit status
+          # trusted on its own.
+          #
+          # `timeout` bounds the command itself, not just the job. A job
+          # timeout is a red check, which is the outcome this exists to
+          # stop; the command has to give up first so its result can be
+          # interpreted at all.
+          set +e
+          timeout 180 npm audit --omit=dev --audit-level=high --json > audit.json
+          status=$?
+          set -e
+          if [ "$status" -eq 124 ]; then
+            echo "::warning::npm audit did not answer within 180s; the audit was not carried out."
+            exit 0
+          fi
+          node .github/scripts/interpret-npm-audit.mjs audit.json
+          exit $?
 
   openspec-validate:
     name: OpenSpec change validation (merge gate)
