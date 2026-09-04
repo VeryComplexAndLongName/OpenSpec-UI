@@ -15,6 +15,7 @@ import {
   buildDefaultAgentRunners,
   resolveRunner as resolveAgentRunner,
 } from "@openspec-ui/core";
+import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
@@ -215,8 +216,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // agents to bind at construction time.
   const chainRunner = new HarnessChainRunner({
     resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
-    listAuditEntries: auditLog ? () => (auditLog as FileAuditLog).readEntries() : undefined,
-    auditLog,
+    // Both audit dependencies come from one place, so that "the chain
+    // writes its spend but reads nothing back" cannot be introduced by
+    // editing one of two lines. See chain-runner-audit-deps.ts.
+    ...buildChainRunnerAuditDeps(auditLog),
   });
 
   const aiPanel = new AiPanel({

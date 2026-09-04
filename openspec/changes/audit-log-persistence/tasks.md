@@ -117,33 +117,31 @@ skipped.
 - [x] 4.1 `packages/server`: a run recorded through the server's runners
   appears in the audit file, and a second server instance over the same
   workspace reads it back.
-- [ ] 4.2 `packages/extension`: its runner construction supplies both the
+- [x] 4.2 `packages/extension`: its runner construction supplies both the
   log and the reader — assert both, since supplying only the log leaves
   the budget reading nothing. Split by call site: `optional-server.ts`
   (its `createServer` call, same mechanism as `server.ts`) is covered by
   an executable `npm run test` assertion in `optional-server.test.ts`
   (passing — asserts the same `FileAuditLog` instance reaches both
   `createServer`'s `auditLog` option and `buildDefaultAgentRunners`).
-  `extension.ts`'s direct-import path (module-level `auditLog`/`runners`,
-  `HarnessChainRunner`'s `listAuditEntries`) has no non-live way to
-  exercise `activate()` — no existing unit test imports it, since it needs
-  the real `vscode` module (see `src/test/suite/extension.test.ts`'s own
-  "Live run inside real VS Code" framing, and `run.mjs`'s doc comment,
-  which already names this exact task number as its live-run target). Added
-  an assertion there instead (extends the existing "runs a real `status`
-  command" test to check `.openspec-ui/audit.jsonl` gained a `"started"`
-  entry) — **left unchecked and reported as outstanding**: attempted `node
-  src/test/run.mjs` in this session; it built successfully and located a
-  cached VS Code 1.135.0 install, but the Electron host itself failed
-  before running any test (`Cannot find module
-  '...\Temp\openspec-ui-integration-*'`, the fixture workspace path being
-  passed to Electron as if it were a JS entry module) — a pre-existing
-  environment limitation (no display for a real Electron host in this
-  sandboxed session), reproducible with zero relation to this change's
-  diff, not something to fix under this change's scope. `npm run test`
-  itself (task 6.2's actual gate) does not run `test:integration`, so this
-  does not block that check — only this specific assertion's own
-  execution remains unverified.
+
+  `extension.ts`'s path was previously recorded here as untestable: it
+  imports `vscode` at the top level, `activate()` cannot run outside a
+  real Extension Host, and the integration assertion attempted instead
+  could not be executed in that session and failed on CI for an unrelated
+  reason (task 4.4).
+
+  That conclusion was about `activate()`, and the thing worth asserting
+  is not `activate()` — it is the wiring decision, which needed no
+  Extension Host once it stopped being inline. The pairing now lives in
+  `chain-runner-audit-deps.ts`, outside the `vscode` import, and
+  `chain-runner-audit-deps.test.ts` asserts it in the ordinary
+  `npm run test` suite: both dependencies together, both absent without a
+  workspace, the reader reading the same instance that is written to, and
+  no read performed at construction (activation must not touch the audit
+  file). Verified by supplying only the log, as the task describes: two
+  of the four fail.
+
 - [x] 4.3 `packages/core/src/harness-chain-runner.test.ts`: with a reader
   returning entries that predate the current process, the budget counts
   them. This is the assertion that proves the fix is end to end rather
