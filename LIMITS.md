@@ -156,24 +156,47 @@ agents those are.
 A chain ceiling is only as wide as the reporting behind it. Which agent
 ran a stage decides whether that stage counted toward the ceiling at all.
 
-| Agent | Reports usage | Source |
-| --- | --- | --- |
-| `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
-| `copilot-cli-acp`, `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | ACP's `PromptResponse.usage` and `usage_update` notifications |
-| `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Plain text output — there is no figure in it to record |
-| `vscode-chat` | Nothing | The run is handed to VS Code chat; this project never sees its cost |
+| Agent | Reports usage | Evidence | Source |
+| --- | --- | --- | --- |
+| `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |
+| `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | *Expected* — from the documented format and its unit tests, not yet seen in a run | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
+| `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
+| `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Certain — plain text carries no figure to record | Plain text output |
+| `vscode-chat` | Nothing | Certain | The run is handed to VS Code chat; this project never sees its cost |
 
-Two consequences worth stating outright:
+### What that means for a ceiling, per agent
 
-- **The raw-text CLIs report nothing, so a ceiling over them counts
-  nothing and cannot fire.** `claude-cli` and `claude-cli-acp` drive the
-  same underlying `claude` binary, but only the latter asks for the
-  structured output the figure lives in. If a chain ceiling matters to
-  you, that choice of agent is what decides whether it can act.
-- **For the three genuine ACP agents, what is recorded is whatever that
-  CLI chose to send.** ACP marks the usage field on a prompt response
-  `UNSTABLE`/`@experimental`, and a given CLI version may send token
-  totals, a cost, both, or neither. Nothing is invented to fill a gap.
+**On `copilot-cli-acp`, `budget.maxCostUsd` can never fire.** It reports
+tokens and no cost, so a cost ceiling compares against nothing however
+large the spend. `budget.maxTokens` is the ceiling that can act on it.
+
+Measured on 2026-09-04 from this repository's own
+`.openspec-ui/audit.jsonl`: one completed run recorded
+`{inputTokens: 786966, outputTokens: 4732, thoughtTokens: 1308}` and no
+cost field of any kind.
+
+That is one observation, of one version of one CLI. ACP marks the usage
+field on a prompt response `UNSTABLE`/`@experimental`, so a later
+version may send something else — including a cost. Read the audit log
+rather than trusting this line indefinitely.
+
+**`claude-cli-acp` is expected to report cost, and has not been seen to.**
+Its row above comes from `claude`'s documented stream format and from
+the unit tests over that parsing. Its one run since this capability
+shipped failed before reporting. Expected is not measured, and this
+table says which is which rather than letting a reader assume.
+
+**A run that fails may record nothing.** Three of the four runs that
+terminated after this capability shipped failed, and none recorded usage:
+the agent never finished its turn, so it never reported. Their spend
+counts toward no ceiling. A ceiling protects you from a long
+*successful* run, not from a sequence of expensive failures.
+
+**The raw-text CLIs report nothing, so a ceiling over them counts nothing
+and cannot fire.** `claude-cli` and `claude-cli-acp` drive the same
+underlying `claude` binary, but only the latter asks for the structured
+output the figure lives in. If a chain ceiling matters to you, that
+choice of agent is what decides whether it can act at all.
 
 One figure is deliberately **not** recorded: an ACP `usage_update`'s
 `used` is how much of the context window is currently occupied, and it
