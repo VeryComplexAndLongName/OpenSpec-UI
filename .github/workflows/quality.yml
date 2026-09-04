@@ -242,10 +242,14 @@ jobs:
           else
             echo "::notice::no release for ${TAG}; the extension is published without an artifact"
           fi
-      - name: Build the manifest
+      # File arguments are absolute: `npm run start --workspace` runs the
+      # CLI with its own package as the working directory, so a relative
+      # path here resolves inside packages/cli rather than beside the
+      # files the previous step wrote. The shell redirections below are
+      # the step's own and stay relative to the repository root.      - name: Build the manifest
         run: |
           MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
-          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases releases-input.json > releases.json
+          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
           npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
       - name: Publish only when a version actually changed
         run: |
@@ -255,7 +259,7 @@ jobs:
           # these versions were released from".
           git fetch origin release-manifest --depth 1 2>/dev/null || true
           if git show origin/release-manifest:releases.json > published.json 2>/dev/null; then
-            npm run start --workspace @openspec-ui/cli -- release-manifest --from published.json --fingerprint > fingerprint.old
+            npm run start --workspace @openspec-ui/cli -- release-manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old
           else
             echo "(no published manifest)" > fingerprint.old
           fi
