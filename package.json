@@ -24,7 +24,7 @@
     "test": "npm run test:english && npm run test --workspaces --if-present",
     "test:english": "node --test scripts/check-english.test.mjs",
     "changeset": "changeset",
-    "changeset:version": "changeset version"
+    "changeset:version": "changeset version && npm install --package-lock-only"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",

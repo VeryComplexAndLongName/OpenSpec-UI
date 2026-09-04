@@ -155,6 +155,13 @@ jobs:
         uses: changesets/action@v2
         with:
           github-token: ${{ github.token }}
+          # The repository's own script, not the action's built-in
+          # `changeset version`: it also refreshes package-lock.json, so
+          # the lockfile is in the same commit as the versions it
+          # describes. Without this input the action runs its default and
+          # the lockfile drifts one release behind at every release (see
+          # openspec/changes/lockfile-follows-the-release).
+          version-script: npm run changeset:version
 
   release-extension:
     name: Tag and release VS Code extension
