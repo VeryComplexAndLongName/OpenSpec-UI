@@ -154,14 +154,32 @@ The other four products have no downloadable artifact and carry an empty
   `main` until that pull request merges. Generating there would publish
   versions that had not shipped.
 
-## Open questions
+## Questions that were open, and how they were settled
 
-- Whether `released_at` should be the release commit's timestamp or the
-  moment of generation. They differ by the length of a CI run, and the
-  field is optional; the commit timestamp is the more meaningful of the
-  two and is what this change proposes.
-- Whether `summary` per product should live in this repository or keep
-  coming from the site's own `PackageSpec` list. Carrying it here makes
-  the manifest self-describing; leaving it out means the site keeps
-  today's text. This change carries it, and the site ignores what it
-  does not use.
+Both were decided by the repository's owner on 2026-09-04.
+
+### `released_at` is the moment of generation
+
+Rather than the release commit's timestamp. They differ by the length of
+a CI run.
+
+This is coherent with decision 4 rather than merely simpler: the manifest
+is published only when the set of `id@version` changes, so generation
+happens once per release and `released_at` means "when this version was
+first published to the manifest". A re-run that changes no version
+publishes nothing, so the field cannot drift for a release that already
+shipped.
+
+It also keeps the generator free of git plumbing — it reads
+`package.json` and `CHANGELOG.md`, and needs no commit metadata for this
+field.
+
+### `summary` is carried here
+
+Rather than left to the site's own `PackageSpec` list.
+
+The manifest is then self-describing: a consumer that has never heard of
+this repository can render a product without a local table of names and
+descriptions, which is the whole point of the document. The site ignores
+fields it does not use, so carrying it costs nothing there, and the site
+keeps whatever it already displays until it chooses to read this.
