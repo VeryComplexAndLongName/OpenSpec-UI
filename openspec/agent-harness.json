@@ -9,7 +9,7 @@
       "model": "claude-opus-5"
     },
     "apply": {
-      "agent": "claude-cli",
+      "agent": "copilot-cli-acp",
       "model": "claude-sonnet-5"
     }
   },
