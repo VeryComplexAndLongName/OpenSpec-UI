@@ -246,7 +246,8 @@ jobs:
       # CLI with its own package as the working directory, so a relative
       # path here resolves inside packages/cli rather than beside the
       # files the previous step wrote. The shell redirections below are
-      # the step's own and stay relative to the repository root.      - name: Build the manifest
+      # the step's own and stay relative to the repository root.
+      - name: Build the manifest
         run: |
           MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
           npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
