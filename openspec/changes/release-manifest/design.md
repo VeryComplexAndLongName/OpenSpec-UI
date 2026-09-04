@@ -118,15 +118,27 @@ unaffected either way — `sync_releases` dedupes announcements by
 `commit` meaning "the commit these versions were released from" rather
 than "the last push".
 
-### 5. The generator is a script, not a package export
+### 5. The generator is a command of `@openspec-ui/cli`
 
-Nothing in the product needs to read a release manifest; only CI writes
-one. A script under `.github/scripts/` keeps it out of the published
-packages and out of the browser bundle, next to
-`interpret-npm-audit.mjs`, which is there for the same reason.
+This proposal first placed it under `.github/scripts/`, next to
+`interpret-npm-audit.mjs`. That was wrong, and changed once the CLI
+package was actually read rather than remembered.
 
-Its tests run in `packages/core`'s suite against fixture directories, so
-the parsing rules are exercised without a repository checkout.
+`packages/cli` already exists for exactly this: ADR 0007 calls it a third
+delivery target whose purpose is non-interactive use from CI, its
+`validate` command is already invoked by the merge gate as
+`npm run start --workspace @openspec-ui/cli -- validate --cwd …`, its
+`runMain` is unit-tested without spawning a process, and it documents a
+0/1/2 exit-code contract that a generator needs anyway. A script under
+`.github/scripts/` would have had none of that, and — the deciding
+point — nothing there runs in any workspace's test suite, while
+`tasks.md` requires the parsing rules to be tested.
+
+So `release-manifest` is a second command beside `validate`, and the
+workflow invokes it the same way. Its tests run in `packages/cli`'s own
+suite: fixture repositories for the parsing rules, and one case that
+builds from this repository itself so the fixtures cannot drift from the
+real files.
 
 ### 6. The extension's artifact comes from the release that already exists
 

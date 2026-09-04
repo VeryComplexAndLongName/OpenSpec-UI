@@ -52,9 +52,11 @@ What is missing is only the producer: nothing in this repository writes
 
 ## Impact
 
-- A new generator and its tests, `.github/workflows/quality.yml`, and a
-  new `release-manifest` branch holding one file.
-- No package source changes; nothing published to npm changes.
+- A `release-manifest` command in `@openspec-ui/cli` and its tests,
+  `.github/workflows/quality.yml`, and a new `release-manifest` branch
+  holding one file.
+- `@openspec-ui/cli` gains a command, so it takes a minor bump. Nothing
+  else published changes, and no product behaviour does.
 - `OpenSpec-Ui-Homepage` is **not** modified by this change. Flipping
   `HOMEPAGE_RELEASE_SOURCE` from `none` to `manifest` is that
   repository's own change, and is worth doing only once a manifest is

@@ -193,6 +193,91 @@ jobs:
             --title "openspec-ui-vscode ${VERSION}" \
             --generate-notes
 
+  # Publishes the document OpenSpec-Ui-Homepage reads instead of walking
+  # this repository's layout through the GitHub API (see
+  # openspec/changes/release-manifest). It gates nothing and nothing gates
+  # on it beyond needing the release to exist: a failure here must not
+  # skip the merge gate or the suite, the shape ci-audit-own-job
+  # established after an npm outage took the whole pipeline down.
+  release-manifest:
+    name: Publish release manifest
+    needs: [quality, release-extension]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - name: Collect the extension's published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Read from the release that release-extension just created,
+          # rather than building a URL from the tag by hand: a change in
+          # how the release is made must not leave the manifest pointing
+          # at something that does not resolve. No release yet (the very
+          # first run, or a version already tagged) is not an error — the
+          # product is then published with no artifact, which is true.
+          VERSION=$(node -p "require('./packages/extension/package.json').version")
+          export TAG="openspec-ui-vscode@${VERSION}"
+          echo "[]" > releases-input.json
+          if gh release view "$TAG" --json url,assets > release.json 2>/dev/null; then
+            node -e '
+              const fs = require("fs");
+              const release = JSON.parse(fs.readFileSync("release.json", "utf8"));
+              const artifacts = (release.assets ?? [])
+                .filter((asset) => asset.name.endsWith(".vsix"))
+                .map((asset) => ({ kind: "vsix", url: asset.url, size_bytes: asset.size }));
+              fs.writeFileSync("releases-input.json", JSON.stringify([
+                { productId: "vscode-extension", tag: process.env.TAG, url: release.url, artifacts },
+              ]));
+            '
+          else
+            echo "::notice::no release for ${TAG}; the extension is published without an artifact"
+          fi
+      - name: Build the manifest
+        run: |
+          MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
+          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases releases-input.json > releases.json
+          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
+      - name: Publish only when a version actually changed
+        run: |
+          # generated_at and commit move on every push. Comparing the
+          # id@version set instead means a push that released nothing
+          # publishes nothing, and `commit` keeps meaning "the commit
+          # these versions were released from".
+          git fetch origin release-manifest --depth 1 2>/dev/null || true
+          if git show origin/release-manifest:releases.json > published.json 2>/dev/null; then
+            npm run start --workspace @openspec-ui/cli -- release-manifest --from published.json --fingerprint > fingerprint.old
+          else
+            echo "(no published manifest)" > fingerprint.old
+          fi
+          if diff -q fingerprint.old fingerprint.new > /dev/null; then
+            echo "::notice::no version changed; the manifest is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          WORK=$(mktemp -d)
+          cp releases.json "$WORK/releases.json"
+          cd "$WORK"
+          git init -q .
+          git checkout -q -b release-manifest
+          git add releases.json
+          git commit -q -m "Release manifest for ${GITHUB_SHA}"
+          # Force-updated: only the current state is ever read, so history
+          # on this branch serves nobody.
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release-manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   browser-e2e:
     name: Standalone browser and accessibility
     needs: quality
