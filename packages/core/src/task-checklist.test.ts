@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,13 +21,19 @@ import {
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-task-checklist-"));
+  const root = await mkdtemp(
+    path.join(os.tmpdir(), "openspec-task-checklist-"),
+  );
   temporaryRoots.push(root);
   return root;
 }
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    temporaryRoots
+      .splice(0)
+      .map((root) => rm(root, { recursive: true, force: true })),
+  );
 });
 
 describe("readTaskChecklist", () => {
@@ -43,7 +56,13 @@ describe("readTaskChecklist", () => {
 
   it("reads archived changes from openspec/changes/archive/<name>/", async () => {
     const root = await temporaryRoot();
-    const changeDir = path.join(root, "openspec", "changes", "archive", "old-change");
+    const changeDir = path.join(
+      root,
+      "openspec",
+      "changes",
+      "archive",
+      "old-change",
+    );
     await mkdir(changeDir, { recursive: true });
     await writeFile(path.join(changeDir, "tasks.md"), "- [ ] Only task\n");
 
@@ -72,11 +91,16 @@ describe("readTaskChecklist — mechanical check declarations", () => {
     const root = await temporaryRoot();
     const changeDir = path.join(root, "openspec", "changes", "active-change");
     await mkdir(changeDir, { recursive: true });
-    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] Plain task, no declaration\n");
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "- [ ] Plain task, no declaration\n",
+    );
 
     const items = await readTaskChecklist(root, "active-change", false);
 
-    expect(items).toEqual([{ lineNumber: 0, text: "Plain task, no declaration", done: false }]);
+    expect(items).toEqual([
+      { lineNumber: 0, text: "Plain task, no declaration", done: false },
+    ]);
     expect(items[0]?.check).toBeUndefined();
   });
 
@@ -84,7 +108,10 @@ describe("readTaskChecklist — mechanical check declarations", () => {
     const root = await temporaryRoot();
     const changeDir = path.join(root, "openspec", "changes", "active-change");
     await mkdir(changeDir, { recursive: true });
-    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] npm run typecheck is green. `check(typecheck)`\n");
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "- [ ] npm run typecheck is green. `check(typecheck)`\n",
+    );
 
     const items = await readTaskChecklist(root, "active-change", false);
 
@@ -109,16 +136,24 @@ describe("readTaskChecklist — mechanical check declarations", () => {
 
     const items = await readTaskChecklist(root, "active-change", false);
 
-    expect(items[0]?.check).toEqual({ name: "path-unchanged", param: "packages/core/src/agents/" });
+    expect(items[0]?.check).toEqual({
+      name: "path-unchanged",
+      param: "packages/core/src/agents/",
+    });
   });
 
   it("throws UnknownMechanicalCheckError for an unrecognized check name", async () => {
     const root = await temporaryRoot();
     const changeDir = path.join(root, "openspec", "changes", "active-change");
     await mkdir(changeDir, { recursive: true });
-    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] A misspelled check. `check(typechek)`\n");
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "- [ ] A misspelled check. `check(typechek)`\n",
+    );
 
-    await expect(readTaskChecklist(root, "active-change", false)).rejects.toThrow(UnknownMechanicalCheckError);
+    await expect(
+      readTaskChecklist(root, "active-change", false),
+    ).rejects.toThrow(UnknownMechanicalCheckError);
   });
 
   it("throws InvalidMechanicalCheckParameterError for a path-unchanged path that escapes the workspace", async () => {
@@ -130,9 +165,9 @@ describe("readTaskChecklist — mechanical check declarations", () => {
       "- [ ] Sneaky task. `check(path-unchanged, ../../outside-the-repo)`\n",
     );
 
-    await expect(readTaskChecklist(root, "active-change", false)).rejects.toThrow(
-      InvalidMechanicalCheckParameterError,
-    );
+    await expect(
+      readTaskChecklist(root, "active-change", false),
+    ).rejects.toThrow(InvalidMechanicalCheckParameterError);
   });
 });
 
@@ -142,11 +177,16 @@ describe("deleteTaskLine", () => {
     const changeDir = path.join(root, "openspec", "changes", "active-change");
     await mkdir(changeDir, { recursive: true });
     const tasksPath = path.join(changeDir, "tasks.md");
-    await writeFile(tasksPath, "## 1. Setup\n\n- [ ] 1.1 First task\n- [ ] 1.2 Second task\n");
+    await writeFile(
+      tasksPath,
+      "## 1. Setup\n\n- [ ] 1.1 First task\n- [ ] 1.2 Second task\n",
+    );
 
     await deleteTaskLine(root, "active-change", false, 2, "1.1 First task");
 
-    expect(await readFile(tasksPath, "utf8")).toBe("## 1. Setup\n\n- [ ] 1.2 Second task\n");
+    expect(await readFile(tasksPath, "utf8")).toBe(
+      "## 1. Setup\n\n- [ ] 1.2 Second task\n",
+    );
   });
 
   it("preserves CRLF line endings when the original file used them", async () => {
@@ -169,23 +209,37 @@ describe("deleteTaskLine", () => {
     const original = "- [ ] First\n- [ ] Second\n";
     await writeFile(tasksPath, original);
 
-    await expect(deleteTaskLine(root, "active-change", false, 0, "A task that no longer exists")).rejects.toThrow(
-      TaskListChangedError,
-    );
+    await expect(
+      deleteTaskLine(
+        root,
+        "active-change",
+        false,
+        0,
+        "A task that no longer exists",
+      ),
+    ).rejects.toThrow(TaskListChangedError);
     expect(await readFile(tasksPath, "utf8")).toBe(original);
   });
 
   it("throws TaskListChangedError for an unknown change without creating any file", async () => {
     const root = await temporaryRoot();
 
-    await expect(deleteTaskLine(root, "does-not-exist", false, 0, "text")).rejects.toThrow(TaskListChangedError);
+    await expect(
+      deleteTaskLine(root, "does-not-exist", false, 0, "text"),
+    ).rejects.toThrow(TaskListChangedError);
   });
 });
 
 describe("getArchivedChangeSummary", () => {
   it("counts completed/total tasks and reports tasks.md's mtime", async () => {
     const root = await temporaryRoot();
-    const changeDir = path.join(root, "openspec", "changes", "archive", "old-change");
+    const changeDir = path.join(
+      root,
+      "openspec",
+      "changes",
+      "archive",
+      "old-change",
+    );
     await mkdir(changeDir, { recursive: true });
     const tasksPath = path.join(changeDir, "tasks.md");
     await writeFile(tasksPath, "- [x] Done\n- [ ] Not done\n- [x] Also done\n");
@@ -193,19 +247,33 @@ describe("getArchivedChangeSummary", () => {
     const summary = await getArchivedChangeSummary(root, "old-change");
     const expectedMtime = (await stat(tasksPath)).mtime.toISOString();
 
-    expect(summary).toEqual({ completedTasks: 2, totalTasks: 3, lastModified: expectedMtime });
+    expect(summary).toEqual({
+      completedTasks: 2,
+      totalTasks: 3,
+      lastModified: expectedMtime,
+    });
   });
 
   it("returns zero counts and the change directory's mtime when tasks.md is missing", async () => {
     const root = await temporaryRoot();
-    const changeDir = path.join(root, "openspec", "changes", "archive", "old-change");
+    const changeDir = path.join(
+      root,
+      "openspec",
+      "changes",
+      "archive",
+      "old-change",
+    );
     await mkdir(changeDir, { recursive: true });
     await writeFile(path.join(changeDir, "proposal.md"), "# Proposal\n");
 
     const summary = await getArchivedChangeSummary(root, "old-change");
     const expectedMtime = (await stat(changeDir)).mtime.toISOString();
 
-    expect(summary).toEqual({ completedTasks: 0, totalTasks: 0, lastModified: expectedMtime });
+    expect(summary).toEqual({
+      completedTasks: 0,
+      totalTasks: 0,
+      lastModified: expectedMtime,
+    });
   });
 
   it("returns zero counts and the epoch for an unknown change name", async () => {
@@ -226,16 +294,24 @@ describe("getArchivedChangeSummary", () => {
 // parser's understanding of an ordinary task line shifted even slightly
 // (task 2.2's "every existing tasks.md ... must parse identically").
 describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.md (task 6.3)", () => {
-  // Reads and parses every tasks.md in the repository — around twenty
-  // files today and one more with each change — so it grows with the
-  // repository and needs a ceiling that does not. Measured at ~2 s alone;
-  // it timed out at the 5000 ms default under a full-suite run. See
-  // load-sensitive-test-timeouts.
+  // Reads and parses every tasks.md in the repository — eighteen files
+  // today and one more with each change — so its cost grows with the
+  // repository while vitest's default budget does not. Measured 2026-09-04:
+  // 1550 ms alone, and over 5000 ms under a full-suite run, which is
+  // where it timed out at the default. The ceiling below is sized for
+  // growth rather than for today's loaded figure: one that only just
+  // cleared it would fail again within a few changes. See
+  // load-sensitive-test-timeouts, whose comment here described this
+  // ceiling before it was actually applied.
   it("parses every real tasks.md without throwing, with counts matching an independent line count", async () => {
     const repoRoot = path.resolve(__dirname, "..", "..", "..");
     const changesRoot = path.join(repoRoot, "openspec", "changes");
-    const entries = await import("node:fs/promises").then((fs) => fs.readdir(changesRoot, { withFileTypes: true }));
-    const changeDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    const entries = await import("node:fs/promises").then((fs) =>
+      fs.readdir(changesRoot, { withFileTypes: true }),
+    );
+    const changeDirs = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
     expect(changeDirs.length).toBeGreaterThan(0);
 
     for (const changeName of changeDirs) {
@@ -248,7 +324,9 @@ describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.
       }
       // Independent of TASK_CHECKBOX_LINE_RE: a plain count of checkbox
       // lines by eye, the same shape a human reviewer would count.
-      const expectedCount = raw.split(/\r?\n/).filter((line) => /^[ \t]*-\s\[[ xX]\]/.test(line)).length;
+      const expectedCount = raw
+        .split(/\r?\n/)
+        .filter((line) => /^[ \t]*-\s\[[ xX]\]/.test(line)).length;
 
       const items = await readTaskChecklist(repoRoot, changeName, false);
       expect(items.length).toBe(expectedCount);
@@ -259,5 +337,5 @@ describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.
       // result, not a raw-text search that would also match that prose.
       expect(items.every((item) => item.check === undefined)).toBe(true);
     }
-  });
+  }, 30_000);
 });
