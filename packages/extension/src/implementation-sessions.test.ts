@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { captureCheckpoint, serializeCheckpoint, WorkbenchProcessScheduler } from "@openspec-ui/core";
+import { captureCheckpoint, finalizeCheckpoint, serializeCheckpoint, WorkbenchProcessScheduler } from "@openspec-ui/core";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 
 const roots: string[] = [];
@@ -71,6 +71,48 @@ describe("ImplementationSessionManager", () => {
       expect.objectContaining({ path: "code.ts", kind: "modified" }),
     ]);
     expect((await manager.rollback("recovered")).conflicts).toEqual([]);
+    expect(await readFile(filePath, "utf8")).toBe("before");
+  });
+
+  it("rolls back a completed session the same way after a lazy restore (task 4.6)", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+    roots.push(root);
+    const filePath = path.join(root, "code.ts");
+    await writeFile(filePath, "before");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(filePath, "after rollback-eligible run");
+    const delta = await finalizeCheckpoint(checkpoint);
+    const serialized = serializeCheckpoint(checkpoint);
+    serialized.delta = delta;
+    const scheduler = new WorkbenchProcessScheduler([{
+      id: "completed-run",
+      operation: "implement",
+      changeName: "demo",
+      mutating: true,
+      state: "completed",
+      createdAt: "2026-08-08T10:00:00.000Z",
+    }]);
+    const manager = new ImplementationSessionManager(scheduler);
+    let loadCalls = 0;
+
+    // Restoring through the same `loadCheckpoint()` indirection `restore()`
+    // uses in production — the saving here is bounded by retention (task
+    // 1), and this asserts the rollback outcome is unaffected by going
+    // through that indirection rather than an inline payload.
+    await manager.restore([{
+      processId: "completed-run",
+      changeName: "demo",
+      loadCheckpoint: async () => {
+        loadCalls += 1;
+        return { processId: "completed-run", changeName: "demo", checkpoint: serialized };
+      },
+    }]);
+
+    expect(loadCalls).toBe(1);
+    expect(manager.getDelta("completed-run")).toEqual([
+      expect.objectContaining({ path: "code.ts", kind: "modified" }),
+    ]);
+    expect((await manager.rollback("completed-run")).conflicts).toEqual([]);
     expect(await readFile(filePath, "utf8")).toBe("before");
   });
 

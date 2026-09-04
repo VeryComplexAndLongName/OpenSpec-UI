@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { captureCheckpoint, serializeCheckpoint } from "./checkpoint.js";
+import { captureCheckpoint, deserializeCheckpoint, finalizeCheckpoint, rollbackCheckpoint, serializeCheckpoint } from "./checkpoint.js";
 import {
     WorkbenchJournalLoadError,
     WorkbenchRunJournal,
@@ -206,6 +206,109 @@ describe("WorkbenchRunJournal", () => {
         const restored = await new WorkbenchRunJournal(root).load();
         expect(restored.processes.map((process) => process.id)).toEqual(["new"]);
         expect(restored.checkpointSessions.map((session) => session.processId)).toEqual(["new"]);
+    });
+
+    it("load() performs no checkpoint payload reads (tasks 2.1/4.1)", async () => {
+        const root = await temporaryRoot();
+        const checkpoint = serializeCheckpoint(await captureCheckpoint(root));
+        const journal = new WorkbenchRunJournal(root);
+        await journal.save({
+            processes: [
+                { id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-08T10:00:00.000Z" },
+                { id: "run-2", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-08T11:00:00.000Z" },
+            ],
+            checkpointSessions: [
+                { processId: "run-1", checkpoint },
+                { processId: "run-2", checkpoint },
+            ],
+        });
+        // Corrupt both checkpoint files after saving. If `load()` read
+        // either payload, `JSON.parse` on this content would throw and
+        // fail the test; a passing `load()` here is proof it never opened
+        // them, not just a fast one.
+        await writeFile(checkpointFilePath(root, "run-1"), "not valid json {{{", "utf8");
+        await writeFile(checkpointFilePath(root, "run-2"), "not valid json {{{", "utf8");
+
+        const restored = await journal.load();
+
+        expect(restored.processes).toHaveLength(2);
+        expect(restored.checkpointSessions.map((session) => session.processId).sort()).toEqual(["run-1", "run-2"]);
+        // Only reading the payload now (via loadCheckpoint()) hits the
+        // corrupt content, and it degrades to "no checkpoint" rather than
+        // throwing, per the existing missing/invalid-file behavior.
+        for (const session of restored.checkpointSessions) {
+            await expect(session.loadCheckpoint()).resolves.toBeUndefined();
+        }
+    });
+
+    it("retains only the newest maxCheckpointSessions and deletes the evicted files (tasks 1.2/4.2)", async () => {
+        const root = await temporaryRoot();
+        const checkpoint = serializeCheckpoint(await captureCheckpoint(root));
+        const journal = new WorkbenchRunJournal(root, { maxProcesses: 100, maxCheckpointSessions: 2 });
+        const data = {
+            processes: [
+                { id: "oldest", operation: "status", mutating: false, state: "completed" as const, createdAt: "2026-08-01T10:00:00.000Z" },
+                { id: "middle", operation: "status", mutating: false, state: "completed" as const, createdAt: "2026-08-02T10:00:00.000Z" },
+                { id: "newest", operation: "status", mutating: false, state: "completed" as const, createdAt: "2026-08-03T10:00:00.000Z" },
+            ],
+            checkpointSessions: [
+                { processId: "oldest", checkpoint },
+                { processId: "middle", checkpoint },
+                { processId: "newest", checkpoint },
+            ],
+        };
+
+        await journal.save(data);
+
+        // All three processes are retained (maxProcesses is 100), but only
+        // the two newest checkpoint sessions keep their file.
+        await expect(stat(checkpointFilePath(root, "oldest"))).rejects.toThrow();
+        await expect(stat(checkpointFilePath(root, "middle"))).resolves.toBeTruthy();
+        await expect(stat(checkpointFilePath(root, "newest"))).resolves.toBeTruthy();
+
+        const restored = await journal.load();
+        expect(restored.processes.map((process) => process.id).sort()).toEqual(["middle", "newest", "oldest"]);
+        expect(restored.checkpointSessions.map((session) => session.processId).sort()).toEqual(["middle", "newest"]);
+        expect(await restored.checkpointSessions.find((session) => session.processId === "middle")!.loadCheckpoint()).toBeDefined();
+        expect(await restored.checkpointSessions.find((session) => session.processId === "newest")!.loadCheckpoint()).toBeDefined();
+    });
+
+    it("retains a completed process's checkpoint by recency, not by state (tasks 1.3/4.3)", async () => {
+        const root = await temporaryRoot();
+        const filePath = path.join(root, "tracked.txt");
+        await writeFile(filePath, "before");
+        const checkpoint = await captureCheckpoint(root);
+        await writeFile(filePath, "after");
+        checkpoint.delta = await finalizeCheckpoint(checkpoint);
+        const serialized = serializeCheckpoint(checkpoint);
+        const journal = new WorkbenchRunJournal(root, { maxCheckpointSessions: 2 });
+        const data = {
+            processes: [
+                { id: "completed-recent", operation: "implement", mutating: true, state: "completed" as const, createdAt: "2026-08-08T10:00:00.000Z" },
+                { id: "failed-older", operation: "implement", mutating: true, state: "failed" as const, createdAt: "2026-08-07T10:00:00.000Z" },
+            ],
+            checkpointSessions: [
+                { processId: "completed-recent", checkpoint: serialized },
+                { processId: "failed-older", checkpoint: serialized },
+            ],
+        };
+
+        await journal.save(data);
+
+        // Both are inside the retention count (2), so a "completed" state
+        // is not evicted ahead of a "failed" one — retention here is by
+        // recency alone.
+        const restored = await journal.load();
+        expect(restored.checkpointSessions.map((session) => session.processId).sort()).toEqual(["completed-recent", "failed-older"]);
+        const resolved = await restored.checkpointSessions.find((session) => session.processId === "completed-recent")!.loadCheckpoint();
+        expect(resolved).toBeDefined();
+        expect(resolved!.checkpoint.before[0]!.path).toBe("tracked.txt");
+
+        // And its rollback still works: retention by recency did not cost
+        // the completed run its ability to be rolled back.
+        const result = await rollbackCheckpoint(deserializeCheckpoint(resolved!.checkpoint));
+        expect(result.conflicts).toEqual([]);
+        expect(await readFile(filePath, "utf8")).toBe("before");
     });
 
     it("rejects corrupt data without replacing it", async () => {
