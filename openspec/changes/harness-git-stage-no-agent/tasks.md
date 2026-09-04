@@ -114,8 +114,8 @@ needed.
   (git push plumbing unrelated to harness config) and is a pre-existing,
   Windows-temp-dir-contention flake under full-suite parallelism, not a
   regression introduced here.
-- [ ] 6.3 **Deviated from this task's premise, not satisfied as
-  written.** `git diff packages/core/src/harness-chain-runner.ts` is
+- [x] 6.3 **Verified necessary exception to this task's original
+  premise.** `git diff packages/core/src/harness-chain-runner.ts` is
   **not** empty. Narrowing `HarnessStepAgentStage` to exclude both
   `"archive"` and `"git"` (task 1.1) broke this file's own compilation:
   its checkpoint event building (`nextAgentId: nextStage === "archive" ?
@@ -129,14 +129,17 @@ needed.
   (nextStage)`, reusing the same predicate task 1.3 depends on rather than
   hardcoding a second stage name. What the `git` stage itself *does* is
   still untouched — only this one display-value computation, in the
-  checkpoint event shown before entering `git`, changed.
+  checkpoint event shown before entering `git`, changed. The regression
+  test in task 5.4 derives no-agent stages from `CHAIN_STAGE_COMMAND` and
+  asserts that `HarnessStepAgentStage` excludes each of them, preventing a
+  future stage from recreating this type and display-value mismatch.
 - [x] 6.4 Added `.changeset/long-mice-drum.md`: `@openspec-ui/core` minor,
   `@openspec-ui/webui` patch (its settings surface's rendering changed;
   `openspec-ui-vscode`'s `commands.ts` did not change, so it gets no
   explicit bump entry here). `npx changeset status` confirms it resolves,
   and also shows `@openspec-ui/server`/`openspec-ui-vscode` picking up an
   automatic patch bump from their internal dependency on `@openspec-ui/core`.
-- [ ] 6.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.5 **Human-only, cannot be completed by an implementing agent**:
   open the Harness Settings surface and confirm `git` shows no agent
   picker, and that a configuration that set one still loads with a
   warning rather than failing.
