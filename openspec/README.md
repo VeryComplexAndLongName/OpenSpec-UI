@@ -28,6 +28,30 @@ Required flow for every change:
 Reason: this keeps a full audit trail, supports safer rollback decisions, and
 preserves implementation history in a single structured process.
 
+### Tick a verification item after it passes, not before the commit
+
+`tasks.md` is what decides whether a change may be archived, so it has to
+say what is true. Run the verification items, then tick them, then commit.
+
+The order that goes wrong is: tick what you believe you are about to
+finish, copy the files into a worktree, commit, and only then run the
+checks and `npx changeset`. Those last two results land after the commit
+that would have recorded them, so the file ships saying they were never
+done. This produced the same omission on four changes in a row, always at
+the last two items of a list — "run the checks" and "add a changeset" —
+and once left an entire shipped change reading as untouched (see
+`task-bookkeeping-catch-up`).
+
+From outside it looks like this: a change whose work is plainly in `main`,
+whose `tasks.md` reads as though nothing was started, and which the
+archive step then refuses. If you meet that, correct the record against
+the repository — the code, the test, the released `CHANGELOG.md` entry —
+and never in bulk from memory.
+
+An item marked **human-only** stays open until a person reports it done.
+Passing automated checks are not evidence for it, and neither is half of
+it having been observed.
+
 ## Architecture Changes via ADR (mandatory)
 
 Any architecture-impacting modification must be documented via ADR in

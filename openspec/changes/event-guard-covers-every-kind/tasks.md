@@ -37,9 +37,9 @@ it recurring.
 ## 4. Verification
 
 - [x] 4.1 `openspec change validate --strict event-guard-covers-every-kind`.
-- [ ] 4.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
+- [x] 4.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
   whole failing-file list, not the first familiar line.
-- [ ] 4.3 Version bump via `npx changeset` (`@openspec-ui/core` patch).
+- [x] 4.3 Version bump via `npx changeset` (`@openspec-ui/core` patch).
 - [ ] 4.4 **Human-only**: cancel a running harness stage in the VS Code
   panel and confirm the status now reads "Cancelling..." while the agent
   is still finishing — the behaviour `cancel-reports-what-happened`
