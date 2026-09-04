@@ -63,6 +63,13 @@ identity. Nothing in CI would go red.
   whole pipeline down.
 - [x] 2.5 Run it after `release-extension`, so the extension's release
   exists before the manifest points at it.
+- [x] 2.6 Pass file arguments to the CLI as absolute paths.
+  `npm run start --workspace` runs it with its own package as the
+  working directory, so `--releases releases-input.json` resolved
+  inside `packages/cli` and the first real run failed with ENOENT.
+  `--from` had the same defect one step later. The shell
+  redirections are the step's own and stay relative to the repository
+  root; only the arguments the CLI resolves needed changing.
 
 ## 3. Tests
 
@@ -93,7 +100,7 @@ identity. Nothing in CI would go red.
   this list said no changeset was needed, on the assumption the
   generator would live in `.github/scripts/`. It lives in a published
   package and adds a command to it, so that assumption no longer holds.
-- [ ] 4.5 **Human-only**: after the first publish, fetch
+- [ ] 4.5 **Human-only**: after the first *successful* publish, fetch
   `https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/release-manifest/releases.json`
   and confirm it resolves without credentials.
 - [ ] 4.6 **Human-only, and in the other repository**: set
