@@ -249,9 +249,27 @@ jobs:
       # the step's own and stay relative to the repository root.
       - name: Build the manifest
         run: |
+          # --silent, because this redirects stdout into the published
+          # file: without it npm prefixes its own two banner lines
+          # ("> @openspec-ui/cli@x start" and the resolved command) and
+          # the result is not JSON. That shipped once, and the local
+          # simulation missed it by adding --silent when the workflow had
+          # none — a simulation has to be the thing it simulates.
           MANIFEST_ARGS="--cwd $GITHUB_WORKSPACE --repository $GITHUB_REPOSITORY"
-          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
-          npm run start --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
+          npm run start --silent --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --commit "$GITHUB_SHA" --releases "$GITHUB_WORKSPACE/releases-input.json" > releases.json
+          npm run start --silent --workspace @openspec-ui/cli -- release-manifest $MANIFEST_ARGS --fingerprint > fingerprint.new
+          # Refuse to carry anything but a usable document to the publish
+          # step. Anything that reaches the branch is what the site
+          # fetches, and a manifest it cannot parse leaves it showing its
+          # last good snapshot with no indication why.
+          node -e '
+            const manifest = JSON.parse(require("fs").readFileSync("releases.json", "utf8"));
+            if (manifest.schema_version !== 1) throw new Error("unexpected schema_version");
+            if (!Array.isArray(manifest.products) || manifest.products.length === 0) {
+              throw new Error("manifest carries no products");
+            }
+            console.log(`manifest holds ${manifest.products.length} products`);
+          '
       - name: Publish only when a version actually changed
         run: |
           # generated_at and commit move on every push. Comparing the
@@ -269,7 +287,12 @@ jobs:
           # exists to prevent.
           git fetch origin release-manifest --depth 1 2>/dev/null || true
           if git show FETCH_HEAD:releases.json > published.json 2>/dev/null; then
-            npm run start --workspace @openspec-ui/cli -- release-manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old
+            # A published manifest that cannot be read means we do not
+            # know what is published, which is a reason to publish — not
+            # to fail. Without this the step would exit 2 forever on a
+            # branch holding a corrupt file, unable to replace it.
+            npm run start --silent --workspace @openspec-ui/cli -- release-manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old \
+              || echo "(published manifest is unreadable)" > fingerprint.old
           else
             echo "(no published manifest)" > fingerprint.old
           fi

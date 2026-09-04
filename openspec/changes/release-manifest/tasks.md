@@ -83,6 +83,21 @@ identity. Nothing in CI would go red.
   push — silently defeating 2.2. Found by reproducing that refspec
   locally rather than by a run failing, because this failure is not
   visible as a failure.
+- [x] 2.9 Invoke the CLI with `npm run start --silent`. Without it npm
+  prefixes two banner lines to stdout, which this step redirects into
+  the published file — a manifest that is not JSON. It shipped once.
+- [x] 2.10 Refuse to publish a document that does not parse and carry
+  products. Whatever reaches the branch is what the site fetches, and a
+  manifest it cannot parse leaves it on its last good snapshot with no
+  indication why.
+- [x] 2.11 Treat an unreadable *published* manifest as a reason to
+  publish, not as a failure. Otherwise a branch holding a corrupt file
+  can never be replaced: the comparison exits non-zero forever.
+- [x] 2.12 Run the publish job's own `run:` blocks, extracted from the
+  workflow rather than retyped. The first simulation retyped them and
+  silently added `--silent`; it passed while the real job published
+  npm's banner. A simulation that is not the thing it simulates proves
+  nothing about the thing.
 
 ## 3. Tests
 
