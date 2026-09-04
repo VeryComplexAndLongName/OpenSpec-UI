@@ -130,10 +130,22 @@ jobs:
           cache: npm
       - run: npm install --global npm@${NPM_VERSION}
       - run: npm ci
+      # v2 pushes the version branch through the GitHub API rather than
+      # the git CLI, so a "Version Packages" commit is GPG-signed by
+      # GitHub and attributed to the token's owner rather than to
+      # github-actions[bot] via the CLI. That is the only behavioural
+      # difference for this workflow -- the renamed inputs are all
+      # unused here, and `push-git-tags` applies after a publish step
+      # that is not configured (see openspec/changes/changesets-action-v2).
+      #
+      # `github-token` is the input the action actually reads. It also
+      # existed in v1 with this same default, which is why the `env:
+      # GH_TOKEN` block that used to sit here was doing nothing in either
+      # version and was removed rather than carried forward.
       - name: Create or update version PR
-        uses: changesets/action@v1
-        env:
-          GH_TOKEN: ${{ github.token }}
+        uses: changesets/action@v2
+        with:
+          github-token: ${{ github.token }}
 
   release-extension:
     name: Tag and release VS Code extension
