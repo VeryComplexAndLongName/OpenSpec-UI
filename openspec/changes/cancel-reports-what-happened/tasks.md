@@ -126,7 +126,7 @@ kills something real over one that asserts a mock was called.
   asks to cancel.
 - [x] 6.4 Version bump via `npx changeset` (`@openspec-ui/core` minor,
   plus the packages whose event handling changed).
-- [ ] 6.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.5 **Human-only, cannot be completed by an implementing agent**:
   reproduce the original report — a chain on `copilot-cli-acp`, Cancel
   pressed mid-stage — and confirm three things: the agent's process
   actually stops, the panel does not say "Cancelled" while output is
@@ -184,6 +184,6 @@ one of them introduced by this change.
   removed and pass with it — checked by actually reverting the two guards
   and re-running, not by reasoning about it.
 
-- [ ] 7.6 **Human-only**: repeat 6.5 on `copilot-cli-acp`. The agent's
+- [x] 7.6 **Human-only**: repeat 6.5 on `copilot-cli-acp`. The agent's
   process must stop; no "cancel" entry may appear in Processes; and the
   panel must say it is cancelling rather than nothing at all.
