@@ -258,8 +258,17 @@ jobs:
           # id@version set instead means a push that released nothing
           # publishes nothing, and `commit` keeps meaning "the commit
           # these versions were released from".
+          # Read through FETCH_HEAD, not origin/release-manifest.
+          # actions/checkout configures a narrow refspec for the one
+          # branch it checked out, so fetching another branch never
+          # creates a remote-tracking ref for it — verified against a
+          # checkout reproduced with that refspec. Reading
+          # origin/release-manifest would therefore always fail, always
+          # look like "nothing published yet", and add a commit to the
+          # branch on every push to main, which is what this comparison
+          # exists to prevent.
           git fetch origin release-manifest --depth 1 2>/dev/null || true
-          if git show origin/release-manifest:releases.json > published.json 2>/dev/null; then
+          if git show FETCH_HEAD:releases.json > published.json 2>/dev/null; then
             npm run start --workspace @openspec-ui/cli -- release-manifest --from "$GITHUB_WORKSPACE/published.json" --fingerprint > fingerprint.old
           else
             echo "(no published manifest)" > fingerprint.old
@@ -268,12 +277,16 @@ jobs:
             echo "::notice::no version changed; the manifest is already current"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           WORK=$(mktemp -d)
           cp releases.json "$WORK/releases.json"
           cd "$WORK"
           git init -q .
+          # Configured here rather than before `cd`: the commit below is
+          # made in this fresh repository, and an identity set in the
+          # checkout does not reach it — "fatal: empty ident name" is
+          # what that looks like.
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -q -b release-manifest
           git add releases.json
           git commit -q -m "Release manifest for ${GITHUB_SHA}"
