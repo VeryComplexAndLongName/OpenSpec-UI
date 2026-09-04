@@ -88,9 +88,9 @@ Nothing here may invent a figure. A stage that reported nothing says so.
 ## 5. Verification
 
 - [x] 5.1 `openspec change validate --strict usage-visible-while-running`.
-- [ ] 5.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
+- [x] 5.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
   whole failing-file list, not the first familiar line.
-- [ ] 5.3 Version bump via `npx changeset`.
+- [x] 5.3 Version bump via `npx changeset`.
 - [ ] 5.4 **Human-only**: run a chain on `claude-cli-acp` and confirm the
   summary fills in per stage as the chain advances, and that a stage
   whose agent reported nothing says so rather than showing `$0.00`.

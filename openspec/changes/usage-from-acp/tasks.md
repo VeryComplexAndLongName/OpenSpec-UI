@@ -80,11 +80,11 @@ that a ceiling should act on what an agent actually reported.
 ## 5. Verification
 
 - [x] 5.1 `openspec change validate --strict usage-from-acp`.
-- [ ] 5.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
+- [x] 5.2 `npm run typecheck`, `npm run lint`, `npm run test` — green
   across all five workspaces. Read the whole failing-file list, not the
   first familiar line: `git.push.test.ts` is intermittent here and has
   already hidden one real failure behind it.
-- [ ] 5.3 Version bump via `npx changeset` (`@openspec-ui/core` minor).
+- [x] 5.3 Version bump via `npx changeset` (`@openspec-ui/core` minor).
 - [ ] 5.4 **Human-only**: run a stage on `copilot-cli-acp` or
   `claude-cli-acp` and confirm `.openspec-ui/audit.jsonl` gains a `usage`
   field for it. Then set a small `budget.maxCostUsd`, run again, and
