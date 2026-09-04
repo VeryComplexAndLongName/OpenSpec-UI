@@ -70,6 +70,19 @@ identity. Nothing in CI would go red.
   `--from` had the same defect one step later. The shell
   redirections are the step's own and stay relative to the repository
   root; only the arguments the CLI resolves needed changing.
+- [x] 2.7 Set the commit identity inside the temporary repository, after
+  `git init`. Configuring it in the checkout does not reach the
+  repository the commit is actually made in — `fatal: empty ident
+  name` is what that looks like, and it was the second real run's
+  failure.
+- [x] 2.8 Read the published manifest through `FETCH_HEAD`, not
+  `origin/release-manifest`. `actions/checkout` configures a narrow
+  refspec for the branch it checked out, so fetching another branch
+  creates no remote-tracking ref for it. Reading one would always fail,
+  always look like "nothing published yet", and add a commit on every
+  push — silently defeating 2.2. Found by reproducing that refspec
+  locally rather than by a run failing, because this failure is not
+  visible as a failure.
 
 ## 3. Tests
 
