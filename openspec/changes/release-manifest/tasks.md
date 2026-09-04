@@ -125,7 +125,7 @@ identity. Nothing in CI would go red.
 ## 4. Verification
 
 - [x] 4.1 `openspec change validate --strict release-manifest`.
-- [ ] 4.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
+- [x] 4.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
   whole failing-file list.
 - [x] 4.3 Generate the manifest locally and validate it against the
   site's own schema — `flask manifest-schema` emits it — rather than
