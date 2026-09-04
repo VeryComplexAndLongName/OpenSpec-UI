@@ -295,6 +295,13 @@ describe("this repository's own manifest", () => {
   });
 });
 
+// These three build fixture repositories of five packages on disk and
+// dynamically import the CLI's own module graph, so they are heavier than
+// the pure-function cases above. Measured 2026-09-04: ~2 s each when the
+// machine is idle — already 40% of vitest's 5 s default — and over it
+// under a deliberate co-load, where two of them timed out. The ceiling is
+// sized for that load rather than for an idle machine; see
+// load-sensitive-test-timeouts for the same reasoning applied elsewhere.
 describe("the release-manifest command", () => {
   async function run(argv: string[], deps: Record<string, unknown> = {}) {
     const { runMain } = await import("./main.js");
@@ -340,5 +347,5 @@ describe("the release-manifest command", () => {
     expect(out).toBe("");
     expect(err).toContain("could not build the release manifest");
   });
-});
+}, 30_000);
 

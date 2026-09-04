@@ -115,6 +115,12 @@ identity. Nothing in CI would go red.
   fabricated URL.
 - [x] 3.6 Run the generator against this repository itself and validate
   the result, so the fixtures cannot drift from the real files.
+- [x] 3.7 Give the command-level tests an explicit timeout. They build
+  fixture repositories of five packages and import the CLI's module
+  graph: measured 2026-09-04 at ~2 s each idle — already 40% of vitest's
+  5 s default — and two of them timed out under a deliberate co-load.
+  Sized for that load, with the measurement recorded beside it, matching
+  what `task-checklist-timeout-ceiling` established.
 
 ## 4. Verification
 

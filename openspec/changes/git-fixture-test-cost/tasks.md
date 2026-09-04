@@ -109,6 +109,19 @@ processes, never from mocking the one being measured.
   workaround was `43/44` files and `511/512` tests, with that same test as
   the only failure. This confirms task 6.3 is still blocked by the active
   `core-test-worker-contention` change, not ready to mark complete here.
+
+  Re-measured 2026-09-04 with a deliberate CPU co-load (eight busy workers
+  on this machine) while running the full `npm run test`. **Still fails,
+  and more widely than in September's note**: `checkpoint.test.ts` 5,
+  `workbench-recovery.test.ts` 3, and one each in `harness-config`,
+  `workbench-run-journal`, `template-catalog` and the extension's
+  `implementation-sessions` — all timeouts, none in the two files this
+  change touches. Those two pass. So this task remains blocked by
+  `core-test-worker-contention` and by nothing in this change, exactly as
+  recorded above; the difference is that the blocker is now measured
+  rather than remembered. Do not tick it on the strength of the two
+  target files passing — the task deliberately asks about the whole
+  suite.
 - [x] 6.4 `git diff` on the two test files shows no changed `expect`.
 - [x] 6.5 No changeset (test-only, no `packages/*` source change) —
   matching the precedent in
