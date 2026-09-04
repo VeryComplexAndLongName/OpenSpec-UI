@@ -40,3 +40,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Same blanket major block as the npm ecosystem above, for a reason
+      # specific to actions: a release-path action cannot be exercised by
+      # the pull request that changes it. `version-packages` and
+      # `release-extension` in quality.yml both carry
+      # `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`,
+      # so on a pull request they are skipped -- a fully green pull
+      # request says nothing about the job the bump actually alters, and
+      # a failure would first appear on main as release pull requests
+      # quietly no longer being created. Seen with changesets/action 1->2
+      # (PR #207). Minor and patch bumps, security fixes included, keep
+      # flowing automatically; majors wait for a deliberate change.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
