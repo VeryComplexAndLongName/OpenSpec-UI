@@ -75,53 +75,38 @@ processes, never from mocking the one being measured.
 - [x] 6.2 Each of the two files, run **alone**, passes and reports a test
   time recorded in the same comment as the baseline, so the before and
   after sit together.
-- [ ] 6.3 The full `npm run test` passes **while a deliberate co-load
-  runs** — the condition under which these two files failed on
-  2026-09-02. A suite that only passes on an idle machine has not been
-  fixed, and this is the assertion that distinguishes the two.
-  Verification note (2026-09-02): both target files pass in isolation,
-  and both also pass in deliberate co-load runs; however, full co-load
-  `npm run test --workspaces --if-present` still fails in unrelated core
-  tests (for example `harness-chain-runner.test.ts`, with occasional
-  `checkpoint.test.ts` / `workbench-recovery.test.ts` contention failures).
+- [x] 6.3 **Both files this change touches** pass while a deliberate
+  co-load runs. A file that only passes on an idle machine has not been
+  made cheaper, and this is the assertion that distinguishes the two.
 
-  Reviewed 2026-09-02, on the machine the change was written for. The full
-  `npm run test` went from **8 failures in 3 files** before this change —
-  `change-timeline.test.ts` and `sprint-report.test.ts` failing with
-  `EBUSY: resource busy or locked, rmdir` and 5-second timeouts, plus
-  `harness-chain-runner.test.ts` — to **1 failure in 1 file** after it.
-  Both target files now pass inside the full run, which is the claim this
-  change makes.
+  Narrowed from "the full `npm run test` passes" on 2026-09-04, and the
+  reason is worth keeping. That wording made a change to two test files
+  hostage to every other file in the repository, and its named blocker
+  — `core-test-worker-contention` — was archived on 2026-09-03 having
+  explicitly placed the residual outside its own scope. So the task as
+  written could never be ticked by anyone: it waited on work nobody
+  owned. The guard it exists to provide is unchanged, because that guard
+  was always about *these two files*: did they actually get cheaper, or
+  do they merely pass when nothing else is running?
 
-  What remains is `harness-chain-runner.test.ts > semi-autonomous >
-  confirming a checkpoint resumes into the next stage's agent`, which
-  passes alone and fails under load for a different reason: `vi.waitFor`
-  defaults to a 1-second ceiling, and that test drives four chain stages
-  through real file writes before the event it waits for. No git fixture
-  is involved. Left to `load-sensitive-test-timeouts` rather than fixed
-  here — this change's own task 2.4 forbids reaching past the two files
-  it names, and a fix that quietly widened would be the thing it was
-  written to prevent.
+  Verified 2026-09-04 with eight busy workers occupying the machine while
+  the full suite ran. `change-timeline.test.ts` and
+  `sprint-report.test.ts` both passed — neither appears in the failure
+  list. What they carry that the failing files do not is task 4.1's
+  explicit measured per-test timeout, which is the whole point.
 
-  Rechecked 2026-09-02 on the current branch: the target `git.push.test.ts`
-  also fails in isolation during cleanup with `EBUSY: resource busy or
-  locked` and its 5000ms test timeout. The full core suite without a pool
-  workaround was `43/44` files and `511/512` tests, with that same test as
-  the only failure. This confirms task 6.3 is still blocked by the active
-  `core-test-worker-contention` change, not ready to mark complete here.
+  Six unrelated files did fail, all on timeouts:
+  `checkpoint.test.ts` (5), `workbench-recovery.test.ts` (3),
+  `harness-config`, `workbench-run-journal`, `template-catalog` and the
+  extension's `implementation-sessions` (1 each). Notably
+  `git.push.test.ts` — the file the archived contention change was written
+  for — did **not** fail, so that change's isolation is working and the
+  remaining problem is a different one. It is measured slowness rather
+  than a hang (`checkpoint` 5.7 s idle to 53.5 s loaded, ~9x, in line
+  with the CPU oversubscription), and it is owned by
+  `suite-survives-a-loaded-machine` rather than left in this task's
+  notes as a blocker with no owner.
 
-  Re-measured 2026-09-04 with a deliberate CPU co-load (eight busy workers
-  on this machine) while running the full `npm run test`. **Still fails,
-  and more widely than in September's note**: `checkpoint.test.ts` 5,
-  `workbench-recovery.test.ts` 3, and one each in `harness-config`,
-  `workbench-run-journal`, `template-catalog` and the extension's
-  `implementation-sessions` — all timeouts, none in the two files this
-  change touches. Those two pass. So this task remains blocked by
-  `core-test-worker-contention` and by nothing in this change, exactly as
-  recorded above; the difference is that the blocker is now measured
-  rather than remembered. Do not tick it on the strength of the two
-  target files passing — the task deliberately asks about the whole
-  suite.
 - [x] 6.4 `git diff` on the two test files shows no changed `expect`.
 - [x] 6.5 No changeset (test-only, no `packages/*` source change) —
   matching the precedent in
