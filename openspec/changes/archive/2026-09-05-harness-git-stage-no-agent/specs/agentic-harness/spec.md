@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: A stage that invokes no agent offers no agent setting
+### Requirement: A stage that invokes no agent offers none to configure
 
 A stage the system runs without invoking a CLI agent SHALL NOT accept an
 agent entry in a harness configuration, and neither settings surface
@@ -17,18 +17,18 @@ stage, and the rest honoured. Such a file SHALL NOT be rejected.
 Such a stage SHALL remain listed in both surfaces, since it runs, and
 hiding it would misrepresent the sequence.
 
-#### Scenario: A mechanical stage in the settings surface
-
-- **WHEN** a stage runs without invoking an agent
-- **THEN** it appears in the stage list with no agent, effort or spending
-  cap control
-
-#### Scenario: A configuration naming an agent for such a stage
+#### Scenario: Configuring an agent for a mechanical stage
 
 - **WHEN** a configuration sets an agent entry for a stage that invokes
   no agent
 - **THEN** the file loads, the entry is dropped, and the report names
   that stage
+
+#### Scenario: Presenting the stages
+
+- **WHEN** a stage runs without invoking an agent
+- **THEN** it appears in the stage list with no agent, effort or spending
+  cap control
 
 #### Scenario: Several such stages in one configuration
 
