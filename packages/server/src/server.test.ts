@@ -513,6 +513,10 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(404);
   });
 
+  // every-varying-check-has-a-budget:
+  // measured 2026-09-05 at 229ms test time (5.40s wall) idle and 7.30s
+  // test time (55.53s wall for the two-case run) under deliberate 8-worker
+  // co-load; this is slow-under-load, not stalled.
   it("returns a change timeline with best-effort dates for a non-git workspace", async () => {
     const cwd = await createTempWorkspace();
     const changeDir = path.join(cwd, "openspec", "changes", "my-change");
@@ -544,7 +548,7 @@ describe("server — REST /api/status", () => {
       { lineNumber: 0, text: "done", done: true, date: null, lastTouchedDate: null },
       { lineNumber: 1, text: "todo", done: false, date: null, lastTouchedDate: null },
     ]);
-  });
+  }, 20_000);
 
   it("returns multiple change timelines in one request", async () => {
     const cwd = await createTempWorkspace();
@@ -948,6 +952,9 @@ describe("server — REST /api/status", () => {
     expect((await new WorkbenchRunJournal(cwd).load()).processes).toEqual([]);
   });
 
+  // every-varying-check-has-a-budget:
+  // measured 2026-09-05 at 653ms test time idle and 8.07s test time under
+  // deliberate 8-worker co-load; this is slow-under-load, not stalled.
   it("rolls back every process for a change across two checkpoints, to the earliest state", async () => {
     const cwd = await createTempWorkspace();
     const filePath = path.join(cwd, "shared.txt");
@@ -978,7 +985,7 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ restored: ["shared.txt"], conflicts: [] });
     expect(await readFile(filePath, "utf8")).toBe("v0");
-  });
+  }, 20_000);
 
   it("returns actionable diagnostics without replacing a future run journal", async () => {
     const cwd = await createTempWorkspace();

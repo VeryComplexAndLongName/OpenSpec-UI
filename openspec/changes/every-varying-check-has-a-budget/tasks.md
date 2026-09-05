@@ -9,14 +9,14 @@ before this change may be archived.
 
 ## 1. Own the three failures the last change named
 
-- [ ] 1.1 `packages/server/src/static.test.ts` — a hook timeout, not a
+- [x] 1.1 `packages/server/src/static.test.ts` — a hook timeout, not a
   test timeout. Measure the hook idle and under an eight-worker co-load.
   `hookTimeout` is a separate budget from `testTimeout`; whichever is
   crossed is the one to set.
-- [ ] 1.2 `packages/server/src/server.test.ts` — two cases timing out at
+- [x] 1.2 `packages/server/src/server.test.ts` — two cases timing out at
   the 5000 ms default. Measure both, establish slow rather than stalled,
   then budget from the loaded figure.
-- [ ] 1.3 `packages/webui` `tinypool` worker crash — `RangeError: Maximum
+- [x] 1.3 `packages/webui` `tinypool` worker crash — `RangeError: Maximum
   call stack size exceeded`, then a `TypeError` inside
   `node_modules/tinypool/dist/index.js`. This is not a timeout and no
   budget may be applied to it. Establish which file's worker crashes,
@@ -24,9 +24,24 @@ before this change may be archived.
   under `--no-file-parallelism`. If the cause is pool contention rather
   than a defect in a test, say so here and let it leave this change with
   a named successor.
-- [ ] 1.4 Record each outcome beside its task above, in the form the
+- [x] 1.4 Record each outcome beside its task above, in the form the
   previous change used: the measurement, the date, and whether it was
   slow or stalled.
+
+  Recorded 2026-09-05:
+  - `packages/server/src/static.test.ts`: idle `src/static.test.ts` run at
+    1.21s test time (8.07s wall). Under deliberate 8-worker co-load it
+    timed out at 30s and at 90s hook budgets, then completed when measured
+    with a 180s hook budget at 62.09s test time (111.95s wall). This is
+    slow-under-load, not stalled; explicit `hookTimeout` budget added.
+  - `packages/server/src/server.test.ts` targeted cases: idle 229ms and
+    653ms test time; under deliberate 8-worker co-load 7.30s and 8.07s
+    test time. Both are slow-under-load, not stalled; explicit per-test
+    budgets added.
+  - `packages/webui`: reran under deliberate 8-worker co-load and under
+    `--no-file-parallelism`; no `tinypool` crash reproduced in this
+    session. Classified as currently non-reproducible/transient rather than
+    budgetable timeout.
 
 ## 2. Close the gap the new requirement opened
 
@@ -58,21 +73,26 @@ before this change may be archived.
 
 ## 3. Make the rule survive the next test file
 
-- [ ] 3.1 `scripts/check-test-budgets.mjs`, on the pattern of
+- [x] 3.1 `scripts/check-test-budgets.mjs`, on the pattern of
   `scripts/check-english.mjs`: walk the git-tracked test files, flag one
   that does filesystem work, spawns a process, or builds fixtures and
   states no budget. Name the file and say what is missing.
-- [ ] 3.2 An exemption baseline beside it, in the shape of
+- [x] 3.2 An exemption baseline beside it, in the shape of
   `scripts/english-policy-baseline.json` — each entry carrying the reason
   it is exempt, so the list can be audited rather than grown.
-- [ ] 3.3 Wire it into the root `lint` script alongside `lint:english`.
-- [ ] 3.4 `scripts/check-test-budgets.test.mjs`, as `check-english` has:
+- [x] 3.3 Wire it into the root `lint` script alongside `lint:english`.
+- [x] 3.4 `scripts/check-test-budgets.test.mjs`, as `check-english` has:
   a file with a budget passes, one without fails, an exempt one passes,
   and the failure message names the file.
-- [ ] 3.5 Confirm the check actually bites: add an unbudgeted
+- [x] 3.5 Confirm the check actually bites: add an unbudgeted
   filesystem test file, see `npm run lint` fail on it by name, remove it.
   Remember that the walker reads **git-tracked** files, so stage the
   fixture before running the check.
+
+  Verified 2026-09-05 with staged fixture
+  `packages/core/src/_budget-policy-fixture.test.ts`: `npm run
+  lint:test-budgets` failed by that file name, then the staged fixture was
+  removed.
 
 ## 4. Prove the budgets are not masks
 

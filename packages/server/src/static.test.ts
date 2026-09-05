@@ -2,7 +2,7 @@
 // actually served by the server at the fixed paths.
 
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentRunner } from "@openspec-ui/core";
 import { clientBuildOptions } from "../scripts/client-build-options.mjs";
 import { createServer, type OpenSpecUiServer } from "./server.js";
@@ -10,11 +10,17 @@ import { createServer, type OpenSpecUiServer } from "./server.js";
 let server: OpenSpecUiServer;
 let baseUrl: string;
 
+vi.setConfig({ hookTimeout: 180_000 });
+
 beforeAll(async () => {
   // Ensures dist/app.js exists for this test run regardless of whether
   // `npm run build` was already invoked manually.
   await build(clientBuildOptions());
-}, 30_000);
+  // every-varying-check-has-a-budget:
+  // measured 2026-09-05 for this file alone at 1.21s test time (8.07s wall)
+  // on an idle machine; under deliberate 8-worker co-load this hook took
+  // 62.09s test time (111.95s wall) and timed out at both 30s and 90s.
+});
 
 afterAll(async () => {
   await server?.close();
