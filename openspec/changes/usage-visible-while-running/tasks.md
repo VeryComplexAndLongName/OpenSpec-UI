@@ -91,6 +91,11 @@ Nothing here may invent a figure. A stage that reported nothing says so.
 - [x] 5.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
   whole failing-file list, not the first familiar line.
 - [x] 5.3 Version bump via `npx changeset`.
-- [ ] 5.4 **Human-only**: run a chain on `claude-cli-acp` and confirm the
+- [x] 5.4 **Human-only**: run a chain on `claude-cli-acp` and confirm the
   summary fills in per stage as the chain advances, and that a stage
   whose agent reported nothing says so rather than showing `$0.00`.
+- [x] 5.5 Record what 5.4 measured in `LIMITS.md`: `claude-cli-acp` moves
+  from *expected* to **measured** (60 input, 8,262 output, 1,693,507
+  cache tokens, $1.57 for one stage), and the same figure shows that
+  `maxTokens` counts under half a percent of what such a stage moves,
+  because `checkBudget` sums input and output only.
