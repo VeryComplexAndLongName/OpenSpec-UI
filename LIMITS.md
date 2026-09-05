@@ -45,6 +45,11 @@ chain simply does not start the next one. This is a deliberate property
 of the design (ADR 0018 decision 7: a run's cost is not known until it
 ends), not an oversight to work around.
 
+`maxTokens` counts `inputTokens + outputTokens` and nothing else — cache
+and thought tokens are excluded, which on a cache-heavy agent is most of
+what moved. See [Which agents report usage](#which-agents-report-usage)
+for the measurement.
+
 ### 2. `stepAgents.<stage>.budget` — passed to one CLI invocation
 
 ```json
@@ -159,7 +164,7 @@ ran a stage decides whether that stage counted toward the ceiling at all.
 | Agent | Reports usage | Evidence | Source |
 | --- | --- | --- | --- |
 | `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |
-| `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | *Expected* — from the documented format and its unit tests, not yet seen in a run | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
+| `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | **Measured** — see below | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
 | `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
 | `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Certain — plain text carries no figure to record | Plain text output |
 | `vscode-chat` | Nothing | Certain | The run is handed to VS Code chat; this project never sees its cost |
@@ -180,11 +185,25 @@ field on a prompt response `UNSTABLE`/`@experimental`, so a later
 version may send something else — including a cost. Read the audit log
 rather than trusting this line indefinitely.
 
-**`claude-cli-acp` is expected to report cost, and has not been seen to.**
-Its row above comes from `claude`'s documented stream format and from
-the unit tests over that parsing. Its one run since this capability
-shipped failed before reporting. Expected is not measured, and this
-table says which is which rather than letting a reader assume.
+**`claude-cli-acp` reports cost, and `budget.maxCostUsd` can act on it.**
+Measured on 2026-09-05 from a harness chain run in this repository: one
+stage reported 60 input, 8,262 output and 1,693,507 cache tokens for
+$1.57. That is the first cost figure any agent has reported here, and it
+is what makes a USD ceiling meaningful on this agent — on
+`copilot-cli-acp` only `maxTokens` can fire.
+
+That measurement also exposes what `maxTokens` does **not** count.
+`checkBudget` compares `inputTokens + outputTokens` only, so of the
+1,701,829 tokens that stage moved it counted 8,322 — under half a
+percent. Cache reads are excluded, and so are `thoughtTokens`, which is
+the only figure `copilot-cli-acp` adds beyond input and output. The
+`maxTokens: 2000000` used as an example earlier on this page would not
+have fired on this run, or on two hundred more like it.
+
+So on `claude-cli-acp` the ceiling to set is `maxCostUsd`: it is compared
+against the figure the vendor computed over everything it charged for.
+`maxTokens` is the fallback for agents that report no cost, and on those
+it measures a deliberately narrow slice.
 
 **A run that fails may record nothing.** Three of the four runs that
 terminated after this capability shipped failed, and none recorded usage:
