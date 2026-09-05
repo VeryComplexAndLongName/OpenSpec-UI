@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-05T07:15:43.491Z",
+  "repository": "VeryComplexAndLongName/OpenSpec-UI",
+  "commit": "150279937c5fc1f6be34eb5fc5384ac44d42d88b",
+  "products": [
+    {
+      "id": "vscode-extension",
+      "name": "VS Code Extension",
+      "package": "openspec-ui-vscode",
+      "public": true,
+      "version": "0.36.0",
+      "released_at": "2026-09-05T07:15:43.491Z",
+      "tag": "openspec-ui-vscode@0.36.0",
+      "prerelease": false,
+      "summary": "OpenSpec Workbench inside VS Code.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.36.0"
+      },
+      "artifacts": [
+        {
+          "kind": "vsix",
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.36.0/openspec-ui-vscode-0.36.0.vsix",
+          "size_bytes": 4141300
+        }
+      ],
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Start \"Run with Agentic Harness\" on the change it was opened for."
+        },
+        {
+          "kind": "minor",
+          "summary": "Show what a chain run has spent, while it is still running."
+        }
+      ]
+    },
+    {
+      "id": "standalone-app",
+      "name": "Standalone App",
+      "package": "@openspec-ui/server",
+      "public": true,
+      "version": "1.13.19",
+      "released_at": "2026-09-05T07:15:43.491Z",
+      "prerelease": false,
+      "summary": "Local web application, no editor required.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
+      },
+      "artifacts": [],
+      "changes": []
+    },
+    {
+      "id": "core",
+      "name": "Core",
+      "package": "@openspec-ui/core",
+      "public": true,
+      "version": "0.50.0",
+      "released_at": "2026-09-05T07:15:43.491Z",
+      "prerelease": false,
+      "summary": "Execution engine shared by both delivery targets.",
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/core/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/core/README.md"
+      },
+      "artifacts": [],
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Record the resource usage an agent reports, so a configured budget can act on it."
+        },
+        {
+          "kind": "minor",
+          "summary": "Show what a chain run has spent, while it is still running."
+        },
+        {
+          "kind": "patch",
+          "summary": "Let every event kind survive a transport — `cancelling` and `usageReported` were being dropped."
+        }
+      ]
+    },
+    {
+      "id": "shared-ui",
+      "name": "Shared UI",
+      "package": "@openspec-ui/webui",
+      "public": false,
+      "version": "1.25.0",
+      "released_at": "2026-09-05T07:15:43.491Z",
+      "prerelease": false,
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
+      },
+      "artifacts": [],
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Start \"Run with Agentic Harness\" on the change it was opened for."
+        },
+        {
+          "kind": "minor",
+          "summary": "Show what a chain run has spent, while it is still running."
+        }
+      ]
+    },
+    {
+      "id": "ci-cli",
+      "name": "CLI",
+      "package": "@openspec-ui/cli",
+      "public": false,
+      "version": "0.2.0",
+      "released_at": "2026-09-05T07:15:43.491Z",
+      "prerelease": false,
+      "links": {
+        "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
+        "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/README.md"
+      },
+      "artifacts": [],
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Add a `release-manifest` command that builds the `releases.json` the homepage reads."
+        }
+      ]
+    }
+  ]
+}
