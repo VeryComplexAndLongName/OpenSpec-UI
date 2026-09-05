@@ -13,6 +13,7 @@ import { WorkbenchProcessScheduler, type StartProcessOptions, type WorkbenchProc
 import {
   WorkbenchRunJournal,
   type PersistedCheckpointSession,
+  type WorkbenchRunJournalSessionToSave,
   type WorkbenchRunJournalOptions,
 } from "./workbench-run-journal.js";
 import { WorkspaceLeaseManager } from "./workspace-lease.js";
@@ -20,7 +21,12 @@ import { WorkspaceLeaseManager } from "./workspace-lease.js";
 interface RecoverySession {
   processId: string;
   changeName?: string;
-  checkpoint: WorkbenchCheckpoint;
+  hasAfter?: boolean;
+  checkpoint?: WorkbenchCheckpoint;
+  loadCheckpoint?: () => Promise<PersistedCheckpointSession | undefined>;
+  delta?: CheckpointDelta[];
+  coverage?: CheckpointCoverage;
+  loadInFlight?: Promise<WorkbenchCheckpoint | undefined>;
 }
 
 export interface WorkbenchRecoveryDetails {
@@ -80,26 +86,44 @@ export class WorkbenchRecoveryService {
     return process;
   }
 
-  details(processId: string): WorkbenchRecoveryDetails | undefined {
+  async details(processId: string): Promise<WorkbenchRecoveryDetails | undefined> {
     const process = this.scheduler.list().find((candidate) => candidate.id === processId);
     if (!process) return undefined;
-    const checkpoint = this.sessions.get(processId)?.checkpoint;
+    const session = this.sessions.get(processId);
+    if (!session) return { process, canRollback: false };
+
+    let delta = session.delta;
+    let coverage = session.coverage;
+    let hasAfter = session.hasAfter;
+    if (delta === undefined || coverage === undefined || hasAfter === undefined) {
+      const checkpoint = await this.ensureCheckpoint(session);
+      if (checkpoint) {
+        delta = delta ?? checkpoint.delta?.map((item) => ({ ...item }));
+        coverage = coverage ?? {
+          excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+          skippedFiles: [...checkpoint.coverage.skippedFiles],
+        };
+        hasAfter = hasAfter ?? Boolean(checkpoint.after);
+      }
+    }
+
     return {
       process,
-      delta: checkpoint?.delta?.map((item) => ({ ...item })),
-      coverage: checkpoint ? {
-        excludedDirectories: [...checkpoint.coverage.excludedDirectories],
-        skippedFiles: [...checkpoint.coverage.skippedFiles],
+      delta: delta?.map((item) => ({ ...item })),
+      coverage: coverage ? {
+        excludedDirectories: [...coverage.excludedDirectories],
+        skippedFiles: [...coverage.skippedFiles],
       } : undefined,
-      canRollback: Boolean(checkpoint?.after && checkpoint.delta && ["completed", "failed", "interrupted"].includes(process.state)),
+      canRollback: Boolean(hasAfter && delta && ["completed", "failed", "interrupted"].includes(process.state)),
     };
   }
 
   async rollback(processId: string): Promise<RollbackResult> {
-    const details = this.details(processId);
+    const details = await this.details(processId);
     const session = this.sessions.get(processId);
-    if (!details?.canRollback || !session) throw new Error("Process is not ready for rollback");
-    const result = await rollbackCheckpoint(session.checkpoint);
+    const checkpoint = await this.ensureCheckpoint(session);
+    if (!details?.canRollback || !checkpoint) throw new Error("Process is not ready for rollback");
+    const result = await rollbackCheckpoint(checkpoint);
     if (result.conflicts.length === 0) {
       this.scheduler.markRolledBack(processId, `${result.restored.length} files restored`);
       await this.persist();
@@ -111,26 +135,31 @@ export class WorkbenchRecoveryService {
    * archived — archive status lives entirely in OpenSpec's own change
    * folders, never in the checkpoint/journal system, so it plays no part
    * in eligibility here (see `rollbackChange`'s own JSDoc). */
-  private changeRollbackCandidates(changeName: string): WorkbenchProcess[] {
-    return [...this.sessions.values()]
-      .filter((session) => session.changeName === changeName && session.checkpoint.after && session.checkpoint.delta)
-      .map((session) => this.scheduler.list().find((process) => process.id === session.processId))
-      .filter((process): process is WorkbenchProcess =>
-        process !== undefined && ["completed", "failed", "interrupted"].includes(process.state));
+  private async changeRollbackCandidates(changeName: string): Promise<RecoverySession[]> {
+    const byId = new Map(this.scheduler.list().map((process) => [process.id, process]));
+    const eligible: RecoverySession[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.changeName !== changeName) continue;
+      const process = byId.get(session.processId);
+      if (!process || !["completed", "failed", "interrupted"].includes(process.state)) continue;
+      const details = await this.details(session.processId);
+      if (!details?.canRollback) continue;
+      eligible.push(session);
+    }
+    return eligible;
   }
 
   /** File count and process count a `rollbackChange` call for this
    * changeName would affect, without performing the restore — for a
    * confirmation prompt before the destructive call. */
-  changeRollbackDetails(changeName: string): { processCount: number; fileCount: number } | undefined {
-    const processes = this.changeRollbackCandidates(changeName);
-    if (processes.length === 0) return undefined;
+  async changeRollbackDetails(changeName: string): Promise<{ processCount: number; fileCount: number } | undefined> {
+    const sessions = await this.changeRollbackCandidates(changeName);
+    if (sessions.length === 0) return undefined;
     const paths = new Set<string>();
-    for (const process of processes) {
-      const checkpoint = this.sessions.get(process.id)?.checkpoint;
-      for (const delta of checkpoint?.delta ?? []) paths.add(delta.path);
+    for (const session of sessions) {
+      for (const delta of session.delta ?? []) paths.add(delta.path);
     }
-    return { processCount: processes.length, fileCount: paths.size };
+    return { processCount: sessions.length, fileCount: paths.size };
   }
 
   /** Rolls back every process ever run against `changeName` — active or
@@ -143,13 +172,19 @@ export class WorkbenchRecoveryService {
    * SQLite-backed per-task diff store — see
    * openspec/changes/change-scoped-rollback/proposal.md. */
   async rollbackChange(changeName: string): Promise<RollbackResult> {
-    const processes = this.changeRollbackCandidates(changeName);
-    if (processes.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
-    const checkpoints = processes.map((process) => this.sessions.get(process.id)!.checkpoint);
+    const sessions = await this.changeRollbackCandidates(changeName);
+    if (sessions.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
+    const checkpoints: WorkbenchCheckpoint[] = [];
+    for (const session of sessions) {
+      const checkpoint = await this.ensureCheckpoint(session);
+      if (!checkpoint || !session.delta || !session.hasAfter) continue;
+      checkpoints.push(checkpoint);
+    }
+    if (checkpoints.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
     const result = await rollbackChangeCheckpoints(checkpoints);
     if (result.conflicts.length === 0) {
-      for (const process of processes) {
-        this.scheduler.markRolledBack(process.id, `change "${changeName}" rolled back: ${result.restored.length} files restored`);
+      for (const session of sessions) {
+        this.scheduler.markRolledBack(session.processId, `change "${changeName}" rolled back: ${result.restored.length} files restored`);
       }
       await this.persist();
     }
@@ -172,41 +207,69 @@ export class WorkbenchRecoveryService {
   private async initialize(): Promise<void> {
     const restored = await this.journal.load();
     this.scheduler = new WorkbenchProcessScheduler(restored.processes, this.lease);
-    // Still eager here, and deliberately so: `details()` is synchronous
-    // and answers `delta`, `coverage` and `canRollback` out of the
-    // checkpoint, so this service cannot defer the read without that
-    // method becoming async and the change reaching the transport
-    // protocol and both surfaces. Retention is what bounds the cost for
-    // now — ten sessions rather than a hundred. Making `details()`
-    // answerable from the reference alone (by persisting the small parts
-    // and reading only the large `after` snapshot on rollback) is the
-    // remaining half, recorded in checkpoint-retention-and-lazy-load
-    // task 2.4.
     for (const persisted of restored.checkpointSessions) {
-      const resolved = await persisted.loadCheckpoint();
-      if (!resolved) continue;
       this.sessions.set(persisted.processId, {
         processId: persisted.processId,
         changeName: persisted.changeName,
-        checkpoint: deserializeCheckpoint(resolved.checkpoint),
+        hasAfter: persisted.hasAfter,
+        delta: persisted.delta?.map((item) => ({ ...item })),
+        coverage: persisted.coverage ? {
+          excludedDirectories: [...persisted.coverage.excludedDirectories],
+          skippedFiles: [...persisted.coverage.skippedFiles],
+        } : undefined,
+        loadCheckpoint: persisted.loadCheckpoint,
       });
     }
 
     for (const process of this.scheduler.list()) {
       const session = this.sessions.get(process.id);
-      if (process.state !== "interrupted" || !session || session.checkpoint.delta) continue;
-      const delta = await finalizeCheckpoint(session.checkpoint);
+      if (process.state !== "interrupted" || !session || session.delta) continue;
+      const checkpoint = await this.ensureCheckpoint(session);
+      if (!checkpoint) continue;
+      const delta = await finalizeCheckpoint(checkpoint);
+      session.delta = delta;
+      session.hasAfter = true;
       this.scheduler.updateSummary(process.id, `${delta.length} changed file${delta.length === 1 ? "" : "s"} ready for review`);
     }
     await this.persist();
   }
 
   private persist(): Promise<void> {
-    const checkpointSessions: PersistedCheckpointSession[] = [...this.sessions.values()].map((session) => ({
+    const checkpointSessions: WorkbenchRunJournalSessionToSave[] = [...this.sessions.values()].map((session) => ({
       processId: session.processId,
       changeName: session.changeName,
-      checkpoint: serializeCheckpoint(session.checkpoint),
+      hasAfter: session.hasAfter,
+      delta: session.delta?.map((item) => ({ ...item })),
+      coverage: session.coverage ? {
+        excludedDirectories: [...session.coverage.excludedDirectories],
+        skippedFiles: [...session.coverage.skippedFiles],
+      } : undefined,
+      checkpoint: session.checkpoint ? serializeCheckpoint(session.checkpoint) : undefined,
     }));
     return this.journal.save({ processes: this.scheduler.list(), checkpointSessions });
+  }
+
+  private async ensureCheckpoint(session: RecoverySession | undefined): Promise<WorkbenchCheckpoint | undefined> {
+    if (!session) return undefined;
+    if (session.checkpoint) return session.checkpoint;
+    if (!session.loadCheckpoint) return undefined;
+    if (!session.loadInFlight) {
+      session.loadInFlight = (async () => {
+        const restored = await session.loadCheckpoint?.();
+        if (!restored) return undefined;
+        const checkpoint = deserializeCheckpoint(restored.checkpoint);
+        session.checkpoint = checkpoint;
+        session.hasAfter = session.hasAfter ?? Boolean(checkpoint.after);
+        session.delta = session.delta ?? checkpoint.delta?.map((item) => ({ ...item }));
+        session.coverage = session.coverage ?? {
+          excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+          skippedFiles: [...checkpoint.coverage.skippedFiles],
+        };
+        return checkpoint;
+      })().finally(() => {
+        session.loadInFlight = undefined;
+      });
+    }
+    return session.loadInFlight;
   }
 }

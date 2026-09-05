@@ -112,7 +112,7 @@ describe("WorkbenchRunJournal", () => {
         expect(journalContent).not.toContain("large.bin");
     });
 
-    it("migrates a version-1 journal into per-session checkpoint files under version 2", async () => {
+    it("migrates a version-1 journal into per-session checkpoint files under version 3", async () => {
         const root = await temporaryRoot();
         await writeFile(path.join(root, "tracked.txt"), "before");
         const checkpoint = await captureCheckpoint(root);
@@ -136,15 +136,66 @@ describe("WorkbenchRunJournal", () => {
 
         const rewritten = JSON.parse(await readFile(journal.filePath, "utf8")) as {
             version: number;
-            checkpointSessions: { processId: string; changeName?: string }[];
+            checkpointSessions: Array<{ processId: string; changeName?: string; hasAfter?: boolean }>;
         };
-        expect(rewritten.version).toBe(2);
-        expect(rewritten.checkpointSessions).toEqual([{ processId: "run-1", changeName: "demo" }]);
+        expect(rewritten.version).toBe(3);
+        expect(rewritten.checkpointSessions).toEqual([
+            expect.objectContaining({ processId: "run-1", changeName: "demo", hasAfter: false }),
+        ]);
 
         const checkpointFileContent = JSON.parse(
             await readFile(checkpointFilePath(root, "run-1"), "utf8"),
         ) as { id: string };
         expect(checkpointFileContent.id).toBe(serialized.id);
+    });
+
+    it("migrates a version-2 journal to version 3 without dropping checkpoint readability", async () => {
+        const root = await temporaryRoot();
+        await writeFile(path.join(root, "tracked.txt"), "before");
+        const checkpoint = await captureCheckpoint(root);
+        await finalizeCheckpoint(checkpoint);
+        const serialized = serializeCheckpoint(checkpoint);
+        const journal = new WorkbenchRunJournal(root);
+        await journal.save({
+            processes: [{
+                id: "run-2",
+                operation: "implement",
+                changeName: "demo",
+                mutating: true,
+                state: "completed",
+                createdAt: "2026-08-08T10:00:00.000Z",
+            }],
+            checkpointSessions: [{ processId: "run-2", changeName: "demo", checkpoint: serialized }],
+        });
+
+        const v2Document = {
+            version: 2,
+            processes: [{
+                id: "run-2",
+                operation: "implement",
+                changeName: "demo",
+                mutating: true,
+                state: "completed",
+                createdAt: "2026-08-08T10:00:00.000Z",
+            }],
+            checkpointSessions: [{ processId: "run-2", changeName: "demo" }],
+        };
+        await writeFile(journal.filePath, JSON.stringify(v2Document, null, 2), "utf8");
+
+        const restored = await journal.load();
+        expect(restored.processes).toHaveLength(1);
+        const resolved = await restored.checkpointSessions[0]!.loadCheckpoint();
+        expect(resolved).toBeDefined();
+        expect(resolved!.checkpoint.id).toBe(serialized.id);
+
+        const rewritten = JSON.parse(await readFile(journal.filePath, "utf8")) as {
+            version: number;
+            checkpointSessions: Array<{ processId: string; changeName?: string }>;
+        };
+        expect(rewritten.version).toBe(3);
+        expect(rewritten.checkpointSessions).toEqual([
+            expect.objectContaining({ processId: "run-2", changeName: "demo" }),
+        ]);
     });
 
     it("loads successfully and reports no checkpoint when a referenced session's file is missing", async () => {
@@ -334,7 +385,7 @@ describe("WorkbenchRunJournal", () => {
             code: "unsupported-journal-version",
             journalPath: journal.filePath,
             foundVersion: 99,
-            supportedVersion: 2,
+            supportedVersion: 3,
         });
         expect((error as Error).message).toContain("Upgrade OpenSpec UI");
         expect(await readFile(journal.filePath, "utf8")).toBe(unsupported);

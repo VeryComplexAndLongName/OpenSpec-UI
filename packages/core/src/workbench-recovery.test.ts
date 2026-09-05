@@ -33,7 +33,10 @@ describe("WorkbenchRecoveryService", () => {
     const service = await WorkbenchRecoveryService.open(root);
 
     expect(service.list()[0]).toMatchObject({ id: "run-1", state: "interrupted", summary: "1 changed file ready for review" });
-    expect(service.details("run-1")).toMatchObject({ canRollback: true, delta: [{ path: "tracked.txt", kind: "modified" }] });
+    await expect(service.details("run-1")).resolves.toMatchObject({
+      canRollback: true,
+      delta: [{ path: "tracked.txt", kind: "modified" }],
+    });
   });
 
   it("filters newly excluded paths from a historical checkpoint in memory, without rewriting its finalized file", async () => {
@@ -63,13 +66,73 @@ describe("WorkbenchRecoveryService", () => {
     // deserialized for use (details/rollback), even though the change's
     // "a finalized checkpoint is written once and is never rewritten"
     // invariant means the on-disk file below is left untouched.
-    expect(service.details("run-1")?.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
+    expect((await service.details("run-1"))?.delta?.map((item) => item.path)).toEqual(["tracked.txt"]);
 
     const persisted = await journal.load();
     const restoredCheckpoint = (await persisted.checkpointSessions[0]!.loadCheckpoint())!.checkpoint;
     expect(restoredCheckpoint.before.map((item) => item.path)).toEqual(
       expect.arrayContaining([".env", ".mypy_cache/state.json", "tracked.txt"]),
     );
+  });
+
+  it("details() falls back to checkpoint loading when metadata is missing (v2 migration path)", async () => {
+    const root = await createRoot();
+    const filePath = path.join(root, "tracked.txt");
+    await writeFile(filePath, "before", "utf8");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(filePath, "after", "utf8");
+    await finalizeCheckpoint(checkpoint);
+    const serialized = serializeCheckpoint(checkpoint);
+    const journal = new WorkbenchRunJournal(root);
+    await journal.save({
+      processes: [{ id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" }],
+      checkpointSessions: [{ processId: "run-1", checkpoint: serialized }],
+    });
+
+    // Simulate a user upgrading from the version-2 journal format: the
+    // session reference has no `hasAfter`/`delta`/`coverage` metadata.
+    await writeFile(journal.filePath, JSON.stringify({
+      version: 2,
+      processes: [{ id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" }],
+      checkpointSessions: [{ processId: "run-1" }],
+    }, null, 2), "utf8");
+
+    const service = await WorkbenchRecoveryService.open(root);
+    const details = await service.details("run-1");
+    expect(details).toMatchObject({
+      canRollback: true,
+      delta: [{ path: "tracked.txt", kind: "modified" }],
+    });
+  });
+
+  it("keeps canRollback after v2 to v3 migration in an end-to-end open flow", async () => {
+    const root = await createRoot();
+    const filePath = path.join(root, "tracked.txt");
+    await writeFile(filePath, "before", "utf8");
+    const checkpoint = await captureCheckpoint(root);
+    await writeFile(filePath, "after", "utf8");
+    await finalizeCheckpoint(checkpoint);
+    const serialized = serializeCheckpoint(checkpoint);
+    const journal = new WorkbenchRunJournal(root);
+    await journal.save({
+      processes: [{ id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" }],
+      checkpointSessions: [{ processId: "run-1", checkpoint: serialized }],
+    });
+
+    await writeFile(journal.filePath, JSON.stringify({
+      version: 2,
+      processes: [{ id: "run-1", operation: "implement", mutating: true, state: "completed", createdAt: "2026-08-01T00:00:00.000Z" }],
+      checkpointSessions: [{ processId: "run-1" }],
+    }, null, 2), "utf8");
+
+    const service = await WorkbenchRecoveryService.open(root);
+    await expect(service.details("run-1")).resolves.toMatchObject({ canRollback: true });
+
+    const rewritten = JSON.parse(await readFile(journal.filePath, "utf8")) as { version: number };
+    expect(rewritten.version).toBe(3);
+
+    await expect(service.rollback("run-1")).resolves.toEqual({ restored: ["tracked.txt"], conflicts: [] });
+    expect(await readFile(filePath, "utf8")).toBe("before");
   });
 
   it("rolls back conflict-free files and reports later conflicts without partial writes", async () => {
@@ -118,7 +181,7 @@ describe("WorkbenchRecoveryService", () => {
     });
 
     const service = await WorkbenchRecoveryService.open(root);
-    expect(service.changeRollbackDetails("demo-change")).toEqual({ processCount: 2, fileCount: 1 });
+    await expect(service.changeRollbackDetails("demo-change")).resolves.toEqual({ processCount: 2, fileCount: 1 });
 
     await expect(service.rollbackChange("demo-change")).resolves.toEqual({ restored: ["shared.txt"], conflicts: [] });
     expect(await readFile(filePath, "utf8")).toBe("v0");
@@ -131,7 +194,7 @@ describe("WorkbenchRecoveryService", () => {
     await expect(service.rollbackChange("nonexistent")).rejects.toThrow(
       'No rollback-eligible processes for change "nonexistent"',
     );
-    expect(service.changeRollbackDetails("nonexistent")).toBeUndefined();
+    await expect(service.changeRollbackDetails("nonexistent")).resolves.toBeUndefined();
   });
 
   it("cleans old processes and their checkpoint sessions together", async () => {

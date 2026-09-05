@@ -180,7 +180,7 @@ async function remindAboutPendingChangeset(workspaceRoot: string): Promise<void>
     if (!status.changesetsAdopted || status.pendingChangesetCount > 0) return;
     const action = await vscode.window.showInformationMessage(
       "OpenSpec UI: this repository uses Changesets, but no pending changeset was found. " +
-        "If this change affects a published package's version or changelog, add one now.",
+      "If this change affects a published package's version or changelog, add one now.",
       "Run npx changeset",
       "Dismiss",
     );
@@ -416,8 +416,8 @@ function warnOnClaudeCliVersionMismatch(detected: Record<string, DetectedAgent>)
   if (version === undefined || version === VERIFIED_CLAUDE_CLI_VERSION) return;
   void vscode.window.showWarningMessage(
     `OpenSpec UI: installed Claude CLI version ${version} differs from the version this project's ` +
-      `claude-cli ACP translation layer was last verified against (${VERIFIED_CLAUDE_CLI_VERSION}). ` +
-      "See docs/adr/0013-acp-agent-adapters.md.",
+    `claude-cli ACP translation layer was last verified against (${VERIFIED_CLAUDE_CLI_VERSION}). ` +
+    "See docs/adr/0013-acp-agent-adapters.md.",
     "Continue anyway",
   );
 }
@@ -449,7 +449,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
   if (detectedAgents.length === 0) {
     void vscode.window.showInformationMessage(
       "OpenSpec UI: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
-        "and autonomy-level questions.",
+      "and autonomy-level questions.",
     );
     await offerGenerateAgentInstructions(workspaceRoot);
     return;
@@ -1310,21 +1310,22 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.rollbackProcess", async (item?: { process?: { id?: string } }) => {
       const processId = item?.process?.id;
       if (!processId) return;
-      const delta = deps.implementationSessions.getDelta(processId);
+      const delta = await deps.implementationSessions.getDelta(processId);
       if (!delta) {
         void vscode.window.showWarningMessage("OpenSpec UI: this process has no finalized checkpoint.");
         return;
       }
+      const coverage = await deps.implementationSessions.getCoverage(processId);
       const answer = await vscode.window.showWarningMessage(
         `Rollback ${delta.length} file change${delta.length === 1 ? "" : "s"}?`,
         {
           modal: true,
           detail: [
             ...delta.map((entry) => `${entry.kind}: ${entry.path}`),
-            ...(deps.implementationSessions.getCoverage(processId)?.skippedFiles ?? [])
+            ...(coverage?.skippedFiles ?? [])
               .map((filePath) => `not covered: ${filePath}`),
-            ...((deps.implementationSessions.getCoverage(processId)?.excludedDirectories.length ?? 0) > 0
-              ? [`excluded directory classes: ${deps.implementationSessions.getCoverage(processId)?.excludedDirectories.join(", ")}`]
+            ...((coverage?.excludedDirectories.length ?? 0) > 0
+              ? [`excluded directory classes: ${coverage?.excludedDirectories.join(", ")}`]
               : []),
           ].join("\n"),
         },
@@ -1346,7 +1347,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.rollbackChange", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
-      const details = deps.implementationSessions.changeRollbackDetails(item.changeName);
+      const details = await deps.implementationSessions.changeRollbackDetails(item.changeName);
       if (!details) {
         void vscode.window.showWarningMessage(`OpenSpec UI: no rollback-eligible processes for ${item.changeName}.`);
         return;
