@@ -1,9 +1,14 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { captureCheckpoint, finalizeCheckpoint, serializeCheckpoint, WorkbenchProcessScheduler } from "@openspec-ui/core";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
+
+// suite-survives-a-loaded-machine:
+// measured 2026-09-05 for this file alone at 3.36s test time (11.06s wall)
+// and 9.49s test time (45.14s wall) under deliberate 8-worker CPU co-load.
+vi.setConfig({ testTimeout: 30000 });
 
 const roots: string[] = [];
 

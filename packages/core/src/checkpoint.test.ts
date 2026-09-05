@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import simpleGit from "simple-git";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   captureCheckpoint,
   deserializeCheckpoint,
@@ -11,6 +11,12 @@ import {
   rollbackChangeCheckpoints,
   serializeCheckpoint,
 } from "./checkpoint.js";
+
+// suite-survives-a-loaded-machine:
+// measured 2026-09-05 for this file alone at 2.93s test time (6.03s wall)
+// and 19.03s test time (38.21s wall) under deliberate 8-worker CPU co-load.
+// This suite does real filesystem checkpoint capture/rollback work.
+vi.setConfig({ testTimeout: 60000 });
 
 const roots: string[] = [];
 
