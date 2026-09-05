@@ -89,3 +89,64 @@ new or modified unapproved Cyrillic text.
 - **WHEN** ignored build, dependency, or editor-test output contains Cyrillic text
 - **THEN** the tracked-file scanner does not inspect that output
 
+### Requirement: A check whose cost varies with the machine states its own budget
+
+Where a check's duration depends on how busy the machine is — because it
+does filesystem work, spawns processes, or builds fixtures — it SHALL
+carry a time budget chosen from a measurement of that check, and SHALL
+NOT rely on the default budget intended for fixed-cost unit tests.
+
+The measurement the budget was chosen from SHALL be recorded with it, so
+a later failure can be told from a budget that was never justified.
+
+A budget SHALL be raised only where the check has been established to be
+slow rather than stalled. Where a check makes no progress, the system
+SHALL treat that as a defect to diagnose rather than a budget to widen.
+
+#### Scenario: The machine is busy
+
+- **WHEN** the suite runs while other work occupies the machine
+- **THEN** a check whose cost varies still completes within its budget,
+  and reports on the behaviour it asserts
+
+#### Scenario: A check stalls rather than slows
+
+- **WHEN** a check makes no progress rather than running slowly
+- **THEN** widening its budget is not the remedy, and the stall is
+  diagnosed
+
+#### Scenario: The behaviour under test regresses
+
+- **WHEN** what a check asserts is actually violated
+- **THEN** it fails on that, not on time
+
+### Requirement: A check whose cost grows with the repository carries its own budget
+
+Where a check's work grows with the size of the repository — reading
+every file of a kind, rather than a fixed set — it SHALL be given a time
+budget chosen for that growth, and SHALL NOT rely on the default budget
+intended for fixed-cost unit tests.
+
+The budget SHALL be recorded alongside the measurement it was chosen
+from, so that a later failure can be told apart from a budget that was
+never justified.
+
+Such a check SHALL fail only on the behaviour it asserts, and SHALL NOT
+fail because the repository has grown since the budget was set.
+
+#### Scenario: The repository grows
+
+- **WHEN** files of the kind the check reads are added
+- **THEN** the check still completes within its budget and reports on the
+  behaviour it asserts
+
+#### Scenario: The check runs alongside the rest of the suite
+
+- **WHEN** the check runs under full-suite load rather than alone
+- **THEN** its budget still accommodates it
+
+#### Scenario: The behaviour under test regresses
+
+- **WHEN** what the check asserts is actually violated
+- **THEN** it fails on that, not on time
+
