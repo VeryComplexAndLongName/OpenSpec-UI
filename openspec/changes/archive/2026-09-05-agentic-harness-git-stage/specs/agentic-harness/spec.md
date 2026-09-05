@@ -118,15 +118,33 @@ succeeded, failed, or was blocked by the allowlist.
 
 The system SHALL reject a global `openspec/agent-harness.json` that sets
 `reviewGate.mode` to `"agent-sufficient"`; that value SHALL only be
-accepted in a per-change `harness.json`. `agent-sufficient` now has an
-observable effect: it is the sole condition under which the `git` stage
-executes push/pull-request/merge instead of the chain stopping after
-`archive`.
+accepted in a per-change `harness.json`. The system SHALL additionally
+reject a global `openspec/agent-harness.json` that sets `autonomyLevel` to
+`"autonomous"`, or `checkpoints.requireConfirmationBetweenSteps` to
+`false`; both SHALL only be accepted in a per-change `harness.json`.
+
+`agent-sufficient` now has an observable effect: it is the sole condition
+under which the `git` stage executes push/pull-request/merge instead of
+the chain stopping after `archive`.
 
 #### Scenario: Global file attempts to set agent-sufficient
 
 - **WHEN** `openspec/agent-harness.json` sets `reviewGate.mode:
   "agent-sufficient"`
+- **THEN** the system reports a clear validation error and does not
+  resolve or apply that value
+
+#### Scenario: Global file attempts to set autonomous
+
+- **WHEN** `openspec/agent-harness.json` sets `autonomyLevel:
+  "autonomous"`
+- **THEN** the system reports a clear validation error and does not
+  resolve or apply that value
+
+#### Scenario: Global file attempts to disable checkpoint confirmation
+
+- **WHEN** `openspec/agent-harness.json` sets
+  `checkpoints.requireConfirmationBetweenSteps: false`
 - **THEN** the system reports a clear validation error and does not
   resolve or apply that value
 
@@ -138,3 +156,10 @@ executes push/pull-request/merge instead of the chain stopping after
   `agent-sufficient`, without affecting any other change's resolved
   configuration, and a chain for that change proceeds into the `git` stage
   instead of stopping after `archive`
+
+#### Scenario: Per-change file sets autonomous or disables checkpoint confirmation
+
+- **WHEN** a per-change `harness.json` sets `autonomyLevel:
+  "autonomous"`, or `checkpoints.requireConfirmationBetweenSteps: false`
+- **THEN** the resolved configuration for that change uses the set value,
+  without affecting any other change's resolved configuration
