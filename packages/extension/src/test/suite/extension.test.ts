@@ -2,6 +2,7 @@
 // OpenSpec mode and optional local-server toggle.
 
 import * as assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
 import type { ExtensionTestApi } from "../../extension.js";
 
@@ -247,5 +248,78 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     }
 
     assert.equal(api.optionalServer?.isRunning ?? false, false, "local server did not stop after disabling the setting");
+  });
+
+  test("rollbackProcess command restores a completed run end to end", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const filePath = vscode.Uri.joinPath(workspaceFolder.uri, "rollback-process-e2e.txt").fsPath;
+    const changeDir = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo").fsPath;
+    const journalPath = vscode.Uri.joinPath(workspaceFolder.uri, ".openspec-ui", "workbench-runs.json").fsPath;
+
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(filePath), Buffer.from("before", "utf8"));
+
+    const existingProcessIds = new Set<string>();
+    try {
+      const existingJournal = JSON.parse(await readFile(journalPath, "utf8")) as { processes?: Array<{ id?: string }> };
+      for (const item of existingJournal.processes ?? []) {
+        if (item.id) existingProcessIds.add(item.id);
+      }
+    } catch {
+      // No prior journal is fine for this test.
+    }
+
+    await vscode.commands.executeCommand("openspec-ui.startImplementation", {
+      changeName: "demo",
+      changeDir,
+      archived: false,
+    });
+
+    const createdDeadline = Date.now() + 10_000;
+    let processId: string | undefined;
+    while (!processId && Date.now() < createdDeadline) {
+      try {
+        const journal = JSON.parse(await readFile(journalPath, "utf8")) as { processes?: Array<{ id?: string }> };
+        processId = journal.processes
+          ?.map((item) => item.id)
+          .find((id): id is string => typeof id === "string" && !existingProcessIds.has(id));
+      } catch {
+        // Retry until the journal exists and process is persisted.
+      }
+      if (!processId) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.ok(processId, "expected startImplementation to persist a running process id");
+
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(filePath), Buffer.from("after", "utf8"));
+    await vscode.commands.executeCommand("openspec-ui.finishImplementation", { process: { id: processId } });
+
+    const completedDeadline = Date.now() + 10_000;
+    let completed = false;
+    while (!completed && Date.now() < completedDeadline) {
+      try {
+        const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
+          processes?: Array<{ id?: string; state?: string }>;
+          checkpointSessions?: Array<{ processId?: string }>;
+        };
+        const process = journal.processes?.find((item) => item.id === processId);
+        completed = process?.state === "completed"
+          && Boolean(journal.checkpointSessions?.some((session) => session.processId === processId));
+      } catch {
+        // Retry until finalized state is persisted.
+      }
+      if (!completed) await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(completed, true, "expected finishImplementation to persist completed state and checkpoint session");
+
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    vscode.window.showWarningMessage = (async () => "Rollback") as typeof vscode.window.showWarningMessage;
+    try {
+      await vscode.commands.executeCommand("openspec-ui.rollbackProcess", { process: { id: processId } });
+    } finally {
+      vscode.window.showWarningMessage = originalShowWarningMessage;
+    }
+
+    const restored = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+    assert.equal(Buffer.from(restored).toString("utf8"), "before");
   });
 });

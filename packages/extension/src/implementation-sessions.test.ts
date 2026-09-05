@@ -32,7 +32,7 @@ describe("ImplementationSessionManager", () => {
       });
     });
 
-    expect(manager.getDelta(processId)).toEqual([
+    expect(await manager.getDelta(processId)).toEqual([
       expect.objectContaining({ path: "code.ts", kind: "modified" }),
     ]);
     expect((await manager.rollback(processId)).conflicts).toEqual([]);
@@ -67,7 +67,7 @@ describe("ImplementationSessionManager", () => {
     }]);
 
     expect(scheduler.list()[0]).toMatchObject({ state: "interrupted", summary: "1 changed file ready for review" });
-    expect(manager.getDelta("recovered")).toEqual([
+    expect(await manager.getDelta("recovered")).toEqual([
       expect.objectContaining({ path: "code.ts", kind: "modified" }),
     ]);
     expect((await manager.rollback("recovered")).conflicts).toEqual([]);
@@ -108,10 +108,11 @@ describe("ImplementationSessionManager", () => {
       },
     }]);
 
-    expect(loadCalls).toBe(1);
-    expect(manager.getDelta("completed-run")).toEqual([
+    expect(loadCalls).toBe(0);
+    expect(await manager.getDelta("completed-run")).toEqual([
       expect.objectContaining({ path: "code.ts", kind: "modified" }),
     ]);
+    expect(loadCalls).toBe(1);
     expect((await manager.rollback("completed-run")).conflicts).toEqual([]);
     expect(await readFile(filePath, "utf8")).toBe("before");
   });
@@ -141,8 +142,84 @@ describe("ImplementationSessionManager", () => {
       loadCheckpoint: async () => ({ processId: "recovered", changeName: "demo", checkpoint: serialized }),
     }]);
 
-    expect(manager.exportPersisted()[0]!.checkpoint.before.map((item) => item.path)).toEqual(["code.ts"]);
+    await manager.getCoverage("recovered");
+    expect(manager.exportPersisted()[0]!.checkpoint?.before.map((item) => item.path)).toEqual(["code.ts"]);
     expect(persistRequests).toBe(1);
+  });
+
+  it("restores without reading checkpoints except interrupted sessions with no delta (task 4.5)", async () => {
+    const scheduler = new WorkbenchProcessScheduler([
+      {
+        id: "completed",
+        operation: "implement",
+        changeName: "demo",
+        mutating: true,
+        state: "completed",
+        createdAt: "2026-08-08T10:00:00.000Z",
+      },
+      {
+        id: "interrupted-with-delta",
+        operation: "implement",
+        changeName: "demo",
+        mutating: true,
+        state: "interrupted",
+        createdAt: "2026-08-08T10:01:00.000Z",
+      },
+      {
+        id: "interrupted-without-delta",
+        operation: "implement",
+        changeName: "demo",
+        mutating: true,
+        state: "interrupted",
+        createdAt: "2026-08-08T10:02:00.000Z",
+      },
+    ]);
+    const manager = new ImplementationSessionManager(scheduler);
+    let loadCalls = 0;
+
+    await manager.restore([
+      {
+        processId: "completed",
+        changeName: "demo",
+        hasAfter: true,
+        delta: [{ path: "completed.ts", kind: "modified", beforeHash: "a", afterHash: "b" }],
+        coverage: { excludedDirectories: [], skippedFiles: [] },
+        loadCheckpoint: async () => {
+          loadCalls += 1;
+          return undefined;
+        },
+      },
+      {
+        processId: "interrupted-with-delta",
+        changeName: "demo",
+        hasAfter: true,
+        delta: [{ path: "interrupted.ts", kind: "modified", beforeHash: "a", afterHash: "b" }],
+        coverage: { excludedDirectories: [], skippedFiles: [] },
+        loadCheckpoint: async () => {
+          loadCalls += 1;
+          return undefined;
+        },
+      },
+      {
+        processId: "interrupted-without-delta",
+        changeName: "demo",
+        loadCheckpoint: async () => {
+          loadCalls += 1;
+          const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+          roots.push(root);
+          await writeFile(path.join(root, "code.ts"), "before");
+          const checkpoint = await captureCheckpoint(root);
+          await writeFile(path.join(root, "code.ts"), "after");
+          return {
+            processId: "interrupted-without-delta",
+            changeName: "demo",
+            checkpoint: serializeCheckpoint(checkpoint),
+          };
+        },
+      },
+    ]);
+
+    expect(loadCalls).toBe(1);
   });
 
   it("preserves rollback state when a lifecycle mutation fails", async () => {
@@ -164,7 +241,7 @@ describe("ImplementationSessionManager", () => {
     });
 
     expect(process).toMatchObject({ state: "failed", error: "archive failed" });
-    expect(manager.getDelta(process.id)).toEqual([
+    expect(await manager.getDelta(process.id)).toEqual([
       expect.objectContaining({ path: "change.md", kind: "modified" }),
     ]);
     expect((await manager.rollback(process.id)).conflicts).toEqual([]);
@@ -192,7 +269,7 @@ describe("ImplementationSessionManager", () => {
       execute: async () => { await writeFile(filePath, "v2"); },
     });
 
-    expect(manager.changeRollbackDetails("demo")).toEqual({ processCount: 2, fileCount: 1 });
+    expect(await manager.changeRollbackDetails("demo")).toEqual({ processCount: 2, fileCount: 1 });
     await expect(manager.rollbackChange("demo")).resolves.toEqual({ restored: ["shared.txt"], conflicts: [] });
     expect(await readFile(filePath, "utf8")).toBe("v0");
   });
@@ -203,7 +280,7 @@ describe("ImplementationSessionManager", () => {
     await expect(manager.rollbackChange("nonexistent")).rejects.toThrow(
       'No rollback-eligible processes for change "nonexistent"',
     );
-    expect(manager.changeRollbackDetails("nonexistent")).toBeUndefined();
+    expect(await manager.changeRollbackDetails("nonexistent")).toBeUndefined();
   });
 
   it("dropSessions removes a session so it no longer participates in change rollback", async () => {
@@ -223,7 +300,7 @@ describe("ImplementationSessionManager", () => {
 
     manager.dropSessions([process.id]);
 
-    expect(manager.getDelta(process.id)).toBeUndefined();
-    expect(manager.changeRollbackDetails("demo")).toBeUndefined();
+    expect(await manager.getDelta(process.id)).toBeUndefined();
+    expect(await manager.changeRollbackDetails("demo")).toBeUndefined();
   });
 });

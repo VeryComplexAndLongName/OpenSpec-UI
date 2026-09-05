@@ -34,9 +34,9 @@ const resolveHarnessConfigMock = vi.fn();
 const resolveRunWithHarnessTargetMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
-class TemplateAlreadyExistsError extends Error {}
-class UnknownProjectTemplateError extends Error {}
-class TaskListChangedError extends Error {}
+class TemplateAlreadyExistsError extends Error { }
+class UnknownProjectTemplateError extends Error { }
+class TaskListChangedError extends Error { }
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
 vi.mock("@openspec-ui/core", () => ({
   AGENT_REGISTRY: [
@@ -152,10 +152,10 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     start: vi.fn(async () => "implementation-process"),
     finish: vi.fn(() => true),
     cancel: vi.fn(() => true),
-    getDelta: vi.fn(() => undefined),
-    getCoverage: vi.fn(() => undefined),
+    getDelta: vi.fn(async () => undefined),
+    getCoverage: vi.fn(async () => undefined),
     rollback: vi.fn(),
-    changeRollbackDetails: vi.fn(() => undefined),
+    changeRollbackDetails: vi.fn(async () => undefined),
     rollbackChange: vi.fn(),
   };
   return {
@@ -808,7 +808,7 @@ describe("registerCommands", () => {
 
     it("rolls back after confirmation and refreshes trees", async () => {
       const deps = makeDeps();
-      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
         processCount: 2,
         fileCount: 3,
       });
@@ -844,7 +844,7 @@ describe("registerCommands", () => {
 
     it("does not roll back when the confirmation is declined", async () => {
       const deps = makeDeps();
-      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
         processCount: 1,
         fileCount: 1,
       });
@@ -858,7 +858,7 @@ describe("registerCommands", () => {
 
     it("reports conflicts as an error instead of refreshing trees", async () => {
       const deps = makeDeps();
-      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
         processCount: 1,
         fileCount: 1,
       });
@@ -879,7 +879,7 @@ describe("registerCommands", () => {
 
     it("works the same for an archived change item", async () => {
       const deps = makeDeps();
-      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockReturnValue({
+      (deps.implementationSessions.changeRollbackDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
         processCount: 1,
         fileCount: 1,
       });

@@ -92,9 +92,9 @@ export function handleProcessDetailsRequest(
   policy: RestRequestPolicy,
   resolveService: RecoveryServiceResolver,
 ): Promise<void> {
-  return withRecoveryRequest<WorkbenchRecoveryDetails>(req, res, policy, resolveService, (request, service) => {
+  return withRecoveryRequest<WorkbenchRecoveryDetails>(req, res, policy, resolveService, async (request, service) => {
     if (!request.processId) throw new Error("processId is required");
-    const details = service.details(request.processId);
+    const details = await service.details(request.processId);
     if (!details) throw new Error("process not found");
     return details;
   });

@@ -33,41 +33,36 @@ did, and why this change exists.
 - [x] 2.2 Same file: keep `pruneCheckpointFiles` on the load path. It
   lists directory entries and deletes by name, never reading content, so
   it costs nothing and it is what removes files a crash orphaned.
-- [ ] 2.3 `packages/extension/src/implementation-sessions.ts`: a restored
+- [x] 2.3 `packages/extension/src/implementation-sessions.ts`: a restored
   session holds a way to get its checkpoint, not the checkpoint. The
   `interrupted`-with-no-delta path still resolves at startup — that is
   what makes an interrupted run reviewable, and it is a handful of files,
   not all of them.
 
-  **Half done, and the half that is not is named here rather than
-  quietly skipped.** `restore()` now takes references and reads through
-  `loadCheckpoint()`, but it still reads all of them, because `rollback`
-  and `describeDelta` want a `WorkbenchCheckpoint` in hand synchronously.
-  What bounds the cost is task 1's retention — ten sessions rather than a
-  hundred — not deferral. Comment left at the call site.
-- [ ] 2.4 `packages/core/src/workbench-recovery.ts`: resolve the
+  Done: restored sessions now keep lazy references (`loadCheckpoint`) plus
+  small metadata (`hasAfter`, `delta`, `coverage`), and payloads are read
+  only on demand. Startup resolves only interrupted sessions that still
+  lack delta.
+- [x] 2.4 `packages/core/src/workbench-recovery.ts`: resolve the
   checkpoint when `rollback` or a delta is actually requested.
   `canRollback` currently reads `checkpoint?.after && checkpoint.delta`,
   which needs the payload — decide what it can answer from the reference
   alone and what genuinely needs a read, and say which in a comment.
 
-  **Answered, not implemented.** `details()` is synchronous and answers
-  `delta`, `coverage` and `canRollback` out of the checkpoint, so nothing
-  here can be deferred without making it async — and that reaches the
-  transport protocol and both surfaces. The design that would work:
-  persist `delta`, `coverage` and a `hasAfter` flag in the reference,
-  which are small, and read the large `after` snapshot only when a
-  rollback runs. That needs a journal version bump and its own change.
-- [ ] 2.5 `packages/extension/src/extension.ts`: `activate()` must not
+  Done: `details()`/`changeRollbackDetails()` are async and answer from
+  reference metadata when available; `rollback`/`rollbackChange` resolve
+  full checkpoints only when executing the rollback.
+- [x] 2.5 `packages/extension/src/extension.ts`: `activate()` must not
   await anything proportional to the number of checkpoints on disk.
+
+  Clarified scope: `activate()` still awaits `restore()`, and `restore()`
+  may read checkpoint payloads for interrupted sessions that lack delta
+  (required by 2.3 so interrupted runs remain reviewable). The startup
+  cost is therefore proportional to that bounded subset, not to all
+  checkpoints on disk.
 
 ## 3. Editor exclusions
 
-
-  Not yet true, for the reason under 2.3: `activate()` awaits
-  `restore()`, which reads every retained checkpoint. It is now bounded
-  by ten rather than unbounded, which is what made the window usable
-  again, but the proportionality is still there.
 - [x] 3.1 `.vscode/settings.json`: add `.openspec-ui/` to
   `files.watcherExclude` (which does not exist in that file today) and to
   `files.exclude`, which currently lists only `**/.turbo` and `**/dist`.
@@ -110,30 +105,20 @@ did, and why this change exists.
 - [x] 4.4 Same file: a reference whose file is missing still resolves to
   nothing without throwing, as it does today. This is what makes an
   existing `.openspec-ui/` directory keep working after eviction.
-- [ ] 4.5 `implementation-sessions.test.ts`: restoring sessions reads no
+- [x] 4.5 `implementation-sessions.test.ts`: restoring sessions reads no
   checkpoint except for an `interrupted` process with no delta.
 
-  **Not satisfiable while 2.3 is half done, and left unchecked rather
-  than passed against a weaker claim.** `restore()` currently reads
-  every referenced checkpoint through `loadCheckpoint()` (see 2.3's own
-  note): a `completed` session's payload is read too, so a test
-  asserting "no reads except interrupted-with-no-delta" would fail
-  against the real implementation. Writing a test that only checks
-  rollback correctness, without the read-count claim, would misrepresent
-  this task as done. Outstanding until 2.3's remaining half (deferring
-  `rollback`/`describeDelta` to read lazily) or its own follow-up change
-  lands.
+  Added `"restores without reading checkpoints except interrupted sessions
+  with no delta (task 4.5)"` to `implementation-sessions.test.ts`, with a
+  read counter across completed/interrupted references: only the
+  interrupted-without-delta branch triggers `loadCheckpoint()` at startup.
 - [x] 4.6 A rollback requested after a lazy restore still produces the
   same result as it does today. The saving must not cost the feature.
 
-  Added `"rolls back a completed session the same way after a lazy
-  restore (task 4.6)"` to `implementation-sessions.test.ts`: a
-  `completed` process is restored through the same `loadCheckpoint()`
-  indirection `restore()` uses in production (one call, asserted by
-  count), and the resulting session's delta and rollback are identical
-  to the eager path — `rollback()` restores the file and reports no
-  conflicts. This is unaffected by 4.5 being outstanding: it does not
-  claim anything about read count, only about the rollback outcome.
+  Updated `"rolls back a completed session the same way after a lazy
+  restore (task 4.6)"`: restore itself performs zero reads for a completed
+  session; the first `getDelta()` call performs one lazy read, and
+  rollback behavior remains identical to eager mode.
 
 ## 5. Verification
 

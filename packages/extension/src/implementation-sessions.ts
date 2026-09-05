@@ -12,6 +12,7 @@ import {
   type RollbackResult,
   type StartProcessOptions,
   type WorkbenchCheckpoint,
+  type WorkbenchRunJournalSessionToSave,
   type WorkbenchProcess,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
@@ -19,9 +20,13 @@ import {
 interface CheckpointSession {
   processId: string;
   changeName?: string;
-  checkpoint: WorkbenchCheckpoint;
+  hasAfter?: boolean;
+  checkpoint?: WorkbenchCheckpoint;
+  loadCheckpoint?: () => Promise<PersistedCheckpointSession | undefined>;
   finish?: () => void;
   delta?: CheckpointDelta[];
+  coverage?: CheckpointCoverage;
+  loadInFlight?: Promise<WorkbenchCheckpoint | undefined>;
 }
 
 export class ImplementationSessionManager {
@@ -32,41 +37,52 @@ export class ImplementationSessionManager {
     private readonly onDidChange: () => void = () => undefined,
   ) { }
 
-  /** Takes references, and reads each payload through `loadCheckpoint()`.
-   * The read is still eager, for the same reason it is in
-   * `WorkbenchRecoveryService.initialize()`: `rollback` and
-   * `describeDelta` want a `WorkbenchCheckpoint` in hand, synchronously.
-   * What bounds the cost is retention — ten sessions rather than a
-   * hundred — and the remaining half is recorded in
-   * checkpoint-retention-and-lazy-load task 2.4. A reference whose file
-   * is gone is skipped, which is what lets an evicted checkpoint leave a
-   * run listable but not rollbackable. */
+  /** Restores references eagerly and payloads lazily. The only startup
+   * payload read is an `interrupted` process with no persisted delta,
+   * because that is the path that must be finalized immediately to remain
+   * reviewable after restart. */
   async restore(persisted: RestoredCheckpointSession[]): Promise<void> {
+    const interrupted = new Set(
+      this.scheduler.list()
+        .filter((process) => process.state === "interrupted")
+        .map((process) => process.id),
+    );
     for (const item of persisted) {
-      const resolved = await item.loadCheckpoint();
-      if (!resolved) continue;
-      const checkpoint = deserializeCheckpoint(resolved.checkpoint);
       const session: CheckpointSession = {
         processId: item.processId,
         changeName: item.changeName,
-        checkpoint,
-        delta: checkpoint.delta,
+        hasAfter: item.hasAfter,
+        delta: item.delta?.map((entry) => ({ ...entry })),
+        coverage: item.coverage ? {
+          excludedDirectories: [...item.coverage.excludedDirectories],
+          skippedFiles: [...item.coverage.skippedFiles],
+        } : undefined,
+        loadCheckpoint: item.loadCheckpoint,
       };
       this.sessions.set(item.processId, session);
-      const process = this.scheduler.list().find((candidate) => candidate.id === item.processId);
-      if (process?.state === "interrupted" && !session.delta) {
+      if (!interrupted.has(item.processId) || session.delta) continue;
+      const checkpoint = await this.ensureCheckpoint(session);
+      if (!checkpoint) continue;
+      if (!session.delta) {
         session.delta = await finalizeCheckpoint(checkpoint);
+        session.hasAfter = true;
         this.scheduler.updateSummary(item.processId, this.describeDelta(session));
       }
     }
     this.onDidChange();
   }
 
-  exportPersisted(): PersistedCheckpointSession[] {
+  exportPersisted(): WorkbenchRunJournalSessionToSave[] {
     return [...this.sessions.values()].map((session) => ({
       processId: session.processId,
       changeName: session.changeName,
-      checkpoint: serializeCheckpoint(session.checkpoint),
+      hasAfter: session.hasAfter,
+      delta: session.delta?.map((item) => ({ ...item })),
+      coverage: session.coverage ? {
+        excludedDirectories: [...session.coverage.excludedDirectories],
+        skippedFiles: [...session.coverage.skippedFiles],
+      } : undefined,
+      checkpoint: session.checkpoint ? serializeCheckpoint(session.checkpoint) : undefined,
     }));
   }
 
@@ -80,7 +96,16 @@ export class ImplementationSessionManager {
       execute: async ({ report }) => {
         if (options.mutating) {
           const checkpoint = await captureCheckpoint(root);
-          session = { processId: handle.id, changeName: options.changeName, checkpoint };
+          session = {
+            processId: handle.id,
+            changeName: options.changeName,
+            checkpoint,
+            hasAfter: false,
+            coverage: {
+              excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+              skippedFiles: [...checkpoint.coverage.skippedFiles],
+            },
+          };
           this.sessions.set(handle.id, session);
           this.onDidChange();
         }
@@ -89,9 +114,13 @@ export class ImplementationSessionManager {
           return await options.execute();
         } finally {
           if (session) {
-            session.delta = await finalizeCheckpoint(session.checkpoint);
-            this.scheduler.updateSummary(session.processId, this.describeDelta(session));
-            this.onDidChange();
+            const checkpoint = session.checkpoint;
+            if (checkpoint) {
+              session.delta = await finalizeCheckpoint(checkpoint);
+              session.hasAfter = true;
+              this.scheduler.updateSummary(session.processId, this.describeDelta(session));
+              this.onDidChange();
+            }
           }
         }
       },
@@ -114,7 +143,17 @@ export class ImplementationSessionManager {
       execute: async ({ report, signal }) => {
         try {
           const checkpoint = await captureCheckpoint(root);
-          const session: CheckpointSession = { processId, changeName, checkpoint, finish };
+          const session: CheckpointSession = {
+            processId,
+            changeName,
+            checkpoint,
+            finish,
+            hasAfter: false,
+            coverage: {
+              excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+              skippedFiles: [...checkpoint.coverage.skippedFiles],
+            },
+          };
           this.sessions.set(processId, session);
           this.onDidChange();
           markReady();
@@ -124,6 +163,7 @@ export class ImplementationSessionManager {
             new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
           ]);
           session.delta = await finalizeCheckpoint(checkpoint);
+          session.hasAfter = true;
           this.onDidChange();
           if (signal.aborted) return "Implementation session cancelled";
           return this.describeDelta(session);
@@ -150,8 +190,10 @@ export class ImplementationSessionManager {
 
   async rollback(processId: string) {
     const session = this.sessions.get(processId);
-    if (!session?.delta) throw new Error("Implementation session is not ready for rollback");
-    const result = await rollbackCheckpoint(session.checkpoint);
+    if (!session) throw new Error("Implementation session is not ready for rollback");
+    const checkpoint = await this.ensureCheckpoint(session);
+    if (!checkpoint || !session.delta) throw new Error("Implementation session is not ready for rollback");
+    const result = await rollbackCheckpoint(checkpoint);
     if (result.conflicts.length === 0) {
       this.scheduler.markRolledBack(processId, `${result.restored.length} files restored`);
     }
@@ -163,17 +205,26 @@ export class ImplementationSessionManager {
    * mirror of this method (`@openspec-ui/core`), duplicated here because
    * the extension's primary mode keeps its own session map instead of
    * going through that service (see module header). */
-  private changeRollbackCandidates(changeName: string): CheckpointSession[] {
-    return [...this.sessions.values()]
-      .filter((session) => session.changeName === changeName && session.delta)
-      .map((session) => ({ session, process: this.scheduler.list().find((candidate) => candidate.id === session.processId) }))
+  private async changeRollbackCandidates(changeName: string): Promise<CheckpointSession[]> {
+    const byId = new Map(this.scheduler.list().map((process) => [process.id, process]));
+    const candidates = [...this.sessions.values()]
+      .map((session) => ({ session, process: byId.get(session.processId) }))
       .filter((entry): entry is { session: CheckpointSession; process: WorkbenchProcess } =>
-        entry.process !== undefined && ["completed", "failed", "interrupted"].includes(entry.process.state))
-      .map((entry) => entry.session);
+        entry.process !== undefined
+        && entry.session.changeName === changeName
+        && ["completed", "failed", "interrupted"].includes(entry.process.state));
+
+    const rollbackable: CheckpointSession[] = [];
+    for (const entry of candidates) {
+      const delta = await this.ensureDelta(entry.session);
+      if (!delta || !entry.session.hasAfter) continue;
+      rollbackable.push(entry.session);
+    }
+    return rollbackable;
   }
 
-  changeRollbackDetails(changeName: string): { processCount: number; fileCount: number } | undefined {
-    const sessions = this.changeRollbackCandidates(changeName);
+  async changeRollbackDetails(changeName: string): Promise<{ processCount: number; fileCount: number } | undefined> {
+    const sessions = await this.changeRollbackCandidates(changeName);
     if (sessions.length === 0) return undefined;
     const paths = new Set<string>();
     for (const session of sessions) for (const delta of session.delta ?? []) paths.add(delta.path);
@@ -181,9 +232,16 @@ export class ImplementationSessionManager {
   }
 
   async rollbackChange(changeName: string): Promise<RollbackResult> {
-    const sessions = this.changeRollbackCandidates(changeName);
+    const sessions = await this.changeRollbackCandidates(changeName);
     if (sessions.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
-    const result = await rollbackChangeCheckpoints(sessions.map((session) => session.checkpoint));
+    const checkpoints: WorkbenchCheckpoint[] = [];
+    for (const session of sessions) {
+      const checkpoint = await this.ensureCheckpoint(session);
+      if (!checkpoint || !session.delta || !session.hasAfter) continue;
+      checkpoints.push(checkpoint);
+    }
+    if (checkpoints.length === 0) throw new Error(`No rollback-eligible processes for change "${changeName}"`);
+    const result = await rollbackChangeCheckpoints(checkpoints);
     if (result.conflicts.length === 0) {
       for (const session of sessions) {
         this.scheduler.markRolledBack(session.processId, `change "${changeName}" rolled back: ${result.restored.length} files restored`);
@@ -199,21 +257,66 @@ export class ImplementationSessionManager {
     for (const id of processIds) this.sessions.delete(id);
   }
 
-  getDelta(processId: string): CheckpointDelta[] | undefined {
-    return this.sessions.get(processId)?.delta?.map((item) => ({ ...item }));
+  async getDelta(processId: string): Promise<CheckpointDelta[] | undefined> {
+    const session = this.sessions.get(processId);
+    const delta = await this.ensureDelta(session);
+    return delta?.map((item) => ({ ...item }));
   }
 
-  getCoverage(processId: string): CheckpointCoverage | undefined {
-    const coverage = this.sessions.get(processId)?.checkpoint.coverage;
+  async getCoverage(processId: string): Promise<CheckpointCoverage | undefined> {
+    const session = this.sessions.get(processId);
+    if (!session) return undefined;
+    if (!session.coverage) {
+      const checkpoint = await this.ensureCheckpoint(session);
+      session.coverage = checkpoint ? {
+        excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+        skippedFiles: [...checkpoint.coverage.skippedFiles],
+      } : undefined;
+    }
+    const coverage = session.coverage;
     return coverage ? {
       excludedDirectories: [...coverage.excludedDirectories],
       skippedFiles: [...coverage.skippedFiles],
     } : undefined;
   }
 
+  private async ensureCheckpoint(session: CheckpointSession | undefined): Promise<WorkbenchCheckpoint | undefined> {
+    if (!session) return undefined;
+    if (session.checkpoint) return session.checkpoint;
+    if (!session.loadCheckpoint) return undefined;
+    if (!session.loadInFlight) {
+      session.loadInFlight = (async () => {
+        const restored = await session.loadCheckpoint?.();
+        if (!restored) return undefined;
+        const checkpoint = deserializeCheckpoint(restored.checkpoint);
+        session.checkpoint = checkpoint;
+        session.hasAfter = session.hasAfter ?? Boolean(checkpoint.after);
+        session.delta = session.delta ?? checkpoint.delta?.map((item) => ({ ...item }));
+        session.coverage = session.coverage ?? {
+          excludedDirectories: [...checkpoint.coverage.excludedDirectories],
+          skippedFiles: [...checkpoint.coverage.skippedFiles],
+        };
+        return checkpoint;
+      })().finally(() => {
+        session.loadInFlight = undefined;
+      });
+    }
+    return session.loadInFlight;
+  }
+
+  private async ensureDelta(session: CheckpointSession | undefined): Promise<CheckpointDelta[] | undefined> {
+    if (!session) return undefined;
+    if (session.delta) return session.delta;
+    const checkpoint = await this.ensureCheckpoint(session);
+    if (!checkpoint?.delta) return undefined;
+    session.delta = checkpoint.delta.map((item) => ({ ...item }));
+    return session.delta;
+  }
+
   private describeDelta(session: CheckpointSession): string {
     const count = session.delta?.length ?? 0;
-    const partial = session.checkpoint.coverage.skippedFiles.length > 0 ? "; partial checkpoint coverage" : "";
+    const skipped = session.coverage?.skippedFiles.length ?? session.checkpoint?.coverage.skippedFiles.length ?? 0;
+    const partial = skipped > 0 ? "; partial checkpoint coverage" : "";
     return `${count} changed file${count === 1 ? "" : "s"} ready for review${partial}`;
   }
 }

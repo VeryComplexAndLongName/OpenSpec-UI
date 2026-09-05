@@ -3,21 +3,37 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import path from "node:path";
 import {
     deserializeCheckpoint,
+    type CheckpointCoverage,
+    type CheckpointDelta,
     type SerializedWorkbenchCheckpoint,
 } from "./checkpoint.js";
 import type { WorkbenchProcess } from "./process-scheduler.js";
 
-export const WORKBENCH_RUN_JOURNAL_VERSION = 2;
+export const WORKBENCH_RUN_JOURNAL_VERSION = 3;
 
-export interface PersistedCheckpointSession {
+export interface PersistedCheckpointSessionReference {
     processId: string;
     changeName?: string;
+    /** Present when known: finalized checkpoints carry `after`,
+     * interrupted pre-finalization checkpoints do not. */
+    hasAfter?: boolean;
+    /** Small enough to keep inline; used by details/confirmation flows
+     * so they do not have to read the full payload. */
+    delta?: CheckpointDelta[];
+    coverage?: CheckpointCoverage;
+}
+
+export interface PersistedCheckpointSession extends PersistedCheckpointSessionReference {
     checkpoint: SerializedWorkbenchCheckpoint;
+}
+
+export interface WorkbenchRunJournalSessionToSave extends PersistedCheckpointSessionReference {
+    checkpoint?: SerializedWorkbenchCheckpoint;
 }
 
 export interface WorkbenchRunJournalData {
     processes: WorkbenchProcess[];
-    checkpointSessions: PersistedCheckpointSession[];
+    checkpointSessions: WorkbenchRunJournalSessionToSave[];
 }
 
 /** What `load()` returns for a checkpoint session: the reference the
@@ -28,17 +44,15 @@ export interface WorkbenchRunJournalData {
 export interface RestoredCheckpointSession {
     processId: string;
     changeName?: string;
+    hasAfter?: boolean;
+    delta?: CheckpointDelta[];
+    coverage?: CheckpointCoverage;
     loadCheckpoint(): Promise<PersistedCheckpointSession | undefined>;
 }
 
 export interface RestoredWorkbenchRunJournalData {
     processes: WorkbenchProcess[];
     checkpointSessions: RestoredCheckpointSession[];
-}
-
-interface PersistedCheckpointSessionReference {
-    processId: string;
-    changeName?: string;
 }
 
 interface WorkbenchRunJournalDocument {
@@ -51,6 +65,12 @@ interface WorkbenchRunJournalDocumentV1 {
     version: 1;
     processes: WorkbenchProcess[];
     checkpointSessions: PersistedCheckpointSession[];
+}
+
+interface WorkbenchRunJournalDocumentV2 {
+    version: 2;
+    processes: WorkbenchProcess[];
+    checkpointSessions: Array<{ processId: string; changeName?: string }>;
 }
 
 export interface WorkbenchRunJournalOptions {
@@ -149,6 +169,10 @@ export class WorkbenchRunJournal {
             return this.loadVersion1(raw as unknown as WorkbenchRunJournalDocumentV1, resolvedRoot);
         }
 
+        if (raw.version === 2) {
+            return this.loadVersion2(raw as unknown as WorkbenchRunJournalDocumentV2, resolvedRoot);
+        }
+
         if (raw.version !== WORKBENCH_RUN_JOURNAL_VERSION) {
             throw new WorkbenchJournalLoadError(
                 `Workbench run journal version ${String(raw.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
@@ -189,6 +213,12 @@ export class WorkbenchRunJournal {
             sessions.push({
                 processId,
                 changeName,
+                hasAfter: typeof reference.hasAfter === "boolean" ? reference.hasAfter : undefined,
+                delta: Array.isArray(reference.delta) ? reference.delta.map((item) => ({ ...item })) : undefined,
+                coverage: reference.coverage ? {
+                    excludedDirectories: [...reference.coverage.excludedDirectories],
+                    skippedFiles: [...reference.coverage.skippedFiles],
+                } : undefined,
                 loadCheckpoint: () => this.resolveCheckpointSession({ processId, changeName }, resolvedRoot),
             });
         }
@@ -203,6 +233,44 @@ export class WorkbenchRunJournal {
         };
     }
 
+    /** Version-2 journals stored only processId/changeName references.
+     * Load them unchanged, then rewrite as version 3 through `save()` so
+     * future restores can use inline metadata without loading payloads. */
+    private async loadVersion2(
+        document: WorkbenchRunJournalDocumentV2,
+        resolvedRoot: string,
+    ): Promise<RestoredWorkbenchRunJournalData> {
+        if (!Array.isArray(document.processes) || !Array.isArray(document.checkpointSessions)) {
+            throw new WorkbenchJournalLoadError(
+                `Workbench run journal has an invalid shape. Inspect or restore ${this.filePath}.`,
+                { code: "invalid-shape", journalPath: this.filePath },
+            );
+        }
+        const restored: RestoredCheckpointSession[] = [];
+        for (const reference of document.checkpointSessions) {
+            if (!reference || typeof reference !== "object" || typeof reference.processId !== "string") {
+                throw new WorkbenchJournalLoadError(
+                    `Workbench run journal contains an invalid checkpoint session. Inspect or restore ${this.filePath}.`,
+                    { code: "invalid-shape", journalPath: this.filePath },
+                );
+            }
+            const { processId, changeName } = reference;
+            restored.push({
+                processId,
+                changeName,
+                loadCheckpoint: () => this.resolveCheckpointSession({ processId, changeName }, resolvedRoot),
+            });
+        }
+        await this.save({
+            processes: document.processes.map((process) => ({ ...process })),
+            checkpointSessions: restored.map((session) => ({ processId: session.processId, changeName: session.changeName })),
+        });
+        return {
+            processes: document.processes.map((process) => ({ ...process })),
+            checkpointSessions: restored,
+        };
+    }
+
     save(data: WorkbenchRunJournalData): Promise<void> {
         const operation = this.writeQueue.catch(() => undefined).then(() => this.write(data));
         this.writeQueue = operation;
@@ -212,7 +280,7 @@ export class WorkbenchRunJournal {
     /** Version-1 journals embedded full checkpoint content per session, so
      * every session here is already validated the same way `write()` used to
      * validate on load. Migration reuses that validation, then writes the
-     * sessions out as files and rewrites the journal as version 2 through
+     * sessions out as files and rewrites the journal as version 3 through
      * the normal `save()` path, so the on-disk shape never regresses back to
      * version 1 once this has run. */
     private async loadVersion1(
@@ -404,6 +472,7 @@ export class WorkbenchRunJournal {
         // checkpoint never changes, so an existing file is never
         // re-serialized on a process state change.
         for (const session of retainedSessions) {
+            if (!session.checkpoint) continue;
             const filePath = this.checkpointFilePath(session.processId);
             if (await this.fileExists(filePath)) continue;
             await this.atomicWriteFile(filePath, JSON.stringify(session.checkpoint));
@@ -413,11 +482,41 @@ export class WorkbenchRunJournal {
         const document: WorkbenchRunJournalDocument = {
             version: WORKBENCH_RUN_JOURNAL_VERSION,
             processes,
-            checkpointSessions: retainedSessions.map((session) => ({
-                processId: session.processId,
-                changeName: session.changeName,
-            })),
+            checkpointSessions: retainedSessions.map((session) => this.buildSessionReference(session)),
         };
         await this.atomicWriteFile(this.filePath, `${JSON.stringify(document, null, 2)}\n`);
+    }
+
+    private buildSessionReference(session: WorkbenchRunJournalSessionToSave): PersistedCheckpointSessionReference {
+        if (session.checkpoint) {
+            const deserialized = deserializeCheckpoint(session.checkpoint);
+            return {
+                processId: session.processId,
+                changeName: session.changeName,
+                hasAfter: session.hasAfter ?? Boolean(deserialized.after),
+                delta: (session.delta ?? deserialized.delta)?.map((item) => ({ ...item })),
+                coverage: session.coverage
+                    ? {
+                        excludedDirectories: [...session.coverage.excludedDirectories],
+                        skippedFiles: [...session.coverage.skippedFiles],
+                    }
+                    : {
+                        excludedDirectories: [...deserialized.coverage.excludedDirectories],
+                        skippedFiles: [...deserialized.coverage.skippedFiles],
+                    },
+            };
+        }
+        return {
+            processId: session.processId,
+            changeName: session.changeName,
+            hasAfter: session.hasAfter,
+            delta: session.delta?.map((item) => ({ ...item })),
+            coverage: session.coverage
+                ? {
+                    excludedDirectories: [...session.coverage.excludedDirectories],
+                    skippedFiles: [...session.coverage.skippedFiles],
+                }
+                : undefined,
+        };
     }
 }

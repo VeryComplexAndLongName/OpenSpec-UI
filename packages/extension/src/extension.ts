@@ -105,6 +105,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   };
   const implementationSessions = new ImplementationSessionManager(scheduler, persistRuns);
   context.subscriptions.push({ dispose: scheduler.onDidChange(persistRuns) });
+  // Startup reads checkpoint payloads only for interrupted sessions that
+  // still lack a persisted delta; all other restored sessions keep a
+  // lazy reference and resolve on first details/rollback request.
   await implementationSessions.restore(restoredRuns.checkpointSessions);
 
   // Notify when a plan/implement/review run finishes while the user isn't
