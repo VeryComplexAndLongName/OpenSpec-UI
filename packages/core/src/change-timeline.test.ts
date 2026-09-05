@@ -18,7 +18,13 @@ import {
 // explicit per-test timeout with headroom over remaining real-git cost.
 // Measured after these changes (isolated run, 2026-09-02): 14/14 in
 // 15.31s test time (17.69s wall-clock reported by Vitest).
-vi.setConfig({ testTimeout: 15000 });
+//
+// every-varying-check-has-a-budget, 2026-09-05: the 15000 ms that figure
+// bought was sized from an *isolated* run, and this file timed out three
+// times at exactly 15000 ms under deliberate 8-worker CPU co-load. With
+// the ceiling lifted its slowest single test took 42.3s across two such
+// runs (20.9s in the other). Sized from that, not from the idle figure.
+vi.setConfig({ testTimeout: 130_000 });
 
 const temporaryRoots: string[] = [];
 let sharedReadOnlyRepoRoot: string | undefined;

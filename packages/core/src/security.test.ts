@@ -15,6 +15,11 @@ import {
   prepareAgentContext,
 } from "./security.js";
 
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 0.1s idle and 3.4s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 15_000 });
+
 const temporaryRoots: string[] = [];
 async function temporaryChangeDir(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-security-"));

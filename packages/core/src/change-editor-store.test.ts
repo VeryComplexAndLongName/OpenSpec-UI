@@ -1,13 +1,18 @@
 import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ChangeEditorConflictError,
   readChangeEditorDocument,
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-store.js";
+
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 0.2s idle and 0.7s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 15_000 });
 
 const ORIGINAL_FILES: ChangeEditorFiles = {
   proposal: "original proposal",

@@ -1,13 +1,18 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   listBootstrapProjectTypes,
   writeAgentInstructions,
   writeDependabotConfig,
   writeSubtypeInstructions,
 } from "./repo-bootstrap.js";
+
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 0.1s idle and 1.2s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 15_000 });
 
 const temporaryRoots: string[] = [];
 

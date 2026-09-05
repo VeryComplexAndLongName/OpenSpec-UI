@@ -1,27 +1,110 @@
+// Fails the lint gate when a test whose cost varies with the machine
+// states no time budget — the mechanical half of `quality-gates`'
+// "A check whose cost varies with the machine states its own budget",
+// which was otherwise a paragraph no check read.
+//
+// Walks git-tracked files, as `check-english.mjs` does, so a new file
+// must be staged before this check can see it.
+
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TEST_FILE_PATTERN = /\.test\.(ts|tsx|mjs)$/u;
-const EXCLUDED_PREFIXES = ["node_modules/", "dist/", ".git/", "openspec/changes/archive/", "scripts/"];
+
+const EXCLUDED_PREFIXES = [
+    "node_modules/",
+    "dist/",
+    ".git/",
+    "openspec/changes/archive/",
+    // Not vitest: `scripts/*.test.mjs` run under `node --test`, and
+    // `packages/extension/src/test/suite/` runs inside a real VS Code
+    // Extension Development Host. Neither has a vitest budget to state.
+    "scripts/",
+    "packages/extension/src/test/suite/",
+];
+
 const BASELINE_PATH = "scripts/test-budget-baseline.json";
 
+// What makes a test's duration depend on how busy the machine is:
+// filesystem work, a spawned process, or a fixture that is built rather
+// than declared. Matching one of these is a reason to look, not proof —
+// a file that mocks the module away is exempted by the baseline with
+// that reason recorded.
 const COST_SIGNALS = [
-    /from\s+"node:fs\/promises"/u,
+    /from\s+"node:fs(\/promises)?"/u,
+    /from\s+"node:child_process"/u,
     /from\s+"simple-git"/u,
     /from\s+"esbuild"/u,
+    /\bmkdtemp(Sync)?\s*\(/u,
     /\bcaptureCheckpoint\b/u,
     /\bfinalizeCheckpoint\b/u,
     /\brollbackCheckpoint\b/u,
     /\bWorkbenchRunJournal\b/u,
 ];
 
-const BUDGET_SIGNALS = [
-    /vi\.setConfig\(\{\s*testTimeout\s*:/u,
-    /vi\.setConfig\(\{\s*hookTimeout\s*:/u,
-    /(it|test|beforeAll|afterAll|beforeEach|afterEach)\([^\n]*,\s*\d[\d_]*\)/u,
-];
+const FILE_BUDGET = /\bvi\.setConfig\s*\(\s*\{[^}]*\b(testTimeout|hookTimeout)\s*:/su;
+
+const TEST_CALL = /(^|[^\w$.])(it|test|beforeAll|afterAll|beforeEach|afterEach)\s*\(/gu;
+
+/** Walks forward from an opening parenthesis to its match, skipping
+ * strings, template literals, regular expressions' simpler forms and
+ * comments, and returns the source offsets of the commas that sit at the
+ * call's own nesting depth.
+ *
+ * A regular expression cannot do this. The previous version of this
+ * check tried, and matched `child.emit("close", 0)` as a stated budget —
+ * `emit(` ends in `it(` — which is why `server.test.ts` passed the gate
+ * on an unrelated line rather than on the budgets it had just been
+ * given. */
+function callArguments(source, openParen) {
+    let depth = 0;
+    const commas = [];
+    for (let i = openParen; i < source.length; i += 1) {
+        const c = source[i];
+        const next = source[i + 1];
+        if (c === "/" && next === "/") {
+            i = source.indexOf("\n", i);
+            if (i === -1) break;
+            continue;
+        }
+        if (c === "/" && next === "*") {
+            const end = source.indexOf("*/", i + 2);
+            if (end === -1) break;
+            i = end + 1;
+            continue;
+        }
+        if (c === '"' || c === "'" || c === "`") {
+            for (i += 1; i < source.length; i += 1) {
+                if (source[i] === "\\") i += 1;
+                else if (source[i] === c) break;
+            }
+            continue;
+        }
+        if (c === "(" || c === "[" || c === "{") depth += 1;
+        else if (c === ")" || c === "]" || c === "}") {
+            depth -= 1;
+            if (depth === 0) return { commas, close: i };
+        } else if (c === "," && depth === 1) commas.push(i);
+    }
+    return undefined;
+}
+
+/** True when a test or hook call passes a numeric literal as its last
+ * argument — vitest's per-test timeout. */
+function hasInlineBudget(source) {
+    TEST_CALL.lastIndex = 0;
+    let match;
+    while ((match = TEST_CALL.exec(source)) !== null) {
+        const openParen = match.index + match[0].length - 1;
+        const call = callArguments(source, openParen);
+        if (!call || call.commas.length === 0) continue;
+        const last = source.slice(call.commas.at(-1) + 1, call.close);
+        if (/^\s*\d[\d_]*\s*$/u.test(last)) return true;
+    }
+    return false;
+}
 
 function trackedFiles(root) {
     const result = spawnSync("git", ["ls-files", "-z"], {
@@ -54,7 +137,7 @@ async function readBaseline(root) {
 
 export function analyzeTestFile(filePath, source) {
     const costVarying = COST_SIGNALS.some((signal) => signal.test(source));
-    const hasBudget = BUDGET_SIGNALS.some((signal) => signal.test(source));
+    const hasBudget = FILE_BUDGET.test(source) || hasInlineBudget(source);
     return { filePath, costVarying, hasBudget };
 }
 
@@ -68,11 +151,12 @@ export async function scanTrackedTestFiles(root, baselineMap) {
         const source = await readFile(path.join(root, file), "utf8");
         const analyzed = analyzeTestFile(normalized, source);
         if (!analyzed.costVarying || analyzed.hasBudget) continue;
-        const reason = baseline.get(normalized);
-        if (reason) continue;
+        if (baseline.get(normalized)) continue;
         violations.push({
             filePath: normalized,
-            reason: "cost-varying test has no explicit timeout budget",
+            reason: "cost-varying test states no time budget:"
+                + " add vi.setConfig({ testTimeout }) or a per-test timeout,"
+                + " sized from a measurement recorded beside it",
         });
     }
     return violations;

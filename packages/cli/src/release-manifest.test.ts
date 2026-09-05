@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   MANIFEST_PRODUCTS,
@@ -11,6 +11,11 @@ import {
   parseChangelog,
   versionFingerprint,
 } from "./release-manifest.js";
+
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 2.7s idle and 10.9s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 45_000 });
 
 const temporaryRoots: string[] = [];
 

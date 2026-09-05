@@ -1,8 +1,17 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { deleteChange, discoverOpenSpecWorkspace, unarchiveChange } from "./workbench.js";
+
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 at 0.2s idle and 0.6s under deliberate 8-worker CPU
+// co-load — and then 16.2s for the same test on an identical repeat of
+// that co-loaded run, a 27x swing between two runs of the same thing. The
+// budget is sized from the worst figure, not the first one. See task 4.2
+// of every-varying-check-has-a-budget: on this machine a file's loaded
+// cost is not stable enough for a single measurement to size a ceiling.
+vi.setConfig({ testTimeout: 60_000 });
 
 const temporaryRoots: string[] = [];
 

@@ -11,6 +11,11 @@ import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-co
 import type { AllowlistConfig } from "./security.js";
 import { FileAuditLog, InMemoryAuditLog, auditLogPath } from "./security.js";
 
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 at 1.0s idle and 19.0s under deliberate 8-worker
+// CPU co-load, for its slowest single test across two such runs.
+vi.setConfig({ testTimeout: 60_000 });
+
 // `HarnessChainRunner` shells out to the real `openspec` CLI for
 // `statusChange`/`archiveChange` (via `openspec.ts`) — mock `cross-spawn`
 // the same way `openspec.test.ts` does, rather than mocking this module's
@@ -118,11 +123,22 @@ function makeCompletingRunner(): { runner: AgentRunner; calls: Command[] } {
 
 const temporaryRoots: string[] = [];
 
+// `vi.waitFor`'s own ceiling, which is a second budget the file states
+// and neither `testTimeout` nor the budget-policy check can see: when it
+// expires, the last event read is compared against the expected one and
+// the test reports an assertion mismatch, not a timeout.
+//
 // Measured 2026-09-02 for "confirming a checkpoint resumes into the next
-// stage's agent": ~453ms isolated, and ~1823ms during deliberate full-suite
-// co-load. Keep explicit headroom so waitFor still detects hangs but no
-// longer times out on normal load-sensitive scheduling.
-const CHAIN_WAIT_FOR_TIMEOUT_MS = 5000;
+// stage's agent": ~453ms isolated, and ~1823ms during deliberate
+// full-suite co-load, from which 5000 ms was chosen.
+//
+// every-varying-check-has-a-budget, 2026-09-05: that test reached 5978ms
+// under deliberate 8-worker CPU co-load and failed against the 5000 ms
+// above — "expected { kind: 'started' } to match object { kind:
+// 'completed' }", which reads as a broken assertion and is not one. With
+// the ceiling lifted it took 4240ms and 2358ms on two such runs. Sized
+// from the worst of those.
+const CHAIN_WAIT_FOR_TIMEOUT_MS = 20_000;
 
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-harness-chain-"));
