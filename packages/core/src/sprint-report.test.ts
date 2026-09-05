@@ -12,7 +12,13 @@ import { buildSprintReport } from "./sprint-report.js";
 // and sets an explicit per-test timeout with headroom for real-git work.
 // Measured after these changes (isolated run, 2026-09-02): 5/5 in 8.68s
 // test time (11.32s wall-clock reported by Vitest).
-vi.setConfig({ testTimeout: 15000 });
+//
+// every-varying-check-has-a-budget, 2026-09-05: same correction as
+// change-timeline.test.ts — 15000 ms sized from an isolated run, three
+// timeouts at exactly that number under deliberate 8-worker CPU co-load.
+// Slowest single test with the ceiling lifted: 39.7s, and 24.6s on a
+// second such run.
+vi.setConfig({ testTimeout: 120_000 });
 
 const temporaryRoots: string[] = [];
 let sharedReadOnlyRepoRoot: string | undefined;

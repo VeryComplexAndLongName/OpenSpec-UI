@@ -4,6 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 0.0s idle and 0.3s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 15_000 });
+
 // Same fake-child-process pattern openspec.test.ts and agents/shared.test.ts
 // already use — `cross-spawn` is mocked once for this whole file, and both
 // `runCommand` (this module's own helper) and `validateChange`'s internal

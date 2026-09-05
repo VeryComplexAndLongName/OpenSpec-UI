@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkbenchProcessScheduler } from "./process-scheduler.js";
 import { WorkspaceLeaseManager } from "./workspace-lease.js";
 
+// every-varying-check-has-a-budget:
+// measured 2026-09-05 for this file alone at 0.1s idle and 2.6s
+// under deliberate 8-worker CPU co-load, for its slowest single test.
+vi.setConfig({ testTimeout: 15_000 });
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });

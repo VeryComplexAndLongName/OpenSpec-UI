@@ -26,7 +26,12 @@ import {
 // suite-survives-a-loaded-machine:
 // measured 2026-09-05 for this file alone at 734ms test time (3.91s wall)
 // and 1.38s test time (12.28s wall) under deliberate 8-worker CPU co-load.
-vi.setConfig({ testTimeout: 15000 });
+//
+// every-varying-check-has-a-budget, later the same day: measured again as
+// part of the whole package under the same co-load rather than alone, and
+// the slowest single test reached 8.9s — 1.7x under the ceiling above,
+// which is not headroom. Raised.
+vi.setConfig({ testTimeout: 30_000 });
 
 const temporaryRoots: string[] = [];
 

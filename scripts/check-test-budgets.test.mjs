@@ -55,3 +55,49 @@ test("scanTrackedTestFiles accepts explicit baseline exemption", async () => {
         await rm(root, { recursive: true, force: true });
     }
 });
+
+test("a call that merely ends in \"it(\" is not a budget", () => {
+    // `child.emit("close", 0)` reads as `it("close", 0)` to a regular
+    // expression, which is how `server.test.ts` passed this gate on an
+    // unrelated line rather than on the budgets it had been given.
+    const source = [
+        'import { mkdtemp } from "node:fs/promises";',
+        'import { it } from "vitest";',
+        'it("x", async () => { child.emit("close", 0); await mkdtemp("x"); });',
+    ].join("\n");
+    const result = analyzeTestFile("x.test.ts", source);
+    assert.equal(result.costVarying, true);
+    assert.equal(result.hasBudget, false);
+});
+
+test("a per-test timeout on its own line is a budget", () => {
+    const source = [
+        'import { mkdtemp } from "node:fs/promises";',
+        'import { it } from "vitest";',
+        'it("x", async () => {',
+        '  await mkdtemp("x");',
+        '}, 20_000);',
+    ].join("\n");
+    assert.equal(analyzeTestFile("x.test.ts", source).hasBudget, true);
+});
+
+test("a setTimeout delay is not a budget", () => {
+    const source = [
+        'import { mkdtemp } from "node:fs/promises";',
+        'import { it } from "vitest";',
+        'it("x", async () => {',
+        '  await new Promise((r) => setTimeout(r, 10));',
+        '  await mkdtemp("x");',
+        '});',
+    ].join("\n");
+    assert.equal(analyzeTestFile("x.test.ts", source).hasBudget, false);
+});
+
+test("a spawned process makes a test cost-varying", () => {
+    const source = [
+        'import { spawn } from "node:child_process";',
+        'import { it } from "vitest";',
+        'it("x", async () => { spawn("git", ["status"]); });',
+    ].join("\n");
+    assert.equal(analyzeTestFile("x.test.ts", source).costVarying, true);
+});

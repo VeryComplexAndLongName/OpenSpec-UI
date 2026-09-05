@@ -2,18 +2,28 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import simpleGit from "simple-git";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { createGitWrapper } from "./git.js";
 
-// No raised timeout here, deliberately. This file takes ~2.6 s alone and
-// hangs past 20 s beside another worker on Windows, because Git for
+// This file used to carry no timeout deliberately, and the reason still
+// matters: it does not stall because it is slow. On Windows, Git for
 // Windows' MSYS/Cygwin fork-emulation races when the ~8 real `git`
 // subprocesses this file spawns run concurrently with another worker's
-// (or, over a long run, a prior file's) own git subprocesses — not because
-// the test is slow. A ceiling would only change which number the failure
-// reports. This is why this file runs isolated in its own single-fork
-// vitest project (see ../vitest.workspace.ts) instead of sharing a worker
-// with the rest of packages/core. Tracked as core-test-worker-contention.
+// own, and a ceiling would only have changed which number that failure
+// reported. `core-test-worker-contention` fixed that by giving this file
+// its own single-fork vitest project (see ../vitest.workspace.ts), not by
+// widening anything.
+//
+// every-varying-check-has-a-budget: with that isolation in place, what
+// remains is ordinary slowness. Measured 2026-09-05, this file alone at
+// 2.2s idle and 13.1s for its slowest single test under deliberate
+// 8-worker CPU co-load — proportionate, and passing, where the 5000 ms
+// default would not have cleared it. So the budget below is sized from
+// the loaded figure. If this file ever stalls again rather than slowing,
+// the paragraph above is the one that applies, and the remedy is not a
+// bigger number here.
+vi.setConfig({ testTimeout: 45_000 });
+
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(prefix: string): Promise<string> {
