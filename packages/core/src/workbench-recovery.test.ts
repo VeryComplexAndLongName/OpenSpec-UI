@@ -1,10 +1,15 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { captureCheckpoint, finalizeCheckpoint, serializeCheckpoint } from "./checkpoint.js";
 import { WorkbenchRecoveryService } from "./workbench-recovery.js";
 import { WorkbenchRunJournal } from "./workbench-run-journal.js";
+
+// suite-survives-a-loaded-machine:
+// measured 2026-09-05 for this file alone at 1.99s test time (4.93s wall)
+// and 8.41s test time (28.53s wall) under deliberate 8-worker CPU co-load.
+vi.setConfig({ testTimeout: 45000 });
 
 const roots: string[] = [];
 

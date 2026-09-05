@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TemplateAlreadyExistsError,
   UnknownBuiltInTemplateError,
@@ -13,6 +13,12 @@ import {
   renderTemplate,
   type CatalogTemplate,
 } from "./template-catalog.js";
+
+// suite-survives-a-loaded-machine:
+// measured 2026-09-05 for this file alone at 117ms test time (4.43s wall)
+// and 191ms test time (12.47s wall) under deliberate 8-worker CPU co-load.
+// No stall was observed; runtime remained bounded while startup/queueing cost grew.
+vi.setConfig({ testTimeout: 15000 });
 
 const temporaryRoots: string[] = [];
 

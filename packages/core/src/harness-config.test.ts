@@ -23,6 +23,11 @@ import {
   writeGlobalHarnessConfig,
 } from "./harness-config.js";
 
+// suite-survives-a-loaded-machine:
+// measured 2026-09-05 for this file alone at 734ms test time (3.91s wall)
+// and 1.38s test time (12.28s wall) under deliberate 8-worker CPU co-load.
+vi.setConfig({ testTimeout: 15000 });
+
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
