@@ -1,13 +1,19 @@
 ## Why
 
-Every active change in this repository is blocked on a person, and
-nothing says so.
+Work in this repository stalls on people, and nothing says whose turn it
+is.
 
-Counted 2026-09-06: **14 active changes, and every one of them has
-exactly one open task, marked human-only.** Not one is waiting on code.
-Finding that out means opening fourteen `tasks.md` files and reading to
+Counted 2026-09-06: **14 active changes, and every one of them had
+exactly one open task, marked human-only.** Not one was waiting on code.
+Finding that out meant opening fourteen `tasks.md` files and reading to
 the end of each; it was done by hand three times in a single working
 session before it was written down.
+
+Re-counted later the same day, after twelve of those changes were
+archived: 4 active changes carrying 7 open human-only items between them,
+and one of the four waiting on nothing but a person. The queue drains and
+refills. It is unreadable in either state, which is the point — the count
+is not what makes this worth building.
 
 `openspec/README.md` already states the rule those items live by — "An
 item marked human-only stays open until a person reports it done. Passing
