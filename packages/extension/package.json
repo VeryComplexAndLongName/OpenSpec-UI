@@ -192,6 +192,21 @@
         "command": "openspec-ui.rollbackChange",
         "title": "OpenSpec UI: Rollback Change",
         "icon": "$(discard)"
+      },
+      {
+        "command": "openspec-ui.runTypecheck",
+        "title": "OpenSpec UI: Run Typecheck",
+        "icon": "$(check)"
+      },
+      {
+        "command": "openspec-ui.runTest",
+        "title": "OpenSpec UI: Run Tests",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "openspec-ui.runLint",
+        "title": "OpenSpec UI: Run Lint",
+        "icon": "$(law)"
       }
     ],
     "viewsContainers": {
@@ -282,6 +297,25 @@
           "command": "openspec-ui.openAiPanel",
           "when": "view == openspecUiChanges",
           "group": "navigation"
+        },
+        {
+          "command": "openspec-ui.runTypecheck",
+          "when": "view == openspecUiChanges && openspec-ui.checks.typecheck",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.runTest",
+          "when": "view == openspecUiChanges && openspec-ui.checks.test",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.runLint",
+          "when": "view == openspecUiChanges && openspec-ui.checks.lint",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.showAllChangesTimeline",
+          "when": "view == openspecUiChanges"
         }
       ],
       "view/item/context": [
@@ -380,6 +414,20 @@
           "when": "viewItem == openspec-ui.rollbackableProcess",
           "group": "inline"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "openspec-ui.runTypecheck",
+          "when": "openspec-ui.checks.typecheck"
+        },
+        {
+          "command": "openspec-ui.runTest",
+          "when": "openspec-ui.checks.test"
+        },
+        {
+          "command": "openspec-ui.runLint",
+          "when": "openspec-ui.checks.lint"
+        }
       ]
     },
     "configuration": {
@@ -400,6 +448,17 @@
           "default": 14,
           "minimum": 1,
           "description": "Days a pending task can sit untouched (per git blame on tasks.md) before the Change Timeline view flags it as stale."
+        },
+        "openspec-ui.checks": {
+          "type": "object",
+          "default": {},
+          "description": "Names which npm script each check (\"typecheck\", \"test\", \"lint\") runs when invoked from the editor. Unset, the extension prefers an \"osui-<name>\" script when this workspace's package.json declares one, then falls back to \"<name>\"; a workspace declaring neither is offered no command for that check at all, rather than one that fails.",
+          "properties": {
+            "typecheck": { "type": "string", "description": "npm script to run for the Typecheck command." },
+            "test": { "type": "string", "description": "npm script to run for the Run Tests command." },
+            "lint": { "type": "string", "description": "npm script to run for the Run Lint command." }
+          },
+          "additionalProperties": false
         }
       }
     },

@@ -33,6 +33,8 @@ import {
   listChanges,
   isHarnessStepAgentStage,
   listSpecs,
+  resolveCheckScripts,
+  runMechanicalCheck,
   normalizeStepAgent,
   stepAgentFor,
   readArchivedChangeTasksTemplate,
@@ -63,10 +65,12 @@ import {
   type HarnessStepAgent,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
+  type CheckScriptName,
 } from "@openspec-ui/core";
 import type { RunController } from "./run-controller.js";
 import { ancestryOf } from "./tree/change-graph-tree.js";
 import { describeEvent } from "./describe-event.js";
+import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import type { ChangeTreeItem, TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
@@ -96,6 +100,61 @@ export interface CommandsDeps {
   changesView?: TreeSelectionView;
   archiveView?: TreeSelectionView;
   templatesView?: TreeSelectionView;
+}
+
+const CHECK_TITLES: Record<CheckScriptName, string> = {
+  typecheck: "typecheck",
+  test: "test",
+  lint: "lint",
+};
+
+/** Runs one of the workspace's own `typecheck`/`test`/`lint` checks
+ * through the exact same `runMechanicalCheck` the harness's `verify` stage
+ * uses (design.md, "report where a stage's checks report"), reporting
+ * through `deps.outputChannel` the same way `openspec-ui.status` does.
+ * Defensively re-resolves and no-ops with a warning if the check is not
+ * declared — the palette/menu `when` clauses hide the command in that
+ * case, but a keybinding or `executeCommand` call could still reach it. */
+async function runCheckCommand(deps: CommandsDeps, name: CheckScriptName): Promise<void> {
+  const workspaceRoot = deps.getWorkspaceRoot();
+  if (!workspaceRoot) { warnNoWorkspace(); return; }
+
+  const resolved = await resolveCheckScripts(workspaceRoot, readConfig().checks);
+  const script = resolved[name];
+  if (!script) {
+    void vscode.window.showWarningMessage(
+      `OpenSpec UI: no "${name}" check is declared by this workspace ` +
+      `(no "openspec-ui.checks.${name}" setting, "osui-${name}" script, or "${name}" script).`,
+    );
+    return;
+  }
+
+  deps.outputChannel.clear();
+  deps.outputChannel.show(true);
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `OpenSpec UI: ${CHECK_TITLES[name]}`,
+      cancellable: false,
+    },
+    async () => {
+      const result = await runMechanicalCheck(name, undefined, {
+        workspaceRoot,
+        changeDir: workspaceRoot,
+        changeName: "",
+        scripts: { [name]: script },
+      });
+      deps.outputChannel.appendLine(result.reason);
+      if (result.pass) {
+        void vscode.window.showInformationMessage(`OpenSpec UI: ${CHECK_TITLES[name]} passed (${script}).`);
+      } else {
+        void vscode.window.showErrorMessage(
+          `OpenSpec UI: ${CHECK_TITLES[name]} failed — see the OpenSpec UI output channel for the command and its output.`,
+        );
+      }
+    },
+  );
 }
 
 async function showCommandError(action: string, error: unknown): Promise<void> {
@@ -1456,6 +1515,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         },
       );
     }),
+    vscode.commands.registerCommand("openspec-ui.runTypecheck", () => runCheckCommand(deps, "typecheck")),
+    vscode.commands.registerCommand("openspec-ui.runTest", () => runCheckCommand(deps, "test")),
+    vscode.commands.registerCommand("openspec-ui.runLint", () => runCheckCommand(deps, "lint")),
   );
 
   context.subscriptions.push(
