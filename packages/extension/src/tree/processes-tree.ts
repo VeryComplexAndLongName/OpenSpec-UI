@@ -34,6 +34,13 @@ function formatCostUsd(costUsd: number | undefined): string | undefined {
   return costUsd === undefined ? undefined : `$${costUsd.toFixed(2)}`;
 }
 
+/** Whether this run is over. A terminal run has nothing in flight, so a
+ * field describing work in flight must not be shown beside its state —
+ * `completed · Running` is the row this distinction removes. */
+function isTerminal(state: WorkbenchProcess["state"]): boolean {
+  return state !== "queued" && state !== "running" && state !== "suspended";
+}
+
 export class ProcessTreeItem extends vscode.TreeItem {
   constructor(public readonly process: WorkbenchProcess, percent: string | undefined) {
     super(process.operation, vscode.TreeItemCollapsibleState.None);
@@ -43,7 +50,11 @@ export class ProcessTreeItem extends vscode.TreeItem {
       percent,
       process.state,
       process.waitingFor,
-      process.progress,
+      // Only while the run is going. `progress` says what it is doing,
+      // and a finished run is not doing anything; the tooltip below still
+      // carries it, which is what keeps a reclaimed-lease note reachable
+      // without clearing the field itself.
+      isTerminal(process.state) ? undefined : process.progress,
       formatCostUsd(process.usage?.costUsd),
     ]
       .filter(Boolean)

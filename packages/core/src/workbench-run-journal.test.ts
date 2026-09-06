@@ -438,4 +438,44 @@ describe("WorkbenchRunJournal", () => {
         expect(error).toMatchObject({ code: "workspace-mismatch", journalPath: journal.filePath });
         expect(await readFile(journal.filePath, "utf8")).toBe(mismatched);
     });
+
+    it("drops the obsolete progress marker from a terminal record, and nothing else", async () => {
+        // 45 of the 100 records in this repository's own journal were
+        // terminal and still carried a progress value; 38 said "Running",
+        // which is what made a finished run render as `completed · Running`.
+        const root = await temporaryRoot();
+        const journal = new WorkbenchRunJournal(root);
+        const reclaimed = "Reclaimed the workspace lease from VS Code extension on HOST (pid 1), which stopped renewing it 2194s ago.";
+        await mkdir(path.dirname(journal.filePath), { recursive: true });
+        await writeFile(journal.filePath, JSON.stringify({
+            version: 3,
+            processes: [
+                { id: "a", operation: "archive", mutating: true, state: "completed", createdAt: "2026-09-06T04:00:00.000Z", progress: "Running" },
+                { id: "b", operation: "archive", mutating: true, state: "failed", createdAt: "2026-09-06T04:00:00.000Z", progress: "Running" },
+                { id: "c", operation: "archive", mutating: true, state: "running", createdAt: "2026-09-06T04:00:00.000Z", progress: "Running" },
+                { id: "d", operation: "implement", mutating: true, state: "completed", createdAt: "2026-09-06T04:00:00.000Z", progress: reclaimed },
+                { id: "e", operation: "implement", mutating: true, state: "interrupted", createdAt: "2026-09-06T04:00:00.000Z", progress: "Working in VS Code Agent mode" },
+            ],
+            checkpointSessions: [],
+        }, null, 2), "utf8");
+
+        const byId = new Map((await journal.load()).processes.map((process) => [process.id, process]));
+
+        // Terminal and the obsolete marker: gone.
+        expect(byId.get("a")!.progress).toBeUndefined();
+        expect(byId.get("b")!.progress).toBeUndefined();
+        // Still running: the marker is at least not contradicting the state.
+        expect(byId.get("c")!.progress).toBe("Running");
+        // The only record this project keeps of a reclaimed lease. Losing
+        // this to tidy up a display defect is what this change refused.
+        expect(byId.get("d")!.progress).toBe(reclaimed);
+        // Stale, but a statement about what the run was doing rather than
+        // a duplicate of its state — preserved, and hidden by the surface.
+        expect(byId.get("e")!.progress).toBe("Working in VS Code Agent mode");
+
+        // Everything else about each record survives untouched.
+        expect(byId.get("a")!.operation).toBe("archive");
+        expect(byId.get("a")!.createdAt).toBe("2026-09-06T04:00:00.000Z");
+        expect(byId.size).toBe(5);
+    });
 });

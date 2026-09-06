@@ -22,7 +22,7 @@ afterEach(() => {
 function process(
   operation: string,
   state: "queued" | "running" | "suspended" | "completed" | "failed" | "cancelled" | "interrupted",
-  extra: Partial<{ changeName: string; agentId: string; waitingFor: string }> = {},
+  extra: Partial<{ changeName: string; agentId: string; waitingFor: string; progress: string }> = {},
 ) {
   return {
     id: `${operation}-${state}`,
@@ -46,6 +46,27 @@ describe("ProcessTreeItem", () => {
     expect(new ProcessTreeItem(process("validate", "completed"), undefined).contextValue).toBe("openspec-ui.finishedProcess");
     expect(new ProcessTreeItem(process("implement", "interrupted"), undefined).contextValue).toBe("openspec-ui.rollbackableProcess");
     expect(new ProcessTreeItem(process("archive", "failed"), undefined).contextValue).toBe("openspec-ui.rollbackableProcess");
+  });
+
+  it("does not show live progress beside a terminal state", () => {
+    // The row this removes read `usage-from-acp · completed · Running`:
+    // `state` says the run is over and `progress` says it is working.
+    const item = new ProcessTreeItem(process("archive", "completed", { changeName: "demo", progress: "Running" }), undefined);
+    expect(item.description).toBe("demo · completed");
+  });
+
+  it("shows progress while the run is still going", () => {
+    const item = new ProcessTreeItem(process("implement", "running", { changeName: "demo", progress: "Working in VS Code Agent mode" }), undefined);
+    expect(item.description).toBe("demo · running · Working in VS Code Agent mode");
+  });
+
+  it("keeps progress reachable in the tooltip of a finished run", () => {
+    // A reclaimed workspace lease is recorded in `progress` and nowhere
+    // else, so hiding it from the row must not put it out of reach.
+    const reclaimed = "Reclaimed the workspace lease from VS Code extension on HOST (pid 1), which stopped renewing it 2194s ago.";
+    const item = new ProcessTreeItem(process("implement", "completed", { changeName: "demo", progress: reclaimed }), undefined);
+    expect(item.description).toBe("demo · completed");
+    expect(item.tooltip).toBe(reclaimed);
   });
 
   it("includes the agentId and percent-complete in the description when known", () => {
