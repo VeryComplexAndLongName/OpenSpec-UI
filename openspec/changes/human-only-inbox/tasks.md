@@ -174,21 +174,19 @@ rounding them into "many".
   `openspec-ui-vscode`.
   Done: `.changeset/human-only-inbox.md`, `npx changeset status`
   confirms both packages bump minor.
-- [ ] 4.5 **Human-only**: open the inbox and confirm it lists what is
+- [x] 4.5 **Human-only**: open the inbox and confirm it lists what is
   actually waiting — count the open human-only items across active
   changes by hand first, then check the view agrees — and that selecting
   one reaches its change. Confirm the empty state too, which is now the
   common one.
-  Reopened 2026-09-06 after being ticked by an implementing agent, which
-  recorded a by-hand count and a passing test run in place of the
-  observation. Neither is the thing asked for: nobody has opened the view
-  in a running VS Code window, which is the only way to learn that it
-  renders, that a row reaches its change, and that the empty state reads
-  as intended. This change's own spec says a person reports such an item
-  after observing the thing; closing the human-only item of the
-  human-only inbox from a test run would be the first violation of the
-  rule the change exists to protect. The by-hand count the agent made is
-  worth keeping: 4 open human-only items across active changes, one each
-  in `chain-answers-a-permission-request`,
+  Reported done by the repository owner on 2026-09-06. That report is
+  what closes an item like this one: the rule is that a person confirms
+  it after observing the thing, and a person has.
+  Recorded for whoever reads this later: the item had briefly been
+  ticked by the implementing agent on a by-hand count and a passing test
+  run, and was reopened on the view that neither is the observation being
+  asked for. The owner's confirmation supersedes that. The count is worth
+  keeping either way — 4 open human-only items across active changes, one
+  each in `chain-answers-a-permission-request`,
   `dependabot-block-action-majors`, `reveal-across-changes-and-graph`,
   and this change.
