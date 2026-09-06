@@ -3,6 +3,8 @@
 // separate from cli.ts so it can be unit-tested without spawning a real
 // process — cli.ts is just this function wired to process.argv/exit.
 
+import { readChangeGraph } from "@openspec-ui/core";
+import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
   type ReleaseAssets,
@@ -15,6 +17,7 @@ const USAGE = `openspec-ui-cli — non-interactive OpenSpec change validation fo
 
 Usage:
   openspec-ui-cli validate [--cwd <path>] [--format json|text]
+  openspec-ui-cli change-graph [--cwd <path>] [--change <id>] [--all]
   openspec-ui-cli release-manifest [--cwd <path>] [--repository <owner/name>]
                                    [--ref <ref>] [--commit <sha>]
                                    [--releases <file>] [--fingerprint]
@@ -23,6 +26,9 @@ Usage:
 Options:
   --cwd <path>        Repository root (default: current directory)
   --format json|text  Output format for the validate command (default: json)
+  --change <id>       Print one change's ancestry instead of the whole
+                      graph: what it follows, and what those follow
+  --all               Include changes that state no relation
   --repository        owner/name for the manifest's links
                       (default: VeryComplexAndLongName/OpenSpec-UI)
   --ref <ref>         Ref the manifest's links point at (default: main)
@@ -50,6 +56,8 @@ export interface MainOptions {
   releases?: string;
   from?: string;
   fingerprint?: boolean;
+  change?: string;
+  all?: boolean;
 }
 
 export interface MainDeps {
@@ -81,15 +89,18 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--ref" ||
       arg === "--commit" ||
       arg === "--releases" ||
-      arg === "--from"
+      arg === "--from" ||
+      arg === "--change"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "change";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
       options.fingerprint = true;
+    } else if (arg === "--all") {
+      options.all = true;
     } else if (arg === "--format") {
       const value = argv[i + 1];
       if (value !== "json" && value !== "text") {
@@ -132,12 +143,19 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     stderr(USAGE);
     return 2;
   }
+  if (command === "change-graph") {
+    const cwd = options.cwd ?? process.cwd();
+    const nodes = await readChangeGraph(cwd);
+    stdout(options.change ? renderChangeAncestry(nodes, options.change) : renderChangeTree(nodes, { all: options.all }));
+    return 0;
+  }
+
   if (command === "release-manifest") {
     return await runReleaseManifest(options, { ...deps, stdout, stderr });
   }
 
   if (command !== "validate") {
-    stderr(`openspec-ui-cli: unknown command '${command ?? ""}' (supported: validate, release-manifest)`);
+    stderr(`openspec-ui-cli: unknown command '${command ?? ""}' (supported: validate, release-manifest, change-graph)`);
     stderr(USAGE);
     return 2;
   }

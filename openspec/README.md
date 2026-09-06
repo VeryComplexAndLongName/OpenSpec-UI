@@ -54,28 +54,43 @@ it having been observed.
 
 ### Say what a change follows, when it follows something
 
-A change's `.openspec.yaml` may state two optional relations:
+A change's `.openspec.yaml` may state three optional relations:
 
 ```yaml
 follows:
   - suite-survives-a-loaded-machine
 supersedes:
   - git-fixture-test-cost
+blocked_by:
+  - change-graph-in-core
 ```
 
 `follows` means this change exists because that one left something — a
 named successor, an inherited failure, a measurement that had to come
 first. `supersedes` means this change corrected a decision that one made.
-Both accept a single id, a `[flow, list]`, or a block list; both are
-optional, and an absent edge is not a defect. Do not invent one to make
-the graph look fuller.
+`blocked_by` means this change cannot start until that one lands.
 
-`npm run lint` fails when a stated id matches no change — active or
+The first two are history and never resolve. The third is a schedule and
+resolves the moment the change it names is archived — so an unmet blocker
+is reported, not failed, while a cycle among blockers is a deadlock
+rather than a confused record.
+
+All three accept a single id, a `[flow, list]`, or a block list; all are
+optional, and an absent relation is not a defect. Do not invent one to
+make the graph look fuller.
+
+`npm run test` fails when a stated id matches no change — active or
 archived — and when the relations form a cycle. That is the whole point:
 `openspec change validate --strict` accepts unknown keys and ignores
 them, so a successor named but never created would otherwise be
 discoverable only by someone reading prose. Three changes in a row here
 named residue that then lost its owner.
+
+The check is a test in `packages/core` rather than a lint script, so it
+runs from source with nothing built. It cannot catch a **missing**
+relation: it verifies that what is stated resolves, and nothing tells it
+a relation should exist. One was found missing by a human verification
+item, not by the check.
 
 Read the graph with `npm run graph:changes`, or
 `npm run graph:changes -- --change <id>` to walk one change back to the
