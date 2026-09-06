@@ -24,6 +24,10 @@ workflows through interfaces suited to their respective hosts.
 
 ![VS Code OpenSpec Workbench showing Changes, Archive, Specs, Templates, and Processes](docs/images/extension/overview-expanded.png)
 
+The extension also contributes a **Change Graph** view, added after these
+screenshots were taken: changes nested under the ones they follow, with
+anything waiting on a change that has not landed marked as waiting.
+
 See the complete screenshot galleries for the
 [standalone application](packages/server/README.md#screenshots) and the
 [VS Code extension](packages/extension/README.md#screenshots).
@@ -219,6 +223,8 @@ download a specific build; the artifact itself is never committed into
 | Processes view and checkpoint rollback | Yes | Yes |
 | Persistent run journal engine | Yes | Yes |
 | Built-in template catalog (16 templates, 9 categories) | Yes | Yes |
+| Recorded agent spend, and a ceiling that stops a chain | Yes | Yes |
+| Change relation graph (`follows`/`supersedes`/`blocked_by`) | No — `@openspec-ui/cli change-graph` | View and command |
 
 Host-specific UX is allowed to differ, but business behavior must remain in
 `packages/core`. Both delivery targets expose the same core recovery behavior
