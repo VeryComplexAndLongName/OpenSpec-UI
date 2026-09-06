@@ -53,7 +53,9 @@ notes' prose.
 - [x] 4.3 `npm run typecheck`, `npm run lint`, `npm run test`. No source
   changes; a regression check.
 - [x] 4.4 No changeset: CI configuration, nothing published changes.
-- [ ] 4.5 **Human-only, and the only real test**: after this merges, the
+- [x] 4.5 **Human-only, and the only real test**: after this merges, the
   next `main` push with a pending changeset must produce or update a
   "Version Packages" pull request. If none appears, this is the change to
-  revert.
+  revert. Observed: pull request #263 "Version Packages" was opened by the
+  action and merged as `8b0bc3f`, carrying the changeset that was pending
+  on `main`.
