@@ -10,7 +10,13 @@ import { createServer, type OpenSpecUiServer } from "./server.js";
 let server: OpenSpecUiServer;
 let baseUrl: string;
 
-vi.setConfig({ hookTimeout: 180_000 });
+// load-variance-not-per-file-cost: this file states a hook ceiling and no
+// test ceiling, because all of its cost is in the hook that builds the
+// client bundle. Its tests are six fetches against an already-running
+// server: 74ms idle and 139ms under deliberate 8-worker CPU co-load, for
+// the slowest of them. The budget below is the repository's floor rather
+// than a figure derived from those, which would be meaninglessly small.
+vi.setConfig({ hookTimeout: 180_000, testTimeout: 15_000 });
 
 beforeAll(async () => {
   // Ensures dist/app.js exists for this test run regardless of whether
