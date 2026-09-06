@@ -140,6 +140,17 @@ const temporaryRoots: string[] = [];
 // from the worst of those.
 const CHAIN_WAIT_FOR_TIMEOUT_MS = 20_000;
 
+async function waitForChain(assertion: () => void | Promise<void>, expectation: string): Promise<void> {
+  try {
+    await vi.waitFor(assertion, { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS });
+  } catch (error) {
+    throw new Error(
+      `Timed out after ${CHAIN_WAIT_FOR_TIMEOUT_MS} ms while waiting for ${expectation}. This hit vi.waitFor's ceiling, not an assertion regression.`,
+      { cause: error },
+    );
+  }
+}
+
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-harness-chain-"));
   temporaryRoots.push(root);
@@ -298,9 +309,9 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       }
     })();
 
-    await vi.waitFor(
+    await waitForChain(
       () => expect(events.at(-1)).toMatchObject({ kind: "completed" }),
-      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+      "the chain to reach the final completed event after checkpoint confirmations",
     );
     expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement", "verify"]);
   });
@@ -319,9 +330,9 @@ describe("HarnessChainRunner — semi-autonomous", () => {
       for await (const event of chain.run(command)) events.push(event);
     })();
 
-    await vi.waitFor(
+    await waitForChain(
       () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
-      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+      "the first checkpoint before confirming it",
     );
     expect(events.some((e) => e.kind === "completed" || e.kind === "failed" || e.kind === "cancelled")).toBe(false);
     // Still genuinely tracked (not garbage-collected/forgotten) — confirming resumes it.
@@ -330,9 +341,9 @@ describe("HarnessChainRunner — semi-autonomous", () => {
     // Resuming runs "review" and pauses at the next checkpoint too — still
     // not silently complete. End the test here (not the concern of this
     // test) via cancel, rather than draining the whole sequence.
-    await vi.waitFor(
+    await waitForChain(
       () => expect(events.filter((e) => e.kind === "checkpoint")).toHaveLength(2),
-      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+      "the second checkpoint after one confirm",
     );
     expect(events.some((e) => e.kind === "completed" || e.kind === "failed" || e.kind === "cancelled")).toBe(false);
     expect(chain.cancel(command.runId)).toBe(true);
@@ -995,9 +1006,15 @@ describe("HarnessChainRunner — cancellation mid-stage", () => {
       for await (const event of chain.run(command)) events.push(event);
     })();
 
-    await vi.waitFor(() => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true));
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true),
+      "the stage run to emit started",
+    );
     expect(chain.cancel(command.runId)).toBe(true);
-    await vi.waitFor(() => expect(cancelSignalled).toBe(true));
+    await waitForChain(
+      () => expect(cancelSignalled).toBe(true),
+      "the runner to observe the forwarded cancel command",
+    );
     releaseStage?.();
     await pump;
 
@@ -1057,9 +1074,9 @@ describe("HarnessChainRunner — asAgentRunner", () => {
       for await (const event of adapter.run(command)) events.push(event);
     })();
 
-    await vi.waitFor(
+    await waitForChain(
       () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
-      { timeout: CHAIN_WAIT_FOR_TIMEOUT_MS },
+      "the checkpoint before adapter-level cancel",
     );
 
     // A "cancel" sent through the adapter (mirroring how RunController
@@ -1366,9 +1383,9 @@ describe("HarnessChainRunner — budget from persisted audit history (task 4.3, 
       changeDir: command.context.changeDir,
       usage: { costUsd: 5 },
     });
-    await vi.waitFor(async () => {
+    await waitForChain(async () => {
       expect(await priorProcessAuditLog.readEntries()).toHaveLength(1);
-    });
+    }, "the persisted audit entry to be readable from disk");
 
     // This process's own reader — a fresh `FileAuditLog` instance over the
     // same file, exactly as `server.ts`/`extension.ts` construct one on
