@@ -1,5 +1,16 @@
 # @openspec-ui/cli
 
+## 0.3.2
+
+### Patch Changes
+
+- 9d4c55d: Describe what shipped. The CLI README said it "intentionally supports only
+  `validate`" while the package had gained `change-graph` and
+  `release-manifest`; all three are now documented. The extension README
+  gains the Change Graph view, the command that walks a change back to what
+  it follows, and the recorded spend and ceilings that were only described
+  in LIMITS.md.
+
 ## 0.3.1
 
 ### Patch Changes
