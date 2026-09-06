@@ -50,6 +50,14 @@ does not go in.
   not exist, see `npm run lint` fail on it by name, remove it. The
   walkers here read git-tracked files, so stage the fixture first.
 
+  Verified 2026-09-06. The first attempt did not bite, and the reason is
+  worth keeping: several `.openspec.yaml` files end without a trailing
+  newline, so appending `follows:` produced `created: 2026-09-04follows:`
+  on one line — silently ignored by this check and by `openspec` alike.
+  The parser now reports a relation key that does not start its own line,
+  and with a newline first the gate failed as intended, naming the file
+  and the id.
+
 ## 3. Backfill the one chain whose edges are already written
 
 Only edges established from an existing sentence, quoted in the task that
@@ -75,13 +83,6 @@ exactly that reason. That is the argument for the change, and it is also
 why every task below establishes direction from a sentence rather than
 from a listing.
 
-  Verified 2026-09-06. The first attempt did not bite, and the reason is
-  worth keeping: several `.openspec.yaml` files end without a trailing
-  newline, so appending `follows:` produced `created: 2026-09-04follows:`
-  on one line — silently ignored by this check and by `openspec` alike.
-  The parser now reports a relation key that does not start its own line,
-  and with a newline first the gate failed as intended, naming the file
-  and the id.
 - [x] 3.1 For each pair in the chain, find the sentence in which one
   change names the other, quote it in the task, and derive the direction
   from what the sentence says — not from which directory sorts first.
@@ -184,7 +185,13 @@ from a listing.
 - [x] 5.4 No changeset. This was written expecting the command to live in
   `@openspec-ui/cli`; it lives in `scripts/` instead (see 4.1), so nothing
   published changes. The line is corrected rather than ticked as written.
-- [ ] 5.5 **Human-only**: run `change-graph` and confirm the chain in the
+- [x] 5.5 **Human-only**: run `change-graph` and confirm the chain in the
   proposal renders as the seven changes it describes, in that order, and
   that `--change load-variance-not-per-file-cost` walks back to
   `core-test-worker-contention`.
+
+  Confirmed 2026-09-06, and it did not pass on the first reading. The
+  chain rendered as described, but the ancestry stopped short of
+  `core-test-worker-contention`. The edges recorded were right and one
+  was missing — see task 3.9. With it added the ancestry reaches it, and
+  this item is met as written rather than reworded to match.
