@@ -119,6 +119,36 @@ export class WorkbenchJournalLoadError extends Error {
     }
 }
 
+/** The literal progress value that `implementation-sessions.ts` used to
+ * report once, before executing, and never update. It duplicated `state`
+ * while a run was going and contradicted it afterwards — a finished run
+ * displayed as `completed · Running`. 45 of the 100 records in this
+ * repository's own journal were terminal with a progress value when the
+ * defect was found, 38 of them this marker.
+ *
+ * Dropped on load rather than on save, so a journal that is only ever
+ * read is corrected too, and without a version bump: the shape is
+ * unchanged, so making older readers fail closed over a string would cost
+ * more than it protects.
+ *
+ * Only this exact value, and only on a terminal record. Every other
+ * progress string is a statement about something that happened — a
+ * workspace lease taken from a holder that had stopped renewing it is
+ * recorded nowhere else — and is preserved verbatim. */
+const OBSOLETE_PROGRESS_MARKER = "Running";
+
+function isTerminalState(state: WorkbenchProcess["state"]): boolean {
+    return state !== "queued" && state !== "running" && state !== "suspended";
+}
+
+function withoutObsoleteProgress(process: WorkbenchProcess): WorkbenchProcess {
+    if (process.progress !== OBSOLETE_PROGRESS_MARKER || !isTerminalState(process.state)) {
+        return { ...process };
+    }
+    const { progress: _dropped, ...rest } = process;
+    return { ...rest };
+}
+
 function emptyJournal(): RestoredWorkbenchRunJournalData {
     return { processes: [], checkpointSessions: [] };
 }
@@ -228,7 +258,7 @@ export class WorkbenchRunJournal {
         await this.pruneCheckpointFiles(retainedIds);
 
         return {
-            processes: document.processes.map((process) => ({ ...process })),
+            processes: document.processes.map(withoutObsoleteProgress),
             checkpointSessions: sessions,
         };
     }
@@ -262,11 +292,11 @@ export class WorkbenchRunJournal {
             });
         }
         await this.save({
-            processes: document.processes.map((process) => ({ ...process })),
+            processes: document.processes.map(withoutObsoleteProgress),
             checkpointSessions: restored.map((session) => ({ processId: session.processId, changeName: session.changeName })),
         });
         return {
-            processes: document.processes.map((process) => ({ ...process })),
+            processes: document.processes.map(withoutObsoleteProgress),
             checkpointSessions: restored,
         };
     }
@@ -309,7 +339,7 @@ export class WorkbenchRunJournal {
             });
         }
         const data: WorkbenchRunJournalData = {
-            processes: document.processes.map((process) => ({ ...process })),
+            processes: document.processes.map(withoutObsoleteProgress),
             checkpointSessions: sessions,
         };
         await this.save(data);

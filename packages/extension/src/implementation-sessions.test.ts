@@ -44,6 +44,38 @@ describe("ImplementationSessionManager", () => {
     expect(await readFile(filePath, "utf8")).toBe("before");
   });
 
+  it("records no state-shaped progress on a completed session", async () => {
+    // `report("Running")` fired once before executing and was never
+    // updated, so it duplicated `state` while the run went and
+    // contradicted it afterwards — 38 records in this repository's own
+    // journal read `completed` beside `Running` because of it.
+    //
+    // "Working in VS Code Agent mode" stays: it says *where* the work is
+    // happening, which `state` does not, and a surface that shows it only
+    // while the run is going is the half of the fix that lives in
+    // processes-tree.ts.
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
+    roots.push(root);
+    await writeFile(path.join(root, "code.ts"), "before");
+    const scheduler = new WorkbenchProcessScheduler();
+    const manager = new ImplementationSessionManager(scheduler);
+
+    const processId = await manager.start(root, "demo");
+    expect(manager.finish(processId)).toBe(true);
+    await new Promise<void>((resolve) => {
+      const unsubscribe = scheduler.onDidChange((processes) => {
+        if (processes.find((process) => process.id === processId)?.state === "completed") {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+
+    const progress = scheduler.list().find((process) => process.id === processId)?.progress;
+    expect(progress).not.toBe("Running");
+    expect(progress).toBe("Working in VS Code Agent mode");
+  });
+
   it("finalizes and rolls back an interrupted persisted session", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "openspec-session-"));
     roots.push(root);

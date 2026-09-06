@@ -93,7 +93,7 @@ export class ImplementationSessionManager {
     let session: CheckpointSession | undefined;
     const handle = this.scheduler.start({
       ...options,
-      execute: async ({ report }) => {
+      execute: async () => {
         if (options.mutating) {
           const checkpoint = await captureCheckpoint(root);
           session = {
@@ -109,7 +109,6 @@ export class ImplementationSessionManager {
           this.sessions.set(handle.id, session);
           this.onDidChange();
         }
-        report("Running");
         try {
           return await options.execute();
         } finally {
