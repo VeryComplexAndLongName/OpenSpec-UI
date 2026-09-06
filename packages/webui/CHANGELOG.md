@@ -1,5 +1,13 @@
 # @openspec-ui/webui
 
+## 1.25.1
+
+### Patch Changes
+
+- Updated dependencies [e78face]
+- Updated dependencies [bfad445]
+  - @openspec-ui/core@0.51.0
+
 ## 1.25.0
 
 ### Minor Changes

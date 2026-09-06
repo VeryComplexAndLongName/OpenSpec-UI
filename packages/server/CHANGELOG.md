@@ -1,5 +1,13 @@
 # @openspec-ui/server
 
+## 1.13.20
+
+### Patch Changes
+
+- Updated dependencies [e78face]
+- Updated dependencies [bfad445]
+  - @openspec-ui/core@0.51.0
+
 ## 1.13.19
 
 ### Patch Changes
