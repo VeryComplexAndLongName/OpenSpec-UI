@@ -26,6 +26,7 @@ import {
   detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
+  readChangeGraph,
   getChangeTimelines,
   initOpenSpec,
   listBootstrapProjectTypes,
@@ -64,6 +65,7 @@ import {
   type OpenSpecValidateResult,
 } from "@openspec-ui/core";
 import type { RunController } from "./run-controller.js";
+import { ancestryOf } from "./tree/change-graph-tree.js";
 import { describeEvent } from "./describe-event.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import type { ChangeTreeItem, TaskTreeItem } from "./tree/changes-tree.js";
@@ -1028,6 +1030,48 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         timelinePanel.show(item.changeName, timeline, staleThresholdDays);
       } catch (error) {
         await showCommandError("show change timeline", error);
+      }
+    }),
+    // The question the graph exists to answer — why is this here — asked
+    // from the change rather than from the graph. A quick pick rather than
+    // a rendered document because the answer is a list you then navigate:
+    // picking an ancestor opens it.
+    vscode.commands.registerCommand("openspec-ui.showChangeAncestry", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
+        ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      try {
+        const nodes = await readChangeGraph(workspaceRoot);
+        if (!nodes.has(item.changeName)) {
+          await vscode.window.showInformationMessage(`No change with id "${item.changeName}".`);
+          return;
+        }
+        const ancestors = ancestryOf(nodes, item.changeName);
+        if (ancestors.length === 0) {
+          await vscode.window.showInformationMessage(
+            `${item.changeName} follows nothing. An absent relation is not a defect.`,
+          );
+          return;
+        }
+        const picked = await vscode.window.showQuickPick(
+          ancestors.map((node) => ({
+            label: node.id,
+            description: node.archived ? "archived" : "active",
+            detail: node.supersedes.length > 0 ? `supersedes ${node.supersedes.join(", ")}` : undefined,
+            node,
+          })),
+          { title: `What ${item.changeName} follows`, placeHolder: "Open one to read why it exists" },
+        );
+        if (!picked) return;
+        const directory = picked.node.metadataPath.replace(/\/\.openspec\.yaml$/u, "");
+        await vscode.commands.executeCommand(
+          "vscode.open",
+          vscode.Uri.file(path.join(workspaceRoot, directory, "proposal.md")),
+        );
+      } catch (error) {
+        await showCommandError("show what a change follows", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.archiveChange", async (invokedItem?: ChangeTreeItem) => {

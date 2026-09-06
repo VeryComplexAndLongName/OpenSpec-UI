@@ -84,6 +84,11 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "openspec-ui.showChangeAncestry",
+        "title": "OpenSpec UI: Show What This Change Follows",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "openspec-ui.archiveChange",
         "title": "OpenSpec UI: Archive Change",
         "icon": "$(archive)"
@@ -218,6 +223,10 @@
         {
           "id": "openspecUiTemplates",
           "name": "Templates"
+        },
+        {
+          "id": "openspecUiChangeGraph",
+          "name": "Change Graph"
         }
       ]
     },
@@ -265,7 +274,7 @@
         },
         {
           "command": "openspec-ui.refresh",
-          "when": "view == openspecUiChanges || view == openspecUiArchive || view == openspecUiSpecs || view == openspecUiTemplates",
+          "when": "view == openspecUiChanges || view == openspecUiArchive || view == openspecUiSpecs || view == openspecUiTemplates || view == openspecUiChangeGraph",
           "group": "navigation"
         },
         {
@@ -314,6 +323,11 @@
           "command": "openspec-ui.showChangeTimeline",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
           "group": "openspec@4"
+        },
+        {
+          "command": "openspec-ui.showChangeAncestry",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@5"
         },
         {
           "command": "openspec-ui.configureHarnessForChange",

@@ -26,6 +26,7 @@ import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
+import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
@@ -149,6 +150,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   let archiveTree: ArchiveTreeProvider | undefined;
   let specsTree: SpecsTreeProvider | undefined;
   let templatesTree: TemplatesTreeProvider | undefined;
+  let changeGraphTree: ChangeGraphTreeProvider | undefined;
   // The three views whose rows the item-scoped commands act on:
   // `createTreeView` returns a handle exposing `selection`, which
   // `registerTreeDataProvider` does not, and the Command Palette (which
@@ -163,6 +165,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
     specsTree = new SpecsTreeProvider(workspaceRoot);
     templatesTree = new TemplatesTreeProvider(workspaceRoot);
+    changeGraphTree = new ChangeGraphTreeProvider(workspaceRoot);
     const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changesTree });
     const archiveTreeView = vscode.window.createTreeView("openspecUiArchive", { treeDataProvider: archiveTree });
     const templatesTreeView = vscode.window.createTreeView("openspecUiTemplates", { treeDataProvider: templatesTree });
@@ -174,11 +177,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       archiveTreeView,
       templatesTreeView,
       vscode.window.registerTreeDataProvider("openspecUiSpecs", specsTree),
+      // Read-only, so `registerTreeDataProvider` rather than
+      // `createTreeView`: no command reads this view's selection, because
+      // every action on a change lives where it appears exactly once.
+      vscode.window.registerTreeDataProvider("openspecUiChangeGraph", changeGraphTree),
       vscode.commands.registerCommand("openspec-ui.refresh", () => {
         changesTree?.refresh();
         archiveTree?.refresh();
         specsTree?.refresh();
         templatesTree?.refresh();
+        changeGraphTree?.refresh();
       }),
     );
     const watcher = vscode.workspace.createFileSystemWatcher(
@@ -189,6 +197,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       archiveTree?.refresh();
       specsTree?.refresh();
       templatesTree?.refresh();
+      changeGraphTree?.refresh();
     };
     context.subscriptions.push(
       watcher,
@@ -243,6 +252,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       changesTree?.refresh();
       archiveTree?.refresh();
       specsTree?.refresh();
+      changeGraphTree?.refresh();
     },
     refreshTemplatesTree: () => templatesTree?.refresh(),
     scheduler,
