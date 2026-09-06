@@ -134,7 +134,7 @@ identity. Nothing in CI would go red.
   this list said no changeset was needed, on the assumption the
   generator would live in `.github/scripts/`. It lives in a published
   package and adds a command to it, so that assumption no longer holds.
-- [ ] 4.5 **Human-only**: after the first *successful* publish, fetch
+- [x] 4.5 **Human-only**: after the first *successful* publish, fetch
   `https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/release-manifest/releases.json`
   and confirm it resolves without credentials.
 - [ ] 4.6 **Human-only, and in the other repository**: set
