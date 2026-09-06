@@ -43,6 +43,12 @@ export interface MechanicalCheckContext {
   changeDir: string;
   /** The change's own name, e.g. "harness-mechanical-checks". */
   changeName: string;
+  /** Which npm script `typecheck`/`test`/`lint` should each run — see
+   * check-script-resolution.ts. Optional and absent for every existing
+   * caller (e.g. harness-chain-runner.ts), which keeps running the bare
+   * script name unchanged; only a caller that resolves against a
+   * workspace's own `package.json` (the extension) sets this. */
+  scripts?: Partial<Record<"typecheck" | "test" | "lint", string>>;
 }
 
 function runCommand(
@@ -152,9 +158,9 @@ export const MECHANICAL_CHECKS: Readonly<
   Record<MechanicalCheckName, (ctx: MechanicalCheckContext, param?: string) => Promise<MechanicalCheckResult>>
 > = {
   "validate-change": (ctx) => checkValidateChange(ctx),
-  typecheck: (ctx) => runNpmScript(ctx, "typecheck"),
-  test: (ctx) => runNpmScript(ctx, "test"),
-  lint: (ctx) => runNpmScript(ctx, "lint"),
+  typecheck: (ctx) => runNpmScript(ctx, ctx.scripts?.typecheck ?? "typecheck"),
+  test: (ctx) => runNpmScript(ctx, ctx.scripts?.test ?? "test"),
+  lint: (ctx) => runNpmScript(ctx, ctx.scripts?.lint ?? "lint"),
   "path-unchanged": (ctx, param) => checkPathUnchanged(ctx, param),
   "changeset-present": (ctx) => checkChangesetPresent(ctx),
 };

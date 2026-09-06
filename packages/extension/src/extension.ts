@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import {
+  CHECK_SCRIPT_NAMES,
   FileAuditLog,
   HarnessChainRunner,
   WorkbenchProcessScheduler,
@@ -13,6 +14,7 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
 } from "@openspec-ui/core";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
@@ -37,6 +39,21 @@ import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 let runners: Map<string, AgentRunner> | undefined;
 let auditLog: FileAuditLog | undefined;
 let optionalServer: OptionalServerManager | undefined;
+
+/** Sets `openspec-ui.checks.<name>` for each check — the context key
+ * package.json's `view/title` and `commandPalette` `when` clauses gate on
+ * (task 1.4: a workspace declaring neither `osui-<name>` nor `<name>` must
+ * see no command, not a failing one). Re-run on activation, on
+ * `openspec-ui.checks` config changes, and whenever the workspace's
+ * `package.json` changes — any of the three can change what resolves. */
+async function updateCheckContexts(workspaceRoot: string | undefined): Promise<void> {
+  const resolved = workspaceRoot ? await resolveCheckScripts(workspaceRoot, readConfig().checks) : {};
+  await Promise.all(
+    CHECK_SCRIPT_NAMES.map((name) =>
+      vscode.commands.executeCommand("setContext", `openspec-ui.checks.${name}`, Boolean(resolved[name])),
+    ),
+  );
+}
 
 /** Exported via `vscode.extensions.getExtension(...).exports` — for
  * integration tests only (src/test/suite), not a public API. */
@@ -216,9 +233,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
 
     auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
     runners = buildDefaultAgentRunners({ workspaceRoot, auditLog });
+
+    const packageJsonWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(workspaceRoot, "package.json"),
+    );
+    const refreshCheckContexts = () => void updateCheckContexts(workspaceRoot);
+    context.subscriptions.push(
+      packageJsonWatcher,
+      packageJsonWatcher.onDidCreate(refreshCheckContexts),
+      packageJsonWatcher.onDidChange(refreshCheckContexts),
+      packageJsonWatcher.onDidDelete(refreshCheckContexts),
+    );
   } else {
     void vscode.window.showWarningMessage("OpenSpec UI: no folder open — open a workspace to use it.");
   }
+  await updateCheckContexts(workspaceRoot);
 
   // One `HarnessChainRunner` for the extension host's lifetime — a chain
   // is stateful (a paused checkpoint lives between webview messages, see
@@ -265,11 +294,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (!e.affectsConfiguration("openspec-ui.transport.localServer.enabled") || !optionalServer) return;
-      if (readConfig().localServerEnabled) {
-        await optionalServer.start();
-      } else {
-        await optionalServer.stop();
+      if (e.affectsConfiguration("openspec-ui.transport.localServer.enabled") && optionalServer) {
+        if (readConfig().localServerEnabled) {
+          await optionalServer.start();
+        } else {
+          await optionalServer.stop();
+        }
+      }
+      if (e.affectsConfiguration("openspec-ui.checks")) {
+        await updateCheckContexts(workspaceRoot);
       }
     }),
   );

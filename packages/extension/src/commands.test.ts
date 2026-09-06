@@ -35,6 +35,8 @@ const resolveRunWithHarnessTargetMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
+const resolveCheckScriptsMock = vi.fn();
+const runMechanicalCheckMock = vi.fn();
 class TemplateAlreadyExistsError extends Error { }
 class UnknownProjectTemplateError extends Error { }
 class TaskListChangedError extends Error { }
@@ -86,6 +88,8 @@ vi.mock("@openspec-ui/core", () => ({
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   readChangeGraph: (...args: unknown[]) => readChangeGraphMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
+  resolveCheckScripts: (...args: unknown[]) => resolveCheckScriptsMock(...args),
+  runMechanicalCheck: (...args: unknown[]) => runMechanicalCheckMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   resolveHarnessConfig: (...args: unknown[]) => resolveHarnessConfigMock(...args),
@@ -1026,6 +1030,42 @@ describe("registerCommands", () => {
     expect(vscodeMock.commands.executeCommand).toHaveBeenCalledWith(
       "vscode.open",
       expect.objectContaining({ fsPath: expect.stringContaining(path.join("openspec", "changes", "middle", "proposal.md")) }),
+    );
+  });
+
+  it("openspec-ui.runLint: reports the command/output from runMechanicalCheck", async () => {
+    vscodeMock.workspace.getConfiguration.mockReturnValue({
+      get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue),
+    });
+    resolveCheckScriptsMock.mockResolvedValue({ lint: "osui-lint" });
+    runMechanicalCheckMock.mockResolvedValue({ pass: true, reason: "npm run osui-lint exited 0" });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.runLint")?.();
+
+    expect(resolveCheckScriptsMock).toHaveBeenCalledWith("/workspace/repo", {});
+    expect(runMechanicalCheckMock).toHaveBeenCalledWith("lint", undefined, {
+      workspaceRoot: "/workspace/repo",
+      changeDir: "/workspace/repo",
+      changeName: "",
+      scripts: { lint: "osui-lint" },
+    });
+    expect(deps.outputChannel.appendLine).toHaveBeenCalledWith("npm run osui-lint exited 0");
+  });
+
+  it("openspec-ui.runLint: warns when the workspace declares no script for lint", async () => {
+    vscodeMock.workspace.getConfiguration.mockReturnValue({
+      get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue),
+    });
+    resolveCheckScriptsMock.mockResolvedValue({});
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.runLint")?.();
+
+    expect(runMechanicalCheckMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("no \"lint\" check is declared by this workspace"),
     );
   });
 
