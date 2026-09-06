@@ -9,6 +9,8 @@ CLI to already be installed and available on `PATH`.
 
 ## Usage
 
+### `validate` — the merge gate
+
 ```sh
 npx @openspec-ui/cli validate --cwd . --format text
 ```
@@ -23,6 +25,40 @@ npx @openspec-ui/cli validate --cwd . --format text
 npx @openspec-ui/cli --help
 ```
 
+### `change-graph` — what a change follows
+
+Changes may state their relation to one another in `.openspec.yaml`:
+`follows` (this change exists because that one left something),
+`supersedes` (it corrected a decision that one made), and `blocked_by`
+(it cannot start until that one lands). This renders the result.
+
+```sh
+npx @openspec-ui/cli change-graph --cwd .
+npx @openspec-ui/cli change-graph --cwd . --change <id>
+```
+
+- `--change <id>`: print one change's ancestry — what it follows, and
+  what those follow — instead of the whole graph. This is the question
+  the relation exists to answer: why a decision is the way it is.
+- `--all`: include changes that state no relation, which are omitted by
+  default.
+
+Archived changes are marked as such, and a change waiting on a blocker
+that has not landed is shown as waiting.
+
+### `release-manifest` — the published version set
+
+Builds the `releases.json` a project site can read, so a release is
+described in one document rather than scraped. `--fingerprint` prints
+only the `id@version` set, which is how a publishing step decides whether
+anything changed at all.
+
+```sh
+npx @openspec-ui/cli release-manifest --cwd . --repository <owner/name>
+```
+
+See `--help` for the full flag set.
+
 ## Exit codes
 
 - `0`: every active change passed strict validation.
@@ -35,7 +71,12 @@ npx @openspec-ui/cli --help
 
 ## Scope
 
-This CLI intentionally supports only `validate`. See
+`validate` is what this package exists for, and the exit-code contract
+above applies to it: `change-graph` and `release-manifest` report rather
+than gate, and exit `0` unless the arguments are wrong.
+
+This CLI deliberately does not orchestrate agents, run changes, or edit
+anything. See
 [docs/adr/0007-ci-cli-third-delivery-target.md](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/adr/0007-ci-cli-third-delivery-target.md)
 for why, and
 [docs/adr/0009-publish-cli-to-npm.md](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/adr/0009-publish-cli-to-npm.md)

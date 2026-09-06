@@ -19,6 +19,9 @@ Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
 
 ![Compact OpenSpec Workbench with Changes, Archive, Specs, Templates, and Processes views](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-compact.png)
 
+A sixth view, **Change Graph**, was added after these screenshots were
+taken — see Features below.
+
 ### Changes and archive
 
 Individual checklist entries remain nested under their `tasks.md` artifact,
@@ -68,6 +71,23 @@ context menu.
 - See queued, running, completed, failed, cancelled, interrupted, and
   rolled-back operations in the Processes view. Read-only work can run in
   parallel; workspace mutations are serialized to keep checkpoints isolated.
+- See what a run spent, where the agent reports it. A recorded cost
+  appears beside the run, and a chain stops at a stage boundary when a
+  configured ceiling is reached — naming the budget rather than failing a
+  stage. A run whose agent reported nothing says so; it never shows
+  `$0.00`, because unreported is not the same as free. Which agents
+  report what, and which ceiling can act on each, is in
+  [LIMITS.md](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/LIMITS.md).
+- Read the **Change Graph** view: each change nested under the ones it
+  follows, archived ones marked, and any waiting on a change that has not
+  landed shown as waiting — so what can be started now is answerable
+  without opening a file. It is read-only on purpose; a change with two
+  parents appears under each, and every action stays in the Changes and
+  Archive trees where a change appears exactly once.
+- Ask a change what it follows — "Show What This Change Follows" walks
+  back to the changes it grew out of and opens any of them. This is how a
+  decision is traced to the reason for it once the change that made it is
+  archived.
 - Use `@openspec` in VS Code Chat with `/plan`, `/implement`, `/review`,
   `/status`, and `/validate`.
 - Or run `plan`/`implement`/`review` directly from the Process Dashboard's
