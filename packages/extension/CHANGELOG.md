@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.37.3
+
+### Patch Changes
+
+- 6c2a6ad: Refresh the workbench screenshots so they show the Change Graph view, and
+  drop the notes that apologised for their absence.
+
 ## 0.37.2
 
 ### Patch Changes
