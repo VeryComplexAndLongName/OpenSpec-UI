@@ -175,3 +175,109 @@ what to present rather than being given a pre-filtered list.
 - **WHEN** a product is not offered to the public
 - **THEN** the manifest includes it, marked as not public
 
+### Requirement: The version pull request is maintained by a supported action major
+
+The repository SHALL maintain its pending-version pull request using a
+currently supported major version of its release automation, and SHALL
+supply that automation's credentials through the input it reads them
+from rather than through configuration it ignores.
+
+Where a step's credentials are supplied somewhere the step does not read,
+that configuration SHALL be removed rather than left in place, so that it
+cannot be mistaken for something load-bearing.
+
+#### Scenario: Changesets are pending on the default branch
+
+- **WHEN** the default branch carries pending changesets
+- **THEN** the version pull request is created or updated
+
+#### Scenario: No changesets are pending
+
+- **WHEN** the default branch carries none
+- **THEN** no version pull request is created
+
+#### Scenario: Credentials in configuration the step ignores
+
+- **WHEN** a step's credentials are set where that step does not read
+  them
+- **THEN** that configuration is removed rather than retained alongside
+  the one that works
+
+### Requirement: The dependency audit is a check of its own
+
+The repository SHALL audit its production dependencies for high-severity
+advisories as a check that no other check depends on, so that the result
+of the audit cannot decide whether the rest of CI runs.
+
+Where the audit fails, the remaining checks SHALL still run and report
+their own results.
+
+#### Scenario: The audit fails
+
+- **WHEN** the dependency audit reports a failure
+- **THEN** the other checks still run, and each reports its own result
+
+#### Scenario: Another check fails
+
+- **WHEN** a different check fails
+- **THEN** the dependency audit still runs and reports its own result
+
+### Requirement: An audit that could not run is not reported as a finding
+
+Where the audit cannot be carried out — the advisory service is
+unreachable, returns an error, or does not answer within a bounded time —
+the system SHALL report that it could not be carried out, and SHALL NOT
+report it as a failing check.
+
+Where the audit is carried out and finds a high-severity advisory, the
+system SHALL fail its check.
+
+An audit that could not be carried out SHALL NOT be presented as an audit
+that found nothing.
+
+#### Scenario: The advisory service is unavailable
+
+- **WHEN** the audit cannot reach the advisory service
+- **THEN** the check does not fail, and the run says the audit could not
+  be carried out
+
+#### Scenario: The advisory service does not answer in time
+
+- **WHEN** the audit exceeds its bounded waiting time
+- **THEN** it stops waiting, the check does not fail, and the run says
+  the audit could not be carried out
+
+#### Scenario: A high-severity advisory exists
+
+- **WHEN** the audit is carried out and finds a high-severity advisory
+- **THEN** its check fails
+
+### Requirement: A release updates the lockfile it invalidates
+
+Where a release changes a workspace's published version, the system SHALL
+update the dependency lockfile in the same change, so that the lockfile
+continues to describe the packages it accompanies.
+
+The system SHALL NOT rely on an unrelated change to repair that drift
+later.
+
+Updating the lockfile during a release SHALL NOT change which dependency
+versions are resolved.
+
+#### Scenario: A release bumps a version
+
+- **WHEN** a release changes a workspace's version
+- **THEN** the lockfile records that version in the same change
+
+#### Scenario: No release is pending
+
+- **WHEN** no version changes
+- **THEN** the lockfile is left alone
+
+#### Scenario: A release would alter dependency resolution
+
+- **WHEN** updating the lockfile for a release would change a resolved
+  dependency version
+- **THEN** that is a defect to investigate, not an expected part of
+  releasing
+

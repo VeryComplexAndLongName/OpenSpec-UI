@@ -114,13 +114,18 @@ skipped.
   deliberately unchanged — this change makes the same data cheap to store,
   it does not store less of it.
 - [x] 6.4 Version bump via `npx changeset` (`@openspec-ui/core` minor).
-- [ ] 6.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.5 **Human-only, cannot be completed by an implementing agent**:
   on a workspace whose `.openspec-ui/workbench-runs.json` is already
   large, confirm after upgrade that the journal has shrunk to process rows
   and references, that `.openspec-ui/checkpoints/` holds one file per
   session, that rollback still works for a run that predates the change,
   and that starting a stage no longer rewrites hundreds of megabytes.
-  Leave unchecked if you are an agent.
+  Leave unchecked if you are an agent. Closed by the repository owner on
+  2026-09-06 as unperformable rather than as performed: no workspace on
+  hand has a journal large enough to observe the difference, so waiting
+  longer would not produce the evidence this item asks for. The change is
+  archived with that stated, so the record says the observation was never
+  made rather than implying it passed.
 
   Focused automated coverage passed 30/30 on 2026-09-02
   (`workbench-run-journal.test.ts`, `workbench-recovery.test.ts`, and
