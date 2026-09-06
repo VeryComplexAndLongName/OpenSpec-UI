@@ -4,20 +4,30 @@ Changes in this repository already depend on each other, and the
 dependencies are already written down — as English sentences inside task
 lists, where nothing can read them.
 
-One chain, all of it real, all of it from the last three weeks:
+Seven changes from the last three weeks are one argument:
+`git-fixture-test-cost`, `load-sensitive-test-timeouts`,
+`task-checklist-timeout-ceiling`, `core-test-worker-contention`,
+`suite-survives-a-loaded-machine`, `every-varying-check-has-a-budget`,
+`load-variance-not-per-file-cost`.
 
-`core-test-worker-contention` → `load-sensitive-test-timeouts` →
-`task-checklist-timeout-ceiling` → `git-fixture-test-cost` →
-`suite-survives-a-loaded-machine` → `every-varying-check-has-a-budget` →
-`load-variance-not-per-file-cost`
-
-Seven changes on one question. The links between them exist today as
-prose: "Carried from `suite-survives-a-loaded-machine`", "Tracked as
+The links between them exist today as prose: "Carried from
+`suite-survives-a-loaded-machine`", "Tracked as
 `core-test-worker-contention`", "Successor created:
 `load-variance-not-per-file-cost`". So the graph is already being
 maintained. It is just being maintained in a form that cannot be
 queried, cannot be validated, and disappears from view the moment a
 change is archived.
+
+They are listed above without an order on purpose. The first draft of
+this proposal put them in one, and got it wrong at the front, by reading
+the archive's date prefix as the order they happened in. It is not:
+`load-sensitive-test-timeouts`, archived 2026-09-02, opens by citing
+`git-fixture-test-cost`, archived 2026-09-05 — a change archived first
+can depend on one archived days later, because the date records when it
+closed. Recovering the real order took reading four proposals. That is
+the cost this change removes, and the mistake is left recorded here
+rather than quietly corrected, because it is the clearest evidence that
+the flat listing misleads.
 
 Two things follow from that.
 

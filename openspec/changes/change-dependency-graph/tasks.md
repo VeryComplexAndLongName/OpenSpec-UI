@@ -52,29 +52,56 @@ does not go in.
 
 ## 3. Backfill the one chain whose edges are already written
 
-Only edges quoted from an existing sentence. Each task names its source.
+Only edges established from an existing sentence, quoted in the task that
+records them.
 
-- [ ] 3.1 `load-sensitive-test-timeouts` follows
-  `core-test-worker-contention` — source: `git.push.test.ts`'s own
-  comment, "Tracked as core-test-worker-contention", and that change's
-  proposal distinguishing a stall from slowness.
-- [ ] 3.2 `git-fixture-test-cost` follows `load-sensitive-test-timeouts`
-  and `task-checklist-timeout-ceiling` — source:
-  `suite-survives-a-loaded-machine`'s proposal, "The fix is already
-  established in this repository, three times over".
-- [ ] 3.3 `suite-survives-a-loaded-machine` follows
-  `git-fixture-test-cost` — source: the same proposal, "That last one is
-  the proof — under the same co-load, the two files carrying its explicit
-  measured ceilings passed while these six did not".
-- [ ] 3.4 `every-varying-check-has-a-budget` follows
-  `suite-survives-a-loaded-machine` and supersedes
-  `git-fixture-test-cost` — sources: its proposal's opening, and its own
-  task 2 record, "`change-timeline.test.ts` and `sprint-report.test.ts`
-  carry 15000 ms chosen from isolated runs".
-- [ ] 3.5 `load-variance-not-per-file-cost` follows
+**Do not use the archive's date prefix as evidence of order.** Checked
+2026-09-06, it is misleading in at least two places in this very chain:
+
+- `core-test-worker-contention` is archived 2026-09-03 and
+  `load-sensitive-test-timeouts` 2026-09-02, and the direction is what
+  the dates suggest — the former says "`load-sensitive-test-timeouts`
+  fixed a different thing well" and "Reverting anything
+  `load-sensitive-test-timeouts` did".
+- But `load-sensitive-test-timeouts`, archived 2026-09-02, opens by
+  citing `git-fixture-test-cost`, archived 2026-09-05: "`git-fixture-test-cost`
+  took the full local `npm run test` from eight…", and later
+  "`git-fixture-test-cost` owns those". A change archived first can
+  depend on one archived days later, because the date records when it
+  closed, not when it started.
+
+The first draft of this section had one of these edges backwards for
+exactly that reason. That is the argument for the change, and it is also
+why every task below establishes direction from a sentence rather than
+from a listing.
+
+- [ ] 3.1 For each pair in the chain, find the sentence in which one
+  change names the other, quote it in the task, and derive the direction
+  from what the sentence says — not from which directory sorts first.
+- [ ] 3.2 `core-test-worker-contention` follows
+  `load-sensitive-test-timeouts` — established above.
+- [ ] 3.3 `load-sensitive-test-timeouts` follows `git-fixture-test-cost`
+  — established above.
+- [ ] 3.4 Establish where `task-checklist-timeout-ceiling` sits: it names
+  `load-sensitive-test-timeouts`, and the direction needs the sentence,
+  not the date.
+- [ ] 3.5 `suite-survives-a-loaded-machine` follows
+  `git-fixture-test-cost` — source: its proposal, "That last one is the
+  proof — under the same co-load, the two files carrying its explicit
+  measured ceilings passed while these six did not". Note that
+  `git-fixture-test-cost` also names `suite-survives-a-loaded-machine`,
+  which is a back-reference added when #228 rescoped its task 6.3 — a
+  mention in both directions is not a cycle, and the check in section 2
+  must not read it as one.
+- [ ] 3.6 `every-varying-check-has-a-budget` follows
+  `suite-survives-a-loaded-machine` and supersedes `git-fixture-test-cost`
+  — sources: its proposal's opening, and its own section 2 record,
+  "`change-timeline.test.ts` and `sprint-report.test.ts` carry 15000 ms
+  chosen from isolated runs".
+- [ ] 3.7 `load-variance-not-per-file-cost` follows
   `every-varying-check-has-a-budget` — source: that change's task 4.3,
   "Successor created: `load-variance-not-per-file-cost`".
-- [ ] 3.6 This change follows nothing. It came from a question, not from
+- [ ] 3.8 This change follows nothing. It came from a question, not from
   a predecessor's residue, and recording an edge to make the graph look
   fuller would be the first wrong edge.
 
