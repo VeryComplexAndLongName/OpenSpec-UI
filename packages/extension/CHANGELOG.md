@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.36.1
+
+### Patch Changes
+
+- bfad445: Stop showing finished runs as still working. A run that reported progress
+  kept that value after finishing, and the Processes view printed it beside
+  the state — `usage-from-acp · completed · Running`. The marker that
+  produced it is no longer reported, a terminal row no longer shows a live
+  field, and journal load drops that marker from records already written.
+  The lease-reclamation note, which nothing else records, is preserved.
+- Updated dependencies [e78face]
+- Updated dependencies [bfad445]
+  - @openspec-ui/core@0.51.0
+  - @openspec-ui/server@1.13.20
+  - @openspec-ui/webui@1.25.1
+
 ## 0.36.0
 
 ### Minor Changes
