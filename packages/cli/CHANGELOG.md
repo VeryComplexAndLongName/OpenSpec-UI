@@ -1,5 +1,13 @@
 # @openspec-ui/cli
 
+## 0.3.1
+
+### Patch Changes
+
+- e6cf843: Point at the project site. Both manifests gain a `homepage`, so the
+  Marketplace and npm listings link to https://openspec-ui.dev, and the
+  READMEs a reader lands on say where it is.
+
 ## 0.3.0
 
 ### Minor Changes
