@@ -9,8 +9,10 @@ rounding them into "many".
 ## 1. The inbox
 
 - [ ] 1.1 A view listing every open human-only item across active
-  changes, each naming its change. Fourteen changes, fourteen items, at
-  the time of writing.
+  changes, each naming its change. The load moves: fourteen changes with
+  one item each when this was written on 2026-09-06, four changes with
+  seven items between them after twelve were archived the same day.
+  Measure it again when implementing rather than trusting either number.
 - [ ] 1.2 Reading them means parsing `tasks.md`, which
   `readTaskChecklist` in core already does for percent-complete. Extend
   that rather than adding a second parser.
@@ -68,5 +70,7 @@ rounding them into "many".
 - [ ] 4.4 Version bump via `npx changeset` for `@openspec-ui/core` and
   `openspec-ui-vscode`.
 - [ ] 4.5 **Human-only**: open the inbox and confirm it lists what is
-  actually waiting — at the time of writing, one item in each of fourteen
-  changes — and that selecting one reaches its change.
+  actually waiting — count the open human-only items across active
+  changes by hand first, then check the view agrees — and that selecting
+  one reaches its change. Confirm the empty state too, which is now the
+  common one.
