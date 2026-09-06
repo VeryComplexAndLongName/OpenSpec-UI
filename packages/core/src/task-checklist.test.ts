@@ -15,6 +15,7 @@ import {
   UnknownMechanicalCheckError,
   deleteTaskLine,
   getArchivedChangeSummary,
+  isHumanOnlyTask,
   readTaskChecklist,
 } from "./task-checklist.js";
 
@@ -338,4 +339,50 @@ describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.
       expect(items.every((item) => item.check === undefined)).toBe(true);
     }
   }, 30_000);
+});
+
+describe("isHumanOnlyTask", () => {
+  it("matches every bolded lead this repository actually used on 2026-09-06", () => {
+    expect(isHumanOnlyTask("4.5 **Human-only**: open the inbox")).toBe(true);
+    expect(isHumanOnlyTask("**Human-only, cannot be completed by an implementing agent**")).toBe(true);
+    expect(isHumanOnlyTask("**Human-only, rechecked and confirmed 2026-09-02**")).toBe(true);
+    expect(isHumanOnlyTask("**Human-only, and the only real test**")).toBe(true);
+    expect(isHumanOnlyTask("**Human-only, and in the other repository**")).toBe(true);
+    expect(isHumanOnlyTask("**Human-only screenshot task**")).toBe(true);
+  });
+
+  it("is case-insensitive on the lead", () => {
+    expect(isHumanOnlyTask("**human-only**: lowercase")).toBe(true);
+  });
+
+  it("excludes a lead that reports an observation rather than asking for one", () => {
+    expect(isHumanOnlyTask("**Human-observed live run completed 2026-09-02**")).toBe(false);
+  });
+
+  it("excludes ordinary tasks, including ones that mention a human in prose", () => {
+    expect(isHumanOnlyTask("1.1 Add a unit test")).toBe(false);
+    expect(isHumanOnlyTask("2.3 Ask a human reviewer to double-check the diff")).toBe(false);
+  });
+
+  it("is false for a task with no bold span at all", () => {
+    expect(isHumanOnlyTask("Human-only, but never bolded")).toBe(false);
+  });
+});
+
+describe("readTaskChecklist humanOnly field", () => {
+  it("marks a human-only task and leaves other tasks without the field", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "with-human-only");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "## 1. Verification\n\n- [ ] 1.1 Run tests\n- [ ] 1.2 **Human-only**: confirm the UI by hand\n",
+    );
+
+    const items = await readTaskChecklist(root, "with-human-only", false);
+    expect(items).toEqual([
+      { lineNumber: 2, text: "1.1 Run tests", done: false },
+      { lineNumber: 3, text: "1.2 **Human-only**: confirm the UI by hand", done: false, humanOnly: true },
+    ]);
+  });
 });

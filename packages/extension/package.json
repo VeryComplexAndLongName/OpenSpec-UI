@@ -243,6 +243,10 @@
         {
           "id": "openspecUiChangeGraph",
           "name": "Change Graph"
+        },
+        {
+          "id": "openspecUiHumanOnlyInbox",
+          "name": "Human-Only Inbox"
         }
       ]
     },
@@ -290,7 +294,7 @@
         },
         {
           "command": "openspec-ui.refresh",
-          "when": "view == openspecUiChanges || view == openspecUiArchive || view == openspecUiSpecs || view == openspecUiTemplates || view == openspecUiChangeGraph",
+          "when": "view == openspecUiChanges || view == openspecUiArchive || view == openspecUiSpecs || view == openspecUiTemplates || view == openspecUiChangeGraph || view == openspecUiHumanOnlyInbox",
           "group": "navigation"
         },
         {

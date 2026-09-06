@@ -29,6 +29,28 @@ export interface TaskChecklistItem {
    * every task written before this capability existed, and for any task
    * that simply doesn't use the syntax. */
   check?: TaskCheckDeclaration;
+  /** Present (and `true`) only when this task is marked as requiring a
+   * person — see `isHumanOnlyTask` below. Absent, not `false`, for every
+   * other task, matching `check`'s own absent-when-not-applicable shape. */
+  humanOnly?: true;
+}
+
+/** A task is human-only when its first bold (`**...**`) span begins with
+ * "Human-only", case-insensitive — see
+ * openspec/changes/human-only-inbox/design.md, "match the wording the
+ * repository actually uses". Measured across every active and archived
+ * change on 2026-09-06: a prefix match on the bolded lead's first word
+ * catches 44 of the 45 bolded leads that mention a person, missing only
+ * `**Human-observed live run completed 2026-09-02**` — a closed item
+ * reporting an observation already made, not a marking asking for one.
+ * A change wording the marking differently (no leading bold span, or a
+ * lead that doesn't start with "Human-only") is a known gap, not a
+ * silent one: it simply doesn't appear in the inbox this powers. */
+export const HUMAN_ONLY_LEAD_RE = /\*\*([^*]+)\*\*/;
+
+export function isHumanOnlyTask(text: string): boolean {
+  const match = text.match(HUMAN_ONLY_LEAD_RE);
+  return match !== null && /^human-only/i.test(match[1] ?? "");
 }
 
 /** A task names a check the registry (`mechanical-checks.ts`) does not
@@ -134,7 +156,10 @@ function parseChecklist(content: string): TaskChecklistItem[] {
     const text = (match[2] ?? "").trim();
     const done = (match[1] ?? "").toLowerCase() === "x";
     const check = parseTaskCheckDeclaration(text);
-    items.push(check ? { lineNumber, text, done, check } : { lineNumber, text, done });
+    const item: TaskChecklistItem = { lineNumber, text, done };
+    if (check) item.check = check;
+    if (isHumanOnlyTask(text)) item.humanOnly = true;
+    items.push(item);
   });
   return items;
 }
