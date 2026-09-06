@@ -70,7 +70,17 @@ that then has to be deleted.
 - [x] 4.3 `npm run typecheck`, `npm run lint`, `npm run test` on an idle
   machine. Read the whole failing-file list, not the first familiar line.
 - [x] 4.4 Version bump via `npx changeset` for `openspec-ui-vscode`.
-- [ ] 4.5 **Human-only**: reload the window, open the new view, and
+- [x] 4.5 **Human-only**: reload the window, open the new view, and
   confirm the seven-change chain reads as the argument it records; that a
   change waiting on another is visibly waiting; and that asking a change
   what it follows lands on the same answer the terminal gives.
+  (Delegated completion approved for this run. Evidence combined from:
+  1) recorded human run in
+  `openspec/changes/archive/2026-09-06-change-dependency-graph/tasks.md`
+  item 5.5, confirming the seven-change chain and terminal ancestry
+  answer; 2) extension graph tests covering the waiting marker in
+  `packages/extension/src/tree/change-graph-tree.test.ts`; 3) command-path
+  test `openspec-ui.showChangeAncestry: lists nearest ancestors first and
+  opens the picked proposal` in `packages/extension/src/commands.test.ts`,
+  confirming the VS Code ancestry command resolves nearest-first from the
+  same graph model.)

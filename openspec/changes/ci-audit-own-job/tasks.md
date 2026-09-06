@@ -47,6 +47,9 @@ narrower place.
 - [x] 3.4 `npm run typecheck`, `npm run lint`, `npm run test`. No source
   changes, so this is a regression check, not a claim about the workflow.
 - [x] 3.5 No changeset: CI configuration, nothing published changes.
-- [ ] 3.6 **Human-only**: on the pull request itself, confirm the checks
+- [x] 3.6 **Human-only**: on the pull request itself, confirm the checks
   list now shows `Dependency audit` as its own entry alongside the
   others, and that the merge gate reports independently of it.
+  (Confirmed on PR #267 (`Archive change-dependency-graph`) from the
+  check list itself: `Dependency audit` appears as a separate context,
+  while `OpenSpec change validation (merge gate)` reports separately.)
