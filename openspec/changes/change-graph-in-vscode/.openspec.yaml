@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-06
+follows:
+  - change-dependency-graph
+blocked_by:
+  - change-graph-in-core
