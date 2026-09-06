@@ -150,6 +150,62 @@ configuring something.
   enforce arbitrary in-test waits without high false positives. Kept as a
   follow-up policy/tooling change, separate from this variance diagnosis.
 
+## Why several of these were re-opened
+
+Recorded 2026-09-06, after checking the first pass's conclusions against
+the artifacts it produced rather than against its own summary. The work
+was done; the readings do not support what was concluded from them, and a
+ticked box over an unsupported reading is worse than an open one.
+
+- **1.1** asked for at least five co-loaded runs and "the distribution
+  rather than the two endpoints". Two runs were recorded, both near the
+  low end (2101 ms and 1639 ms), and neither reproduced the 16.2 s
+  outlier the change exists to explain.
+- **1.2**'s two arms measured nothing. `core-coload-maxworkers-2.json`
+  contains `total=0` — the `--maxWorkers=2` mistake the task text warns
+  about by name, where vitest reads `=` as a file filter. And
+  `--poolOptions.forks.minThreads/maxThreads` are not fields of the forks
+  pool, which takes `minForks`/`maxForks`/`singleFork`, so that arm ran on
+  the default pool. Only the `singleFork` arm reduced parallelism, and
+  `core-test-worker-contention` had already run and rejected that
+  configuration for this package, with its reasoning in
+  `packages/core/vitest.workspace.ts`.
+- **1.4** concluded that filesystem churn "stays near idle" and is
+  therefore not a driver. That holds for the one test it looked at, which
+  is the least filesystem-bound of the set. Across the same artifacts, by
+  each file's slowest test:
+
+  | | idle | FS churn | CPU co-load |
+  | --- | --- | --- | --- |
+  | `task-checklist` | 3.5 s | **16.0 s** | 16.4 s |
+  | `change-timeline` | 4.5 s | **14.8 s** | 31.6 s |
+  | `git.push` | 1.7 s | **5.6 s** | 41.1 s |
+  | `workbench` | 0.1 s | 0.2 s | 2.3 s |
+
+  Filesystem churn inflates three of the four by 3x to 5x, and for
+  `task-checklist` it is indistinguishable from CPU co-load. It is not
+  ruled out.
+- **2.1-2.3** each select or reject a remedy on the strength of 1.4, so
+  they reopen with it.
+- **3.1/3.3** report the tinypool crash as reproduced repeatedly, but a
+  crashed run writes no JSON and none was kept: all five artifacts show
+  `failed=0`. 3.3 specifically asked for the output to preserve. The
+  re-run captures console output per run for exactly this reason.
+- **4.1** asked for *every* in-test waiting ceiling. The inventory lists
+  four files and misses three kinds: `waitFor` from
+  `@testing-library/react` in `HarnessSettingsView.test.tsx` and
+  `ProcessesView.test.tsx` (a different function with its own default),
+  and the hand-rolled `waitForState` in `process-scheduler.test.ts`,
+  which polls 200 times at 5 ms — a **one-second** ceiling with no
+  measurement behind it, in a file measured at 2.6 s under co-load.
+- **5.3** records both co-loaded re-runs as failing and is ticked. A
+  verification item that reports its own failure is not met.
+
+What stands from the first pass: the filesystem-churn control is new and
+useful evidence nobody had gathered, and `waitForChain` in
+`harness-chain-runner.test.ts` is the right answer to 4.2 — an expired
+wait now names itself instead of reporting an assertion mismatch.
+
 ## 5. Verification
 
 - [x] 5.1 `openspec change validate --strict load-variance-not-per-file-cost`.
@@ -175,5 +231,5 @@ configuring something.
     `RangeError`/`TypeError`.
   - `--poolOptions.forks.minThreads 1 --poolOptions.forks.maxThreads 4`:
     failed with the same tinypool sequence.
-- [ ] 5.4 No changeset expected: test infrastructure only. If that stops
+- [x] 5.4 No changeset expected: test infrastructure only. If that stops
   being true, this line is the one that was wrong.
