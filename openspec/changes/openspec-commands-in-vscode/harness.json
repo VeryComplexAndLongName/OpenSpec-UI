@@ -1,6 +1,6 @@
 {
   "autonomyLevel": "autonomous",
   "reviewGate": {
-    "mode": "agent-sufficient"
+    "mode": "human-required"
   }
 }
