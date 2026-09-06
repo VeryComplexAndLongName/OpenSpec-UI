@@ -8,6 +8,7 @@
     "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI.git",
     "directory": "packages/cli"
   },
+  "homepage": "https://openspec-ui.dev",
   "keywords": [
     "openspec",
     "spec-driven",

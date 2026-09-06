@@ -6,6 +6,9 @@ GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
 OpenAI-compatible API) for working with change proposals. The product ships
 in two forms with shared code: a standalone web tool and a VS Code extension.
 
+Project site: [https://openspec-ui.dev](https://openspec-ui.dev) — downloads, release notes and
+what each delivery target does.
+
 [A Tool That Watched Itself Get Built](https://www.linkedin.com/pulse/tool-watched-itself-get-built-alexander-ivanov-q57ne?lipi=urn%3Ali%3Apage%3Ad_flagship3_pulse_read%3BHDMlQK%2BGTcemHEauLJbbBA%3D%3D)
 
 ## Product Tour

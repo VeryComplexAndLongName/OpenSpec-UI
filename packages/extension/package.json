@@ -12,6 +12,7 @@
     "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI.git",
     "directory": "packages/extension"
   },
+  "homepage": "https://openspec-ui.dev",
   "categories": [
     "Other"
   ],
