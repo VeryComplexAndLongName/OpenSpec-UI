@@ -1,20 +1,31 @@
 {
   "stepAgents": {
     "propose": {
-      "agent": "claude-cli",
-      "model": "claude-opus-5"
+      "agent": "claude-cli-acp",
+      "model": "claude-opus-5",
+      "effort": "high"
     },
     "review": {
-      "agent": "claude-cli",
-      "model": "claude-opus-5"
+      "agent": "claude-cli-acp",
+      "model": "claude-opus-5",
+      "effort": "high"
     },
     "apply": {
       "agent": "copilot-cli-acp",
-      "model": "claude-sonnet-5"
+      "model": "gpt-5.3-codex",
+      "effort": "medium"
+    },
+    "verify": {
+      "agent": "claude-cli-acp",
+      "model": "claude-opus-5",
+      "effort": "high"
     }
   },
   "autonomyLevel": "assisted",
   "reviewGate": {
     "mode": "human-required"
+  },
+  "budget": {
+    "maxCostUsd": 15
   }
 }
