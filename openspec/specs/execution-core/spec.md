@@ -758,3 +758,181 @@ setting a ceiling can tell whether it can reach their runs at all.
 - **THEN** the chain continues, because nothing recorded has reached
   anything
 
+### Requirement: Audit records outlive the process that wrote them
+
+The system SHALL persist audit records for a workspace, and SHALL read
+them back after a restart.
+
+Persisted records SHALL be readable by any host operating on that
+workspace, so that a limit computed from recorded history spans a
+change's runs rather than one session's.
+
+#### Scenario: A run recorded, then a restart
+
+- **WHEN** a run is recorded and the host is restarted
+- **THEN** that run's audit record is still available
+
+#### Scenario: A limit computed after a restart
+
+- **WHEN** a spending ceiling is evaluated after a restart
+- **THEN** it counts runs recorded before that restart
+
+### Requirement: The audit record is bounded
+
+Persisted audit records SHALL be bounded in size. When the bound is
+exceeded, the oldest records SHALL be discarded and the newest retained.
+
+The whole record SHALL NOT be discarded on reaching the bound.
+
+#### Scenario: The bound is exceeded
+
+- **WHEN** persisted records exceed the configured bound
+- **THEN** the oldest are discarded, the newest remain, and the record is
+  not emptied
+
+### Requirement: An unreadable record degrades rather than failing a run
+
+Reading persisted audit records SHALL tolerate an incomplete or
+unparseable record: such a record is skipped and the remaining records are
+returned.
+
+Where no persisted records exist, reading SHALL report none rather than
+failing.
+
+Recording SHALL NOT block the run it describes, and a failure to record
+SHALL NOT fail that run.
+
+#### Scenario: A record was interrupted mid-write
+
+- **WHEN** persisted records end with an incomplete entry
+- **THEN** every complete entry before it is returned
+
+#### Scenario: Nothing has been recorded yet
+
+- **WHEN** no persisted records exist
+- **THEN** reading reports none, without error
+
+#### Scenario: Recording fails
+
+- **WHEN** an audit record cannot be written
+- **THEN** the run it describes proceeds unaffected
+
+### Requirement: Every defined event kind survives a transport
+
+An event the core emits SHALL be accepted by the protocol's own
+validation for every kind the protocol defines, so that a surface
+receiving events over a transport sees what the core emitted rather than
+a silently filtered subset.
+
+Where an event kind is added to the protocol, the system SHALL fail its
+own checks until that kind's validation exists — a new kind SHALL NOT be
+able to reach a transport while being rejected by it.
+
+Validation SHALL continue to reject a payload whose kind the protocol
+does not define, rather than raising an error on it.
+
+#### Scenario: An event of a recently added kind
+
+- **WHEN** an event of any kind the protocol defines is sent over a
+  transport
+- **THEN** it is accepted and delivered to the surface
+
+#### Scenario: A kind added without validation
+
+- **WHEN** a new event kind is added to the protocol and its validation
+  is not
+- **THEN** the project's own checks fail, rather than the kind being
+  discarded at runtime
+
+#### Scenario: A payload of an unknown kind
+
+- **WHEN** a payload arrives whose kind the protocol does not define
+- **THEN** it is rejected as invalid, and nothing throws
+
+### Requirement: A cancel command stops the run it names
+
+A command of kind `cancel` SHALL stop the run identified by its run id.
+
+Handling a cancel command SHALL NOT start an agent: it SHALL NOT build an
+invocation, SHALL NOT launch a process, and SHALL NOT record the start of
+a run.
+
+A cancel command naming a run the system does not have SHALL be reported
+as cancelled and SHALL NOT be reported as an error, because a run may end
+between the moment cancellation is requested and the moment it arrives.
+
+#### Scenario: Cancelling a running run
+
+- **WHEN** a cancel command names a run that is currently running
+- **THEN** that run stops and is reported as cancelled
+
+#### Scenario: Cancelling costs no agent run
+
+- **WHEN** a cancel command is handled
+- **THEN** no agent invocation is built, no agent process is started, and
+  no run start is recorded for the cancel itself
+
+#### Scenario: Cancelling a run that is already over
+
+- **WHEN** a cancel command names a run the system does not have
+- **THEN** it is reported as cancelled, without an error
+
+### Requirement: A running agent process can be terminated
+
+The system SHALL be able to terminate an agent process it started, and
+SHALL terminate the processes that process itself started, not only the
+process it launched directly.
+
+A run terminated this way SHALL end as cancelled, distinctly from a run
+that failed on its own.
+
+After termination the run SHALL emit no further output, and SHALL report
+exactly one terminal outcome.
+
+#### Scenario: A run is terminated part-way
+
+- **WHEN** a running agent's run is cancelled
+- **THEN** the agent's process is terminated and the run ends as
+  cancelled, not as failed
+
+#### Scenario: The agent was launched through an intermediate process
+
+- **WHEN** the agent was launched through an intermediate process, as on
+  a platform where the agent is installed as a shim
+- **THEN** terminating the run terminates the agent itself, not only the
+  intermediate process
+
+#### Scenario: Output buffered at the moment of cancellation
+
+- **WHEN** a run is cancelled while output it produced is still buffered
+- **THEN** no output is reported after the terminal outcome, and the
+  terminal outcome is reported once
+
+#### Scenario: Cancellation requested before the process starts
+
+- **WHEN** a run is cancelled before its process is launched
+- **THEN** no process is launched and the run is reported as cancelled
+
+### Requirement: A handed-off stage is reported distinctly from a completed one
+
+The event protocol SHALL carry a non-terminal event kind meaning "this
+stage was handed to the host's own chat", distinct from the terminal
+kinds. A run that hands a stage off SHALL emit it instead of a
+completion, and SHALL emit no terminal event afterwards, because nothing
+observes the handed-off work.
+
+Clients that do not recognise the new kind SHALL still see a coherent
+event log, as with the other non-terminal kinds.
+
+#### Scenario: A stage is handed to the host's chat
+
+- **WHEN** a run hands a stage to the host's chat
+- **THEN** it emits a start event followed by the hand-off event, and no
+  completion, failure or cancellation for that stage
+
+#### Scenario: Terminal kinds are unchanged
+
+- **WHEN** the set of terminal event kinds is examined
+- **THEN** it still contains only completion, failure and cancellation —
+  the hand-off kind is not among them
+
