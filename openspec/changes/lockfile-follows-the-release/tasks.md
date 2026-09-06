@@ -37,7 +37,9 @@ fixes.
   point of the file is that a clean install works from it.
 - [x] 3.4 `npm run typecheck`, `npm run lint`, `npm run test`.
 - [x] 3.5 No changeset: repository tooling, nothing published changes.
-- [ ] 3.6 **Human-only**: at the next release, confirm the "Version
+- [x] 3.6 **Human-only**: at the next release, confirm the "Version
   Packages" pull request's diff includes `package-lock.json`. That is the
   only way to see this working — the job is gated to `main` and its own
-  pull request cannot run it.
+  pull request cannot run it. Observed on pull request #263, whose four
+  changed files are the consumed changeset, `package-lock.json`, and the
+  extension's `package.json` and `CHANGELOG.md`.
