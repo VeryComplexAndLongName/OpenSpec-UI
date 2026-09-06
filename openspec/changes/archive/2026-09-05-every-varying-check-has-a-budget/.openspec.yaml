@@ -1,2 +1,6 @@
 schema: spec-driven
 created: 2026-09-05
+follows:
+  - suite-survives-a-loaded-machine
+supersedes:
+  - git-fixture-test-cost

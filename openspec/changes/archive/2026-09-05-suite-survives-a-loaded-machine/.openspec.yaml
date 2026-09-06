@@ -1,2 +1,6 @@
 schema: spec-driven
 created: 2026-09-04
+follows:
+  - load-sensitive-test-timeouts
+  - task-checklist-timeout-ceiling
+  - git-fixture-test-cost

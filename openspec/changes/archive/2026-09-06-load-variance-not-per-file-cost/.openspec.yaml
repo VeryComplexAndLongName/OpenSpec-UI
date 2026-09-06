@@ -1,3 +1,5 @@
 schema: spec-driven
 created: 2026-09-05
 skip_specs: true
+follows:
+  - every-varying-check-has-a-budget

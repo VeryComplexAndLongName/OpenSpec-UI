@@ -52,6 +52,41 @@ An item marked **human-only** stays open until a person reports it done.
 Passing automated checks are not evidence for it, and neither is half of
 it having been observed.
 
+### Say what a change follows, when it follows something
+
+A change's `.openspec.yaml` may state two optional relations:
+
+```yaml
+follows:
+  - suite-survives-a-loaded-machine
+supersedes:
+  - git-fixture-test-cost
+```
+
+`follows` means this change exists because that one left something — a
+named successor, an inherited failure, a measurement that had to come
+first. `supersedes` means this change corrected a decision that one made.
+Both accept a single id, a `[flow, list]`, or a block list; both are
+optional, and an absent edge is not a defect. Do not invent one to make
+the graph look fuller.
+
+`npm run lint` fails when a stated id matches no change — active or
+archived — and when the relations form a cycle. That is the whole point:
+`openspec change validate --strict` accepts unknown keys and ignores
+them, so a successor named but never created would otherwise be
+discoverable only by someone reading prose. Three changes in a row here
+named residue that then lost its owner.
+
+Read the graph with `npm run graph:changes`, or
+`npm run graph:changes -- --change <id>` to walk one change back to the
+reasons for it.
+
+**Do not read order off the archive's date prefix.** It records when a
+change closed, not when it started: `load-sensitive-test-timeouts`,
+archived 2026-09-02, depends on `git-fixture-test-cost`, archived
+2026-09-05. Establish direction from what a change says about another,
+and record it here so nobody has to establish it twice.
+
 ## Architecture Changes via ADR (mandatory)
 
 Any architecture-impacting modification must be documented via ADR in
