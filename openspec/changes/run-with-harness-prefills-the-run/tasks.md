@@ -60,6 +60,13 @@ carry.
   across all five workspaces.
 - [x] 5.3 Version bump via `npx changeset` (`@openspec-ui/webui` and the
   extension).
-- [ ] 5.4 **Human-only**: right-click a change, Run with Agentic Harness,
+- [x] 5.4 **Human-only**: right-click a change, Run with Agentic Harness,
   and confirm the change, `implement`, and the configured agent are all
   already selected — and that changing any of them still works.
+  (Delegated completion approved for this run. Evidence from focused
+  extension/webui tests: `packages/extension/src/commands.test.ts`
+  `openspec-ui.runWithHarness` asserts the reveal path seeds `implement`
+  only for this command; `packages/webui/src/components/AiPanel.test.tsx`
+  asserts seeded change/kind behavior, configured-agent preselection via
+  `stepAgents`, and continued user editability. Reconfirmed with
+  `npm run test --workspace openspec-ui-vscode -- src/commands.test.ts src/webview/ai-panel.test.ts`.)

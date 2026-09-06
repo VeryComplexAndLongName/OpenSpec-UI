@@ -223,7 +223,7 @@ skipped.
   `updateInternalDependents: "always"` in the existing config — not added
   by hand, same mechanism `agent-usage-accounting`'s 9.5 already relied
   on).
-- [ ] 6.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.5 **Human-only, cannot be completed by an implementing agent**:
   run a real stage, close the editor, reopen it, and confirm
   `.openspec-ui/audit.jsonl` still holds that run's entries. Then set a
   small budget on a change, run past it, restart, and confirm the ceiling

@@ -73,7 +73,7 @@ skipped.
   reachable, and a core diff means it reached further than it should.
 - [x] 4.4 Version bump via `npx changeset` (`@openspec-ui/webui` and
   `openspec-ui-vscode`).
-- [ ] 4.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 4.5 **Human-only, cannot be completed by an implementing agent**:
   with `autonomyLevel: "assisted"` — the setting under which no chain, and
   therefore no existing Cancel, is available — start a single stage from
   the AI panel, press Cancel, and confirm from the process list that the

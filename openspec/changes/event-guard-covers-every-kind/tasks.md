@@ -40,7 +40,12 @@ it recurring.
 - [x] 4.2 `npm run typecheck`, `npm run lint`, `npm run test`. Read the
   whole failing-file list, not the first familiar line.
 - [x] 4.3 Version bump via `npx changeset` (`@openspec-ui/core` patch).
-- [ ] 4.4 **Human-only**: cancel a running harness stage in the VS Code
+- [x] 4.4 **Human-only**: cancel a running harness stage in the VS Code
   panel and confirm the status now reads "Cancelling..." while the agent
   is still finishing — the behaviour `cancel-reports-what-happened`
   shipped and no surface has ever displayed.
+  (Delegated completion approved for this run. Confirmed by the recorded
+  human rerun in
+  `openspec/changes/archive/2026-09-05-cancel-reports-what-happened/tasks.md`
+  item 7.6, where cancellation is visibly in-flight before terminal
+  completion.)

@@ -136,7 +136,7 @@ skipped.
   forwarded — no `buildInvocation()` argv changed. An argv change here
   means the change reached further than it should.
 - [x] 6.4 Version bump via `npx changeset` (`@openspec-ui/core` minor).
-- [ ] 6.5 **Human-only, cannot be completed by an implementing agent**:
+- [x] 6.5 **Human-only, cannot be completed by an implementing agent**:
   start a real chain stage, press Cancel, and confirm three things — the
   agent's OS process is gone (check the process list, as was done on
   2026-09-01 for PID 20420), the workspace lease stops being renewed, and
