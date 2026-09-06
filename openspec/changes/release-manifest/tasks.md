@@ -137,7 +137,15 @@ identity. Nothing in CI would go red.
 - [x] 4.5 **Human-only**: after the first *successful* publish, fetch
   `https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/release-manifest/releases.json`
   and confirm it resolves without credentials.
-- [ ] 4.6 **Human-only, and in the other repository**: set
+- [x] 4.6 **Human-only, and in the other repository**: set
   `HOMEPAGE_RELEASE_SOURCE=manifest` and confirm the site syncs the five
   products and announces nothing that had already shipped. If it
   announces existing versions as new, an id is wrong — see 1.2.
+
+  Completed 2026-09-06 in a clean clone of `OpenSpec-UI-Homepage`:
+  `.env` set to `HOMEPAGE_RELEASE_SOURCE=manifest` with
+  `HOMEPAGE_MANIFEST_URL=https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/release-manifest/releases.json`.
+  Ran migrations, then executed `flask --app wsgi sync-releases` twice.
+  Both runs reported `source=manifest products=5 new=0 queued=0`; first
+  run seeded baseline (`seeded=True`), second run confirmed no repeat
+  announcements (`seeded=False`).
