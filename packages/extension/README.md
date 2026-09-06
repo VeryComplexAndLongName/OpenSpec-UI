@@ -81,6 +81,13 @@ context menu.
   without opening a file. It is read-only on purpose; a change with two
   parents appears under each, and every action stays in the Changes and
   Archive trees where a change appears exactly once.
+- Open the **Human-Only Inbox** to see every open item that is waiting on
+  a person, across all active changes, each naming the change it belongs
+  to and opening it when selected. When nothing is waiting the view says
+  so rather than showing an empty list. It offers no way to mark an item
+  done: those items are reported by a person after observing the thing
+  they name, and a button on a surface that cannot observe it would turn
+  that rule into a formality.
 - Ask a change what it follows — "Show What This Change Follows" walks
   back to the changes it grew out of and opens any of them. This is how a
   decision is traced to the reason for it once the change that made it is
