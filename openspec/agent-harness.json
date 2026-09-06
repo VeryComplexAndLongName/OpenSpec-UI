@@ -11,8 +11,8 @@
       "effort": "high"
     },
     "apply": {
-      "agent": "copilot-cli-acp",
-      "model": "gpt-5.3-codex",
+      "agent": "claude-cli-acp",
+      "model": "claude-sonnet-5",
       "effort": "medium"
     },
     "verify": {
