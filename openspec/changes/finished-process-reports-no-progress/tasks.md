@@ -90,7 +90,10 @@ without any evidence being thrown away to achieve it.
   loads and the extension changes what it displays.
   `@openspec-ui/core` patch (journal load) and `openspec-ui-vscode` patch
   (what the tree shows).
-- [ ] 5.5 **Human-only**: reload the VS Code window and confirm the
+- [x] 5.5 **Human-only**: reload the VS Code window and confirm the
   Processes view shows finished runs without "Running" beside their
   state, that a run still going still shows its progress, and that
   hovering a run that reclaimed the lease still shows that sentence.
+
+  Confirmed 2026-09-06: no "Running" appears beside a finished run in the
+  Processes view.
