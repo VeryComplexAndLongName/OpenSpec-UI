@@ -36,6 +36,34 @@ export default defineWorkspace([
     test: {
       name: "core",
       exclude: ["**/node_modules/**", "dist/**", "src/git.push.test.ts"],
+      // load-variance-not-per-file-cost: bound the pool rather than widen
+      // the budgets. Measured 2026-09-06 on this 8-core machine, running
+      // this package under a deliberate 8-worker CPU co-load:
+      //
+      //   default pool   5 runs, 6 test failures across 4 files,
+      //                  218-387 s wall, slowest test per file up to 64 s
+      //   maxForks 4     3 runs, 0 failures, 134-167 s wall, up to 17 s
+      //   maxForks 2     2 runs, 0 failures
+      //   no parallelism 2 runs, 0 failures
+      //
+      // The failures under the default pool were timeouts in a set that
+      // changed from run to run, which is what made them read as per-file
+      // cost. They are not: the same files pass, faster, when the pool
+      // stops oversubscribing a machine that is already busy.
+      //
+      // Four rather than two because four costs nothing when the machine
+      // is idle (29-30 s against 27-30 s for the default, two runs each)
+      // while two costs about a third (36-42 s), and four was enough.
+      //
+      // This does not cover hooks: `hookTimeout` stayed at its default in
+      // those runs and hook failures survived every bounded configuration.
+      // See `hookTimeout` in ./vitest.config.ts.
+      poolOptions: {
+        forks: {
+          minForks: 1,
+          maxForks: 4,
+        },
+      },
     },
   },
   {

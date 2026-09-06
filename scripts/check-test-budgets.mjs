@@ -44,9 +44,14 @@ const COST_SIGNALS = [
     /\bWorkbenchRunJournal\b/u,
 ];
 
-const FILE_BUDGET = /\bvi\.setConfig\s*\(\s*\{[^}]*\b(testTimeout|hookTimeout)\s*:/su;
+const FILE_TEST_BUDGET = /\bvi\.setConfig\s*\(\s*\{[^}]*\btestTimeout\s*:/su;
+const FILE_HOOK_BUDGET = /\bvi\.setConfig\s*\(\s*\{[^}]*\bhookTimeout\s*:/su;
 
-const TEST_CALL = /(^|[^\w$.])(it|test|beforeAll|afterAll|beforeEach|afterEach)\s*\(/gu;
+// Two literal patterns rather than one built from a name list: a
+// dynamically assembled source has to escape every backslash twice, and a
+// lost backslash turns `[^\w$.]` into `[^w$.]` silently.
+const TEST_CALL = /(^|[^\w$.])(it|test)\s*\(/gu;
+const HOOK_CALL = /(^|[^\w$.])(beforeAll|afterAll|beforeEach|afterEach)\s*\(/gu;
 
 /** Walks forward from an opening parenthesis to its match, skipping
  * strings, template literals, regular expressions' simpler forms and
@@ -91,12 +96,12 @@ function callArguments(source, openParen) {
     return undefined;
 }
 
-/** True when a test or hook call passes a numeric literal as its last
- * argument — vitest's per-test timeout. */
-function hasInlineBudget(source) {
-    TEST_CALL.lastIndex = 0;
+/** True when one of the named calls passes a numeric literal as its last
+ * argument — vitest's per-test or per-hook timeout. */
+function hasInlineBudget(source, pattern) {
+    pattern.lastIndex = 0;
     let match;
-    while ((match = TEST_CALL.exec(source)) !== null) {
+    while ((match = pattern.exec(source)) !== null) {
         const openParen = match.index + match[0].length - 1;
         const call = callArguments(source, openParen);
         if (!call || call.commas.length === 0) continue;
@@ -135,28 +140,79 @@ async function readBaseline(root) {
     }
 }
 
+/** A hook earns a budget when it does work whose cost varies. A file that
+ * resets a mock in `beforeEach` is not the concern; a file whose hook
+ * removes a temporary tree is exactly the concern, and is where both
+ * observed hook timeouts came from. */
+const HOOK_WORK = /\b(afterAll|afterEach|beforeAll|beforeEach)\s*\([^;]{0,600}?\b(rm|rmdir|mkdtemp|mkdir|writeFile|readFile|build|simpleGit|captureCheckpoint)\s*\(/su;
+
 export function analyzeTestFile(filePath, source) {
     const costVarying = COST_SIGNALS.some((signal) => signal.test(source));
-    const hasBudget = FILE_BUDGET.test(source) || hasInlineBudget(source);
-    return { filePath, costVarying, hasBudget };
+    const hasBudget = FILE_TEST_BUDGET.test(source) || hasInlineBudget(source, TEST_CALL);
+    const hasWorkingHook = HOOK_WORK.test(source);
+    const hasHookBudget = FILE_HOOK_BUDGET.test(source) || hasInlineBudget(source, HOOK_CALL);
+    return { filePath, costVarying, hasBudget, hasWorkingHook, hasHookBudget };
+}
+
+/** The package a test file belongs to, e.g. `packages/core`. */
+function packageOf(filePath) {
+    const parts = filePath.split("/");
+    return parts.length >= 2 && parts[0] === "packages" ? parts.slice(0, 2).join("/") : undefined;
+}
+
+/** Whether that package's vitest config states a hook ceiling.
+ *
+ * `hookTimeout` defaults to 10000 ms and `testTimeout` does not raise it,
+ * so a suite whose hooks remove temporary trees is on that default however
+ * carefully its tests are budgeted. Both hook failures that led to this
+ * rule were exactly that. Unlike `testTimeout`, there is nothing to
+ * protect by keeping it tight per file — a cleanup hook asserts nothing —
+ * so this is stated once per package instead of in every file. */
+export async function packageStatesHookTimeout(root, pkg) {
+    for (const name of ["vitest.config.ts", "vitest.config.mts", "vitest.config.js"]) {
+        try {
+            const source = await readFile(path.join(root, pkg, name), "utf8");
+            if (/\bhookTimeout\s*:/u.test(source)) return true;
+        } catch (error) {
+            if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ENOENT") throw error;
+        }
+    }
+    return false;
 }
 
 export async function scanTrackedTestFiles(root, baselineMap) {
     const baseline = baselineMap ?? await readBaseline(root);
     const violations = [];
+    const packagesWithWorkingHooks = new Set();
     for (const file of trackedFiles(root)) {
         const normalized = file.replaceAll("\\", "/");
         if (!TEST_FILE_PATTERN.test(normalized)
             || EXCLUDED_PREFIXES.some((prefix) => normalized.startsWith(prefix))) continue;
         const source = await readFile(path.join(root, file), "utf8");
         const analyzed = analyzeTestFile(normalized, source);
-        if (!analyzed.costVarying || analyzed.hasBudget) continue;
+        if (!analyzed.costVarying) continue;
         if (baseline.get(normalized)) continue;
+        if (!analyzed.hasBudget) {
+            violations.push({
+                filePath: normalized,
+                reason: "cost-varying test states no time budget:"
+                    + " add vi.setConfig({ testTimeout }) or a per-test timeout,"
+                    + " sized from a measurement recorded beside it",
+            });
+        }
+        if (analyzed.hasWorkingHook && !analyzed.hasHookBudget) {
+            const pkg = packageOf(normalized);
+            if (pkg) packagesWithWorkingHooks.add(pkg);
+        }
+    }
+
+    for (const pkg of [...packagesWithWorkingHooks].sort()) {
+        if (await packageStatesHookTimeout(root, pkg)) continue;
         violations.push({
-            filePath: normalized,
-            reason: "cost-varying test states no time budget:"
-                + " add vi.setConfig({ testTimeout }) or a per-test timeout,"
-                + " sized from a measurement recorded beside it",
+            filePath: pkg + "/vitest.config.ts",
+            reason: "tests here run hooks that do filesystem work, and this project states no"
+                + " hookTimeout: it is a separate ceiling from testTimeout, defaulting to 10000 ms."
+                + " Set it once here, with the measurement it was chosen from",
         });
     }
     return violations;

@@ -206,6 +206,108 @@ useful evidence nobody had gathered, and `waitForChain` in
 `harness-chain-runner.test.ts` is the right answer to 4.2 — an expired
 wait now names itself instead of reporting an assertion mismatch.
 
+## 6. What the measurement showed, and what was done about it
+
+Recorded 2026-09-06. Sections 1-3 above are left as they were written.
+This section supersedes their conclusion where the readings disagree with
+it, and says which reading it rests on, so the two can be compared rather
+than one quietly replacing the other.
+
+- [x] 6.1 The pool arms of 1.2 were re-run, because the options the first
+  pass used did not do what they were meant to.
+
+  `--maxWorkers 2` on its own throws `RangeError: options.minThreads and
+  options.maxThreads must not conflict` out of `new Tinypool` — vitest
+  leaves `minWorkers` at its default, which is above 2, and tinypool
+  rejects the pair. That RangeError out of
+  `node_modules/tinypool/dist/index.js` is what section 3 recorded as a
+  reproduction of the inherited crash. It is not: the inherited crash is
+  `RangeError: Maximum call stack size exceeded` under load. Same file,
+  different error, and this one is caused by the flags rather than found
+  by them. `--poolOptions.forks.minThreads/maxThreads` are not fields of
+  the forks pool either — it takes `minForks`/`maxForks`/`singleFork` —
+  so that arm ran on the default pool and measured nothing.
+
+- [x] 6.2 With both bounds passed, the answer to 1.2 is that it **is** the
+  pool. `packages/core` under a deliberate 8-worker CPU co-load on this
+  8-core machine:
+
+  | Configuration | Runs | Test failures | Wall | Slowest test in a file |
+  | --- | --- | --- | --- | --- |
+  | default pool | 5 | **6**, across 4 files | 218-387 s | up to 64 s |
+  | `maxForks 4` | 3 | 0 | 134-167 s | up to 17 s |
+  | `maxForks 2` | 2 | 0 | — | — |
+  | `maxWorkers 2` | 2 | 0 | — | — |
+  | `--no-file-parallelism` | 2 | 0 | — | — |
+  | filesystem churn, default pool | 3 | 0 | — | — |
+  | idle | 1 | 0 | 27-30 s | — |
+
+  The failing set changed from run to run, which is what made it read as
+  per-file cost. It is not: the same files pass, and finish sooner, when
+  the pool stops oversubscribing a machine that is already busy.
+
+- [x] 6.3 Bounded the `core` project to four forks in
+  `packages/core/vitest.workspace.ts`, extending the precedent
+  `core-test-worker-contention` set there rather than inventing one.
+
+  Four rather than two because the idle cost decides it: two runs each,
+  default 27 s and 30 s, four forks 29 s and 30 s, two forks 36 s and
+  42 s. Four is free and was enough; two would slow every ordinary run
+  and every CI run by about a third to buy nothing that four did not.
+
+- [x] 6.4 1.3's filesystem control was right to run and its conclusion
+  was drawn from the wrong test. By each file's slowest test, across the
+  same artifacts:
+
+  | | idle | FS churn | CPU co-load |
+  | --- | --- | --- | --- |
+  | `task-checklist` | 3.5 s | **16.0 s** | 16.4 s |
+  | `change-timeline` | 4.5 s | **14.8 s** | 31.6 s |
+  | `git.push` | 1.7 s | **5.6 s** | 41.1 s |
+  | `workbench` | 0.1 s | 0.2 s | 2.3 s |
+
+  Filesystem churn inflates three of the four by 3x to 5x, and for
+  `task-checklist` it is indistinguishable from CPU co-load. It was read
+  as negligible because the one file examined, `workbench.test.ts`, is
+  the least filesystem-bound of the set. It does not *fail* anything on
+  its own — three runs, no failures — so CPU oversubscription remains the
+  driver of the failures, but "near idle" is not what the numbers say.
+
+- [x] 6.5 `hookTimeout` is a third ceiling, and bounding the pool does not
+  reach it. Two hook failures were measured at the 10000 ms default —
+  `harness-config.test.ts` on the default pool, `sprint-report.test.ts`
+  with the pool bounded to two workers and again to two forks. Both are
+  `afterEach`/`afterAll` hooks removing temporary trees.
+
+  Stating `testTimeout` does not raise it, so every budgeted file in the
+  repository had its cleanup on the default. Set once per package —
+  `packages/core`, `packages/extension`, and a new
+  `packages/cli/vitest.config.ts` — rather than in each of the twenty-one
+  files that would otherwise need it: a cleanup hook asserts nothing, so
+  the reason that keeps `testTimeout` tight and per-file does not carry
+  over.
+
+- [x] 6.6 `scripts/check-test-budgets.mjs` now fails a package whose tests
+  run cost-varying hooks and whose config states no `hookTimeout`, so the
+  gap cannot reopen silently. It also caught `static.test.ts`, which
+  stated a hook ceiling and no test ceiling. Three tests cover the rule.
+
+- [x] 6.7 The inherited tinypool crash — `RangeError: Maximum call stack
+  size exceeded` — did **not** reproduce in any of the 21 runs recorded
+  here, in any pool configuration, under either kind of load. Nor did the
+  27x outlier this change was created to explain: `workbench.test.ts`
+  stayed between 0.1 s and 3.6 s across 13 co-loaded runs. Both remain
+  unexplained rather than resolved, and 3.3's request stands: the run
+  scripts and per-run JSON output are what a third sighting should start
+  from.
+
+- [x] 6.8 Budgets left alone deliberately. `task-checklist.test.ts` failed
+  twice at 30077 ms and 30124 ms against its 30 s ceiling, and
+  `harness-config.test.ts` reached 30142 ms — all three on the default
+  pool. With the pool bounded they measure 7.0-8.7 s. Raising them would
+  have been the reflex this change exists to refuse: the ceiling was not
+  too low, the pool was too wide.
+
 ## 5. Verification
 
 - [x] 5.1 `openspec change validate --strict load-variance-not-per-file-cost`.
@@ -224,6 +326,11 @@ wait now names itself instead of reporting an assertion mismatch.
     `webui` run completed in the same workspace test task).
 - [x] 5.3 Re-run the co-loaded suite after any change made here, twice,
   and record both. One pass is what let the 27x swing through.
+
+  Re-run three times after the pool bound of 6.3, under the same
+  eight-worker CPU co-load: 543 tests, **no failures in any of the
+  three**, 142 s, 134 s and 167 s. Against five runs of the same suite on
+  the default pool, which failed in three of them.
 
   Re-run completed after the section 4.2 test change with two co-loaded
   full-suite attempts under lifted ceilings:
