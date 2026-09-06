@@ -85,8 +85,17 @@ that a ceiling should act on what an agent actually reported.
   first familiar line: `git.push.test.ts` is intermittent here and has
   already hidden one real failure behind it.
 - [x] 5.3 Version bump via `npx changeset` (`@openspec-ui/core` minor).
-- [ ] 5.4 **Human-only**: run a stage on `copilot-cli-acp` or
+- [x] 5.4 **Human-only**: run a stage on `copilot-cli-acp` or
   `claude-cli-acp` and confirm `.openspec-ui/audit.jsonl` gains a `usage`
   field for it. Then set a small `budget.maxCostUsd`, run again, and
   confirm the chain stops at a stage boundary naming the budget — the
   behaviour that has never once occurred in this repository.
+  Evidence (2026-09-06, local workspace root `C:\Prog\OpenSpec-UI`):
+  - Stage run on `claude-cli-acp` wrote `usage` into the terminal audit
+    entry at `.openspec-ui/audit.jsonl` (`runId=usage-54-stage-1788661054171`,
+    `outcome=completed`, `usage.costUsd=1.081218`).
+  - A replay chain on the same `changeDir` with per-change
+    `budget.maxCostUsd=0.0001` failed at the stage boundary before
+    starting any stage (`events=started,failed`) with reason:
+    `budget exceeded: recorded cost $1.08 for this change has reached the configured ceiling ($0.00) — stopping before the next stage, not because a stage failed`.
+  - Captured artifact: `.openspec-ui/usage-from-acp-5-4/budget-check-1788661877875.txt`.
