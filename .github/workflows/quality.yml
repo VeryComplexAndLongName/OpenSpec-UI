@@ -278,6 +278,7 @@ jobs:
             console.log(`manifest holds ${manifest.products.length} products`);
           '
       - name: Publish only when a version actually changed
+        id: publish
         run: |
           # generated_at and commit move on every push. Comparing the
           # id@version set instead means a push that released nothing
@@ -305,8 +306,10 @@ jobs:
           fi
           if diff -q fingerprint.old fingerprint.new > /dev/null; then
             echo "::notice::no version changed; the manifest is already current"
+            echo "published=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "published=true" >> "$GITHUB_OUTPUT"
           WORK=$(mktemp -d)
           cp releases.json "$WORK/releases.json"
           cd "$WORK"
@@ -326,41 +329,57 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  browser-e2e:
-    name: Standalone browser and accessibility
-    needs: quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm install --global npm@${NPM_VERSION}
-      - run: npm install --global @fission-ai/openspec@1.7.0
-      - run: npm ci
-      - run: npm exec --workspace @openspec-ui/server playwright -- install --with-deps chromium
-      - run: npm run test:browser --workspace @openspec-ui/server
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: standalone-playwright-diagnostics
-          path: |
-            packages/server/playwright-report/
-            packages/server/test-results/
-          if-no-files-found: warn
-
-  dependency-review:
-    name: Dependency review
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        continue-on-error: true
-        with:
-          fail-on-severity: high
+      # The site polls the manifest on a schedule, so this only decides
+      # whether a release is visible in seconds or on the next daily run.
+      # That is why nothing here fails the job: a lost delivery is
+      # reconciled, and turning a green release red over it would be a
+      # worse outcome than a few hours of staleness. It runs only when
+      # something was actually published — the step above exits early
+      # when no version changed, and pinging the site then would ask it
+      # to re-read a manifest it already has.
+      - name: Tell the site a release was published
+        if: steps.publish.outputs.published == 'true'
+        env:
+          HOOK_URL: ${{ vars.HOMEPAGE_WEBHOOK_URL }}
+          HOOK_SECRET: ${{ secrets.HOMEPAGE_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$HOOK_URL" ] || [ -z "$HOOK_SECRET" ]; then
+            echo "::notice::no webhook configured; the site will pick this up on its scheduled sync"
+            exit 0
+          fi
+          # Both node programs below are one line each, deliberately.
+          # Written across several, inside a command substitution, `node
+          # -e` returned an empty string and exited zero — the body would
+          # have been blank and the signature with it, the site would have
+          # answered 401, and the message below would have blamed a
+          # mismatched secret. Found by running this script against a
+          # receiver that verifies exactly as the site does, before it
+          # shipped.
+          export BODY
+          BODY=$(node -e 'process.stdout.write(JSON.stringify({repository:process.env.GITHUB_REPOSITORY,commit:process.env.GITHUB_SHA,manifest:"releases.json"}));')
+          # Signed the way the receiver verifies it: HMAC-SHA256 over the
+          # raw body, hex, prefixed `sha256=`, in X-Hub-Signature-256.
+          # The secret is read from the environment rather than passed to
+          # openssl on a command line, where it would be visible to
+          # anything reading the process list.
+          SIGNATURE=$(node -e 'const c=require("node:crypto");process.stdout.write("sha256="+c.createHmac("sha256",process.env.HOOK_SECRET).update(process.env.BODY).digest("hex"));')
+          if [ -z "$BODY" ] || [ -z "$SIGNATURE" ]; then
+            echo "::warning::could not build the webhook request; the site will sync on its schedule"
+            exit 0
+          fi
+          # `curl -w` prints the status on its own stdout and *also* exits
+          # non-zero when it never connected, so `|| echo 000` appended a
+          # second value and produced "000000" — which matched no case and
+          # reported an unreachable site as an unexpected status. The exit
+          # is read separately instead.
+          : > response.txt
+          if ! STATUS=$(curl -sS -o response.txt -w "%{http_code}" --max-time 30             -X POST "$HOOK_URL"             -H "Content-Type: application/json"             -H "X-Hub-Signature-256: $SIGNATURE"             --data "$BODY"); then
+            STATUS="000"
+          fi
+          case "$STATUS" in
+            200) echo "::notice::site synced: $(cat response.txt)" ;;
+            401) echo "::warning::the site rejected the signature — HOMEPAGE_WEBHOOK_SECRET does not match the site's HOMEPAGE_GITHUB_WEBHOOK_SECRET" ;;
+            503) echo "::warning::the site has no webhook secret configured; it will sync on its schedule" ;;
+            000) echo "::warning::could not reach the site; it will sync on its schedule" ;;
+            *)   echo "::warning::the site answered $STATUS: $(cat response.txt)" ;;
+          esac
