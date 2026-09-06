@@ -34,6 +34,7 @@ const resolveHarnessConfigMock = vi.fn();
 const resolveRunWithHarnessTargetMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
+const readChangeGraphMock = vi.fn();
 class TemplateAlreadyExistsError extends Error { }
 class UnknownProjectTemplateError extends Error { }
 class TaskListChangedError extends Error { }
@@ -83,6 +84,7 @@ vi.mock("@openspec-ui/core", () => ({
   stepAgentFor: (stepAgents: Record<string, unknown> | undefined, stage: string) =>
     stage === "archive" || stepAgents === undefined ? undefined : stepAgents[stage],
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
+  readChangeGraph: (...args: unknown[]) => readChangeGraphMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
@@ -190,6 +192,7 @@ describe("registerCommands", () => {
         "openspec-ui.createChange",
         "openspec-ui.validateSelectedChange",
         "openspec-ui.showChangeTimeline",
+        "openspec-ui.showChangeAncestry",
         "openspec-ui.showAllChangesTimeline",
         "openspec-ui.generateSprintReport",
         "openspec-ui.archiveChange",
@@ -969,6 +972,61 @@ describe("registerCommands", () => {
     await vscodeMock._registeredCommands.get("openspec-ui.reviewDiff")?.(undefined);
     expect(vscodeMock.window.showWarningMessage).toHaveBeenCalled();
     expect(openDiffAgainstHeadMock).not.toHaveBeenCalled();
+  });
+
+  it("openspec-ui.showChangeAncestry: lists nearest ancestors first and opens the picked proposal", async () => {
+    const nodes = new Map([
+      ["root", {
+        id: "root",
+        archived: true,
+        follows: [],
+        supersedes: [],
+        blockedBy: [],
+        errors: [],
+        metadataPath: "openspec/changes/archive/2026-01-01-root/.openspec.yaml",
+      }],
+      ["middle", {
+        id: "middle",
+        archived: false,
+        follows: ["root"],
+        supersedes: [],
+        blockedBy: [],
+        errors: [],
+        metadataPath: "openspec/changes/middle/.openspec.yaml",
+      }],
+      ["leaf", {
+        id: "leaf",
+        archived: false,
+        follows: ["middle"],
+        supersedes: [],
+        blockedBy: [],
+        errors: [],
+        metadataPath: "openspec/changes/leaf/.openspec.yaml",
+      }],
+    ]);
+    readChangeGraphMock.mockResolvedValue(nodes);
+    vscodeMock.window.showQuickPick.mockImplementationOnce(async (items: unknown) => {
+      const picks = items as Array<{ label: string }>;
+      expect(picks.map((entry) => entry.label)).toEqual(["middle", "root"]);
+      return (items as Array<unknown>)[0];
+    });
+
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    await vscodeMock._registeredCommands.get("openspec-ui.showChangeAncestry")?.({
+      changeName: "leaf",
+      changeDir: "/workspace/repo/openspec/changes/leaf",
+      archived: false,
+    });
+
+    expect(readChangeGraphMock).toHaveBeenCalledWith("/workspace/repo");
+    expect(vscodeMock.window.showQuickPick).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ title: "What leaf follows" }),
+    );
+    expect(vscodeMock.commands.executeCommand).toHaveBeenCalledWith(
+      "vscode.open",
+      expect.objectContaining({ fsPath: expect.stringContaining(path.join("openspec", "changes", "middle", "proposal.md")) }),
+    );
   });
 
   it("opens the process dashboard with workspace context", async () => {
