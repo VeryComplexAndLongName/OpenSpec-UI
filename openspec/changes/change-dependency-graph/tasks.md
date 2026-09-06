@@ -120,6 +120,30 @@ from a listing.
 - [x] 3.8 This change follows nothing. It came from a question, not from
   a predecessor's residue, and recording an edge to make the graph look
   fuller would be the first wrong edge.
+- [x] 3.9 Correction, found by task 5.5 rather than by any check:
+  `load-variance-not-per-file-cost` also follows
+  `core-test-worker-contention`, and the edge was missing. It says so
+  twice — "extending the precedent `core-test-worker-contention` set
+  there rather than inventing one" in its task 6.3, and
+  "`core-test-worker-contention` had already run and rejected that
+  configuration for this package" in its record of 6.1. Both are the
+  relation this key exists for, and neither was transcribed.
+
+  Two things this establishes, both worth more than the edge.
+
+  The check cannot catch a **missing** edge. It verifies that a stated
+  relation resolves; nothing tells it an edge should exist. That
+  limitation is stated in this change's own proposal — "this makes a
+  named successor checkable; it does not make anyone name one" — and this
+  is the first time it has bitten. `human-only-inbox` proposes the
+  narrower check that would have caught the specific case of a successor
+  named in prose; this one was not a successor, so even that would have
+  missed it.
+
+  And a human verification item caught what four automated checks could
+  not. 5.5 asked for a specific end of a specific chain, and the answer
+  came back different. That is the argument for writing such items
+  concretely enough to fail.
 
 ## 4. Rendering
 
