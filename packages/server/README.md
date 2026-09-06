@@ -4,6 +4,8 @@ A thin authenticated REST/WebSocket adapter over `@openspec-ui/core`. It serves
 the standalone `@openspec-ui/webui` shell and binds to `127.0.0.1` by default.
 Business logic, execution security, recovery, and change state remain in core.
 
+Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
+
 The standalone capability is governed under `openspec/changes/standalone-app/`.
 The VS Code extension may also launch this server as an optional transport mode.
 

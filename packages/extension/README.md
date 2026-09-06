@@ -5,6 +5,8 @@ It uses native tree views, markdown editors, diffs, Source Control, Chat, and
 notifications while keeping lifecycle and security behavior in
 `@openspec-ui/core`.
 
+Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
+
 ## Screenshots
 
 ### Workbench overview
