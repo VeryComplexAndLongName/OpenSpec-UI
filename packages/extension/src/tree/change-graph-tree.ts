@@ -60,15 +60,25 @@ export class ChangeGraphNoticeTreeItem extends vscode.TreeItem {
   }
 }
 
-type GraphTreeNode = ChangeGraphTreeItem | ChangeGraphNoticeTreeItem | EmptyTreeItem;
+export type GraphTreeNode = ChangeGraphTreeItem | ChangeGraphNoticeTreeItem | EmptyTreeItem;
 
 export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTreeNode> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
+  // The graph a reveal's `getParent` chain should resolve against — set on
+  // every `getChildren` read, which `reveal` always triggers alongside
+  // `getParent` while walking a row's ancestry. `getParent` falls back to
+  // its own read only when called with no prior `getChildren` in this
+  // provider's lifetime (design.md, "a cost decision, not a correctness
+  // one" — this avoids re-reading `openspec/` once per level of a reveal,
+  // it does not need to be a full cache with invalidation).
+  private lastRead: ChangeGraph | undefined;
+
   constructor(private readonly workspaceRoot: string) { }
 
   refresh(): void {
+    this.lastRead = undefined;
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -76,8 +86,22 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
     return element;
   }
 
+  async getParent(element: GraphTreeNode): Promise<GraphTreeNode | undefined> {
+    if (!(element instanceof ChangeGraphTreeItem) || element.ancestry.length === 0) return undefined;
+    const nodes = this.lastRead ?? await readChangeGraph(this.workspaceRoot);
+    this.lastRead = nodes;
+    const parentId = element.ancestry[element.ancestry.length - 1];
+    if (parentId === undefined) return undefined;
+    const node = nodes.get(parentId);
+    if (!node) return undefined;
+    const children = childrenByParent(nodes);
+    const waiting = unmetBlockers(nodes);
+    return item(node, waiting, element.ancestry.slice(0, -1), children);
+  }
+
   async getChildren(element?: GraphTreeNode): Promise<GraphTreeNode[]> {
     const nodes = await readChangeGraph(this.workspaceRoot);
+    this.lastRead = nodes;
     const children = childrenByParent(nodes);
     const waiting = unmetBlockers(nodes);
 
@@ -202,4 +226,34 @@ export function ancestryOf(nodes: ChangeGraph, id: string): ChangeGraphNode[] {
     frontier = next;
   }
   return ordered;
+}
+
+/** Every row a change occupies, not the first found — a change following
+ * more than one other change appears once per path (design.md, "every
+ * row, and say how many"). Walks the graph the same way `getChildren`
+ * renders it — roots, then the stranded subgraph a cycle produces — so a
+ * row returned here is exactly one `reveal` can find, including rows
+ * under a collapsed subtree the tree view has never rendered. */
+export async function findGraphRows(workspaceRoot: string, changeId: string): Promise<ChangeGraphTreeItem[]> {
+  const nodes = await readChangeGraph(workspaceRoot);
+  const children = childrenByParent(nodes);
+  const waiting = unmetBlockers(nodes);
+  const rows: ChangeGraphTreeItem[] = [];
+
+  const walk = (id: string, ancestry: string[]): void => {
+    if (ancestry.includes(id)) return;
+    const node = nodes.get(id);
+    if (!node) return;
+    if (id === changeId) rows.push(item(node, waiting, ancestry, children));
+    const nextAncestry = [...ancestry, id];
+    for (const childId of children.get(id) ?? []) walk(childId, nextAncestry);
+  };
+
+  const connected = [...nodes.values()].filter((node) => isConnected(node, children));
+  for (const root of connected.filter((node) => node.follows.length === 0)) walk(root.id, []);
+
+  const reachable = reachableFromRoots(nodes, children);
+  for (const node of connected.filter((n) => !reachable.has(n.id))) walk(node.id, []);
+
+  return rows;
 }

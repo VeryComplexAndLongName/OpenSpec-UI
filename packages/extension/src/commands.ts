@@ -68,11 +68,12 @@ import {
   type CheckScriptName,
 } from "@openspec-ui/core";
 import type { RunController } from "./run-controller.js";
-import { ancestryOf } from "./tree/change-graph-tree.js";
+import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode } from "./tree/change-graph-tree.js";
 import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
-import type { ChangeTreeItem, TaskTreeItem } from "./tree/changes-tree.js";
+import { ChangeTreeItem } from "./tree/changes-tree.js";
+import type { TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
 import type { AiPanelContext } from "./webview/ai-panel.js";
@@ -81,9 +82,20 @@ import { TimelineWebviewPanel } from "./webview/timeline-panel.js";
 
 /** The part of a `vscode.TreeView` the item-scoped commands read: the
  * rows currently highlighted in it. Narrower than `TreeView` on purpose —
- * nothing here reveals, expands or disposes a view. */
+ * nothing here expands or disposes a view. */
 export interface TreeSelectionView {
   readonly selection: readonly unknown[];
+}
+
+/** `TreeSelectionView` plus `reveal` — what `openspec-ui.revealInChangeGraph`
+ * and `openspec-ui.revealInChanges` need on top of reading the selection:
+ * a place to reveal the other view's row into. Only the views a reveal
+ * command targets need this; `templatesView` still only needs selection. */
+export interface RevealableTreeView<T> extends TreeSelectionView {
+  reveal(
+    element: T,
+    options?: { select?: boolean; focus?: boolean; expand?: boolean | number },
+  ): Thenable<void>;
 }
 
 export interface CommandsDeps {
@@ -95,11 +107,12 @@ export interface CommandsDeps {
   refreshTemplatesTree: () => void;
   scheduler: WorkbenchProcessScheduler;
   implementationSessions: ImplementationSessionManager;
-  /** Undefined until a workspace is open — the three views only exist
+  /** Undefined until a workspace is open — the four views only exist
    * once there is a workspace root to build them from. */
-  changesView?: TreeSelectionView;
-  archiveView?: TreeSelectionView;
+  changesView?: RevealableTreeView<ChangeTreeItem>;
+  archiveView?: RevealableTreeView<ChangeTreeItem>;
   templatesView?: TreeSelectionView;
+  changeGraphView?: RevealableTreeView<GraphTreeNode>;
 }
 
 const CHECK_TITLES: Record<CheckScriptName, string> = {
@@ -191,6 +204,7 @@ const TASK_CONTEXT_VALUES = new Set([
   "openspec-ui.archivedTask",
 ]);
 const TEMPLATE_CONTEXT_VALUES = new Set(["openspec-ui.builtInTemplate", "openspec-ui.projectTemplate"]);
+const GRAPH_ROW_CONTEXT_VALUES = new Set(["openspec-ui.graphActiveChange", "openspec-ui.graphArchivedChange"]);
 
 function contextValueOf(candidate: unknown): string | undefined {
   if (typeof candidate !== "object" || candidate === null) return undefined;
@@ -208,6 +222,10 @@ function isTaskTreeItem(candidate: unknown): candidate is TaskTreeItem {
 
 function isTemplateTreeItem(candidate: unknown): candidate is TemplateTreeItem {
   return TEMPLATE_CONTEXT_VALUES.has(contextValueOf(candidate) ?? "");
+}
+
+function isChangeGraphTreeItem(candidate: unknown): candidate is ChangeGraphTreeItem {
+  return GRAPH_ROW_CONTEXT_VALUES.has(contextValueOf(candidate) ?? "");
 }
 
 /** The Command Palette invokes a command with no arguments; only the
@@ -1131,6 +1149,68 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
       } catch (error) {
         await showCommandError("show what a change follows", error);
+      }
+    }),
+    // Where a change occupies several rows (more than one parent), every
+    // row is revealed and the count is reported — choosing one silently
+    // would hide exactly the relationship that made the change occupy
+    // several (design.md, "every row, and say how many"). Most changes
+    // state no relation at all (proposal.md's measurement), so that case
+    // is reported too, not treated as an error.
+    vscode.commands.registerCommand("openspec-ui.revealInChangeGraph", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
+        ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (!deps.changeGraphView) { warnNoWorkspace(); return; }
+      try {
+        const rows = await findGraphRows(workspaceRoot, item.changeName);
+        if (rows.length === 0) {
+          void vscode.window.showInformationMessage(
+            `OpenSpec UI: ${item.changeName} states no relation — it does not appear in the Change Graph.`,
+          );
+          return;
+        }
+        for (const [index, row] of rows.entries()) {
+          await deps.changeGraphView.reveal(row, { select: index === 0, focus: index === 0, expand: true });
+        }
+        if (rows.length > 1) {
+          void vscode.window.showInformationMessage(
+            `OpenSpec UI: ${item.changeName} is shown in ${rows.length} places in the Change Graph.`,
+          );
+        }
+      } catch (error) {
+        await showCommandError("reveal in Change Graph", error);
+      }
+    }),
+    // Unambiguous in this direction — a graph row is exactly one change.
+    // Routes by the row's own `archived` flag (design.md, "route by the
+    // row's own archived flag"), and reports rather than throwing when the
+    // change is no longer where that flag says, since the graph is read
+    // from disk on refresh and can outlive the change it names.
+    vscode.commands.registerCommand("openspec-ui.revealInChanges", async (invokedItem?: ChangeGraphTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changeGraphView, isChangeGraphTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      const targetView = item.node.archived ? deps.archiveView : deps.changesView;
+      if (!targetView) { warnNoWorkspace(); return; }
+      try {
+        const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+        const list = item.node.archived ? workspace.archivedChanges : workspace.changes;
+        const found = list.find((change) => change.name === item.node.id);
+        if (!found) {
+          void vscode.window.showInformationMessage(
+            `OpenSpec UI: ${item.node.id} is no longer ${item.node.archived ? "archived" : "active"} — `
+            + "it may have been archived, restored, or deleted since the graph was last read.",
+          );
+          return;
+        }
+        const changeItem = new ChangeTreeItem(found.name, found.path, found.state, found.artifacts, item.node.archived);
+        await targetView.reveal(changeItem, { select: true, focus: true, expand: true });
+      } catch (error) {
+        await showCommandError("reveal in Changes", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.archiveChange", async (invokedItem?: ChangeTreeItem) => {

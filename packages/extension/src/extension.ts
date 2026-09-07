@@ -22,14 +22,17 @@ import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { registerCommands } from "./commands.js";
-import type { TreeSelectionView } from "./commands.js";
+import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
+import type { ChangeTreeItem } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
+import type { GraphTreeNode } from "./tree/change-graph-tree.js";
 import { HumanOnlyInboxTreeProvider } from "./tree/human-only-inbox-tree.js";
+import { registerFollowSelection } from "./follow-selection.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
@@ -176,9 +179,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // passes no item) needs it to find the row the user highlighted.
   // `openspecUiSpecs`/`openspecUiProcesses` stay on
   // `registerTreeDataProvider` — no command reads their selection.
-  let changesView: TreeSelectionView | undefined;
-  let archiveView: TreeSelectionView | undefined;
+  let changesView: RevealableTreeView<ChangeTreeItem> | undefined;
+  let archiveView: RevealableTreeView<ChangeTreeItem> | undefined;
   let templatesView: TreeSelectionView | undefined;
+  let changeGraphView: RevealableTreeView<GraphTreeNode> | undefined;
   if (workspaceRoot) {
     changesTree = new ChangesTreeProvider(workspaceRoot);
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
@@ -189,23 +193,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changesTree });
     const archiveTreeView = vscode.window.createTreeView("openspecUiArchive", { treeDataProvider: archiveTree });
     const templatesTreeView = vscode.window.createTreeView("openspecUiTemplates", { treeDataProvider: templatesTree });
+    // Was `registerTreeDataProvider` (no command read this view's
+    // selection). Reversed here because `reveal` — which
+    // `openspec-ui.revealInChangeGraph` and follow-selection both need —
+    // lives only on the handle `createTreeView` returns. The rest of the
+    // original reasoning is unchanged: this is still revealed *into*, not
+    // read from — no mutating command gains a graph entry (design.md,
+    // "the graph moves to createTreeView, and what that reverses").
+    const changeGraphTreeView = vscode.window.createTreeView("openspecUiChangeGraph", { treeDataProvider: changeGraphTree });
     changesView = changesTreeView;
     archiveView = archiveTreeView;
     templatesView = templatesTreeView;
+    changeGraphView = changeGraphTreeView;
     context.subscriptions.push(
       changesTreeView,
       archiveTreeView,
       templatesTreeView,
+      changeGraphTreeView,
       vscode.window.registerTreeDataProvider("openspecUiSpecs", specsTree),
-      // Read-only, so `registerTreeDataProvider` rather than
-      // `createTreeView`: no command reads this view's selection, because
-      // every action on a change lives where it appears exactly once.
-      vscode.window.registerTreeDataProvider("openspecUiChangeGraph", changeGraphTree),
       // Read-only, same reasoning as the graph above: no command reads
       // this view's selection, since selecting a row only reveals it in
       // Changes and never mutates it (design.md, "nothing in the inbox
       // marks an item done").
       vscode.window.registerTreeDataProvider("openspecUiHumanOnlyInbox", humanOnlyInboxTree),
+      registerFollowSelection({
+        getWorkspaceRoot,
+        changesView: changesTreeView,
+        archiveView: archiveTreeView,
+        changeGraphView: changeGraphTreeView,
+      }),
       vscode.commands.registerCommand("openspec-ui.refresh", () => {
         changesTree?.refresh();
         archiveTree?.refresh();
@@ -299,6 +315,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     changesView,
     archiveView,
     templatesView,
+    changeGraphView,
   });
   registerOpenSpecChatParticipant(context, { getWorkspaceRoot });
 

@@ -229,4 +229,42 @@ describe("ChangesTreeProvider", () => {
     provider.refresh();
     expect(listener).toHaveBeenCalled();
   });
+
+  describe("getParent", () => {
+    it("resolves a change to undefined — it's a root row", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        configPath: "/workspace/repo/openspec/config.yaml",
+        configExists: true,
+        changes: [{ name: "shared-ui", path: "/changes/shared-ui", state: "draft", artifacts: [] }],
+      });
+      const provider = new ChangesTreeProvider("/workspace/repo");
+      const roots = await provider.getChildren();
+      const change = roots[3];
+
+      expect(provider.getParent(change!)).toBeUndefined();
+    });
+
+    it("resolves an artifact to its change, matched by id rather than object identity", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        configPath: "/workspace/repo/openspec/config.yaml",
+        configExists: true,
+        changes: [{
+          name: "shared-ui",
+          path: "/changes/shared-ui",
+          state: "draft",
+          artifacts: [
+            { id: "proposal", kind: "proposal", label: "Proposal", path: "/changes/shared-ui/proposal.md", exists: true },
+            { id: "tasks", kind: "tasks", label: "Tasks", path: "/changes/shared-ui/tasks.md", exists: true },
+          ],
+        }],
+      });
+      const provider = new ChangesTreeProvider("/workspace/repo");
+      const roots = await provider.getChildren();
+      const change = roots[3];
+      const [proposal, tasks] = await provider.getChildren(change);
+
+      expect(provider.getParent(proposal!)?.id).toBe(change?.id);
+      expect(provider.getParent(tasks!)?.id).toBe(change?.id);
+    });
+  });
 });

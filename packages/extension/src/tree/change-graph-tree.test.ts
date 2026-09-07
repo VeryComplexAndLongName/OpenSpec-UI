@@ -11,7 +11,7 @@ vi.mock("@openspec-ui/core", async () => {
   return { ...actual, readChangeGraph: (...args: unknown[]) => readChangeGraphMock(...args) };
 });
 
-const { ChangeGraphTreeProvider, ChangeGraphNoticeTreeItem, ancestryOf } = await import("./change-graph-tree.js");
+const { ChangeGraphTreeProvider, ChangeGraphNoticeTreeItem, ancestryOf, findGraphRows } = await import("./change-graph-tree.js");
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -139,6 +139,75 @@ describe("ChangeGraphTreeProvider", () => {
     const items = await provider({ first: {}, second: { follows: ["first"] } }).getChildren();
     expect(items[0]?.contextValue).toBe("openspec-ui.graphActiveChange");
     expect(items[0]?.command).toBeUndefined();
+  });
+
+  describe("getParent", () => {
+    it("resolves a root row to undefined", async () => {
+      const tree = provider({ first: {}, second: { follows: ["first"] } });
+      const [root] = await tree.getChildren();
+      expect(await tree.getParent(root!)).toBeUndefined();
+    });
+
+    it("resolves a nested row to the row above it on its path", async () => {
+      const tree = provider({ first: {}, second: { follows: ["first"] } });
+      const [root] = await tree.getChildren();
+      const [child] = await tree.getChildren(root);
+      const parent = await tree.getParent(child!);
+      expect(parent?.label).toBe("first");
+      expect(parent?.id).toBe(root?.id);
+    });
+
+    it("resolves each of a change's several rows to its own distinct parent", async () => {
+      const tree = provider({ one: {}, two: {}, both: { follows: ["one", "two"] } });
+      const roots = await tree.getChildren();
+      const under = await Promise.all(roots.map((root) => tree.getChildren(root)));
+      const bothUnderOne = under[0]?.[0];
+      const bothUnderTwo = under[1]?.[0];
+      const parentOfFirst = await tree.getParent(bothUnderOne!);
+      const parentOfSecond = await tree.getParent(bothUnderTwo!);
+      expect(parentOfFirst?.id).toBe(roots[0]?.id);
+      expect(parentOfSecond?.id).toBe(roots[1]?.id);
+      expect(parentOfFirst?.id).not.toBe(parentOfSecond?.id);
+    });
+  });
+});
+
+describe("findGraphRows", () => {
+  it("finds the sole row for a change with one row", async () => {
+    readChangeGraphMock.mockResolvedValue(graph({ first: {}, second: { follows: ["first"] } }));
+    const rows = await findGraphRows("/repo", "second");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.label).toBe("second");
+  });
+
+  it("finds every row for a change with several parents", async () => {
+    readChangeGraphMock.mockResolvedValue(graph({ one: {}, two: {}, both: { follows: ["one", "two"] } }));
+    const rows = await findGraphRows("/repo", "both");
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((row) => row.id)).size).toBe(2);
+  });
+
+  it("finds no rows for a change that states no relation", async () => {
+    readChangeGraphMock.mockResolvedValue(graph({ alone: {} }));
+    const rows = await findGraphRows("/repo", "alone");
+    expect(rows).toEqual([]);
+  });
+
+  it("finds every row in the stranded subgraph a cycle produces", async () => {
+    // Neither change is a root in a pure cycle, so each renders once as its
+    // own stranded top-level row and once as the child of the other's —
+    // the same duplication `getChildren` itself renders (see "closes a
+    // cycle once, marked, and expands no further" above).
+    readChangeGraphMock.mockResolvedValue(graph({ a: { follows: ["b"] }, b: { follows: ["a"] } }));
+    const rows = await findGraphRows("/repo", "b");
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.label === "b")).toBe(true);
+  });
+
+  it("finds no rows for an id absent from the graph entirely", async () => {
+    readChangeGraphMock.mockResolvedValue(graph({ first: {} }));
+    const rows = await findGraphRows("/repo", "nope");
+    expect(rows).toEqual([]);
   });
 });
 

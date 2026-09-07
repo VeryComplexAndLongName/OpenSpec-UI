@@ -92,6 +92,17 @@ context menu.
   back to the changes it grew out of and opens any of them. This is how a
   decision is traced to the reason for it once the change that made it is
   archived.
+- Move between the Changes/Archive trees and the Change Graph on request.
+  "Reveal in Change Graph", on a change in either tree, expands and selects
+  every row it occupies (a change following more than one other change has
+  one row per parent) and reports the count when there is more than one; if
+  the change states no relation it says so rather than appearing to do
+  nothing — most changes are not in the graph, since it shows only what
+  states a relation. "Reveal in Changes", on a graph row, opens the Archive
+  tree for an archived change and Changes otherwise. Both are off unless
+  invoked: `openspec-ui.followSelectionInChangeGraph` (default `false`)
+  turns on following the Changes/Archive selection into the graph
+  automatically, without stealing focus from the list being browsed.
 - Use `@openspec` in VS Code Chat with `/plan`, `/implement`, `/review`,
   `/status`, and `/validate`.
 - Or run `plan`/`implement`/`review` directly from the Process Dashboard's

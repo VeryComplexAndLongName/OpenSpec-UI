@@ -6,6 +6,7 @@ import {
   TasksArtifactTreeItem,
   getChangeChildren,
   getTasksArtifactChildren,
+  getWorkbenchParent,
   type WorkbenchTreeItem,
 } from "./changes-tree.js";
 
@@ -21,6 +22,10 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   getTreeItem(element: WorkbenchTreeItem): vscode.TreeItem {
     return element;
+  }
+
+  getParent(element: WorkbenchTreeItem): WorkbenchTreeItem | undefined {
+    return getWorkbenchParent(element);
   }
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {

@@ -125,7 +125,9 @@ export function createVscodeMock() {
     workspace: {
       workspaceFolders: undefined as { uri: Uri }[] | undefined,
       getConfiguration: vi.fn(() => ({ get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue) })),
-      onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
+      onDidChangeConfiguration: vi.fn(
+        (_listener?: (e: { affectsConfiguration: (section: string) => boolean }) => void) => ({ dispose: vi.fn() }),
+      ),
       openTextDocument: vi.fn(async (arg: Uri | { language: string; content: string }) => {
         if (arg instanceof Uri) {
           const uri = arg;
