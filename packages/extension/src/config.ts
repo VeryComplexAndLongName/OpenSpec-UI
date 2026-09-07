@@ -12,6 +12,11 @@ export interface ExtensionConfig {
    * per check. See check-script-resolution.ts in `@openspec-ui/core`:
    * this wins over the `osui-<name>`/`<name>` conventions when set. */
   checks: CheckScriptSettings;
+  /** `openspec-ui.followSelectionInChangeGraph` — off by default. See
+   * follow-selection.ts and design.md, "locating is a request; following
+   * is opt-in": the graph shows only changes that state a relation, so
+   * for most changes there is nothing for a followed selection to do. */
+  followSelectionInChangeGraph: boolean;
 }
 
 export function readConfig(): ExtensionConfig {
@@ -19,6 +24,7 @@ export function readConfig(): ExtensionConfig {
   return {
     localServerEnabled: config.get<boolean>("transport.localServer.enabled", false),
     checks: config.get<CheckScriptSettings>("checks", {}),
+    followSelectionInChangeGraph: config.get<boolean>("followSelectionInChangeGraph", false),
   };
 }
 

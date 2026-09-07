@@ -48,6 +48,12 @@ export class ArtifactTreeItem extends vscode.TreeItem {
     public readonly artifactPath: string,
     public readonly exists: boolean,
     contextValue = "openspec-ui.artifact",
+    // Undefined for the root-level "OpenSpec Configuration" artifact, which
+    // has no owning change. Set whenever this artifact was reached through
+    // `getChangeChildren` below, so `getParent` can resolve back to it.
+    public readonly changeName?: string,
+    public readonly changeDir?: string,
+    public readonly archived?: boolean,
   ) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.id = `artifact:${artifactPath}`;
@@ -226,6 +232,10 @@ export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] 
       artifact.kind === "delta-spec" ? `Spec: ${artifact.label}` : artifact.label,
       artifact.path,
       artifact.exists,
+      "openspec-ui.artifact",
+      element.changeName,
+      element.changeDir,
+      element.archived,
     );
   });
 }
@@ -246,6 +256,30 @@ export async function getTasksArtifactChildren(
   );
 }
 
+/** `TreeView.reveal` needs this on both `ChangesTreeProvider` and
+ * `ArchiveTreeProvider` — they nest the same way (change → artifact →
+ * task), so one implementation covers both. Only a change is ever what
+ * `reveal` is called with (design.md, "what getParent has to return"),
+ * but an artifact resolves to its change too, since that costs nothing
+ * once `ArtifactTreeItem`/`TasksArtifactTreeItem` already carry it.
+ *
+ * Returns a freshly built `ChangeTreeItem`, not the one `getChildren`
+ * handed out earlier — matching is by `.id`, which both set the same way,
+ * not by object identity. `state` is a placeholder: it only affects the
+ * row's description/icon, neither of which `reveal`'s internal matching
+ * reads. */
+export function getWorkbenchParent(element: WorkbenchTreeItem): WorkbenchTreeItem | undefined {
+  if (element instanceof ChangeTreeItem) return undefined;
+  if (
+    (element instanceof ArtifactTreeItem || element instanceof TasksArtifactTreeItem)
+    && element.changeName !== undefined
+    && element.changeDir !== undefined
+  ) {
+    return new ChangeTreeItem(element.changeName, element.changeDir, "draft", [], element.archived ?? false);
+  }
+  return undefined;
+}
+
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
@@ -258,6 +292,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
 
   getTreeItem(element: WorkbenchTreeItem): vscode.TreeItem {
     return element;
+  }
+
+  getParent(element: WorkbenchTreeItem): WorkbenchTreeItem | undefined {
+    return getWorkbenchParent(element);
   }
 
   async getChildren(element?: WorkbenchTreeItem): Promise<WorkbenchTreeItem[]> {

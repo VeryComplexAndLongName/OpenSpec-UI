@@ -173,9 +173,10 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     refreshTemplatesTree: vi.fn(),
     scheduler: scheduler as unknown as import("@openspec-ui/core").WorkbenchProcessScheduler,
     implementationSessions: implementationSessions as unknown as import("./implementation-sessions.js").ImplementationSessionManager,
-    changesView: { selection: [] as unknown[] },
-    archiveView: { selection: [] as unknown[] },
+    changesView: { selection: [] as unknown[], reveal: vi.fn() },
+    archiveView: { selection: [] as unknown[], reveal: vi.fn() },
     templatesView: { selection: [] as unknown[] },
+    changeGraphView: { selection: [] as unknown[], reveal: vi.fn() },
     ...overrides,
   };
 }
@@ -1031,6 +1032,196 @@ describe("registerCommands", () => {
       "vscode.open",
       expect.objectContaining({ fsPath: expect.stringContaining(path.join("openspec", "changes", "middle", "proposal.md")) }),
     );
+  });
+
+  describe("openspec-ui.revealInChangeGraph", () => {
+    function graphNode(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        archived: false,
+        follows: [],
+        supersedes: [],
+        blockedBy: [],
+        errors: [],
+        metadataPath: `openspec/changes/${id}/.openspec.yaml`,
+        ...overrides,
+      };
+    }
+
+    it("reveals the sole row for a change with one row, without reporting a count", async () => {
+      readChangeGraphMock.mockResolvedValue(new Map([
+        ["first", graphNode("first")],
+        ["second", graphNode("second", { follows: ["first"] })],
+      ]));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChangeGraph")?.({
+        changeName: "second",
+        changeDir: "/workspace/repo/openspec/changes/second",
+        archived: false,
+        contextValue: "openspec-ui.activeChange",
+      });
+
+      expect(deps.changeGraphView?.reveal).toHaveBeenCalledTimes(1);
+      expect(deps.changeGraphView?.reveal).toHaveBeenCalledWith(
+        expect.objectContaining({ label: "second" }),
+        { select: true, focus: true, expand: true },
+      );
+      expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();
+    });
+
+    it("reveals every row for a change with several parents and reports the count", async () => {
+      readChangeGraphMock.mockResolvedValue(new Map([
+        ["one", graphNode("one")],
+        ["two", graphNode("two")],
+        ["three", graphNode("three")],
+        ["multi", graphNode("multi", { follows: ["one", "two", "three"] })],
+      ]));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChangeGraph")?.({
+        changeName: "multi",
+        changeDir: "/workspace/repo/openspec/changes/multi",
+        archived: false,
+        contextValue: "openspec-ui.activeChange",
+      });
+
+      expect(deps.changeGraphView?.reveal).toHaveBeenCalledTimes(3);
+      expect(deps.changeGraphView?.reveal).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ label: "multi" }),
+        { select: true, focus: true, expand: true },
+      );
+      expect(deps.changeGraphView?.reveal).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ label: "multi" }),
+        { select: false, focus: false, expand: true },
+      );
+      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+        expect.stringContaining("shown in 3 places"),
+      );
+    });
+
+    it("reports that a change states no relation and reveals nothing", async () => {
+      readChangeGraphMock.mockResolvedValue(new Map([["alone", graphNode("alone")]]));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChangeGraph")?.({
+        changeName: "alone",
+        changeDir: "/workspace/repo/openspec/changes/alone",
+        archived: false,
+        contextValue: "openspec-ui.activeChange",
+      });
+
+      expect(deps.changeGraphView?.reveal).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+        expect.stringContaining("states no relation"),
+      );
+    });
+
+    it("is offered from the Archive tree too, matching showChangeAncestry", async () => {
+      readChangeGraphMock.mockResolvedValue(new Map([
+        ["root", graphNode("root")],
+        ["archived-one", graphNode("archived-one", { archived: true, follows: ["root"] })],
+      ]));
+      const deps = makeDeps({ archiveView: { selection: [{
+        changeName: "archived-one",
+        changeDir: "/workspace/repo/openspec/changes/archive/archived-one",
+        archived: true,
+        contextValue: "openspec-ui.archivedChange",
+      }], reveal: vi.fn() } });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChangeGraph")?.();
+
+      expect(deps.changeGraphView?.reveal).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("openspec-ui.revealInChanges", () => {
+    it("routes an active row into the Changes tree", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        changes: [{ name: "second", path: "/changes/second", state: "draft", artifacts: [] }],
+        archivedChanges: [],
+      });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChanges")?.({
+        node: {
+          id: "second",
+          archived: false,
+          follows: [],
+          supersedes: [],
+          blockedBy: [],
+          errors: [],
+          metadataPath: "openspec/changes/second/.openspec.yaml",
+        },
+        contextValue: "openspec-ui.graphActiveChange",
+      });
+
+      expect(deps.changesView?.reveal).toHaveBeenCalledWith(
+        expect.objectContaining({ changeName: "second" }),
+        { select: true, focus: true, expand: true },
+      );
+      expect(deps.archiveView?.reveal).not.toHaveBeenCalled();
+    });
+
+    it("routes an archived row into the Archive tree", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        changes: [],
+        archivedChanges: [{ name: "old-one", path: "/archive/old-one", state: "archived", artifacts: [] }],
+      });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChanges")?.({
+        node: {
+          id: "old-one",
+          archived: true,
+          follows: [],
+          supersedes: [],
+          blockedBy: [],
+          errors: [],
+          metadataPath: "openspec/changes/archive/old-one/.openspec.yaml",
+        },
+        contextValue: "openspec-ui.graphArchivedChange",
+      });
+
+      expect(deps.archiveView?.reveal).toHaveBeenCalledWith(
+        expect.objectContaining({ changeName: "old-one" }),
+        { select: true, focus: true, expand: true },
+      );
+      expect(deps.changesView?.reveal).not.toHaveBeenCalled();
+    });
+
+    it("reports rather than throws when the row's change is no longer where its archived flag says", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({ changes: [], archivedChanges: [] });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.revealInChanges")?.({
+        node: {
+          id: "vanished",
+          archived: false,
+          follows: [],
+          supersedes: [],
+          blockedBy: [],
+          errors: [],
+          metadataPath: "openspec/changes/vanished/.openspec.yaml",
+        },
+        contextValue: "openspec-ui.graphActiveChange",
+      });
+
+      expect(deps.changesView?.reveal).not.toHaveBeenCalled();
+      expect(deps.archiveView?.reveal).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
+        expect.stringContaining("vanished"),
+      );
+    });
   });
 
   it("openspec-ui.runLint: reports the command/output from runMechanicalCheck", async () => {
@@ -2140,7 +2331,7 @@ describe("registerCommands", () => {
       vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
       archiveChangeMock.mockResolvedValue({ ok: true });
       checkChangesetReminderMock.mockResolvedValue({ changesetsAdopted: false, pendingChangesetCount: 0 });
-      const deps = makeDeps({ changesView: { selection: [activeChangeRow] } });
+      const deps = makeDeps({ changesView: { selection: [activeChangeRow], reveal: vi.fn() } });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.();
@@ -2150,7 +2341,7 @@ describe("registerCommands", () => {
 
     it("refuses to guess when several rows are selected", async () => {
       const deps = makeDeps({
-        changesView: { selection: [activeChangeRow, { ...activeChangeRow, changeName: "other-change" }] },
+        changesView: { selection: [activeChangeRow, { ...activeChangeRow, changeName: "other-change" }] , reveal: vi.fn() },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
@@ -2170,7 +2361,7 @@ describe("registerCommands", () => {
     });
 
     it("warns when the sole selected row is of another kind", async () => {
-      const deps = makeDeps({ changesView: { selection: [taskRow] } });
+      const deps = makeDeps({ changesView: { selection: [taskRow], reveal: vi.fn() } });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.();
@@ -2182,8 +2373,8 @@ describe("registerCommands", () => {
     it("resolves unarchiveChange from the Archive tree, not the Changes tree", async () => {
       vscodeMock.window.showWarningMessage.mockResolvedValue("Unarchive");
       const deps = makeDeps({
-        changesView: { selection: [activeChangeRow] },
-        archiveView: { selection: [archivedChangeRow] },
+        changesView: { selection: [activeChangeRow] , reveal: vi.fn() },
+        archiveView: { selection: [archivedChangeRow] , reveal: vi.fn() },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
@@ -2204,7 +2395,7 @@ describe("registerCommands", () => {
 
     it("resolves a task command from the Changes tree", async () => {
       vscodeMock.window.showWarningMessage.mockResolvedValue("Delete");
-      const deps = makeDeps({ changesView: { selection: [taskRow] } });
+      const deps = makeDeps({ changesView: { selection: [taskRow], reveal: vi.fn() } });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.deleteTask")?.();
@@ -2222,7 +2413,7 @@ describe("registerCommands", () => {
       vscodeMock.window.showWarningMessage.mockResolvedValue("Archive");
       archiveChangeMock.mockResolvedValue({ ok: true });
       checkChangesetReminderMock.mockResolvedValue({ changesetsAdopted: false, pendingChangesetCount: 0 });
-      const deps = makeDeps({ changesView: { selection: [activeChangeRow] } });
+      const deps = makeDeps({ changesView: { selection: [activeChangeRow], reveal: vi.fn() } });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({

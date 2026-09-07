@@ -81,4 +81,28 @@ describe("ArchiveTreeProvider", () => {
     expect(items[0]?.label).toBe("No archived changes");
     expect(items[0]?.description).toContain("first archive");
   });
+
+  describe("getParent", () => {
+    it("resolves a change to undefined, and an artifact to its change", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        archiveExists: true,
+        archivedChanges: [{
+          name: "old-change-1",
+          path: "/archive/old-change-1",
+          state: "archived",
+          artifacts: [
+            { id: "proposal", kind: "proposal", label: "Proposal", path: "/archive/old-change-1/proposal.md", exists: true },
+          ],
+        }],
+      });
+
+      const provider = new ArchiveTreeProvider("/workspace/repo");
+      const roots = await provider.getChildren();
+      const change = roots[0];
+      const [proposal] = await provider.getChildren(change);
+
+      expect(provider.getParent(change!)).toBeUndefined();
+      expect(provider.getParent(proposal!)?.id).toBe(change?.id);
+    });
+  });
 });

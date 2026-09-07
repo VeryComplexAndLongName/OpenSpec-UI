@@ -90,6 +90,16 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "openspec-ui.revealInChangeGraph",
+        "title": "OpenSpec UI: Reveal in Change Graph",
+        "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "openspec-ui.revealInChanges",
+        "title": "OpenSpec UI: Reveal in Changes",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "openspec-ui.archiveChange",
         "title": "OpenSpec UI: Archive Change",
         "icon": "$(archive)"
@@ -369,6 +379,16 @@
           "group": "openspec@5"
         },
         {
+          "command": "openspec-ui.revealInChangeGraph",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@5"
+        },
+        {
+          "command": "openspec-ui.revealInChanges",
+          "when": "viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphArchivedChange",
+          "group": "openspec@1"
+        },
+        {
           "command": "openspec-ui.configureHarnessForChange",
           "when": "viewItem == openspec-ui.activeChange",
           "group": "openspec@5"
@@ -452,6 +472,11 @@
           "default": 14,
           "minimum": 1,
           "description": "Days a pending task can sit untouched (per git blame on tasks.md) before the Change Timeline view flags it as stale."
+        },
+        "openspec-ui.followSelectionInChangeGraph": {
+          "type": "boolean",
+          "default": false,
+          "description": "When on, selecting a change in Changes or Archive reveals it in the Change Graph automatically. Off by default: the graph shows only changes that state a relation (follows/supersedes/blocked_by), so for most changes there is nothing to reveal — use \"OpenSpec UI: Reveal in Change Graph\" on demand instead."
         },
         "openspec-ui.checks": {
           "type": "object",
