@@ -11,8 +11,11 @@ inventing screenshots that claim to show a state the UI does not expose.
 
 ### New
 
-- Four standalone SVG visuals for the teaser's permission, Human-Only Inbox,
-  human observation, and mechanical-check scenes.
+- Four standalone visuals for the teaser's permission, Human-Only Inbox,
+  human observation, and mechanical-check scenes. Written as SVG, shipped
+  as PNG under `docs/images/standalone/`; corrected here on 2026-09-07
+  against the tree rather than left describing a format and a folder that
+  are not there.
 
 ### Modified
 
