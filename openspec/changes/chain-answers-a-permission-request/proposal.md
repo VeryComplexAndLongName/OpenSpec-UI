@@ -66,8 +66,16 @@ this is the second instance.
 ## Impact
 
 - `packages/core/src/harness-chain-runner.ts`,
-  `packages/webui/src/components/HarnessChainPanel.tsx`. Changeset
-  needed: `core` and the two hosts that render the panel.
+  `packages/webui/src/components/AiPanel.tsx`,
+  `packages/webui/src/components/HarnessChainPanel.tsx`,
+  `packages/server/src/websocket.ts`,
+  `packages/extension/src/webview/ai-panel.ts`. Widened from the
+  original two-file impact per design.md's "Scope gap to resolve before
+  implementing": the answer cannot reach the chain from either host
+  without a routing branch in each host's own dispatcher, beside the one
+  each already has for `"confirmCheckpoint"`/`"cancel"`. Changeset
+  needed: `@openspec-ui/core` (minor), `@openspec-ui/webui` (minor),
+  `openspec-ui-vscode` (minor), `@openspec-ui/server` (patch).
 
 ## Explicitly out of scope
 

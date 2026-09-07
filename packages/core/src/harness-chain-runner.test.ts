@@ -1023,6 +1023,232 @@ describe("HarnessChainRunner — cancellation mid-stage", () => {
   });
 });
 
+describe("HarnessChainRunner — permission resolution mid-stage", () => {
+  it("forwards a resolvePermission command to the stage's own runner, unchanged", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    let releaseStage: (() => void) | undefined;
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "resolvePermission") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        await new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true),
+      "the stage run to emit started",
+    );
+
+    const answer: Command = {
+      ...command,
+      kind: "resolvePermission",
+      permissionRequestId: "req-1",
+      permissionOutcome: "allow",
+    };
+    expect(chain.resolvePermission(answer)).toBe(true);
+    await waitForChain(
+      () => expect(calls.some((c) => c.kind === "resolvePermission")).toBe(true),
+      "the runner to observe the forwarded resolvePermission command",
+    );
+    // Asserted against the runner's own record of what it received, not by
+    // the absence of a failed event — the command must reach the runner
+    // byte-identical, so the driver's `runId:requestId` key still matches.
+    expect(calls.at(-1)).toEqual(answer);
+
+    // Ends the chain rather than letting it run on into the next stage's
+    // checkpoint (which nothing in this test would ever confirm) — the
+    // point already proven is that the answer reached the runner unchanged.
+    releaseStage?.();
+    chain.cancel(command.runId);
+    await pump;
+  });
+
+  it("is a no-op, not a failed event, when the chain has no stage currently in flight", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      "the checkpoint between stages, where no stage is currently running",
+    );
+
+    expect(
+      chain.resolvePermission({
+        ...command,
+        kind: "resolvePermission",
+        permissionRequestId: "req-1",
+        permissionOutcome: "allow",
+      }),
+    ).toBe(true);
+    expect(events.some((e) => e.kind === "failed")).toBe(false);
+
+    chain.cancel(command.runId);
+    await pump;
+  });
+
+  it("returns false for a runId naming no active chain, so a host falls through to its own single-stage path", () => {
+    const chain = new HarnessChainRunner({ resolveRunner: () => undefined });
+    expect(
+      chain.resolvePermission({
+        kind: "resolvePermission",
+        cwd: "/x",
+        runId: "no-such-run",
+        context: { changeDir: "/x/openspec/changes/demo" },
+        permissionRequestId: "req-1",
+        permissionOutcome: "allow",
+      }),
+    ).toBe(false);
+  });
+
+  it("carries a permissionRequest event through with the pair a fake driver then resolves against", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    // Mirrors AcpSessionDriver's own `${runId}:${requestId}` pending-request
+    // key (acp-session-driver.ts's `resolvePermission`) rather than
+    // asserting the event's shape in isolation — the test fails if the pair
+    // the chain's stream carries ever stops being the pair this "driver"
+    // can look up.
+    const pending = new Map<string, () => void>();
+    const runner: AgentRunner = {
+      async *run(command) {
+        if (command.kind === "resolvePermission") {
+          const key = `${command.runId}:${command.permissionRequestId}`;
+          pending.get(key)?.();
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        // The pending entry is registered BEFORE the `permissionRequest`
+        // event is yielded — matching `AcpSessionDriver`'s real shape,
+        // where the pending map entry is set by the ACP request handler
+        // itself, not by anything downstream of the generator's own
+        // suspension. Registering it after the yield would let a consumer
+        // that reacts synchronously (as `runStage`'s interception does)
+        // resolve a key that does not exist yet.
+        const resolved = new Promise<void>((resolve) => {
+          pending.set(`${command.runId}:req-1`, resolve);
+        });
+        yield { kind: "permissionRequest", runId: command.runId, timestamp: "t", requestId: "req-1", description: "run rm -rf" };
+        await resolved;
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "permissionRequest")).toBe(true),
+      "the stage's permissionRequest to reach the chain's stream",
+    );
+    const request = events.find((e) => e.kind === "permissionRequest") as Extract<Event, { kind: "permissionRequest" }>;
+    // The stage runs under the chain's own runId (design.md's correction to
+    // the proposal) — the id a surface must answer with is this event's,
+    // not `command.runId` re-derived some other way.
+    expect(request.runId).toBe(command.runId);
+
+    expect(
+      chain.resolvePermission({
+        ...command,
+        kind: "resolvePermission",
+        runId: request.runId,
+        permissionRequestId: request.requestId,
+        permissionOutcome: "allow",
+      }),
+    ).toBe(true);
+
+    // Ends the chain rather than letting it run on into the next stage's
+    // checkpoint — the point already proven is that the (runId, requestId)
+    // pair the chain's stream carried is the pair the driver resolved
+    // against.
+    chain.cancel(command.runId);
+    await pump;
+  });
+});
+
+describe("HarnessChainRunner — autonomous permission requests", () => {
+  it("fails the stage naming the request, ends the process, and does not answer on the operator's behalf", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(false);
+
+    let releaseStage: (() => void) | undefined;
+    let cancelSignalled = false;
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") {
+          cancelSignalled = true;
+          releaseStage?.();
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        // Registered BEFORE the `permissionRequest` event is yielded — see
+        // the identical note in the "carries a permissionRequest event"
+        // test above. `runStage`'s interception reacts to this event and
+        // sends the `"cancel"` command synchronously (within the same
+        // consumer turn), before this generator would otherwise get a
+        // chance to resume past its own yield.
+        const released = new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield { kind: "permissionRequest", runId: command.runId, timestamp: "t", requestId: "req-1", description: "run rm -rf /tmp/x" };
+        await released;
+        yield { kind: "cancelled", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) events.push(event);
+
+    expect(events.filter((e) => e.kind === "permissionRequest")).toHaveLength(1);
+    const failed = events.find((e) => e.kind === "failed") as Extract<Event, { kind: "failed" }> | undefined;
+    expect(failed?.reason).toContain('autonomyLevel "autonomous"');
+    expect(failed?.reason).toContain("run rm -rf /tmp/x");
+    // The stage's own terminal event (cancelled, produced by ending its
+    // process) must not surface on top of the chain's own failed outcome.
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect(events.some((e) => e.kind === "cancelled")).toBe(false);
+    expect(cancelSignalled).toBe(true);
+    expect(calls.map((c) => c.kind)).toEqual(["plan", "cancel"]);
+  });
+});
+
 describe("HarnessChainRunner — misuse", () => {
   it("fails immediately for a non-chain command", async () => {
     const chain = new HarnessChainRunner({ resolveRunner: () => undefined });
@@ -1095,6 +1321,76 @@ describe("HarnessChainRunner — asAgentRunner", () => {
 
     await pump;
     expect(events.at(-1)).toMatchObject({ kind: "cancelled" });
+  });
+
+  it("routes a resolvePermission command to the stage's own runner, unchanged, and yields nothing", async () => {
+    // Task 5.1. The `resolvePermission` branch in `asAgentRunner` was
+    // reached only through `chain.resolvePermission(command)` in the
+    // permission-resolution tests above; nothing drove it through the
+    // adapter, which is the path a panel actually uses. Both halves of
+    // the branch are asserted here: what it forwards, and that it yields
+    // nothing.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    let releaseStage: (() => void) | undefined;
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "resolvePermission") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        await new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const adapter = chain.asAgentRunner();
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of adapter.run(command)) events.push(event);
+    })();
+
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true),
+      "the stage run to emit started",
+    );
+
+    const answer: Command = {
+      ...command,
+      kind: "resolvePermission",
+      permissionRequestId: "req-1",
+      permissionOutcome: "allow",
+    };
+    const answerEvents: Event[] = [];
+    for await (const event of adapter.run(answer)) answerEvents.push(event);
+
+    // The empty stream is the assertion, not an incidental detail. Without
+    // this branch the command would fall through to run(), which accepts
+    // only "chain" commands and answers anything else with a failed event
+    // — the failure this change exists to remove. Asserting the stream is
+    // empty is how that stays removed; asserting no error was thrown
+    // would pass just as well if the branch were deleted and the command
+    // silently dropped, which is why the runner is checked too.
+    expect(answerEvents).toEqual([]);
+
+    await waitForChain(
+      () => expect(calls.some((c) => c.kind === "resolvePermission")).toBe(true),
+      "the runner to observe the command forwarded through the adapter",
+    );
+    // Byte-identical, for the same reason the direct-call test gives: the
+    // driver keys a pending request by `runId:requestId`, so a command
+    // the chain rewrote on the way through would resolve nothing.
+    expect(calls.at(-1)).toEqual(answer);
+
+    releaseStage?.();
+    chain.cancel(command.runId);
+    await pump;
   });
 });
 

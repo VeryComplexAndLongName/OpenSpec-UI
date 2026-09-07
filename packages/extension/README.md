@@ -208,6 +208,12 @@ chain depending on the resolved autonomy level. See the root repository's
 cannot reach, and [`LIMITS.md`](../../LIMITS.md) for what actually caps a
 run's spending.
 
+A chain run can be answered mid-stage: when a stage's agent asks for
+permission before a sensitive action, the chain view offers an Allow/Deny
+control naming the request, and the answer reaches that stage's own run.
+Under `autonomous` there is no confirmation channel, so a permission
+request there ends the run with a stated reason instead of waiting.
+
 ## Settings
 
 - `openspec-ui.transport.localServer.enabled`: use the optional standalone

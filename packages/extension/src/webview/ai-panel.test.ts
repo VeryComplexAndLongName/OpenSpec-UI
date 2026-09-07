@@ -53,6 +53,7 @@ function createFakeChainRunner() {
         run: vi.fn(),
         confirmCheckpoint: vi.fn(() => false),
         cancel: vi.fn(() => false),
+        resolvePermission: vi.fn(() => false),
         asAgentRunner: vi.fn(() => ({ run: vi.fn() })),
     };
 }
@@ -525,6 +526,60 @@ describe("AiPanel harness process tracking", () => {
             expect.objectContaining({ name: "claude-cli" }),
             expect.objectContaining({ kind: "cancel" }),
         );
+    });
+
+    it("routes a resolvePermission targeting an active chain to chainRunner.resolvePermission(), not the generic runner path", () => {
+        const { runController, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.resolvePermission.mockReturnValue(true);
+
+        sendChainCommand(receiveMessage, {
+            kind: "resolvePermission",
+            permissionRequestId: "req-1",
+            permissionOutcome: "allow",
+        });
+
+        expect(chainRunner.resolvePermission).toHaveBeenCalledWith(
+            expect.objectContaining({ kind: "resolvePermission", runId: "chain-1", permissionRequestId: "req-1" }),
+        );
+        expect(runController.run).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the generic single-stage path when a resolvePermission's runId is not an active chain", () => {
+        const { runController, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.resolvePermission.mockReturnValue(false);
+
+        sendChainCommand(receiveMessage, {
+            kind: "resolvePermission",
+            agentId: "claude-cli",
+            permissionRequestId: "req-1",
+            permissionOutcome: "allow",
+        });
+
+        expect(chainRunner.resolvePermission).toHaveBeenCalledWith(
+            expect.objectContaining({ kind: "resolvePermission", runId: "chain-1" }),
+        );
+        expect(runController.run).toHaveBeenCalledWith(
+            expect.objectContaining({ name: "claude-cli" }),
+            expect.objectContaining({ kind: "resolvePermission" }),
+        );
+    });
+
+    it("never registers a Processes entry for a resolvePermission command", () => {
+        const { scheduler, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.resolvePermission.mockReturnValue(false);
+        scheduler.start.mockClear();
+
+        sendChainCommand(receiveMessage, {
+            kind: "resolvePermission",
+            agentId: "claude-cli",
+            permissionRequestId: "req-1",
+            permissionOutcome: "allow",
+        });
+
+        // Same reasoning as the "never registers a process for a cancel
+        // command" test above: an answer produces no terminal event of its
+        // own, so a Processes entry for it could never terminate.
+        expect(scheduler.start).not.toHaveBeenCalled();
     });
 });
 

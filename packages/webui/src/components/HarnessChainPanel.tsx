@@ -11,7 +11,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Command, CheckpointEvent, Event, HarnessBudget } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
-import { collapseStreamEvents, isCancelling, isTerminal, renderEventBody } from "./AiPanel.js";
+import {
+  collapseStreamEvents,
+  findPendingPermissionRequest,
+  isCancelling,
+  isTerminal,
+  PermissionRequestPrompt,
+  renderEventBody,
+} from "./AiPanel.js";
 import { UsageSummaryView } from "./UsageSummaryView.js";
 
 export interface HarnessChainPanelProps {
@@ -38,6 +45,11 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  // Tracks which permissionRequest ids this panel has already answered —
+  // same reasoning as `AiPanel`'s own `resolvedPermissionRequestIds`
+  // (design.md, "The panel shares AiPanel's permission rendering, not its
+  // send"): there is no server-emitted "resolved" event to key off of.
+  const [resolvedPermissionRequestIds, setResolvedPermissionRequestIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     return transport.subscribe((event) => {
@@ -50,6 +62,10 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
   const latestEvent = collapsedEvents[collapsedEvents.length - 1];
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const pendingCheckpoint = isCheckpointEvent(latestEvent) ? latestEvent : undefined;
+  const pendingPermissionRequest = useMemo(
+    () => findPendingPermissionRequest(collapsedEvents, resolvedPermissionRequestIds),
+    [collapsedEvents, resolvedPermissionRequestIds],
+  );
 
   function sendOnCurrentRun(kind: Command["kind"]) {
     const activeRunId = runIdRef.current;
@@ -62,7 +78,25 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
     runIdRef.current = newRunId;
     setRunId(newRunId);
     setEvents([]);
+    setResolvedPermissionRequestIds(new Set());
     transport.send({ kind: "chain", cwd, runId: newRunId, context: { changeDir } });
+  }
+
+  // Answers with the event's own `runId`/`requestId`, never
+  // `runIdRef.current` — the stage that raised the request is what the
+  // adapter's pending map is keyed on (design.md's task 3.2). Today a
+  // stage runs under the chain's own runId, so the two happen to be equal,
+  // but the event is still the source of truth this reads from.
+  function handleResolvePermission(request: Extract<Event, { kind: "permissionRequest" }>, outcome: "allow" | "deny") {
+    transport.send({
+      kind: "resolvePermission",
+      cwd,
+      runId: request.runId,
+      context: { changeDir },
+      permissionRequestId: request.requestId,
+      permissionOutcome: outcome,
+    });
+    setResolvedPermissionRequestIds((prev) => new Set(prev).add(request.requestId));
   }
 
   const statusLabel = pendingCheckpoint
@@ -116,6 +150,12 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
             </button>
           </div>
         </div>
+      ) : null}
+      {pendingPermissionRequest ? (
+        <PermissionRequestPrompt
+          request={pendingPermissionRequest}
+          onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest, outcome)}
+        />
       ) : null}
       <UsageSummaryView events={collapsedEvents} budget={budget} />
       <ul className="openspec-ai-panel-events" data-testid="chain-event-log">
