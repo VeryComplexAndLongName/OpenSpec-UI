@@ -73,6 +73,50 @@ describe("runValidateAll", () => {
     ]);
   });
 
+  it("carries why an invalid change is invalid, not just how many items failed", async () => {
+    // The merge gate reported a failing change with no reason a reader
+    // could act on. The issues the underlying CLI stated are the whole
+    // point of the report, so they travel with it.
+    listChangesMock.mockResolvedValue({ changes: [{ name: "no-delta" }], root: {} });
+    validateChangeMock.mockResolvedValue({
+      items: [{
+        id: "no-delta",
+        type: "change",
+        valid: false,
+        issues: [{ level: "ERROR", path: "file", message: "Change must have at least one delta." }],
+        durationMs: 1,
+      }],
+      summary: { totals: { items: 1, passed: 0, failed: 1 }, byType: {} },
+      version: "1.0.0",
+      root: { path: "/repo", source: "cli" },
+    });
+
+    const result = await runValidateAll("/repo");
+
+    expect(result.ok).toBe(false);
+    expect(result.results).toEqual([
+      {
+        id: "no-delta",
+        valid: false,
+        failedItems: 1,
+        totalItems: 1,
+        issues: ["Change must have at least one delta."],
+      },
+    ]);
+    // Reported as invalid, not as a change that could not be validated:
+    // the two are different findings and a reader acts differently on each.
+    expect(result.results[0]).not.toHaveProperty("error");
+  });
+
+  it("omits the issues field entirely for a change that passed", async () => {
+    listChangesMock.mockResolvedValue({ changes: [{ name: "fine" }], root: {} });
+    validateChangeMock.mockResolvedValue(validateResult(0));
+
+    const result = await runValidateAll("/repo");
+
+    expect(result.results).toEqual([{ id: "fine", valid: true, failedItems: 0, totalItems: 3 }]);
+  });
+
   it("propagates a listChanges() rejection to the caller (no report can be produced)", async () => {
     listChangesMock.mockRejectedValue(new Error("openspec CLI not found"));
 
