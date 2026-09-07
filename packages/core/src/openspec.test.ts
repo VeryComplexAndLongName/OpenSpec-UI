@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
+import { EOL } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -115,6 +116,51 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.valid).toBe(true);
     expect(result.summary.totals.passed).toBe(1);
+  });
+
+  it("validateChange treats a non-zero exit carrying a report as the report", async () => {
+    // `openspec validate` exits 1 to say a change is invalid and prints
+    // the finding on stdout. Reading the exit code alone reported every
+    // invalid change as one that could not be validated, and discarded
+    // the diagnosis that named the fix.
+    const report = JSON.stringify({
+      items: [{
+        id: "no-delta",
+        type: "change",
+        valid: false,
+        issues: [{ level: "ERROR", path: "file", message: "Change must have at least one delta." }],
+        durationMs: 1,
+      }],
+      summary: {
+        totals: { items: 1, passed: 0, failed: 1 },
+        byType: { change: { items: 1, passed: 0, failed: 1 } },
+      },
+      version: "1.0.0",
+      root: { path: "/repo", source: "detected" },
+    });
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: Importing JSON modules", "utf8"));
+      child.stdout.emit("data", Buffer.from(report, "utf8"));
+      child.emit("close", 1);
+    });
+
+    const result = await validateChange("no-delta", { cwd: "/repo" });
+
+    expect(result.summary.totals.failed).toBe(1);
+    expect(result.items[0]?.issues[0]?.message).toContain("at least one delta");
+  });
+
+  it("validateChange still fails where a non-zero exit carries no readable report", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
+      child.emit("close", 1);
+    });
+
+    await expect(validateChange("x", { cwd: "/repo" })).rejects.toThrow(/not an openspec root/);
   });
 
   it("statusChange parses real `openspec status --change --json` output", async () => {
@@ -284,6 +330,41 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/exited with code 1/);
+  });
+
+  it("names what the tool said, not the warning its runtime printed", async () => {
+    // The regression. This shipped reporting only the stderr banner, so a
+    // test asserting an error message merely *exists* would have passed
+    // throughout — the assertion has to be about content (tasks.md 3.3).
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      // Emitted as two chunks rather than one string with an escape, so
+      // the fixture is exactly the two lines the runtime prints.
+      child.stderr.emit("data", Buffer.from(
+        "(node:2496) ExperimentalWarning: Importing JSON modules is an experimental feature",
+        "utf8",
+      ));
+      child.stderr.emit("data", Buffer.from(
+        [EOL, "(Use `node --trace-warnings ...` to show where the warning was created)", EOL].join(""),
+        "utf8",
+      ));
+      child.stdout.emit("data", Buffer.from("not an openspec root", "utf8"));
+      child.emit("close", 1);
+    });
+
+    await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/not an openspec root/);
+  });
+
+  it("says so when nothing but runtime noise was produced", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
+      child.emit("close", 1);
+    });
+
+    await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/no diagnosis reported/);
   });
 
   it("rejects when the process itself errors (e.g. binary not found)", async () => {

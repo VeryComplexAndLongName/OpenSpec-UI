@@ -11,6 +11,11 @@ export interface ChangeValidationResult {
   valid: boolean;
   failedItems: number;
   totalItems: number;
+  /** Why the change failed strict validation, as the underlying CLI
+   * stated it. Present only for a change that was validated and found
+   * invalid — a change that could not be validated at all carries
+   * `error` instead, and the two are different findings. */
+  issues?: string[];
   error?: string;
 }
 
@@ -22,11 +27,18 @@ export interface ValidateAllResult {
 async function validateOne(id: string, cwd: string): Promise<ChangeValidationResult> {
   try {
     const result = await validateChange(id, { cwd });
+    const issues = result.items
+      .filter((item) => !item.valid)
+      .flatMap((item) => item.issues.map((issue) => issue.message));
     return {
       id,
       valid: result.summary.totals.failed === 0,
       failedItems: result.summary.totals.failed,
       totalItems: result.summary.totals.items,
+      // Carried only when there is something to carry: a passing change
+      // with an empty array would read as "checked, nothing to say",
+      // which is what the absent field already means.
+      ...(issues.length > 0 ? { issues } : {}),
     };
   } catch (error) {
     return {

@@ -18,7 +18,7 @@ function execFileAsync(
   binary: string,
   args: string[],
   options: { cwd: string; windowsHide?: boolean },
-): Promise<{ stdout: string; stderr: string }> {
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
     const child = crossSpawn(binary, args, options);
     let stdout = "";
@@ -30,14 +30,52 @@ function execFileAsync(
       stderr += chunk.toString("utf8");
     });
     child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        reject(new Error(`${binary} ${args.join(" ")} exited with code ${code ?? "unknown"}: ${stderr}`));
-      }
-    });
+    // Resolves whatever happened, including a non-zero exit: some
+    // subcommands use one to report a finding and print the finding on
+    // stdout, so "the process failed" is a decision for the caller (see
+    // `runJson`'s `acceptNonZeroExit`), not something to make here where
+    // the output has not been looked at yet.
+    child.on("close", (code) => resolve({ stdout, stderr, code }));
   });
+}
+
+/** Lines a Node runtime prints on its own behalf, which say nothing about
+ * the command that was run. Stripped before deciding whether a stream
+ * carries a diagnosis: the defect this exists for reported
+ * `ExperimentalWarning: Importing JSON modules is an experimental
+ * feature` as the entire reason a change was rejected, while the actual
+ * diagnosis sat unread on stdout. */
+const RUNTIME_NOISE_RE = /^\s*(?:\(node:\d+\)\s*)?(?:\[[A-Z_]+\]\s*)?(?:Experimental|Deprecation|Warning:|\(Use `node)/;
+
+function withoutRuntimeNoise(stream: string): string {
+  return stream
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0 && !RUNTIME_NOISE_RE.test(line))
+    .join("\n")
+    .trim();
+}
+
+/** What the tool actually said, preferring stdout — the stream a
+ * `--json` subcommand reports on — and falling back to stderr. Returns
+ * `undefined` when neither carries anything but runtime noise, so a
+ * caller can say so rather than passing the noise off as an explanation.
+ */
+function diagnosisFrom(stdout: string, stderr: string): string | undefined {
+  const fromStdout = withoutRuntimeNoise(stdout);
+  if (fromStdout.length > 0) return fromStdout;
+  const fromStderr = withoutRuntimeNoise(stderr);
+  return fromStderr.length > 0 ? fromStderr : undefined;
+}
+
+function failureMessage(
+  binary: string,
+  args: string[],
+  code: number | null,
+  stdout: string,
+  stderr: string,
+): string {
+  const reason = diagnosisFrom(stdout, stderr) ?? "no diagnosis reported";
+  return `${binary} ${args.join(" ")} exited with code ${code ?? "unknown"}: ${reason}`;
 }
 
 export interface OpenSpecCliOptions {
@@ -353,14 +391,30 @@ async function runJson<T>(
   options: OpenSpecCliOptions,
   expectedContract: string,
   validator: JsonValidator<T>,
+  /** Set where a non-zero exit is how the subcommand reports a finding
+   * rather than a failure — `validate` exits 1 for an invalid change and
+   * prints the full report on stdout. The report is then the answer, and
+   * the exit code adds nothing it does not already say. Left unset
+   * everywhere else: for `list`/`show`/`status`/`archive` a non-zero exit
+   * is a failure, and treating stdout as authoritative there would need
+   * its own reasoning about what a partial run may claim. */
+  opts: { acceptNonZeroExit?: boolean } = {},
 ): Promise<T> {
   const binary = options.binary ?? "openspec";
-  const { stdout } = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
+  const { stdout, stderr, code } = await execFileAsync(binary, args, { cwd: options.cwd, windowsHide: true });
   const command = args.join(" ");
+  const failed = code !== 0;
+  if (failed && !opts.acceptNonZeroExit) {
+    throw new Error(failureMessage(binary, args, code, stdout, stderr));
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);
   } catch (error) {
+    // A non-zero exit with nothing readable on stdout is the case the
+    // exit code was the only signal for all along — report it as the
+    // failure it is, not as a compatibility problem with the contract.
+    if (failed) throw new Error(failureMessage(binary, args, code, stdout, stderr));
     throw new OpenSpecCliCompatibilityError(
       "invalid-json",
       command,
@@ -370,6 +424,7 @@ async function runJson<T>(
     );
   }
   if (!validator(parsed)) {
+    if (failed) throw new Error(failureMessage(binary, args, code, stdout, stderr));
     throw new OpenSpecCliCompatibilityError(
       "incompatible-output",
       command,
@@ -401,11 +456,16 @@ export async function validateChange(
   changeName: string,
   options: OpenSpecCliOptions,
 ): Promise<OpenSpecValidateResult> {
+  // `validate` exits 1 to say a change is invalid, with the report on
+  // stdout. Reading the exit code alone reported every invalid change as
+  // one that could not be validated, and threw away the diagnosis that
+  // named the fix — see openspec/changes/validate-failure-says-why.
   return runJson(
     ["validate", changeName, "--json", "--strict", "--type", "change"],
     options,
     "validation items, summary, version, and root",
     isValidateResult,
+    { acceptNonZeroExit: true },
   );
 }
 
