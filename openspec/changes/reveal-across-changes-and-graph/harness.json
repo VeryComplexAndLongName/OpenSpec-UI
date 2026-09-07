@@ -1,0 +1,4 @@
+{
+  "autonomyLevel": "autonomous",
+  "reviewGate": { "mode": "human-required" }
+}

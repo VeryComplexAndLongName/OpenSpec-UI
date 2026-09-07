@@ -100,6 +100,15 @@ export function handleSocketMessage(
   if (command.kind === "cancel" && chainRunner.cancel(command.runId)) {
     return;
   }
+  // Same reasoning as `cancel` above: a `"resolvePermission"` naming an
+  // active chain's runId must reach the runner executing that chain's
+  // stage in flight, not the single-stage path below, which would resolve
+  // by `command.agentId` (`undefined` for this command) and answer nothing
+  // (see harness-chain-runner.ts's `resolvePermission()`). `false` means
+  // `runId` is not a chain, so it falls through unchanged.
+  if (command.kind === "resolvePermission" && chainRunner.resolvePermission(command)) {
+    return;
+  }
   if (command.kind === "chain") {
     void streamChainRun(socket, chainRunner, command, resolveRecoveryService);
     return;

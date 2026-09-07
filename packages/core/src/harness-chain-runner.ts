@@ -287,6 +287,35 @@ export class HarnessChainRunner {
     return true;
   }
 
+  /** Forwards a `"resolvePermission"` command to the runner executing the
+   * stage currently in flight for `runId`, unchanged — the driver's
+   * `runId:requestId` key (`acp-session-driver.ts:231`) must match what it
+   * stored, so the command is never rewritten on the way through. Returns
+   * `false` when `runId` names no active chain at all, so a host falls
+   * through to its own single-stage path. Returns `true` (a no-op) when
+   * the chain is active but no stage is currently running — between
+   * stages, or paused at a checkpoint — since an answer naming no pending
+   * request is not an error (task 1.5). */
+  resolvePermission(command: Command): boolean {
+    const state = this.active.get(command.runId);
+    if (!state) return false;
+    const runner = state.currentRunner;
+    if (!runner) return true;
+    void (async () => {
+      try {
+        for await (const _event of runner.run(command)) {
+          // Draining only — see `cancel()`'s identical shape above. A
+          // `"resolvePermission"` command yields no events of its own; the
+          // stage's own already-open stream is what continues.
+        }
+      } catch {
+        // Same posture as `cancel()`: a runner throwing on an answer must
+        // not become an unhandled rejection here.
+      }
+    })();
+    return true;
+  }
+
   /** Ends a chain — immediately if it is paused at a checkpoint (fully
    * within this runner's control), or by cancelling the currently running
    * stage's own run otherwise. Mid-stage cancellation reuses the existing
@@ -313,12 +342,18 @@ export class HarnessChainRunner {
       const runner = state.currentRunner;
       const cancelCommand: Command = { ...state.currentCommand, kind: "cancel" };
       void (async () => {
-        for await (const _event of runner.run(cancelCommand)) {
-          // Draining only. Forwarding these events to a listener is each
-          // single-stage run's own concern (mirrors `RunController`); the
-          // chain's own event stream already reflects "ending" via the
-          // `cancelled` event `runChain` emits once the current stage's
-          // `run()` call above returns.
+        try {
+          for await (const _event of runner.run(cancelCommand)) {
+            // Draining only. Forwarding these events to a listener is each
+            // single-stage run's own concern (mirrors `RunController`); the
+            // chain's own event stream already reflects "ending" via the
+            // `cancelled` event `runChain` emits once the current stage's
+            // `run()` call above returns.
+          }
+        } catch {
+          // A runner throwing synchronously on `"cancel"` must not become
+          // an unhandled rejection here — see `resolvePermission()`'s
+          // identical guard below.
         }
       })();
     }
@@ -357,6 +392,16 @@ export class HarnessChainRunner {
               attempted: known ? "termination-requested" : "nothing-to-cancel",
             };
           })();
+        }
+        if (command.kind === "resolvePermission") {
+          // Routes to the stage's own runner rather than letting it reach
+          // `run()`, which accepts only `"chain"` — see `resolvePermission()`
+          // above. No event is yielded here, mirroring `agent-runner.ts`'s
+          // own `"resolvePermission"` branch: the stage's already-open
+          // stream (a separate, still-open call to `run()` for the same
+          // runId) is what continues.
+          this.resolvePermission(command);
+          return (async function* noEvents(): AsyncGenerator<Event> { })();
         }
         return this.run(command);
       },
@@ -713,21 +758,57 @@ export class HarnessChainRunner {
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 
+    // Set once a permission request has been intercepted under
+    // `"autonomous"` (task 4.1) — from that point on, the stage's own
+    // `"failed"`/`"cancelled"` terminal events are suppressed, so the
+    // chain reports the one outcome this interception already yielded,
+    // not a `"failed"` followed by the `"cancelled"` produced by ending
+    // the process below (see design.md, "Under autonomous, the stage
+    // fails and the process is ended", step 4).
+    let autonomousPermissionFailure = false;
     let outcome: "completed" | "failed" | "cancelled" = "completed";
-    for await (const event of runner.run(stageCommand)) {
-      if (event.kind === "completed") {
-        outcome = "completed";
-        if (hasNextStage) continue;
+    try {
+      for await (const event of runner.run(stageCommand)) {
+        if (event.kind === "permissionRequest" && harnessConfig.autonomyLevel === "autonomous" && !autonomousPermissionFailure) {
+          autonomousPermissionFailure = true;
+          outcome = "failed";
+          yield event;
+          yield failedEvent(
+            runId,
+            `a permission request cannot be answered under autonomyLevel "autonomous": ${event.description}`,
+          );
+          // Ends the stage's process rather than abandoning the generator
+          // (the rejected alternative in design.md) — `break`ing here would
+          // leave the ACP driver's permission handler parked on a promise
+          // nobody can resolve, and the CLI subprocess would outlive the
+          // chain.
+          const cancelCommand: Command = { ...stageCommand, kind: "cancel" };
+          void (async () => {
+            try {
+              for await (const _event of runner.run(cancelCommand)) {
+                // Draining only — same shape as `cancel()`/`resolvePermission()`.
+              }
+            } catch {
+              // Must not become an unhandled rejection.
+            }
+          })();
+          continue;
+        }
+        if (autonomousPermissionFailure) continue;
+        if (event.kind === "completed") {
+          outcome = "completed";
+          if (hasNextStage) continue;
+          yield event;
+          continue;
+        }
+        if (event.kind === "failed") outcome = "failed";
+        if (event.kind === "cancelled") outcome = "cancelled";
         yield event;
-        continue;
       }
-      if (event.kind === "failed") outcome = "failed";
-      if (event.kind === "cancelled") outcome = "cancelled";
-      yield event;
+    } finally {
+      state.currentRunner = undefined;
+      state.currentCommand = undefined;
     }
-
-    state.currentRunner = undefined;
-    state.currentCommand = undefined;
     return outcome;
   }
 

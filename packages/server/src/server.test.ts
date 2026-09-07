@@ -1355,6 +1355,96 @@ describe("server — WebSocket /api/ws", () => {
 
     client.close();
   });
+
+  // chain-answers-a-permission-request: a "resolvePermission" naming an
+  // active chain's runId must reach the stage's own runner — the same
+  // routing gap "cancel" had before harness-cancel-stops-the-run, one
+  // command kind over (see harness-chain-runner.ts's `resolvePermission()`).
+  it("routes a resolvePermission command to the chain's stage in flight, not the generic single-stage path", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    await writeGlobalHarnessConfig(workspaceRoot, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli" },
+    });
+
+    mockCliJson({
+      changeName: "demo",
+      schemaName: "spec-driven",
+      progress: { total: 3, complete: 0, remaining: 3 },
+      artifacts: [
+        { id: "proposal", outputPath: "proposal.md", status: "pending", requires: [] },
+        { id: "design", outputPath: "design.md", status: "pending", requires: [] },
+        { id: "tasks", outputPath: "tasks.md", status: "pending", requires: [] },
+      ],
+      root: { path: workspaceRoot, source: "cwd" },
+    });
+
+    const calls: Command[] = [];
+    let releaseStage: (() => void) | undefined;
+    const stageRunner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "resolvePermission") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t1", command: command.kind, cwd: command.cwd };
+        await new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield { kind: "completed", runId: command.runId, timestamp: "t2" };
+      },
+    };
+
+    await server.close();
+    server = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map<string, AgentRunner>([["claude-cli", stageRunner]]),
+    });
+    const address = await server.listen();
+    wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+
+    const sawStageStarted = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        const event = JSON.parse(raw.toString()) as Event;
+        if (event.kind === "started" && event.command === "plan") resolve();
+      });
+    });
+
+    const chainCommand: Command = {
+      kind: "chain",
+      cwd: workspaceRoot,
+      runId: "chain-1",
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "demo") },
+    };
+    client.send(JSON.stringify(chainCommand));
+    await sawStageStarted;
+
+    client.send(
+      JSON.stringify({
+        kind: "resolvePermission",
+        cwd: workspaceRoot,
+        runId: "chain-1",
+        context: chainCommand.context,
+        permissionRequestId: "req-1",
+        permissionOutcome: "allow",
+      }),
+    );
+
+    await vi.waitFor(() => expect(calls.some((c) => c.kind === "resolvePermission")).toBe(true));
+    // Reached the stage's own runner, not `claude-cli`'s single-stage
+    // dispatch path (which would resolve by `command.agentId` — undefined
+    // for this command — and answer nothing).
+    expect(calls.at(-1)).toMatchObject({ kind: "resolvePermission", permissionRequestId: "req-1" });
+
+    releaseStage?.();
+    client.close();
+  });
 });
 
 describe("server — audit persistence (task 4.1, audit-log-persistence)", () => {

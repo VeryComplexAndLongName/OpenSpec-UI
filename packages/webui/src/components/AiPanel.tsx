@@ -156,6 +156,54 @@ export function isCancelling(events: readonly Event[]): boolean {
   return false;
 }
 
+/** Most recent still-unanswered `permissionRequest`, if any — exported
+ * for `HarnessChainPanel.tsx` alongside `isTerminal`/`collapseStreamEvents`/
+ * `renderEventBody`, so both panels share the one rule for "which request
+ * is still pending" rather than keeping two copies that could drift (see
+ * openspec/changes/chain-answers-a-permission-request/design.md, "The
+ * panel shares AiPanel's permission rendering, not its send"). Only ever
+ * one request is actually pending at a time — the ACP driver blocks the
+ * underlying agent on it (acp-session-driver.ts) — so the most recent one
+ * is the only one that can still be live. */
+export function findPendingPermissionRequest(
+  events: readonly Event[],
+  resolvedIds: ReadonlySet<string>,
+): Extract<Event, { kind: "permissionRequest" }> | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!;
+    if (event.kind === "permissionRequest" && !resolvedIds.has(event.requestId)) {
+      return event;
+    }
+  }
+  return undefined;
+}
+
+/** Presentational Allow/Deny control for a pending `permissionRequest` —
+ * exported alongside `findPendingPermissionRequest` for the same reason.
+ * `onResolve` receives the outcome only; the caller owns sending the
+ * command and tracking which ids are resolved. */
+export function PermissionRequestPrompt(props: {
+  request: Extract<Event, { kind: "permissionRequest" }>;
+  onResolve: (outcome: "allow" | "deny") => void;
+}): ReactNode {
+  const { request, onResolve } = props;
+  return (
+    <div className="openspec-shell-note" data-testid="permission-request">
+      <p>
+        Permission requested: <strong>{request.description}</strong>
+      </p>
+      <div className="openspec-ai-panel-controls">
+        <button type="button" data-testid="allow-permission-button" onClick={() => onResolve("allow")}>
+          Allow
+        </button>
+        <button type="button" data-testid="deny-permission-button" onClick={() => onResolve("deny")}>
+          Deny
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function parseStepItems(text: string): StepItem[] | null {
   const lines = text
     .split(/\r?\n/)
@@ -926,21 +974,10 @@ export function AiPanel({
   const collapsedEvents = useMemo(() => collapseStreamEvents(events), [events]);
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);
 
-  // Most recent still-unanswered permissionRequest, if any — mirrors
-  // HarnessChainPanel's own `pendingCheckpoint` pattern (find the latest
-  // matching event, not an accumulated list) for the same reason: only
-  // ever one request is actually pending at a time (the ACP driver blocks
-  // the underlying agent on it — see acp-session-driver.ts), so the most
-  // recent one is the only one that can still be live.
-  const pendingPermissionRequest = useMemo(() => {
-    for (let i = collapsedEvents.length - 1; i >= 0; i--) {
-      const event = collapsedEvents[i];
-      if (event?.kind === "permissionRequest" && !resolvedPermissionRequestIds.has(event.requestId)) {
-        return event;
-      }
-    }
-    return undefined;
-  }, [collapsedEvents, resolvedPermissionRequestIds]);
+  const pendingPermissionRequest = useMemo(
+    () => findPendingPermissionRequest(collapsedEvents, resolvedPermissionRequestIds),
+    [collapsedEvents, resolvedPermissionRequestIds],
+  );
 
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const requiresSelectedChange = CHANGE_REQUIRED_COMMANDS.includes(commandKind);
@@ -1113,27 +1150,10 @@ export function AiPanel({
       </p>
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
       {pendingPermissionRequest ? (
-        <div className="openspec-shell-note" data-testid="permission-request">
-          <p>
-            Permission requested: <strong>{pendingPermissionRequest.description}</strong>
-          </p>
-          <div className="openspec-ai-panel-controls">
-            <button
-              type="button"
-              data-testid="allow-permission-button"
-              onClick={() => handleResolvePermission(pendingPermissionRequest.requestId, "allow")}
-            >
-              Allow
-            </button>
-            <button
-              type="button"
-              data-testid="deny-permission-button"
-              onClick={() => handleResolvePermission(pendingPermissionRequest.requestId, "deny")}
-            >
-              Deny
-            </button>
-          </div>
-        </div>
+        <PermissionRequestPrompt
+          request={pendingPermissionRequest}
+          onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest.requestId, outcome)}
+        />
       ) : null}
       {collapsedEvents.length > 0 ? (
         <section className="openspec-run-insights" data-testid="run-insights">

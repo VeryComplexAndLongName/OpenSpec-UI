@@ -152,6 +152,56 @@ describe("HarnessChainPanel", () => {
     expect(screen.getByTestId("start-chain-button")).not.toBeDisabled();
   });
 
+  it("renders a permission request with Allow/Deny, and answers with the request's own id", () => {
+    const { transport, send, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t2", requestId: "req-1", description: "run rm -rf" });
+
+    expect(screen.getByTestId("permission-request")).toHaveTextContent("run rm -rf");
+
+    fireEvent.click(screen.getByTestId("allow-permission-button"));
+
+    expect(send).toHaveBeenCalledWith({
+      kind: "resolvePermission",
+      cwd,
+      runId: "chain-1",
+      context: { changeDir },
+      permissionRequestId: "req-1",
+      permissionOutcome: "allow",
+    } satisfies Command);
+    // Answered — the control does not offer the same request again.
+    expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
+  });
+
+  it("answers a second, later permission request with its own id, not the first's", () => {
+    // Replaces the original task 5.5 ("a test that would pass if it used
+    // the watched run id must fail"), which design.md found unfalsifiable
+    // — a stage runs under the chain's own runId, so there is no differing
+    // id to catch a wrong answer. This is the test that does bite: two
+    // distinct requestIds must never be confused with each other.
+    const { transport, send, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t2", requestId: "req-1", description: "first request" });
+    fireEvent.click(screen.getByTestId("deny-permission-button"));
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t3", requestId: "req-2", description: "second request" });
+
+    expect(screen.getByTestId("permission-request")).toHaveTextContent("second request");
+    fireEvent.click(screen.getByTestId("allow-permission-button"));
+
+    expect(send).toHaveBeenLastCalledWith({
+      kind: "resolvePermission",
+      cwd,
+      runId: "chain-1",
+      context: { changeDir },
+      permissionRequestId: "req-2",
+      permissionOutcome: "allow",
+    } satisfies Command);
+  });
+
   it("ignores events from a different runId", () => {
     const { transport, emit } = createFakeTransport();
     render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);

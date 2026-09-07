@@ -162,6 +162,10 @@ export class AiPanel {
     // does not produce — four presses, four entries, hanging forever
     // (reported 2026-09-03).
     if (command.kind === "cancel") return;
+    // An answer is not work either, and produces no terminal event of its
+    // own — the same idea, one line over. Without this, every Allow/Deny
+    // click opened a Processes entry that could never terminate.
+    if (command.kind === "resolvePermission") return;
 
     const changeName = command.context.changeDir
       .split(/[\\/]+/)
@@ -387,6 +391,15 @@ export class AiPanel {
         timestamp: new Date().toISOString(),
         attempted: "termination-requested",
       });
+      return;
+    }
+    // Same reasoning as `"cancel"` above: an answer naming an active
+    // chain's runId must reach the runner executing that chain's stage in
+    // flight, not `dispatchOrRun`'s single-stage path, which resolves by
+    // `command.agentId` (`undefined` for this command) and would answer
+    // nothing (see harness-chain-runner.ts's `resolvePermission()`).
+    // `false` means `runId` is not a chain, so it falls through unchanged.
+    if (command.kind === "resolvePermission" && this.deps.chainRunner.resolvePermission(command)) {
       return;
     }
     if (command.kind === "chain") {
