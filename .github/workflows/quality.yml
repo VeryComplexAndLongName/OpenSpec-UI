@@ -311,7 +311,6 @@ jobs:
           fi
           echo "published=true" >> "$GITHUB_OUTPUT"
           WORK=$(mktemp -d)
-          cp releases.json "$WORK/releases.json"
           cd "$WORK"
           git init -q .
           # Configured here rather than before `cd`: the commit below is
@@ -320,12 +319,42 @@ jobs:
           # what that looks like.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -q -b release-manifest
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Commit onto the branch that is there, rather than replacing it.
+          # Only the current *document* is ever read, but the *commit* it
+          # is read at has to survive: the site resolves the manifest to a
+          # commit and then fetches by that commit, so a branch rebuilt
+          # from nothing makes what it resolved stop existing. Measured
+          # 2026-09-07, when this rewrote the branch on every release: it
+          # held 7f84dd5 at 09:27, 3e536ae at 13:04 and a99ea09 after the
+          # next release, no two sharing an ancestor — and the site's sync
+          # logged 404s in those windows.
+          #
+          # Fetched in full rather than --depth 1: pushing from a shallow
+          # clone is refused by some servers, and this branch holds one
+          # small JSON file per release.
+          if git fetch -q origin release-manifest 2>/dev/null; then
+            git checkout -q -B release-manifest FETCH_HEAD
+          else
+            # The very first publish, and only that: after this the branch
+            # exists and is only ever added to.
+            git checkout -q -b release-manifest
+          fi
+          cp "$GITHUB_WORKSPACE/releases.json" releases.json
           git add releases.json
           git commit -q -m "Release manifest for ${GITHUB_SHA}"
-          # Force-updated: only the current state is ever read, so history
-          # on this branch serves nobody.
-          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release-manifest
+          # No --force. Force is the mechanism of the defect above, and a
+          # plain push additionally fails loudly if two publishes race —
+          # which is the right outcome: two runs disagreeing about the
+          # current version must not be resolved by whichever finished
+          # last.
+          git push -q origin release-manifest
+          # The commit the site has to fetch, read after the push that
+          # landed it. The notify step below announces this, not
+          # GITHUB_SHA: that is the commit on main which caused the
+          # release, in a different history, and cannot be fetched from
+          # the manifest branch at all.
+          echo "manifest_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -342,7 +371,15 @@ jobs:
         env:
           HOOK_URL: ${{ vars.HOMEPAGE_WEBHOOK_URL }}
           HOOK_SECRET: ${{ secrets.HOMEPAGE_WEBHOOK_SECRET }}
+          # The commit the manifest is in, taken from the push that landed
+          # it — not GITHUB_SHA, which names the commit on main that
+          # caused the release and belongs to a different history.
+          MANIFEST_COMMIT: ${{ steps.publish.outputs.manifest_commit }}
         run: |
+          if [ -z "$MANIFEST_COMMIT" ]; then
+            echo "::warning::the publish step reported no manifest commit; the site will sync on its schedule"
+            exit 0
+          fi
           if [ -z "$HOOK_URL" ] || [ -z "$HOOK_SECRET" ]; then
             echo "::notice::no webhook configured; the site will pick this up on its scheduled sync"
             exit 0
@@ -356,7 +393,7 @@ jobs:
           # receiver that verifies exactly as the site does, before it
           # shipped.
           export BODY
-          BODY=$(node -e 'process.stdout.write(JSON.stringify({repository:process.env.GITHUB_REPOSITORY,commit:process.env.GITHUB_SHA,manifest:"releases.json"}));')
+          BODY=$(node -e 'process.stdout.write(JSON.stringify({repository:process.env.GITHUB_REPOSITORY,commit:process.env.MANIFEST_COMMIT,manifest:"releases.json"}));')
           # Signed the way the receiver verifies it: HMAC-SHA256 over the
           # raw body, hex, prefixed `sha256=`, in X-Hub-Signature-256.
           # The secret is read from the environment rather than passed to
