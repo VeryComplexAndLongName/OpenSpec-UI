@@ -17,8 +17,8 @@ follows more than one other change — every row SHALL be revealed, and the
 count SHALL be reported. Choosing one row on the reader's behalf hides
 exactly the relationship that made the change occupy several.
 
-Where the change appears in the other view at all, the action SHALL say
-so plainly rather than appearing to do nothing.
+Where the change does not appear in the other view at all, the action
+SHALL say so plainly rather than appearing to do nothing.
 
 #### Scenario: The change states a relation
 

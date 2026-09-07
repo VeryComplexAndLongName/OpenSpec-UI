@@ -28,8 +28,12 @@ the judgement is in what happens when a change has no row, or several.
   the Changes and Archive trees, matching how `showChangeAncestry` is
   offered on both.
 - [ ] 2.2 Find every row for the change, not the first. A row exists per
-  distinct path; `suite-survives-a-loaded-machine` has three and
-  `load-variance-not-per-file-cost` two, so this is not hypothetical.
+  distinct path. Re-measured 2026-09-07, correcting the count this task
+  first stated: `load-variance-not-per-file-cost` has **four** rows, not
+  two; `suite-survives-a-loaded-machine` and
+  `every-varying-check-has-a-budget` have three each. Measure again when
+  implementing rather than trusting any of these numbers — the point is
+  that the case is real and larger than it looks, not the figure.
 - [ ] 2.3 Reveal each, select the first, and report the count when it is
   more than one — "shown in 3 places" rather than silently landing on
   one.
