@@ -123,8 +123,12 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
   return (
     <div className="openspec-harness-chain-panel">
       <div className="openspec-ai-panel-controls">
+        {/* Named for what it does, not for how the harness is entered.
+            It used to read "Run with Agentic Harness", which is also the
+            dispatch entry rendered directly above it in the standalone
+            UI — two buttons, one label, different actions. */}
         <button type="button" data-testid="start-chain-button" onClick={startChain} disabled={isRunning}>
-          Run with Agentic Harness
+          Start chain
         </button>
         {isRunning && !pendingCheckpoint ? (
           <button type="button" data-testid="cancel-chain-button" onClick={() => sendOnCurrentRun("cancel")}>
