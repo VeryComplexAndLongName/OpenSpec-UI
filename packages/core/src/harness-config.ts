@@ -67,6 +67,30 @@ export interface HarnessBudget {
   maxTokens?: number;
 }
 
+/** Time ceilings, in seconds. Both optional and independent, the same
+ * shape `HarnessBudget` established — and, unlike a spending ceiling,
+ * able to stop a stage that is already running: elapsed time is known
+ * during a run where a run's cost is not, so the reason budget is only
+ * checked between stages (ADR 0018 decision 7) does not transfer.
+ *
+ * This is also the only ceiling with any force over an agent that
+ * reports no usage, which is six of the ten this project supports — see
+ * LIMITS.md, "Which agents report usage".
+ *
+ * Absent means unbounded, as every configuration written before these
+ * fields existed already means. */
+export interface HarnessTimeout {
+  /** Ceiling on the time a chain's stages spend, summed. Time spent
+   * waiting at a checkpoint for a person is not counted — see
+   * `run-has-a-time-limit`'s design.md, "the clock runs while the agent
+   * runs". */
+  maxRunSeconds?: number;
+  /** Ceiling on one stage. This is the one that catches a stage which
+   * has stopped making progress; a whole-chain ceiling cannot tell that
+   * apart from a chain doing a lot of work. */
+  maxStageSeconds?: number;
+}
+
 export interface HarnessGitStageAllowlist {
   remotes: string[];
   branches: string[];
@@ -91,6 +115,19 @@ export interface HarnessConfig {
    * `GlobalBudgetError`-style check does not apply to a plain numeric
    * ceiling the way it does to those three. */
   budget?: HarnessBudget;
+  /** Absent means unbounded — see `HarnessTimeout`. Follows `budget`'s
+   * rules: a per-change file may set one where the global file does not,
+   * and there is no value a global file is forbidden from setting. */
+  timeout?: HarnessTimeout;
+  /** How many times one stage may be attempted, counting the first.
+   * Absent means one — today's behaviour, where a stage runs once.
+   *
+   * Deliberately one number covering every reason a stage is attempted
+   * again, rather than one per reason: a ceiling of three for a time cut
+   * and three for a later retry-on-unchecked would multiply into nine
+   * runs of a stage nobody configured. Each attempt records its own
+   * reason instead. */
+  maxStageAttempts?: number;
   /** Allowlist that gates git-stage push/PR/merge actions. Per-change
    * only: the global `openspec/agent-harness.json` may not set this.
    * `remotes`/`branches` are simple wildcard patterns (`*` supported).
@@ -130,7 +167,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "gitStageAllowlist"] as const;
+const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -482,6 +519,40 @@ function assertValidBudget(value: unknown): asserts value is HarnessBudget | und
   }
 }
 
+function assertValidTimeout(value: unknown): asserts value is HarnessTimeout | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("timeout must be an object");
+  }
+  const { maxRunSeconds, maxStageSeconds } = value as { maxRunSeconds?: unknown; maxStageSeconds?: unknown };
+  for (const [key, seconds] of [["maxRunSeconds", maxRunSeconds], ["maxStageSeconds", maxStageSeconds]] as const) {
+    if (seconds === undefined) continue;
+    if (!(typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0)) {
+      throw new InvalidHarnessConfigError(`timeout.${key} must be a positive integer number of seconds`);
+    }
+  }
+  // A stage ceiling above the run ceiling can never fire — the run
+  // ceiling stops the chain first — and a setting that cannot fire is a
+  // setting that lies about what bounds the run.
+  if (
+    typeof maxRunSeconds === "number"
+    && typeof maxStageSeconds === "number"
+    && maxStageSeconds > maxRunSeconds
+  ) {
+    throw new InvalidHarnessConfigError(
+      `timeout.maxStageSeconds (${maxStageSeconds}) must not exceed timeout.maxRunSeconds (${maxRunSeconds}),`
+      + " because the run ceiling would stop the chain first and the stage ceiling could never fire",
+    );
+  }
+}
+
+function assertValidMaxStageAttempts(value: unknown): asserts value is number | undefined {
+  if (value === undefined) return;
+  if (!(typeof value === "number" && Number.isInteger(value) && value > 0)) {
+    throw new InvalidHarnessConfigError("maxStageAttempts must be a positive integer");
+  }
+}
+
 function assertValidGitStageAllowlist(
   value: unknown,
   isPerChangeFile: boolean,
@@ -550,6 +621,8 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidBudget(input.budget);
+  assertValidTimeout(input.timeout);
+  assertValidMaxStageAttempts(input.maxStageAttempts);
   assertValidGitStageAllowlist(input.gitStageAllowlist, isPerChangeFile);
 }
 
@@ -591,6 +664,13 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
+    // A field added to `HarnessConfig` and to `TOP_LEVEL_CONFIG_KEYS` but
+    // not to this list is accepted by validation and then silently
+    // dropped on the way out — the file says one thing and the resolved
+    // config another. That is how `timeout` first appeared to do nothing
+    // at all; the accepted-key list guards writing, nothing guards this.
+    timeout: input.timeout ?? DEFAULT_HARNESS_CONFIG.timeout,
+    maxStageAttempts: input.maxStageAttempts ?? DEFAULT_HARNESS_CONFIG.maxStageAttempts,
     gitStageAllowlist: input.gitStageAllowlist ?? DEFAULT_HARNESS_CONFIG.gitStageAllowlist,
   };
 }
@@ -632,6 +712,13 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // file's own budget can never affect a per-change value that was
     // actually set, since `override.budget` wins unconditionally.
     budget: override.budget ?? global.budget,
+    // Whole-object override for the same reason as `budget` above: a
+    // per-change ceiling is used exactly as declared. Merging key by key
+    // would let a global `maxStageSeconds` survive into a per-change
+    // `timeout` that deliberately set only `maxRunSeconds`, producing a
+    // pair the author never wrote and `assertValidTimeout` never saw.
+    timeout: override.timeout ?? global.timeout,
+    maxStageAttempts: override.maxStageAttempts ?? global.maxStageAttempts,
     gitStageAllowlist: override.gitStageAllowlist ?? global.gitStageAllowlist,
   };
 }

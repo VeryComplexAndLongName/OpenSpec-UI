@@ -973,6 +973,242 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
   });
 });
 
+describe("HarnessChainRunner — time limits (run-has-a-time-limit)", () => {
+  /** A runner whose stage hangs until released — the shape a stage that
+   * has stopped making progress presents, which is what a time ceiling
+   * exists to end. */
+  function hangingRunner(): { runner: AgentRunner; calls: Command[]; release: () => void } {
+    let releaseStage: (() => void) | undefined;
+    const calls: Command[] = [];
+    let cancelSignalled = false;
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") {
+          cancelSignalled = true;
+          releaseStage?.();
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        await new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield cancelSignalled
+          ? { kind: "cancelled", runId: command.runId, timestamp: "t" }
+          : { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    return { runner, calls, release: () => releaseStage?.() };
+  }
+
+  it("cuts a stage that outlives the stage ceiling, and asks the runner to cancel", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 } });
+    mockStatus(false);
+
+    const { runner, calls } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) events.push(event);
+
+    // Asserted against the runner, not by the absence of an error: the
+    // ceiling has to reach the process, not merely end the generator.
+    expect(calls.some((c) => c.kind === "cancel")).toBe(true);
+    const cancelled = events.find((e) => e.kind === "cancelled");
+    expect(cancelled).toBeDefined();
+    expect((cancelled as { reason?: string }).reason).toContain("maxStageSeconds is 1s");
+  });
+
+  it("names the run ceiling rather than the stage when the run ceiling is what was reached", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      timeout: { maxRunSeconds: 1, maxStageSeconds: 1 },
+    });
+    mockStatus(false);
+
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const cancelled = events.find((e) => e.kind === "cancelled");
+    expect((cancelled as { reason?: string }).reason).toContain("maxRunSeconds is 1s");
+  });
+
+  it("is cancelled, never failed — a ceiling doing its job is not a defect", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 } });
+    mockStatus(false);
+
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.some((e) => e.kind === "cancelled")).toBe(true);
+    expect(events.some((e) => e.kind === "failed")).toBe(false);
+  });
+
+  it("carries no reason when a person cancels, which is what an absent reason has always meant", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    const { runner, release } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true),
+      "the stage run to emit started",
+    );
+    chain.cancel(command.runId);
+    release();
+    await pump;
+
+    const cancelled = events.find((e) => e.kind === "cancelled");
+    expect(cancelled).toBeDefined();
+    expect((cancelled as { reason?: string }).reason).toBeUndefined();
+  });
+
+  it("does not count time spent waiting at a checkpoint against the run ceiling", async () => {
+    // The property most likely to regress silently: if the clock ran
+    // here, the ceiling would fire on chains behaving exactly as
+    // semi-autonomous intends, punishing a person for deliberating.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      timeout: { maxRunSeconds: 2 },
+    });
+    mockStatus(false);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      "the checkpoint the chain waits at",
+    );
+    // Longer than the whole run ceiling. A chain that counted this would
+    // refuse to continue below.
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    chain.confirmCheckpoint(command.runId);
+
+    await waitForChain(
+      () => expect(events.filter((e) => e.kind === "stageStarted").length).toBeGreaterThan(1),
+      "the stage after the checkpoint, which a counted wait would have prevented",
+    );
+
+    chain.cancel(command.runId);
+    await pump;
+
+    // Reached a second stage, so the wait was not charged to the ceiling.
+    expect(events.filter((e) => e.kind === "stageStarted").length).toBeGreaterThan(1);
+  });
+
+  it("attempts a cut stage again while attempts remain, saying which attempt and why the last ended", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      timeout: { maxStageSeconds: 1 },
+      maxStageAttempts: 2,
+    });
+    mockStatus(false);
+
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const starts = events.filter((e) => e.kind === "stageStarted");
+    const retry = starts.find((e) => (e as { attempt?: number }).attempt === 2);
+    expect(retry).toBeDefined();
+    expect((retry as { previousAttemptReason?: string }).previousAttemptReason).toContain("maxStageSeconds is 1s");
+
+    // Exhausted, so the chain stops naming the stage and the ceiling
+    // rather than walking on to a stage whose prerequisites were not met.
+    const cancelled = events.filter((e) => e.kind === "cancelled").at(-1);
+    expect((cancelled as { reason?: string }).reason).toContain("maxStageAttempts: 2");
+  });
+
+  it("attempts a stage once when no attempt count is configured", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 } });
+    mockStatus(false);
+
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.filter((e) => e.kind === "stageStarted")).toHaveLength(1);
+  });
+
+  it("does not attempt a stage again when it failed on its own merits", async () => {
+    // Retrying a stage that failed would only repeat the failure; the
+    // attempt count exists for a stage that was cut, not one that ended.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", maxStageAttempts: 3 });
+    mockStatus(false);
+
+    const runner: AgentRunner = {
+      async *run(command) {
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "failed", runId: command.runId, timestamp: "t", reason: "the agent refused" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.filter((e) => e.kind === "stageStarted")).toHaveLength(1);
+  });
+
+  it("leaves a chain with no ceiling configured exactly as it was", async () => {
+    // The regression that matters most: every configuration written
+    // before these fields existed means unbounded, and must stay so.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      "the first checkpoint, reached with no ceiling in force",
+    );
+    chain.cancel(command.runId);
+    await pump;
+
+    expect(events.some((e) => e.kind === "cancelled")).toBe(true);
+    expect(events.filter((e) => e.kind === "cancelled").every((e) => (e as { reason?: string }).reason === undefined)).toBe(true);
+  });
+});
+
 describe("HarnessChainRunner — cancellation mid-stage", () => {
   it("mirrors the single-stage cancel convention and ends the chain once the stage's own run ends", async () => {
     const root = await temporaryRoot();

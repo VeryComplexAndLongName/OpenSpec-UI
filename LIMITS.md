@@ -11,20 +11,23 @@ everything else the harness can be configured to do, see
 | --- | --- | --- | --- |
 | Whole chain | `budget.maxCostUsd` / `budget.maxTokens` | USD and/or tokens | Before each stage starts — **only for agents that report usage** (see below) |
 | One agent invocation | `stepAgents.<stage>.budget` | The selected agent's native unit | By that agent's CLI |
-| Elapsed time | Not available | — | No wall-clock or per-stage timeout exists |
+| Elapsed time | `timeout.maxRunSeconds` / `timeout.maxStageSeconds` | Seconds | Before each stage **and during one** — the only ceiling that stops a stage already running |
 
 Two boundaries matter, and both are easy to assume away:
 
-1. A chain ceiling can prevent the **next** stage from starting; it
-   cannot interrupt the stage that is already running.
-2. A chain ceiling counts only what an agent **reported**. Over an agent
-   that reports nothing, it counts nothing and never fires — see
-   [Which agents report usage](#which-agents-report-usage).
+1. A **spending** ceiling can prevent the next stage from starting; it
+   cannot interrupt the stage already running, because a run's cost is
+   not known until it ends. A **time** ceiling can, and is the only one
+   that does.
+2. A spending ceiling counts only what an agent **reported**. Over an
+   agent that reports nothing, it counts nothing and never fires — see
+   [Which agents report usage](#which-agents-report-usage). A time
+   ceiling needs no report and works over every agent.
 
-## Two independent levels
+## Three independent levels
 
-There are exactly two ceilings, checked in two different places, in two
-different units, and neither one substitutes for the other.
+There are exactly three ceilings, checked in different places, in
+different units, and none substitutes for another.
 
 ### 1. `HarnessConfig.budget` — caps a whole chain, between stages
 
@@ -106,13 +109,48 @@ minutes into a run.** Setting `stepAgents.apply.budget.maxAiCredits` while
 immediately, before any CLI process is spawned — not as a runtime error
 partway through a stage.
 
+### 3. `timeout` — caps a chain and a stage, in seconds
+
+```json
+{ "timeout": { "maxRunSeconds": 3600, "maxStageSeconds": 600 } }
+```
+
+Both optional and independent, absent meaning unbounded — the shape
+`budget` established, and settable in the same two places.
+
+**This is the only ceiling that can stop a stage already running.** The
+reason `budget` cannot is that a run's cost is not known until it ends;
+elapsed time does not share that property, so the argument for deferring
+does not transfer. It is also the only ceiling with any force over an
+agent that reports no usage — which is six of the ten below.
+
+Time accumulates while a stage runs and **stops while the chain waits at
+a checkpoint**. A person deliberating is not a run consuming anything,
+and counting it would fire the ceiling on chains behaving exactly as
+`semi-autonomous` intends.
+
+Reaching either ceiling ends the run as **cancelled, with the reason
+naming the ceiling and its value** — not failed. A ceiling doing its job
+is not a defect, and a reader needs to tell a person's click from a rule
+firing.
+
+`maxStageSeconds` may not exceed `maxRunSeconds`: the run ceiling would
+stop the chain first, so the stage ceiling could never fire, and a
+setting that cannot fire is a setting that lies. That pair is rejected
+where the configuration resolves.
+
+**A run ceiling below five minutes can cut the `git` stage mid-poll.**
+That stage waits up to five minutes for a pull request's checks
+(`gh-pr-gateway.ts`'s `maxWaitMs`), and that wait is the stage doing its
+work, so it counts against the ceiling like any other.
+
 ## What does not exist
 
-**There is no wall-clock or duration limit on a harness run, and no
-per-stage timeout.** A chain, and each of its stages, can run
-indefinitely. This is stated outright because the request that prompted
-this document asked about time limits as though one existed, and a reader
-who assumes a run cannot exceed some duration will be wrong.
+**There is no ceiling on a single task**, only on a stage and on a chain.
+A stage hands its whole task list to one agent in one conversation, and
+usage is reported per run, so there is nothing to attribute to one task.
+A stage ceiling is what bounds a task that turns out unexpectedly
+expensive.
 
 The durations that do exist in the codebase are not user-configurable
 harness settings — naming them here precisely so none is mistaken for
@@ -134,9 +172,9 @@ one:
   These bound CI, not a harness run.
 
 None of the above is reachable from `openspec/agent-harness.json` or a
-per-change `harness.json`. If a run needs to be stopped, the only
-mechanism is a human (or another process) sending `"cancel"` — there is no
-setting that does it automatically on a clock.
+per-change `harness.json`. A run can now be stopped on a clock by
+`timeout` above; these particular durations still cannot be configured
+from either file.
 
 ## Where the numbers come from
 

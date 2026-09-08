@@ -9,7 +9,7 @@
 // ceiling is shown here so it is legible, not so it is applied twice with
 // two different numbers.
 
-import type { Event, HarnessBudget } from "@openspec-ui/core/browser";
+import type { Event, HarnessBudget, HarnessTimeout } from "@openspec-ui/core/browser";
 import { type StageUsage, type UsageTotals, hasAnyFigure, summarizeUsage } from "./usage-summary.js";
 
 export interface UsageSummaryViewProps {
@@ -18,6 +18,16 @@ export interface UsageSummaryViewProps {
    * Absent means no ceiling is shown — never a ceiling of zero, and never
    * wording implying one exists. */
   budget?: HarnessBudget;
+  /** The resolved harness `timeout`, on the same terms as `budget`: shown
+   * only when one is configured. An unset ceiling rendered as `0` would
+   * read as "already exhausted", the error `usage-visible-while-running`
+   * avoided by never printing `$0.00` for an agent that reported
+   * nothing. */
+  timeout?: HarnessTimeout;
+  /** Milliseconds this chain's stages have spent, where the host is
+   * tracking it. Shown against `timeout` so a ceiling can be seen
+   * approaching rather than only when it fires. */
+  elapsedMs?: number;
 }
 
 function formatTokens(value: number): string {
@@ -107,6 +117,32 @@ function describeBudget(totals: UsageTotals, budget: HarnessBudget | undefined):
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
+function formatDuration(totalMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(totalMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+/** `undefined` where nothing is configured, on the same terms as
+ * `describeBudget`: a ceiling that does not exist is shown as nothing at
+ * all, never as zero. */
+function describeTime(timeout: HarnessTimeout | undefined, elapsedMs: number | undefined): string | undefined {
+  if (!timeout) return undefined;
+  const parts: string[] = [];
+  if (timeout.maxRunSeconds !== undefined) {
+    parts.push(elapsedMs === undefined
+      ? `run ceiling ${formatDuration(timeout.maxRunSeconds * 1000)}`
+      : `${formatDuration(elapsedMs)} of ${formatDuration(timeout.maxRunSeconds * 1000)}`);
+  }
+  if (timeout.maxStageSeconds !== undefined) {
+    parts.push(`${formatDuration(timeout.maxStageSeconds * 1000)} per stage`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
 /** State → the event-log class whose colour already means the same thing,
  * rather than a second palette meaning the same four things. A running
  * stage gets no modifier, exactly like an ordinary event line. */
@@ -117,9 +153,10 @@ const STATE_CLASS: Record<StageUsage["state"], string> = {
   cancelled: " openspec-event--failed",
 };
 
-export function UsageSummaryView({ events, budget }: UsageSummaryViewProps) {
+export function UsageSummaryView({ events, budget, timeout, elapsedMs }: UsageSummaryViewProps) {
   const summary = summarizeUsage(events);
   const budgetLine = describeBudget(summary.totals, budget);
+  const timeLine = describeTime(timeout, elapsedMs);
 
   if (summary.stages.length === 0 && !summary.anyReported) return null;
 
@@ -135,6 +172,11 @@ export function UsageSummaryView({ events, budget }: UsageSummaryViewProps) {
         <p className="openspec-usage-budget" data-testid="usage-budget">
           Ceiling: {budgetLine}. Reaching it stops the chain before the next stage; it does not interrupt the stage
           already running.
+        </p>
+      ) : null}
+      {timeLine ? (
+        <p className="openspec-usage-time" data-testid="usage-time">
+          Time: {timeLine}. Unlike a spending ceiling, this one stops the stage that is running.
         </p>
       ) : null}
       {!summary.anyReported ? (
@@ -155,9 +197,18 @@ export function UsageSummaryView({ events, budget }: UsageSummaryViewProps) {
             >
               <span className="openspec-usage-stage-name">
                 {stage.stage}
+                {stage.attempt !== undefined ? ` · attempt ${stage.attempt}` : ""}
                 {stage.agentId ? ` (${stage.agentId})` : ""}
               </span>
               <span className="openspec-usage-stage-figure">{describeStageFigure(stage)}</span>
+              {stage.previousAttemptReason ? (
+                <span
+                  className="openspec-usage-stage-retry"
+                  data-testid={`usage-retry-${stage.stage}`}
+                >
+                  previous attempt: {stage.previousAttemptReason}
+                </span>
+              ) : null}
               {live ? (
                 <span className="openspec-usage-stage-live" data-testid={`usage-live-${stage.stage}`}>
                   live: {live}

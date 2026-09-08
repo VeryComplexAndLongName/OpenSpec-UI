@@ -96,6 +96,16 @@ type CheckpointOutcome = "confirmed" | "cancelled";
 
 interface ChainState {
   cancelRequested: boolean;
+  /** Why this chain was cancelled, when something other than a person
+   * asking caused it. Set before `cancel()` is called so the terminal
+   * `cancelled` event can name the rule that fired; left unset by a
+   * person's cancel, which is what an absent reason has always meant. */
+  cancelReason?: string;
+  /** Time the chain's stages have spent, summed, in milliseconds. Time
+   * waiting at a checkpoint is deliberately not added: a person
+   * deliberating is not a run consuming anything, and counting it would
+   * fire the ceiling on chains behaving exactly as configured. */
+  elapsedMs: number;
   pendingCheckpoint?: { resolve: (outcome: CheckpointOutcome) => void };
   currentRunner?: AgentRunner;
   currentCommand?: Command;
@@ -103,6 +113,29 @@ interface ChainState {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function formatSeconds(totalMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(totalMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m${String(seconds).padStart(2, "0")}s`;
+}
+
+/** Names the ceiling that fired and the value it was set to, rather than
+ * blaming the stage that happened to be running — the posture
+ * `checkBudget` already takes when it stops a chain. */
+function describeTimeout(config: HarnessConfig, state: ChainState, stage: ChainStage): string {
+  const runSeconds = config.timeout?.maxRunSeconds;
+  const stageSeconds = config.timeout?.maxStageSeconds;
+  const remainingRunMs = runSeconds === undefined ? undefined : Math.max(0, runSeconds * 1000 - state.elapsedMs);
+  const stageMs = stageSeconds === undefined ? undefined : stageSeconds * 1000;
+  const runFiredFirst = remainingRunMs !== undefined && (stageMs === undefined || remainingRunMs <= stageMs);
+  if (runFiredFirst) {
+    return `stopped at the run time limit: timeout.maxRunSeconds is ${runSeconds}s`
+      + `, and this chain's stages had already spent ${formatSeconds(state.elapsedMs)} before "${stage}" started`;
+  }
+  return `stopped "${stage}" at the stage time limit: timeout.maxStageSeconds is ${stageSeconds}s`;
 }
 
 function changeNameFromDir(changeDir: string): string {
@@ -266,7 +299,7 @@ export class HarnessChainRunner {
       return;
     }
 
-    const state: ChainState = { cancelRequested: false };
+    const state: ChainState = { cancelRequested: false, elapsedMs: 0 };
     this.active.set(command.runId, state);
     try {
       yield* this.runChain(command, state);
@@ -488,6 +521,23 @@ export class HarnessChainRunner {
         return;
       }
 
+      // The run ceiling, checked before a stage starts as well as during
+      // one: a chain whose time is already spent must not start further
+      // work, and reaching the ceiling is a rule firing rather than a
+      // defect — so it cancels with a reason, where the budget check
+      // above fails. The two differ deliberately; see design.md.
+      const runSeconds = harnessConfig.timeout?.maxRunSeconds;
+      if (runSeconds !== undefined && state.elapsedMs >= runSeconds * 1000) {
+        yield {
+          kind: "cancelled",
+          runId,
+          timestamp: nowIso(),
+          reason: `stopped at the run time limit: timeout.maxRunSeconds is ${runSeconds}s`
+            + `, and this chain's stages had spent ${formatSeconds(state.elapsedMs)} before "${stage}" could start`,
+        };
+        return;
+      }
+
       // Re-derive the high-impact gate from the change's own file
       // immediately before archive moves that file out of the active
       // changes directory. Reading it after a successful archive always
@@ -524,7 +574,75 @@ export class HarnessChainRunner {
 
       const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
 
-      const outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
+      // Unlike the budget check above, this one can act on a stage that
+      // is already running: elapsed time is known during a run where a
+      // run's cost is not, which is the whole reason a time ceiling
+      // exists (see run-has-a-time-limit's design.md). The timer calls
+      // `cancel()` rather than killing the child directly — `cancel()`
+      // terminates the process tree, resolves a pending checkpoint and
+      // sets the flag this loop reads, and reimplementing two of those
+      // three is how a chain keeps walking after its stage was killed.
+      // Absent means one attempt, which is what every chain did before
+      // this setting existed. A stage is attempted again only when a
+      // ceiling cut it and attempts remain — never after it failed on its
+      // own merits, which retrying would only repeat.
+      const maxAttempts = harnessConfig.maxStageAttempts ?? 1;
+      let outcome: "completed" | "failed" | "cancelled" = "failed";
+      let attempt = 0;
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        state.cancelReason = undefined;
+        const stageStartedAt = Date.now();
+        const stageDeadlineMs = this.stageDeadlineMs(harnessConfig, state);
+        const stageTimer = stageDeadlineMs === undefined
+          ? undefined
+          : setTimeout(() => {
+            state.cancelReason = describeTimeout(harnessConfig, state, stage);
+            this.cancel(runId);
+          }, stageDeadlineMs);
+
+        try {
+          outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
+        } finally {
+          if (stageTimer) clearTimeout(stageTimer);
+          // Added whether the stage completed, failed or was cut: all
+          // three spent the time, and a ceiling that forgave the attempts
+          // it cut would let a chain retry its way past the very ceiling
+          // it was given.
+          state.elapsedMs += Date.now() - stageStartedAt;
+        }
+
+        const cutByCeiling = outcome === "cancelled" && state.cancelReason !== undefined;
+        if (!cutByCeiling) break;
+        // The chain's own cancel flag was set by the timer calling
+        // `cancel()`; clearing it is what makes a further attempt
+        // possible, and it is cleared only on this path — a person's
+        // cancel leaves it set and ends the chain.
+        state.cancelRequested = false;
+        if (attempt >= maxAttempts) {
+          yield {
+            kind: "cancelled",
+            runId,
+            timestamp: nowIso(),
+            reason: `stopped "${stage}" after ${attempt} attempt(s), the maximum configured`
+              + ` (maxStageAttempts: ${maxAttempts}); the last ended because it was ${state.cancelReason}`,
+          };
+          return;
+        }
+        yield {
+          kind: "stageStarted",
+          runId,
+          timestamp: nowIso(),
+          stage,
+          agentId: !isHarnessStepAgentStage(stage)
+            ? ""
+            : (harnessConfig.stepAgents[stage] === undefined
+              ? ""
+              : normalizeStepAgent(harnessConfig.stepAgents[stage]).agent),
+          attempt: attempt + 1,
+          previousAttemptReason: state.cancelReason,
+        };
+      }
 
       if (stage === "apply" && applyCheckpoint && outcome === "completed") {
         verifiedDelta = await this.finalizeApplyCheckpoint(applyCheckpoint);
@@ -541,7 +659,7 @@ export class HarnessChainRunner {
       }
 
       if (state.cancelRequested) {
-        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        yield { kind: "cancelled", runId, timestamp: nowIso(), ...(state.cancelReason ? { reason: state.cancelReason } : {}) };
         return;
       }
 
@@ -581,7 +699,7 @@ export class HarnessChainRunner {
         };
         const checkpointOutcome = await checkpointPromise;
         if (checkpointOutcome === "cancelled") {
-          yield { kind: "cancelled", runId, timestamp: nowIso() };
+          yield { kind: "cancelled", runId, timestamp: nowIso(), ...(state.cancelReason ? { reason: state.cancelReason } : {}) };
           return;
         }
       } else {
@@ -597,6 +715,19 @@ export class HarnessChainRunner {
    * spec.md, "A configured budget stops work at stage boundaries" and
    * task 8.5 (runs with no `usage` contribute nothing to the total, so a
    * change whose runs are all unmeasured never trips the ceiling). */
+  /** Milliseconds until the running stage must be cut, or `undefined`
+   * when nothing bounds it. The smaller of the stage ceiling and what is
+   * left of the run ceiling — whichever would fire first is the one that
+   * does, so a stage never outlives the chain's own limit. */
+  private stageDeadlineMs(config: HarnessConfig, state: ChainState): number | undefined {
+    const candidates: number[] = [];
+    const stageSeconds = config.timeout?.maxStageSeconds;
+    if (stageSeconds !== undefined) candidates.push(stageSeconds * 1000);
+    const runSeconds = config.timeout?.maxRunSeconds;
+    if (runSeconds !== undefined) candidates.push(Math.max(0, runSeconds * 1000 - state.elapsedMs));
+    return candidates.length === 0 ? undefined : Math.min(...candidates);
+  }
+
   private async checkBudget(harnessConfig: HarnessConfig, changeDir: string): Promise<string | undefined> {
     const budget = harnessConfig.budget;
     if (!budget || (budget.maxCostUsd === undefined && budget.maxTokens === undefined)) return undefined;
@@ -802,7 +933,14 @@ export class HarnessChainRunner {
           continue;
         }
         if (event.kind === "failed") outcome = "failed";
-        if (event.kind === "cancelled") outcome = "cancelled";
+        if (event.kind === "cancelled") {
+          outcome = "cancelled";
+          // The runner reports that its process is gone; only the chain
+          // knows a rule caused that rather than a person, so the reason
+          // is attached here rather than invented downstream.
+          yield state.cancelReason ? { ...event, reason: state.cancelReason } : event;
+          continue;
+        }
         yield event;
       }
     } finally {

@@ -27,6 +27,7 @@ export type {
   HarnessReviewGate,
   HarnessReviewGateMode,
   HarnessStage,
+  HarnessTimeout,
 } from "./harness-config.js";
 // HarnessStepAgent(s)/normalizeStepAgent come from their own zero-Node-
 // import leaf module, not from harness-config.js, for the same reason
