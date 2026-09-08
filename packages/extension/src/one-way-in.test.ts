@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// suite-survives-a-loaded-machine:
+// this file reads `package.json` from disk, so its cost varies with the
+// machine. Measured 2026-09-08 at 13ms test time (3.27s wall, almost all
+// of it transform and prepare). Sized well above that, since the work
+// being timed is one synchronous read.
+vi.setConfig({ testTimeout: 10000 });
 
 // one-way-in-to-run task 4.7.
 //
