@@ -88,3 +88,45 @@ down by stage is what the report and the recommendation both need.
 - [ ] 5.5 **Human-only**: run a chain and read the audit log, confirming
   each stage's entry names its stage and effort, and that a run cut by a
   time ceiling carries the reason exactly once.
+
+## 6. What the live run found
+
+Task 5.5 could not be closed, and the reason was inside this change. Run
+on 2026-09-08 with `timeout.maxStageSeconds: 5`: the panel showed
+`verify (claude-cli)` at effort `low`, the stage was cut, and both audit
+entries carried `stage: "verify"` and `effort: "low"` — those halves
+work. The cancelled entry carried no reason.
+
+The requirement in section 5's spec delta says a run stopped at a ceiling
+records that reason "so that a stopped run can be told from one a person
+cancelled without inspecting anything else". It was not met. The panel
+had the reason because the chain yields its own `cancelled` event; the
+adapter that ends the run knows only that its signal aborted, so the
+entry it triggers had nothing to write.
+
+- [x] 6.1 The cancel command carries the reason. `Command.reason` is set
+  only where something other than a person caused the cancel — the chain
+  sets `state.cancelReason` before every ceiling's `cancel()` and leaves
+  it unset for a person's, which is exactly the distinction the record
+  needs.
+- [x] 6.2 The runner keeps it with the run's abort controller, because
+  the run that must record it is a different `run()` call from the one
+  that cancels it, and the entry is written by the original invocation.
+  Stored before aborting, so the `finally` cannot run first.
+- [x] 6.3 An adapter that does supply its own reason keeps it. It was
+  closer to the event.
+- [x] 6.4 A person's cancel still records no reason. An absent reason has
+  always meant "a person asked", and this preserves that rather than
+  erasing it.
+- [x] 6.5 Tests: a ceiling's reason reaches the entry, exactly once; a
+  person's cancel leaves it absent. Removing the carry fails the first
+  and leaves the second passing, which is what shows the two are being
+  told apart rather than both being filled in.
+- [x] 6.6 Re-run the checks. Run 2026-09-08 on an idle machine:
+  typecheck clean; lint clean apart from one warning that predates this
+  change (`killTimer` unused in `packages/core/src/agents/shared.ts:210`);
+  tests 48 cli, 687 core, 285 extension, 62 server, 276 webui — core up 2.
+- [ ] 6.7 **Human-only**: this is task 5.5. Cut a stage at a time ceiling
+  again and read `.openspec-ui/audit.jsonl` — the cancelled entry should
+  now name the ceiling and its value, and there should still be exactly
+  one terminal entry for that run.

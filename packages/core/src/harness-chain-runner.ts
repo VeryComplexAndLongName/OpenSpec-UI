@@ -441,7 +441,14 @@ export class HarnessChainRunner {
     }
     if (state.currentRunner && state.currentCommand) {
       const runner = state.currentRunner;
-      const cancelCommand: Command = { ...state.currentCommand, kind: "cancel" };
+      // `state.cancelReason` is set before every ceiling's `cancel()` and
+      // left unset by a person's, so this is exactly the distinction the
+      // audit entry needs and cannot otherwise make.
+      const cancelCommand: Command = {
+        ...state.currentCommand,
+        kind: "cancel",
+        ...(state.cancelReason !== undefined ? { reason: state.cancelReason } : {}),
+      };
       void (async () => {
         try {
           for await (const _event of runner.run(cancelCommand)) {
