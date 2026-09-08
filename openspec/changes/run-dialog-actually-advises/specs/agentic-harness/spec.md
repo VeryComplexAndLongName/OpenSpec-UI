@@ -65,6 +65,17 @@ here can act" indistinguishable from "nothing was examined".
 - **THEN** that run takes the chosen path and the change's configuration
   file is left unchanged
 
+#### Scenario: A recommendation is available
+
+- **WHEN** the change's remaining work and previous runs are known
+- **THEN** the entry names the configuration it recommends and the
+  observations behind it
+
+#### Scenario: Nothing is known to recommend from
+
+- **WHEN** neither the remaining work nor any previous run can be read
+- **THEN** no recommendation is shown
+
 #### Scenario: A recommendation where only the remaining work is known
 
 - **WHEN** the host can read how many tasks remain but not the run
