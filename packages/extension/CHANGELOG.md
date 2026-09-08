@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.42.0
+
+### Minor Changes
+
+- c26dea5: Recommend a harness configuration for a change, with the observations it was
+  chosen from shown alongside it. A new command answers which of the three named
+  templates suits a change, reading only what exists for every change: how many
+  tasks remain, and how previous runs ended.
+  
+  It recommends a template and never a figure, and the measurement is the reason.
+  Across this repository's audit log, 13 of 22 changes with any record have exactly
+  one run and 16 have none that reported a cost. A per-change cost drawn from that
+  would be arithmetic wearing the costume of evidence — and believed, because it
+  looks computed.
+  
+  Where there is nothing to go on, the recommendation says so in the same breath as
+  its answer, so "nothing is known" cannot be mistaken for "this is what the
+  evidence suggests". A change whose last run was stopped by a ceiling is moved one
+  template roomier, naming the ceiling; a change stopped repeatedly asks for a
+  person rather than proposing something larger again.
+- 878db9c: Bound a harness run in time. `timeout.maxRunSeconds` and
+  `timeout.maxStageSeconds` cap a whole chain and a single stage, both optional and
+  absent-means-unbounded, settable globally and per change.
+  
+  Unlike a spending ceiling, this one stops a stage that is already running:
+  elapsed time is known during a run where a run's cost is not. It is also the only
+  ceiling with any force over an agent that reports no usage — six of the ten
+  supported report nothing, and no ceiling of any kind was in force over them
+  before. Time counts while a stage runs and not while the chain waits at a
+  checkpoint, so a person deliberating is never charged for it.
+  
+  Reaching a ceiling ends the run as *cancelled* with a reason naming the ceiling
+  and its value, rather than as a failure: `CancelledEvent` gains an optional
+  `reason`, and an absent one keeps meaning "a person asked". `maxStageAttempts`
+  allows a cut stage to be attempted again — one number covering every reason a
+  stage is retried, with each attempt recording why the previous one ended. A stage
+  that failed on its own merits is not retried. The usage summary gains an
+  elapsed-against-ceiling row and shows which attempt a stage is on.
+- 182f22e: Say what a harness configuration cannot do. A ceiling could be configured, saved,
+  accepted by validation and never fire — a cost ceiling over an agent that reports
+  no cost, a token ceiling over one whose tokens are almost all cache, or any
+  spending ceiling over the six agents that report nothing at all. Each is
+  documented in `LIMITS.md`, which is read by someone who already suspects a
+  problem rather than by the person setting the ceiling.
+  
+  What each agent reports is now recorded in code, beside what its command line
+  accepts, with four states rather than two: cost and tokens, tokens only, nothing,
+  and never observed. The fourth keeps it honest — two ACP adapters have never been
+  measured here, and recording them as silent would assert something nobody
+  checked.
+  
+  The harness settings view now lists what the configuration on screen cannot do,
+  updating as an agent is chosen, and a new **Explain Harness Settings** command
+  answers the same question for a configuration edited as JSON by hand. The finding
+  that matters most is a stage whose agent reports nothing and which has no time
+  ceiling: that stage can run without any bound at all.
+  
+  Reported, never refused: an operator may knowingly leave one stage's ceiling
+  unable to act, and nothing here recommends a value.
+- 960b489: Read back what a change cost. A new command — **Show What This Change Cost** —
+  reports, for any change in either the Changes or Archive tree, a row per run with
+  the stage, agent, effort, outcome, reported spend and duration, plus a total. It
+  is offered whether the change finished or not: a change whose run was cut or
+  failed is where the question is most pressing, and the live usage panel cannot
+  answer it because the panel is gone once the run ends.
+  
+  Duration comes from records already written — a run writes a `started` and a
+  terminal entry, both timestamped — paired in order rather than by key, so a stage
+  sent back by `verify` produces two rows with two durations rather than one wrong
+  one.
+  
+  Two things are deliberately not tidied. A figure the agent never reported shows
+  as *not reported*, never as `$0.00`, and the total says it covers only what was
+  reported: most supported agents report nothing, and showing them as free would be
+  wrong where a reader is least able to check. A record too old to name its stage
+  appears as *unattributed* and is still counted — dropping it would make the total
+  wrong, and guessing a stage would make a row wrong.
+
+### Patch Changes
+
+- Updated dependencies [2074915]
+- Updated dependencies [7aae888]
+- Updated dependencies [c26dea5]
+- Updated dependencies [878db9c]
+- Updated dependencies [ce232d2]
+- Updated dependencies [182f22e]
+- Updated dependencies [695bf32]
+- Updated dependencies [c3963c9]
+- Updated dependencies [ea25d08]
+- Updated dependencies [13efb9e]
+- Updated dependencies [a82b322]
+- Updated dependencies [ba09225]
+- Updated dependencies [960b489]
+  - @openspec-ui/core@0.55.0
+  - @openspec-ui/webui@1.27.0
+  - @openspec-ui/server@1.13.24
+
 ## 0.41.1
 
 ### Patch Changes

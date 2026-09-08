@@ -1,5 +1,97 @@
 # @openspec-ui/webui
 
+## 1.27.0
+
+### Minor Changes
+
+- 878db9c: Bound a harness run in time. `timeout.maxRunSeconds` and
+  `timeout.maxStageSeconds` cap a whole chain and a single stage, both optional and
+  absent-means-unbounded, settable globally and per change.
+  
+  Unlike a spending ceiling, this one stops a stage that is already running:
+  elapsed time is known during a run where a run's cost is not. It is also the only
+  ceiling with any force over an agent that reports no usage — six of the ten
+  supported report nothing, and no ceiling of any kind was in force over them
+  before. Time counts while a stage runs and not while the chain waits at a
+  checkpoint, so a person deliberating is never charged for it.
+  
+  Reaching a ceiling ends the run as *cancelled* with a reason naming the ceiling
+  and its value, rather than as a failure: `CancelledEvent` gains an optional
+  `reason`, and an absent one keeps meaning "a person asked". `maxStageAttempts`
+  allows a cut stage to be attempted again — one number covering every reason a
+  stage is retried, with each attempt recording why the previous one ended. A stage
+  that failed on its own merits is not retried. The usage summary gains an
+  elapsed-against-ceiling row and shows which attempt a stage is on.
+- 182f22e: Say what a harness configuration cannot do. A ceiling could be configured, saved,
+  accepted by validation and never fire — a cost ceiling over an agent that reports
+  no cost, a token ceiling over one whose tokens are almost all cache, or any
+  spending ceiling over the six agents that report nothing at all. Each is
+  documented in `LIMITS.md`, which is read by someone who already suspects a
+  problem rather than by the person setting the ceiling.
+  
+  What each agent reports is now recorded in code, beside what its command line
+  accepts, with four states rather than two: cost and tokens, tokens only, nothing,
+  and never observed. The fourth keeps it honest — two ACP adapters have never been
+  measured here, and recording them as silent would assert something nobody
+  checked.
+  
+  The harness settings view now lists what the configuration on screen cannot do,
+  updating as an agent is chosen, and a new **Explain Harness Settings** command
+  answers the same question for a configuration edited as JSON by hand. The finding
+  that matters most is a stage whose agent reports nothing and which has no time
+  ceiling: that stage can run without any bound at all.
+  
+  Reported, never refused: an operator may knowingly leave one stage's ceiling
+  unable to act, and nothing here recommends a value.
+- 695bf32: Offer harness configurations by intent. Three named templates — **Careful**,
+  **Overnight** and **Thrifty** — set agents, ceilings and autonomy together, so the
+  first experience of the harness is not a configuration exercise against eight
+  settings whose interactions are not obvious.
+  
+  Each says what it is for **and when it is the wrong choice**, which is the
+  sentence that helps someone pick: "Overnight" states outright that it will spend
+  up to $25 and run for four hours without asking. Each also says where its numbers
+  came from, so a reader can disagree with the judgement and not with the
+  measurement.
+  
+  The ceilings are measured, not chosen. Read from this repository's own audit log:
+  49 runs with a duration (median 7.7 min, p75 19.7, p90 34.9, longest 56.8) and 16
+  with a cost (median $1.94, p90 $7.14, largest $8.67). A ten-minute stage ceiling —
+  the round number a person reaches for — would have cut nearly a third of those
+  runs.
+  
+  Every template is checked against the diagnostic that reports what a
+  configuration cannot do, and a template producing a finding fails the build. That
+  check is what separates a template from a suggestion: shipping a named
+  configuration whose ceiling cannot act would publish, in the product's own voice,
+  the confusion that diagnostic exists to report. Templates also declare their
+  scope, since three settings are refused in a global file.
+
+### Patch Changes
+
+- ce232d2: The harness settings view no longer deletes configuration it has no
+  fields for. Both writers replace the file, so saving used to remove
+  `timeout`, `maxStageAttempts`, `budget`, `checkpoints` and
+  `gitStageAllowlist`. The per-change section also gains the template
+  picker, which is the only place the per-change-only "overnight" template
+  can be applied from.
+- 13efb9e: The chain panel's button now reads "Start chain". It read "Run with
+  Agentic Harness", the same words as the dispatch entry rendered directly
+  above it in the standalone UI — two buttons, one label, different
+  actions.
+- Updated dependencies [2074915]
+- Updated dependencies [7aae888]
+- Updated dependencies [c26dea5]
+- Updated dependencies [878db9c]
+- Updated dependencies [182f22e]
+- Updated dependencies [695bf32]
+- Updated dependencies [c3963c9]
+- Updated dependencies [ea25d08]
+- Updated dependencies [a82b322]
+- Updated dependencies [ba09225]
+- Updated dependencies [960b489]
+  - @openspec-ui/core@0.55.0
+
 ## 1.26.1
 
 ### Patch Changes

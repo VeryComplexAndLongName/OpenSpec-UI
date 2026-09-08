@@ -1,5 +1,174 @@
 # @openspec-ui/core
 
+## 0.55.0
+
+### Minor Changes
+
+- c26dea5: Recommend a harness configuration for a change, with the observations it was
+  chosen from shown alongside it. A new command answers which of the three named
+  templates suits a change, reading only what exists for every change: how many
+  tasks remain, and how previous runs ended.
+  
+  It recommends a template and never a figure, and the measurement is the reason.
+  Across this repository's audit log, 13 of 22 changes with any record have exactly
+  one run and 16 have none that reported a cost. A per-change cost drawn from that
+  would be arithmetic wearing the costume of evidence — and believed, because it
+  looks computed.
+  
+  Where there is nothing to go on, the recommendation says so in the same breath as
+  its answer, so "nothing is known" cannot be mistaken for "this is what the
+  evidence suggests". A change whose last run was stopped by a ceiling is moved one
+  template roomier, naming the ceiling; a change stopped repeatedly asks for a
+  person rather than proposing something larger again.
+- 878db9c: Bound a harness run in time. `timeout.maxRunSeconds` and
+  `timeout.maxStageSeconds` cap a whole chain and a single stage, both optional and
+  absent-means-unbounded, settable globally and per change.
+  
+  Unlike a spending ceiling, this one stops a stage that is already running:
+  elapsed time is known during a run where a run's cost is not. It is also the only
+  ceiling with any force over an agent that reports no usage — six of the ten
+  supported report nothing, and no ceiling of any kind was in force over them
+  before. Time counts while a stage runs and not while the chain waits at a
+  checkpoint, so a person deliberating is never charged for it.
+  
+  Reaching a ceiling ends the run as *cancelled* with a reason naming the ceiling
+  and its value, rather than as a failure: `CancelledEvent` gains an optional
+  `reason`, and an absent one keeps meaning "a person asked". `maxStageAttempts`
+  allows a cut stage to be attempted again — one number covering every reason a
+  stage is retried, with each attempt recording why the previous one ended. A stage
+  that failed on its own merits is not retried. The usage summary gains an
+  elapsed-against-ceiling row and shows which attempt a stage is on.
+- 182f22e: Say what a harness configuration cannot do. A ceiling could be configured, saved,
+  accepted by validation and never fire — a cost ceiling over an agent that reports
+  no cost, a token ceiling over one whose tokens are almost all cache, or any
+  spending ceiling over the six agents that report nothing at all. Each is
+  documented in `LIMITS.md`, which is read by someone who already suspects a
+  problem rather than by the person setting the ceiling.
+  
+  What each agent reports is now recorded in code, beside what its command line
+  accepts, with four states rather than two: cost and tokens, tokens only, nothing,
+  and never observed. The fourth keeps it honest — two ACP adapters have never been
+  measured here, and recording them as silent would assert something nobody
+  checked.
+  
+  The harness settings view now lists what the configuration on screen cannot do,
+  updating as an agent is chosen, and a new **Explain Harness Settings** command
+  answers the same question for a configuration edited as JSON by hand. The finding
+  that matters most is a stage whose agent reports nothing and which has no time
+  ceiling: that stage can run without any bound at all.
+  
+  Reported, never refused: an operator may knowingly leave one stage's ceiling
+  unable to act, and nothing here recommends a value.
+- 695bf32: Offer harness configurations by intent. Three named templates — **Careful**,
+  **Overnight** and **Thrifty** — set agents, ceilings and autonomy together, so the
+  first experience of the harness is not a configuration exercise against eight
+  settings whose interactions are not obvious.
+  
+  Each says what it is for **and when it is the wrong choice**, which is the
+  sentence that helps someone pick: "Overnight" states outright that it will spend
+  up to $25 and run for four hours without asking. Each also says where its numbers
+  came from, so a reader can disagree with the judgement and not with the
+  measurement.
+  
+  The ceilings are measured, not chosen. Read from this repository's own audit log:
+  49 runs with a duration (median 7.7 min, p75 19.7, p90 34.9, longest 56.8) and 16
+  with a cost (median $1.94, p90 $7.14, largest $8.67). A ten-minute stage ceiling —
+  the round number a person reaches for — would have cut nearly a third of those
+  runs.
+  
+  Every template is checked against the diagnostic that reports what a
+  configuration cannot do, and a template producing a finding fails the build. That
+  check is what separates a template from a suggestion: shipping a named
+  configuration whose ceiling cannot act would publish, in the product's own voice,
+  the confusion that diagnostic exists to report. Templates also declare their
+  scope, since three settings are refused in a global file.
+- ea25d08: Record what each stage spent, and bound it. An audit entry now carries the
+  `stage` it belongs to and the `effort` the agent was asked for, so a report built
+  from the log can break a change down stage by stage — every stage of a chain runs
+  under the chain's own run id, so nothing else in the record could say which stage
+  spent what. Both fields are optional and absent for a single-stage run, and an
+  entry written before them is never given a stage after the fact.
+  
+  `budget.maxStageCostUsd` and `budget.maxStageTokens` bound one stage, enforced
+  here rather than by the agent's own command line — which offers a spending flag
+  for two of the ten supported agents. Checked when a stage ends and stopping the
+  chain rather than the stage, because a run's cost is not known until it ends:
+  this prevents the next overspend, not the one that happened. Neither may exceed
+  its whole-chain counterpart, which would stop the run first.
+  
+  A run stopped by a ceiling now records the reason on the single entry it already
+  writes, rather than a second one, so a finished run can be told from one a person
+  cancelled.
+- ba09225: Let `verify` send work back to `apply`. `verify` writes each declared mechanical
+  check's result onto its own task's checkbox, so a failing check unchecks the
+  task — and the chain then walked forward into `archive`, which refuses while any
+  task is unchecked. The machine detected unfinished work correctly and then
+  stopped with an error instead of finishing it.
+  
+  Where `maxStageAttempts` allows another attempt, the chain now returns to `apply`
+  and records that verification is why, so a stage appearing twice is
+  distinguishable from a duplicate. Bounded by that existing counter rather than a
+  second ceiling, and counted per stage, so a slow `verify` cannot consume the
+  allowance meant for `apply`. Where the attempts are used up — or where the chain
+  was entered at `verify` and has no `apply` to return to — it stops and names the
+  tasks still unchecked, rather than only counting them.
+  
+  With no attempt count configured nothing changes: `archive` refuses exactly as
+  before.
+- 960b489: Read back what a change cost. A new command — **Show What This Change Cost** —
+  reports, for any change in either the Changes or Archive tree, a row per run with
+  the stage, agent, effort, outcome, reported spend and duration, plus a total. It
+  is offered whether the change finished or not: a change whose run was cut or
+  failed is where the question is most pressing, and the live usage panel cannot
+  answer it because the panel is gone once the run ends.
+  
+  Duration comes from records already written — a run writes a `started` and a
+  terminal entry, both timestamped — paired in order rather than by key, so a stage
+  sent back by `verify` produces two rows with two durations rather than one wrong
+  one.
+  
+  Two things are deliberately not tidied. A figure the agent never reported shows
+  as *not reported*, never as `$0.00`, and the total says it covers only what was
+  reported: most supported agents report nothing, and showing them as free would be
+  wrong where a reader is least able to check. A record too old to name its stage
+  appears as *unattributed* and is still counted — dropping it would make the total
+  wrong, and guessing a stage would make a row wrong.
+
+### Patch Changes
+
+- 2074915: The Overnight harness template now sets
+  `checkpoints.requireConfirmationBetweenSteps: false`, the "no checkpoints
+  between stages" its own description promised. Without it, a change
+  configured from the template still paused for confirmation between every
+  stage. A guard now checks each template's stated behaviour against the
+  configuration it applies, in both directions.
+- 7aae888: Report why an archive was refused. `openspec archive` refuses precisely — naming
+  the requirement whose modified block drifted, and the scenario that would have
+  been dropped — and with `--json` it says so as structured data. That reached a
+  caller as the entire JSON document, sentence buried inside, because the wrapper
+  turns a non-zero exit into an error string.
+  
+  `archiveChange` now reads the refusal's `status[]` entries and throws with their
+  messages, including the report's own `fix` line, so a caller sees "…current spec
+  contains scenario(s) not present in the modified block: 'The same reader returns
+  the next day'. Refresh the change spec before archiving… No files were changed."
+  Every error is reported rather than the first, since a change can be refused for
+  more than one reason at once.
+  
+  It keeps throwing rather than returning the report, unlike `validateChange`:
+  every caller here asks whether the archive worked and why not, not for a result
+  to render.
+- c3963c9: A run stopped by a ceiling now records why in the audit log. The reason
+  travels on the cancel command, so a run cut by a rule can be told from
+  one a person cancelled without inspecting anything else. A person's
+  cancel still records no reason.
+- a82b322: A mechanical check that fails at `verify` now sends the work back to
+  `apply` where another attempt is configured, instead of ending the chain.
+  This is the case the backward edge was written for — a failing check is
+  what unchecks the task — and it was the one case the edge could not
+  reach. The verifying agent is still not invoked, and a chain configuring
+  no extra attempts fails exactly as before, with the same message.
+
 ## 0.54.0
 
 ### Minor Changes

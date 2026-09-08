@@ -1,5 +1,40 @@
 # @openspec-ui/server
 
+## 1.13.24
+
+### Patch Changes
+
+- 878db9c: Bound a harness run in time. `timeout.maxRunSeconds` and
+  `timeout.maxStageSeconds` cap a whole chain and a single stage, both optional and
+  absent-means-unbounded, settable globally and per change.
+  
+  Unlike a spending ceiling, this one stops a stage that is already running:
+  elapsed time is known during a run where a run's cost is not. It is also the only
+  ceiling with any force over an agent that reports no usage — six of the ten
+  supported report nothing, and no ceiling of any kind was in force over them
+  before. Time counts while a stage runs and not while the chain waits at a
+  checkpoint, so a person deliberating is never charged for it.
+  
+  Reaching a ceiling ends the run as *cancelled* with a reason naming the ceiling
+  and its value, rather than as a failure: `CancelledEvent` gains an optional
+  `reason`, and an absent one keeps meaning "a person asked". `maxStageAttempts`
+  allows a cut stage to be attempted again — one number covering every reason a
+  stage is retried, with each attempt recording why the previous one ended. A stage
+  that failed on its own merits is not retried. The usage summary gains an
+  elapsed-against-ceiling row and shows which attempt a stage is on.
+- Updated dependencies [2074915]
+- Updated dependencies [7aae888]
+- Updated dependencies [c26dea5]
+- Updated dependencies [878db9c]
+- Updated dependencies [182f22e]
+- Updated dependencies [695bf32]
+- Updated dependencies [c3963c9]
+- Updated dependencies [ea25d08]
+- Updated dependencies [a82b322]
+- Updated dependencies [ba09225]
+- Updated dependencies [960b489]
+  - @openspec-ui/core@0.55.0
+
 ## 1.13.23
 
 ### Patch Changes
