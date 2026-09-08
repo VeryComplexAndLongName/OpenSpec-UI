@@ -90,7 +90,13 @@ belief that was wrong.
   does not descend from the first", "the first commit is gone", "the
   first commit does not carry its own document" and "the branch holds 1
   commits" — which is exactly what was measured on the live branch today.
-- [ ] 3.5 **Human-only**: after this merges, at the next release, confirm
+- [x] 3.5 **Human-only**: after this merges, at the next release, confirm
   `git log release-manifest` shows more than one commit and that the
   site's sync reports no `404`. That is the whole test, and it cannot run
   before the release does.
+  Confirmed live on 2026-09-08 after release `openspec-ui-vscode@0.42.0`.
+  The remote `release-manifest` branch has two commits, including
+  `14276e5d...` for the current release. The deployed site shows the
+  `0.42.0` VS Code release card, and its Download VSIX link returned HTTP
+  200 rather than 404. The workflow's release-manifest job also completed
+  successfully and published that manifest commit.
