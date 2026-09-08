@@ -79,7 +79,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
   // `adapter.execute()` is called until that run's own `finally` below
   // deletes it. A `"cancel"` command never builds an invocation or spawns
   // anything — it only ever looks a `runId` up here and aborts it.
-  const activeRuns = new Map<string, AbortController>();
+  /** The reason travels with the controller because the run that has to
+   * record it is a different `run()` call from the one that cancels it:
+   * a cancel arrives as its own command, and the entry is written by the
+   * original invocation's `finally`. */
+  const activeRuns = new Map<string, { controller: AbortController; reason?: string }>();
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
@@ -94,7 +98,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         // terminal events as end-of-run withdrew the Cancel control while
         // the agent carried on working. `cancelling` is non-terminal
         // precisely so nothing does that.
-        const controller = activeRuns.get(command.runId);
+        const active = activeRuns.get(command.runId);
+        // Recorded before aborting, so the run's own `finally` — which may
+        // execute as soon as the signal fires — already sees it.
+        if (active && command.reason !== undefined) active.reason = command.reason;
+        const controller = active?.controller;
         controller?.abort();
         yield {
           kind: "cancelling",
@@ -172,7 +180,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       });
 
       const controller = new AbortController();
-      activeRuns.set(command.runId, controller);
+      activeRuns.set(command.runId, { controller });
 
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
       let lastSummary: string | undefined;
@@ -208,6 +216,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         lastReason = err instanceof Error ? err.message : String(err);
         yield { kind: "failed", runId: command.runId, timestamp: nowIso(), reason: lastReason };
       } finally {
+        // A ceiling that named itself on the cancel command wins over
+        // nothing: the adapter emits `cancelled` knowing only that its
+        // signal aborted, so without this a run cut by a rule and a run a
+        // person cancelled read identically in the log. An adapter that
+        // did supply a reason keeps it — it was closer to the event.
+        if (lastOutcome === "cancelled" && lastReason === undefined) {
+          lastReason = activeRuns.get(command.runId)?.reason;
+        }
         activeRuns.delete(command.runId);
         auditLog.record({
           runId: command.runId,

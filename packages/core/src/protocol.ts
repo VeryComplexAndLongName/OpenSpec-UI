@@ -119,6 +119,15 @@ export interface Command {
    * under the chain's own `runId` (ADR 0012), so nothing else in the
    * record can say which stage spent what. */
   stage?: HarnessStage;
+  /** Why a `"cancel"` command was issued, where something other than a
+   * person asking caused it — a ceiling naming itself.
+   *
+   * Carried onto the cancelled run's own audit entry. The adapter that
+   * emits `cancelled` knows only that its signal aborted, so without this
+   * a run cut by a ceiling and a run a person cancelled are
+   * indistinguishable in the record. Absent for a person's cancel, which
+   * is what an absent reason has always meant. */
+  reason?: string;
   /** Only meaningful for a `"resolvePermission"` command: the `requestId`
    * of the `PermissionRequestEvent` being answered (see protocol.ts's
    * `PermissionRequestEvent`). Ignored for every other command kind. */

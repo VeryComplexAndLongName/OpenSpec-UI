@@ -447,6 +447,79 @@ describe("createAgentRunner — cancelling a running run (task 3.1, 3.2, 3.4, 5.
   });
 });
 
+describe("createAgentRunner — a ceiling's reason reaches the audit entry (stage-spend-is-bounded-and-recorded section 6)", () => {
+  // Found live on 2026-09-08: a stage cut by `timeout.maxStageSeconds`
+  // wrote an audit entry with no reason. The panel had it, because the
+  // chain yields its own cancelled event; the persisted record did not,
+  // because the adapter that emits `cancelled` knows only that its signal
+  // aborted. A stopped run and a run a person cancelled read identically
+  // in the log, which is the one distinction the requirement asks for.
+
+  async function runCancelledWith(reason: string | undefined): Promise<InMemoryAuditLog> {
+    let notifyStarted: () => void = () => {};
+    const startedPromise = new Promise<void>((resolve) => {
+      notifyStarted = resolve;
+    });
+
+    async function* controllableEvents(runId: string, signal: AbortSignal): AsyncGenerator<Event> {
+      yield { kind: "started", runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      notifyStarted();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      // No reason of its own — the adapter cannot know why.
+      yield { kind: "cancelled", runId, timestamp: "t" };
+    }
+
+    const { adapter } = makeFakeAdapter((invocation, command, prompt, signal) =>
+      controllableEvents(command.runId, signal),
+    );
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+    const runId = "run-cancel-reason";
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId,
+      context: { changeDir: "/workspace/repo/openspec/changes/x" },
+    };
+
+    const runPromise = (async () => {
+      for await (const _e of runner.run(command)) { /* drained */ }
+    })();
+    await startedPromise;
+
+    const cancelCommand: Command = { ...command, kind: "cancel", ...(reason !== undefined ? { reason } : {}) };
+    for await (const _e of runner.run(cancelCommand)) { /* drained */ }
+    await runPromise;
+    return auditLog;
+  }
+
+  it("records the reason a ceiling gave when it cancelled the run", async () => {
+    const auditLog = await runCancelledWith('stopped "apply" at the stage time limit: timeout.maxStageSeconds is 5s');
+
+    const terminal = auditLog.entries.filter((e) => e.outcome === "cancelled");
+    // Exactly once: two entries for one run would be counted twice by
+    // anything summing the log.
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0]?.reason).toContain("timeout.maxStageSeconds is 5s");
+  });
+
+  it("leaves a person's cancel with no reason, as it always had", async () => {
+    // An absent reason has always meant "a person asked", and that is the
+    // distinction this exists to preserve rather than erase.
+    const auditLog = await runCancelledWith(undefined);
+
+    const terminal = auditLog.entries.find((e) => e.outcome === "cancelled");
+    expect(terminal).toBeDefined();
+    expect(terminal?.reason).toBeUndefined();
+  });
+});
+
 describe("createAgentRunner — agentVersion on the started audit record (task 3.2)", () => {
   it("carries agentVersion on the started entry when the runner was given one", async () => {
     const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
