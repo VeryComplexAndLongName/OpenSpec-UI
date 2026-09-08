@@ -92,3 +92,49 @@ work is applying it to a chain that is already running.
   mechanical check fails, with attempts allowed, and confirm `apply` runs
   again and the panel says why. Then run the same with no attempt count
   and confirm the archive refusal is unchanged.
+
+## 6. What the live run found
+
+Task 5.5 could not be performed as written, and the reason was inside
+this change. Run on 2026-09-08: `apply` edited the fixture, `verify`'s
+declared check reported the edit, the panel said "mechanical checks
+failed, verifying agent was not invoked", and the chain stopped at
+`verify` without returning.
+
+The gate that runs those checks returned `"failed"` before the loop ever
+reached the backward edge. So the edge could fire only for a task left
+unchecked by something other than a check — a human-only item, or an
+agent that did not tick. A failing check is what unchecks the task in the
+first place, which is what the edge's own comment says it exists for, so
+the case it was written for was the one case it could not reach.
+
+Recorded here rather than raised as a separate change: the requirement
+was already this change's, and it was not fully met.
+
+- [x] 6.1 A failing check takes the same backward edge, under the same
+  conditions: `apply` is in this chain, more than one attempt is
+  configured, and attempts remain. Nothing configured is one attempt, so
+  every existing configuration keeps today's behaviour exactly.
+- [x] 6.2 The verifying agent is still not invoked. That was the gate's
+  reason for existing, and returning to `apply` spends no verifying run —
+  it is preserved, not traded away.
+- [x] 6.3 The decision moves to the chain loop, which is the only place
+  that knows whether a return is possible. The gate records the failure
+  and returns `"checks-failed"`; the loop yields the return or the
+  failure.
+- [x] 6.4 Where no return is possible, the message is the one that was
+  always there, asserted byte for byte.
+- [x] 6.5 Tests: a failing check with attempts left returns to `apply`
+  and calls no verifying agent; the same with one attempt fails with the
+  old message; a second `apply` that satisfies the check reaches
+  `archive`; a check that keeps failing stops after the configured
+  attempts rather than looping.
+- [x] 6.6 Re-run the checks. Run 2026-09-08 on an idle machine:
+  typecheck clean; lint clean apart from one warning that predates this
+  change (`killTimer` unused in `packages/core/src/agents/shared.ts:210`);
+  tests 48 cli, 683 core, 285 extension, 62 server, 276 webui — core up 4.
+- [ ] 6.7 **Human-only**: this is task 5.5, and it needs a fixture whose
+  failing check a second `apply` can actually satisfy. The one used
+  before declared `path-unchanged` on a path `apply` was meant to change,
+  which no number of attempts resolves — a contradiction in the fixture,
+  which this does not fix.

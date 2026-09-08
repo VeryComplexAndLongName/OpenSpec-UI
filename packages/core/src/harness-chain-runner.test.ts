@@ -2230,6 +2230,140 @@ describe("CHAIN_STAGE_COMMAND / HarnessStepAgentStage consistency (harness-git-s
   });
 });
 
+describe("HarnessChainRunner — a failed check sends work back (verify-sends-work-back section 6)", () => {
+  // The gate that runs `verify`'s checks used to return "failed" before
+  // the loop reached the backward edge, so the edge could never fire for
+  // the case its own comment names: a failing check is what unchecks the
+  // task. Found live on 2026-09-08, running a chain whose `apply` edited
+  // a file a declared check then reported.
+
+  it("returns to apply when a check fails and an attempt is left, without invoking the verifying agent", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+      maxStageAttempts: 2,
+    });
+    mockStatus(true);
+    await setupChangeset(root, false); // the check fails
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // Two "implement" calls and no "verify" call: the work went back to
+    // apply, and the gate's whole reason for existing — not spending a
+    // verifying run on something a check already found broken — is kept.
+    expect(calls.map((c) => c.kind)).toEqual(["implement", "implement"]);
+    const returned = events.find(
+      (event) => event.kind === "stageStarted" && (event as { previousAttemptReason?: string }).previousAttemptReason !== undefined,
+    ) as { stage: string; previousAttemptReason: string } | undefined;
+    expect(returned?.stage).toBe("apply");
+    expect(returned?.previousAttemptReason).toContain("changeset-present");
+  });
+
+  it("fails with the message it always had when no attempt is left", async () => {
+    // Nothing configured is one attempt, so every configuration that
+    // existed before the return keeps its exact behaviour.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await setupChangeset(root, false);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as { reason: string }).reason)
+      .toContain("mechanical checks failed, verifying agent was not invoked: changeset-present");
+  });
+
+  it("reaches archive when the second apply satisfies the check", async () => {
+    // The point of a return is that the chain finishes the work rather
+    // than reporting it.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+      maxStageAttempts: 2,
+    });
+    mockStatus(true);
+    await setupChangeset(root, false);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const calls: Command[] = [];
+    let applyCount = 0;
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") return;
+        // The second "apply" does what the check asks for, which is the
+        // whole scenario: work came back, and this time it was finished.
+        if (command.kind === "implement" && ++applyCount === 2) await setupChangeset(root, true);
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
+      },
+    };
+    mockArchiveSucceeds();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((c) => c.kind)).toEqual(["implement", "implement", "verify"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("stops after the configured attempts rather than looping on a check that keeps failing", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+      maxStageAttempts: 2,
+    });
+    mockStatus(true);
+    await setupChangeset(root, false); // never satisfied
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // Bounded by the attempt count, not by anything about the check.
+    expect(calls.filter((c) => c.kind === "implement")).toHaveLength(2);
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+  });
+});
+
 /** Consumes `iterator` until `predicate` matches, invoking `onMatch`
  * synchronously right after the matching event (before resuming
  * iteration) — used to fire `cancel()`/`confirmCheckpoint()` at exactly
