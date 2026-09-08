@@ -183,7 +183,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
