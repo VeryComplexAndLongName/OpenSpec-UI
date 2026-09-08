@@ -40,6 +40,11 @@ says "No checkpoints between stages".
   285 extension, 62 server, 276 webui — core up 6.
 - [x] 3.3 Version bump via `npx changeset` for `core`.
   Done: `.changeset/a-template-keeps-its-promises.md`.
-- [ ] 3.4 **Human-only**: apply Overnight once more in a disposable
+- [x] 3.4 **Human-only**: apply Overnight once more in a disposable
   workspace and read the saved file. This came from a live check that no
   test had, and the same live check is what closes it.
+  Confirmed live in the standalone UI on 2026-09-08. The saved per-change
+  `harness.json` contained `autonomyLevel: "autonomous"`, the promised
+  ceilings and budgets, and `checkpoints.requireConfirmationBetweenSteps:
+  false`, so the saved configuration matches the "No checkpoints between
+  stages" sentence.

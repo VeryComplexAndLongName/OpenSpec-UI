@@ -1330,3 +1330,206 @@ instead needs history the editor does not consult here.
 - **WHEN** a configuration contains a ceiling that cannot act
 - **THEN** it is saved and used, with the finding reported alongside it
 
+### Requirement: What a change cost can be read after the run
+
+The editor SHALL offer, for any change, a report of what has been spent
+against it: each stage that ran, the agent and effort it ran with, what
+it reported spending, and how long it took, together with a total.
+
+It SHALL be available whether the change finished or not, and whether it
+is active or archived. A change whose run was cut, failed, or exhausted
+its attempts is the case where the question is most pressing, because
+something was spent and nothing shipped.
+
+A figure the agent did not report SHALL be shown as not reported, never
+as zero, and a total SHALL be described as covering only what was
+reported. Most supported agents report nothing at all, and a report
+showing them as free would be wrong where a reader is least able to
+check it.
+
+A record that cannot be attributed to a stage SHALL be shown as
+unattributed rather than dropped or assigned to a stage it might not
+belong to: dropping it makes the total wrong, and guessing makes a row
+wrong.
+
+A change nothing has run against SHALL be reported as such rather than as
+an empty table.
+
+#### Scenario: A finished change is asked about
+
+- **WHEN** a report is asked for a change whose chain completed
+- **THEN** it shows each stage with its agent, effort, reported spend and
+  duration, and a total
+
+#### Scenario: A change that did not finish
+
+- **WHEN** a report is asked for a change whose run was cut or failed
+- **THEN** it still shows what was spent, and says how the run ended
+
+#### Scenario: An agent that reported nothing
+
+- **WHEN** a stage's agent reported no usage
+- **THEN** that stage shows "not reported" rather than a zero, and the
+  total says it covers only what was reported
+
+#### Scenario: A record older than stage attribution
+
+- **WHEN** the change has records that name no stage
+- **THEN** they appear as unattributed and are still counted in the total
+
+#### Scenario: Nothing has run
+
+- **WHEN** a report is asked for a change with no records
+- **THEN** it says nothing has run against this change
+
+### Requirement: A change can be told which named configuration suits it
+
+The editor SHALL recommend one named configuration for a given change,
+and SHALL show the observations it was chosen from alongside it.
+
+A recommendation whose grounds are hidden can only be accepted or
+ignored, never disagreed with — and the cases where a reader would
+disagree are exactly the cases where the recommendation is worst.
+
+Where little is known about the change, the recommendation SHALL say so
+where it gives its answer. Presenting a default silently makes "nothing
+is known about this change" indistinguishable from "this is what the
+evidence suggests".
+
+The recommendation SHALL NOT propose a spending or time figure derived
+from one change's own history. Most changes have a single recorded run
+and many have none that reported a cost; a figure drawn from that is
+arithmetic presented as evidence.
+
+The recommendation SHALL report rather than configure. A person applies
+the named configuration themselves; one nobody chose is one nobody can be
+expected to understand when it acts.
+
+#### Scenario: A change with no history
+
+- **WHEN** a recommendation is asked for a change nothing has run against
+- **THEN** one is given, and it states that there is no previous run to
+  go on
+
+#### Scenario: A change whose previous run hit a ceiling
+
+- **WHEN** the change's last run ended at a configured ceiling
+- **THEN** the recommendation allows more room and names the ceiling that
+  was reached
+
+#### Scenario: A change that has hit a ceiling repeatedly
+
+- **WHEN** a change has been stopped at a ceiling more than once at the
+  most generous configuration
+- **THEN** the recommendation says a person should look, rather than
+  proposing something larger again
+
+#### Scenario: The grounds are visible
+
+- **WHEN** a recommendation is shown
+- **THEN** the observations behind it are shown with it
+
+### Requirement: A configuration can be chosen by intent
+
+The editor SHALL offer named configurations describing what a person is
+trying to do, each applying agents, ceilings and autonomy together.
+
+Each SHALL state what it is for **and when it is the wrong choice**. A
+list of options carrying only advantages gives no help choosing between
+them.
+
+Each SHALL state which of its values were measured and which are
+judgement, so that a reader can disagree with the right ones.
+
+Each SHALL declare where it may be applied. Three settings are valid only
+in a per-change configuration, and offering them globally would produce a
+template refused on save.
+
+#### Scenario: A named configuration is applied
+
+- **WHEN** a person applies one
+- **THEN** the agents, ceilings and autonomy it names are set together
+
+#### Scenario: A configuration valid only per change
+
+- **WHEN** a named configuration sets a value a global file may not carry
+- **THEN** it is not offered for the global file
+
+### Requirement: A named configuration cannot contradict itself
+
+A named configuration SHALL NOT contain a ceiling that cannot act on the
+agent it names for that stage.
+
+The product records what each agent reports, and reports to a person when
+a configured ceiling cannot act. Shipping a named configuration that
+triggers that report would be publishing the very confusion the report
+exists to catch, under the product's own name.
+
+#### Scenario: A named configuration is checked
+
+- **WHEN** a named configuration is examined against what its agents
+  report
+- **THEN** it produces no finding that a ceiling cannot act
+
+### Requirement: Saving settings preserves configuration the view does not display
+
+Saving from the harness settings view SHALL preserve every accepted
+top-level configuration key, including keys the view has no field for.
+
+Both configuration writers replace the file, so a key omitted from a save
+is deleted rather than left alone. A person editing which agent runs
+`apply` has not asked for a spending ceiling, a stage timeout, an attempt
+count or the git staging allowlist to be removed, and SHALL NOT have that
+happen as a side effect.
+
+This SHALL hold for the global file and for a per-change override alike.
+
+#### Scenario: A key the view cannot display survives a save
+
+- **WHEN** a configuration containing keys the settings view has no
+  fields for is loaded, a displayed field is changed, and the settings
+  are saved
+- **THEN** the saved configuration still contains those keys, unchanged
+
+#### Scenario: An applied template's ceilings are saved
+
+- **WHEN** a template is applied in the settings view and the settings
+  are then saved
+- **THEN** the saved configuration contains the ceilings that template
+  sets, not only the fields the view displays
+
+### Requirement: Templates are offered where a per-change configuration is edited
+
+The settings view SHALL offer the templates that may be applied to a
+change wherever a per-change override is edited, not only for the global
+file.
+
+A template whose scope is per-change only is otherwise unreachable: it is
+correctly withheld from the global file, and there is nowhere else to
+apply it from.
+
+#### Scenario: A per-change-only template can be applied
+
+- **WHEN** a per-change override is being edited
+- **THEN** the templates available for a change are offered there,
+  including those that may not be applied globally
+
+### Requirement: A template's configuration matches what it says it does
+
+A template's stated behaviour SHALL be reflected in the configuration it
+applies.
+
+A template's sentences are its interface: they are what a person reads
+before applying it, and what they will hold it to afterwards. A sentence
+that is not true is the same defect as a ceiling that cannot act, and it
+is harder to notice — the configuration has to be read to see it.
+
+Where a stated behaviour names a specific setting, the templates SHALL be
+checked against it mechanically.
+
+#### Scenario: An unattended template does not pause between stages
+
+- **WHEN** a template describes running without stopping for anyone
+- **THEN** the configuration it applies turns off confirmation between
+  stages, rather than leaving it inherited
+

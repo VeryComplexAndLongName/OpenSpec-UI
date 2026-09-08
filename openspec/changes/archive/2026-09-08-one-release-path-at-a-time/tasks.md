@@ -60,7 +60,12 @@ would look like the same fix and would break the path that matters most.
   force and the expression evaluates — for a pull-request ref, at least.
   The `main` half is the opposite behaviour and cannot be inferred from
   this; it is 3.6.
-- [ ] 3.6 **Human-only**: at the next two merges in quick succession,
+- [x] 3.6 **Human-only**: at the next two merges in quick succession,
   confirm the second run waits rather than racing, and that no manual
   spacing was needed. That is the whole point, and it cannot be observed
   before two merges land close together.
+  Confirmed live on 2026-09-08 with disposable PRs #313 and #314. The
+  first merge's main push run `34231135614` was `in_progress`; the second
+  merge was performed immediately, without manual spacing, and its main
+  push run `34231240363` was `pending` rather than starting in parallel.
+  Both disposable fixture branches and worktrees were deleted afterward.
