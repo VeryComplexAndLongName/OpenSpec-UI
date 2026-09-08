@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { resolveRunWithHarnessTarget, type HarnessBudget, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { buildRunPlan, resolveRunWithHarnessTarget, type HarnessBudget, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { resolveHarnessConfig } from "./harness-config-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
 import { buildDefaultChangeDir } from "./shell-ui.js";
@@ -24,6 +24,16 @@ export interface RunWithHarnessDispatch {
    * none is configured, which is what makes the panel say nothing about
    * limits at all. */
   budget?: HarnessBudget;
+  /** What the run entry says before it starts anything: which path the
+   * configuration resolves to, which agent runs each stage, and any
+   * ceiling that cannot act.
+   *
+   * No recommendation rides here. It needs the change's open task count
+   * and its audit history, and this shell can read neither — the same
+   * limit `recommend-a-template` recorded when its surface moved out of
+   * the settings view. Omitted rather than computed from nothing, which
+   * is the distinction that change drew. */
+  plan: RunPlan;
 }
 
 /** Resolves the change's harness config fresh (never cached — see
@@ -40,5 +50,9 @@ export async function resolveRunWithHarnessDispatch(
   const target = resolveRunWithHarnessTarget(config);
   const separator = cwd.includes("\\") ? "\\" : "/";
   const changeDir = `${buildDefaultChangeDir(cwd)}${separator}${changeName}`;
-  return { target, changeDir, ...(config.budget ? { budget: config.budget } : {}) };
+  // `hasVsCodeAgent: false` — there is no VS Code Chat to open here, and
+  // offering a path that cannot run is the same defect as a ceiling that
+  // cannot act.
+  const plan = buildRunPlan(config, { hasVsCodeAgent: false });
+  return { target, changeDir, plan, ...(config.budget ? { budget: config.budget } : {}) };
 }

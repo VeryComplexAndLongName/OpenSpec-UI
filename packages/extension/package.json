@@ -63,7 +63,7 @@
       },
       {
         "command": "openspec-ui.runWithHarness",
-        "title": "OpenSpec UI: Run with Agentic Harness"
+        "title": "OpenSpec UI: Run"
       },
       {
         "command": "openspec-ui.createChange",
@@ -197,11 +197,6 @@
         "command": "openspec-ui.cancelProcess",
         "title": "OpenSpec UI: Cancel Implementation Session",
         "icon": "$(debug-stop)"
-      },
-      {
-        "command": "openspec-ui.startImplementation",
-        "title": "OpenSpec UI: Implement with VS Code Agent",
-        "icon": "$(sparkle)"
       },
       {
         "command": "openspec-ui.finishImplementation",
@@ -364,11 +359,6 @@
           "group": "openspec@1"
         },
         {
-          "command": "openspec-ui.startImplementation",
-          "when": "viewItem == openspec-ui.activeChange",
-          "group": "openspec@2"
-        },
-        {
           "command": "openspec-ui.unarchiveChange",
           "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@1"
@@ -400,12 +390,12 @@
         },
         {
           "command": "openspec-ui.explainHarnessSettings",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@7"
         },
         {
           "command": "openspec-ui.recommendHarnessTemplate",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@8"
         },
         {

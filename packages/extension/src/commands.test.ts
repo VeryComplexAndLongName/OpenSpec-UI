@@ -32,6 +32,7 @@ const writeGlobalHarnessConfigMock = vi.fn();
 const writeChangeHarnessConfigMock = vi.fn();
 const resolveHarnessConfigMock = vi.fn();
 const resolveRunWithHarnessTargetMock = vi.fn();
+const buildRunPlanMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
@@ -60,6 +61,7 @@ vi.mock("@openspec-ui/core", () => ({
     "local-llm": {},
   },
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
+  buildRunPlan: (...args: unknown[]) => buildRunPlanMock(...args),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -1684,17 +1686,41 @@ describe("registerCommands", () => {
   describe("openspec-ui.runWithHarness", () => {
     const changeItem = { changeName: "demo-change", changeDir: "/workspace/repo/openspec/changes/demo-change", archived: false };
 
-    it("resolves the change's harness config fresh and reveals the picker for assisted", async () => {
+    // one-way-in-to-run. Which path runs is `buildRunPlan`'s decision and
+    // is tested there, over 11 cases; what these assert is that the
+    // command shows the plan and acts on what was picked. Asserting the
+    // decision again here would be asserting a mock.
+    function planFor(resolved: "chain" | "single-stage", overrides: Record<string, unknown> = {}) {
+      return {
+        resolved,
+        because: `autonomyLevel says ${resolved}`,
+        stageAgents: [{ stage: "apply", agent: "claude-cli" }],
+        offered: [
+          { id: "chain", title: "Run the chain", describes: "Runs every stage." },
+          { id: "single-stage", title: "Run one stage", describes: "Runs one stage." },
+          { id: "vscode-agent", title: "Implement with the VS Code agent", describes: "Opens VS Code Chat." },
+        ],
+        findings: [],
+        ...overrides,
+      };
+    }
+
+    it("shows what the configuration resolves to, and reveals the picker when that is chosen", async () => {
       const resolvedConfig = { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } };
       resolveHarnessConfigMock.mockResolvedValue(resolvedConfig);
-      resolveRunWithHarnessTargetMock.mockReturnValue("picker");
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "single-stage" });
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
 
       expect(resolveHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change");
-      expect(resolveRunWithHarnessTargetMock).toHaveBeenCalledWith(resolvedConfig);
+      // The configured path is offered first, so the pick opens on it —
+      // `showQuickPick` has no preselection for a single pick.
+      const [items] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [Array<{ id: string; label: string }>];
+      expect(items[0]?.id).toBe("single-stage");
+      expect(items[0]?.label).toContain("configured");
       expect(deps.revealAiPanel).toHaveBeenCalledWith({
         cwd: "/workspace/repo",
         changeDir: "/workspace/repo/openspec/changes/demo-change",
@@ -1706,9 +1732,10 @@ describe("registerCommands", () => {
       });
     });
 
-    it("reveals with startChain: true when the resolved target is chain", async () => {
+    it("reveals with startChain: true when the chain is chosen", async () => {
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous", reviewGate: { mode: "human-required" } });
-      resolveRunWithHarnessTargetMock.mockReturnValue("chain");
+      buildRunPlanMock.mockReturnValue(planFor("chain"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "chain" });
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
@@ -1720,6 +1747,84 @@ describe("registerCommands", () => {
       expect(deps.revealAiPanel).toHaveBeenCalledWith(
         expect.objectContaining({ startChain: true, runChange: false }),
       );
+    });
+
+    it("starts nothing when the dialog is dismissed", async () => {
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
+
+    it("takes the chosen path over the configured one, and writes no configuration", async () => {
+      // A run is not a configuration change. A dialog that quietly edited
+      // the file would make the next run different for a reason nobody
+      // recorded.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "chain" });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ startChain: true }));
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+      expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
+    });
+
+    it("opens VS Code Chat when the VS Code agent is chosen, instead of a panel", async () => {
+      // The path that used to have its own command. It is the apply stage
+      // run by `vscode-chat`, not a separate way of working.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "vscode-agent" });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(deps.implementationSessions.start).toHaveBeenCalledWith("/workspace/repo", "demo-change");
+      expect(vscodeMock.commands.executeCommand).toHaveBeenCalledWith(
+        "workbench.action.chat.open",
+        expect.objectContaining({ mode: "agent" }),
+      );
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
+
+    it("says what a ceiling cannot do before the run, not after", async () => {
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage", {
+        findings: [{ kind: "reporting-unknown", stage: "apply", agent: "claude-cli", message: "reports no spend" }],
+      }));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "single-stage" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      const [, options] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [unknown, { placeHolder?: string }];
+      expect(options.placeHolder).toContain("cannot act");
+    });
+
+    it("shows the recommended configuration and its grounds when there is one", async () => {
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage", {
+        advice: { template: { id: "careful", title: "Careful" }, grounds: ["20 tasks still open"] },
+      }));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({ id: "single-stage" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      const [, options] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [unknown, { placeHolder?: string }];
+      expect(options.placeHolder).toContain("Careful");
+      // The grounds travel with the answer, never behind it.
+      expect(options.placeHolder).toContain("20 tasks still open");
     });
 
     it("does nothing for an archived change", async () => {

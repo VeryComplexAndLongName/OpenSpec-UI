@@ -20,6 +20,10 @@ import {
   buildSprintReport,
   findHarnessConfigLimits,
   readTaskChecklist,
+  buildRunPlan,
+  type RunPlan,
+  type RunPathId,
+  type RecommendationInput,
   recommendTemplate,
   checkChangesetReminder,
   createChange,
@@ -46,7 +50,6 @@ import {
   renderSprintReportPdf,
   renderTemplate,
   resolveHarnessConfig,
-  resolveRunWithHarnessTarget,
   showChange,
   unarchiveChange,
   validateChange,
@@ -526,6 +529,94 @@ function currentAgentFor(stepAgents: HarnessConfig["stepAgents"], stage: Harness
   return entry === undefined ? undefined : normalizeStepAgent(entry).agent;
 }
 
+/** What the run dialog can reason a recommendation from: this change's
+ * remaining work and how its previous runs ended. Returns nothing when
+ * neither can be read — "no recommendation" and "a recommendation with no
+ * grounds" are different, and only the first is honest. */
+async function readRecommendationInput(
+  deps: CommandsDeps,
+  workspaceRoot: string,
+  item: ChangeTreeItem,
+): Promise<{ recommendationInput?: RecommendationInput }> {
+  try {
+    const tasks = await readTaskChecklist(workspaceRoot, item.changeName, item.archived);
+    const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
+    return {
+      recommendationInput: {
+        openTaskCount: tasks.filter((task) => !task.done).length,
+        history: buildChangeCostReport(entries, item.changeDir),
+      },
+    };
+  } catch {
+    // An unreadable task list is not a reason to refuse the run — it is a
+    // reason to run without advice, and to say nothing rather than guess.
+    return {};
+  }
+}
+
+/** Shows what the configuration resolves to and lets it be changed for
+ * this run only. Nothing here writes `harness.json`: a run is not a
+ * configuration change, and a later run behaving differently for a reason
+ * nobody recorded is worse than being asked again. */
+async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunPathId | undefined> {
+  const advice = plan.advice;
+  const adviceLine = advice === undefined
+    ? undefined
+    : advice.needsPerson
+      ? "Recommended: a person should look — " + advice.grounds.join("; ")
+      : `Recommended configuration: ${advice.template?.title ?? "none"} — ${advice.grounds.join("; ")}`;
+
+  const items = plan.offered.map((path) => ({
+    label: path.id === plan.resolved ? `${path.title}  (configured)` : path.title,
+    detail: path.id === plan.resolved ? `${path.describes}  ${plan.because}.` : path.describes,
+    id: path.id,
+  }));
+  // The configured path first, so the pick opens on it. `showQuickPick`
+  // has no preselection for a single pick — same stand-in the setup
+  // wizard uses.
+  items.sort((a, b) => (a.id === plan.resolved ? -1 : b.id === plan.resolved ? 1 : 0));
+
+  const stages = plan.stageAgents
+    .map((entry) => `${entry.stage}: ${entry.agent ?? "no agent set"}`)
+    .join(", ");
+  // Findings and advice ride in the placeholder rather than a second
+  // dialog: a ceiling that cannot act is worth knowing while the money
+  // has not been spent, and a message shown after the pick is a message
+  // shown too late.
+  const warning = plan.findings.length === 0
+    ? undefined
+    : `${plan.findings.length} setting(s) cannot act — ${plan.findings.map((f) => f.stage).join(", ")}`;
+  const placeHolder = [stages, warning, adviceLine].filter((line) => line !== undefined).join("  |  ");
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: `Run ${changeName}`,
+    placeHolder,
+    ignoreFocusOut: true,
+  });
+  return picked?.id;
+}
+
+/** The path that used to be `openspec-ui.startImplementation`. It is not
+ * a separate way of working — `vscode-chat` is already a step agent, so
+ * this is the `apply` stage run by it, and it looked separate only
+ * because it had its own command. */
+async function startVsCodeAgentImplementation(
+  deps: CommandsDeps,
+  workspaceRoot: string,
+  item: ChangeTreeItem,
+): Promise<void> {
+  const processId = await deps.implementationSessions.start(workspaceRoot, item.changeName);
+  const prompt = buildWorkbenchChatPrompt({
+    stage: "apply",
+    changeName: item.changeName,
+    workspaceRoot,
+    changeDir: item.changeDir,
+    processId,
+  });
+  await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt, mode: "agent" });
+  void vscode.window.showInformationMessage(`OpenSpec UI: implementation session started for ${item.changeName}.`);
+}
+
 /** `showQuickPick` has no real "preselected item" concept for a single
  * pick — putting the current value first in the list is this wizard's
  * stand-in, per design.md's "every question's QuickPick reads the current
@@ -981,6 +1072,34 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("open per-change harness config", error);
       }
     }),
+    // Registered, but contributed by no menu and no palette entry — see
+    // one-way-in-to-run tasks.md 3.2, which first said this command would
+    // be deleted outright. The chat participant's `/implement` calls it
+    // directly, and a person who has already typed `/implement` must not
+    // be handed a dialog asking what they meant. Keeping the id also
+    // keeps any existing keybinding working. It is not a second way in:
+    // a command absent from `contributes.commands` appears in no menu and
+    // no palette.
+    vscode.commands.registerCommand("openspec-ui.startImplementation", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (item.archived) return;
+      try {
+        await startVsCodeAgentImplementation(deps, workspaceRoot, item);
+      } catch (error) {
+        await showCommandError("start implementation", error);
+      }
+    }),
+    // The one way in. It used to be two — this command, which read the
+    // configuration and revealed a panel without saying what it had read,
+    // and `startImplementation`, which never read the configuration at
+    // all. Which one a person wanted was a value in a file that one of
+    // them ignored, and picking wrong was not visibly wrong: on an
+    // `assisted` change this looked like it only changed tabs. Keeping
+    // the command id so existing keybindings and menus survive; see
+    // one-way-in-to-run.
     vscode.commands.registerCommand("openspec-ui.runWithHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
@@ -994,14 +1113,24 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // have just edited this change's harness.json via "Configure
         // Harness for this Change" immediately before running.
         const config = await resolveHarnessConfig(workspaceRoot, item.changeName);
-        const target = resolveRunWithHarnessTarget(config);
+        const plan = buildRunPlan(config, {
+          hasVsCodeAgent: true,
+          ...(await readRecommendationInput(deps, workspaceRoot, item)),
+        });
+        const chosen = await pickRunPath(item.changeName, plan);
+        if (!chosen) return;
+
+        if (chosen === "vscode-agent") {
+          await startVsCodeAgentImplementation(deps, workspaceRoot, item);
+          return;
+        }
         // `runChange` only for the picker target: a chain has one button
         // and nothing to pre-select, so seeding a command kind there
         // would describe a control that is not on screen.
         deps.revealAiPanel({
           ...dashboardContext(workspaceRoot, item.changeDir),
-          startChain: target === "chain",
-          runChange: target !== "chain",
+          startChain: chosen === "chain",
+          runChange: chosen !== "chain",
         });
       } catch (error) {
         await showCommandError("resolve Agentic Harness config", error);
@@ -1625,27 +1754,6 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.startImplementation", async (invokedItem?: ChangeTreeItem) => {
-      const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot) { warnNoWorkspace(); return; }
-      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
-      if (!item) { warnNoTreeSelection("change"); return; }
-      if (item.archived) return;
-      try {
-        const processId = await deps.implementationSessions.start(workspaceRoot, item.changeName);
-        const prompt = buildWorkbenchChatPrompt({
-          stage: "apply",
-          changeName: item.changeName,
-          workspaceRoot,
-          changeDir: item.changeDir,
-          processId,
-        });
-        await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt, mode: "agent" });
-        void vscode.window.showInformationMessage(`OpenSpec UI: implementation session started for ${item.changeName}.`);
-      } catch (error) {
-        await showCommandError("start implementation", error);
-      }
-    }),
     vscode.commands.registerCommand("openspec-ui.finishImplementation", async (item?: { process?: { id?: string } }) => {
       const processId = item?.process?.id;
       if (processId && deps.implementationSessions.finish(processId)) {
