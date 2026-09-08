@@ -45,9 +45,17 @@ would look like the same fix and would break the path that matters most.
   285 extension, 62 server, 267 webui — unchanged, as a CI-only change
   should leave them.
 - [x] 3.4 No changeset: CI configuration, nothing published changes.
-- [ ] 3.5 Confirm on this change's own pull request that the group is
-  reported by GitHub — a run that shows no group would mean the
-  expression did not evaluate, which is silent otherwise.
+- [ ] 3.5 Confirm on this change's own pull request that the group took
+  effect — an expression that failed to evaluate would be silent
+  otherwise.
+  **Not observable the way this task assumed.** GitHub's API does not
+  report a run's concurrency group at all: the run payload for this pull
+  request carries no such field. Checked rather than assumed.
+  So it is observed by behaviour instead: pushing a second commit while
+  the first run is still going must cancel that first run, which is
+  `cancel-in-progress` evaluating to `true` for a pull-request ref. The
+  push that adds this note is that second commit, and the result is
+  recorded below.
 - [ ] 3.6 **Human-only**: at the next two merges in quick succession,
   confirm the second run waits rather than racing, and that no manual
   spacing was needed. That is the whole point, and it cannot be observed
