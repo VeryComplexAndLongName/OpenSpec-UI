@@ -96,6 +96,10 @@ about any of this.
   sets `budget.maxCostUsd` and no token ceiling, so the one ceiling
   configured is the one that can act. No stage is unbounded, because none
   of them is silent.
-- [ ] 5.5 **Human-only**: open the harness settings, choose an agent that
+- [x] 5.5 **Human-only**: open the harness settings, choose an agent that
   reports no cost with a cost ceiling set, and confirm the finding
   appears without the configuration being refused.
+  Confirmed live in the standalone UI on 2026-09-08: selecting
+  `copilot-cli-acp` for `apply` with the global `$15` cost ceiling showed
+  `reports tokens and no cost, so a cost ceiling cannot act` while the
+  configuration remained saveable. The trial selection was not saved.

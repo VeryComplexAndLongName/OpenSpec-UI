@@ -6,6 +6,25 @@ on:
   pull_request:
     branches: [main]
 
+# One release path at a time. The jobs gated on a push to `main` create a
+# pull request, a tag and a release, and push to the publishing branch —
+# state outside the run. Two runs racing for it failed twice in one
+# session on 2026-09-07: "Reference does not exist" on the changesets
+# branch, and a duplicate release tag.
+#
+# The asymmetry below is the whole point, so do not simplify it to
+# `cancel-in-progress: true`:
+#
+# - A pull request's earlier run answers about a commit that is no longer
+#   the head, and nobody merges on that. Cancelling it is strictly better.
+# - A `main` run must NOT be cancelled. Stopping one between creating a
+#   tag and publishing its release leaves a tag with nothing attached,
+#   which is worse than the race it would prevent and far harder to
+#   notice. It queues instead, and costs a wait.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 permissions:
   contents: read
 
