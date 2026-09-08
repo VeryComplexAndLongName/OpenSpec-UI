@@ -22,7 +22,7 @@ const manifest = JSON.parse(
 ) as {
   contributes: {
     commands: Array<{ command: string; title: string }>;
-    menus: Record<string, Array<{ command?: string }>>;
+    menus: Record<string, Array<{ command?: string; when?: string }>>;
   };
 };
 
@@ -46,6 +46,37 @@ describe("the extension contributes one way to start a run", () => {
       .filter((entry) => entry.command === "openspec-ui.startImplementation");
 
     expect(inMenus).toEqual([]);
+  });
+
+  it("names the entry Run, not one of the things it offers", () => {
+    // It offers three paths. Naming it after one of them is how it came
+    // to sit beside a second entry named after another.
+    const run = manifest.contributes.commands.find((entry) => entry.command === "openspec-ui.runWithHarness");
+
+    expect(run?.title).toBe("OpenSpec UI: Run");
+  });
+
+  it("puts no second menu item beside Run for what the dialog already shows", () => {
+    // The findings and the recommendation are inside the dialog now. A
+    // menu item beside Run offering the same answer is the duplication
+    // this change exists to remove.
+    const onActiveChange = (manifest.contributes.menus["view/item/context"] ?? [])
+      .filter((entry) => (entry.when ?? "").includes("openspec-ui.activeChange"))
+      .map((entry) => entry.command);
+
+    expect(onActiveChange).not.toContain("openspec-ui.recommendHarnessTemplate");
+    expect(onActiveChange).not.toContain("openspec-ui.explainHarnessSettings");
+  });
+
+  it("still offers them on an archived change, which has no Run", () => {
+    // Narrowed, not deleted: an archived change cannot be started, so
+    // there these entries are the only way to ask.
+    const onArchived = (manifest.contributes.menus["view/item/context"] ?? [])
+      .filter((entry) => (entry.when ?? "").includes("openspec-ui.archivedChange"))
+      .map((entry) => entry.command);
+
+    expect(onArchived).toContain("openspec-ui.recommendHarnessTemplate");
+    expect(onArchived).toContain("openspec-ui.explainHarnessSettings");
   });
 
   it("keeps the surviving entry's id, so existing keybindings still work", () => {

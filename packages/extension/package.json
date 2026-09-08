@@ -63,7 +63,7 @@
       },
       {
         "command": "openspec-ui.runWithHarness",
-        "title": "OpenSpec UI: Run with Agentic Harness"
+        "title": "OpenSpec UI: Run"
       },
       {
         "command": "openspec-ui.createChange",
@@ -390,12 +390,12 @@
         },
         {
           "command": "openspec-ui.explainHarnessSettings",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@7"
         },
         {
           "command": "openspec-ui.recommendHarnessTemplate",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.archivedChange",
           "group": "openspec@8"
         },
         {

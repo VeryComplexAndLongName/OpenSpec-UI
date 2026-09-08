@@ -46,6 +46,17 @@ panel; `startImplementation` opens VS Code Chat and never looks at it.
 
 - [x] 3.1 One entry per host: the `Run` command in VS Code, one button in
   the standalone UI.
+  The entry is named `Run`, not after one of the paths it offers. This
+  was missed on the first pass — the title was left as "Run with Agentic
+  Harness", which is one of three paths and is how the entry came to sit
+  beside a second one named after another. Caught by the owner.
+- [x] 3.5 `Explain Harness Settings` and `Recommend a Harness
+  Configuration` leave the active-change menu: the dialog shows both, and
+  a menu item beside Run offering the same answer is the duplication this
+  change exists to remove. Narrowed rather than deleted — they stay in
+  the palette, and on an archived change, which cannot be started, so
+  there they are the only way to ask. Also missed on the first pass: the
+  answers were folded into the dialog and their entries left standing.
 - [x] 3.2 `openspec-ui.startImplementation` is removed as a command. Its
   behaviour survives as a choice; keeping it "for convenience" is what
   produced the split.

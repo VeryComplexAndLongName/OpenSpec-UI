@@ -285,9 +285,14 @@ rather than silently becoming an ordinary, unchecked task.
 
 ### One way in
 
-There is one entry, in both hosts: **Run with Agentic Harness** — the
-`openspec-ui.runWithHarness` command in VS Code, one button in the
-standalone Change Editor.
+There is one entry, in both hosts: **Run** — the
+`openspec-ui.runWithHarness` command in VS Code (the id is unchanged, so
+existing keybindings still work), one button in the standalone Change
+Editor.
+
+It is named `Run` and not after any one of the three paths it offers.
+Naming it after one of them is how it came to sit beside a second entry
+named after another.
 
 It shows what the change's configuration resolves to before starting
 anything: which path will run and why, which agent each stage will use,
@@ -314,6 +319,11 @@ The third path used to be its own command, `Implement with VS Code
 Agent`. It no longer appears in any menu: two entries whose correct
 choice depended on a file one of them never read is what made picking
 between them guesswork.
+
+`Explain Harness Settings` and `Recommend a Harness Configuration` also
+leave the active-change menu, because the Run dialog now shows both. They
+remain in the command palette, and on an archived change — which cannot
+be started, so there they are the only way to ask.
 
 ### Resuming, not always starting at `propose`
 
