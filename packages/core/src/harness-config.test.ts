@@ -18,9 +18,11 @@ import {
   readGlobalHarnessConfig,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
+  TOP_LEVEL_CONFIG_KEYS,
   VSCODE_CHAT_STEP_AGENT_ID,
   writeChangeHarnessConfig,
   writeGlobalHarnessConfig,
+  type HarnessConfig,
 } from "./harness-config.js";
 
 // suite-survives-a-loaded-machine:
@@ -881,6 +883,63 @@ describe("ACP adapter capabilities match their plain counterparts (acp-agent-cap
       }),
     ).rejects.toThrow(/stepAgents\.apply.*"gemini-cli-acp"/);
   });
+});
+
+describe("every accepted key survives a round trip (config-keys-survive-a-round-trip)", () => {
+  /** A representative value per accepted top-level key.
+   *
+   * Its own keys are asserted against `TOP_LEVEL_CONFIG_KEYS` below,
+   * before anything is written. Without that this table rots in one
+   * specific way: someone adds a key to the product, does not add a
+   * sample, and the loop quietly tests one key fewer — the newest key,
+   * which is the one at risk. */
+  const SAMPLES: Record<(typeof TOP_LEVEL_CONFIG_KEYS)[number], unknown> = {
+    stepAgents: { apply: "claude-cli-acp" },
+    autonomyLevel: "semi-autonomous",
+    reviewGate: { mode: "human-required" },
+    checkpoints: { requireConfirmationBetweenSteps: true },
+    budget: { maxCostUsd: 12 },
+    timeout: { maxRunSeconds: 900, maxStageSeconds: 300 },
+    maxStageAttempts: 3,
+    gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+  };
+
+  it("has a sample for every accepted key, and no others", () => {
+    // Asserted first, so a key added without a sample fails here and
+    // names itself rather than being silently skipped below.
+    expect(Object.keys(SAMPLES).sort()).toEqual([...TOP_LEVEL_CONFIG_KEYS].sort());
+  });
+
+  for (const key of TOP_LEVEL_CONFIG_KEYS) {
+    // `gitStageAllowlist` and `checkpoints` are per-change only; a global
+    // file setting either is refused, so those two are exercised through
+    // the per-change path alone.
+    const globalAccepts = key !== "gitStageAllowlist" && key !== "checkpoints";
+
+    if (globalAccepts) {
+      it(`carries "${key}" back out of the global file`, async () => {
+        const root = await temporaryRoot();
+        await writeGlobalHarnessConfig(root, { [key]: SAMPLES[key] } as Partial<HarnessConfig>);
+
+        const config = await readGlobalHarnessConfig(root);
+
+        expect(config[key]).toEqual(SAMPLES[key]);
+      });
+    }
+
+    it(`carries "${key}" through a per-change merge`, async () => {
+      // The merged config is what a chain actually reads, and
+      // `mergeHarnessConfig` names its fields one by one too — a guard
+      // over the global reader alone proves nothing about this one.
+      const root = await temporaryRoot();
+      await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+      await writeChangeHarnessConfig(root, "demo", { [key]: SAMPLES[key] } as Partial<HarnessConfig>);
+
+      const config = await resolveHarnessConfig(root, "demo");
+
+      expect(config[key]).toEqual(SAMPLES[key]);
+    });
+  }
 });
 
 describe("time limits and attempts (run-has-a-time-limit)", () => {
