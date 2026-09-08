@@ -3,6 +3,7 @@ import {
   AGENT_REGISTRY,
   HARNESS_AGENT_CAPABILITIES,
   findHarnessConfigLimits,
+  templatesForScope,
   isHarnessStepAgentStage,
   normalizeStepAgent,
   VSCODE_CHAT_STEP_AGENT_ID,
@@ -15,6 +16,7 @@ import {
   type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessFinding,
+  type HarnessTemplate,
 } from "@openspec-ui/core/browser";
 
 // Harness Settings — see openspec/changes/agentic-harness/. Two levels:
@@ -200,6 +202,38 @@ function BudgetInput({ stage, agentId, value, onChange, ariaLabel }: { stage: st
   );
 }
 
+/** Named configurations, offered by intent. Both sentences are shown
+ * before applying — the "not for" one is what actually helps someone
+ * choose, since a list of options carrying only advantages gives no help
+ * choosing between them.
+ *
+ * Applying fills the form rather than writing the file, so the diagnostic
+ * below updates and the choice can be adjusted before saving. */
+function HarnessTemplatePicker(
+  { scope, onApply }: { scope: "global" | "change"; onApply: (template: HarnessTemplate) => void },
+) {
+  const templates = templatesForScope(scope);
+  if (templates.length === 0) return null;
+  return (
+    <div className="openspec-harness-templates" data-testid={`harness-templates-${scope}`}>
+      <p className="openspec-shell-note">
+        Start from a named configuration, then adjust. Applying one fills the fields below; nothing is
+        saved until you save.
+      </p>
+      <ul>
+        {templates.map((template) => (
+          <li key={template.id} data-testid={`harness-template-${template.id}`}>
+            <button type="button" onClick={() => onApply(template)}>{template.title}</button>
+            <p className="openspec-shell-note">{template.intent}</p>
+            <p className="openspec-shell-note"><strong>Not for:</strong> {template.notFor}</p>
+            <p className="openspec-shell-note">{template.basis}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** What the configuration on screen cannot do. Rendered above the
  * settings themselves rather than behind a command: a warning someone has
  * to ask for is read by someone who already suspects the problem, which
@@ -236,6 +270,21 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
   // Recomputed as the operator changes an agent, not only on load: the
   // warning has to appear while the choice is being made.
+  /** Fills the form from a template rather than writing the file, so the
+   * findings above recompute and the choice can be adjusted before it is
+   * saved. The ceilings ride on `globalConfig`, which is what the
+   * findings read. */
+  const applyTemplate = (template: HarnessTemplate): void => {
+    setGlobalStepAgents(toForm(template.config.stepAgents));
+    setGlobalEffort(toEffortForm(template.config.stepAgents));
+    if (template.config.autonomyLevel) setGlobalAutonomyLevel(template.config.autonomyLevel);
+    setGlobalConfig((previous) => ({
+      ...(previous ?? { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } }),
+      ...template.config,
+    }));
+    setGlobalMessage(`Filled from "${template.title}". Nothing is saved until you save.`);
+  };
+
   const findings = useMemo<HarnessFinding[]>(() => {
     if (!globalConfig) return [];
     const stepAgents: HarnessStepAgents = {};
@@ -336,6 +385,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       <HarnessFindingsPanel findings={findings} />
       <section>
         <h3>Global default</h3>
+        <HarnessTemplatePicker scope="global" onApply={applyTemplate} />
         <p className="openspec-shell-note">
           Applies to every change unless a change explicitly overrides it below. Recommends an agent per stage in
           the Agent Selection picker — never enforces one.
