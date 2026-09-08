@@ -248,3 +248,44 @@ describe("HarnessSettingsView effort and budget (harness-step-effort-and-budget)
     expect(screen.queryByLabelText("change propose budget")).not.toBeInTheDocument();
   });
 });
+
+describe("HarnessSettingsView — what the configuration cannot do", () => {
+  it("says a cost ceiling cannot act on an agent that reports no cost", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { apply: "copilot-cli-acp" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        budget: { maxCostUsd: 10 },
+        timeout: { maxStageSeconds: 600 },
+      }),
+    });
+
+    render(<HarnessSettingsView api={api} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-findings")).toBeTruthy());
+    expect(screen.getByTestId("harness-finding-apply").textContent).toContain("reports tokens and no cost");
+    // Valid and saved regardless: an operator may knowingly leave one
+    // stage's ceiling unable to act.
+    expect(screen.getByTestId("harness-findings").textContent).toContain("will be saved");
+  });
+
+  it("renders nothing when every configured ceiling can act", async () => {
+    // The quiet case. A surface that warns about a correct configuration
+    // becomes noise people learn to ignore.
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { apply: "claude-cli-acp" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        budget: { maxCostUsd: 10 },
+        timeout: { maxStageSeconds: 600 },
+      }),
+    });
+
+    render(<HarnessSettingsView api={api} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-settings-view")).toBeTruthy());
+    expect(screen.queryByTestId("harness-findings")).toBeNull();
+  });
+});
