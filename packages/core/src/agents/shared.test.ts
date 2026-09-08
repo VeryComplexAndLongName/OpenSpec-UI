@@ -171,6 +171,47 @@ describe("spawnAndStream", () => {
     expect(after.done).toBe(true);
   });
 
+
+  it("leaves no timer armed after a cancelled run (kill-timer-is-cleared)", async () => {
+    // The leak has no observable effect today — the timer fires into a
+    // queue nobody reads, and the wake function happens to be null by
+    // then. That is a property of the current loop, not a guarantee, and
+    // it is why nothing caught this. So the assertion is on the timer
+    // count itself rather than on a side effect there is none of.
+    //
+    // What it does cost is real: a pending `setTimeout` holds the Node
+    // event loop open, so a cancelled CLI run waited up to ten seconds
+    // longer than it should to exit.
+    vi.useFakeTimers();
+    try {
+      const child = new FakeChildProcess();
+      child.pid = 4444;
+      const taskkillChild = new EventEmitter();
+      spawnMock.mockImplementation((exe: string) => (exe === "taskkill" ? taskkillChild : child));
+
+      const controller = new AbortController();
+      const gen = spawnAndStream({
+        executable: "claude",
+        args: ["-p"],
+        cwd: "/workspace/repo",
+        runId: "run-timer",
+        commandKind: "implement",
+        signal: controller.signal,
+      });
+      await gen.next(); // started
+
+      const cancelledPromise = gen.next();
+      controller.abort();
+      child.emit("close", 0);
+      expect((await cancelledPromise).value).toMatchObject({ kind: "cancelled" });
+      expect((await gen.next()).done).toBe(true);
+
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reports failed, not cancelled, when the process outlives the termination request", async () => {
     const child = new FakeChildProcess();
     child.pid = 4343;
