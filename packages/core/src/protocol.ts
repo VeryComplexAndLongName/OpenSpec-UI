@@ -194,6 +194,15 @@ export interface FailedEvent extends BaseEvent {
  * openspec/changes/cancel-reports-what-happened/. */
 export interface CancelledEvent extends BaseEvent {
   kind: "cancelled";
+  /** Why the run was cancelled, where something other than a person
+   * asking caused it — a time ceiling naming itself and its value, for
+   * instance.
+   *
+   * Optional on purpose: every cancellation written before this field
+   * existed means "a person asked", and an absent reason has to keep
+   * meaning exactly that. A reader seeing a cancellation otherwise
+   * cannot tell a click from a rule firing. */
+  reason?: string;
 }
 
 /** Cancellation was asked for and has not taken effect yet.
@@ -252,6 +261,15 @@ export interface StageStartedEvent extends BaseEvent {
   kind: "stageStarted";
   stage: HarnessStage;
   agentId: string;
+  /** Which attempt at this stage is starting, counting from one. Absent
+   * on a first attempt — the case every chain had before stages could be
+   * attempted again, and the case a surface should render exactly as it
+   * always did. */
+  attempt?: number;
+  /** Why the previous attempt ended, present only alongside `attempt`.
+   * Without it a reader sees the same stage announced twice and cannot
+   * tell a retry from a duplicate. */
+  previousAttemptReason?: string;
 }
 
 /** A chain stage finished and the next one is starting immediately (no

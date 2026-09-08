@@ -9,7 +9,7 @@
 // delivery targets' UX.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Command, CheckpointEvent, Event, HarnessBudget } from "@openspec-ui/core/browser";
+import type { Command, CheckpointEvent, Event, HarnessBudget, HarnessTimeout } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import {
   collapseStreamEvents,
@@ -31,6 +31,10 @@ export interface HarnessChainPanelProps {
    * the recorded total — nothing here enforces it (see
    * UsageSummaryView.tsx's header). */
   budget?: HarnessBudget;
+  /** The resolved harness `timeout`, passed through on the same terms as
+   * `budget`: shown beside what the run has spent so a ceiling can be
+   * seen approaching rather than only when it fires. */
+  timeout?: HarnessTimeout;
 }
 
 function defaultRunId(): string {
@@ -41,7 +45,7 @@ function isCheckpointEvent(event: Event | undefined): event is CheckpointEvent {
   return event?.kind === "checkpoint";
 }
 
-export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = defaultRunId, budget }: HarnessChainPanelProps) {
+export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = defaultRunId, budget, timeout }: HarnessChainPanelProps) {
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -157,7 +161,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest, outcome)}
         />
       ) : null}
-      <UsageSummaryView events={collapsedEvents} budget={budget} />
+      <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       <ul className="openspec-ai-panel-events" data-testid="chain-event-log">
         {collapsedEvents.map((event, index) => (
           <li key={index} data-testid={`chain-event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>

@@ -883,6 +883,65 @@ describe("ACP adapter capabilities match their plain counterparts (acp-agent-cap
   });
 });
 
+describe("time limits and attempts (run-has-a-time-limit)", () => {
+  it("round-trips timeout and maxStageAttempts through the global file", async () => {
+    // The regression this test exists for: both fields passed validation
+    // and were then dropped by the global reader, which builds its result
+    // field by field. The file said one thing and the resolved config
+    // another, so the ceiling appeared to do nothing at all.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      timeout: { maxRunSeconds: 600, maxStageSeconds: 120 },
+      maxStageAttempts: 3,
+    });
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.timeout).toEqual({ maxRunSeconds: 600, maxStageSeconds: 120 });
+    expect(config.maxStageAttempts).toBe(3);
+  });
+
+  it("lets a per-change file set a ceiling the global file does not", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { timeout: { maxStageSeconds: 30 } });
+
+    const config = await resolveHarnessConfig(root, "demo");
+
+    expect(config.timeout).toEqual({ maxStageSeconds: 30 });
+  });
+
+  it("refuses a stage ceiling that exceeds the run ceiling, because it could never fire", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, {
+      timeout: { maxRunSeconds: 60, maxStageSeconds: 120 },
+    })).rejects.toThrow(/maxStageSeconds \(120\) must not exceed timeout.maxRunSeconds \(60\)/);
+  });
+
+  it("refuses a non-positive or fractional number of seconds where the config resolves", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { timeout: { maxRunSeconds: 0 } }))
+      .rejects.toThrow(/maxRunSeconds must be a positive integer/);
+    await expect(writeGlobalHarnessConfig(root, { timeout: { maxStageSeconds: 1.5 } }))
+      .rejects.toThrow(/maxStageSeconds must be a positive integer/);
+    await expect(writeGlobalHarnessConfig(root, { maxStageAttempts: 0 }))
+      .rejects.toThrow(/maxStageAttempts must be a positive integer/);
+  });
+
+  it("leaves a config that sets neither field unbounded, as every config written before them means", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.timeout).toBeUndefined();
+    expect(config.maxStageAttempts).toBeUndefined();
+  });
+});
+
 describe("top-level key validation (harness-config-top-level-keys)", () => {
   it("rejects a global file with an unrecognized top-level key, naming the key and the accepted set", async () => {
     const root = await temporaryRoot();
@@ -891,7 +950,7 @@ describe("top-level key validation (harness-config-top-level-keys)", () => {
 
     await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/unrecognized top-level key "notARealKey"/);
     await expect(readGlobalHarnessConfig(root)).rejects.toThrow(
-      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, gitStageAllowlist/,
+      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, timeout, maxStageAttempts, gitStageAllowlist/,
     );
   });
 
@@ -903,7 +962,7 @@ describe("top-level key validation (harness-config-top-level-keys)", () => {
 
     await expect(readChangeHarnessConfig(root, "demo")).rejects.toThrow(/unrecognized top-level key "notARealKey"/);
     await expect(readChangeHarnessConfig(root, "demo")).rejects.toThrow(
-      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, gitStageAllowlist/,
+      /accepted keys: stepAgents, autonomyLevel, reviewGate, checkpoints, budget, timeout, maxStageAttempts, gitStageAllowlist/,
     );
   });
 

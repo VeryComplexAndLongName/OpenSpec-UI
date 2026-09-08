@@ -62,6 +62,14 @@ export interface StageUsage {
   reported?: UsageTotals;
   /** The agent's latest live figures for this stage, where it sends any. */
   live?: LiveUsage;
+  /** Which attempt at this stage this row is, counting from one. Absent
+   * on a first attempt, which is what every chain produced before a
+   * stage could be attempted again. */
+  attempt?: number;
+  /** Why the previous attempt ended, present only alongside `attempt` —
+   * without it a reader sees the same stage twice and cannot tell a
+   * retry from a duplicate. */
+  previousAttemptReason?: string;
 }
 
 export interface UsageSummary {
@@ -167,7 +175,15 @@ export function summarizeUsage(events: readonly Event[]): UsageSummary {
     switch (event.kind) {
       case "stageStarted": {
         settle("completed");
-        current = { stage: event.stage, agentId: event.agentId, state: "running" };
+        current = {
+          stage: event.stage,
+          agentId: event.agentId,
+          state: "running",
+          ...(event.attempt !== undefined ? { attempt: event.attempt } : {}),
+          ...(event.previousAttemptReason !== undefined
+            ? { previousAttemptReason: event.previousAttemptReason }
+            : {}),
+        };
         stages.push(current);
         break;
       }

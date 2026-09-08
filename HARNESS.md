@@ -85,8 +85,8 @@ rejected outright (`unrecognized top-level key`), naming the key and, if
 it matches a known stage name, suggesting `stepAgents.<key>` instead.
 
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
-`checkpoints`, `budget`, `gitStageAllowlist`. Nothing else is accepted, at
-either file.
+`checkpoints`, `budget`, `timeout`, `maxStageAttempts`,
+`gitStageAllowlist`. Nothing else is accepted, at either file.
 
 ### `stepAgents`
 
@@ -153,6 +153,35 @@ Both fields optional and independent. This is the **chain-level** ceiling
 `stepAgents.<stage>.budget`, which caps one CLI invocation. See
 [`LIMITS.md`](LIMITS.md) for the full distinction, including why there is
 no single `budget: number`.
+
+### `timeout`
+
+`{ "maxRunSeconds"?: <positive integer>, "maxStageSeconds"?: <positive
+integer> }`. Both optional and independent; absent means unbounded.
+
+Unlike `budget`, this ceiling **stops a stage that is already running** —
+elapsed time is known during a run where a run's cost is not. It is also
+the only ceiling with any force over an agent that reports no usage,
+which is six of the ten supported. Reaching it ends the run as
+*cancelled*, with a reason naming the ceiling and its value, rather than
+as a failure.
+
+Time counts while a stage runs and not while the chain waits at a
+checkpoint. `maxStageSeconds` may not exceed `maxRunSeconds` — the run
+ceiling would stop the chain first, so the stage ceiling could never
+fire. See [`LIMITS.md`](LIMITS.md) for the full picture, including how a
+run ceiling under five minutes interacts with the `git` stage's own
+check-polling.
+
+### `maxStageAttempts`
+
+`<positive integer>`, counting the first attempt. Absent means one, which
+is today's behaviour.
+
+Deliberately one number covering every reason a stage is attempted again,
+rather than one per reason: separate ceilings multiply, and three
+attempts for a time cut plus three for another reason would produce nine
+runs of a stage nobody configured. Each attempt records its own reason.
 
 ### `gitStageAllowlist`
 
