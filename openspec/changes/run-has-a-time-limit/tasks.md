@@ -53,7 +53,7 @@ knowing when, saying why, and counting attempts.
   blaming a stage.
 - [x] 3.3 A cut is `cancelled`, never `failed`. Reporting a working
   ceiling as a defect teaches a reader to discount failures.
-- [ ] 3.4 Record the cut in the audit log with the same reason, so a
+- [x] 3.4 Record the cut in the audit log with the same reason, so a
   report built later can tell a ceiling from a person.
   **Deferred to the per-stage-ceiling change, deliberately.** The chain
   runner audits only git actions today; an agent run is audited by
@@ -62,6 +62,11 @@ knowing when, saying why, and counting attempts.
   field — which the next change adds, along with `effort` — could not be
   attributed to a stage by the report that would read it. Doing it there
   costs nothing extra and does it once.
+  Delivered there and closed here on 2026-09-08:
+  `stage-spend-is-bounded-and-recorded` task 2.1 carries the reason onto
+  the entry `agent-runner.ts` already writes, and its test counts entries
+  with a cancelled outcome to prove no second one appears. Closed against
+  that change's landed code, not on the promise that it would.
 
 ## 4. Attempts
 
