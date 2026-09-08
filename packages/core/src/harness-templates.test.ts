@@ -43,10 +43,10 @@ describe("HARNESS_TEMPLATES", () => {
   }
 
   it("offers a per-change-only template for a change and not globally", () => {
-    const overnight = HARNESS_TEMPLATES.find((t) => t.id === "overnight");
-    expect(overnight?.scope).toBe("change");
-    expect(templatesForScope("change").map((t) => t.id)).toContain("overnight");
-    expect(templatesForScope("global").map((t) => t.id)).not.toContain("overnight");
+    const perChange = HARNESS_TEMPLATES.find((t) => t.id === "fastest");
+    expect(perChange?.scope).toBe("change");
+    expect(templatesForScope("change").map((t) => t.id)).toContain("fastest");
+    expect(templatesForScope("global").map((t) => t.id)).not.toContain("fastest");
   });
 
   it("has distinct ids", () => {
@@ -55,7 +55,7 @@ describe("HARNESS_TEMPLATES", () => {
 });
 
 describe("HARNESS_TEMPLATES — the text and the configuration agree", () => {
-  // a-template-keeps-its-promises. Overnight said "No checkpoints between
+  // a-template-keeps-its-promises. The unattended template said "No checkpoints between
   // stages" and set no `checkpoints`, so a change configured from it
   // still paused for confirmation between every stage — the one thing an
   // unattended run must not do. Found by applying it and reading the
@@ -88,4 +88,37 @@ describe("HARNESS_TEMPLATES — the text and the configuration agree", () => {
       expect(wordsOf(template)).toMatch(CLAIMS_NO_CHECKPOINTS);
     });
   }
+});
+
+describe("HARNESS_TEMPLATES — titled by what is being chosen between", () => {
+  // templates-by-cost-and-speed. They were named for how closely the run
+  // is watched, which is a consequence of each choice and not the choice.
+  // Cost and time are what a person decides between, and the figures were
+  // three lines down in `basis` — so the list omitted the axis a reader
+  // reasons on.
+
+  for (const template of HARNESS_TEMPLATES) {
+    it(`"${template.id}" carries its ceilings in its title`, () => {
+      // Iterated rather than named per template, so a fourth added
+      // without its figures fails rather than passing quietly.
+      expect(template.title).toMatch(/\$\d/);
+      expect(template.title).toMatch(/\d+\s*(min|hour)/);
+    });
+
+    it(`"${template.id}" states the same ceilings it sets`, () => {
+      // A title is a claim. One naming a figure the configuration does
+      // not set is the defect this repository already shipped once, in
+      // the template that promised "no checkpoints" and set none.
+      const cost = template.config.budget?.maxCostUsd;
+      expect(cost).toBeDefined();
+      expect(template.title).toContain(`$${cost}`);
+    });
+  }
+
+  it("offers them cheapest first", () => {
+    // The order is the axis. A list on a cost axis that does not run in
+    // cost order asks the reader to sort it themselves.
+    const costs = HARNESS_TEMPLATES.map((template) => template.config.budget?.maxCostUsd ?? 0);
+    expect(costs).toEqual([...costs].sort((a, b) => a - b));
+  });
 });

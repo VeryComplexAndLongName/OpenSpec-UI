@@ -311,7 +311,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [changeLoading, setChangeLoading] = useState(false);
 
   /** The per-change twin of `applyTemplate`. This is the only place
-   * "overnight" can be applied from — it is per-change only, so it is
+   * "fastest" can be applied from — it is per-change only, so it is
    * correctly withheld from the global file above, and until this existed
    * there was nowhere else. */
   const applyChangeTemplate = (template: HarnessTemplate): void => {

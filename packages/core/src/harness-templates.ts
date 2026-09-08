@@ -1,4 +1,10 @@
-// Named configurations chosen by intent rather than by field.
+// Named configurations chosen by cost and time rather than by field.
+//
+// Titled on the axis a person actually reasons on — what this will spend
+// and how long it may take — with the figures in the title rather than
+// three lines down. They were previously named for how closely the run is
+// watched, which is a consequence of each choice and not the choice.
+// See templates-by-cost-and-speed.
 //
 // Every ceiling here comes from this repository's own audit log, read
 // through `buildChangeCostReport` on 2026-09-08 — 49 runs with a
@@ -42,69 +48,8 @@ export interface HarnessTemplate {
 
 export const HARNESS_TEMPLATES: readonly HarnessTemplate[] = [
   {
-    id: "careful",
-    title: "Careful",
-    intent:
-      "Watch every stage. The chain pauses between stages for confirmation, and the ceilings"
-      + " stop it early rather than late.",
-    notFor:
-      "Leaving unattended. It waits at every checkpoint, so a run you walk away from stops at"
-      + " the first one and stays there.",
-    basis:
-      "Stage ceiling 20 minutes is p75 of measured runs — it cuts the slowest quarter."
-      + " Run ceiling 60 minutes and $5 are judgement: above the median run, below p90.",
-    scope: "either",
-    config: {
-      stepAgents: {
-        propose: { agent: "claude-cli-acp", effort: "high" },
-        review: { agent: "claude-cli-acp", effort: "high" },
-        apply: { agent: "claude-cli-acp", effort: "medium" },
-        verify: { agent: "claude-cli-acp", effort: "high" },
-      },
-      autonomyLevel: "semi-autonomous",
-      reviewGate: { mode: "human-required" },
-      budget: { maxCostUsd: 5, maxStageCostUsd: 3 },
-      timeout: { maxRunSeconds: 3600, maxStageSeconds: 1200 },
-      maxStageAttempts: 2,
-    },
-  },
-  {
-    id: "overnight",
-    title: "Overnight",
-    intent:
-      "Run a whole change without waiting for anyone. No checkpoints between stages, and a"
-      + " stage that stalls is cut rather than left running.",
-    notFor:
-      "A change you are unsure about. It will spend up to $25 and run for up to four hours"
-      + " without asking, and review still needs a person before anything is pushed.",
-    basis:
-      "Stage ceiling 60 minutes is above the longest run measured (56.8). Four hours and $25"
-      + " are judgement — roughly three p90 runs, and a limit on how long an unattended run may"
-      + " go before someone should look.",
-    // `autonomous` is refused in a global file, so this one is per-change.
-    scope: "change",
-    config: {
-      stepAgents: {
-        propose: { agent: "claude-cli-acp", effort: "high" },
-        review: { agent: "claude-cli-acp", effort: "high" },
-        apply: { agent: "claude-cli-acp", effort: "high" },
-        verify: { agent: "claude-cli-acp", effort: "high" },
-      },
-      autonomyLevel: "autonomous",
-      reviewGate: { mode: "human-required" },
-      // The "no checkpoints" the intent promises. Left unset, a change
-      // configured from this template still paused for confirmation
-      // between every stage — the one thing an unattended run must not
-      // do. Found live, not by a test; see a-template-keeps-its-promises.
-      checkpoints: { requireConfirmationBetweenSteps: false },
-      budget: { maxCostUsd: 25, maxStageCostUsd: 10 },
-      timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
-      maxStageAttempts: 3,
-    },
-  },
-  {
-    id: "thrifty",
-    title: "Thrifty",
+    id: "min-cost",
+    title: "Minimum cost · up to $3, 45 min",
     intent:
       "Spend as little as the work allows. A smaller model at medium effort, with ceilings"
       + " close to what an ordinary change actually costs.",
@@ -127,6 +72,71 @@ export const HARNESS_TEMPLATES: readonly HarnessTemplate[] = [
       budget: { maxCostUsd: 3, maxStageCostUsd: 2 },
       timeout: { maxRunSeconds: 2700, maxStageSeconds: 1200 },
       maxStageAttempts: 2,
+    },
+  },
+  {
+    id: "balanced",
+    title: "Balanced · up to $5, 60 min",
+    intent:
+      "Between the two. A capable model at full effort, and the chain pauses between stages"
+      + " so you can see each one before the next begins.",
+    notFor:
+      "Leaving unattended. It waits at every checkpoint, so a run you walk away from stops at"
+      + " the first one and stays there.",
+    basis:
+      "Stage ceiling 20 minutes is p75 of measured runs — it cuts the slowest quarter."
+      + " Run ceiling 60 minutes and $5 are judgement: above the median run, below p90.",
+    scope: "either",
+    config: {
+      stepAgents: {
+        propose: { agent: "claude-cli-acp", effort: "high" },
+        review: { agent: "claude-cli-acp", effort: "high" },
+        apply: { agent: "claude-cli-acp", effort: "medium" },
+        verify: { agent: "claude-cli-acp", effort: "high" },
+      },
+      autonomyLevel: "semi-autonomous",
+      reviewGate: { mode: "human-required" },
+      budget: { maxCostUsd: 5, maxStageCostUsd: 3 },
+      timeout: { maxRunSeconds: 3600, maxStageSeconds: 1200 },
+      maxStageAttempts: 2,
+    },
+  },
+  {
+    id: "fastest",
+    title: "Fastest · up to $25, 4 hours",
+    intent:
+      "Finish soonest. No checkpoints between stages, so the run never waits for you, and"
+      + " ceilings wide enough that a stage is not cut and started over.",
+    notFor:
+      "A change you are unsure about. It will spend up to $25 and run for up to four hours"
+      + " without asking, and review still needs a person before anything is pushed.",
+    basis:
+      "Nothing here makes an agent work faster. Two things make a run finish sooner and this"
+      + " sets both: it never waits for a person, which is where most of a supervised run's"
+      + " wall-clock goes, and its stage ceiling of 60 minutes is above the longest run"
+      + " measured (56.8) — a stage cut at a ceiling is retried from the start, so a tight"
+      + " ceiling makes a run take longer, not less. Four hours and $25 are judgement:"
+      + " roughly three p90 runs, and a limit on how long an unattended run may go before"
+      + " someone should look.",
+    // `autonomous` is refused in a global file, so this one is per-change.
+    scope: "change",
+    config: {
+      stepAgents: {
+        propose: { agent: "claude-cli-acp", effort: "high" },
+        review: { agent: "claude-cli-acp", effort: "high" },
+        apply: { agent: "claude-cli-acp", effort: "high" },
+        verify: { agent: "claude-cli-acp", effort: "high" },
+      },
+      autonomyLevel: "autonomous",
+      reviewGate: { mode: "human-required" },
+      // The "no checkpoints" the intent promises. Left unset, a change
+      // configured from this template still paused for confirmation
+      // between every stage — the one thing an unattended run must not
+      // do. Found live, not by a test; see a-template-keeps-its-promises.
+      checkpoints: { requireConfirmationBetweenSteps: false },
+      budget: { maxCostUsd: 25, maxStageCostUsd: 10 },
+      timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
+      maxStageAttempts: 3,
     },
   },
 ];

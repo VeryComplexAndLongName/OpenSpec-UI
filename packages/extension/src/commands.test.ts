@@ -68,9 +68,9 @@ vi.mock("@openspec-ui/core", () => ({
   // hide that the dialog offers named configurations at all, which is
   // the thing run-dialog-actually-advises adds.
   templatesForScope: () => [
-    { id: "careful", title: "Careful", intent: "Watch every stage.", notFor: "Leaving unattended.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
-    { id: "overnight", title: "Overnight", intent: "Run without waiting.", notFor: "A change you are unsure about.", basis: "judgement.", scope: "change", config: { maxStageAttempts: 3 } },
-    { id: "thrifty", title: "Thrifty", intent: "Spend as little as the work allows.", notFor: "Work that failed once.", basis: "median.", scope: "either", config: { maxStageAttempts: 2 } },
+    { id: "balanced", title: "Balanced", intent: "Watch every stage.", notFor: "Leaving unattended.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
+    { id: "fastest", title: "Fastest", intent: "Run without waiting.", notFor: "A change you are unsure about.", basis: "judgement.", scope: "change", config: { maxStageAttempts: 3 } },
+    { id: "min-cost", title: "Minimum cost", intent: "Spend as little as the work allows.", notFor: "Work that failed once.", basis: "median.", scope: "either", config: { maxStageAttempts: 2 } },
   ],
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
@@ -1830,7 +1830,7 @@ describe("registerCommands", () => {
     it("shows the recommended configuration and its grounds when there is one", async () => {
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
       buildRunPlanMock.mockReturnValue(planFor("single-stage", {
-        advice: { template: { id: "careful", title: "Careful" }, grounds: ["20 tasks still open"] },
+        advice: { template: { id: "balanced", title: "Balanced" }, grounds: ["20 tasks still open"] },
       }));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({ choice: { kind: "path", path: "single-stage" } });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
@@ -1844,7 +1844,7 @@ describe("registerCommands", () => {
       const [items] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [
         Array<{ label: string; detail?: string; choice?: { kind: string; template?: { id: string } } }>,
       ];
-      const recommended = items.find((entry) => entry.label.includes("Careful") && entry.choice?.kind === "apply-template");
+      const recommended = items.find((entry) => entry.label.includes("Balanced") && entry.choice?.kind === "apply-template");
       expect(recommended).toBeTruthy();
       // The grounds travel with the answer, never behind it.
       expect(recommended?.detail).toContain("20 tasks still open");
@@ -1880,7 +1880,7 @@ describe("registerCommands", () => {
       const offered = items
         .filter((entry) => entry.choice?.kind === "apply-template")
         .map((entry) => entry.choice?.template?.id);
-      expect(offered).toEqual(["careful", "overnight", "thrifty"]);
+      expect(offered).toEqual(["balanced", "fastest", "min-cost"]);
     });
 
     it("writes the configuration when one is applied, and starts nothing", async () => {
@@ -1891,7 +1891,7 @@ describe("registerCommands", () => {
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "overnight", title: "Overnight", config: { maxStageAttempts: 3 } } },
+        choice: { kind: "apply-template", template: { id: "fastest", title: "Fastest", config: { maxStageAttempts: 3 } } },
       });
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -1915,7 +1915,7 @@ describe("registerCommands", () => {
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
       buildRunPlanMock.mockReturnValue(planFor("single-stage", {
         advice: {
-          template: { id: "careful", title: "Careful" },
+          template: { id: "balanced", title: "Balanced" },
           grounds: ["a ground long enough to overflow the line".repeat(5)],
         },
       }));
@@ -1968,7 +1968,7 @@ describe("registerCommands", () => {
       });
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
@@ -1987,7 +1987,7 @@ describe("registerCommands", () => {
       readChangeHarnessConfigMock.mockResolvedValue(undefined);
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
@@ -2003,7 +2003,7 @@ describe("registerCommands", () => {
       readChangeHarnessConfigMock.mockRejectedValue(new Error("harness.json is not valid JSON"));
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
