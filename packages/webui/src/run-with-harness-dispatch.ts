@@ -9,6 +9,7 @@
 
 import { buildRunPlan, resolveRunWithHarnessTarget, type HarnessBudget, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { resolveHarnessConfig } from "./harness-config-client.js";
+import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
 import { buildDefaultChangeDir } from "./shell-ui.js";
 
@@ -25,14 +26,16 @@ export interface RunWithHarnessDispatch {
    * limits at all. */
   budget?: HarnessBudget;
   /** What the run entry says before it starts anything: which path the
-   * configuration resolves to, which agent runs each stage, and any
-   * ceiling that cannot act.
+   * configuration resolves to, which agent runs each stage, any ceiling
+   * that cannot act, and which named configuration is recommended.
    *
-   * No recommendation rides here. It needs the change's open task count
-   * and its audit history, and this shell can read neither — the same
-   * limit `recommend-a-template` recorded when its surface moved out of
-   * the settings view. Omitted rather than computed from nothing, which
-   * is the distinction that change drew. */
+   * The recommendation was left out of this host at first, on the
+   * recorded ground that the shell "can read neither the task list nor
+   * the audit log". Half of that was never checked: `/api/change-timeline`
+   * returns every task with its `done` state. The audit log genuinely is
+   * not served here, and the recommendation is built for that — it says
+   * there is no previous run to go on, in the same breath as its answer.
+   * See run-dialog-actually-advises. */
   plan: RunPlan;
 }
 
@@ -53,6 +56,27 @@ export async function resolveRunWithHarnessDispatch(
   // `hasVsCodeAgent: false` — there is no VS Code Chat to open here, and
   // offering a path that cannot run is the same defect as a ceiling that
   // cannot act.
-  const plan = buildRunPlan(config, { hasVsCodeAgent: false });
+  const plan = buildRunPlan(config, {
+    hasVsCodeAgent: false,
+    ...(await readOpenTaskCount(request, cwd, changeName)),
+  });
   return { target, changeDir, plan, ...(config.budget ? { budget: config.budget } : {}) };
+}
+
+/** The change's open task count, for the recommendation.
+ *
+ * A timeline that cannot be read leaves the recommendation out entirely
+ * rather than passing a count of zero. Absent is honest; zero is a claim,
+ * and it happens to be the claim that produces the thriftiest answer. */
+async function readOpenTaskCount(
+  request: ChangeEditorRequest,
+  cwd: string,
+  changeName: string,
+): Promise<{ recommendationInput?: { openTaskCount: number } }> {
+  try {
+    const timeline = await loadChangeTimeline(request, cwd, changeName, false);
+    return { recommendationInput: { openTaskCount: timeline.tasks.filter((task) => !task.done).length } };
+  } catch {
+    return {};
+  }
 }

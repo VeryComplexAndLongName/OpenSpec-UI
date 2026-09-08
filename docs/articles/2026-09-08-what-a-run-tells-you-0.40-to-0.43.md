@@ -155,11 +155,25 @@ agent, and the ceilings that cannot act](../images/standalone/run-dialog.png)
 Read what that picture actually says. The chain will run, because
 `autonomyLevel` is `semi-autonomous` — the setting is named, not implied.
 `review` has **no agent set**, said outright rather than left off the
-list. And three ceilings cannot act, because `claude-cli` reports nothing
-for a spending ceiling to compare against and no timeout is configured.
+list. Three ceilings cannot act, because `claude-cli` reports nothing for
+a spending ceiling to compare against and no timeout is configured. One
+named configuration is recommended, with the observations behind it —
+including that there is no previous run to go on. And all three can be
+applied from the same place.
 
 None of that was visible before starting a run. Some of it was not
 visible at all.
+
+The first version of this dialog shipped without most of it, and was
+reported — fairly — as "just a path picker". It never advised in the
+standalone shell, on a recorded ground that turned out to be half untrue;
+it buried the editor's recommendation in a hint that truncates; it named
+a configuration and gave no way to apply it; and when nothing was wrong
+it said nothing at all, which makes "examined and fine" look exactly like
+"not examined".
+
+Which is the same mistake it was built to fix, committed by the thing
+fixing it. That is worth saying plainly rather than quietly correcting.
 
 Choosing a path other than the configured one applies to **that run
 alone** and writes nothing. A run is not a configuration change, and a

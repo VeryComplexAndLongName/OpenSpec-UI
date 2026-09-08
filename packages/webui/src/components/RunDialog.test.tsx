@@ -28,7 +28,7 @@ describe("RunDialog", () => {
   it("says what the configuration resolved to, and why", () => {
     // The sentence is the product. Without it a correct decision and a
     // broken one look the same — both just change what is on screen.
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onDismiss={vi.fn()} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
 
     expect(screen.getByTestId("run-dialog-because").textContent).toContain('autonomyLevel is "assisted"');
     expect(screen.getByRole("button", { name: "Run one stage (configured)" })).toBeTruthy();
@@ -36,7 +36,7 @@ describe("RunDialog", () => {
 
   it("says which stages have no agent rather than omitting them", () => {
     // A stage left out reads as a stage that does not run.
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onDismiss={vi.fn()} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
 
     expect(screen.getByTestId("run-dialog-stage-agents").textContent).toContain("apply: no agent set");
   });
@@ -47,7 +47,7 @@ describe("RunDialog", () => {
         changeName="demo"
         plan={plan({ findings: [{ kind: "reporting-unknown", stage: "apply", agent: "claude-cli", message: "reports no spend" }] })}
         onChoose={vi.fn()}
-        onDismiss={vi.fn()}
+        onApplyTemplate={vi.fn()} onDismiss={vi.fn()}
       />,
     );
 
@@ -60,7 +60,7 @@ describe("RunDialog", () => {
         changeName="demo"
         plan={plan({ advice: { template: { id: "careful", title: "Careful", intent: "", notFor: "", basis: "", scope: "either", config: {} }, grounds: ["20 tasks still open"] } })}
         onChoose={vi.fn()}
-        onDismiss={vi.fn()}
+        onApplyTemplate={vi.fn()} onDismiss={vi.fn()}
       />,
     );
 
@@ -72,7 +72,7 @@ describe("RunDialog", () => {
   it("shows no recommendation panel when there is nothing to reason from", () => {
     // "No recommendation" and "a recommendation with no grounds" are
     // different, and only the first is honest.
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onDismiss={vi.fn()} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
 
     expect(screen.queryByTestId("run-dialog-advice")).toBeNull();
   });
@@ -80,7 +80,7 @@ describe("RunDialog", () => {
   it("offers only the paths it was given", () => {
     // The standalone shell has no VS Code Chat, and offering a path that
     // cannot run is the same defect as a ceiling that cannot act.
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onDismiss={vi.fn()} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
 
     expect(screen.queryByTestId("run-dialog-path-vscode-agent")).toBeNull();
     expect(screen.getByTestId("run-dialog-path-chain")).toBeTruthy();
@@ -88,7 +88,7 @@ describe("RunDialog", () => {
 
   it("reports the path that was chosen, not the configured one", () => {
     const onChoose = vi.fn();
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={onChoose} onDismiss={vi.fn()} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={onChoose} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("run-dialog-path-chain"));
 
@@ -98,11 +98,77 @@ describe("RunDialog", () => {
   it("dismisses without choosing anything", () => {
     const onChoose = vi.fn();
     const onDismiss = vi.fn();
-    render(<RunDialog changeName="demo" plan={plan()} onChoose={onChoose} onDismiss={onDismiss} />);
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={onChoose} onApplyTemplate={vi.fn()} onDismiss={onDismiss} />);
 
     fireEvent.click(screen.getByTestId("run-dialog-cancel"));
 
     expect(onDismiss).toHaveBeenCalled();
     expect(onChoose).not.toHaveBeenCalled();
+  });
+});
+
+describe("RunDialog — advising, not just picking a path", () => {
+  // run-dialog-actually-advises. The first version of this dialog was
+  // reported, fairly, as "just a path picker": it never advised, offered
+  // no way to act on advice, and said nothing when the configuration was
+  // fine.
+
+  const careful = { id: "careful", title: "Careful" };
+
+  it("says every ceiling can act, rather than rendering nothing", () => {
+    // Silence makes "examined and fine" identical to "not examined" —
+    // the distinction this project has drawn four times and missed in
+    // the surface built to make it.
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
+
+    expect(screen.getByTestId("run-dialog-no-findings").textContent).toContain("can act");
+    expect(screen.queryByTestId("run-dialog-findings")).toBeNull();
+  });
+
+  it("offers the named configurations with what each is for and when it is wrong", () => {
+    // A list carrying only names gives no help choosing between them.
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
+
+    const templates = screen.getByTestId("run-dialog-templates").textContent ?? "";
+    expect(templates).toContain("Not for:");
+    expect(screen.getByTestId("run-dialog-template-overnight")).toBeTruthy();
+  });
+
+  it("marks the recommended configuration among the ones it offers", () => {
+    // A recommendation that cannot be acted on is a remark.
+    render(
+      <RunDialog
+        changeName="demo"
+        plan={plan({ advice: { template: careful as never, grounds: ["20 tasks still open"] } })}
+        onChoose={vi.fn()}
+        onApplyTemplate={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("run-dialog-template-careful").textContent).toContain("(recommended)");
+  });
+
+  it("reports the configuration that was applied", () => {
+    const onApplyTemplate = vi.fn();
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={onApplyTemplate} onDismiss={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("run-dialog-template-overnight").querySelector("button")!);
+
+    expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "overnight" }));
+  });
+
+  it("offers only the configurations a change may be given", () => {
+    // `templatesForScope("change")`, the same function the settings view
+    // uses, so a template refused on save is never proposed here.
+    render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={vi.fn()} onDismiss={vi.fn()} />);
+
+    const ids = [...screen.getByTestId("run-dialog-templates").querySelectorAll("li")]
+      .map((item) => item.getAttribute("data-testid"));
+    expect(ids).toEqual([
+      "run-dialog-template-careful",
+      "run-dialog-template-overnight",
+      "run-dialog-template-thrifty",
+    ]);
   });
 });
