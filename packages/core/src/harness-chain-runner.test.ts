@@ -973,6 +973,134 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
   });
 });
 
+describe("HarnessChainRunner — verify sends work back (verify-sends-work-back)", () => {
+  /** A runner that completes every stage without touching tasks.md, so
+   * the task list stays exactly as the test wrote it. */
+  function silentRunner(calls: Command[]): AgentRunner {
+    return {
+      async *run(command) {
+        calls.push(command);
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+  }
+
+  it("returns to apply when verify leaves tasks unchecked, saying why", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", maxStageAttempts: 2 });
+    // `autonomous` is per-change only — a global file setting it is
+    // rejected outright, which is the rule this repository documents.
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true); // proposal/design/tasks exist, so the chain starts at apply
+    await writeTasks(root, 2, 1);
+
+    const calls: Command[] = [];
+    const chain = new HarnessChainRunner({ resolveRunner: () => silentRunner(calls) });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const applyStarts = events.filter((e) => e.kind === "stageStarted" && e.stage === "apply");
+    expect(applyStarts.length).toBe(2);
+    expect((applyStarts[1] as { attempt?: number }).attempt).toBe(2);
+    expect((applyStarts[1] as { previousAttemptReason?: string }).previousAttemptReason)
+      .toContain("2 task(s) unchecked");
+  });
+
+  it("stops and names the unchecked tasks once apply has used its attempts", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", maxStageAttempts: 2 });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 1, 1);
+
+    const calls: Command[] = [];
+    const chain = new HarnessChainRunner({ resolveRunner: () => silentRunner(calls) });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const failed = events.find((e) => e.kind === "failed");
+    expect(failed).toBeDefined();
+    // Named, not counted: the reader is about to take this over.
+    expect((failed as { reason: string }).reason).toContain("2.1 not done");
+    expect((failed as { reason: string }).reason).toContain("all 2 of its attempts");
+  });
+
+  it("does not run apply in a chain that was entered at verify", async () => {
+    // Entered at verify because nothing was unchecked; verify then
+    // unchecks one. There is no `apply` in this chain's sequence, and
+    // running one nobody asked for would be the chain acting on its own.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", maxStageAttempts: 2 });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 0, 2); // nothing unchecked -> the chain starts at verify
+
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        // Stands in for a failing mechanical check, which is the only
+        // thing that unchecks a task.
+        if (command.kind === "verify") await writeTasks(root, 1, 1);
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.filter((e) => e.kind === "stageStarted" && e.stage === "apply")).toHaveLength(0);
+    const failed = events.find((e) => e.kind === "failed");
+    expect((failed as { reason: string }).reason).toContain('did not run "apply"');
+  });
+
+  it("spends attempts per stage, so one stage's returns do not exhaust another's", async () => {
+    // apply runs twice because verify sent it back; verify must also be
+    // allowed its second run. A single shared tally would have stopped it.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", maxStageAttempts: 2 });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 2, 1);
+
+    const calls: Command[] = [];
+    const chain = new HarnessChainRunner({ resolveRunner: () => silentRunner(calls) });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const starts = events.filter((e) => e.kind === "stageStarted");
+    expect(starts.filter((e) => e.stage === "apply")).toHaveLength(2);
+    expect(starts.filter((e) => e.stage === "verify")).toHaveLength(2);
+  });
+
+  it("leaves a chain that configures no attempts exactly as it was", async () => {
+    // The regression to protect: today verify leaves the tasks unchecked
+    // and archive refuses, and that must keep happening untouched.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 1, 1);
+
+    const calls: Command[] = [];
+    const chain = new HarnessChainRunner({ resolveRunner: () => silentRunner(calls) });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.filter((e) => e.kind === "stageStarted" && e.stage === "apply")).toHaveLength(1);
+    const failed = events.find((e) => e.kind === "failed");
+    // archive's own refusal, unchanged — not a message this change added.
+    expect((failed as { reason: string }).reason).toContain("cannot archive");
+  });
+});
+
 describe("HarnessChainRunner — per-stage spend (stage-spend-is-bounded-and-recorded)", () => {
   function reportingRunner(usage: Record<string, number>): AgentRunner {
     return {

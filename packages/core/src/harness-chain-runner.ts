@@ -102,6 +102,17 @@ interface ChainState {
    * `cancelled` event can name the rule that fired; left unset by a
    * person's cancel, which is what an absent reason has always meant. */
   cancelReason?: string;
+  /** Why the chain came back to an earlier stage, set just before it
+   * does. Consumed by the next attempt's `stageStarted`, so a stage
+   * appearing twice says why rather than looking like a duplicate. */
+  returnReason?: string;
+  /** How many times each stage has been attempted, counting the first.
+   * Kept on the chain rather than inside the stage loop because a chain
+   * returning from `verify` to `apply` re-enters that loop, and a count
+   * local to it would reset — letting a chain retry forever against a
+   * ceiling it appeared to respect. Per stage, so a slow `verify` never
+   * consumes the allowance meant for `apply`. */
+  attemptsByStage: Map<ChainStage, number>;
   /** What the stage currently running reported spending, if it reported
    * anything. Cleared when a stage starts, so it never carries a previous
    * stage's figure into this one's check. Absent means the agent reported
@@ -127,6 +138,28 @@ function formatSeconds(totalMs: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m${String(seconds).padStart(2, "0")}s`;
+}
+
+/** The tasks still unchecked, as a readable list for a terminal message.
+ * Named rather than counted because a reader seeing this is about to take
+ * the work over, and `archive`'s own refusal already gives them a count —
+ * which of them is the part that otherwise costs opening the file.
+ * Truncated, because a change with forty open tasks would otherwise
+ * produce a message nobody reads. */
+async function unfinishedTaskTexts(workspaceRoot: string, changeName: string): Promise<string> {
+  let items;
+  try {
+    items = await readTaskChecklist(workspaceRoot, changeName, false);
+  } catch {
+    // The count that got us here was read successfully; if the list
+    // cannot be, the message still has to be useful.
+    return "the task list could not be read to name them";
+  }
+  const open = items.filter((item) => !item.done).map((item) => item.text);
+  if (open.length === 0) return "none, which contradicts the count just read";
+  const shown = open.slice(0, 5);
+  const suffix = open.length > shown.length ? `, and ${open.length - shown.length} more` : "";
+  return shown.map((text) => `"${text}"`).join(", ") + suffix;
 }
 
 /** Names the per-stage ceiling a finished stage exceeded, or `undefined`
@@ -334,7 +367,7 @@ export class HarnessChainRunner {
       return;
     }
 
-    const state: ChainState = { cancelRequested: false, elapsedMs: 0 };
+    const state: ChainState = { cancelRequested: false, elapsedMs: 0, attemptsByStage: new Map() };
     this.active.set(command.runId, state);
     try {
       yield* this.runChain(command, state);
@@ -592,6 +625,7 @@ export class HarnessChainRunner {
       // refused at the budget ceiling above returns before reaching here
       // and is never announced as started — a display that showed it
       // would be naming a stage that spent nothing.
+      const priorAttempts = state.attemptsByStage.get(stage) ?? 0;
       yield {
         kind: "stageStarted",
         runId,
@@ -605,7 +639,13 @@ export class HarnessChainRunner {
           : (harnessConfig.stepAgents[stage] === undefined
             ? ""
             : normalizeStepAgent(harnessConfig.stepAgents[stage]).agent),
+        // Absent on a first attempt, which is every chain that has not
+        // come back here — a surface renders those exactly as it always
+        // did.
+        ...(priorAttempts > 0 ? { attempt: priorAttempts + 1 } : {}),
+        ...(state.returnReason !== undefined ? { previousAttemptReason: state.returnReason } : {}),
       };
+      state.returnReason = undefined;
 
       const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
 
@@ -623,9 +663,13 @@ export class HarnessChainRunner {
       // own merits, which retrying would only repeat.
       const maxAttempts = harnessConfig.maxStageAttempts ?? 1;
       let outcome: "completed" | "failed" | "cancelled" = "failed";
-      let attempt = 0;
+      // Read from the chain rather than started at zero: a chain that
+      // returned here from `verify` has already spent attempts on this
+      // stage, and a counter local to this loop would forget them.
+      let attempt = state.attemptsByStage.get(stage) ?? 0;
       while (attempt < maxAttempts) {
         attempt += 1;
+        state.attemptsByStage.set(stage, attempt);
         state.cancelReason = undefined;
         state.lastStageUsage = undefined;
         const stageStartedAt = Date.now();
@@ -694,6 +738,46 @@ export class HarnessChainRunner {
       }
 
       if (outcome !== "completed") return;
+
+      // The one backward edge in an otherwise forward-only chain, and it
+      // exists because `verify` is the only stage that produces a
+      // machine-checked statement that earlier work is unfinished: it
+      // writes each declared check's result onto that task's own
+      // checkbox, so a failing check unchecks the task. Walking on to
+      // `archive` from here means being refused by it — the chain would
+      // detect unfinished work correctly and then stop with an error
+      // instead of finishing it.
+      if (stage === "verify") {
+        const applyIndex = sequence.indexOf("apply");
+        const tasks = await countTasks(context.changeDir);
+        const applyMaxAttempts = harnessConfig.maxStageAttempts ?? 1;
+        // Nothing configured means one attempt, which means no return is
+        // possible — and then this must stay out of the way entirely, so
+        // `archive` refuses exactly as it always has. Reporting a
+        // different failure here would change what every existing
+        // configuration does, which is the regression this guard prevents.
+        if (tasks && tasks.unchecked > 0 && applyMaxAttempts > 1) {
+          const applyAttempts = state.attemptsByStage.get("apply") ?? 0;
+          const unfinished = await unfinishedTaskTexts(cwd, changeName);
+          if (applyIndex === -1 || applyAttempts >= applyMaxAttempts) {
+            // Named, not counted. The reader is about to take this over,
+            // and `archive`'s own refusal already tells them how many —
+            // which of them is what costs a file to find out.
+            yield failedEvent(
+              runId,
+              applyIndex === -1
+                ? `verification left ${tasks.unchecked} task(s) unchecked, and this chain did not run "apply"`
+                  + ` to send them back to: ${unfinished}`
+                : `verification left ${tasks.unchecked} task(s) unchecked after "apply" used all`
+                  + ` ${applyMaxAttempts} of its attempts: ${unfinished}`,
+            );
+            return;
+          }
+          state.returnReason = `verification left ${tasks.unchecked} task(s) unchecked`;
+          index = applyIndex - 1; // the loop's own increment moves it to `apply`
+          continue;
+        }
+      }
       if (!hasNextStage) return;
 
       if (stage === "archive" && sequence[index + 1] === "git") {
