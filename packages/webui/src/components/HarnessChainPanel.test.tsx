@@ -175,6 +175,21 @@ describe("HarnessChainPanel", () => {
     expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
   });
 
+  it("shows the reason when a chain is cancelled by a time ceiling", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+
+    emit({
+      kind: "cancelled",
+      runId: "chain-1",
+      timestamp: "t1",
+      reason: 'stopped "apply" at the stage time limit: timeout.maxStageSeconds is 5s',
+    });
+
+    expect(screen.getByTestId("chain-event-0")).toHaveTextContent("timeout.maxStageSeconds is 5s");
+  });
+
   it("answers a second, later permission request with its own id, not the first's", () => {
     // Replaces the original task 5.5 ("a test that would pass if it used
     // the watched run id must fail"), which design.md found unfalsifiable
