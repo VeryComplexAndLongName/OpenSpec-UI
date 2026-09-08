@@ -1747,3 +1747,50 @@ presented silently.
 - **THEN** it is chosen inside this entry, and no separate command starts
   it
 
+### Requirement: Applying a named configuration preserves what it does not set
+
+Applying a named configuration to a change SHALL set the keys that
+configuration names and SHALL leave every other key in the change's
+configuration unchanged.
+
+The writer replaces the file, so a key absent from what is written is
+deleted rather than left alone. A person applying a template to get a
+cheaper run has not asked for the change's staging allowlist, its
+hand-tuned ceilings or its review gate to be removed, and SHALL NOT have
+that happen as a side effect.
+
+#### Scenario: A change carrying settings the template does not mention
+
+- **WHEN** a named configuration is applied to a change whose
+  configuration contains keys that configuration does not set
+- **THEN** the applied keys take the configuration's values and the
+  others are still present, unchanged
+
+### Requirement: Named configurations are titled by what is being chosen between
+
+The named configurations SHALL be titled by cost and time, and each
+SHALL state its ceilings where the choice is made rather than in prose
+below it.
+
+Cost and time are what a person is deciding between. A title naming a
+consequence instead — how closely the run is watched — leaves the axis
+they reason on out of the list they reason from.
+
+A configuration whose title claims speed SHALL state what it does to
+achieve it. Nothing here makes an agent work faster; the levers are that
+the run does not wait for a person and that its ceilings are wide enough
+not to cut and restart a stage. A title claiming a lever the product does
+not have is the same defect as a configuration promising behaviour it
+does not set.
+
+#### Scenario: Comparing the configurations
+
+- **WHEN** the named configurations are offered
+- **THEN** each title carries its spending and time ceilings
+
+#### Scenario: The configuration that claims speed
+
+- **WHEN** the configuration titled for speed is read
+- **THEN** it states that it removes waiting and avoids restarts, rather
+  than implying the work itself goes faster
+
