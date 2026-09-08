@@ -322,5 +322,12 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
     }
   } finally {
     signal?.removeEventListener("abort", onAbort);
+    // Armed on abort and, until this line, never disarmed. On the
+    // ordinary cancellation path the child dies, `cancelled` is yielded
+    // and the generator ends — leaving a ten-second timer holding the
+    // event loop open and, when it fires, pushing into a queue nobody is
+    // reading. The lint rule said so all along: the variable exists to be
+    // cleared. See kill-timer-is-cleared.
+    clearTimeout(killTimer);
   }
 }
