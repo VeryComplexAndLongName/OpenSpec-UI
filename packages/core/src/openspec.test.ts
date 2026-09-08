@@ -224,6 +224,67 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     );
   });
 
+  it("archiveChange reports the reason a refusal gave, not that it merely failed", async () => {
+    // Observed shape: exit 1 with the report on stdout, the refusal in
+    // status[] as a whole sentence naming its own subject.
+    const report = JSON.stringify({
+      archive: null,
+      root: { path: "/repo", source: "nearest" },
+      status: [{
+        severity: "error",
+        code: "archive_modified_mismatch",
+        message: 'view-analytics MODIFIED failed for header "### Requirement: Views are recorded by the site itself"'
+          + ' - current spec contains scenario(s) not present in the modified block: "The same reader returns the next day".',
+      }],
+    });
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stdout.emit("data", Buffer.from(report, "utf8"));
+      child.emit("close", 1);
+    });
+
+    // Asserted on content: this class of defect shipped with a
+    // well-formed error string throughout, so asserting one exists would
+    // have passed the whole time.
+    await expect(archiveChange("demo", { cwd: "/repo" })).rejects.toThrow(/The same reader returns the next day/);
+  });
+
+  it("archiveChange reports every reason, not the first", async () => {
+    const report = JSON.stringify({
+      archive: null,
+      root: { path: "/repo", source: "nearest" },
+      status: [
+        { severity: "error", code: "a", message: "first problem" },
+        { severity: "warning", code: "w", message: "not an error" },
+        { severity: "error", code: "b", message: "second problem" },
+      ],
+    });
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stdout.emit("data", Buffer.from(report, "utf8"));
+      child.emit("close", 1);
+    });
+
+    const error = await archiveChange("demo", { cwd: "/repo" }).catch((caught: unknown) => caught);
+    expect(String(error)).toContain("first problem");
+    expect(String(error)).toContain("second problem");
+    // A warning is not a refusal and must not be reported as one.
+    expect(String(error)).not.toContain("not an error");
+  });
+
+  it("archiveChange says no reason was given when nothing usable came back", async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
+      child.emit("close", 1);
+    });
+
+    await expect(archiveChange("demo", { cwd: "/repo" })).rejects.toThrow(/no diagnosis reported/);
+  });
+
   it("archiveChange calls deterministic non-interactive archive", async () => {
     mockSuccessfulSpawn('{"ok":true}');
 

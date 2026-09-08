@@ -17,11 +17,16 @@ With `--json`, which is how this project calls it, that same refusal
 arrives as structured data: `status[]` entries carrying a `severity`, a
 `code` and that message, with `archive: null` and exit code 1.
 
-None of it reaches a caller. `archiveChange` goes through the wrapper
-that throws on a non-zero exit, so the whole report becomes part of an
-error string built for a different purpose. A person sees that a change
-would not archive; the sentence explaining which requirement drifted, and
-what to do, is in the payload nobody unpacked.
+It reaches a caller as an unread payload. `archiveChange` goes through
+the wrapper that throws on a non-zero exit, and since
+`validate-failure-says-why` that error prefers whichever stream carries a
+diagnosis — which here is the entire JSON document. Measured by running
+it: the thrown message is the report, braces and all, with the sentence
+that matters somewhere inside it along with a `fix` field nothing reads.
+
+So this is not "the reason is lost" — an earlier draft of this proposal
+said that, and running the command disproved it. The reason arrives, in a
+form nobody can act on at a glance.
 
 The cost is measurable. On 2026-09-08 this cost two full reproductions in
 a sister repository — running the command by hand, twice, to read a

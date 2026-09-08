@@ -500,7 +500,54 @@ export async function archiveChange(
 ): Promise<OpenSpecArchiveResult> {
   const args = ["archive", changeName, "--yes", "--json"];
   if (archiveOptions.skipSpecs) args.push("--skip-specs");
-  return runJson(args, options, "a JSON object", isObjectResult);
+  // `archive` refuses by printing a report and exiting non-zero — the
+  // report is the answer, exactly as it is for `validate`. Accepted here
+  // so the refusal can be read; unlike `validate`, it is then turned back
+  // into a throw, because every caller of this function asks whether it
+  // worked and why not, rather than for a result to render.
+  const result = await runJson(args, options, "a JSON object", isObjectResult, { acceptNonZeroExit: true });
+  const refusal = describeArchiveRefusal(result);
+  if (refusal) throw new Error(`could not archive "${changeName}": ${refusal}`);
+  return result;
+}
+
+interface ArchiveStatusEntry {
+  severity?: unknown;
+  code?: unknown;
+  message?: unknown;
+  /** What the tool says to do about it — observed on a real refusal as
+   * "Fix the change delta specs and rerun. No files were changed."
+   * Carried through because a reason plus a remedy is what stops the
+   * reader running the command again to see whether anything moved. */
+  fix?: unknown;
+}
+
+/** The reasons an archive was refused, or `undefined` when it was not.
+ *
+ * Reads `status[]` rather than `archive === null`: that field says only
+ * that nothing was archived and never why, so a caller reading it would
+ * still have to find the reason somewhere else. Every error is reported
+ * rather than the first — a change can be refused for two reasons at
+ * once, and reporting one sends the reader round the loop for the other. */
+function describeArchiveRefusal(result: OpenSpecArchiveResult): string | undefined {
+  const archived = (result as { archive?: unknown }).archive;
+  const status = (result as { status?: unknown }).status;
+  if (!Array.isArray(status)) {
+    return archived === null ? "the archive did not happen, and no reason was given" : undefined;
+  }
+  const messages = (status as ArchiveStatusEntry[])
+    .filter((entry) => entry.severity === "error")
+    .map((entry) => {
+      const reason = typeof entry.message === "string" && entry.message.trim().length > 0
+        ? entry.message.trim()
+        : typeof entry.code === "string" ? entry.code : undefined;
+      if (reason === undefined) return undefined;
+      const fix = typeof entry.fix === "string" && entry.fix.trim().length > 0 ? entry.fix.trim() : undefined;
+      return fix ? `${reason} ${fix}` : reason;
+    })
+    .filter((message): message is string => message !== undefined);
+  if (messages.length > 0) return messages.join("; ");
+  return archived === null ? "the archive did not happen, and the report gave no reason" : undefined;
 }
 
 /** Returns the project's own instructions for `artifact` (e.g. `"tasks"`),

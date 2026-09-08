@@ -587,7 +587,7 @@ function describeEvent(event: Event): string {
     case "failed":
       return `failed: ${event.reason}`;
     case "cancelled":
-      return "cancelled";
+      return event.reason ? `cancelled: ${event.reason}` : "cancelled";
     case "cancelling":
       return event.attempted === "nothing-to-cancel"
         ? "cancelling: nothing was running"
