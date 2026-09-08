@@ -65,6 +65,22 @@ export interface HarnessCheckpoints {
 export interface HarnessBudget {
   maxCostUsd?: number;
   maxTokens?: number;
+  /** Ceiling on what one stage reports, enforced by this project rather
+   * than by the agent's own command line — so it exists for every agent
+   * that reports usage, where `stepAgents.<stage>.budget` reaches a CLI
+   * flag only two of the ten have.
+   *
+   * Checked when a stage ends, against what that stage reported, and it
+   * stops the chain rather than the stage: a run's cost is not known
+   * until it ends, so this cannot prevent the overspend that happened,
+   * only the next one. The ceiling that stops a stage mid-run is
+   * `timeout`. */
+  maxStageCostUsd?: number;
+  /** As `maxStageCostUsd`, in tokens. Counts `inputTokens +
+   * outputTokens`, the same sum `maxTokens` uses — so on a cache-heavy
+   * agent it sees a fraction of what moved, and on one that reports
+   * nothing it sees nothing at all. */
+  maxStageTokens?: number;
 }
 
 /** Time ceilings, in seconds. Both optional and independent, the same
@@ -516,6 +532,31 @@ function assertValidBudget(value: unknown): asserts value is HarnessBudget | und
   }
   if (maxTokens !== undefined && !(typeof maxTokens === "number" && Number.isInteger(maxTokens) && maxTokens > 0)) {
     throw new InvalidHarnessConfigError("budget.maxTokens must be a positive integer");
+  }
+  const { maxStageCostUsd, maxStageTokens } = value as { maxStageCostUsd?: unknown; maxStageTokens?: unknown };
+  if (maxStageCostUsd !== undefined
+    && !(typeof maxStageCostUsd === "number" && Number.isFinite(maxStageCostUsd) && maxStageCostUsd > 0)) {
+    throw new InvalidHarnessConfigError("budget.maxStageCostUsd must be a positive number");
+  }
+  if (maxStageTokens !== undefined
+    && !(typeof maxStageTokens === "number" && Number.isInteger(maxStageTokens) && maxStageTokens > 0)) {
+    throw new InvalidHarnessConfigError("budget.maxStageTokens must be a positive integer");
+  }
+  // A stage ceiling above the whole-chain ceiling can never fire: the
+  // chain ceiling stops the run first. Refused here for the same reason
+  // `timeout` refuses the same shape — a setting that cannot fire is a
+  // setting that lies about what bounds the run.
+  if (typeof maxCostUsd === "number" && typeof maxStageCostUsd === "number" && maxStageCostUsd > maxCostUsd) {
+    throw new InvalidHarnessConfigError(
+      `budget.maxStageCostUsd (${maxStageCostUsd}) must not exceed budget.maxCostUsd (${maxCostUsd}),`
+      + " because the chain ceiling would stop the run first and the stage ceiling could never fire",
+    );
+  }
+  if (typeof maxTokens === "number" && typeof maxStageTokens === "number" && maxStageTokens > maxTokens) {
+    throw new InvalidHarnessConfigError(
+      `budget.maxStageTokens (${maxStageTokens}) must not exceed budget.maxTokens (${maxTokens}),`
+      + " because the chain ceiling would stop the run first and the stage ceiling could never fire",
+    );
   }
 }
 

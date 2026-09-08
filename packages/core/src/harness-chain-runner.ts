@@ -38,6 +38,7 @@ import {
 } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
+import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates, type TaskCheckDeclaration } from "./task-checklist.js";
 import { buildUsageReport } from "./usage-report.js";
 
@@ -101,6 +102,12 @@ interface ChainState {
    * `cancelled` event can name the rule that fired; left unset by a
    * person's cancel, which is what an absent reason has always meant. */
   cancelReason?: string;
+  /** What the stage currently running reported spending, if it reported
+   * anything. Cleared when a stage starts, so it never carries a previous
+   * stage's figure into this one's check. Absent means the agent reported
+   * nothing, which is not zero — the case a spending ceiling cannot act
+   * on at all. */
+  lastStageUsage?: AgentUsage;
   /** Time the chain's stages have spent, summed, in milliseconds. Time
    * waiting at a checkpoint is deliberately not added: a person
    * deliberating is not a run consuming anything, and counting it would
@@ -120,6 +127,34 @@ function formatSeconds(totalMs: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m${String(seconds).padStart(2, "0")}s`;
+}
+
+/** Names the per-stage ceiling a finished stage exceeded, or `undefined`
+ * when none was configured, none was exceeded, or the agent reported
+ * nothing to compare. That last case is not a pass — it is the ceiling
+ * having nothing to act on, which is exactly what `timeout` exists to
+ * cover, and it is why this returns `undefined` rather than treating an
+ * absent figure as zero. */
+function describeStageOverspend(
+  config: HarnessConfig,
+  usage: AgentUsage | undefined,
+  stage: ChainStage,
+): string | undefined {
+  if (!usage) return undefined;
+  const maxCostUsd = config.budget?.maxStageCostUsd;
+  if (maxCostUsd !== undefined && usage.costUsd !== undefined && usage.costUsd > maxCostUsd) {
+    return `stopped after "${stage}": it reported $${usage.costUsd.toFixed(2)},`
+      + ` over budget.maxStageCostUsd of $${maxCostUsd.toFixed(2)}`;
+  }
+  const maxTokens = config.budget?.maxStageTokens;
+  if (maxTokens !== undefined) {
+    const used = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+    if ((usage.inputTokens !== undefined || usage.outputTokens !== undefined) && used > maxTokens) {
+      return `stopped after "${stage}": it reported ${used.toLocaleString()} tokens,`
+        + ` over budget.maxStageTokens of ${maxTokens.toLocaleString()}`;
+    }
+  }
+  return undefined;
 }
 
 /** Names the ceiling that fired and the value it was set to, rather than
@@ -592,6 +627,7 @@ export class HarnessChainRunner {
       while (attempt < maxAttempts) {
         attempt += 1;
         state.cancelReason = undefined;
+        state.lastStageUsage = undefined;
         const stageStartedAt = Date.now();
         const stageDeadlineMs = this.stageDeadlineMs(harnessConfig, state);
         const stageTimer = stageDeadlineMs === undefined
@@ -642,6 +678,15 @@ export class HarnessChainRunner {
           attempt: attempt + 1,
           previousAttemptReason: state.cancelReason,
         };
+      }
+
+      // Checked after the stage, never during it: a run's cost is not
+      // known until it ends, so this stops the chain rather than the
+      // stage. The ceiling that stops a stage mid-run is `timeout`.
+      const stageSpendReason = describeStageOverspend(harnessConfig, state.lastStageUsage, stage);
+      if (stageSpendReason) {
+        yield failedEvent(runId, stageSpendReason);
+        return;
       }
 
       if (stage === "apply" && applyCheckpoint && outcome === "completed") {
@@ -885,7 +930,10 @@ export class HarnessChainRunner {
         };
       }
     }
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget };
+    // `stage` travels beside `model`/`effort`/`budget`, which the chain
+    // already sets here — it is what lets an audit entry say which stage
+    // spent what, since every stage runs under the chain's own runId.
+    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget, stage };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 
@@ -932,6 +980,7 @@ export class HarnessChainRunner {
           yield event;
           continue;
         }
+        if (event.kind === "usageReported") state.lastStageUsage = event.usage;
         if (event.kind === "failed") outcome = "failed";
         if (event.kind === "cancelled") {
           outcome = "cancelled";

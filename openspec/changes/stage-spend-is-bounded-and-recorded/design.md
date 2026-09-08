@@ -70,18 +70,27 @@ same stage on the same agent at `high` and at `medium` are different
 runs, and a recommendation drawn from history that ignored effort would
 average two different things.
 
-## Decision: the chain records the stage, because only it knows
+## Decision: the stage travels on the Command, like effort already does
 
-`agent-runner.ts` records the run and does not know which stage of which
-chain it is; `HarnessChainRunner` knows and does not currently write an
-entry for agent runs.
+Corrected while implementing. This section first argued against putting a
+stage on `Command` — that it would be a chain concept in a type
+single-stage callers also use — and proposed that the chain amend the
+entry the runner wrote.
 
-Rather than teach the runner about stages — it is used for single-stage
-runs too, where there is no stage — the chain records the stage against
-the entry the runner wrote, keyed by `runId` plus the entry's timestamp
-ordering. The alternative, threading a stage through `Command` into the
-runner, puts a chain concept into a type that single-stage callers also
-use, and the field would be meaningless for every one of them.
+Reading the code settled it the other way. `Command` already carries
+`agentId`, `model`, `effort` and `budget`, every one of them optional and
+every one set by the chain when it builds a stage's command
+(`harness-chain-runner.ts`'s `stageCommand`). A stage is the same kind of
+field, and `effort` — which this change also needs recorded — is already
+there, so half the plumbing exists.
+
+The alternative would have been worse than merely redundant: `AuditLog`
+is append-only (`record(entry)`), so amending an entry after the fact
+needs an update operation the interface does not have, invented for one
+caller.
+
+So: `Command.stage`, optional, absent for a single-stage run — which is
+exactly the second scenario the specification asks for.
 
 ## Decision: the cut is recorded here
 

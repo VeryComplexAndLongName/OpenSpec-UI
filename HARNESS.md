@@ -154,6 +154,11 @@ Both fields optional and independent. This is the **chain-level** ceiling
 [`LIMITS.md`](LIMITS.md) for the full distinction, including why there is
 no single `budget: number`.
 
+`maxStageCostUsd` and `maxStageTokens` bound one stage, enforced here
+rather than by the agent's CLI. Checked when a stage ends and stopping
+the chain — not the stage, which a spending ceiling cannot do. Neither
+may exceed its whole-chain counterpart.
+
 ### `timeout`
 
 `{ "maxRunSeconds"?: <positive integer>, "maxStageSeconds"?: <positive

@@ -53,6 +53,30 @@ and thought tokens are excluded, which on a cache-heavy agent is most of
 what moved. See [Which agents report usage](#which-agents-report-usage)
 for the measurement.
 
+#### `maxStageCostUsd` / `maxStageTokens` — the same ceiling, on one stage
+
+```json
+{ "budget": { "maxCostUsd": 25, "maxStageCostUsd": 8 } }
+```
+
+Enforced by this project, so it exists for every agent that reports usage
+— where `stepAgents.<stage>.budget` below reaches a CLI flag only two of
+the ten have.
+
+It is checked **when a stage ends**, against what that stage reported,
+and it stops the **chain**, not the stage. The name suggests otherwise
+and cannot deliver it: a run's cost is not known until it ends. So it
+prevents the next overspend, never the one that happened. The ceiling
+that stops a stage mid-run is [`timeout`](#3-timeout--caps-a-chain-and-a-stage-in-seconds).
+
+An agent that reports nothing gives it nothing to compare, and it does
+not fire. That is not a pass — it is the same blind spot every spending
+ceiling has, and it is the reason `timeout` exists.
+
+A stage ceiling above the chain ceiling is refused where the
+configuration resolves: the chain ceiling would stop the run first, so
+the stage one could never fire.
+
 ### 2. `stepAgents.<stage>.budget` — passed to one CLI invocation
 
 ```json
