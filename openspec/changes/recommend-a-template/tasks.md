@@ -97,7 +97,7 @@ reversal is recorded rather than quietly performed.
   open tasks still gets a recommendation. Nothing asks for it not to, and
   suppressing it is a decision about when the question is even
   meaningful — worth its own argument, not a silent addition.
-- [ ] 5.5 **Human-only**: read the recommendation for a change you know
+- [x] 5.5 **Human-only**: read the recommendation for a change you know
   well and judge whether its stated grounds match your own reasoning. The
   grounds are the product here — a right answer for a wrong reason is
   still wrong.

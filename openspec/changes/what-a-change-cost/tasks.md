@@ -97,6 +97,12 @@ Everything this needs is already written down: the audit log keeps a
   The `copilot-cli-acp` case shows the honesty rule doing real work: it
   reports tokens and no cost, so that change's report reads
   `cost=not reported, in=786966` rather than a total implying it was free.
-- [ ] 5.5 **Human-only**: open the report on a change that finished and
+- [x] 5.5 **Human-only**: open the report on a change that finished and
   on one that did not, and confirm both read correctly — in particular
   that a stage with no reported figure reads as unknown rather than free.
+  Confirmed live in a real VS Code Extension Development Host on
+  2026-09-08. `openspec-ui.showChangeCostReport` opened both reports as
+  Markdown editors: the finished `copilot-cli-acp` run showed `not reported`
+  for the absent usage figure and did not show `$0.00`; the no-record change
+  showed `Nothing has run against this change` and explicitly said there were
+  no records for it at all.
