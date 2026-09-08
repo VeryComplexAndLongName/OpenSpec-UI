@@ -25,6 +25,25 @@ Where no attempt count is configured, the chain SHALL behave as it did
 before: verification leaves the tasks unchecked and the archive step
 refuses them.
 
+A failing declared mechanical check SHALL count as such a statement.
+It is what unchecks the task in the first place, so treating it as the
+end of the chain makes this return unreachable in exactly the case it
+exists for. The verifying agent SHALL NOT be invoked when a check has
+failed — returning to the implementing stage spends no verifying run.
+
+#### Scenario: A declared check fails and attempts remain
+
+- **WHEN** a declared mechanical check fails at verification and the
+  implementing stage has an attempt left
+- **THEN** the chain returns to that stage, the verifying agent is not
+  invoked, and the reason names the checks that failed
+
+#### Scenario: A declared check fails with no attempt left
+
+- **WHEN** a declared mechanical check fails and no further attempt is
+  configured or remaining
+- **THEN** the chain stops and names the checks that failed
+
 #### Scenario: Verification leaves work unfinished
 
 - **WHEN** verification completes with tasks unchecked and attempts

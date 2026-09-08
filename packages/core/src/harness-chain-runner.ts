@@ -106,6 +106,12 @@ interface ChainState {
    * does. Consumed by the next attempt's `stageStarted`, so a stage
    * appearing twice says why rather than looking like a duplicate. */
   returnReason?: string;
+  /** Set by `runStage` when `verify`'s mechanical checks failed, so the
+   * chain loop — which is the only place that knows whether a return to
+   * `apply` is possible — decides between sending the work back and
+   * failing. `runStage` yields no event for this; the loop yields one or
+   * the other. */
+  checkFailureSummary?: string;
   /** How many times each stage has been attempted, counting the first.
    * Kept on the chain rather than inside the stage loop because a chain
    * returning from `verify` to `apply` re-enters that loop, and a count
@@ -662,7 +668,7 @@ export class HarnessChainRunner {
       // ceiling cut it and attempts remain — never after it failed on its
       // own merits, which retrying would only repeat.
       const maxAttempts = harnessConfig.maxStageAttempts ?? 1;
-      let outcome: "completed" | "failed" | "cancelled" = "failed";
+      let outcome: "completed" | "failed" | "cancelled" | "checks-failed" = "failed";
       // Read from the chain rather than started at zero: a chain that
       // returned here from `verify` has already spent attempts on this
       // stage, and a counter local to this loop would forget them.
@@ -735,6 +741,32 @@ export class HarnessChainRunner {
 
       if (stage === "apply" && applyCheckpoint && outcome === "completed") {
         verifiedDelta = await this.finalizeApplyCheckpoint(applyCheckpoint);
+      }
+
+      // A failing mechanical check at `verify` is the clearest statement
+      // this chain can produce that earlier work is unfinished, so it
+      // takes the same backward edge an unchecked task does. The gate
+      // that produced it deliberately did not invoke the verifying agent,
+      // and returning to `apply` spends no verifying run either — the
+      // gate's reason for existing is preserved, not traded away.
+      if (outcome === "checks-failed") {
+        const summary = state.checkFailureSummary ?? "";
+        state.checkFailureSummary = undefined;
+        const applyIndex = sequence.indexOf("apply");
+        const applyMaxAttempts = harnessConfig.maxStageAttempts ?? 1;
+        const applyAttempts = state.attemptsByStage.get("apply") ?? 0;
+        // The same guard, for the same reason, as the unchecked-task edge
+        // below: nothing configured means one attempt, which means no
+        // return is possible, and then this must behave exactly as it did
+        // before a return existed.
+        const canReturn = applyIndex !== -1 && applyMaxAttempts > 1 && applyAttempts < applyMaxAttempts;
+        if (!canReturn) {
+          yield failedEvent(runId, `mechanical checks failed, verifying agent was not invoked: ${summary}`);
+          return;
+        }
+        state.returnReason = `mechanical checks failed, verifying agent was not invoked: ${summary}`;
+        index = applyIndex - 1; // the loop's own increment moves it to `apply`
+        continue;
       }
 
       if (outcome !== "completed") return;
@@ -927,7 +959,7 @@ export class HarnessChainRunner {
     command: Command,
     state: ChainState,
     verifiedDelta: VerifiedDeltaEntry[] | undefined,
-  ): AsyncGenerator<Event, "completed" | "failed" | "cancelled"> {
+  ): AsyncGenerator<Event, "completed" | "failed" | "cancelled" | "checks-failed"> {
     const { cwd, context, runId } = command;
 
     if (stage === "git") {
@@ -978,11 +1010,16 @@ export class HarnessChainRunner {
         return "failed";
       }
       if (verifyCheckOutcome.failed.length > 0) {
-        const failedSummary = verifyCheckOutcome.failed
+        // Recorded, not reported. A failing check is the clearest
+        // statement this chain can produce that earlier work is
+        // unfinished — it is what unchecks the task in the first place —
+        // so where another `apply` attempt is available the work goes
+        // back rather than the chain ending. Only the loop knows whether
+        // one is, so it yields the event: see verify-sends-work-back tasks.md section 6.
+        state.checkFailureSummary = verifyCheckOutcome.failed
           .map((entry) => `${entry.check.name}${entry.check.param ? `(${entry.check.param})` : ""}: ${entry.result.reason}`)
           .join("; ");
-        yield failedEvent(runId, `mechanical checks failed, verifying agent was not invoked: ${failedSummary}`);
-        return "failed";
+        return "checks-failed";
       }
     }
 
