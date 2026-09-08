@@ -344,3 +344,17 @@ describe("HarnessChainPanel — usage while it runs (usage-visible-while-running
   });
 });
 
+
+describe("HarnessChainPanel — the button says what it does (two-buttons-two-names)", () => {
+  it("names the button for starting a chain, not for entering the harness", () => {
+    // Asserted by accessible name, not by test id. The test id was
+    // already `start-chain-button` while the label read "Run with
+    // Agentic Harness" — the same words as the dispatch entry rendered
+    // directly above it in the standalone UI, so a test on the id would
+    // have passed throughout.
+    render(<HarnessChainPanel transport={createFakeTransport().transport} cwd={cwd} changeDir={changeDir} />);
+
+    expect(screen.getByRole("button", { name: "Start chain" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Run with Agentic Harness" })).toBeNull();
+  });
+});
