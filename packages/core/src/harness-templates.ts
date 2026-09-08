@@ -92,6 +92,11 @@ export const HARNESS_TEMPLATES: readonly HarnessTemplate[] = [
       },
       autonomyLevel: "autonomous",
       reviewGate: { mode: "human-required" },
+      // The "no checkpoints" the intent promises. Left unset, a change
+      // configured from this template still paused for confirmation
+      // between every stage — the one thing an unattended run must not
+      // do. Found live, not by a test; see a-template-keeps-its-promises.
+      checkpoints: { requireConfirmationBetweenSteps: false },
       budget: { maxCostUsd: 25, maxStageCostUsd: 10 },
       timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
       maxStageAttempts: 3,

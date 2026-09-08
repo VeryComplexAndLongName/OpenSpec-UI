@@ -53,3 +53,39 @@ describe("HARNESS_TEMPLATES", () => {
     expect(new Set(HARNESS_TEMPLATES.map((t) => t.id)).size).toBe(HARNESS_TEMPLATES.length);
   });
 });
+
+describe("HARNESS_TEMPLATES — the text and the configuration agree", () => {
+  // a-template-keeps-its-promises. Overnight said "No checkpoints between
+  // stages" and set no `checkpoints`, so a change configured from it
+  // still paused for confirmation between every stage — the one thing an
+  // unattended run must not do. Found by applying it and reading the
+  // saved file, because nothing compared a template's sentences against
+  // what it applies.
+  //
+  // A template's sentences are its interface. A sentence that is not true
+  // is the same defect as a ceiling that cannot act, and harder to
+  // notice.
+
+  /** Everything a person reads before applying one. */
+  const wordsOf = (template: (typeof HARNESS_TEMPLATES)[number]): string =>
+    `${template.title} ${template.intent} ${template.notFor} ${template.basis}`.toLowerCase();
+
+  /** Deliberately narrow. Most of a template's prose cannot be read
+   * mechanically; this covers the claims that name a specific setting,
+   * which is the class the defect came from. */
+  const CLAIMS_NO_CHECKPOINTS = /no checkpoints|without (?:stopping|pausing)|does not pause/;
+
+  for (const template of HARNESS_TEMPLATES) {
+    it(`"${template.id}" turns confirmation off if its text says it does not stop`, () => {
+      if (!CLAIMS_NO_CHECKPOINTS.test(wordsOf(template))) return;
+      expect(template.config.checkpoints?.requireConfirmationBetweenSteps).toBe(false);
+    });
+
+    it(`"${template.id}" says so in its text if it turns confirmation off`, () => {
+      // The same failure with the halves swapped: a configuration acting
+      // in a way the sentences never mentioned.
+      if (template.config.checkpoints?.requireConfirmationBetweenSteps !== false) return;
+      expect(wordsOf(template)).toMatch(CLAIMS_NO_CHECKPOINTS);
+    });
+  }
+});
