@@ -222,7 +222,10 @@ function HarnessTemplatePicker(
       </p>
       <ul>
         {templates.map((template) => (
-          <li key={template.id} data-testid={`harness-template-${template.id}`}>
+           /* Qualified by scope: both pickers can be on screen at once,
+             and two elements with one id is a trap rather than a
+             convenience. */
+          <li key={template.id} data-testid={`harness-template-${scope}-${template.id}`}>
             <button type="button" onClick={() => onApply(template)}>{template.title}</button>
             <p className="openspec-shell-note">{template.intent}</p>
             <p className="openspec-shell-note"><strong>Not for:</strong> {template.notFor}</p>
@@ -307,6 +310,22 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [changeMessage, setChangeMessage] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
 
+  /** The per-change twin of `applyTemplate`. This is the only place
+   * "overnight" can be applied from — it is per-change only, so it is
+   * correctly withheld from the global file above, and until this existed
+   * there was nowhere else. */
+  const applyChangeTemplate = (template: HarnessTemplate): void => {
+    setChangeStepAgents(toForm(template.config.stepAgents));
+    setChangeEffort(toEffortForm(template.config.stepAgents));
+    setChangeBudget(toBudgetForm(template.config.stepAgents));
+    if (template.config.autonomyLevel) setChangeAutonomyLevel(template.config.autonomyLevel);
+    if (template.config.reviewGate) setChangeReviewGateMode(template.config.reviewGate.mode);
+    // The ceilings ride here, not in the form, and the save lays the form
+    // over this rather than replacing it.
+    setChangeOverride((previous) => ({ ...(previous ?? {}), ...template.config }));
+    setChangeMessage(`Filled from "${template.title}". Nothing is saved until you save.`);
+  };
+
   async function loadGlobal() {
     setGlobalLoading(true);
     try {
@@ -331,7 +350,12 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   async function saveGlobal() {
     setGlobalLoading(true);
     try {
+      // Laid over what was loaded, not built from the fields alone. The
+      // writer replaces the file, so a key this view has no field for —
+      // `timeout`, `budget`, `gitStageAllowlist` — would be deleted by
+      // pressing Save. See settings-save-what-was-shown.
       await api.writeGlobal({
+        ...(globalConfig ?? {}),
         stepAgents: toStepAgents(globalStepAgents, globalEffort, globalBudget),
         autonomyLevel: globalAutonomyLevel,
       });
@@ -367,9 +391,18 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
     if (changeName.trim().length === 0) return;
     setChangeLoading(true);
     try {
-      const config: Partial<HarnessConfig> = { stepAgents: toStepAgents(changeStepAgents, changeEffort, changeBudget) };
+      // As with the global save: layered over what was loaded, because
+      // the writer replaces the file.
+      const config: Partial<HarnessConfig> = {
+        ...(changeOverride ?? {}),
+        stepAgents: toStepAgents(changeStepAgents, changeEffort, changeBudget),
+      };
+      // Inherit means "not set here", so these two are removed rather
+      // than carried over from the loaded file.
       if (changeAutonomyLevel !== INHERIT) config.autonomyLevel = changeAutonomyLevel;
+      else delete config.autonomyLevel;
       if (changeReviewGateMode !== INHERIT) config.reviewGate = { mode: changeReviewGateMode };
+      else delete config.reviewGate;
       await api.writeChangeOverride(changeName, config);
       setChangeMessage("Saved.");
       await loadChangeOverride();
@@ -463,6 +496,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
         {changeMessage ? <p className="openspec-shell-note" role="status">{changeMessage}</p> : null}
         {changeOverride !== undefined ? (
           <>
+            <HarnessTemplatePicker scope="change" onApply={applyChangeTemplate} />
             {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
               <MechanicalStageRow key={stage} stage={stage} />
             ) : (

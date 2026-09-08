@@ -1,5 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { HARNESS_TEMPLATES } from "@openspec-ui/core/browser";
+// The key list is the point of the guard below, and it lives in
+// harness-config.js, which imports node:fs and so is not in the browser
+// entry. A test file is not bundled for the browser, so it reads it from
+// the package root rather than the list being duplicated here — a copy
+// would pass while the real list grew.
+import { TOP_LEVEL_CONFIG_KEYS } from "@openspec-ui/core";
 import { HarnessSettingsView, type HarnessSettingsApi } from "./HarnessSettingsView.js";
 
 function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettingsApi {
@@ -38,6 +45,10 @@ describe("HarnessSettingsView", () => {
       expect(api.writeGlobal).toHaveBeenCalledWith({
         stepAgents: { propose: "claude-cli", apply: "gemini-cli" },
         autonomyLevel: "semi-autonomous",
+        // Carried from the loaded config rather than dropped: the writer
+        // replaces the file, so anything left out of this payload is
+        // deleted. See settings-save-what-was-shown.
+        reviewGate: { mode: "human-required" },
       }),
     );
   });
@@ -194,6 +205,7 @@ describe("HarnessSettingsView effort and budget (harness-step-effort-and-budget)
           apply: { agent: "claude-cli", effort: "high", budget: { maxCostUsd: 5 } },
         },
         autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
       }),
     );
   });
@@ -210,6 +222,7 @@ describe("HarnessSettingsView effort and budget (harness-step-effort-and-budget)
       expect(api.writeGlobal).toHaveBeenCalledWith({
         stepAgents: { propose: "claude-cli", apply: "claude-cli" },
         autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
       }),
     );
   });
@@ -295,7 +308,7 @@ describe("HarnessSettingsView — templates", () => {
     render(<HarnessSettingsView api={createApi()} />);
 
     await waitFor(() => expect(screen.getByTestId("harness-templates-global")).toBeTruthy());
-    const careful = screen.getByTestId("harness-template-careful");
+    const careful = screen.getByTestId("harness-template-global-careful");
     expect(careful.textContent).toContain("Not for:");
     // The basis line is what lets a reader disagree with the judgement
     // rather than with the measurement.
@@ -308,17 +321,137 @@ describe("HarnessSettingsView — templates", () => {
     render(<HarnessSettingsView api={createApi()} />);
 
     await waitFor(() => expect(screen.getByTestId("harness-templates-global")).toBeTruthy());
-    expect(screen.queryByTestId("harness-template-overnight")).toBeNull();
+    expect(screen.queryByTestId("harness-template-global-overnight")).toBeNull();
   });
 
   it("fills the form without saving, and says so", async () => {
     const api = createApi();
     render(<HarnessSettingsView api={api} />);
 
-    await waitFor(() => expect(screen.getByTestId("harness-template-thrifty")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("harness-template-thrifty").querySelector("button")!);
+    await waitFor(() => expect(screen.getByTestId("harness-template-global-thrifty")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("harness-template-global-thrifty").querySelector("button")!);
 
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Nothing is saved"));
     expect(api.writeGlobal).not.toHaveBeenCalled();
+  });
+});
+
+describe("HarnessSettingsView — saving preserves what it cannot show", () => {
+  // settings-save-what-was-shown. Both writers replace the file, so a key
+  // this view has no field for is deleted by pressing Save, not left
+  // alone. Measured 2026-09-08: the global save sent 2 of the 8 accepted
+  // top-level keys and the per-change save 3.
+  //
+  // Asserted against TOP_LEVEL_CONFIG_KEYS rather than against a list of
+  // fields, so the ninth key added to the schema and forgotten here fails
+  // immediately. Naming fields is what let this pass for as long as it
+  // did.
+
+  /** One value per accepted key, valid for a per-change file (which is
+   * the stricter of the two: `autonomyLevel: "autonomous"` and
+   * `reviewGate.mode: "agent-sufficient"` are refused globally). */
+  const everyKey = {
+    stepAgents: { propose: "claude-cli" },
+    autonomyLevel: "autonomous",
+    reviewGate: { mode: "agent-sufficient" },
+    checkpoints: { requireConfirmationBetweenSteps: false },
+    budget: { maxCostUsd: 25 },
+    timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
+    maxStageAttempts: 2,
+    gitStageAllowlist: ["openspec/**"],
+  } as const;
+
+  function keysMissingFrom(saved: Record<string, unknown>, expected: readonly string[]): string[] {
+    return expected.filter((key) => !(key in saved));
+  }
+
+  it("keeps every accepted key when saving the global config", async () => {
+    // `autonomyLevel` and `reviewGate` are the two this form owns, so the
+    // global fixture uses values a global file accepts.
+    const globalConfig = { ...everyKey, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } };
+    const api = createApi({ resolveGlobal: vi.fn().mockResolvedValue(globalConfig) });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save global config" }));
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalled());
+    const saved = (api.writeGlobal as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(keysMissingFrom(saved, TOP_LEVEL_CONFIG_KEYS)).toEqual([]);
+    // The edit still lands, and the untouched keys are unchanged rather
+    // than merely present.
+    expect(saved.stepAgents).toMatchObject({ apply: "gemini-cli" });
+    expect(saved.timeout).toEqual(everyKey.timeout);
+    expect(saved.gitStageAllowlist).toEqual(everyKey.gitStageAllowlist);
+  });
+
+  it("keeps every accepted key when saving a per-change override", async () => {
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ ...everyKey }) });
+    render(<HarnessSettingsView api={api} />);
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByLabelText("change propose agent");
+
+    fireEvent.change(screen.getByLabelText("change apply agent"), { target: { value: "gemini-cli" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save override" }));
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    expect(keysMissingFrom(saved, TOP_LEVEL_CONFIG_KEYS)).toEqual([]);
+    expect(saved.maxStageAttempts).toBe(2);
+    expect(saved.budget).toEqual(everyKey.budget);
+  });
+
+  it("still removes autonomyLevel and reviewGate when a per-change field is set back to inherit", async () => {
+    // Carrying the loaded file forward must not turn "inherit" into "keep
+    // what was there", which would make the option unusable.
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous" }),
+    });
+    render(<HarnessSettingsView api={api} />);
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByLabelText("change propose agent");
+
+    fireEvent.change(screen.getByLabelText("Change autonomy level"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save override" }));
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", { stepAgents: {} }));
+  });
+});
+
+describe("HarnessSettingsView — a per-change template", () => {
+  it("offers the per-change-only template where a change is edited", async () => {
+    // The whole point of "overnight" is a long unattended run, and until
+    // this picker existed there was nowhere to apply it from: it is
+    // correctly withheld from the global file, and the per-change section
+    // had no picker at all.
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue(null) });
+    render(<HarnessSettingsView api={api} />);
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+
+    expect(await screen.findByTestId("harness-template-change-overnight")).toBeTruthy();
+  });
+
+  it("saves the ceilings an applied template promised, not only its agents", async () => {
+    // The assertion the previous change was missing: the diagnostic panel
+    // updated, the sentence said "nothing is saved until you save", and
+    // then the save dropped every ceiling the template exists to set.
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue(null) });
+    render(<HarnessSettingsView api={api} />);
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+    await screen.findByTestId("harness-template-change-overnight");
+
+    fireEvent.click(screen.getByTestId("harness-template-change-overnight").querySelector("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Save override" }));
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    const overnight = HARNESS_TEMPLATES.find((template) => template.id === "overnight")!;
+    expect(saved.timeout).toEqual(overnight.config.timeout);
+    expect(saved.maxStageAttempts).toBe(overnight.config.maxStageAttempts);
   });
 });
