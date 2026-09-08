@@ -45,7 +45,7 @@ would look like the same fix and would break the path that matters most.
   285 extension, 62 server, 267 webui — unchanged, as a CI-only change
   should leave them.
 - [x] 3.4 No changeset: CI configuration, nothing published changes.
-- [ ] 3.5 Confirm on this change's own pull request that the group took
+- [x] 3.5 Confirm on this change's own pull request that the group took
   effect — an expression that failed to evaluate would be silent
   otherwise.
   **Not observable the way this task assumed.** GitHub's API does not
@@ -54,8 +54,12 @@ would look like the same fix and would break the path that matters most.
   So it is observed by behaviour instead: pushing a second commit while
   the first run is still going must cancel that first run, which is
   `cancel-in-progress` evaluating to `true` for a pull-request ref. The
-  push that adds this note is that second commit, and the result is
-  recorded below.
+  push that adds this note is that second commit.
+  Observed 2026-09-08: run 34198789546 went to `completed/cancelled` the
+  moment run 34198917750 started for the new commit. The group is in
+  force and the expression evaluates — for a pull-request ref, at least.
+  The `main` half is the opposite behaviour and cannot be inferred from
+  this; it is 3.6.
 - [ ] 3.6 **Human-only**: at the next two merges in quick succession,
   confirm the second run waits rather than racing, and that no manual
   spacing was needed. That is the whole point, and it cannot be observed
