@@ -88,10 +88,19 @@ work is applying it to a chain that is already running.
   untrue as written. Correct it to state the one edge that exists and why
   it is not a general step-back, rather than deleting the section — the
   reasoning in it is still the reason there is no general one.
-- [ ] 5.5 **Human-only**: run a chain on a change with a task whose
+- [x] 5.5 **Human-only**: run a chain on a change with a task whose
   mechanical check fails, with attempts allowed, and confirm `apply` runs
   again and the panel says why. Then run the same with no attempt count
   and confirm the archive refusal is unchanged.
+  Confirmed live on 2026-09-08 with tracked disposable fixtures. With
+  `maxStageAttempts: 2`, the panel showed `apply · attempt 2` with the
+  mechanical-check reason; the second apply restored the tracked fixture,
+  verify passed, and the chain archived the change. With no attempt count,
+  the chain stopped at verify with the unchanged gate message
+  `mechanical checks failed, verifying agent was not invoked` and did not
+  return to apply. The task's older phrase "archive refusal" predates the
+  mechanical-check gate; the observed terminal wording is the gate's
+  preserved pre-return behavior.
 
 ## 6. What the live run found
 
@@ -133,8 +142,12 @@ was already this change's, and it was not fully met.
   typecheck clean; lint clean apart from one warning that predates this
   change (`killTimer` unused in `packages/core/src/agents/shared.ts:210`);
   tests 48 cli, 683 core, 285 extension, 62 server, 276 webui — core up 4.
-- [ ] 6.7 **Human-only**: this is task 5.5, and it needs a fixture whose
+- [x] 6.7 **Human-only**: this is task 5.5, and it needs a fixture whose
   failing check a second `apply` can actually satisfy. The one used
   before declared `path-unchanged` on a path `apply` was meant to change,
   which no number of attempts resolves — a contradiction in the fixture,
   which this does not fix.
+  Confirmed with a corrected fixture: the checked path was committed inside
+  the change directory, so the first apply made the check fail and the
+  second apply restored the exact baseline. The panel recorded the return
+  reason, verify then passed, and the chain archived the disposable change.

@@ -1533,3 +1533,72 @@ checked against it mechanically.
 - **THEN** the configuration it applies turns off confirmation between
   stages, rather than leaving it inherited
 
+### Requirement: A chain acts on its own verification result
+
+Where verification leaves tasks unchecked and the stage that implements
+them may be attempted again, the chain SHALL return to that stage rather
+than continue to a stage whose precondition it has just been shown does
+not hold.
+
+Verification is the only stage that produces a machine-checked statement
+that earlier work is unfinished, so this SHALL be the only return: a
+chain otherwise runs forward.
+
+The return SHALL be bounded by the same attempt count that bounds every
+other reason a stage is attempted again, and SHALL record why it
+happened, so that a stage appearing twice is distinguishable from a
+duplicate.
+
+Where no attempts remain, or where the implementing stage is not part of
+this chain, the chain SHALL stop and SHALL name the tasks that are still
+unchecked — the reader is about to take the work over, and a count alone
+sends them to open the file.
+
+Where no attempt count is configured, the chain SHALL behave as it did
+before: verification leaves the tasks unchecked and the archive step
+refuses them.
+
+A failing declared mechanical check SHALL count as such a statement.
+It is what unchecks the task in the first place, so treating it as the
+end of the chain makes this return unreachable in exactly the case it
+exists for. The verifying agent SHALL NOT be invoked when a check has
+failed — returning to the implementing stage spends no verifying run.
+
+#### Scenario: A declared check fails and attempts remain
+
+- **WHEN** a declared mechanical check fails at verification and the
+  implementing stage has an attempt left
+- **THEN** the chain returns to that stage, the verifying agent is not
+  invoked, and the reason names the checks that failed
+
+#### Scenario: A declared check fails with no attempt left
+
+- **WHEN** a declared mechanical check fails and no further attempt is
+  configured or remaining
+- **THEN** the chain stops and names the checks that failed
+
+#### Scenario: Verification leaves work unfinished
+
+- **WHEN** verification completes with tasks unchecked and attempts
+  remain
+- **THEN** the chain returns to the implementing stage, recording that
+  verification is why
+
+#### Scenario: The attempts are used up
+
+- **WHEN** the implementing stage has used every attempt it is allowed
+  and tasks are still unchecked
+- **THEN** the chain stops and names those tasks
+
+#### Scenario: The chain never ran the implementing stage
+
+- **WHEN** a chain entered at verification leaves tasks unchecked
+- **THEN** it stops and names them, rather than running a stage it was
+  not asked to run
+
+#### Scenario: Nothing is configured
+
+- **WHEN** no attempt count is configured and verification leaves tasks
+  unchecked
+- **THEN** the chain continues as before and the archive step refuses
+
