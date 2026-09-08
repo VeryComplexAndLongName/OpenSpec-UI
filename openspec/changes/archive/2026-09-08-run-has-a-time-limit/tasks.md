@@ -156,7 +156,16 @@ knowing when, saying why, and counting attempts.
 - [x] 8.4 Version bump via `npx changeset`: `core`, `webui` and both
   hosts.
   Done: `.changeset/run-has-a-time-limit.md`.
-- [ ] 8.5 **Human-only**: run a chain with a short stage ceiling against
+- [x] 8.5 **Human-only**: run a chain with a short stage ceiling against
   an agent that will exceed it, and confirm the stage stops, the panel
   shows the elapsed row filling, and the reason names the ceiling. Then
   run one with no ceiling configured and confirm nothing changed.
+  Confirmed live in the standalone UI on 2026-09-08 using the isolated
+  `time-limit-manual-smoke-2026-09-08` change and direct `claude-cli`.
+  With `timeout.maxStageSeconds: 5` and `maxStageAttempts: 1`, the panel
+  showed `apply (claude-cli)` as `running...`, then displayed `cancelled:
+  stopped "apply" at the stage time limit: timeout.maxStageSeconds is 5s`
+  and the maximum-attempt reason. After removing `timeout` entirely, the
+  same stage was still `running...` after 7 seconds with no timeout event;
+  it was then stopped manually. The chain made no edits outside the smoke
+  change directory.
