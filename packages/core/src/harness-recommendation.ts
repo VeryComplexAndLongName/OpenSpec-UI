@@ -17,7 +17,7 @@ import { HARNESS_TEMPLATES, type HarnessTemplate } from "./harness-templates.js"
 
 /** Roomier to thriftier. Moving "one up" means moving towards the front
  * of this list. */
-const BY_ROOM: readonly string[] = ["overnight", "careful", "thrifty"];
+const BY_ROOM: readonly string[] = ["fastest", "balanced", "min-cost"];
 
 /** Above this many open tasks a change is treated as long work. Chosen,
  * not measured: the audit log records what runs cost, never how many
@@ -72,7 +72,7 @@ export function recommendTemplate(input: RecommendationInput): HarnessRecommenda
     // this change" cannot be mistaken for "this is what the evidence
     // suggests".
     grounds.push("no previous run to go on");
-    const id = input.openTaskCount > MANY_OPEN_TASKS ? "careful" : "thrifty";
+    const id = input.openTaskCount > MANY_OPEN_TASKS ? "balanced" : "min-cost";
     grounds.push(input.openTaskCount > MANY_OPEN_TASKS
       ? `more than ${MANY_OPEN_TASKS} open tasks reads as long work`
       : `at most ${MANY_OPEN_TASKS} open tasks reads as short work`);
@@ -84,7 +84,7 @@ export function recommendTemplate(input: RecommendationInput): HarnessRecommenda
 
   if (cutRows.length === 0) {
     grounds.push("no previous run was stopped by a ceiling");
-    const id = input.openTaskCount > MANY_OPEN_TASKS ? "careful" : "thrifty";
+    const id = input.openTaskCount > MANY_OPEN_TASKS ? "balanced" : "min-cost";
     return { template: templateById(id), grounds };
   }
 
@@ -99,7 +99,7 @@ export function recommendTemplate(input: RecommendationInput): HarnessRecommenda
     return { grounds, needsPerson: true };
   }
 
-  const previous = input.openTaskCount > MANY_OPEN_TASKS ? "careful" : "thrifty";
+  const previous = input.openTaskCount > MANY_OPEN_TASKS ? "balanced" : "min-cost";
   const id = oneStepRoomier(previous);
   grounds.push(`recommending one step roomier than "${previous}"`);
   return { template: templateById(id), grounds };

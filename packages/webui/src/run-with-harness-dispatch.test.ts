@@ -104,7 +104,7 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
 
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
-    expect(result.plan.advice?.template?.id).toBe("careful");
+    expect(result.plan.advice?.template?.id).toBe("balanced");
     expect(result.plan.advice?.grounds.join(" ")).toContain("20 tasks still open");
     // The audit log is genuinely not served here, and the recommendation
     // is built to say so rather than imply it looked.
@@ -117,7 +117,7 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
     expect(result.plan.advice?.grounds.join(" ")).toContain("2 tasks still open");
-    expect(result.plan.advice?.template?.id).toBe("thrifty");
+    expect(result.plan.advice?.template?.id).toBe("min-cost");
   });
 
   it("gives no recommendation when the timeline cannot be read", async () => {

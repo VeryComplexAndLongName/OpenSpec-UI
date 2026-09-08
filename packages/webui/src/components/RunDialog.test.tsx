@@ -58,14 +58,14 @@ describe("RunDialog", () => {
     render(
       <RunDialog
         changeName="demo"
-        plan={plan({ advice: { template: { id: "careful", title: "Careful", intent: "", notFor: "", basis: "", scope: "either", config: {} }, grounds: ["20 tasks still open"] } })}
+        plan={plan({ advice: { template: { id: "balanced", title: "Balanced", intent: "", notFor: "", basis: "", scope: "either", config: {} }, grounds: ["20 tasks still open"] } })}
         onChoose={vi.fn()}
         onApplyTemplate={vi.fn()} onDismiss={vi.fn()}
       />,
     );
 
     const advice = screen.getByTestId("run-dialog-advice").textContent ?? "";
-    expect(advice).toContain("Careful");
+    expect(advice).toContain("Balanced");
     expect(advice).toContain("20 tasks still open");
   });
 
@@ -113,7 +113,7 @@ describe("RunDialog — advising, not just picking a path", () => {
   // no way to act on advice, and said nothing when the configuration was
   // fine.
 
-  const careful = { id: "careful", title: "Careful" };
+  const recommended = { id: "balanced", title: "Balanced" };
 
   it("says every ceiling can act, rather than rendering nothing", () => {
     // Silence makes "examined and fine" identical to "not examined" —
@@ -131,7 +131,7 @@ describe("RunDialog — advising, not just picking a path", () => {
 
     const templates = screen.getByTestId("run-dialog-templates").textContent ?? "";
     expect(templates).toContain("Not for:");
-    expect(screen.getByTestId("run-dialog-template-overnight")).toBeTruthy();
+    expect(screen.getByTestId("run-dialog-template-fastest")).toBeTruthy();
   });
 
   it("marks the recommended configuration among the ones it offers", () => {
@@ -139,23 +139,23 @@ describe("RunDialog — advising, not just picking a path", () => {
     render(
       <RunDialog
         changeName="demo"
-        plan={plan({ advice: { template: careful as never, grounds: ["20 tasks still open"] } })}
+        plan={plan({ advice: { template: recommended as never, grounds: ["20 tasks still open"] } })}
         onChoose={vi.fn()}
         onApplyTemplate={vi.fn()}
         onDismiss={vi.fn()}
       />,
     );
 
-    expect(screen.getByTestId("run-dialog-template-careful").textContent).toContain("(recommended)");
+    expect(screen.getByTestId("run-dialog-template-balanced").textContent).toContain("(recommended)");
   });
 
   it("reports the configuration that was applied", () => {
     const onApplyTemplate = vi.fn();
     render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={onApplyTemplate} onDismiss={vi.fn()} />);
 
-    fireEvent.click(screen.getByTestId("run-dialog-template-overnight").querySelector("button")!);
+    fireEvent.click(screen.getByTestId("run-dialog-template-fastest").querySelector("button")!);
 
-    expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "overnight" }));
+    expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "fastest" }));
   });
 
   it("offers only the configurations a change may be given", () => {
@@ -165,10 +165,12 @@ describe("RunDialog — advising, not just picking a path", () => {
 
     const ids = [...screen.getByTestId("run-dialog-templates").querySelectorAll("li")]
       .map((item) => item.getAttribute("data-testid"));
+    // Cheapest first, then in order of what each will spend — the axis
+    // they are named on (templates-by-cost-and-speed).
     expect(ids).toEqual([
-      "run-dialog-template-careful",
-      "run-dialog-template-overnight",
-      "run-dialog-template-thrifty",
+      "run-dialog-template-min-cost",
+      "run-dialog-template-balanced",
+      "run-dialog-template-fastest",
     ]);
   });
 });

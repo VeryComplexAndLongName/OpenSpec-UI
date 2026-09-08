@@ -92,8 +92,10 @@ all — and it says so **where the configuration is edited**, and, since
 
 ### Configurations by intent
 
-Three named configurations, each carrying what it is for, when it is the
-wrong choice, and where each number came from:
+Three named configurations — **Minimum cost**, **Balanced**, **Fastest** —
+each carrying what it is for, when it is the wrong choice, and where each
+number came from. They are titled by what a person is actually choosing
+between, with the ceilings in the title rather than three lines down:
 
 ![The per-change settings section, with the three templates and the
 stage controls below them](../images/standalone/harness-change-override.png)
@@ -199,7 +201,7 @@ ceiling a template exists to set was deleted on save — while the panel
 updated correctly and the message truthfully said "nothing is saved until
 you save".
 
-**Overnight promised what it did not do.** Its own text said "No
+**The unattended template promised what it did not do.** Its text said "No
 checkpoints between stages" and its configuration never set that. Nothing
 compared a template's sentences against what it applies.
 
