@@ -20,6 +20,7 @@ import {
   buildSprintReport,
   findHarnessConfigLimits,
   readTaskChecklist,
+  readChangeHarnessConfig,
   buildRunPlan,
   templatesForScope,
   type HarnessTemplate,
@@ -1199,7 +1200,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // describes, which means reading it again — so this ends here and
         // the person opens Run once more, now configured.
         if (chosen.kind === "apply-template") {
-          await writeChangeHarnessConfig(workspaceRoot, item.changeName, chosen.template.config);
+          // Laid over what the change already has, not written in its
+          // place. The writer replaces the file, so a key the template
+          // does not mention — `gitStageAllowlist` above all — would be
+          // deleted by applying one. Someone reaching for a cheaper run
+          // has not asked for the constraint on what the agent may stage
+          // to be removed. See applying-a-template-keeps-the-rest.
+          const existing = await readChangeHarnessConfig(workspaceRoot, item.changeName);
+          await writeChangeHarnessConfig(workspaceRoot, item.changeName, {
+            ...(existing ?? {}),
+            ...chosen.template.config,
+          });
           void vscode.window.showInformationMessage(
             `OpenSpec UI: applied "${chosen.template.title}" to ${item.changeName}. Run it again to start.`,
           );

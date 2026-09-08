@@ -33,6 +33,7 @@ const writeChangeHarnessConfigMock = vi.fn();
 const resolveHarnessConfigMock = vi.fn();
 const resolveRunWithHarnessTargetMock = vi.fn();
 const buildRunPlanMock = vi.fn();
+const readChangeHarnessConfigMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
@@ -62,6 +63,7 @@ vi.mock("@openspec-ui/core", () => ({
   },
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
   buildRunPlan: (...args: unknown[]) => buildRunPlanMock(...args),
+  readChangeHarnessConfig: (...args: unknown[]) => readChangeHarnessConfigMock(...args),
   // Real shape, not a stub returning nothing: an empty list here would
   // hide that the dialog offers named configurations at all, which is
   // the thing run-dialog-actually-advises adds.
@@ -1946,6 +1948,68 @@ describe("registerCommands", () => {
       const templates = items.filter((entry) => entry.choice?.kind === "apply-template");
       expect(templates.length).toBeGreaterThan(0);
       expect(templates.every((entry) => entry.description === undefined)).toBe(true);
+    });
+
+
+    it("keeps what the applied configuration does not mention", async () => {
+      // The writer replaces the file, so a key the template does not set
+      // would be deleted by applying one — `gitStageAllowlist` above all,
+      // which says which paths a chain may stage. Someone reaching for a
+      // cheaper run has not asked for that to be removed.
+      //
+      // Third occurrence of this defect in one repository, and the first
+      // introduced rather than inherited: see
+      // applying-a-template-keeps-the-rest.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      readChangeHarnessConfigMock.mockResolvedValue({
+        gitStageAllowlist: ["openspec/**"],
+        timeout: { maxRunSeconds: 900 },
+        maxStageAttempts: 5,
+      });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({
+        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+      });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        gitStageAllowlist: ["openspec/**"],
+        timeout: { maxRunSeconds: 900 },
+        // The template's own key wins over the change's previous value.
+        maxStageAttempts: 2,
+      });
+    });
+
+    it("writes the configuration alone when the change has none yet", async () => {
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      readChangeHarnessConfigMock.mockResolvedValue(undefined);
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({
+        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+      });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", { maxStageAttempts: 2 });
+    });
+
+    it("writes nothing when the change's existing configuration cannot be read", async () => {
+      // Losing a key because a read failed is the same harm arriving by a
+      // different route.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      readChangeHarnessConfigMock.mockRejectedValue(new Error("harness.json is not valid JSON"));
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({
+        choice: { kind: "apply-template", template: { id: "thrifty", title: "Thrifty", config: { maxStageAttempts: 2 } } },
+      });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
     });
 
     it("does nothing for an archived change", async () => {

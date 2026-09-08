@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
+import { applyTemplateToChange, resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 
 /** Answers per route. A single `mockResolvedValue` cannot serve both
  * calls this makes: a `Response` body reads once, so the second caller
@@ -128,5 +128,66 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
     expect(result.plan.advice).toBeUndefined();
+  });
+});
+
+describe("applyTemplateToChange", () => {
+  // applying-a-template-keeps-the-rest. The writer replaces the file, so
+  // writing the template alone deleted every key the change had that the
+  // template does not set. Third occurrence of this defect here, and the
+  // first introduced rather than inherited.
+
+  function routedRequest(existing: unknown, options: { readFails?: boolean } = {}) {
+    return vi.fn().mockImplementation((pathname: string) => {
+      if (pathname === "/api/harness-config/read-change-override") {
+        return Promise.resolve(options.readFails
+          ? new Response(JSON.stringify({ error: "not valid JSON" }), { status: 500 })
+          : new Response(JSON.stringify({ override: existing }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+    });
+  }
+
+  function writtenBy(request: ReturnType<typeof vi.fn>) {
+    const call = request.mock.calls.find(([pathname]) => pathname === "/api/harness-config/write");
+    if (!call) throw new Error("no write was made");
+    return JSON.parse((call[1] as RequestInit).body as string) as { config: Record<string, unknown> };
+  }
+
+  it("keeps every key the applied configuration does not mention", async () => {
+    // `gitStageAllowlist` named specifically: it says which paths a chain
+    // may stage, no template mentions it, and someone reaching for a
+    // cheaper run has not asked for it to be removed.
+    const request = routedRequest({
+      gitStageAllowlist: ["openspec/**"],
+      timeout: { maxRunSeconds: 900 },
+      maxStageAttempts: 5,
+    });
+
+    await applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 });
+
+    expect(writtenBy(request).config).toEqual({
+      gitStageAllowlist: ["openspec/**"],
+      timeout: { maxRunSeconds: 900 },
+      // The applied configuration's own key wins.
+      maxStageAttempts: 2,
+    });
+  });
+
+  it("writes the configuration alone when the change has none yet", async () => {
+    const request = routedRequest(null);
+
+    await applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 });
+
+    expect(writtenBy(request).config).toEqual({ maxStageAttempts: 2 });
+  });
+
+  it("writes nothing when the existing configuration cannot be read", async () => {
+    // Losing a key because a read failed is the same harm arriving by a
+    // different route.
+    const request = routedRequest(null, { readFails: true });
+
+    await expect(applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 })).rejects.toThrow();
+    expect(request.mock.calls.some(([pathname]) => pathname === "/api/harness-config/write")).toBe(false);
   });
 });

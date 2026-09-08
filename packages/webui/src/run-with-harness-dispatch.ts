@@ -7,8 +7,8 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { buildRunPlan, resolveRunWithHarnessTarget, type HarnessBudget, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
-import { resolveHarnessConfig } from "./harness-config-client.js";
+import { buildRunPlan, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessConfig, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
 import { buildDefaultChangeDir } from "./shell-ui.js";
@@ -79,4 +79,30 @@ async function readOpenTaskCount(
   } catch {
     return {};
   }
+}
+
+/** Applies a named configuration to a change, keeping what it does not
+ * mention.
+ *
+ * Lives here rather than in `standalone-entry.tsx` for the reason this
+ * module exists at all: that file is a bootstrap script and is not unit
+ * tested, and this is exactly the kind of logic that needs to be.
+ *
+ * The writer replaces the file, so writing the template alone would
+ * delete every key the change had that the template does not set —
+ * `gitStageAllowlist` above all, which says which paths a chain may
+ * stage. Someone reaching for a cheaper run has not asked for that to be
+ * removed. See applying-a-template-keeps-the-rest.
+ *
+ * A failing read propagates rather than falling back to writing the
+ * template alone: losing a key because a read failed is the same harm
+ * arriving by a different route. */
+export async function applyTemplateToChange(
+  request: ChangeEditorRequest,
+  cwd: string,
+  changeName: string,
+  config: Partial<HarnessConfig>,
+): Promise<void> {
+  const existing = await readChangeHarnessOverride(request, cwd, changeName);
+  await writeHarnessConfig(request, cwd, { ...(existing ?? {}), ...config }, changeName);
 }
