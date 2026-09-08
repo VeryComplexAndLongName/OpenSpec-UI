@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-08
+follows:
+  - validate-failure-says-why
