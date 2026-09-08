@@ -199,11 +199,6 @@
         "icon": "$(debug-stop)"
       },
       {
-        "command": "openspec-ui.startImplementation",
-        "title": "OpenSpec UI: Implement with VS Code Agent",
-        "icon": "$(sparkle)"
-      },
-      {
         "command": "openspec-ui.finishImplementation",
         "title": "OpenSpec UI: Finish Implementation & Review",
         "icon": "$(check-all)"
@@ -362,11 +357,6 @@
           "command": "openspec-ui.archiveChange",
           "when": "viewItem == openspec-ui.activeChange",
           "group": "openspec@1"
-        },
-        {
-          "command": "openspec-ui.startImplementation",
-          "when": "viewItem == openspec-ui.activeChange",
-          "group": "openspec@2"
         },
         {
           "command": "openspec-ui.unarchiveChange",

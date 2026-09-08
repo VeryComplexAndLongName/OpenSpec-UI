@@ -283,6 +283,38 @@ rather than silently becoming an ordinary, unchecked task.
 
 ## Where a chain starts, and what a user can steer
 
+### One way in
+
+There is one entry, in both hosts: **Run with Agentic Harness** — the
+`openspec-ui.runWithHarness` command in VS Code, one button in the
+standalone Change Editor.
+
+It shows what the change's configuration resolves to before starting
+anything: which path will run and why, which agent each stage will use,
+any ceiling that cannot act, and — where the host can read the change's
+task list and audit log — which named configuration is recommended, with
+the observations behind it.
+
+Three paths are offered, with the configured one pre-selected:
+
+- **Run the chain** — `propose → review → apply → verify`, pausing where
+  the configuration says to. This is what `semi-autonomous` and
+  `autonomous` resolve to.
+- **Run one stage** — the single-stage picker. This is what `assisted`
+  resolves to.
+- **Implement with the VS Code agent** — the `apply` stage run by
+  `vscode-chat`. Offered in VS Code only; the standalone shell has no VS
+  Code Chat to open.
+
+Choosing a path other than the configured one applies to that run alone
+and writes nothing to `harness.json`. A run is not a configuration
+change.
+
+The third path used to be its own command, `Implement with VS Code
+Agent`. It no longer appears in any menu: two entries whose correct
+choice depended on a file one of them never read is what made picking
+between them guesswork.
+
 ### Resuming, not always starting at `propose`
 
 A chain does not always start at `propose`. `determineStartStage`

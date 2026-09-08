@@ -11,7 +11,19 @@ describe("resolveRunWithHarnessDispatch", () => {
 
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
-    expect(result).toEqual({ target: "picker", changeDir: "/repo/openspec/changes/demo" });
+    expect(result).toMatchObject({ target: "picker", changeDir: "/repo/openspec/changes/demo" });
+    // one-way-in-to-run: the dispatch now also carries what the entry
+    // will say before it starts anything. Resolving and acting without
+    // showing what was read is what made this button look like it only
+    // changed tabs.
+    expect(result.plan.resolved).toBe("single-stage");
+    expect(result.plan.because).toContain('autonomyLevel is "assisted"');
+    // No VS Code Chat in this host, so that path is not offered — the
+    // same rule as a ceiling that cannot act.
+    expect(result.plan.offered.map((path) => path.id)).not.toContain("vscode-agent");
+    // Nothing to reason a recommendation from here: this shell can read
+    // neither the task list nor the audit log.
+    expect(result.plan.advice).toBeUndefined();
     expect(request.mock.calls[0]?.[0]).toBe("/api/harness-config/resolve");
     expect(JSON.parse((request.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
       cwd: "/repo",

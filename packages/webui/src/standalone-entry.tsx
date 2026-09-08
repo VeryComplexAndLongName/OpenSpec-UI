@@ -43,9 +43,10 @@ import {
 } from "./harness-config-client.js";
 import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
-import { resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
+import { RunDialog } from "./components/RunDialog.js";
+import { resolveRunWithHarnessDispatch, type RunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, RunPathId } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -227,6 +228,9 @@ function StandaloneApp() {
   const [newChangeDescription, setNewChangeDescription] = useState("");
   const [editorMessage, setEditorMessage] = useState<string | null>(null);
   const [chainChangeDir, setChainChangeDir] = useState<string | null>(null);
+  // What the run entry resolved, held so it can be shown before it is
+  // acted on. `null` means no dialog is open.
+  const [runDispatch, setRunDispatch] = useState<RunWithHarnessDispatch | null>(null);
   const [chainBudget, setChainBudget] = useState<HarnessBudget | undefined>(undefined);
   const [runHarnessLoading, setRunHarnessLoading] = useState(false);
   const [runHarnessMessage, setRunHarnessMessage] = useState<string | null>(null);
@@ -399,36 +403,46 @@ function StandaloneApp() {
     }
   }
 
-  /** "Run with Agentic Harness" (agentic-harness-run-menu) — resolves the
+  /** The one way in, for this host (one-way-in-to-run). Resolves the
    * change's harness config fresh on every click (never cached, see
-   * design.md), then dispatches to whichever flow that config's
-   * `autonomyLevel` targets: the existing single-stage picker (`assisted`)
-   * by switching to the "Run a Command" tab pre-loaded with this change,
-   * or `HarnessChainPanel` (`semi-autonomous`/`autonomous`) rendered
-   * inline here. Mirrors `openspec-ui.runWithHarness`'s dispatch in the
-   * VS Code extension — same `resolveRunWithHarnessTarget` decision from
-   * `@openspec-ui/core`, applied over an HTTP-resolved config instead of
-   * a direct Node-side one. */
+   * agentic-harness-run-menu's design.md) and then *shows* what it
+   * resolved rather than acting on it silently.
+   *
+   * It used to dispatch immediately: `assisted` switched to the "Run a
+   * Command" tab, anything else revealed the chain panel. Both were
+   * correct and neither said so, which is why the button looked like it
+   * only changed tabs. */
   async function handleRunWithHarness() {
     if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) return;
     setRunHarnessLoading(true);
     setRunHarnessMessage(null);
     try {
-      const { target, changeDir: targetChangeDir, budget } = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
-      if (target === "chain") {
-        setChainChangeDir(targetChangeDir);
-        setChainBudget(budget);
-      } else {
-        setChainChangeDir(null);
-        setChangeDir(targetChangeDir);
-        setActiveTab("run-a-command");
-      }
+      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
+      setRunDispatch(dispatch);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRunHarnessMessage(`Run with Agentic Harness failed: ${message}`);
     } finally {
       setRunHarnessLoading(false);
     }
+  }
+
+  /** Starts the path that was picked, which is not always the configured
+   * one. Nothing here writes the change's `harness.json`: a run is not a
+   * configuration change, and a later run behaving differently for a
+   * reason nobody recorded is worse than being asked again. */
+  function startChosenRun(path: RunPathId) {
+    if (!runDispatch) return;
+    const { changeDir: targetChangeDir, budget } = runDispatch;
+    setRunDispatch(null);
+    if (path === "chain") {
+      setChainChangeDir(targetChangeDir);
+      setChainBudget(budget);
+      return;
+    }
+    setChainChangeDir(null);
+    setChangeDir(targetChangeDir);
+    setActiveTab("run-a-command");
   }
 
   async function loadTimeline() {
@@ -1096,6 +1110,14 @@ function StandaloneApp() {
 
         {editorMessage ? <p className="openspec-shell-note">{editorMessage}</p> : null}
         {runHarnessMessage ? <p className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</p> : null}
+        {runDispatch ? (
+          <RunDialog
+            changeName={editorChangeName}
+            plan={runDispatch.plan}
+            onChoose={startChosenRun}
+            onDismiss={() => setRunDispatch(null)}
+          />
+        ) : null}
         {chainChangeDir ? (
           <HarnessChainPanel transport={transport} cwd={cwd} changeDir={chainChangeDir} budget={chainBudget} />
         ) : null}
