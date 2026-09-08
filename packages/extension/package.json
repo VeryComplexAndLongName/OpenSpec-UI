@@ -95,6 +95,11 @@
         "icon": "$(graph)"
       },
       {
+        "command": "openspec-ui.explainHarnessSettings",
+        "title": "OpenSpec UI: Explain Harness Settings",
+        "icon": "$(question)"
+      },
+      {
         "command": "openspec-ui.revealInChangeGraph",
         "title": "OpenSpec UI: Reveal in Change Graph",
         "icon": "$(type-hierarchy-sub)"
@@ -387,6 +392,11 @@
           "command": "openspec-ui.showChangeCostReport",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
           "group": "openspec@6"
+        },
+        {
+          "command": "openspec-ui.explainHarnessSettings",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@7"
         },
         {
           "command": "openspec-ui.revealInChangeGraph",

@@ -18,6 +18,7 @@ import {
   archiveChange,
   buildChangeCostReport,
   buildSprintReport,
+  findHarnessConfigLimits,
   checkChangesetReminder,
   createChange,
   customizeTemplate,
@@ -1189,6 +1190,39 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // failed halfway is where the question is most pressing — money went
     // in and nothing shipped — and a command that appeared only on
     // finished changes would be missing exactly then.
+    // Also a command, not only the settings panel: HARNESS.md says
+    // outright that some settings have no control in either host and must
+    // be hand-edited, and a person doing that has no settings screen open.
+    vscode.commands.registerCommand("openspec-ui.explainHarnessSettings", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
+        ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
+      try {
+        const config = await resolveHarnessConfig(workspaceRoot, item?.changeName);
+        const findings = findHarnessConfigLimits(config);
+        if (findings.length === 0) {
+          await vscode.window.showInformationMessage(
+            item
+              ? `Every ceiling configured for ${item.changeName} can act on the agent chosen for its stage.`
+              : "Every ceiling in the global harness configuration can act on the agent chosen for its stage.",
+          );
+          return;
+        }
+        // Shown as a list rather than one message: each finding names a
+        // different stage, and a single string would bury all but the
+        // first.
+        await vscode.window.showQuickPick(
+          findings.map((finding) => ({ label: finding.stage, detail: finding.message, description: finding.agent })),
+          {
+            title: item ? `What ${item.changeName}'s harness settings cannot do` : "What the harness settings cannot do",
+            placeHolder: "These settings are valid and will be used; these ceilings cannot act",
+          },
+        );
+      } catch (error) {
+        await showCommandError("explain the harness settings", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.showChangeCostReport", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }

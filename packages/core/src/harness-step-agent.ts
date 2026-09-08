@@ -106,6 +106,20 @@ export interface HarnessAgentCapabilities {
   /** Which `HarnessStepBudget` field this agent's CLI honours; absent
    * means the agent has no spending-cap mechanism. */
   budgetField?: "maxCostUsd" | "maxAiCredits";
+  /** What this agent reports back about its own spending — the other
+   * direction from `effort` and `budgetField`, which describe what can be
+   * sent to it.
+   *
+   * Recorded here rather than only in LIMITS.md's table because a
+   * spending ceiling is only as wide as the reporting behind it, and a
+   * ceiling that cannot fire is indistinguishable from one that has not
+   * fired yet. Without this the product could not warn about that even
+   * in principle.
+   *
+   * `"unknown"` is deliberately distinct from `"none"`: two ACP adapters
+   * have never been observed here, and recording them as silent would
+   * assert a measurement nobody made. */
+  reports?: "cost-and-tokens" | "tokens-only" | "none" | "unknown";
 }
 
 /** Live-verified for `claude-cli`/`copilot-cli` (`--help` on this
@@ -127,16 +141,29 @@ export interface HarnessAgentCapabilities {
  * is what let the plain/ACP tables drift apart before this change (see
  * acp-agent-capabilities proposal.md). */
 export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCapabilities>> = {
-  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
-  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
-  "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
-  "gemini-cli": {},
-  "local-llm": {},
-  [VSCODE_CHAT_STEP_AGENT_ID]: {},
-  "copilot-cli-acp": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
-  "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd" },
-  "codex-cli-acp": {},
-  "gemini-cli-acp": {},
+  // `reports` values come from LIMITS.md's "Which agents report usage",
+  // which carries the evidence for each. The raw-text agents are `"none"`
+  // with certainty rather than by measurement: plain text output carries
+  // no figure to record.
+  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none" },
+  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none" },
+  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none" },
+  "gemini-cli": { reports: "none" },
+  "local-llm": { reports: "none" },
+  // The run is handed to VS Code chat; this project never sees its cost.
+  [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none" },
+  // Measured 2026-09-04 from this repository's own audit.jsonl: one run
+  // recorded 786,966 input, 4,732 output and 1,308 thought tokens, and no
+  // cost field of any kind.
+  "copilot-cli-acp": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "tokens-only" },
+  // Measured 2026-09-05 from a chain run here: cost in USD, input/output/
+  // cache tokens, and a per-model split.
+  "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "cost-and-tokens" },
+  // Never observed on this machine — neither binary was present when the
+  // adapters were built. `"unknown"`, not `"none"`: asserting silence
+  // would be reporting a measurement nobody made.
+  "codex-cli-acp": { reports: "unknown" },
+  "gemini-cli-acp": { reports: "unknown" },
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,

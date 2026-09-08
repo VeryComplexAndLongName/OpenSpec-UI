@@ -38,6 +38,7 @@ export * from "./agent-usage.js";
 export * from "./verified-agent-versions.js";
 export * from "./usage-report.js";
 export * from "./change-cost-report.js";
+export * from "./harness-config-findings.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

@@ -223,6 +223,11 @@ agents those are.
 A chain ceiling is only as wide as the reporting behind it. Which agent
 ran a stage decides whether that stage counted toward the ceiling at all.
 
+This table is also recorded in code, as `reports` on each agent's entry
+in `HARNESS_AGENT_CAPABILITIES` (`harness-step-agent.ts`) — the product
+warns about a ceiling that cannot act by reading it. **Measure an agent
+and update both**, or the warning and this page will disagree.
+
 | Agent | Reports usage | Evidence | Source |
 | --- | --- | --- | --- |
 | `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |

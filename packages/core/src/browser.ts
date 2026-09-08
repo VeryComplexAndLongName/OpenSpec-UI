@@ -19,6 +19,10 @@ export type {
   TemplateVariable,
 } from "./template-catalog.js";
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
+// Pure over a resolved config, with only type imports from the Node-side
+// modules — safe in the browser bundle, unlike harness-config.js itself.
+export { findHarnessConfigLimits } from "./harness-config-findings.js";
+export type { HarnessFinding, HarnessFindingKind } from "./harness-config-findings.js";
 export type {
   HarnessAutonomyLevel,
   HarnessBudget,

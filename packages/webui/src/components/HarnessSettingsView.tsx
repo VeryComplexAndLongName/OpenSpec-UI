@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AGENT_REGISTRY,
   HARNESS_AGENT_CAPABILITIES,
+  findHarnessConfigLimits,
   isHarnessStepAgentStage,
   normalizeStepAgent,
   VSCODE_CHAT_STEP_AGENT_ID,
@@ -13,6 +14,7 @@ import {
   type HarnessStepAgent,
   type HarnessStepAgentStage,
   type HarnessStepAgents,
+  type HarnessFinding,
 } from "@openspec-ui/core/browser";
 
 // Harness Settings — see openspec/changes/agentic-harness/. Two levels:
@@ -198,6 +200,33 @@ function BudgetInput({ stage, agentId, value, onChange, ariaLabel }: { stage: st
   );
 }
 
+/** What the configuration on screen cannot do. Rendered above the
+ * settings themselves rather than behind a command: a warning someone has
+ * to ask for is read by someone who already suspects the problem, which
+ * is exactly the reader who did not need it.
+ *
+ * Nothing is rendered when there is nothing to say. A surface that warns
+ * about a correct configuration becomes noise people learn to ignore. */
+function HarnessFindingsPanel({ findings }: { findings: readonly HarnessFinding[] }) {
+  if (findings.length === 0) return null;
+  return (
+    <section className="openspec-harness-findings" data-testid="harness-findings">
+      <h3>What this configuration cannot do</h3>
+      <p className="openspec-shell-note">
+        These settings are valid and will be saved. A ceiling that cannot act is otherwise
+        indistinguishable from one that has not acted yet.
+      </p>
+      <ul>
+        {findings.map((finding) => (
+          <li key={`${finding.kind}:${finding.stage}`} data-testid={`harness-finding-${finding.stage}`}>
+            {finding.message}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [globalConfig, setGlobalConfig] = useState<HarnessConfig | null>(null);
   const [globalStepAgents, setGlobalStepAgents] = useState<StepAgentsForm>(toForm(undefined));
@@ -205,6 +234,18 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [globalBudget, setGlobalBudget] = useState<StepBudgetForm>(toBudgetForm(undefined));
   const [globalAutonomyLevel, setGlobalAutonomyLevel] = useState<HarnessAutonomyLevel>("assisted");
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
+  // Recomputed as the operator changes an agent, not only on load: the
+  // warning has to appear while the choice is being made.
+  const findings = useMemo<HarnessFinding[]>(() => {
+    if (!globalConfig) return [];
+    const stepAgents: HarnessStepAgents = {};
+    for (const stage of STAGES) {
+      if (!isHarnessStepAgentStage(stage)) continue;
+      const agent = globalStepAgents[stage];
+      if (agent) stepAgents[stage] = agent;
+    }
+    return findHarnessConfigLimits({ ...globalConfig, stepAgents });
+  }, [globalConfig, globalStepAgents]);
   const [globalLoading, setGlobalLoading] = useState(false);
 
   const [changeName, setChangeName] = useState("");
@@ -292,6 +333,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
 
   return (
     <div data-testid="harness-settings-view">
+      <HarnessFindingsPanel findings={findings} />
       <section>
         <h3>Global default</h3>
         <p className="openspec-shell-note">
