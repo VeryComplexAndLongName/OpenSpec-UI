@@ -13,6 +13,8 @@ import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { instructionsForArtifact } from "./openspec.js";
+import type { HarnessEffort } from "./harness-step-agent.js";
+import type { HarnessStage } from "./harness-stage.js";
 import type { CommandContext, CommandKind, VerifiedDeltaEntry } from "./protocol.js";
 
 export interface AllowlistRule {
@@ -350,6 +352,17 @@ export interface AuditEntry {
    * — never from a second spawn. Absent when it could not be determined;
    * this never affects whether the run itself is recorded. */
   agentVersion?: string;
+  /** Which chain stage this run was, when it was part of a chain. Absent
+   * for a single-stage run, and never inferred for an entry written
+   * before this field existed — every stage of a chain runs under the
+   * chain's own `runId`, so nothing else here can say which stage spent
+   * what, and a guessed attribution would be worse than none. */
+  stage?: HarnessStage;
+  /** The reasoning effort the agent was asked for, where one was asked
+   * for. Recorded because a figure without it is not comparable: the same
+   * stage on the same agent at `high` and at `medium` are different runs,
+   * and a recommendation averaging them would be averaging two things. */
+  effort?: HarnessEffort;
 }
 
 export interface AuditLog {

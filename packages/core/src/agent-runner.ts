@@ -167,6 +167,8 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         changeDir: command.context.changeDir,
         invocation,
         ...(agentVersion !== undefined ? { agentVersion } : {}),
+        ...(command.stage !== undefined ? { stage: command.stage } : {}),
+        ...(command.effort !== undefined ? { effort: command.effort } : {}),
       });
 
       const controller = new AbortController();
@@ -188,7 +190,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
             lastOutcome = "failed";
             lastReason = event.reason;
           }
-          if (event.kind === "cancelled") lastOutcome = "cancelled";
+          if (event.kind === "cancelled") {
+            lastOutcome = "cancelled";
+            // Carried onto the one entry this run writes rather than a
+            // second one: a ceiling naming itself is how a report tells a
+            // rule firing from a person clicking, and two entries for the
+            // same run would be counted twice.
+            if (event.reason !== undefined) lastReason = event.reason;
+          }
           // Last one wins: an agent may report progressively, and the
           // final report is the one describing the whole run.
           if (event.kind === "usageReported") lastUsage = event.usage;
@@ -211,6 +220,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           reason: lastReason,
           summary: lastSummary,
           ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
+          // Absent for a single-stage run, which is the fact rather than
+          // a gap: a `review` someone started by itself is a stage of
+          // nothing.
+          ...(command.stage !== undefined ? { stage: command.stage } : {}),
+          ...(command.effort !== undefined ? { effort: command.effort } : {}),
         });
       }
     },

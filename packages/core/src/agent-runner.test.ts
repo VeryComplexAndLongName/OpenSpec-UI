@@ -42,6 +42,77 @@ async function* okEvents(runId: string): AsyncGenerator<Event> {
   yield { kind: "completed", runId, timestamp: "t", summary: "diff" };
 }
 
+describe("createAgentRunner — what the record says (stage-spend-is-bounded-and-recorded)", () => {
+  it("records the stage and effort a chain asked for", async () => {
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-stage",
+      context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
+      stage: "apply",
+      effort: "high",
+    };
+
+    for await (const _e of runner.run(command)) { /* drained */ }
+
+    expect(auditLog.entries.every((entry) => entry.stage === "apply")).toBe(true);
+    expect(auditLog.entries.every((entry) => entry.effort === "high")).toBe(true);
+  });
+
+  it("records no stage for a run that is part of no chain", async () => {
+    // Absent is the fact, not a gap: a review someone started by itself
+    // is a stage of nothing, and inventing one would be a false record.
+    const { adapter } = makeFakeAdapter((invocation, command) => okEvents(command.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "review",
+      cwd: workspaceRoot,
+      runId: "run-single",
+      context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
+    };
+
+    for await (const _e of runner.run(command)) { /* drained */ }
+
+    expect(auditLog.entries.every((entry) => entry.stage === undefined)).toBe(true);
+  });
+
+  it("carries a cancellation reason onto the one entry the run writes, not a second entry", async () => {
+    // Double-recording is the failure this shape avoids: a report that
+    // saw the same run twice would count its spend twice.
+    const { adapter } = makeFakeAdapter(async function* (invocation, command) {
+      yield { kind: "started", runId: command.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield {
+        kind: "cancelled",
+        runId: command.runId,
+        timestamp: "t",
+        reason: 'stopped "apply" at the stage time limit: timeout.maxStageSeconds is 600s',
+      };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-cut",
+      context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
+      stage: "apply",
+    };
+
+    for await (const _e of runner.run(command)) { /* drained */ }
+
+    const terminal = auditLog.entries.filter((entry) => entry.outcome === "cancelled");
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0]?.reason).toContain("maxStageSeconds");
+  });
+});
+
 describe("createAgentRunner — cwd sandbox (task 3.5)", () => {
   it("blocks a cwd outside the workspace before spawning the adapter", async () => {
     const { adapter, executeCalls } = makeFakeAdapter((invocation, command) => okEvents(command.runId));

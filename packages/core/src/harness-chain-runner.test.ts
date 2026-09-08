@@ -973,6 +973,90 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
   });
 });
 
+describe("HarnessChainRunner — per-stage spend (stage-spend-is-bounded-and-recorded)", () => {
+  function reportingRunner(usage: Record<string, number>): AgentRunner {
+    return {
+      async *run(command) {
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "usageReported", runId: command.runId, timestamp: "t", usage };
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+  }
+
+  it("stops the chain after a stage that reported more than the per-stage ceiling", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxStageCostUsd: 1 },
+    });
+    mockStatus(false);
+
+    const chain = new HarnessChainRunner({ resolveRunner: () => reportingRunner({ costUsd: 4.5 }) });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    const failed = events.find((e) => e.kind === "failed");
+    expect(failed).toBeDefined();
+    expect((failed as { reason: string }).reason).toContain("maxStageCostUsd");
+    expect((failed as { reason: string }).reason).toContain("$4.50");
+  });
+
+  it("does not stop the chain when the agent reported nothing to compare", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxStageCostUsd: 1 },
+    });
+    mockStatus(false);
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(
+      () => expect(events.some((e) => e.kind === "checkpoint")).toBe(true),
+      "the checkpoint after a stage the ceiling could not judge",
+    );
+    chain.cancel(command.runId);
+    await pump;
+
+    expect(events.some((e) => e.kind === "failed")).toBe(false);
+  });
+
+  it("passes the stage on the command, so a record can say which stage spent what", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(() => expect(calls.length).toBeGreaterThan(0), "the first stage command");
+    chain.cancel(command.runId);
+    await pump;
+
+    expect(calls[0]?.stage).toBe("propose");
+  });
+});
+
 describe("HarnessChainRunner — time limits (run-has-a-time-limit)", () => {
   /** A runner whose stage hangs until released — the shape a stage that
    * has stopped making progress presents, which is what a time ceiling

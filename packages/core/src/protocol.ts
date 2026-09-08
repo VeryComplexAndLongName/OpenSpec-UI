@@ -110,6 +110,15 @@ export interface Command {
    * an agent whose `HARNESS_AGENT_CAPABILITIES` entry declares a
    * `budgetField`. */
   budget?: HarnessStepBudget;
+  /** Which chain stage this command is running, when it is part of one.
+   * Set by `HarnessChainRunner` beside `model`/`effort`/`budget`, and
+   * absent for a single-stage run — which is not a gap but the fact: a
+   * `review` a person started by itself belongs to no stage of anything.
+   *
+   * Recorded on the audit entry, because every stage of a chain runs
+   * under the chain's own `runId` (ADR 0012), so nothing else in the
+   * record can say which stage spent what. */
+  stage?: HarnessStage;
   /** Only meaningful for a `"resolvePermission"` command: the `requestId`
    * of the `PermissionRequestEvent` being answered (see protocol.ts's
    * `PermissionRequestEvent`). Ignored for every other command kind. */
