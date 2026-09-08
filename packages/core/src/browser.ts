@@ -23,6 +23,8 @@ export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./c
 // modules — safe in the browser bundle, unlike harness-config.js itself.
 export { findHarnessConfigLimits } from "./harness-config-findings.js";
 export { HARNESS_TEMPLATES, templatesForScope } from "./harness-templates.js";
+export { recommendTemplate } from "./harness-recommendation.js";
+export type { HarnessRecommendation, RecommendationInput } from "./harness-recommendation.js";
 export type { HarnessTemplate, HarnessTemplateScope } from "./harness-templates.js";
 export type { HarnessFinding, HarnessFindingKind } from "./harness-config-findings.js";
 export type {

@@ -19,8 +19,9 @@ from one change's own history. Most changes have a single recorded run
 and many have none that reported a cost; a figure drawn from that is
 arithmetic presented as evidence.
 
-Applying it SHALL be an action a person takes, not something that happens
-on their behalf.
+The recommendation SHALL report rather than configure. A person applies
+the named configuration themselves; one nobody chose is one nobody can be
+expected to understand when it acts.
 
 #### Scenario: A change with no history
 

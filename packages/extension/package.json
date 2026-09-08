@@ -100,6 +100,11 @@
         "icon": "$(question)"
       },
       {
+        "command": "openspec-ui.recommendHarnessTemplate",
+        "title": "OpenSpec UI: Recommend a Harness Configuration",
+        "icon": "$(lightbulb)"
+      },
+      {
         "command": "openspec-ui.revealInChangeGraph",
         "title": "OpenSpec UI: Reveal in Change Graph",
         "icon": "$(type-hierarchy-sub)"
@@ -397,6 +402,11 @@
           "command": "openspec-ui.explainHarnessSettings",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
           "group": "openspec@7"
+        },
+        {
+          "command": "openspec-ui.recommendHarnessTemplate",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@8"
         },
         {
           "command": "openspec-ui.revealInChangeGraph",
