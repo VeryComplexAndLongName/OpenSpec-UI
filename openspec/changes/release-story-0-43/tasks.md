@@ -34,6 +34,11 @@ does not exist yet is an article describing what someone intends to show.
   that was computed and one that was observed; an article is not the
   place to lose it.
 - [x] 2.4 Says what still does not work, not only what now does.
+- [x] 2.5 A short companion post, kept beside the article rather than in
+  a temporary directory. **Added at the owner's request**, and the second
+  half of it is the correction: the previous one of these lived in a
+  scratchpad, and "where is it" has now been asked twice. A deliverable
+  nobody can find is not delivered.
 
 ## 3. Verification
 
