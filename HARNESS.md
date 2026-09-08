@@ -310,19 +310,28 @@ This is a safety choice, not an arbitrary default: a redundant `apply`
 costs one wasted run; a wrong `archive` costs an unimplemented change
 being marked done. The cheaper mistake is the one the harness risks.
 
-### A chain runs forward only
+### A chain runs forward, with one exception it can justify
 
 **There is no control that steps a running chain back to an earlier
-stage.** Two genuinely separate mechanisms answer "can I move around
-inside a change":
+stage,** and there is exactly one edge the chain takes on its own. Three
+things answer "can I move around inside a change":
 
-- A **chain** (`propose → review → apply → verify → archive → git`) only
-  ever advances. Cancelling ends it; there is no "go back one stage."
+- A **chain** (`propose -> review -> apply -> verify -> archive -> git`)
+  advances. Cancelling ends it; there is no "go back one stage."
+- **`verify` may send work back to `apply`**, and only that. `verify`
+  writes each declared mechanical check's result onto its own task's
+  checkbox, so a failing check unchecks the task — which `archive` would
+  then refuse. Where `maxStageAttempts` allows another attempt, the chain
+  returns to `apply` instead of failing at the next stage; where it does
+  not, `archive` refuses exactly as before. This is not a general
+  step-back: it is one condition the machine can evaluate, from the one
+  stage that produces a machine-checked statement that earlier work is
+  unfinished.
 - The panel's **per-stage commands** (`plan`, `review`, `implement`,
   `verify`) go through `RunController` directly, independent of any
   chain. Running `review` again by itself, after a chain has already
-  moved past it, is how you "go back" — as a fresh, standalone run, not
-  as a rewound chain.
+  moved past it, is how you "go back" anywhere else — as a fresh,
+  standalone run, not as a rewound chain.
 
 ### What a checkpoint offers
 
