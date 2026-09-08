@@ -34,6 +34,9 @@ export function RunDialog(
       <h3>{`Run ${changeName}`}</h3>
       <p className="openspec-shell-note" data-testid="run-dialog-because">{plan.because}.</p>
 
+      {/* Headed, because the two lists below are both bullets and read as
+          one list without them — found by looking at the captured
+          screenshot, not by a test. */}
       <p className="openspec-shell-note"><strong>Which agent runs each stage</strong></p>
       <ul className="openspec-shell-note" data-testid="run-dialog-stage-agents">
         {plan.stageAgents.map((entry) => (

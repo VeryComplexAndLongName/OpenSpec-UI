@@ -122,6 +122,15 @@ test.describe("standalone harness screenshots", () => {
       // change is "semi-autonomous", so the configured path is the chain.
       await expect(page.getByTestId("run-dialog")).toBeVisible({ timeout: 15000 });
       await expect(page.getByTestId("run-dialog-because")).toContainText("semi-autonomous");
+      // Waited for before capturing: the stage list is what makes the
+      // picture worth having, and a screenshot taken before it renders
+      // would show the dialog mid-mount.
+      await expect(page.getByTestId("run-dialog-stage-agents")).toBeVisible();
+      // Scoped to the dialog, not `fullPage`. The rest of the Change
+      // Editor is already its own image, and a capture containing both
+      // makes the reader hunt for the half this one is about.
+      await page.getByTestId("run-dialog")
+        .screenshot({ path: path.join(IMAGES_DIR, "run-dialog.png") });
       await page.getByTestId("run-dialog-path-chain").click();
       // Choosing the path reveals HarnessChainPanel, which has its own
       // "Start chain" button that must be clicked to actually start the
