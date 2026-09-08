@@ -30,6 +30,9 @@ Agentic Harness", one above the other, doing different things.
   285 extension, 62 server, 277 webui — webui up 1.
 - [x] 3.3 Version bump via `npx changeset` for `webui`.
   Done: `.changeset/two-buttons-two-names.md`.
-- [ ] 3.4 **Human-only**: open the standalone UI with a change whose
+- [x] 3.4 **Human-only**: open the standalone UI with a change whose
   configuration opens the chain panel, and confirm the two buttons now
   read differently.
+  Confirmed live in the standalone UI on 2026-09-08 with an autonomous
+  disposable change: the dispatch button read `Run with Agentic Harness`
+  and the inner chain button read `Start chain` at the same time.

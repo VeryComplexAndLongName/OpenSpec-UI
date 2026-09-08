@@ -85,9 +85,15 @@ down by stage is what the report and the recommendation both need.
   that it is checked when a stage ends. Keep the existing statement that
   a spending ceiling never interrupts a running stage — this one does not
   change that, and a reader must not conclude otherwise from its name.
-- [ ] 5.5 **Human-only**: run a chain and read the audit log, confirming
+- [x] 5.5 **Human-only**: run a chain and read the audit log, confirming
   each stage's entry names its stage and effort, and that a run cut by a
   time ceiling carries the reason exactly once.
+  Confirmed live in the standalone UI on 2026-09-08 with a disposable
+  autonomous change. The panel showed `verify (claude-cli)` cut at
+  `timeout.maxStageSeconds is 5s`; `.openspec-ui/audit.jsonl` contained
+  `stage: "verify"` and `effort: "low"` on both entries, and exactly one
+  terminal `cancelled` entry with reason
+  `stopped "verify" at the stage time limit: timeout.maxStageSeconds is 5s`.
 
 ## 6. What the live run found
 
@@ -126,7 +132,8 @@ entry it triggers had nothing to write.
   typecheck clean; lint clean apart from one warning that predates this
   change (`killTimer` unused in `packages/core/src/agents/shared.ts:210`);
   tests 48 cli, 687 core, 285 extension, 62 server, 276 webui — core up 2.
-- [ ] 6.7 **Human-only**: this is task 5.5. Cut a stage at a time ceiling
+- [x] 6.7 **Human-only**: this is task 5.5. Cut a stage at a time ceiling
   again and read `.openspec-ui/audit.jsonl` — the cancelled entry should
   now name the ceiling and its value, and there should still be exactly
   one terminal entry for that run.
+  Confirmed by the same live run and audit record described in task 5.5.
