@@ -46,7 +46,7 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { resolveRunWithHarnessDispatch, type RunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, RunPathId } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -422,6 +422,28 @@ function StandaloneApp() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRunHarnessMessage(`Run with Agentic Harness failed: ${message}`);
+    } finally {
+      setRunHarnessLoading(false);
+    }
+  }
+
+  /** Writes a named configuration to this change and re-reads the plan,
+   * so the dialog reflects what it now resolves to rather than what it
+   * read before the write.
+   *
+   * Unlike choosing a path, this does write. A path is chosen for one
+   * run; a configuration is chosen until someone changes it, and a
+   * recommendation that cannot be acted on is a remark. */
+  async function applyTemplateToChange(template: HarnessTemplate) {
+    if (!runDispatch) return;
+    setRunHarnessLoading(true);
+    try {
+      await writeHarnessConfigApi(apiFetch, cwd, template.config, editorChangeName);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
+      setRunHarnessMessage(`Applied "${template.title}" to ${editorChangeName}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRunHarnessMessage(`Applying "${template.title}" failed: ${message}`);
     } finally {
       setRunHarnessLoading(false);
     }
@@ -1115,6 +1137,7 @@ function StandaloneApp() {
             changeName={editorChangeName}
             plan={runDispatch.plan}
             onChoose={startChosenRun}
+            onApplyTemplate={(template) => void applyTemplateToChange(template)}
             onDismiss={() => setRunDispatch(null)}
           />
         ) : null}

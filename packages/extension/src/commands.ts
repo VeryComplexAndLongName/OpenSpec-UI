@@ -21,6 +21,8 @@ import {
   findHarnessConfigLimits,
   readTaskChecklist,
   buildRunPlan,
+  templatesForScope,
+  type HarnessTemplate,
   type RunPlan,
   type RunPathId,
   type RecommendationInput,
@@ -554,46 +556,89 @@ async function readRecommendationInput(
   }
 }
 
+/** `vscode.QuickPickItemKind.Separator`. Taken as a literal rather than
+ * from the enum so the test double, which stubs the window API and not
+ * the enums, does not have to grow a copy of it. */
+const QUICK_PICK_SEPARATOR = -1;
+
+/** What the dialog can be answered with. Starting a run and configuring
+ * the change are different acts: a path is chosen for one run and writes
+ * nothing, a named configuration is written and holds until someone
+ * changes it. */
+type RunChoice =
+  | { kind: "path"; path: RunPathId }
+  | { kind: "apply-template"; template: HarnessTemplate };
+
 /** Shows what the configuration resolves to and lets it be changed for
  * this run only. Nothing here writes `harness.json`: a run is not a
  * configuration change, and a later run behaving differently for a reason
  * nobody recorded is worse than being asked again. */
-async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunPathId | undefined> {
+async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunChoice | undefined> {
   const advice = plan.advice;
-  const adviceLine = advice === undefined
-    ? undefined
-    : advice.needsPerson
-      ? "Recommended: a person should look — " + advice.grounds.join("; ")
-      : `Recommended configuration: ${advice.template?.title ?? "none"} — ${advice.grounds.join("; ")}`;
 
-  const items = plan.offered.map((path) => ({
+  const items: Array<{ label: string; detail?: string; description?: string; choice?: RunChoice; kind?: number }> = [];
+
+  // The advice leads, as its own item. It used to ride in `placeHolder`,
+  // a grey line that truncates — present in the object and absent from
+  // the reader, which is the same defect this dialog exists to fix.
+  // See run-dialog-actually-advises.
+  if (advice) {
+    items.push({ label: "Recommended", kind: QUICK_PICK_SEPARATOR });
+    items.push({
+      label: advice.needsPerson
+        ? "$(person) A person should look, rather than a larger ceiling"
+        : `$(lightbulb) Apply "${advice.template?.title ?? "none"}"`,
+      // The grounds travel with the answer. A recommendation whose
+      // reasons are hidden can only be accepted or ignored.
+      detail: advice.grounds.join("  ·  "),
+      ...(advice.needsPerson || !advice.template
+        ? {}
+        : { choice: { kind: "apply-template", template: advice.template } as RunChoice }),
+    });
+  }
+
+  items.push({ label: "Start", kind: QUICK_PICK_SEPARATOR });
+  const paths = plan.offered.map((path) => ({
     label: path.id === plan.resolved ? `${path.title}  (configured)` : path.title,
     detail: path.id === plan.resolved ? `${path.describes}  ${plan.because}.` : path.describes,
-    id: path.id,
+    choice: { kind: "path", path: path.id } as RunChoice,
   }));
   // The configured path first, so the pick opens on it. `showQuickPick`
   // has no preselection for a single pick — same stand-in the setup
   // wizard uses.
-  items.sort((a, b) => (a.id === plan.resolved ? -1 : b.id === plan.resolved ? 1 : 0));
+  paths.sort((a, b) => (a.choice.kind === "path" && a.choice.path === plan.resolved ? -1
+    : b.choice.kind === "path" && b.choice.path === plan.resolved ? 1 : 0));
+  items.push(...paths);
+
+  // Every named configuration a change may be given, so a recommendation
+  // is something a person can act on rather than a remark. Scoped by the
+  // same function the settings view uses, so a template that would be
+  // refused on save is never offered.
+  items.push({ label: "Or apply a named configuration", kind: QUICK_PICK_SEPARATOR });
+  for (const template of templatesForScope("change")) {
+    items.push({
+      label: template.id === advice?.template?.id ? `${template.title}  (recommended)` : template.title,
+      description: template.intent,
+      detail: `Not for: ${template.notFor}`,
+      choice: { kind: "apply-template", template } as RunChoice,
+    });
+  }
 
   const stages = plan.stageAgents
     .map((entry) => `${entry.stage}: ${entry.agent ?? "no agent set"}`)
     .join(", ");
-  // Findings and advice ride in the placeholder rather than a second
-  // dialog: a ceiling that cannot act is worth knowing while the money
-  // has not been spent, and a message shown after the pick is a message
-  // shown too late.
-  const warning = plan.findings.length === 0
-    ? undefined
+  // Said either way. Rendering nothing when every ceiling can act makes
+  // "examined and fine" identical to "not examined".
+  const ceilings = plan.findings.length === 0
+    ? "every ceiling can act"
     : `${plan.findings.length} setting(s) cannot act — ${plan.findings.map((f) => f.stage).join(", ")}`;
-  const placeHolder = [stages, warning, adviceLine].filter((line) => line !== undefined).join("  |  ");
 
   const picked = await vscode.window.showQuickPick(items, {
     title: `Run ${changeName}`,
-    placeHolder,
+    placeHolder: `${stages}  |  ${ceilings}`,
     ignoreFocusOut: true,
   });
-  return picked?.id;
+  return picked?.choice;
 }
 
 /** The path that used to be `openspec-ui.startImplementation`. It is not
@@ -1120,7 +1165,19 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const chosen = await pickRunPath(item.changeName, plan);
         if (!chosen) return;
 
-        if (chosen === "vscode-agent") {
+        // Applying a named configuration writes the change's file and
+        // starts nothing. The run that follows should be the one the file
+        // describes, which means reading it again — so this ends here and
+        // the person opens Run once more, now configured.
+        if (chosen.kind === "apply-template") {
+          await writeChangeHarnessConfig(workspaceRoot, item.changeName, chosen.template.config);
+          void vscode.window.showInformationMessage(
+            `OpenSpec UI: applied "${chosen.template.title}" to ${item.changeName}. Run it again to start.`,
+          );
+          return;
+        }
+
+        if (chosen.path === "vscode-agent") {
           await startVsCodeAgentImplementation(deps, workspaceRoot, item);
           return;
         }
@@ -1129,8 +1186,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // would describe a control that is not on screen.
         deps.revealAiPanel({
           ...dashboardContext(workspaceRoot, item.changeDir),
-          startChain: chosen === "chain",
-          runChange: chosen !== "chain",
+          startChain: chosen.path === "chain",
+          runChange: chosen.path !== "chain",
         });
       } catch (error) {
         await showCommandError("resolve Agentic Harness config", error);

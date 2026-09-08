@@ -296,9 +296,21 @@ named after another.
 
 It shows what the change's configuration resolves to before starting
 anything: which path will run and why, which agent each stage will use,
-any ceiling that cannot act, and — where the host can read the change's
-task list and audit log — which named configuration is recommended, with
-the observations behind it.
+whether every ceiling can act (said either way, so "examined and fine"
+never looks like "not examined"), and which named configuration is
+recommended, with the observations behind it.
+
+The recommendation appears in both hosts. It reads the change's open task
+count — over HTTP in the standalone shell, from the file in the editor —
+and, in the editor, the audit log as well. Where a host cannot read the
+run history, the recommendation says there is no previous run to go on
+rather than implying it looked.
+
+The three named configurations are offered in the same place, each with
+what it is for and when it is the wrong choice. Applying one **writes**
+the change's `harness.json` and starts nothing: a path is chosen for one
+run, a configuration is chosen until someone changes it, and the run that
+follows should be the one the file describes.
 
 Three paths are offered, with the configured one pre-selected:
 

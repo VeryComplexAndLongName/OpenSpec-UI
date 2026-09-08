@@ -1,9 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 
-function fakeRequest(config: unknown) {
-  return vi.fn().mockResolvedValue(new Response(JSON.stringify(config), { status: 200 }));
+/** Answers per route. A single `mockResolvedValue` cannot serve both
+ * calls this makes: a `Response` body reads once, so the second caller
+ * gets a stream error and the recommendation would go missing for a
+ * reason the test never intended (run-dialog-actually-advises). */
+function fakeRequest(config: unknown, timeline?: unknown) {
+  return vi.fn().mockImplementation((pathname: string) => {
+    if (pathname === "/api/change-timeline") {
+      return Promise.resolve(timeline === undefined
+        ? new Response(JSON.stringify({ error: "no timeline" }), { status: 500 })
+        : new Response(JSON.stringify(timeline), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify(config), { status: 200 }));
+  });
 }
+
+const ASSISTED = { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } };
 
 describe("resolveRunWithHarnessDispatch", () => {
   it("targets the picker for assisted, and computes the change's directory", async () => {
@@ -21,8 +34,8 @@ describe("resolveRunWithHarnessDispatch", () => {
     // No VS Code Chat in this host, so that path is not offered — the
     // same rule as a ceiling that cannot act.
     expect(result.plan.offered.map((path) => path.id)).not.toContain("vscode-agent");
-    // Nothing to reason a recommendation from here: this shell can read
-    // neither the task list nor the audit log.
+    // No timeline in this fixture, so nothing to reason from — and
+    // absent rather than a recommendation drawn from a guessed zero.
     expect(result.plan.advice).toBeUndefined();
     expect(request.mock.calls[0]?.[0]).toBe("/api/harness-config/resolve");
     expect(JSON.parse((request.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
@@ -61,5 +74,59 @@ describe("resolveRunWithHarnessDispatch", () => {
     );
 
     await expect(resolveRunWithHarnessDispatch(request, "/repo", "demo")).rejects.toThrow("Invalid harness config");
+  });
+});
+
+describe("resolveRunWithHarnessDispatch — what it advises", () => {
+  // The recommendation was left out of this host on the recorded ground
+  // that the shell "can read neither the task list nor the audit log".
+  // Half of that was never checked: `/api/change-timeline` returns every
+  // task with its `done` state.
+
+  function timelineWith(open: number, done: number) {
+    return {
+      changeName: "demo",
+      archived: false,
+      createdDate: null,
+      archivedDate: null,
+      proposal: "",
+      design: "",
+      specs: [],
+      tasks: [
+        ...Array.from({ length: open }, (_, index) => ({ text: `open ${index}`, done: false, lineNumber: index })),
+        ...Array.from({ length: done }, (_, index) => ({ text: `done ${index}`, done: true, lineNumber: open + index })),
+      ],
+    };
+  }
+
+  it("recommends from the change's open task count, naming it", async () => {
+    const request = fakeRequest(ASSISTED, timelineWith(20, 3));
+
+    const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
+
+    expect(result.plan.advice?.template?.id).toBe("careful");
+    expect(result.plan.advice?.grounds.join(" ")).toContain("20 tasks still open");
+    // The audit log is genuinely not served here, and the recommendation
+    // is built to say so rather than imply it looked.
+    expect(result.plan.advice?.grounds.join(" ")).toContain("no previous run to go on");
+  });
+
+  it("counts only the tasks that are still open", async () => {
+    const request = fakeRequest(ASSISTED, timelineWith(2, 30));
+
+    const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
+
+    expect(result.plan.advice?.grounds.join(" ")).toContain("2 tasks still open");
+    expect(result.plan.advice?.template?.id).toBe("thrifty");
+  });
+
+  it("gives no recommendation when the timeline cannot be read", async () => {
+    // Absent is honest; zero is a claim, and it happens to be the claim
+    // that produces the thriftiest answer.
+    const request = fakeRequest(ASSISTED);
+
+    const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
+
+    expect(result.plan.advice).toBeUndefined();
   });
 });

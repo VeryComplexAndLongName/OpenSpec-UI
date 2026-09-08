@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-08
+follows:
+  - one-way-in-to-run
+  - recommend-a-template
