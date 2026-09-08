@@ -316,6 +316,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     archiveView,
     templatesView,
     changeGraphView,
+    // Undefined without an open workspace, where there is nowhere for an
+    // audit log to live — the same real case `chain-runner-audit-deps.ts`
+    // treats as absent rather than as a reader over nothing.
+    ...(auditLog ? { readAuditEntries: () => (auditLog as FileAuditLog).readEntries() } : {}),
   });
   registerOpenSpecChatParticipant(context, { getWorkspaceRoot });
 

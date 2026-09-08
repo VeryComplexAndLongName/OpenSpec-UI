@@ -90,6 +90,11 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "openspec-ui.showChangeCostReport",
+        "title": "OpenSpec UI: Show What This Change Cost",
+        "icon": "$(graph)"
+      },
+      {
         "command": "openspec-ui.revealInChangeGraph",
         "title": "OpenSpec UI: Reveal in Change Graph",
         "icon": "$(type-hierarchy-sub)"
@@ -377,6 +382,11 @@
           "command": "openspec-ui.showChangeAncestry",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
           "group": "openspec@5"
+        },
+        {
+          "command": "openspec-ui.showChangeCostReport",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "group": "openspec@6"
         },
         {
           "command": "openspec-ui.revealInChangeGraph",
