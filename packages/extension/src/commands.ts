@@ -556,6 +556,24 @@ async function readRecommendationInput(
   }
 }
 
+/** A quick-pick gives one line per field and cuts the rest without
+ * saying so. Measured from a screenshot on 2026-09-08: the placeholder
+ * ended "every c…" and a recommendation's grounds ended "reads as short
+ * …".
+ *
+ * So text that will not fit is shortened here, where the ellipsis is
+ * deliberate, rather than by the control, where it lands mid-word and
+ * reads as a rendering accident. The width is a judgement — a quick-pick
+ * has no width to ask — sized from the same screenshot.
+ *
+ * The real fix is a surface that can hold a paragraph; this keeps the
+ * one that cannot from lying about it. */
+const QUICK_PICK_LINE = 96;
+
+function fitOneLine(text: string): string {
+  return text.length <= QUICK_PICK_LINE ? text : `${text.slice(0, QUICK_PICK_LINE - 1).trimEnd()}…`;
+}
+
 /** `vscode.QuickPickItemKind.Separator`. Taken as a literal rather than
  * from the enum so the test double, which stubs the window API and not
  * the enums, does not have to grow a copy of it. */
@@ -589,8 +607,9 @@ async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunChoice
         ? "$(person) A person should look, rather than a larger ceiling"
         : `$(lightbulb) Apply "${advice.template?.title ?? "none"}"`,
       // The grounds travel with the answer. A recommendation whose
-      // reasons are hidden can only be accepted or ignored.
-      detail: advice.grounds.join("  ·  "),
+      // reasons are hidden can only be accepted or ignored — and one cut
+      // mid-sentence is hidden in a way that looks like it is not.
+      detail: fitOneLine(advice.grounds.join("  ·  ")),
       ...(advice.needsPerson || !advice.template
         ? {}
         : { choice: { kind: "apply-template", template: advice.template } as RunChoice }),
@@ -617,8 +636,18 @@ async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunChoice
   items.push({ label: "Or apply a named configuration", kind: QUICK_PICK_SEPARATOR });
   for (const template of templatesForScope("change")) {
     items.push({
+      // No `description`: that field renders right of the label and is
+      // the first thing a quick-pick truncates, so putting a sentence
+      // there produces text that is present and unreadable — the defect
+      // this dialog exists to fix, in a new place. Measured from a
+      // screenshot on 2026-09-08: every template's intent was cut
+      // mid-word.
+      //
+      // `notFor` alone, because it is the sentence that helps someone
+      // pick: a list of options carrying only advantages gives no help
+      // choosing between them. The full text is in the settings view and
+      // in the standalone dialog, both of which have room for it.
       label: template.id === advice?.template?.id ? `${template.title}  (recommended)` : template.title,
-      description: template.intent,
       detail: `Not for: ${template.notFor}`,
       choice: { kind: "apply-template", template } as RunChoice,
     });
@@ -635,7 +664,7 @@ async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunChoice
 
   const picked = await vscode.window.showQuickPick(items, {
     title: `Run ${changeName}`,
-    placeHolder: `${stages}  |  ${ceilings}`,
+    placeHolder: fitOneLine(`${stages}  |  ${ceilings}`),
     ignoreFocusOut: true,
   });
   return picked?.choice;

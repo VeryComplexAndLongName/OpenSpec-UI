@@ -25,6 +25,20 @@ renders nothing at all.
 - [x] 2.3 A configuration with no findings says every ceiling can act,
   rather than rendering nothing. Silence makes "examined and fine"
   identical to "not examined".
+- [x] 2.4 Nothing is put in the quick-pick field that truncates first,
+  and text that will not fit is shortened deliberately rather than cut by
+  the control mid-word.
+  **Added from a screenshot of the running editor**, which is the only
+  way this was visible: the placeholder ended "every c…", a
+  recommendation's grounds ended "reads as short …", and every template's
+  intent was cut mid-sentence. The content was all present and none of it
+  readable — the same defect this change fixes, reappearing in the
+  surface fixing it.
+  Recorded rather than quietly patched, and with its limit stated: a
+  quick-pick gives one line per field. This keeps it from lying about
+  what it cut; it does not make it a surface that can hold a paragraph.
+  That is the standalone dialog, and in the editor it wants a webview —
+  left for its own change.
 
 ## 3. A recommendation that can be acted on
 
@@ -53,6 +67,8 @@ renders nothing at all.
 - [x] 4.5 Applying a template from the dialog writes the change override
   — asserted on the writer — and the path override still writes nothing.
 - [x] 4.6 Only change-scoped templates are offered.
+- [x] 4.7 Grounds too long for a quick-pick line are shortened here, and
+  no template carries a sentence in the field that truncates first.
 
 ## 5. Verification
 
@@ -64,6 +80,7 @@ renders nothing at all.
   from one warning that predates this change (`killTimer` unused in
   `packages/core/src/agents/shared.ts:210`); tests 48 cli, 702 core,
   299 extension, 62 server, 293 webui — extension up 3, webui up 8.
+  Re-run after the quick-pick fix: extension 301.
 
   The spec-delta drift check caught a real mistake first: this change's
   MODIFIED block dropped two scenarios the requirement already had,

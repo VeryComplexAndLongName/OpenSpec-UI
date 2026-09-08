@@ -1905,6 +1905,49 @@ describe("registerCommands", () => {
       expect(deps.implementationSessions.start).not.toHaveBeenCalled();
     });
 
+    it("shortens what a quick-pick would cut, rather than letting it trail off", async () => {
+      // A quick-pick gives one line per field and cuts the rest without
+      // saying so — measured from a screenshot: the grounds ended "reads
+      // as short …" mid-word. Text that will not fit is shortened here,
+      // where the ellipsis is deliberate.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage", {
+        advice: {
+          template: { id: "careful", title: "Careful" },
+          grounds: ["a ground long enough to overflow the line".repeat(5)],
+        },
+      }));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      const [items] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [
+        Array<{ label: string; detail?: string; description?: string; choice?: { kind: string } }>,
+      ];
+      const recommended = items.find((entry) => entry.choice?.kind === "apply-template");
+      expect(recommended?.detail?.length).toBeLessThanOrEqual(96);
+      expect(recommended?.detail?.endsWith("…")).toBe(true);
+    });
+
+    it("puts no sentence in the field a quick-pick truncates first", async () => {
+      // `description` renders right of the label and is cut before
+      // anything else, so a sentence there is present and unreadable.
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      const [items] = vscodeMock.window.showQuickPick.mock.calls.at(-1) as [
+        Array<{ description?: string; choice?: { kind: string } }>,
+      ];
+      const templates = items.filter((entry) => entry.choice?.kind === "apply-template");
+      expect(templates.length).toBeGreaterThan(0);
+      expect(templates.every((entry) => entry.description === undefined)).toBe(true);
+    });
+
     it("does nothing for an archived change", async () => {
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
