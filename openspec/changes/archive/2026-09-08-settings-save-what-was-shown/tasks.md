@@ -65,8 +65,13 @@ replace the file. So `timeout`, `maxStageAttempts`, `budget`,
   285 extension, 62 server, 276 webui — webui up 5.
 - [x] 4.3 Version bump via `npx changeset` for `webui`.
   Done: `.changeset/settings-save-what-was-shown.md`.
-- [ ] 4.4 **Human-only**: with this merged, redo `settings-templates`
+- [x] 4.4 **Human-only**: with this merged, redo `settings-templates`
   task 4.5 — apply each of the three templates, save, and read the
   resulting file. The point of that task was to confirm the configuration
   reads as the sentence promised, and until now no template's ceilings
   reached the file at all.
+  Confirmed live in the standalone UI on 2026-09-08 using a disposable
+  workspace. Careful and Thrifty saved their autonomy, budgets, timeouts,
+  attempts and checkpoint behavior; Overnight saved autonomous mode, its
+  ceilings and budgets, and `checkpoints.requireConfirmationBetweenSteps:
+  false`, matching its "No checkpoints between stages" promise.

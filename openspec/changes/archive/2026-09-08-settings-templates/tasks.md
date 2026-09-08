@@ -74,7 +74,26 @@ third of those runs.
   56.8; 16 with a cost, median $1.94, p90 $7.14, largest $8.67, $44.82
   in total. Only 16 of 49 runs reported a cost at all, which is why the
   duration figures carry more of the weight.
-- [ ] 4.5 **Human-only**: apply each template in the settings view and
+- [x] 4.5 **Human-only**: apply each template in the settings view and
   confirm the resulting configuration reads as the sentence promised —
   in particular that "overnight" does not quietly require confirmation
   between stages, which would make it not that.
+  Confirmed live in the standalone UI on 2026-09-08, on a fresh
+  disposable workspace. Careful and Thrifty saved their timeout, budget,
+  attempts and checkpoint behaviour. Overnight saved autonomous mode, its
+  timeout, budget and attempts, and
+  `checkpoints.requireConfirmationBetweenSteps: false`.
+
+  This task failed twice before it passed, and both failures were real.
+  The first time no template's ceilings reached the file at all: the
+  settings view sent two of the eight accepted keys and the writer
+  replaces the file, so everything a template exists to set was deleted
+  on save (`settings-save-what-was-shown`). The second time Overnight
+  alone was wrong — its own text promised "No checkpoints between stages"
+  and its configuration never said so (`a-template-keeps-its-promises`).
+
+  Neither could have been caught here. The first is a defect in a
+  different surface, the second was invisible to every test because
+  nothing compared a template's sentences to its configuration. What this
+  task did was look at the file that came out, which is the one thing no
+  automated check in this repository was doing.
