@@ -101,6 +101,11 @@ renders nothing at all.
   Done, and the article and teaser committed hours earlier with it: both
   described the dialog this change replaces, and the article's figure is
   the one recaptured above.
-- [ ] 5.6 **Human-only**: open it on a real change and say whether it now
+- [x] 5.6 **Human-only**: open it on a real change and say whether it now
   answers "which configuration suits this, and why" — the question it was
   built for and did not answer.
+  Verified 2026-09-08 in the standalone UI on `run-dialog-actually-advises`:
+  it showed the one open task, no previous run, the recommended "Minimum cost"
+  configuration, three grounds for that recommendation, the configured agents,
+  and all three applicable configurations with their "Not for" guidance. Yes,
+  it answers which configuration suits the change and why.

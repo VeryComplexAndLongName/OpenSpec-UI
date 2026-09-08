@@ -1693,23 +1693,37 @@ panel is visible.
 The entry SHALL pre-select what the configuration resolves to and SHALL
 allow it to be changed for this run.
 
-An override SHALL NOT be written to the change's configuration. A run is
-not a configuration change, and a later run behaving differently for a
-reason nobody recorded is worse than being asked again.
+An override of the path SHALL NOT be written to the change's
+configuration. A run is not a configuration change, and a later run
+behaving differently for a reason nobody recorded is worse than being
+asked again.
 
 There SHALL NOT be a second entry that starts the same work by another
 route. Where a path was previously reached by its own entry, it SHALL be
 offered as a choice within this one.
 
-That entry SHALL also show which named configuration is recommended for
-this change and the observations behind it, where anything is known to
-reason from. This is the moment the question is being asked, and an
-answer available only from a separate command is an answer nobody sees
-when it matters.
+That entry SHALL show which named configuration is recommended for this
+change and the observations behind it, in every host, wherever anything
+is known to reason from. A host that can read how much work remains has
+something to reason from, whether or not it can read the run history: the
+recommendation is built to say what it does not know.
+
+The recommendation SHALL be shown where it can be read, not in a hint
+that truncates.
+
+The named configuration a recommendation proposes SHALL be applicable
+from the same place. A recommendation that cannot be acted on is a
+remark. Applying one writes the change's configuration, which is a
+deliberate act a person takes and is distinct from choosing a path for
+one run.
 
 Where nothing is known to reason from, no recommendation SHALL be shown.
 A recommendation with no grounds is indistinguishable from a default
 presented silently.
+
+Where the resolved configuration has no ceiling that cannot act, the
+entry SHALL say so rather than showing nothing. Silence makes "everything
+here can act" indistinguishable from "nothing was examined".
 
 #### Scenario: Starting a change whose configuration is assisted
 
@@ -1740,6 +1754,24 @@ presented silently.
 
 - **WHEN** neither the remaining work nor any previous run can be read
 - **THEN** no recommendation is shown
+
+#### Scenario: A recommendation where only the remaining work is known
+
+- **WHEN** the host can read how many tasks remain but not the run
+  history
+- **THEN** a recommendation is shown, and its grounds say there is no
+  previous run to go on
+
+#### Scenario: Applying the configuration that was recommended
+
+- **WHEN** the recommended named configuration is applied from the entry
+- **THEN** it is written to the change's configuration, and the entry
+  reflects what it now resolves to
+
+#### Scenario: A configuration with nothing wrong
+
+- **WHEN** every ceiling in the resolved configuration can act
+- **THEN** the entry says so
 
 #### Scenario: The path that used to have its own entry
 
