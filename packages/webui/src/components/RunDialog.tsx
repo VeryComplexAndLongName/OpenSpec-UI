@@ -25,6 +25,10 @@ export function RunDialog(
       <h3>{`Run ${changeName}`}</h3>
       <p className="openspec-shell-note" data-testid="run-dialog-because">{plan.because}.</p>
 
+      {/* Headed, because the two lists below are both bullets and read as
+          one list without them — found by looking at the captured
+          screenshot, not by a test. */}
+      <p className="openspec-shell-note"><strong>Which agent runs each stage</strong></p>
       <ul className="openspec-shell-note" data-testid="run-dialog-stage-agents">
         {plan.stageAgents.map((entry) => (
           <li key={entry.stage}>
@@ -36,13 +40,16 @@ export function RunDialog(
       </ul>
 
       {plan.findings.length > 0 ? (
-        <ul className="openspec-shell-note" data-testid="run-dialog-findings">
+        <>
           {/* Before the run, not after: a ceiling that cannot act is worth
               knowing while the money has not been spent. */}
-          {plan.findings.map((finding) => (
-            <li key={`${finding.kind}-${finding.stage}`}>{finding.stage}: {finding.message}</li>
-          ))}
-        </ul>
+          <p className="openspec-shell-note"><strong>What this configuration cannot do</strong></p>
+          <ul className="openspec-shell-note" data-testid="run-dialog-findings">
+            {plan.findings.map((finding) => (
+              <li key={`${finding.kind}-${finding.stage}`}>{finding.stage}: {finding.message}</li>
+            ))}
+          </ul>
+        </>
       ) : null}
 
       {plan.advice ? (
