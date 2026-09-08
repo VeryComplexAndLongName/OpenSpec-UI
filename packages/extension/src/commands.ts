@@ -19,6 +19,8 @@ import {
   buildChangeCostReport,
   buildSprintReport,
   findHarnessConfigLimits,
+  readTaskChecklist,
+  recommendTemplate,
   checkChangesetReminder,
   createChange,
   customizeTemplate,
@@ -1193,6 +1195,36 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // Also a command, not only the settings panel: HARNESS.md says
     // outright that some settings have no control in either host and must
     // be hand-edited, and a person doing that has no settings screen open.
+    // Beside the cost report, which reads the same two things: a task
+    // list and the audit log. The settings view cannot — it runs in the
+    // browser — and plumbing it there would cost a REST route and a
+    // bridge for the same sentence on screen.
+    vscode.commands.registerCommand("openspec-ui.recommendHarnessTemplate", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
+        ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      try {
+        const tasks = await readTaskChecklist(workspaceRoot, item.changeName, item.archived);
+        const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
+        const recommendation = recommendTemplate({
+          openTaskCount: tasks.filter((task) => !task.done).length,
+          history: buildChangeCostReport(entries, item.changeDir),
+        });
+        // The grounds are shown with the answer, never behind it: a
+        // recommendation whose reasons are hidden can only be accepted or
+        // ignored, and the cases a reader would argue with are the ones
+        // where it is worst.
+        const grounds = recommendation.grounds.map((line) => `- ${line}`).join("\n");
+        const headline = recommendation.needsPerson
+          ? `${item.changeName}: this needs a person, not a bigger ceiling.`
+          : `${item.changeName}: try "${recommendation.template?.title ?? "no template"}".`;
+        await vscode.window.showInformationMessage(headline, { modal: true, detail: grounds });
+      } catch (error) {
+        await showCommandError("recommend a harness configuration", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.explainHarnessSettings", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
