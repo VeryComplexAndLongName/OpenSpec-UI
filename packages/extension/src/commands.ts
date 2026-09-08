@@ -16,6 +16,7 @@ import {
   TemplateAlreadyExistsError,
   UnknownProjectTemplateError,
   archiveChange,
+  buildChangeCostReport,
   buildSprintReport,
   checkChangesetReminder,
   createChange,
@@ -66,6 +67,8 @@ import {
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
   type CheckScriptName,
+  type AuditEntry,
+  type ChangeCostReport,
 } from "@openspec-ui/core";
 import type { RunController } from "./run-controller.js";
 import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode } from "./tree/change-graph-tree.js";
@@ -113,6 +116,75 @@ export interface CommandsDeps {
   archiveView?: RevealableTreeView<ChangeTreeItem>;
   templatesView?: TreeSelectionView;
   changeGraphView?: RevealableTreeView<GraphTreeNode>;
+  /** Reads the workspace's audit log. Undefined without an open
+   * workspace, where there is nowhere for one to live — the same reason
+   * `chain-runner-audit-deps.ts` treats an absent root as a real case
+   * rather than a reader over nothing. */
+  readAuditEntries?: () => Promise<AuditEntry[]>;
+}
+
+/** Renders a change's cost report as Markdown. Core produced the
+ * structure; this decides how it reads — including the two places the
+ * numbers must not be tidied: a figure the agent never reported shows as
+ * "not reported", never as `$0.00`, and the totals line says it covers
+ * only what was reported. */
+export function renderChangeCostReport(changeName: string, report: ChangeCostReport): string {
+  const lines: string[] = [`# What ${changeName} cost`, ""];
+  if (!report.hasRecords) {
+    lines.push("Nothing has run against this change.", "");
+    lines.push("This is not the same as a change that ran and reported nothing —");
+    lines.push("there are no records for it at all.");
+    return lines.join("\n");
+  }
+
+  const money = (value: number | undefined): string => (value === undefined ? "not reported" : `$${value.toFixed(2)}`);
+  const count = (value: number | undefined): string => (value === undefined ? "not reported" : value.toLocaleString());
+  const duration = (value: number | undefined): string => {
+    if (value === undefined) return "still running";
+    const seconds = Math.round(value / 1000);
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
+  };
+
+  lines.push("| Stage | Agent | Effort | Outcome | Cost | Tokens in | Tokens out | Duration |");
+  lines.push("|---|---|---|---|---|---|---|---|");
+  for (const row of report.rows) {
+    lines.push([
+      "",
+      row.stage ?? "_unattributed_",
+      row.agent,
+      row.effort ?? "—",
+      row.outcome,
+      money(row.costUsd),
+      count(row.inputTokens),
+      count(row.outputTokens),
+      duration(row.durationMs),
+      "",
+    ].join(" | ").trim());
+  }
+  lines.push("");
+  lines.push(`**Reported total:** ${money(report.reportedCostUsd)}`
+    + `, ${count(report.reportedInputTokens)} in, ${count(report.reportedOutputTokens)} out`
+    + `, ${duration(report.totalDurationMs)}.`);
+  if (report.rowsWithNothingReported > 0) {
+    lines.push("");
+    lines.push(`${report.rowsWithNothingReported} of ${report.rows.length} run(s) reported nothing at all,`);
+    lines.push("so the totals above cover only part of what happened. Most supported");
+    lines.push("agents report no usage; see LIMITS.md for which.");
+  }
+  if (report.rows.some((row) => row.stage === undefined)) {
+    lines.push("");
+    lines.push("_Unattributed_ rows are records written before runs carried the stage");
+    lines.push("they belonged to. They are counted in the totals and not guessed at.");
+  }
+  const withReasons = report.rows.filter((row) => row.reason !== undefined);
+  if (withReasons.length > 0) {
+    lines.push("", "## How runs ended", "");
+    for (const row of withReasons) {
+      lines.push(`- ${row.stage ?? "unattributed"} (${row.outcome}): ${row.reason ?? ""}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 const CHECK_TITLES: Record<CheckScriptName, string> = {
@@ -1113,6 +1185,32 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // from the change rather than from the graph. A quick pick rather than
     // a rendered document because the answer is a list you then navigate:
     // picking an ancestor opens it.
+    // Offered with no condition on the change's state: a change that
+    // failed halfway is where the question is most pressing — money went
+    // in and nothing shipped — and a command that appeared only on
+    // finished changes would be missing exactly then.
+    vscode.commands.registerCommand("openspec-ui.showChangeCostReport", async (invokedItem?: ChangeTreeItem) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
+        ?? resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
+      if (!item) { warnNoTreeSelection("change"); return; }
+      if (!deps.readAuditEntries) {
+        await vscode.window.showInformationMessage("No audit log is available for this workspace.");
+        return;
+      }
+      try {
+        const entries = await deps.readAuditEntries();
+        const report = buildChangeCostReport(entries, item.changeDir);
+        const document = await vscode.workspace.openTextDocument({
+          language: "markdown",
+          content: renderChangeCostReport(item.changeName, report),
+        });
+        await vscode.window.showTextDocument(document, { preview: true });
+      } catch (error) {
+        await showCommandError("show what a change cost", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.showChangeAncestry", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
