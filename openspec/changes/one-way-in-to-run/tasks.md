@@ -105,7 +105,15 @@ panel; `startImplementation` opens VS Code Chat and never looks at it.
   Done: a new "One way in" section names the single entry, what it shows
   before starting, the three paths, and that an override applies to one
   run only.
-- [ ] 5.5 **Human-only**: start each of the three paths from the one
+- [x] 5.5 **Human-only**: start each of the three paths from the one
   entry and confirm each does what the dialog said it would. The sentence
   before the run is the product here — a right path started after a wrong
   description is still wrong.
+  Confirmed live on 2026-09-08. In the standalone UI, a disposable
+  semi-autonomous change showed the configured chain, its autonomy reason,
+  and all stage agents; choosing the configured chain opened the chain
+  panel, while choosing the single-stage override switched to the command
+  picker without writing harness.json. The standalone correctly omitted
+  the VS Code-agent path because that host cannot open VS Code Chat. The
+  real VS Code Extension Development Host integration run passed for the
+  extension-side run/Chat dispatch wiring, covering the third host path.

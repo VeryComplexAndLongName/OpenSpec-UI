@@ -116,11 +116,16 @@ test.describe("standalone harness screenshots", () => {
       await page.getByRole("button", { name: "Load change", exact: true }).click();
       await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
       await page.getByTestId("run-with-harness-button").click();
-      // "Run with Agentic Harness" only resolves which surface to dispatch
-      // to (resolveRunWithHarnessDispatch) — a "semi-autonomous" change
-      // resolves to HarnessChainPanel, which renders its own, second "Run
-      // with Agentic Harness" button (start-chain-button) that must be
-      // clicked to actually start the run.
+      // The entry shows what the configuration resolved to before acting
+      // on it (one-way-in-to-run). It used to dispatch immediately, which
+      // is why a correct decision and a broken one looked the same. This
+      // change is "semi-autonomous", so the configured path is the chain.
+      await expect(page.getByTestId("run-dialog")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByTestId("run-dialog-because")).toContainText("semi-autonomous");
+      await page.getByTestId("run-dialog-path-chain").click();
+      // Choosing the path reveals HarnessChainPanel, which has its own
+      // "Start chain" button that must be clicked to actually start the
+      // run.
       await page.getByTestId("start-chain-button").click();
       await expect(page.getByTestId("checkpoint-confirmation")).toBeVisible({ timeout: 15000 });
       await page.screenshot({ path: path.join(IMAGES_DIR, "harness-checkpoint.png") });
