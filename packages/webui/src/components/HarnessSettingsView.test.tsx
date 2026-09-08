@@ -289,3 +289,36 @@ describe("HarnessSettingsView — what the configuration cannot do", () => {
     expect(screen.queryByTestId("harness-findings")).toBeNull();
   });
 });
+
+describe("HarnessSettingsView — templates", () => {
+  it("offers a template with both what it is for and when it is wrong", async () => {
+    render(<HarnessSettingsView api={createApi()} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-templates-global")).toBeTruthy());
+    const careful = screen.getByTestId("harness-template-careful");
+    expect(careful.textContent).toContain("Not for:");
+    // The basis line is what lets a reader disagree with the judgement
+    // rather than with the measurement.
+    expect(careful.textContent).toMatch(/p75|median|judgement/);
+  });
+
+  it("does not offer a per-change-only template on the global file", async () => {
+    // Applying it globally would be refused on save, so offering it there
+    // hands someone a template that fails.
+    render(<HarnessSettingsView api={createApi()} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-templates-global")).toBeTruthy());
+    expect(screen.queryByTestId("harness-template-overnight")).toBeNull();
+  });
+
+  it("fills the form without saving, and says so", async () => {
+    const api = createApi();
+    render(<HarnessSettingsView api={api} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-template-thrifty")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("harness-template-thrifty").querySelector("button")!);
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Nothing is saved"));
+    expect(api.writeGlobal).not.toHaveBeenCalled();
+  });
+});
