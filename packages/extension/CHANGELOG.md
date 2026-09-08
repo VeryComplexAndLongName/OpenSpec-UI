@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.44.0
+
+### Minor Changes
+
+- ec0d6ac: The Run dialog advises rather than claiming to. It was shipped as a path
+  picker: the standalone shell never recommended anything, the editor's
+  recommendation went into a quick-pick hint that truncates, no named
+  configuration could be applied from it, and a configuration with nothing
+  wrong rendered nothing at all.
+  
+  The recommendation now appears in both hosts — the standalone shell reads
+  the change's open task count from `/api/change-timeline`, which it could
+  always do — and is shown where it can be read. The three named
+  configurations are offered beside it, so a recommendation is something to
+  act on rather than a remark; applying one writes the change's
+  configuration and starts nothing. A configuration whose ceilings can all
+  act now says so.
+
+### Patch Changes
+
+- a21392c: Applying a named configuration from the Run dialog no longer deletes the
+  change's other settings. Both hosts wrote the template as the change's
+  whole file, and the writer replaces — so `gitStageAllowlist`, which says
+  which paths a chain may stage, along with any hand-tuned ceilings, was
+  removed by applying a template. The template's keys are now laid over
+  what the change already has.
+- Updated dependencies [a21392c]
+- Updated dependencies [9836f84]
+- Updated dependencies [ec0d6ac]
+- Updated dependencies [dea1dc4]
+  - @openspec-ui/webui@1.29.0
+  - @openspec-ui/core@0.57.0
+  - @openspec-ui/server@1.13.26
+
 ## 0.43.0
 
 ### Minor Changes

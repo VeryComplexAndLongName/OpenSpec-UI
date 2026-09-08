@@ -1,5 +1,50 @@
 # @openspec-ui/webui
 
+## 1.29.0
+
+### Minor Changes
+
+- ec0d6ac: The Run dialog advises rather than claiming to. It was shipped as a path
+  picker: the standalone shell never recommended anything, the editor's
+  recommendation went into a quick-pick hint that truncates, no named
+  configuration could be applied from it, and a configuration with nothing
+  wrong rendered nothing at all.
+  
+  The recommendation now appears in both hosts — the standalone shell reads
+  the change's open task count from `/api/change-timeline`, which it could
+  always do — and is shown where it can be read. The three named
+  configurations are offered beside it, so a recommendation is something to
+  act on rather than a remark; applying one writes the change's
+  configuration and starts nothing. A configuration whose ceilings can all
+  act now says so.
+
+### Patch Changes
+
+- a21392c: Applying a named configuration from the Run dialog no longer deletes the
+  change's other settings. Both hosts wrote the template as the change's
+  whole file, and the writer replaces — so `gitStageAllowlist`, which says
+  which paths a chain may stage, along with any hand-tuned ceilings, was
+  removed by applying a template. The template's keys are now laid over
+  what the change already has.
+- dea1dc4: The three named harness configurations are titled by what a person is
+  actually choosing between — **Minimum cost · up to $3, 45 min**,
+  **Balanced · up to $5, 60 min**, **Fastest · up to $25, 4 hours** — with
+  the ceilings in the title rather than in a sentence below it. They were
+  previously named for how closely the run is watched, which is a
+  consequence of each choice and not the choice.
+  
+  The configurations themselves are unchanged; their ceilings were measured
+  against this repository's audit log and that measurement stands. Their
+  ids change with their names (`min-cost`, `balanced`, `fastest`) — nothing
+  stores a template by id.
+  
+  "Fastest" states what makes it fast, since nothing here makes an agent
+  work faster: it never waits for a person, and its ceilings are wide
+  enough that a stage is not cut and started over.
+- Updated dependencies [9836f84]
+- Updated dependencies [dea1dc4]
+  - @openspec-ui/core@0.57.0
+
 ## 1.28.0
 
 ### Minor Changes
