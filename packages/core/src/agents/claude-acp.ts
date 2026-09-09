@@ -185,6 +185,10 @@ export class ClaudeCliAcpAdapter implements AgentAdapter {
       "--dangerously-skip-permissions",
     ];
     if (command.model) args.push("--model", command.model);
+    // A custom agent the person defined themselves — same path
+    // as the model, and only where the registry says this CLI
+    // accepts one. See custom-agents-are-visible.
+    if (command.customAgent) args.push("--agent", command.customAgent);
     if (command.effort) args.push("--effort", command.effort);
     if (command.budget?.maxCostUsd !== undefined) args.push("--max-budget-usd", String(command.budget.maxCostUsd));
     return { kind: "process", executable: "claude", args };

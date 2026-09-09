@@ -26,6 +26,8 @@ export { HARNESS_TEMPLATES, templatesForScope } from "./harness-templates.js";
 export { recommendTemplate } from "./harness-recommendation.js";
 export { buildWorkspaceRunStats, ENOUGH_RUNS } from "./workspace-run-stats.js";
 export { recommendFromRunStats } from "./run-recommendations.js";
+export { agentsAcceptingCustomAgents, customAgentFamilyFor } from "./custom-agent-family.js";
+export type { CustomAgent, CustomAgentFamily } from "./custom-agent-family.js";
 export type { RunRecommendation, RunRecommendationGap, RunRecommendationKind, RunRecommendations } from "./run-recommendations.js";
 export type { AgentRunGroup, KnownChanges, RunGroupFigures, WorkspaceRunStats } from "./workspace-run-stats.js";
 export { agentForChosenPath, buildRunPlan } from "./run-plan.js";

@@ -24,7 +24,7 @@ export const VSCODE_CHAT_STEP_AGENT_ID = "vscode-chat";
  * for `effort`/`budget`. */
 export type HarnessStepAgent =
   | string
-  | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget };
+  | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget; customAgent?: string };
 /** Stages `CHAIN_STAGES` (harness-chain-runner.ts) drives that never
  * invoke a CLI agent — each is either a mechanical operation (`archive`
  * calls `openspec archive` directly) or a dedicated non-agent sequence
@@ -171,7 +171,7 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
  * exist, so no consumer has to. */
 export function normalizeStepAgent(
   entry: HarnessStepAgent,
-): { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget } {
+): { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget; customAgent?: string } {
   if (typeof entry === "string") return { agent: entry };
-  return { agent: entry.agent, model: entry.model, effort: entry.effort, budget: entry.budget };
+  return { agent: entry.agent, model: entry.model, effort: entry.effort, budget: entry.budget, customAgent: entry.customAgent };
 }

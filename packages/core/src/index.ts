@@ -66,3 +66,4 @@ export {
 export * from "./run-plan.js";
 export * from "./workspace-run-stats.js";
 export * from "./run-recommendations.js";
+export * from "./custom-agents.js";

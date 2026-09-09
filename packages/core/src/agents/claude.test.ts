@@ -112,3 +112,27 @@ describe("ClaudeCliAdapter", () => {
     }).rejects.toThrow();
   });
 });
+
+describe("a custom agent reaches the command line", () => {
+  // custom-agents-are-visible. The point of the whole path: a name that
+  // does not reach the CLI is a setting nothing reads.
+  it("passes --agent when the command carries one", () => {
+    const invocation = new ClaudeCliAdapter().buildInvocation({ ...command, customAgent: "reviewer" });
+
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions", "--agent", "reviewer"],
+    });
+  });
+
+  it("passes nothing when the command carries none", () => {
+    const invocation = new ClaudeCliAdapter().buildInvocation(command);
+
+    expect(invocation).toEqual({
+      kind: "process",
+      executable: "claude",
+      args: ["-p", "--output-format", "text", "--dangerously-skip-permissions"],
+    });
+  });
+});

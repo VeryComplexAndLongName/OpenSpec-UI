@@ -163,7 +163,10 @@ const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-auto
 const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
 const KNOWN_AGENT_IDS = new Set([...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID]);
 const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
-const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget"] as const;
+/** Exported for the same reason `TOP_LEVEL_CONFIG_KEYS` is: a guard
+ * that iterates the list catches the next key added to the entry and
+ * forgotten elsewhere, where a guard naming the keys would not. */
+export const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget", "customAgent"] as const;
 /** Stages `stepAgents` used to accept an entry for, before each was found
  * to invoke no agent — `archive` (harness-mechanical-checks), then `git`
  * (harness-git-stage-no-agent). A config's on-disk entry for either is
@@ -377,6 +380,26 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
       }
       if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage} sets a model, but agent "${agentId}" does not accept one`);
+      }
+    }
+
+    // Refused, not dropped. A `customAgent` an adapter cannot pass is a
+    // setting nothing reads, which is the defect this repository has
+    // spent several changes removing. See custom-agents-are-visible.
+    const customAgent = (entry as { customAgent?: unknown }).customAgent;
+    if (customAgent !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.customAgent cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
+      if (typeof customAgent !== "string" || customAgent.trim().length === 0) {
+        throw new InvalidHarnessConfigError(`stepAgents.${stage}.customAgent must be a non-empty string`);
+      }
+      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.customAgentFlag) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage} sets a custom agent, but agent "${agentId}" does not accept one`,
+        );
       }
     }
 

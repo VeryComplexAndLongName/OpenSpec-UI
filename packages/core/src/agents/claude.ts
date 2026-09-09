@@ -25,6 +25,10 @@ export class ClaudeCliAdapter implements AgentAdapter {
   buildInvocation(command: Command): AdapterInvocation {
     const args = ["-p", "--output-format", "text", "--dangerously-skip-permissions"];
     if (command.model) args.push("--model", command.model);
+    // A custom agent the person defined themselves — same path
+    // as the model, and only where the registry says this CLI
+    // accepts one. See custom-agents-are-visible.
+    if (command.customAgent) args.push("--agent", command.customAgent);
     if (command.effort) args.push("--effort", command.effort);
     // `--max-budget-usd` only works alongside `--print`, which this
     // adapter already always passes as `-p` — see proposal.md's

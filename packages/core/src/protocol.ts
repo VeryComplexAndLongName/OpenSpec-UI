@@ -100,6 +100,11 @@ export interface Command {
    * Only meaningful for an agent whose registry descriptor declares a
    * `modelFlag`; ignored otherwise. */
   model?: string;
+  /** A custom agent to pass to the agent's CLI — a named preset the
+   * person defined themselves, resolved from a `stepAgents` entry the
+   * same way `model` is. Only meaningful for an agent whose registry
+   * descriptor declares a `customAgentFlag`; ignored otherwise. */
+  customAgent?: string;
   /** Reasoning effort to pass to the agent's CLI, resolved the same way
    * as `model`. Only meaningful for an agent whose
    * `HARNESS_AGENT_CAPABILITIES` entry declares accepted `effort`

@@ -25,24 +25,29 @@ export interface AgentDescriptor {
   /** The CLI flag this adapter passes a model with; absent means this
    * adapter accepts no model (see harness-step-models design.md). */
   modelFlag?: string;
+  /** The CLI flag this adapter passes a custom agent with — a named
+   * preset the person defined themselves. Absent means this adapter
+   * accepts none, and offering one for it would be a setting nothing
+   * reads. See custom-agents-are-visible. */
+  customAgentFlag?: string;
 }
 
 export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
-  { id: "claude-cli", label: "Claude CLI", modelFlag: "--model" },
-  { id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model" },
+  { id: "claude-cli", label: "Claude CLI", modelFlag: "--model", customAgentFlag: "--agent" },
+  { id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model", customAgentFlag: "--agent" },
   { id: "codex-cli", label: "Codex CLI" },
   { id: "gemini-cli", label: "Gemini CLI" },
   { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
   // ACP-flavored adapters (acp-agent-adapters) — additional entries, not
   // replacements for the four above (see this file's header comment).
-  { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model" },
+  { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
   { id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
   { id: "codex-cli-acp", label: "Codex CLI (ACP)" },
   // Label states the limitation inline, not just in the picker's own
   // copy (webui's AiPanel.tsx) — see design.md's risk mitigation
   // "the UI presenting this adapter must say so explicitly ... not leave
   // it to be discovered" and claude-acp.ts's own header comment for why.
-  { id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model" },
+  { id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model", customAgentFlag: "--agent" },
 ];
 
 /** Agent used when a `Command` does not specify `agentId`. Lives here

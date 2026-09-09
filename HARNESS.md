@@ -112,7 +112,7 @@ not rejected outright.
 Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 
 ```json
-{ "agent": "claude-cli", "model": "claude-opus-4-6", "effort": "high", "budget": { "maxCostUsd": 5 } }
+{ "agent": "claude-cli", "model": "claude-opus-4-6", "effort": "high", "budget": { "maxCostUsd": 5 }, "customAgent": "reviewer" }
 ```
 
 | Field | Accepted values |
@@ -121,6 +121,19 @@ Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 | `model` | A string matching `/^[A-Za-z0-9][A-Za-z0-9._:-]*$/`, and only for an agent whose registry entry declares a `modelFlag` (`claude-cli`, `copilot-cli`, `claude-cli-acp`, `copilot-cli-acp`). |
 | `effort` | One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — restricted per agent; see the reference table below. |
 | `budget` | `{ "maxCostUsd": <positive number> }` or `{ "maxAiCredits": <positive integer, minimum 30> }` — whichever field the chosen agent's own capabilities accept; the other field is rejected. |
+| `customAgent` | The name of a custom agent you defined yourself, passed to the CLI as `--agent <name>`. Only for an agent whose registry entry declares a `customAgentFlag` — the `claude-cli` and `copilot-cli` families, raw and ACP alike. Setting one for any other agent is rejected rather than dropped. |
+
+Custom agents are discovered from the directories the CLIs themselves
+read: `.claude/agents/*.md` for Claude, in the project and for the user,
+and `.github/agents/*.md` for Copilot. A name defined in both the project
+and the user directory is offered once, with the project's winning — it
+is the one its own CLI would use. Neither CLI has a command that lists
+them, and neither needs one: the definitions are files.
+
+Gemini and Codex accept no custom agent here. Their CLIs were not
+installed on the machine this was verified on, so their convention could
+not be checked, and offering one that cannot be passed is the same defect
+as a ceiling that cannot act.
 
 **`stepAgents.git` is not accepted by this schema.** `HarnessChainRunner`'s
 `runStage` routes the `"git"` stage straight to its own push/PR/merge
