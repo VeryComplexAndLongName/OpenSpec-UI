@@ -281,6 +281,67 @@ describe("getChangeAuthorship", () => {
   });
 });
 
+describe("getChangeTimeline — when the work happened", () => {
+  // work-dates-are-evidence-of-work. This was every blame date on
+  // `tasks.md`, which is added by the same commit as `proposal.md` — so
+  // it reported the proposal date under another name, measured at
+  // exactly zero days after it for all 185 changes in this repository.
+
+  it("dates the work from the ticks, not from the day the list was written", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "worked-later", "- [ ] first\n- [ ] second\n");
+    await commitAll(root, "propose", "2026-02-01T00:00:00Z");
+    await writeFile(
+      path.join(root, "openspec", "changes", "worked-later", "tasks.md"),
+      "- [x] first\n- [ ] second\n",
+    );
+    await commitAll(root, "finish the first", "2026-02-03T00:00:00Z");
+    await writeFile(
+      path.join(root, "openspec", "changes", "worked-later", "tasks.md"),
+      "- [x] first\n- [x] second\n",
+    );
+    await commitAll(root, "finish the second", "2026-02-05T00:00:00Z");
+
+    const timeline = await getChangeTimeline(root, "worked-later", false);
+
+    expect(timeline.dates.proposed.date).toBe("2026-02-01T00:00:00.000Z");
+    // Two days after it was proposed, which is the span the old
+    // definition could never report.
+    expect(timeline.dates.firstWorked).toEqual({ date: "2026-02-03T00:00:00.000Z", source: "git-blame" });
+    expect(timeline.dates.lastWorked).toEqual({ date: "2026-02-05T00:00:00.000Z", source: "git-blame" });
+  });
+
+  it("carries no work dates for a task list nobody has finished anything in", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "written-only", "- [ ] first\n- [ ] second\n");
+    await commitAll(root, "propose", "2026-02-01T00:00:00Z");
+
+    const timeline = await getChangeTimeline(root, "written-only", false);
+
+    expect(timeline.dates.proposed.date).toBe("2026-02-01T00:00:00.000Z");
+    expect(timeline.dates.firstWorked).toEqual({ date: null, source: "none" });
+  });
+
+  it("dates the work from a run recorded before the first tick", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "ran-first", "- [ ] first\n");
+    await commitAll(root, "propose", "2026-02-01T00:00:00Z");
+    await writeFile(path.join(root, "openspec", "changes", "ran-first", "tasks.md"), "- [x] first\n");
+    await commitAll(root, "finish", "2026-02-05T00:00:00Z");
+
+    const timeline = await getChangeTimeline(root, "ran-first", false, {
+      auditTimestamps: ["2026-02-02T09:00:00.000Z"],
+    });
+
+    // An agent ran two days before anyone checked a box, and that is
+    // when work started.
+    expect(timeline.dates.firstWorked).toEqual({ date: "2026-02-02T09:00:00.000Z", source: "audit-log" });
+  });
+});
+
 describe("getChangeTimeline", () => {
   it("merges task dates, created date, and markdown content for an active change", async () => {
     const root = await temporaryRoot();

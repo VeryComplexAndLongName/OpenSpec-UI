@@ -56,13 +56,15 @@ describe("buildChangeDates", () => {
   });
 
   it("spans the work from the earliest to the latest evidence of it", () => {
-    // Distinct from proposed and archived: the gap between those two is
-    // mostly waiting, and a chart about effort wants this one.
+    // Ticked tasks, not written lines: the task list arrives in the same
+    // commit as the proposal, so dating work by when its lines were
+    // written reported the proposal date under another name — measured
+    // at exactly zero days for all 185 changes here.
     const dates = buildChangeDates({
       changeName: "worked-over-days",
       archived: false,
       proposalAddedDate: "2026-09-01T10:00:00.000Z",
-      taskLineDates: [
+      taskDoneDates: [
         "2026-09-03T12:00:00.000Z",
         "2026-09-02T08:00:00.000Z",
         "2026-09-05T18:00:00.000Z",
@@ -79,7 +81,7 @@ describe("buildChangeDates", () => {
     const dates = buildChangeDates({
       changeName: "run-before-a-tick",
       archived: false,
-      taskLineDates: ["2026-09-04T00:00:00.000Z"],
+      taskDoneDates: ["2026-09-04T00:00:00.000Z"],
       auditTimestamps: ["2026-09-02T05:15:15.572Z", "2026-09-02T06:12:01.274Z"],
     });
 
@@ -87,8 +89,9 @@ describe("buildChangeDates", () => {
     expect(dates.lastWorked).toEqual({ date: "2026-09-04T00:00:00.000Z", source: "git-blame" });
   });
 
-  it("reports no work dates when nothing recorded any", () => {
-    const dates = buildChangeDates({ changeName: "nothing-yet", archived: false, taskLineDates: [] });
+  it("reports no work dates when a task list was written but nothing was finished", () => {
+    // The file existing is not evidence that anything was done.
+    const dates = buildChangeDates({ changeName: "nothing-yet", archived: false, taskDoneDates: [] });
 
     expect(dates.firstWorked).toEqual({ date: null, source: "none" });
     expect(dates.lastWorked).toEqual({ date: null, source: "none" });

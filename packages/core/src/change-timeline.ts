@@ -342,10 +342,11 @@ export async function getChangeTimeline(
     archived,
     proposalAddedDate: createdDate,
     archiveCommitDate,
-    // Every blame date, not only the checked lines': a task line that was
-    // edited is work, and using the ticks alone would date a change by
-    // when it finished rather than by when it was worked on.
-    taskLineDates: blameDates?.values(),
+    // The ticked tasks only. Every blame date reported the proposal
+    // date under another name — the task list arrives in the same commit
+    // as the proposal — and left the audit log unreachable. See
+    // work-dates-are-evidence-of-work.
+    taskDoneDates: tasks.map((task) => task.date).filter((date): date is string => date !== null),
     ...(options?.auditTimestamps ? { auditTimestamps: options.auditTimestamps } : {}),
   });
 
