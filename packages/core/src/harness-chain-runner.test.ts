@@ -2382,3 +2382,86 @@ async function collectUntilThenAct(
   }
   return { events };
 }
+
+describe("HarnessChainRunner — verify records what its checks found", () => {
+  // verify-records-what-it-found. The counts were computed to decide
+  // whether to invoke the verifying agent, and then discarded — and the
+  // failing case, which never invokes the agent, wrote no entry at all.
+
+  it("records how many checks ran and that none failed", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await setupChangeset(root, true);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+    mockArchiveSucceeds();
+
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+    for await (const event of chain.run(command)) {
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const recorded = auditLog.entries.filter((entry) => entry.agent === "verify-checks");
+    expect(recorded).toHaveLength(1);
+    // Fields, not prose: a number in a sentence is a number nothing can
+    // aggregate.
+    expect(recorded[0]).toMatchObject({ outcome: "completed", checksRan: 1, checksFailed: 0, stage: "verify" });
+  });
+
+  it("records a failing check even though the verifying agent never runs", async () => {
+    // This is the case that recorded nothing at all: the entry was
+    // written by an agent run that does not happen, so the run that
+    // found the most left no trace.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await setupChangeset(root, false);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const auditLog = new InMemoryAuditLog();
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+    for await (const event of chain.run(command)) {
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls.map((call) => call.kind)).toEqual(["implement"]);
+    const recorded = auditLog.entries.filter((entry) => entry.agent === "verify-checks");
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({ outcome: "failed", checksRan: 1, checksFailed: 1 });
+    expect(recorded[0]?.reason).toContain("changeset-present");
+  });
+
+  it("records nothing for a change that declares no checks", async () => {
+    // An entry saying none ran is indistinguishable from one saying none
+    // failed.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 nothing declared here.", ""].join("\n"));
+    mockArchiveSucceeds();
+
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+    for await (const event of chain.run(command)) {
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(auditLog.entries.filter((entry) => entry.agent === "verify-checks")).toEqual([]);
+  });
+});
