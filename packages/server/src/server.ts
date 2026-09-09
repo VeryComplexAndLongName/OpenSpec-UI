@@ -27,6 +27,7 @@ import {
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
+  handleScheduledRunsRequest,
   handleWorkspaceRunStatsRequest,
   handleHarnessConfigWriteRequest,
   handleOpenSpecInitRequest,
@@ -229,6 +230,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/agents/detect") {
       void handleAgentsDetectRequest(req, res, requestPolicy, options.localLlmBaseUrl);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/scheduled-runs") {
+      void handleScheduledRunsRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/custom-agents") {

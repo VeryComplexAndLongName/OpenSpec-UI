@@ -330,6 +330,13 @@ It is named `Run` and not after any one of the three paths it offers.
 Naming it after one of them is how it came to sit beside a second entry
 named after another.
 
+A run can also be asked for at a time rather than now. The schedule is
+kept in `.openspec-ui/scheduled-runs.json`, gitignored beside the audit
+log: "start this one at six" is one person's intent on one machine, not
+project configuration. It needs the application open at that time; if it
+is closed, the run starts the next time it is opened and the dialog says
+how late it is. See a-run-can-be-scheduled.
+
 It is a panel in both hosts. In VS Code it used to be a quick-pick, which
 gives one line per item and cuts the rest without saying so — measured
 from a screenshot on 2026-09-08, every named configuration's intent ended

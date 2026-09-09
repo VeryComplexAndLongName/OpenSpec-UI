@@ -48,11 +48,16 @@ import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
 import {
+  addScheduledRun as addScheduledRunApi,
+  loadScheduledRuns,
+  removeScheduledRun as removeScheduledRunApi,
+} from "./scheduled-runs-client.js";
+import {
   applyTemplateToChange as applyTemplateToChangeApi,
   resolveRunWithHarnessDispatch,
   type RunWithHarnessDispatch,
 } from "./run-with-harness-dispatch.js";
-import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
+import { DEFAULT_STALE_TASK_THRESHOLD_DAYS, describeLateness, readSchedule } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
@@ -468,6 +473,32 @@ function StandaloneApp() {
    * one. Nothing here writes the change's `harness.json`: a run is not a
    * configuration change, and a later run behaving differently for a
    * reason nobody recorded is worse than being asked again. */
+  /** Why the dialog opened, when a schedule opened it rather than a
+   * person. Cleared on a dismissal, so a later run does not inherit an
+   * explanation that is not its own. */
+  const [runNote, setRunNote] = useState<string | null>(null);
+
+  /** Asks for a run at a time. The dialog closes: what happens next is a
+   * schedule, not a run, and leaving the run buttons on screen would
+   * suggest otherwise. */
+  async function scheduleRun(path: RunPathId, startAt: string) {
+    if (!runDispatch) return;
+    const name = editorChangeName;
+    setRunDispatch(null);
+    setRunNote(null);
+    try {
+      await addScheduledRunApi(apiFetch, cwd, {
+        changeName: name,
+        path,
+        startAt,
+        requestedAt: new Date().toISOString(),
+      });
+      setRunHarnessMessage(`Scheduled ${name} for ${new Date(startAt).toLocaleString()}.`);
+    } catch (error) {
+      setRunHarnessMessage(`Scheduling failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   function startChosenRun(path: RunPathId) {
     if (!runDispatch) return;
     const { changeDir: targetChangeDir, budget } = runDispatch;
@@ -481,6 +512,56 @@ function StandaloneApp() {
     setChangeDir(targetChangeDir);
     setActiveTab("run-a-command");
   }
+
+  /** Opens the dialog for a schedule that has come due.
+   *
+   * The dialog rather than a silent start: a surface that acts on a
+   * configuration and shows nothing of what it read is the defect this
+   * dialog exists to remove, and a delay does not change that. The entry
+   * is removed first — a schedule that fired and stayed in the file
+   * would fire again on the next tick. */
+  async function fireDueRuns() {
+    if (cwd.trim().length === 0 || runDispatch) return;
+    try {
+      const entries = await loadScheduledRuns(apiFetch, cwd);
+      if (entries.length === 0) return;
+      const reading = readSchedule(entries, {
+        active: (overview?.changes ?? []).map((change) => change.name),
+        archived: overview?.archivedChanges ?? [],
+      }, new Date());
+
+      if (reading.dropped.length > 0) {
+        await Promise.all(reading.dropped.map((entry) => removeScheduledRunApi(apiFetch, cwd, entry)));
+        setRunHarnessMessage(
+          `Dropped ${reading.dropped.length} scheduled run(s) for change(s) that no longer exist: `
+          + `${reading.dropped.map((entry) => entry.changeName).join(", ")}.`,
+        );
+      }
+      const due = reading.start;
+      if (!due) return;
+
+      await removeScheduledRunApi(apiFetch, cwd, due.entry);
+      setEditorChangeName(due.entry.changeName);
+      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, due.entry.changeName);
+      setRunNote(describeLateness(due));
+      setRunDispatch(dispatch);
+      const waiting = reading.waiting.length === 0
+        ? ""
+        : ` ${reading.waiting.length} more scheduled run(s) are still waiting.`;
+      setRunHarnessMessage(`${describeLateness(due)}${waiting}`);
+    } catch (error) {
+      setRunHarnessMessage(`Reading the schedule failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!isStandaloneHost) return;
+    void fireDueRuns();
+    // A minute is the resolution a person schedules at; polling faster
+    // would read a file more often to learn the same thing.
+    const timer = setInterval(() => void fireDueRuns(), 60_000);
+    return () => clearInterval(timer);
+  }, [cwd, overview, runDispatch]);
 
   async function loadTimeline() {
     if (cwd.trim().length === 0) {
@@ -1154,7 +1235,9 @@ function StandaloneApp() {
             stats={runStats}
             onChoose={startChosenRun}
             onApplyTemplate={(template) => void applyTemplateToChange(template)}
-            onDismiss={() => setRunDispatch(null)}
+            onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
+            {...(runNote ? { note: runNote } : {})}
+            onDismiss={() => { setRunDispatch(null); setRunNote(null); }}
           />
         ) : null}
         {chainChangeDir ? (

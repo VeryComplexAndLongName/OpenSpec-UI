@@ -22,6 +22,11 @@ export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./c
 // Types and one pure builder — no git, no filesystem, so the browser can
 // read a change's dates and say where each came from.
 export { buildChangeDates, NO_DATE } from "./change-dates.js";
+// Pure: whether a schedule is due is a comparison, and the browser makes
+// it against the same function the hosts do. The file reader stays out —
+// it imports `node:fs`.
+export { checkScheduleTime, describeLateness, readSchedule, withoutEntry } from "./scheduled-runs.js";
+export type { DueRun, ScheduleReading, ScheduledRun } from "./scheduled-runs.js";
 export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } from "./change-dates.js";
 // Pure over a resolved config, with only type imports from the Node-side
 // modules — safe in the browser bundle, unlike harness-config.js itself.

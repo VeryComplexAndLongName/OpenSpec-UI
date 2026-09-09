@@ -90,6 +90,9 @@ export interface AiPanelContext {
    * component mounts, so it rides in the first render's HTML. See
    * harness-settings-in-the-panel. */
   showSettings?: boolean;
+  /** Why the dialog is open, when a schedule opened it rather than a
+   * person — and how late it is. See a-run-can-be-scheduled. */
+  runNote?: string;
 }
 
 /** What the webview may ask this host for.
@@ -695,7 +698,11 @@ export class AiPanel {
     // the ordinary panel first and then replace it.
     const showSettings = panelContext?.showSettings ? "true" : "false";
     const runPlan = panelContext?.runPlan
-      ? escapeHtmlAttribute(JSON.stringify({ plan: panelContext.runPlan, changeName: panelContext.changeName }))
+      ? escapeHtmlAttribute(JSON.stringify({
+        plan: panelContext.runPlan,
+        changeName: panelContext.changeName,
+        ...(panelContext.runNote ? { note: panelContext.runNote } : {}),
+      }))
       : "";
     return `<!doctype html>
 <html>

@@ -31,5 +31,9 @@ have caught it is skipped on pull requests.
   staged.
   Run 2026-09-09: exit 0, including the new check — 48 cli, 796 core,
   302 extension, 68 server, 338 webui.
-- [ ] 4.3 Watch the release job on `main` after the merge — it is the
-  only place this failure was ever visible.
+- [x] 4.3 Watch the release job on `main` after the merge — it is the
+  only place this failure was ever visible. Delegated verification
+  2026-09-09: workflow `Version Packages (#354)` on `main` completed
+  successfully for commit `eca7a8e182f8721a8770d9467645e6a71b1038c5`;
+  its `Version pending changesets` job completed with `success`, as did
+  the standalone browser and extension integration jobs.

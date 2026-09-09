@@ -37,9 +37,14 @@ import {
   renderTemplate,
   resolveHarnessConfig,
   buildWorkspaceRunStats,
+  addScheduledRun,
   customAgentDirectories,
   findCustomAgents,
   auditLogPath,
+  readScheduledRuns,
+  writeScheduledRuns,
+  withoutEntry,
+  type ScheduledRun,
   FileAuditLog,
   type KnownChanges,
   saveChangeEditorDocument,
@@ -994,6 +999,61 @@ export async function handleWorkspaceRunStatsRequest(req: IncomingMessage, res: 
     // rather than as an error.
     const entries = await new FileAuditLog(auditLogPath(parsed.cwd)).readEntries();
     sendJson(res, 200, buildWorkspaceRunStats(entries, await readKnownChanges(parsed.cwd)));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface ScheduledRunsRequest {
+  cwd: string;
+  add?: ScheduledRun;
+  remove?: ScheduledRun;
+}
+
+function isScheduledRunsRequest(value: unknown): value is ScheduledRunsRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0;
+}
+
+/** The workspace's schedule, and one operation on it.
+ *
+ * One route rather than three, because every caller wants the resulting
+ * list either way: adding one and starting one both end with "what is
+ * scheduled now". Whether an entry is due is not answered here — that is
+ * a comparison against the clock, and the browser makes it with the same
+ * `readSchedule` the hosts use.
+ *
+ * See a-run-can-be-scheduled. */
+export async function handleScheduledRunsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isScheduledRunsRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    if (parsed.add) {
+      sendJson(res, 200, { entries: await addScheduledRun(parsed.cwd, parsed.add) });
+      return;
+    }
+    if (parsed.remove) {
+      // Read before write: the file is replaced whole, and writing only
+      // what this caller knows about would delete every other schedule.
+      const entries = withoutEntry(await readScheduledRuns(parsed.cwd), parsed.remove);
+      await writeScheduledRuns(parsed.cwd, entries);
+      sendJson(res, 200, { entries });
+      return;
+    }
+    sendJson(res, 200, { entries: await readScheduledRuns(parsed.cwd) });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
