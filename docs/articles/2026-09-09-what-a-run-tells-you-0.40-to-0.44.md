@@ -1,10 +1,10 @@
-# What a run tells you: OpenSpec Workbench 0.40 → 0.43
+# What a run tells you: OpenSpec Workbench 0.40 → 0.44
 
-Four releases, and one theme running through all of them: an agent that
+Five releases, and one theme running through all of them: an agent that
 spends your money and your time should be able to say what it is about to
 do, what it cannot do, and why it stopped.
 
-That sounds obvious. Most of the work in these four releases was
+That sounds obvious. Most of the work in these five releases was
 discovering how many places it was not true.
 
 ---
@@ -148,8 +148,8 @@ without me* — was spread across two entries and a file that one of them
 never consulted. Picking wrong was not visibly wrong: on an `assisted`
 change, the first looked like it only changed tabs.
 
-0.43 replaces both with one entry, named **Run**, that shows the decision
-before making it:
+0.43 replaces both with one entry, named **Run**. What it was meant to
+show, and what it took 0.44 to actually show, is this:
 
 ![The Run dialog: the resolved path, the setting it read, each stage's
 agent, and the ceilings that cannot act](../images/standalone/run-dialog.png)
@@ -166,17 +166,6 @@ applied from the same place.
 None of that was visible before starting a run. Some of it was not
 visible at all.
 
-The first version of this dialog shipped without most of it, and was
-reported — fairly — as "just a path picker". It never advised in the
-standalone shell, on a recorded ground that turned out to be half untrue;
-it buried the editor's recommendation in a hint that truncates; it named
-a configuration and gave no way to apply it; and when nothing was wrong
-it said nothing at all, which makes "examined and fine" look exactly like
-"not examined".
-
-Which is the same mistake it was built to fix, committed by the thing
-fixing it. That is worth saying plainly rather than quietly correcting.
-
 Choosing a path other than the configured one applies to **that run
 alone** and writes nothing. A run is not a configuration change, and a
 later run behaving differently for a reason nobody recorded is worse than
@@ -189,43 +178,105 @@ separate only because it had its own command.
 
 ---
 
-## What the live checks found
+## 0.44 — finishing what 0.43 claimed
 
-Every change in this project carries items a machine cannot close —
-open the thing, use it, and say what you saw. Over these releases those
-items found four defects that no test caught, and they share a shape.
+0.43 shipped the entry above and it did not do most of what this article
+would have said about it. Opened, it offered three buttons.
 
-**The templates saved nothing.** The settings view sent two of the eight
-accepted configuration keys, and the writer replaces the file. So every
-ceiling a template exists to set was deleted on save — while the panel
-updated correctly and the message truthfully said "nothing is saved until
-you save".
+It never advised in the standalone shell — on a recorded ground that the
+browser "can read neither the task list nor the audit log", half of which
+was never checked: the task list has been available over HTTP the whole
+time. It buried the editor's recommendation in a quick-pick hint that
+truncates, so the text was present and unreadable. It named a
+configuration and offered no way to apply it, which makes a
+recommendation a remark. And when nothing was wrong it rendered nothing
+at all, so "examined and fine" looked exactly like "not examined".
 
-**The unattended template promised what it did not do.** Its text said "No
-checkpoints between stages" and its configuration never set that. Nothing
-compared a template's sentences against what it applies.
+Four faults, and every one of them is the mistake the entry was built to
+fix — showing less than was known — committed by the thing fixing it.
 
-**Verify could not send work back.** The backward edge from `verify` to
-`apply` exists, by its own comment, because a failing mechanical check is
-the clearest statement that earlier work is unfinished. But the gate that
-runs those checks returned `failed` before the loop ever reached the
-edge. The one case it was written for was the one case it could not
-reach.
+0.44 is that finished. The recommendation appears in both hosts, with its
+grounds beneath it. The three named configurations are offered where the
+choice is made, and applying one writes the change's file. A
+configuration whose ceilings can all act says so.
 
-**A ceiling's reason never reached the log.** The panel showed why a
-stage was cut. The audit entry did not — so in the persisted record, a
-run stopped by a rule was indistinguishable from one a person cancelled.
+### The configurations are named for what you are choosing between
 
-Four different defects, one shape: **the visible half was right and the
-acted-upon half was not.** A test looking at the visible half passes
-every time. The only thing that catches this is opening the file that
-came out and reading it.
+They were Careful, Overnight and Thrifty — named for how closely a person
+watches, which is a consequence of the choice rather than the choice.
+Someone picking one is deciding between spending less and finishing
+sooner, and the figures answering that sat three lines below the title.
 
-Even the screenshot above earned its keep that way. Captured for this
-article, it showed the agent list and the ceiling list rendering as one
-undifferentiated run of bullets — a legibility defect that no assertion
-would have reported. The headings in the picture are there because
-someone looked at the picture.
+Now the figures are the title:
+
+| | |
+| --- | --- |
+| **Minimum cost · up to $3, 45 min** | smaller model, tightest ceilings |
+| **Balanced · up to $5, 60 min** | capable model, pauses between stages |
+| **Fastest · up to $25, 4 hours** | no checkpoints, ceilings wide enough not to restart |
+
+"Fastest" says what makes it fast, because nothing here makes an agent
+work faster. Two levers exist and it sets both: the run never waits for a
+person — where most of a supervised run's wall-clock goes — and its
+ceilings are wide enough not to cut a stage. That second one is
+counter-intuitive and worth stating: a stage cut at a ceiling is retried
+from the start, so a **tight ceiling makes a run take longer**.
+
+### Three defects, none found by a test
+
+**A cancelled run left a timer armed.** `spawnAndStream` set a
+ten-second kill-confirmation timer on abort and never cleared it, so a
+cancelled CLI run held the Node event loop open that much longer after it
+had finished. The lint rule had been saying so for days —
+`'killTimer' is assigned a value but never used` — and the warning was
+dismissed as pre-existing in every verification run recorded. The
+variable exists to be cleared. That was the defect.
+
+**Applying a configuration deleted the rest of one.** Both hosts wrote
+the template as the change's whole file, and the writer replaces. So
+`gitStageAllowlist` — which says which paths a chain may stage — was
+removed by reaching for a cheaper run. Third occurrence of one defect in
+this repository, and the first that was introduced rather than inherited.
+
+**A source file was invisible to search.** A raw NUL byte sat inside a
+template literal where the two-character escape was meant, almost
+certainly from a shell heredoc. It compiled and it worked. What it broke
+was `grep`, which classified the file as binary and skipped it silently:
+a search for a term inside it returned nothing at all. A file no search
+can reach is a file nobody reviews, in a repository that greps itself
+constantly. There is a check for that now.
+
+---
+
+## What five defects have in common
+
+Across these releases, five defects were found in this project's own
+code. **None of them by a test.** Every one surfaced because someone
+opened the thing that came out and read it.
+
+| Found by | What it was |
+| --- | --- |
+| applying a configuration and reading the file | nothing was saved |
+| reading a template's own text | it promised what it did not set |
+| opening the dialog | it was a path picker |
+| looking at a screenshot | two lists rendered as one |
+| reading a grep result | a source file was binary |
+
+One shape: **the visible half was right and the acted-upon half was
+not.** The panel updated. The message was true. The tests were green. And
+the file that came out was wrong.
+
+A test that looks at the visible half passes every time. That is not a
+gap in the tests, it is what tests are: assertions about what someone
+already thought to check. The two habits that actually caught these were
+opening the artifact and reading it, and treating a standing warning as a
+statement rather than as noise.
+
+Even the screenshot in this article earned its keep that way. Captured
+for it, the first version showed the agent list and the ceiling list
+rendering as one undifferentiated run of bullets — a legibility defect no
+assertion would have reported. The headings in the picture are there
+because someone looked at the picture.
 
 ---
 
@@ -244,12 +295,19 @@ someone looked at the picture.
   thing for every one — because every change with a record is archived
   with zero open tasks. That is the corpus, not the recommender, and it
   is recorded as a limitation rather than reported as a pass.
+- **The standalone shell cannot read the run history.** It reads how much
+  work is left, which is enough to recommend from, and says outright that
+  there is no previous run to go on. The editor reads both.
+- **The editor's dialog is a quick-pick**, which gives one line per field
+  and cuts the rest. Text that will not fit is now shortened deliberately
+  rather than by the control, but a paragraph still does not fit. The
+  standalone dialog has room for it; the editor wants a webview.
 
 ---
 
 ## The thread
 
-Across four releases the same sentence keeps being the fix: *say what you
+Across five releases the same sentence keeps being the fix: *say what you
 read, say what you cannot do, and say why you stopped.*
 
 A ceiling that cannot act is worse than no ceiling, because it reads as
@@ -263,7 +321,7 @@ answerable for what it is doing with your money.
 
 ---
 
-*OpenSpec Workbench 0.43.0 — a dashboard and VS Code extension for
+*OpenSpec Workbench 0.44.0 — a dashboard and VS Code extension for
 OpenSpec, with Claude, Copilot, Codex and Gemini agents built in. Every
 screenshot here is captured from the running product by an end-to-end
 test, on the commit it illustrates.*
