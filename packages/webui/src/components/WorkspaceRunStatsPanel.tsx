@@ -1,3 +1,4 @@
+import { recommendFromRunStats } from "@openspec-ui/core/browser";
 import type { AgentRunGroup, WorkspaceRunStats } from "@openspec-ui/core/browser";
 
 // What runs have cost in this workspace, shown where a person decides
@@ -41,10 +42,39 @@ function GroupRow({ group, enoughRuns }: { group: AgentRunGroup; enoughRuns: num
   );
 }
 
+/** The conclusions, above the figures they were drawn from.
+ *
+ * Named for what they recommend rather than for an intent chosen in
+ * advance — that is what the named configurations are for. Where a
+ * comparison cannot be made, the reason is shown: "nothing can be
+ * compared yet" and "no comparison was attempted" look identical
+ * otherwise. */
+function Recommendations({ stats }: { stats: WorkspaceRunStats }) {
+  const { offered, gaps } = recommendFromRunStats(stats);
+  if (offered.length === 0 && gaps.length === 0) return null;
+  return (
+    <div data-testid="run-stats-recommendations">
+      {offered.map((entry) => (
+        <p className="openspec-shell-note" key={entry.kind} data-testid={`run-stats-recommendation-${entry.kind}`}>
+          <strong>{entry.title}: {entry.agents.join(", ")}</strong>
+          {` — ${entry.because}`}
+        </p>
+      ))}
+      {gaps.map((gap) => (
+        <p className="openspec-shell-note" key={gap.kind} data-testid={`run-stats-gap-${gap.kind}`}>
+          <em>{`Not recommending on ${gap.kind.replaceAll("-", " ")}: ${gap.reason}.`}</em>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function WorkspaceRunStatsPanel({ stats }: { stats: WorkspaceRunStats }) {
   return (
     <section data-testid="run-stats">
       <p className="openspec-shell-note"><strong>What runs have cost in this workspace</strong></p>
+
+      {stats.runs > 0 ? <Recommendations stats={stats} /> : null}
 
       {stats.runs === 0 ? (
         // Not an empty space. A box that looks the same before and after a
