@@ -64,3 +64,4 @@ export {
   type DefaultRunnersConfig,
 } from "./default-runners.js";
 export * from "./run-plan.js";
+export * from "./workspace-run-stats.js";

@@ -30,19 +30,29 @@ export function findControlBytes(buffer) {
   return found;
 }
 
-function trackedFiles() {
-  // git's own list, like `check-english.mjs` — a walk of the working tree
-  // would trip over build output, caches and `.vscode-test`.
-  const result = spawnSync("git", ["ls-files", "-z"], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
+function gitList(args) {
+  const result = spawnSync("git", ["ls-files", "-z", ...args], { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
   if (result.status !== 0) {
     throw new Error(`git ls-files failed: ${result.stderr?.toString() ?? "unknown error"}`);
   }
   return result.stdout.toString("utf8").split("\0").filter((entry) => entry.length > 0);
 }
 
+function filesToScan() {
+  // git's own list, like `check-english.mjs` — a walk of the working tree
+  // would trip over build output, caches and `.vscode-test`.
+  //
+  // Tracked *and* untracked-but-not-ignored. Scanning only tracked files
+  // gives a false pass on exactly the files most likely to carry the
+  // problem: a new one, before it is staged. That is how this check
+  // passed locally on the very file it then failed on in CI, one day
+  // after it was written — see what-runs-cost-here.
+  return [...new Set([...gitList([]), ...gitList(["--others", "--exclude-standard"])])];
+}
+
 async function main() {
   const violations = [];
-  for (const file of trackedFiles()) {
+  for (const file of filesToScan()) {
     const dot = file.lastIndexOf(".");
     if (dot === -1 || !SCANNED_EXTENSIONS.has(file.slice(dot))) continue;
     let buffer;
