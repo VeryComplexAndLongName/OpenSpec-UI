@@ -1031,8 +1031,8 @@ export class HarnessChainRunner {
     }
 
     const stepAgent = harnessConfig.stepAgents[stage];
-    const { agent: agentId, model, effort, budget } = stepAgent === undefined
-      ? { agent: undefined, model: undefined, effort: undefined, budget: undefined }
+    const { agent: agentId, model, effort, budget, customAgent } = stepAgent === undefined
+      ? { agent: undefined, model: undefined, effort: undefined, budget: undefined, customAgent: undefined }
       : normalizeStepAgent(stepAgent);
     const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
@@ -1061,7 +1061,7 @@ export class HarnessChainRunner {
     // `stage` travels beside `model`/`effort`/`budget`, which the chain
     // already sets here — it is what lets an audit entry say which stage
     // spent what, since every stage runs under the chain's own runId.
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget, stage };
+    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget, customAgent, stage };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 

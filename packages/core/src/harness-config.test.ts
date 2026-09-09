@@ -13,6 +13,7 @@ import {
   HARNESS_AGENT_CAPABILITIES,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
+  STEP_AGENT_KEYS,
   normalizeStepAgent,
   readChangeHarnessConfig,
   readGlobalHarnessConfig,
@@ -1245,5 +1246,51 @@ describe("mergeHarnessConfig — a stage override keeps what it does not name", 
       effort: "max",
       budget: { maxCostUsd: 4 },
     });
+  });
+});
+
+describe("a stage's custom agent", () => {
+  // custom-agents-are-visible. Refused rather than dropped: a setting an
+  // adapter cannot pass is one nothing reads, which is the defect this
+  // repository has spent several changes removing.
+
+  it("is accepted for an agent whose CLI takes one", async () => {
+    const cwd = await temporaryRoot();
+    await writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "claude-cli-acp", customAgent: "reviewer" } },
+    });
+
+    const resolved = await resolveHarnessConfig(cwd);
+    expect(resolved.stepAgents.apply).toEqual({ agent: "claude-cli-acp", customAgent: "reviewer" });
+  });
+
+  it("is refused for an agent whose CLI takes none", async () => {
+    const cwd = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "gemini-cli", customAgent: "reviewer" } as never },
+    })).rejects.toThrow(/does not accept one/u);
+  });
+
+  it("is refused when it would reach nothing at all", async () => {
+    const cwd = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "vscode-chat", customAgent: "reviewer" } as never },
+    })).rejects.toThrow(/cannot reach anything/u);
+  });
+
+  it("is refused when empty", async () => {
+    const cwd = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "claude-cli-acp", customAgent: "  " } as never },
+    })).rejects.toThrow(/non-empty string/u);
+  });
+
+  it("is one of the entry's accepted keys, asserted over the list", () => {
+    // Spelling the keys out here is how the next one added to the entry
+    // gets forgotten. The list is the thing to assert on.
+    expect(STEP_AGENT_KEYS).toContain("customAgent");
   });
 });
