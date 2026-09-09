@@ -6,6 +6,12 @@ import type { ChangeTimeline } from "../change-timeline-client.js";
 const timeline: ChangeTimeline = {
   changeName: "my-change",
   archived: true,
+  dates: {
+    proposed: { date: null, source: "none" },
+    firstWorked: { date: null, source: "none" },
+    lastWorked: { date: null, source: "none" },
+    archived: { date: null, source: "none" },
+  },
   createdDate: "2026-01-01T00:00:00.000Z",
   archivedDate: "2026-01-03",
   proposal: "## Why\n\nBecause reasons.\n",

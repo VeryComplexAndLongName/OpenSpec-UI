@@ -9,6 +9,8 @@ import {
   getChangeAuthorship,
   getChangeTimeline,
   getFileCreatedDate,
+  getPathAddedDate,
+  readArchiveCommitDates,
 } from "./change-timeline.js";
 
 // Measured baseline on 2026-09-02 before this optimization: this file
@@ -147,6 +149,65 @@ describe("getFileCreatedDate", () => {
     const root = await getSharedReadOnlyRepoRoot();
 
     expect(await getFileCreatedDate(root, path.join(root, "never-committed.md"))).toBeNull();
+  });
+});
+
+describe("getPathAddedDate, and the pair that dates an archived change", () => {
+  // change-dates-from-evidence. The two calls differ by one flag, and
+  // the difference is the whole point: `--follow` reports when the file
+  // first existed anywhere, without it when it appeared *there*.
+
+  it("dates a change's proposal and its archiving from two commits, not from a folder name", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    const active = path.join(root, "openspec", "changes", "demo");
+    await mkdir(active, { recursive: true });
+    await writeFile(path.join(active, "proposal.md"), "## Why\n");
+    await commitAll(root, "propose demo", "2026-03-01T10:00:00Z");
+
+    // What `openspec archive` does: a rename into `archive/` with a
+    // dated prefix.
+    const archived = path.join(root, "openspec", "changes", "archive", "2026-03-04-demo");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(active, archived);
+    await commitAll(root, "archive demo", "2026-03-04T15:00:00Z");
+
+    const proposalPath = path.join(archived, "proposal.md");
+    // Followed through the rename: when it was proposed.
+    expect(await getFileCreatedDate(root, proposalPath)).toBe("2026-03-01T10:00:00.000Z");
+    // Not followed: when it appeared under `archive/`.
+    expect(await getPathAddedDate(root, proposalPath)).toBe("2026-03-04T15:00:00.000Z");
+  });
+
+  it("reads every archived change's date in one call", async () => {
+    // One call for the whole directory rather than one per change:
+    // measured on this repository at 0.5s against 80 seconds.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    const active = path.join(root, "openspec", "changes", "demo");
+    await mkdir(active, { recursive: true });
+    await writeFile(path.join(active, "proposal.md"), "## Why\n");
+    await commitAll(root, "propose demo", "2026-03-01T10:00:00Z");
+    const archived = path.join(root, "openspec", "changes", "archive", "2026-03-04-demo");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(active, archived);
+    await commitAll(root, "archive demo", "2026-03-04T15:00:00Z");
+
+    const dates = await readArchiveCommitDates(root);
+
+    expect(dates.get("2026-03-04-demo")).toBe("2026-03-04T15:00:00.000Z");
+  });
+
+  it("returns an empty map where there is no archive to read", async () => {
+    const root = await getSharedReadOnlyRepoRoot();
+
+    expect((await readArchiveCommitDates(root)).size).toBe(0);
+  });
+
+  it("returns null for a path git knows nothing about", async () => {
+    const root = await getSharedReadOnlyRepoRoot();
+
+    expect(await getPathAddedDate(root, path.join(root, "never-committed.md"))).toBeNull();
   });
 });
 

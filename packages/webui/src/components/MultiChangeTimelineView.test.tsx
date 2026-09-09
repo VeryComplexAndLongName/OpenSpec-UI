@@ -9,6 +9,12 @@ const rangeEnd = "2026-01-11T00:00:00.000Z";
 const timelineA: ChangeTimeline = {
   changeName: "change-a",
   archived: true,
+  dates: {
+    proposed: { date: null, source: "none" },
+    firstWorked: { date: null, source: "none" },
+    lastWorked: { date: null, source: "none" },
+    archived: { date: null, source: "none" },
+  },
   createdDate: "2026-01-02T00:00:00.000Z",
   archivedDate: "2026-01-03",
   proposal: "",
@@ -28,6 +34,12 @@ const timelineA: ChangeTimeline = {
 const timelineB: ChangeTimeline = {
   changeName: "change-b",
   archived: false,
+  dates: {
+    proposed: { date: null, source: "none" },
+    firstWorked: { date: null, source: "none" },
+    lastWorked: { date: null, source: "none" },
+    archived: { date: null, source: "none" },
+  },
   createdDate: "2026-01-05T00:00:00.000Z",
   archivedDate: null,
   proposal: "",
