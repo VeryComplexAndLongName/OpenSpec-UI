@@ -3,6 +3,7 @@ import {
   AGENT_REGISTRY,
   HARNESS_AGENT_CAPABILITIES,
   findHarnessConfigLimits,
+  resolveEffortLevel,
   templatesForScope,
   isHarnessStepAgentStage,
   normalizeStepAgent,
@@ -10,6 +11,7 @@ import {
   type HarnessAutonomyLevel,
   type HarnessConfig,
   type HarnessEffort,
+  type HarnessEffortLevel,
   type HarnessReviewGateMode,
   type HarnessStage,
   type HarnessStepAgent,
@@ -78,6 +80,38 @@ function toEffortForm(stepAgents: HarnessStepAgents | undefined): StepEffortForm
     form[stage] = entry === undefined || typeof entry === "string" ? INHERIT : entry.effort ?? INHERIT;
   }
   return form;
+}
+
+/** The effort each stage gets from a named configuration, resolved
+ * against the agent that stage has on screen.
+ *
+ * A configuration carries a level and not a value, so there is nothing to
+ * copy across: `max` is a value `claude` accepts and `codex` does not.
+ * A stage with no agent chosen, or one whose agent accepts no effort,
+ * keeps its inherited setting rather than being given a value it would
+ * be refused for. See presets-by-effort. */
+function effortFormFor(level: HarnessEffortLevel, agents: StepAgentsForm): StepEffortForm {
+  const form = {} as StepEffortForm;
+  for (const stage of CONFIGURABLE_STAGES) {
+    const agent = agents[stage];
+    form[stage] = (agent === INHERIT ? undefined : resolveEffortLevel(agent, level).effort) ?? INHERIT;
+  }
+  return form;
+}
+
+/** What applying one just did, said rather than left to be noticed.
+ *
+ * Where no stage on screen accepts an effort setting the configurations
+ * differ only in their ceilings, and saying so is the difference between
+ * a dial that does nothing and a dial that does nothing silently. */
+function templateAppliedMessage(template: HarnessTemplate, effort: StepEffortForm): string {
+  const set = CONFIGURABLE_STAGES.filter((stage) => effort[stage] !== INHERIT);
+  const effortNote = set.length === 0
+    ? "None of the agents on screen takes an effort setting, so only the ceilings changed."
+    : `Effort set to ${template.effortLevel} of what each agent accepts: `
+      + `${set.map((stage) => `${stage} ${effort[stage]}`).join(", ")}.`;
+  return `Filled from "${template.title}". ${effortNote} The agents and models on screen are unchanged.`
+    + " Nothing is saved until you save.";
 }
 
 function toBudgetForm(stepAgents: HarnessStepAgents | undefined): StepBudgetForm {
@@ -227,6 +261,13 @@ function HarnessTemplatePicker(
              convenience. */
           <li key={template.id} data-testid={`harness-template-${scope}-${template.id}`}>
             <button type="button" onClick={() => onApply(template)}>{template.title}</button>
+            {/* The level, said in the list rather than only after
+                applying: it is what separates these four from each
+                other, and a list that hides its axis asks the reader to
+                apply one to find out. */}
+            <p className="openspec-shell-note">
+              <strong>Effort:</strong> {template.effortLevel} of what each agent accepts
+            </p>
             <p className="openspec-shell-note">{template.intent}</p>
             <p className="openspec-shell-note"><strong>Not for:</strong> {template.notFor}</p>
             <p className="openspec-shell-note">{template.basis}</p>
@@ -278,14 +319,17 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
    * saved. The ceilings ride on `globalConfig`, which is what the
    * findings read. */
   const applyTemplate = (template: HarnessTemplate): void => {
-    setGlobalStepAgents(toForm(template.config.stepAgents));
-    setGlobalEffort(toEffortForm(template.config.stepAgents));
+    // The agents on screen are left alone. A named configuration chooses
+    // an effort, not who runs the stage, and clearing the agents would
+    // discard a choice nobody asked it to make.
+    const effort = effortFormFor(template.effortLevel, globalStepAgents);
+    setGlobalEffort(effort);
     if (template.config.autonomyLevel) setGlobalAutonomyLevel(template.config.autonomyLevel);
     setGlobalConfig((previous) => ({
       ...(previous ?? { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } }),
       ...template.config,
     }));
-    setGlobalMessage(`Filled from "${template.title}". Nothing is saved until you save.`);
+    setGlobalMessage(templateAppliedMessage(template, effort));
   };
 
   const findings = useMemo<HarnessFinding[]>(() => {
@@ -310,20 +354,21 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [changeMessage, setChangeMessage] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
 
-  /** The per-change twin of `applyTemplate`. This is the only place
-   * "fastest" can be applied from — it is per-change only, so it is
-   * correctly withheld from the global file above, and until this existed
-   * there was nowhere else. */
+  /** The per-change twin of `applyTemplate`. It is also the only place a
+   * per-change-only configuration could be applied from, which is why it
+   * exists separately from the global picker above. */
   const applyChangeTemplate = (template: HarnessTemplate): void => {
-    setChangeStepAgents(toForm(template.config.stepAgents));
-    setChangeEffort(toEffortForm(template.config.stepAgents));
-    setChangeBudget(toBudgetForm(template.config.stepAgents));
+    // Same as the global twin: the agents, models and per-stage budgets
+    // on screen are the operator's, and only the effort is the
+    // configuration's.
+    const effort = effortFormFor(template.effortLevel, changeStepAgents);
+    setChangeEffort(effort);
     if (template.config.autonomyLevel) setChangeAutonomyLevel(template.config.autonomyLevel);
     if (template.config.reviewGate) setChangeReviewGateMode(template.config.reviewGate.mode);
     // The ceilings ride here, not in the form, and the save lays the form
     // over this rather than replacing it.
     setChangeOverride((previous) => ({ ...(previous ?? {}), ...template.config }));
-    setChangeMessage(`Filled from "${template.title}". Nothing is saved until you save.`);
+    setChangeMessage(templateAppliedMessage(template, effort));
   };
 
   async function loadGlobal() {

@@ -331,11 +331,31 @@ and, in the editor, the audit log as well. Where a host cannot read the
 run history, the recommendation says there is no previous run to go on
 rather than implying it looked.
 
-The three named configurations are offered in the same place, each with
-what it is for and when it is the wrong choice. Applying one **writes**
-the change's `harness.json` and starts nothing: a path is chosen for one
-run, a configuration is chosen until someone changes it, and the run that
-follows should be the one the file describes.
+Four named configurations are offered in the same place — **Thorough**,
+**Careful**, **Balanced**, **Economy** — each with what it is for, when
+it is the wrong choice, and where each of its ceilings came from.
+
+They are named by the effort they ask for, and each carries a *level*
+rather than a value: the highest, high, medium or lowest of what the
+agent accepts. The value is resolved when the configuration is applied,
+against the agent that stage will use — `max` for `claude-cli` and `high`
+for `codex-cli` are both "highest", and five of the ten registered agents
+accept no effort at all, for which the surface says the configurations
+differ in their ceilings alone rather than showing a dial that does
+nothing.
+
+None of them sets a model. The model is whichever the workspace already
+configured, and each says so in its own text rather than leaving it to be
+inferred from an absence.
+
+Applying one **writes** the change's `harness.json` and starts nothing: a
+path is chosen for one run, a configuration is chosen until someone
+changes it, and the run that follows should be the one the file
+describes. What is written is the change's existing file with the
+configuration laid over it — including the stage's agent beside the
+resolved effort, since an effort without its agent means nothing — so a
+key the configuration does not mention, `gitStageAllowlist` above all, is
+kept.
 
 Three paths are offered, with the configured one pre-selected:
 

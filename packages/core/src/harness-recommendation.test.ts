@@ -22,7 +22,7 @@ describe("recommendTemplate", () => {
   it("recommends the roomier template for a long change with no history", () => {
     const result = recommendTemplate({ openTaskCount: 31 });
 
-    expect(result.template?.id).toBe("balanced");
+    expect(result.template?.id).toBe("careful");
     // Said in the same breath as the answer, so a default cannot be
     // mistaken for a finding.
     expect(result.grounds.join(" ")).toContain("no previous run to go on");
@@ -32,7 +32,7 @@ describe("recommendTemplate", () => {
   it("recommends the thriftier template for a short change with no history", () => {
     const result = recommendTemplate({ openTaskCount: 3 });
 
-    expect(result.template?.id).toBe("min-cost");
+    expect(result.template?.id).toBe("balanced");
     expect(result.grounds.join(" ")).toContain("no previous run to go on");
   });
 
@@ -42,8 +42,8 @@ describe("recommendTemplate", () => {
       history: history([cutRow('stopped "apply" at the stage time limit: timeout.maxStageSeconds is 1200s')]),
     });
 
-    // min-cost -> balanced
-    expect(result.template?.id).toBe("balanced");
+    // balanced -> careful
+    expect(result.template?.id).toBe("careful");
     expect(result.grounds.join(" ")).toContain("maxStageSeconds is 1200s");
   });
 
@@ -71,7 +71,7 @@ describe("recommendTemplate", () => {
       }]),
     });
 
-    expect(result.template?.id).toBe("min-cost");
+    expect(result.template?.id).toBe("balanced");
     expect(result.grounds.join(" ")).toContain("no previous run was stopped by a ceiling");
   });
 

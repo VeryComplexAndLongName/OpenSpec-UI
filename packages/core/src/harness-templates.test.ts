@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { findHarnessConfigLimits } from "./harness-config-findings.js";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js";
-import { HARNESS_TEMPLATES, templatesForScope } from "./harness-templates.js";
+import { HARNESS_AGENT_CAPABILITIES, normalizeStepAgent } from "./harness-step-agent.js";
+import { HARNESS_EFFORT_LEVELS } from "./harness-effort-level.js";
+import type { HarnessStepAgent } from "./harness-step-agent.js";
+import { HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 
 // settings-templates:
 // pure over in-memory data — no files, no processes. Measured 2026-09-08
@@ -43,10 +46,16 @@ describe("HARNESS_TEMPLATES", () => {
   }
 
   it("offers a per-change-only template for a change and not globally", () => {
-    const perChange = HARNESS_TEMPLATES.find((t) => t.id === "fastest");
-    expect(perChange?.scope).toBe("change");
-    expect(templatesForScope("change").map((t) => t.id)).toContain("fastest");
-    expect(templatesForScope("global").map((t) => t.id)).not.toContain("fastest");
+    // Named by scope rather than by id: presets-by-effort left every
+    // shipped configuration global-safe, and a test naming one id would
+    // have had to be deleted rather than kept working.
+    const globalIds = templatesForScope("global").map((t) => t.id);
+    const changeIds = templatesForScope("change").map((t) => t.id);
+    for (const template of HARNESS_TEMPLATES) {
+      expect(changeIds).toContain(template.id);
+      if (template.scope === "change") expect(globalIds).not.toContain(template.id);
+      else expect(globalIds).toContain(template.id);
+    }
   });
 
   it("has distinct ids", () => {
@@ -90,35 +99,156 @@ describe("HARNESS_TEMPLATES — the text and the configuration agree", () => {
   }
 });
 
-describe("HARNESS_TEMPLATES — titled by what is being chosen between", () => {
-  // templates-by-cost-and-speed. They were named for how closely the run
-  // is watched, which is a consequence of each choice and not the choice.
-  // Cost and time are what a person decides between, and the figures were
-  // three lines down in `basis` — so the list omitted the axis a reader
-  // reasons on.
+describe("HARNESS_TEMPLATES — named by the effort they ask for", () => {
+  // presets-by-effort. The figures were in the title, and "$3" was read
+  // as what a run costs rather than as the point at which it is stopped.
+  // Effort is what the product can set honestly — every agent declares
+  // which values it accepts — so it is what the titles name, and the
+  // ceilings stay in `basis` with where each figure came from.
+
+  it("names a level for every configuration, and every level once", () => {
+    const levels = HARNESS_TEMPLATES.map((template) => template.effortLevel);
+    expect(new Set(levels).size).toBe(levels.length);
+    expect([...levels].sort()).toEqual([...HARNESS_EFFORT_LEVELS].sort());
+  });
+
+  it("runs from the most effort to the least", () => {
+    // The order is the axis. A list on an effort axis that does not run
+    // in effort order asks the reader to sort it themselves.
+    const levels = HARNESS_TEMPLATES.map((template) => template.effortLevel);
+    expect(levels).toEqual([...HARNESS_EFFORT_LEVELS]);
+  });
+
+  it("gives more room to more effort", () => {
+    // The two dials move together, which is what lets a recommendation
+    // say "one step roomier" and mean one move.
+    const costs = HARNESS_TEMPLATES.map((template) => template.config.budget?.maxCostUsd ?? 0);
+    expect(costs).toEqual([...costs].sort((a, b) => b - a));
+  });
 
   for (const template of HARNESS_TEMPLATES) {
-    it(`"${template.id}" carries its ceilings in its title`, () => {
-      // Iterated rather than named per template, so a fourth added
-      // without its figures fails rather than passing quietly.
-      expect(template.title).toMatch(/\$\d/);
-      expect(template.title).toMatch(/\d+\s*(min|hour)/);
+    it(`"${template.id}" carries no figure in its title`, () => {
+      // The defect this replaces: a ceiling in the name read as a price.
+      expect(template.title).not.toMatch(/\$\d/);
+      expect(template.title).not.toMatch(/\d+\s*(min|hour)/);
     });
 
-    it(`"${template.id}" states the same ceilings it sets`, () => {
-      // A title is a claim. One naming a figure the configuration does
-      // not set is the defect this repository already shipped once, in
-      // the template that promised "no checkpoints" and set none.
+    it(`"${template.id}" states its ceilings and says it sets no model`, () => {
+      // Removed from the title, they have to be somewhere a person
+      // reads before applying — and the model has to be said rather than
+      // inferred from an absence.
       const cost = template.config.budget?.maxCostUsd;
       expect(cost).toBeDefined();
-      expect(template.title).toContain(`$${cost}`);
+      expect(template.basis).toContain(`$${cost}`);
+      expect(template.basis.toLowerCase()).toContain("sets no model");
+    });
+
+    it(`"${template.id}" sets no agent and no model`, () => {
+      // The whole point: the agent and the model are the workspace's.
+      expect(template.config.stepAgents).toBeUndefined();
+      expect(JSON.stringify(template.config)).not.toContain("model");
     });
   }
+});
 
-  it("offers them cheapest first", () => {
-    // The order is the axis. A list on a cost axis that does not run in
-    // cost order asks the reader to sort it themselves.
-    const costs = HARNESS_TEMPLATES.map((template) => template.config.budget?.maxCostUsd ?? 0);
-    expect(costs).toEqual([...costs].sort((a, b) => a - b));
+/** A stage entry may be a bare agent id, so read it the way the runner
+ * does rather than reaching for a field the string form does not have. */
+const effortOf = (entry: HarnessStepAgent | undefined): string | undefined =>
+  entry === undefined ? undefined : normalizeStepAgent(entry).effort;
+
+describe("stepAgentsForTemplate", () => {
+  // The value is resolved against the agent the stage uses, because
+  // `max` is not a value `codex-cli` accepts and storing a literal would
+  // be wrong for some agent the moment it is applied.
+
+  it("resolves one level to each agent's own vocabulary", () => {
+    const thorough = HARNESS_TEMPLATES.find((t) => t.effortLevel === "highest");
+    expect(thorough).toBeDefined();
+    const applied = stepAgentsForTemplate(thorough as (typeof HARNESS_TEMPLATES)[number], {
+      propose: { agent: "claude-cli" },
+      apply: { agent: "codex-cli" },
+    });
+
+    expect(effortOf(applied.propose)).toBe("max");
+    expect(effortOf(applied.apply)).toBe("high");
+  });
+
+  it("keeps the agent and adds no effort for an agent that accepts none", () => {
+    const economy = HARNESS_TEMPLATES.find((t) => t.effortLevel === "lowest");
+    const applied = stepAgentsForTemplate(economy as (typeof HARNESS_TEMPLATES)[number], {
+      apply: { agent: "vscode-chat" },
+    });
+
+    // Not an empty entry: for this agent the configurations differ only
+    // in their ceilings, and the surface says so rather than showing a
+    // dial that does nothing.
+    expect(applied.apply).toBeUndefined();
+  });
+
+  it("resolves to a value the agent actually accepts, for every agent and level", () => {
+    // presets-by-effort task 5.5. A resolution answering the same thing
+    // for every agent is not reading the vocabulary.
+    for (const [agent, capabilities] of Object.entries(HARNESS_AGENT_CAPABILITIES)) {
+      const accepted = capabilities.effort ?? [];
+      for (const template of HARNESS_TEMPLATES) {
+        const applied = stepAgentsForTemplate(template, { apply: { agent } });
+        if (accepted.length === 0) {
+          expect(applied.apply).toBeUndefined();
+          continue;
+        }
+        expect(accepted).toContain(effortOf(applied.apply));
+      }
+    }
+  });
+
+  it("does not answer the same for agents with different vocabularies", () => {
+    const thorough = HARNESS_TEMPLATES[0] as (typeof HARNESS_TEMPLATES)[number];
+    const claude = stepAgentsForTemplate(thorough, { apply: { agent: "claude-cli" } });
+    const codex = stepAgentsForTemplate(thorough, { apply: { agent: "codex-cli" } });
+    expect(effortOf(claude.apply)).not.toBe(effortOf(codex.apply));
+  });
+});
+
+describe("templateConfigToWrite", () => {
+  // applying-a-template-keeps-the-rest, now in one place both hosts use:
+  // the writer replaces the file, so anything the configuration does not
+  // mention has to be carried across deliberately.
+
+  const economy = HARNESS_TEMPLATES[HARNESS_TEMPLATES.length - 1] as (typeof HARNESS_TEMPLATES)[number];
+
+  it("keeps what the change already had", () => {
+    const written = templateConfigToWrite(economy, {}, {
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+      maxStageAttempts: 9,
+    });
+
+    // Someone reaching for a cheaper run has not asked for the
+    // constraint on what the agent may stage to be removed.
+    expect(written.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["main"] });
+    // What the configuration does set, it sets.
+    expect(written.maxStageAttempts).toBe(economy.config.maxStageAttempts);
+  });
+
+  it("writes the agent beside the effort", () => {
+    const written = templateConfigToWrite(economy, { apply: { agent: "claude-cli" } });
+
+    // An effort without its agent means nothing: `max` is a value
+    // `claude` accepts and `codex` does not.
+    expect(written.stepAgents?.apply).toEqual({ agent: "claude-cli", effort: "low" });
+  });
+
+  it("keeps the rest of a stage entry when the agent is unchanged", () => {
+    const written = templateConfigToWrite(economy, { apply: { agent: "claude-cli" } }, {
+      stepAgents: { apply: { agent: "claude-cli", model: "some-model", effort: "max" } },
+    });
+
+    // Only the effort was being chosen. The model is the workspace's.
+    expect(written.stepAgents?.apply).toEqual({ agent: "claude-cli", model: "some-model", effort: "low" });
+  });
+
+  it("writes no stage entry for an agent that accepts no effort", () => {
+    const written = templateConfigToWrite(economy, { apply: { agent: "vscode-chat" } });
+
+    expect(written.stepAgents).toBeUndefined();
   });
 });

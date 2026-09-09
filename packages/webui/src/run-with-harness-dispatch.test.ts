@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { HarnessTemplate } from "@openspec-ui/core/browser";
 import { applyTemplateToChange, resolveRunWithHarnessDispatch } from "./run-with-harness-dispatch.js";
 
 /** Answers per route. A single `mockResolvedValue` cannot serve both
@@ -104,7 +105,7 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
 
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
-    expect(result.plan.advice?.template?.id).toBe("balanced");
+    expect(result.plan.advice?.template?.id).toBe("careful");
     expect(result.plan.advice?.grounds.join(" ")).toContain("20 tasks still open");
     // The audit log is genuinely not served here, and the recommendation
     // is built to say so rather than imply it looked.
@@ -117,7 +118,7 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
     expect(result.plan.advice?.grounds.join(" ")).toContain("2 tasks still open");
-    expect(result.plan.advice?.template?.id).toBe("min-cost");
+    expect(result.plan.advice?.template?.id).toBe("balanced");
   });
 
   it("gives no recommendation when the timeline cannot be read", async () => {
@@ -137,16 +138,40 @@ describe("applyTemplateToChange", () => {
   // template does not set. Third occurrence of this defect here, and the
   // first introduced rather than inherited.
 
-  function routedRequest(existing: unknown, options: { readFails?: boolean } = {}) {
+  function routedRequest(
+    existing: unknown,
+    options: { readFails?: boolean; stepAgents?: Record<string, unknown> } = {},
+  ) {
     return vi.fn().mockImplementation((pathname: string) => {
       if (pathname === "/api/harness-config/read-change-override") {
         return Promise.resolve(options.readFails
           ? new Response(JSON.stringify({ error: "not valid JSON" }), { status: 500 })
           : new Response(JSON.stringify({ override: existing }), { status: 200 }));
       }
+      if (pathname === "/api/harness-config/resolve") {
+        // The effort is resolved against the agent the stage will use,
+        // which is usually named globally rather than in the change.
+        return Promise.resolve(new Response(
+          JSON.stringify({ stepAgents: options.stepAgents ?? {} }),
+          { status: 200 },
+        ));
+      }
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     });
   }
+
+  /** A stand-in configuration: the shipped ones are asserted in `core`,
+   * and naming one here would tie this test to its ceilings. */
+  const template = (config: Record<string, unknown>): HarnessTemplate => ({
+    id: "stand-in",
+    title: "Stand-in",
+    intent: "",
+    notFor: "",
+    basis: "",
+    effortLevel: "lowest",
+    scope: "either",
+    config,
+  });
 
   function writtenBy(request: ReturnType<typeof vi.fn>) {
     const call = request.mock.calls.find(([pathname]) => pathname === "/api/harness-config/write");
@@ -159,15 +184,15 @@ describe("applyTemplateToChange", () => {
     // may stage, no template mentions it, and someone reaching for a
     // cheaper run has not asked for it to be removed.
     const request = routedRequest({
-      gitStageAllowlist: ["openspec/**"],
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
       timeout: { maxRunSeconds: 900 },
       maxStageAttempts: 5,
     });
 
-    await applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 });
+    await applyTemplateToChange(request, "/repo", "demo", template({ maxStageAttempts: 2 }));
 
     expect(writtenBy(request).config).toEqual({
-      gitStageAllowlist: ["openspec/**"],
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
       timeout: { maxRunSeconds: 900 },
       // The applied configuration's own key wins.
       maxStageAttempts: 2,
@@ -177,9 +202,22 @@ describe("applyTemplateToChange", () => {
   it("writes the configuration alone when the change has none yet", async () => {
     const request = routedRequest(null);
 
-    await applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 });
+    await applyTemplateToChange(request, "/repo", "demo", template({ maxStageAttempts: 2 }));
 
     expect(writtenBy(request).config).toEqual({ maxStageAttempts: 2 });
+  });
+
+  it("resolves the effort against the agent the stage will use", () => {
+    // The configuration names a level, not a value: `max` is a value
+    // `claude` accepts and `codex` does not. The agent is written beside
+    // the effort because the effort means nothing without it.
+    const request = routedRequest(null, { stepAgents: { apply: { agent: "codex-cli" } } });
+
+    return applyTemplateToChange(request, "/repo", "demo", template({})).then(() => {
+      expect(writtenBy(request).config).toEqual({
+        stepAgents: { apply: { agent: "codex-cli", effort: "minimal" } },
+      });
+    });
   });
 
   it("writes nothing when the existing configuration cannot be read", async () => {
@@ -187,7 +225,7 @@ describe("applyTemplateToChange", () => {
     // different route.
     const request = routedRequest(null, { readFails: true });
 
-    await expect(applyTemplateToChange(request, "/repo", "demo", { maxStageAttempts: 2 })).rejects.toThrow();
+    await expect(applyTemplateToChange(request, "/repo", "demo", template({ maxStageAttempts: 2 }))).rejects.toThrow();
     expect(request.mock.calls.some(([pathname]) => pathname === "/api/harness-config/write")).toBe(false);
   });
 });

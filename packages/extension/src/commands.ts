@@ -22,6 +22,7 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   buildRunPlan,
+  templateConfigToWrite,
   templatesForScope,
   type HarnessTemplate,
   type RunPlan,
@@ -1206,11 +1207,18 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           // deleted by applying one. Someone reaching for a cheaper run
           // has not asked for the constraint on what the agent may stage
           // to be removed. See applying-a-template-keeps-the-rest.
+          //
+          // Through the same `core` function the standalone shell writes
+          // through: the configuration carries an effort level rather
+          // than a value, and resolving it against the agent each stage
+          // uses is not something two hosts should each get right
+          // separately. See presets-by-effort.
           const existing = await readChangeHarnessConfig(workspaceRoot, item.changeName);
-          await writeChangeHarnessConfig(workspaceRoot, item.changeName, {
-            ...(existing ?? {}),
-            ...chosen.template.config,
-          });
+          await writeChangeHarnessConfig(
+            workspaceRoot,
+            item.changeName,
+            templateConfigToWrite(chosen.template, config.stepAgents ?? {}, existing ?? {}),
+          );
           void vscode.window.showInformationMessage(
             `OpenSpec UI: applied "${chosen.template.title}" to ${item.changeName}. Run it again to start.`,
           );

@@ -93,7 +93,7 @@ describe("buildRunPlan — what it advises", () => {
       recommendationInput: { openTaskCount: 31 },
     });
 
-    expect(plan.advice?.template?.id).toBe("balanced");
+    expect(plan.advice?.template?.id).toBe("careful");
     // The grounds travel with the answer. A recommendation whose reasons
     // are hidden can only be accepted or ignored, never disagreed with.
     expect(plan.advice?.grounds.join(" ")).toContain("31 tasks still open");

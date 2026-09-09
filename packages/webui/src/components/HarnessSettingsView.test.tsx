@@ -315,21 +315,30 @@ describe("HarnessSettingsView — templates", () => {
     expect(balanced.textContent).toMatch(/p75|median|judgement/);
   });
 
-  it("does not offer a per-change-only template on the global file", async () => {
-    // Applying it globally would be refused on save, so offering it there
-    // hands someone a template that fails.
+  it("offers globally exactly what may be written globally", async () => {
+    // A configuration using a per-change-only field is refused on save,
+    // so offering it here would hand someone one that fails. Read from
+    // the same function the view uses rather than from a named id, so
+    // this keeps holding when the list changes.
     render(<HarnessSettingsView api={createApi()} />);
 
     await waitFor(() => expect(screen.getByTestId("harness-templates-global")).toBeTruthy());
-    expect(screen.queryByTestId("harness-template-global-fastest")).toBeNull();
+    const offered = [...screen.getByTestId("harness-templates-global").querySelectorAll("li")]
+      .map((item) => item.getAttribute("data-testid"));
+    expect(offered).toEqual(HARNESS_TEMPLATES
+      .filter((template) => template.scope !== "change")
+      .map((template) => `harness-template-global-${template.id}`));
+    for (const template of HARNESS_TEMPLATES.filter((entry) => entry.scope === "change")) {
+      expect(screen.queryByTestId(`harness-template-global-${template.id}`)).toBeNull();
+    }
   });
 
   it("fills the form without saving, and says so", async () => {
     const api = createApi();
     render(<HarnessSettingsView api={api} />);
 
-    await waitFor(() => expect(screen.getByTestId("harness-template-global-min-cost")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("harness-template-global-min-cost").querySelector("button")!);
+    await waitFor(() => expect(screen.getByTestId("harness-template-global-economy")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("harness-template-global-economy").querySelector("button")!);
 
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Nothing is saved"));
     expect(api.writeGlobal).not.toHaveBeenCalled();
@@ -422,17 +431,16 @@ describe("HarnessSettingsView — saving preserves what it cannot show", () => {
 });
 
 describe("HarnessSettingsView — a per-change template", () => {
-  it("offers the per-change-only template where a change is edited", async () => {
-    // The whole point of "fastest" is a long unattended run, and until
-    // this picker existed there was nowhere to apply it from: it is
-    // correctly withheld from the global file, and the per-change section
-    // had no picker at all.
+  it("offers the named configurations where a change is edited", async () => {
+    // The per-change section had no picker at all until this existed,
+    // which left any configuration reserved for a change with nowhere to
+    // be applied from.
     const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue(null) });
     render(<HarnessSettingsView api={api} />);
     fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
     fireEvent.click(screen.getByRole("button", { name: "Load override" }));
 
-    expect(await screen.findByTestId("harness-template-change-fastest")).toBeTruthy();
+    expect(await screen.findByTestId("harness-template-change-economy")).toBeTruthy();
   });
 
   it("saves the ceilings an applied template promised, not only its agents", async () => {
@@ -443,15 +451,15 @@ describe("HarnessSettingsView — a per-change template", () => {
     render(<HarnessSettingsView api={api} />);
     fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
     fireEvent.click(screen.getByRole("button", { name: "Load override" }));
-    await screen.findByTestId("harness-template-change-fastest");
+    await screen.findByTestId("harness-template-change-economy");
 
-    fireEvent.click(screen.getByTestId("harness-template-change-fastest").querySelector("button")!);
+    fireEvent.click(screen.getByTestId("harness-template-change-economy").querySelector("button")!);
     fireEvent.click(screen.getByRole("button", { name: "Save override" }));
 
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
     const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
-    const fastest = HARNESS_TEMPLATES.find((template) => template.id === "fastest")!;
-    expect(saved.timeout).toEqual(fastest.config.timeout);
-    expect(saved.maxStageAttempts).toBe(fastest.config.maxStageAttempts);
+    const applied = HARNESS_TEMPLATES.find((template) => template.id === "economy")!;
+    expect(saved.timeout).toEqual(applied.config.timeout);
+    expect(saved.maxStageAttempts).toBe(applied.config.maxStageAttempts);
   });
 });

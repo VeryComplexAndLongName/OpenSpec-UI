@@ -1,6 +1,11 @@
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createVscodeMock } from "./test-utils/vscode-mock.js";
+// The real one, reached through the browser entry so the mock of
+// "@openspec-ui/core" below does not swallow it. What gets written when
+// a configuration is applied is the behaviour under test, and a stub
+// would assert the stub.
+import { templateConfigToWrite as templateConfigToWriteReal } from "@openspec-ui/core/browser";
 
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
@@ -68,10 +73,13 @@ vi.mock("@openspec-ui/core", () => ({
   // hide that the dialog offers named configurations at all, which is
   // the thing run-dialog-actually-advises adds.
   templatesForScope: () => [
-    { id: "balanced", title: "Balanced", intent: "Watch every stage.", notFor: "Leaving unattended.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
-    { id: "fastest", title: "Fastest", intent: "Run without waiting.", notFor: "A change you are unsure about.", basis: "judgement.", scope: "change", config: { maxStageAttempts: 3 } },
-    { id: "min-cost", title: "Minimum cost", intent: "Spend as little as the work allows.", notFor: "Work that failed once.", basis: "median.", scope: "either", config: { maxStageAttempts: 2 } },
+    { id: "thorough", title: "Thorough", effortLevel: "highest", intent: "The most careful work this agent can do.", notFor: "Ordinary work.", basis: "judgement.", scope: "either", config: { maxStageAttempts: 3 } },
+    { id: "balanced", title: "Balanced", effortLevel: "medium", intent: "The middle of this agent's range.", notFor: "Work you cannot afford to have cut short.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
+    { id: "economy", title: "Economy", effortLevel: "lowest", intent: "The least this agent will do.", notFor: "Work that failed once.", basis: "median.", scope: "either", config: { maxStageAttempts: 2 } },
   ],
+  // The real one: what is written when a configuration is applied is the
+  // behaviour these tests are about, and a stub would assert the mock.
+  templateConfigToWrite: (...args: unknown[]) => templateConfigToWriteReal(...(args as Parameters<typeof templateConfigToWriteReal>)),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -1880,7 +1888,7 @@ describe("registerCommands", () => {
       const offered = items
         .filter((entry) => entry.choice?.kind === "apply-template")
         .map((entry) => entry.choice?.template?.id);
-      expect(offered).toEqual(["balanced", "fastest", "min-cost"]);
+      expect(offered).toEqual(["thorough", "balanced", "economy"]);
     });
 
     it("writes the configuration when one is applied, and starts nothing", async () => {
@@ -1891,7 +1899,7 @@ describe("registerCommands", () => {
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "fastest", title: "Fastest", config: { maxStageAttempts: 3 } } },
+        choice: { kind: "apply-template", template: { id: "thorough", title: "Thorough", effortLevel: "highest", config: { maxStageAttempts: 3 } } },
       });
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -1962,20 +1970,20 @@ describe("registerCommands", () => {
       // applying-a-template-keeps-the-rest.
       resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
       readChangeHarnessConfigMock.mockResolvedValue({
-        gitStageAllowlist: ["openspec/**"],
+        gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
         timeout: { maxRunSeconds: 900 },
         maxStageAttempts: 5,
       });
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "economy", title: "Economy", effortLevel: "lowest", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
-        gitStageAllowlist: ["openspec/**"],
+        gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
         timeout: { maxRunSeconds: 900 },
         // The template's own key wins over the change's previous value.
         maxStageAttempts: 2,
@@ -1987,13 +1995,37 @@ describe("registerCommands", () => {
       readChangeHarnessConfigMock.mockResolvedValue(undefined);
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "economy", title: "Economy", effortLevel: "lowest", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", { maxStageAttempts: 2 });
+    });
+
+    it("resolves the effort against the agent each stage will use", async () => {
+      // The configuration names a level, not a value: `max` is one
+      // `claude` accepts and `codex` does not. The agent is written
+      // beside the effort because the effort means nothing without it.
+      resolveHarnessConfigMock.mockResolvedValue({
+        stepAgents: { apply: { agent: "codex-cli" } },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      });
+      readChangeHarnessConfigMock.mockResolvedValue(undefined);
+      buildRunPlanMock.mockReturnValue(planFor("single-stage"));
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce({
+        choice: { kind: "apply-template", template: { id: "thorough", title: "Thorough", effortLevel: "highest", config: {} } },
+      });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.(changeItem);
+
+      expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+        // `codex-cli`'s own highest, not `max`, which it does not accept.
+        stepAgents: { apply: { agent: "codex-cli", effort: "high" } },
+      });
     });
 
     it("writes nothing when the change's existing configuration cannot be read", async () => {
@@ -2003,7 +2035,7 @@ describe("registerCommands", () => {
       readChangeHarnessConfigMock.mockRejectedValue(new Error("harness.json is not valid JSON"));
       buildRunPlanMock.mockReturnValue(planFor("single-stage"));
       vscodeMock.window.showQuickPick.mockResolvedValueOnce({
-        choice: { kind: "apply-template", template: { id: "min-cost", title: "Minimum cost", config: { maxStageAttempts: 2 } } },
+        choice: { kind: "apply-template", template: { id: "economy", title: "Economy", effortLevel: "lowest", config: { maxStageAttempts: 2 } } },
       });
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 

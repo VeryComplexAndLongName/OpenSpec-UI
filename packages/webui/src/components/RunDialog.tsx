@@ -1,4 +1,12 @@
-import { templatesForScope, type HarnessTemplate, type RunPathId, type RunPlan, type WorkspaceRunStats } from "@openspec-ui/core/browser";
+import {
+  resolveEffortLevel,
+  templatesForScope,
+  type HarnessEffortLevel,
+  type HarnessTemplate,
+  type RunPathId,
+  type RunPlan,
+  type WorkspaceRunStats,
+} from "@openspec-ui/core/browser";
 import { WorkspaceRunStatsPanel } from "./WorkspaceRunStatsPanel.js";
 
 // one-way-in-to-run, corrected by run-dialog-actually-advises.
@@ -13,6 +21,31 @@ import { WorkspaceRunStatsPanel } from "./WorkspaceRunStatsPanel.js";
 // act on advice, and it said nothing at all when the configuration was
 // fine. All three are the same mistake as the one it was built to fix —
 // showing less than was known.
+
+/** What a level means for the agents this change would actually use.
+ *
+ * A configuration carries a level rather than a value, because `max` is
+ * a value `claude` accepts and `codex` does not. Resolving it here is
+ * what lets the dialog say what applying one would set, before it is
+ * applied — and say plainly when the answer is "nothing", which is the
+ * case for the five agents that take no effort setting at all. */
+function effortNote(
+  level: HarnessEffortLevel,
+  stageAgents: RunPlan["stageAgents"],
+): string {
+  const agents = [...new Set(stageAgents.map((entry) => entry.agent).filter((agent): agent is string => !!agent))];
+  if (agents.length === 0) return `${level} of what each agent accepts — no agent is configured yet`;
+  const resolved = agents.map((agent) => ({ agent, effort: resolveEffortLevel(agent, level).effort }));
+  const withEffort = resolved.filter((entry) => entry.effort !== undefined);
+  if (withEffort.length === 0) {
+    // Said rather than left to be noticed: for these agents the four
+    // configurations differ in their ceilings alone.
+    return `${level} — ${agents.join(", ")} takes no effort setting, so only the ceilings differ`;
+  }
+  const none = resolved.filter((entry) => entry.effort === undefined).map((entry) => entry.agent);
+  return `${level} — ${withEffort.map((entry) => `${entry.agent} ${entry.effort}`).join(", ")}`
+    + (none.length === 0 ? "" : `; ${none.join(", ")} takes no effort setting`);
+}
 
 export function RunDialog(
   { changeName, plan, stats, onChoose, onApplyTemplate, onDismiss }: {
@@ -99,6 +132,9 @@ export function RunDialog(
             <button type="button" onClick={() => onApplyTemplate(template)}>
               {template.id === advice?.template?.id ? `${template.title} (recommended)` : template.title}
             </button>
+            <p className="openspec-shell-note" data-testid={`run-dialog-template-${template.id}-effort`}>
+              <strong>Effort:</strong> {effortNote(template.effortLevel, plan.stageAgents)}
+            </p>
             <p className="openspec-shell-note">{template.intent}</p>
             <p className="openspec-shell-note"><strong>Not for:</strong> {template.notFor}</p>
             <p className="openspec-shell-note">{template.basis}</p>

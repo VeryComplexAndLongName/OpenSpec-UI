@@ -22,7 +22,9 @@ export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./c
 // Pure over a resolved config, with only type imports from the Node-side
 // modules — safe in the browser bundle, unlike harness-config.js itself.
 export { findHarnessConfigLimits } from "./harness-config-findings.js";
-export { HARNESS_TEMPLATES, templatesForScope } from "./harness-templates.js";
+export { HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
+export { HARNESS_EFFORT_LEVELS, effortLevelCollisions, resolveEffortLevel } from "./harness-effort-level.js";
+export type { HarnessEffortLevel, ResolvedEffort } from "./harness-effort-level.js";
 export { recommendTemplate } from "./harness-recommendation.js";
 export { buildWorkspaceRunStats, ENOUGH_RUNS } from "./workspace-run-stats.js";
 export { recommendFromRunStats } from "./run-recommendations.js";
