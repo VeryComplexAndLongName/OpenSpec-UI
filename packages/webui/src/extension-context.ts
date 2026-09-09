@@ -60,6 +60,10 @@ export interface DashboardContext {
     /** The change the plan is about. The dialog names it, and a choice
      * posted back is about this change. */
     changeName?: string;
+    /** Mount the harness settings view. Like the plan it decides which
+     * component mounts, so it is read from the first render's HTML. See
+     * harness-settings-in-the-panel. */
+    showSettings?: boolean;
 }
 
 export interface DashboardContextMessage {
@@ -76,6 +80,7 @@ export function resolveInitialDashboardContext(
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
         startChain: container.dataset.startChain === "true",
         runChange: container.dataset.runChange === "true",
+        showSettings: container.dataset.showSettings === "true",
         ...readRunPlan(container),
     };
 }

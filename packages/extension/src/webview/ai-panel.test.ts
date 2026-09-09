@@ -836,3 +836,88 @@ describe("AiPanel and the run dialog", () => {
         expect(handler).not.toHaveBeenCalled();
     });
 });
+
+describe("AiPanel answers what the webview asks", () => {
+    // harness-settings-in-the-panel. The bridge carried a command one way
+    // and events the other; the settings view is the first thing here
+    // that has to read something.
+
+    function deliverTo(panel: ReturnType<typeof createPanelFixture>) {
+        return panel.webview.onDidReceiveMessage.mock.calls[0]![0] as (message: unknown) => void;
+    }
+
+    async function settled() {
+        // The handler is async and replies after an await; one turn of
+        // the microtask queue is enough and does not depend on timing.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+    }
+
+    it("answers with the resolved configuration, against the request's id", async () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({ type: "openspec-ui/request", id: "harness/resolve-global:0", op: "harness/resolve-global" });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: "openspec-ui/response",
+            id: "harness/resolve-global:0",
+            ok: true,
+            value: expect.objectContaining({ autonomyLevel: "assisted" }),
+        }));
+    });
+
+    it("refuses an operation it does not offer, by name", async () => {
+        // A request that vanishes leaves a promise that never settles,
+        // which is worse for the form than an error.
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({ type: "openspec-ui/request", id: "x:1", op: "read-any-file-you-like" });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: "x:1",
+            ok: false,
+            error: expect.stringContaining("unknown operation"),
+        }));
+    });
+
+    it("carries a refusal from core back as the error", async () => {
+        // A settings form that cannot say a save was refused is
+        // indistinguishable from one that saved.
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        resolveHarnessConfigMock.mockRejectedValue(new Error("agent-harness.json is not valid JSON"));
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({ type: "openspec-ui/request", id: "y:2", op: "harness/resolve-global" });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: "y:2",
+            ok: false,
+            error: "agent-harness.json is not valid JSON",
+        }));
+    });
+
+    it("refuses a per-change request that names no change", async () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({ type: "openspec-ui/request", id: "z:3", op: "harness/read-change-override" });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: "z:3",
+            ok: false,
+            error: expect.stringContaining("no change"),
+        }));
+    });
+});

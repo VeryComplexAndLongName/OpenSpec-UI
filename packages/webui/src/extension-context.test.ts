@@ -16,6 +16,7 @@ describe("extension dashboard context", () => {
             changeDir: "C:\\repo\\openspec\\changes",
             startChain: false,
             runChange: false,
+            showSettings: false,
         });
     });
 
@@ -27,6 +28,7 @@ describe("extension dashboard context", () => {
             changeDir: "stored-changeDir",
             startChain: false,
             runChange: false,
+            showSettings: false,
         });
     });
 
