@@ -46,6 +46,14 @@ describe("findStaleTasks", () => {
     const timeline: ChangeTimeline = {
       changeName: "my-change",
       archived: false,
+      // Nothing to date this fixture by, which is a fact rather than a
+      // failure — see change-dates-from-evidence.
+      dates: {
+        proposed: { date: null, source: "none" },
+        firstWorked: { date: null, source: "none" },
+        lastWorked: { date: null, source: "none" },
+        archived: { date: null, source: "none" },
+      },
       createdDate: null,
       archivedDate: null,
       proposal: "",
