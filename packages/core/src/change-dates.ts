@@ -33,9 +33,11 @@ export interface ChangeDates {
   /** The earliest commit that added `proposal.md`, followed through the
    * rename `openspec archive` performs. */
   proposed: DatedFact;
-  /** The first time any of the change's task lines was touched. */
+  /** The earliest evidence that work happened: a task that was finished
+   * or a run that was recorded. Not a line that was written — see
+   * `taskDoneDates`. */
   firstWorked: DatedFact;
-  /** The last time any of them was. */
+  /** The latest of the same. */
   lastWorked: DatedFact;
   /** The commit that put the change under `archive/`. The dated folder
    * prefix is the fallback, and says so when it is used. */
@@ -59,10 +61,17 @@ export interface ChangeDateEvidence {
    * `--follow`, so it reports when the change appeared *there* rather
    * than when it first existed. */
   archiveCommitDate?: string | null;
-  /** Every blame date over `tasks.md`, checked or not: a task line that
-   * was edited is work, and restricting this to ticked lines would date
-   * a change by when it finished rather than by when it was worked on. */
-  taskLineDates?: Iterable<string>;
+  /** The dates of the change's *ticked* tasks — a task that was
+   * finished, not a line that was written.
+   *
+   * It was every blame date over `tasks.md` for a day, and that reported
+   * the proposal date under another name: the task list is added by the
+   * same commit that proposes the change, so its earliest blame date is
+   * that commit. Measured across 185 changes, the span from proposed to
+   * first worked was exactly zero for every one of them, and the audit
+   * log could never contribute because a run always happens after the
+   * file exists. See work-dates-are-evidence-of-work. */
+  taskDoneDates?: Iterable<string>;
   /** Timestamps of runs recorded against this change. A second source,
    * not the first: this repository's audit log begins 2026-09-02, so it
    * says nothing about anything older. */
@@ -104,7 +113,7 @@ function archivedDate(evidence: ChangeDateEvidence): DatedFact {
  * started, whoever recorded it. */
 function collectWorked(evidence: ChangeDateEvidence): { first: DatedFact; last: DatedFact } {
   const candidates: DatedFact[] = [];
-  for (const date of evidence.taskLineDates ?? []) {
+  for (const date of evidence.taskDoneDates ?? []) {
     if (date) candidates.push({ date, source: "git-blame" });
   }
   for (const date of evidence.auditTimestamps ?? []) {
