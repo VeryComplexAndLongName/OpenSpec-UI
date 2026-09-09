@@ -1,5 +1,33 @@
 # @openspec-ui/server
 
+## 1.15.0
+
+### Minor Changes
+
+- 8987e8b: Choose a custom agent where the stage's agent is chosen.
+  
+  `POST /api/custom-agents` returns the definitions a workspace holds, with
+  the directories they were looked for in, and the harness settings offer
+  one picker per stage — listing only the definitions that stage's own CLI
+  accepts.
+  
+  Nothing is offered as an empty control: a stage whose agent takes none
+  says so, a workspace defining none says so and names the directories
+  read, and a configured name the discovery no longer finds stays selected
+  and is marked as not found rather than being replaced.
+  
+  Saving a stage now keeps a `model` this form has no control for. It was
+  being deleted on save — the same defect as `settings-save-what-was-shown`,
+  one level down in the stage entry.
+
+### Patch Changes
+
+- Updated dependencies [db5e02c]
+- Updated dependencies [f4beaaf]
+- Updated dependencies [8987e8b]
+- Updated dependencies [09a49fd]
+  - @openspec-ui/core@0.60.0
+
 ## 1.14.0
 
 ### Minor Changes
