@@ -1,5 +1,36 @@
 # @openspec-ui/core
 
+## 0.59.0
+
+### Minor Changes
+
+- 8f2ed11: A stage may name a custom agent — a preset you defined yourself — and it
+  reaches the CLI as `--agent <name>`. Accepted for the `claude-cli` and
+  `copilot-cli` families, raw and ACP alike; setting one for an agent whose
+  CLI takes none is rejected rather than silently dropped.
+  
+  `findCustomAgents` discovers them from the directories the CLIs
+  themselves read: `.claude/agents/*.md` in the project and for the user,
+  and `.github/agents/*.md` for Copilot. A name defined in both is offered
+  once, with the project's winning.
+- cba553e: The run dialog draws recommendations from the workspace's own recorded
+  runs, each named for what it recommends — the cheapest here, the fastest
+  here, the most likely to finish — with the figure it won on beside it.
+  
+  A comparison needing two candidates is not offered with one: a
+  superlative over a single row claims a distinction that was never
+  established, and where that happens the box says so instead. Ties name
+  every candidate, and a group resting on fewer runs than the threshold
+  cannot win.
+- d1e15ca: `verify` now records what a change's declared mechanical checks found —
+  how many ran and how many failed, as fields on an audit entry rather than
+  buried in a sentence. It is recorded whether or not the verifying agent
+  then runs: a `verify` whose checks failed never invokes the agent, so
+  before this the run that found the most left no trace at all.
+  
+  A change declaring no checks records nothing, since an entry saying none
+  ran reads the same as one saying none failed.
+
 ## 0.58.0
 
 ### Minor Changes

@@ -1,5 +1,39 @@
 # @openspec-ui/webui
 
+## 1.30.0
+
+### Minor Changes
+
+- a107503: The run dialog shows what runs have cost in this workspace: per agent,
+  with the median and p90 cost and duration, how many runs each figure
+  rests on, and how many of those reported a cost at all. An agent that
+  reports nothing says so rather than showing a cost of zero, and a group
+  resting on fewer runs than the threshold is marked rather than omitted.
+  
+  A workspace with nothing recorded says so and states how many audit
+  entries were read, so the box changes as runs accumulate instead of
+  looking identical before and after one has happened.
+  
+  New route `POST /api/workspace-run-stats`, since the figures come from
+  the audit log and from which changes still exist, and the browser can
+  read neither.
+
+### Patch Changes
+
+- cba553e: The run dialog draws recommendations from the workspace's own recorded
+  runs, each named for what it recommends — the cheapest here, the fastest
+  here, the most likely to finish — with the figure it won on beside it.
+  
+  A comparison needing two candidates is not offered with one: a
+  superlative over a single row claims a distinction that was never
+  established, and where that happens the box says so instead. Ties name
+  every candidate, and a group resting on fewer runs than the threshold
+  cannot win.
+- Updated dependencies [8f2ed11]
+- Updated dependencies [cba553e]
+- Updated dependencies [d1e15ca]
+  - @openspec-ui/core@0.59.0
+
 ## 1.29.1
 
 ### Patch Changes
