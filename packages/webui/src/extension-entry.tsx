@@ -13,10 +13,12 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
+import { RunDialog } from "./components/RunDialog.js";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
   isDashboardContextMessage,
   resolveInitialDashboardContext,
+  RUN_CHOICE_MESSAGE_TYPE,
   type DashboardContext,
 } from "./extension-context.js";
 
@@ -55,8 +57,16 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   // Deliberately not re-set by later context messages — the user may have
   // changed the command kind by then, and a follow-up message must not
   // undo that.
-  const [runChange] = useState(initialContext.runChange ?? false);
-  const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi: acquireVsCodeApi() }), []);
+  const [runChange, setRunChange] = useState(initialContext.runChange ?? false);
+  /** The dialog is showing while a plan is present and nobody has chosen
+   * a path yet. Choosing one clears it and mounts what it chose — the
+   * chain and the single-stage picker are both already here, so asking
+   * the host to send a context back would be a round trip to change a
+   * local variable. See run-dialog-in-the-panel. */
+  const [runPlan, setRunPlan] = useState(initialContext.runPlan);
+  const [changeName, setChangeName] = useState(initialContext.changeName);
+  const vscodeApi = useMemo(() => acquireVsCodeApi(), []);
+  const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi }), [vscodeApi]);
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
@@ -85,6 +95,13 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       // otherwise a later "open the normal picker" reveal on the same
       // (reused) panel would stay stuck showing HarnessChainPanel.
       setStartChain(event.data.context.startChain ?? false);
+      // Same reason as `startChain`: a later reveal that is not a run
+      // must not leave the dialog on screen, and a reveal that is one —
+      // the host re-posting after a configuration was applied — must
+      // bring it back with what the file now resolves to.
+      setRunPlan(event.data.context.runPlan);
+      setChangeName(event.data.context.changeName);
+      if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -125,7 +142,33 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         </div>
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
-        startChain ? (
+        runPlan ? (
+          <RunDialog
+            changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}
+            plan={runPlan}
+            onChoose={(path) => {
+              if (path === "vscode-agent") {
+                // The only path the host has to carry out: opening a chat
+                // session is not something this bundle can do.
+                vscodeApi.postMessage({ type: RUN_CHOICE_MESSAGE_TYPE, choice: "vscode-agent" });
+                return;
+              }
+              setStartChain(path === "chain");
+              setRunChange(path !== "chain");
+              setRunPlan(undefined);
+            }}
+            onApplyTemplate={(template) => {
+              // The id, not the configuration: the host has the list, and
+              // it writes the file and posts the plan back.
+              vscodeApi.postMessage({
+                type: RUN_CHOICE_MESSAGE_TYPE,
+                choice: "apply-template",
+                templateId: template.id,
+              });
+            }}
+            onDismiss={() => setRunPlan(undefined)}
+          />
+        ) : startChain ? (
           <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} budget={budget} />
         ) : (
           <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} initialCommandKind={runChange ? "implement" : undefined} />

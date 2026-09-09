@@ -331,6 +331,13 @@ It is named `Run` and not after any one of the three paths it offers.
 Naming it after one of them is how it came to sit beside a second entry
 named after another.
 
+It is a panel in both hosts. In VS Code it used to be a quick-pick, which
+gives one line per item and cuts the rest without saying so — measured
+from a screenshot on 2026-09-08, every named configuration's intent ended
+mid-word. The panel renders the same components the standalone shell
+does, so neither host shows less than the other. See
+run-dialog-in-the-panel.
+
 It shows what the change's configuration resolves to before starting
 anything: which path will run and why, which agent each stage will use,
 whether every ceiling can act (said either way, so "examined and fine"

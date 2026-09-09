@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-09
+follows:
+  - agentic-harness-run-menu
+  - run-dialog-actually-advises
+  - presets-by-effort

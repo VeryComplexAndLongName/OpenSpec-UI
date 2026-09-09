@@ -24,9 +24,6 @@ import {
   buildRunPlan,
   templateConfigToWrite,
   templatesForScope,
-  type HarnessTemplate,
-  type RunPlan,
-  type RunPathId,
   type RecommendationInput,
   recommendTemplate,
   checkChangesetReminder,
@@ -89,7 +86,7 @@ import { ChangeTreeItem } from "./tree/changes-tree.js";
 import type { TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
-import type { AiPanelContext } from "./webview/ai-panel.js";
+import type { AiPanelContext, RunChoice, RunChoiceContext } from "./webview/ai-panel.js";
 import { buildWorkbenchChatPrompt } from "./workbench-chat-prompt.js";
 import { TimelineWebviewPanel } from "./webview/timeline-panel.js";
 
@@ -537,6 +534,75 @@ function currentAgentFor(stepAgents: HarnessConfig["stepAgents"], stage: Harness
  * remaining work and how its previous runs ended. Returns nothing when
  * neither can be read — "no recommendation" and "a recommendation with no
  * grounds" are different, and only the first is honest. */
+/** Carries out the two answers from the run dialog that only this host
+ * can: opening a chat session, and writing a named configuration to the
+ * change's file.
+ *
+ * Lives here rather than in the panel because everything it needs is
+ * here — the workspace root, the configuration list, and the same
+ * recommendation input the plan was built from. Registered by
+ * `extension.ts` on the panel. See run-dialog-in-the-panel. */
+export function createRunChoiceHandler(deps: CommandsDeps) {
+  return async function handleRunChoice(choice: RunChoice, context: RunChoiceContext): Promise<void> {
+    const workspaceRoot = deps.getWorkspaceRoot();
+    if (!workspaceRoot) return;
+    const changeName = context.changeName
+      ?? context.changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0).pop();
+    if (!changeName) return;
+    const item: ChangeTreeItem = {
+      changeName,
+      changeDir: context.changeDir,
+      archived: false,
+    } as ChangeTreeItem;
+
+    try {
+      if (choice.kind === "vscode-agent") {
+        await startVsCodeAgentImplementation(deps, workspaceRoot, item);
+        return;
+      }
+
+      const template = templatesForScope("change").find((entry) => entry.id === choice.templateId);
+      if (!template) {
+        // A message naming no configuration writes nothing. Said in the
+        // log rather than silently: it means the two sides disagree
+        // about what exists.
+        deps.outputChannel.appendLine(`OpenSpec UI: ignoring unknown named configuration "${choice.templateId}".`);
+        return;
+      }
+
+      // Laid over what the change already has, through the same `core`
+      // function the standalone shell writes through — the configuration
+      // carries an effort level rather than a value, and the writer
+      // replaces the file, so a key it does not mention would be deleted
+      // by applying one. See applying-a-template-keeps-the-rest and
+      // presets-by-effort.
+      const config = await resolveHarnessConfig(workspaceRoot, changeName);
+      const existing = await readChangeHarnessConfig(workspaceRoot, changeName);
+      await writeChangeHarnessConfig(
+        workspaceRoot,
+        changeName,
+        templateConfigToWrite(template, config.stepAgents ?? {}, existing ?? {}),
+      );
+
+      // Re-read rather than re-render what was on screen: the dialog
+      // should show what the file now resolves to, which is the same
+      // thing the standalone shell does after applying one.
+      const applied = await resolveHarnessConfig(workspaceRoot, changeName);
+      deps.revealAiPanel({
+        ...dashboardContext(workspaceRoot, context.changeDir),
+        runPlan: buildRunPlan(applied, {
+          hasVsCodeAgent: true,
+          ...(await readRecommendationInput(deps, workspaceRoot, item)),
+        }),
+        changeName,
+      });
+      void vscode.window.showInformationMessage(`OpenSpec UI: applied "${template.title}" to ${changeName}.`);
+    } catch (error) {
+      await showCommandError("apply the named configuration", error);
+    }
+  };
+}
+
 async function readRecommendationInput(
   deps: CommandsDeps,
   workspaceRoot: string,
@@ -556,120 +622,6 @@ async function readRecommendationInput(
     // reason to run without advice, and to say nothing rather than guess.
     return {};
   }
-}
-
-/** A quick-pick gives one line per field and cuts the rest without
- * saying so. Measured from a screenshot on 2026-09-08: the placeholder
- * ended "every c…" and a recommendation's grounds ended "reads as short
- * …".
- *
- * So text that will not fit is shortened here, where the ellipsis is
- * deliberate, rather than by the control, where it lands mid-word and
- * reads as a rendering accident. The width is a judgement — a quick-pick
- * has no width to ask — sized from the same screenshot.
- *
- * The real fix is a surface that can hold a paragraph; this keeps the
- * one that cannot from lying about it. */
-const QUICK_PICK_LINE = 96;
-
-function fitOneLine(text: string): string {
-  return text.length <= QUICK_PICK_LINE ? text : `${text.slice(0, QUICK_PICK_LINE - 1).trimEnd()}…`;
-}
-
-/** `vscode.QuickPickItemKind.Separator`. Taken as a literal rather than
- * from the enum so the test double, which stubs the window API and not
- * the enums, does not have to grow a copy of it. */
-const QUICK_PICK_SEPARATOR = -1;
-
-/** What the dialog can be answered with. Starting a run and configuring
- * the change are different acts: a path is chosen for one run and writes
- * nothing, a named configuration is written and holds until someone
- * changes it. */
-type RunChoice =
-  | { kind: "path"; path: RunPathId }
-  | { kind: "apply-template"; template: HarnessTemplate };
-
-/** Shows what the configuration resolves to and lets it be changed for
- * this run only. Nothing here writes `harness.json`: a run is not a
- * configuration change, and a later run behaving differently for a reason
- * nobody recorded is worse than being asked again. */
-async function pickRunPath(changeName: string, plan: RunPlan): Promise<RunChoice | undefined> {
-  const advice = plan.advice;
-
-  const items: Array<{ label: string; detail?: string; description?: string; choice?: RunChoice; kind?: number }> = [];
-
-  // The advice leads, as its own item. It used to ride in `placeHolder`,
-  // a grey line that truncates — present in the object and absent from
-  // the reader, which is the same defect this dialog exists to fix.
-  // See run-dialog-actually-advises.
-  if (advice) {
-    items.push({ label: "Recommended", kind: QUICK_PICK_SEPARATOR });
-    items.push({
-      label: advice.needsPerson
-        ? "$(person) A person should look, rather than a larger ceiling"
-        : `$(lightbulb) Apply "${advice.template?.title ?? "none"}"`,
-      // The grounds travel with the answer. A recommendation whose
-      // reasons are hidden can only be accepted or ignored — and one cut
-      // mid-sentence is hidden in a way that looks like it is not.
-      detail: fitOneLine(advice.grounds.join("  ·  ")),
-      ...(advice.needsPerson || !advice.template
-        ? {}
-        : { choice: { kind: "apply-template", template: advice.template } as RunChoice }),
-    });
-  }
-
-  items.push({ label: "Start", kind: QUICK_PICK_SEPARATOR });
-  const paths = plan.offered.map((path) => ({
-    label: path.id === plan.resolved ? `${path.title}  (configured)` : path.title,
-    detail: path.id === plan.resolved ? `${path.describes}  ${plan.because}.` : path.describes,
-    choice: { kind: "path", path: path.id } as RunChoice,
-  }));
-  // The configured path first, so the pick opens on it. `showQuickPick`
-  // has no preselection for a single pick — same stand-in the setup
-  // wizard uses.
-  paths.sort((a, b) => (a.choice.kind === "path" && a.choice.path === plan.resolved ? -1
-    : b.choice.kind === "path" && b.choice.path === plan.resolved ? 1 : 0));
-  items.push(...paths);
-
-  // Every named configuration a change may be given, so a recommendation
-  // is something a person can act on rather than a remark. Scoped by the
-  // same function the settings view uses, so a template that would be
-  // refused on save is never offered.
-  items.push({ label: "Or apply a named configuration", kind: QUICK_PICK_SEPARATOR });
-  for (const template of templatesForScope("change")) {
-    items.push({
-      // No `description`: that field renders right of the label and is
-      // the first thing a quick-pick truncates, so putting a sentence
-      // there produces text that is present and unreadable — the defect
-      // this dialog exists to fix, in a new place. Measured from a
-      // screenshot on 2026-09-08: every template's intent was cut
-      // mid-word.
-      //
-      // `notFor` alone, because it is the sentence that helps someone
-      // pick: a list of options carrying only advantages gives no help
-      // choosing between them. The full text is in the settings view and
-      // in the standalone dialog, both of which have room for it.
-      label: template.id === advice?.template?.id ? `${template.title}  (recommended)` : template.title,
-      detail: `Not for: ${template.notFor}`,
-      choice: { kind: "apply-template", template } as RunChoice,
-    });
-  }
-
-  const stages = plan.stageAgents
-    .map((entry) => `${entry.stage}: ${entry.agent ?? "no agent set"}`)
-    .join(", ");
-  // Said either way. Rendering nothing when every ceiling can act makes
-  // "examined and fine" identical to "not examined".
-  const ceilings = plan.findings.length === 0
-    ? "every ceiling can act"
-    : `${plan.findings.length} setting(s) cannot act — ${plan.findings.map((f) => f.stage).join(", ")}`;
-
-  const picked = await vscode.window.showQuickPick(items, {
-    title: `Run ${changeName}`,
-    placeHolder: fitOneLine(`${stages}  |  ${ceilings}`),
-    ignoreFocusOut: true,
-  });
-  return picked?.choice;
 }
 
 /** The path that used to be `openspec-ui.startImplementation`. It is not
@@ -1193,49 +1145,22 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           hasVsCodeAgent: true,
           ...(await readRecommendationInput(deps, workspaceRoot, item)),
         });
-        const chosen = await pickRunPath(item.changeName, plan);
-        if (!chosen) return;
-
-        // Applying a named configuration writes the change's file and
-        // starts nothing. The run that follows should be the one the file
-        // describes, which means reading it again — so this ends here and
-        // the person opens Run once more, now configured.
-        if (chosen.kind === "apply-template") {
-          // Laid over what the change already has, not written in its
-          // place. The writer replaces the file, so a key the template
-          // does not mention — `gitStageAllowlist` above all — would be
-          // deleted by applying one. Someone reaching for a cheaper run
-          // has not asked for the constraint on what the agent may stage
-          // to be removed. See applying-a-template-keeps-the-rest.
-          //
-          // Through the same `core` function the standalone shell writes
-          // through: the configuration carries an effort level rather
-          // than a value, and resolving it against the agent each stage
-          // uses is not something two hosts should each get right
-          // separately. See presets-by-effort.
-          const existing = await readChangeHarnessConfig(workspaceRoot, item.changeName);
-          await writeChangeHarnessConfig(
-            workspaceRoot,
-            item.changeName,
-            templateConfigToWrite(chosen.template, config.stepAgents ?? {}, existing ?? {}),
-          );
-          void vscode.window.showInformationMessage(
-            `OpenSpec UI: applied "${chosen.template.title}" to ${item.changeName}. Run it again to start.`,
-          );
-          return;
-        }
-
-        if (chosen.path === "vscode-agent") {
-          await startVsCodeAgentImplementation(deps, workspaceRoot, item);
-          return;
-        }
-        // `runChange` only for the picker target: a chain has one button
-        // and nothing to pre-select, so seeding a command kind there
-        // would describe a control that is not on screen.
+        // Shown in the panel, not in a quick-pick. Every sentence this
+        // dialog has — what each configuration is for, when it is wrong,
+        // where its ceilings came from, what its effort resolves to for
+        // these agents — is one line in a control that cuts the rest
+        // without saying so. Measured from a screenshot on 2026-09-08:
+        // every configuration's intent ended mid-word. The panel renders
+        // the same components the standalone shell does. See
+        // run-dialog-in-the-panel.
+        //
+        // Nothing starts here. A path chosen in the dialog mounts what it
+        // chose, and the two answers this host must carry out come back
+        // as messages, to `handleRunChoice` below.
         deps.revealAiPanel({
           ...dashboardContext(workspaceRoot, item.changeDir),
-          startChain: chosen.path === "chain",
-          runChange: chosen.path !== "chain",
+          runPlan: plan,
+          changeName: item.changeName,
         });
       } catch (error) {
         await showCommandError("resolve Agentic Harness config", error);
