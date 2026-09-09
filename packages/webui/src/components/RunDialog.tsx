@@ -1,4 +1,5 @@
-import { templatesForScope, type HarnessTemplate, type RunPathId, type RunPlan } from "@openspec-ui/core/browser";
+import { templatesForScope, type HarnessTemplate, type RunPathId, type RunPlan, type WorkspaceRunStats } from "@openspec-ui/core/browser";
+import { WorkspaceRunStatsPanel } from "./WorkspaceRunStatsPanel.js";
 
 // one-way-in-to-run, corrected by run-dialog-actually-advises.
 //
@@ -14,9 +15,13 @@ import { templatesForScope, type HarnessTemplate, type RunPathId, type RunPlan }
 // showing less than was known.
 
 export function RunDialog(
-  { changeName, plan, onChoose, onApplyTemplate, onDismiss }: {
+  { changeName, plan, stats, onChoose, onApplyTemplate, onDismiss }: {
     changeName: string;
     plan: RunPlan;
+    /** What the workspace's recorded runs have cost. Absent where it
+     * could not be read — shown as nothing rather than as zeroes, which
+     * would be a claim. */
+    stats?: WorkspaceRunStats;
     onChoose: (path: RunPathId) => void;
     /** Applying a named configuration writes the change's file. That is
      * deliberate and is not the path override, which writes nothing: a
@@ -63,6 +68,8 @@ export function RunDialog(
           Every ceiling configured here can act on the agent chosen for its stage.
         </p>
       )}
+
+      {stats ? <WorkspaceRunStatsPanel stats={stats} /> : null}
 
       {advice ? (
         <div data-testid="run-dialog-advice">
