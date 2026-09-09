@@ -67,6 +67,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
    * local variable. See run-dialog-in-the-panel. */
   const [runPlan, setRunPlan] = useState(initialContext.runPlan);
   const [changeName, setChangeName] = useState(initialContext.changeName);
+  const [runNote, setRunNote] = useState(initialContext.runNote);
   const [showSettings, setShowSettings] = useState(initialContext.showSettings ?? false);
   const vscodeApi = useMemo(() => acquireVsCodeApi(), []);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi }), [vscodeApi]);
@@ -115,6 +116,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       // bring it back with what the file now resolves to.
       setRunPlan(event.data.context.runPlan);
       setChangeName(event.data.context.changeName);
+      setRunNote(event.data.context.runNote);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
       // Reset like the others: a later reveal that is not about settings
       // must not leave the form on screen.
@@ -165,6 +167,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           <RunDialog
             changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}
             plan={runPlan}
+            {...(runNote ? { note: runNote } : {})}
             onChoose={(path) => {
               if (path === "vscode-agent") {
                 // The only path the host has to carry out: opening a chat

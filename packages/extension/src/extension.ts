@@ -22,6 +22,7 @@ import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
+import { watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import type { ChangeTreeItem } from "./tree/changes-tree.js";
@@ -333,6 +334,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   aiPanel.onRunChoice((choice, choiceContext) => {
     void createRunChoiceHandler(commandsDeps)(choice, choiceContext);
   });
+  // A scheduled run starts when its time comes, or when this editor is
+  // opened after it has passed — which is the case the feature exists
+  // for. See a-run-can-be-scheduled.
+  context.subscriptions.push(watchScheduledRuns({
+    getWorkspaceRoot,
+    revealAiPanel: (panelContext) => aiPanel.reveal(panelContext),
+    outputChannel,
+  }));
   registerOpenSpecChatParticipant(context, { getWorkspaceRoot });
 
   context.subscriptions.push(

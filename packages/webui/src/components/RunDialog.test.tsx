@@ -210,3 +210,65 @@ describe("RunDialog — advising, not just picking a path", () => {
       .toContain("only the ceilings differ");
   });
 });
+
+/** The props every case here shares — this file's other tests spell them
+ * out inline, and repeating five of them per new case would bury what
+ * each one is about. */
+function baseProps() {
+  return {
+    changeName: "demo",
+    plan: plan(),
+    onChoose: vi.fn(),
+    onApplyTemplate: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+}
+
+describe("RunDialog — asking for a run at a time", () => {
+  // a-run-can-be-scheduled. "Now" and "at a time" are the same question,
+  // asked once — which is why this lives in the dialog and not beside it.
+
+  it("offers no schedule at all in a host that cannot keep one", () => {
+    // An unusable control is the defect this dialog exists to remove.
+    render(<RunDialog {...baseProps()} />);
+
+    expect(screen.queryByTestId("run-dialog-schedule")).toBeNull();
+  });
+
+  it("refuses a time that has already passed, where it was entered", () => {
+    const onSchedule = vi.fn();
+    render(<RunDialog {...baseProps()} onSchedule={onSchedule} />);
+
+    fireEvent.change(screen.getByLabelText("Start at"), { target: { value: "2020-01-01T09:00" } });
+    fireEvent.click(screen.getByTestId("run-dialog-schedule-chain"));
+
+    expect(onSchedule).not.toHaveBeenCalled();
+    expect(screen.getByTestId("run-dialog-schedule-problem").textContent).toContain("already passed");
+  });
+
+  it("schedules the path that was asked for", () => {
+    const onSchedule = vi.fn();
+    render(<RunDialog {...baseProps()} onSchedule={onSchedule} />);
+    const later = new Date(Date.now() + 60 * 60 * 1000);
+    const local = new Date(later.getTime() - later.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+
+    fireEvent.change(screen.getByLabelText("Start at"), { target: { value: local } });
+    fireEvent.click(screen.getByTestId("run-dialog-schedule-chain"));
+
+    expect(onSchedule).toHaveBeenCalledWith("chain", expect.any(String));
+  });
+
+  it("says the application must be open, before anyone relies on it", () => {
+    render(<RunDialog {...baseProps()} onSchedule={vi.fn()} />);
+
+    expect(screen.getByText(/needs this application open/)).toBeTruthy();
+  });
+
+  it("says why it opened when a schedule opened it", () => {
+    // A dialog opening by itself is a different event from a person
+    // opening it, and which one it was has to be legible.
+    render(<RunDialog {...baseProps()} note="Scheduled for 09:00 — starting 3 hours late." />);
+
+    expect(screen.getByTestId("run-dialog-note").textContent).toContain("3 hours late");
+  });
+});

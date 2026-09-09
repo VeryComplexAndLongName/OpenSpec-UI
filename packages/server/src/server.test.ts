@@ -748,6 +748,54 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(400);
   });
 
+  it("keeps a schedule across reads, and removes the one that started", async () => {
+    // a-run-can-be-scheduled. The whole point is the case where nothing
+    // is running at the appointed time, so the schedule has to outlive
+    // the process — which means a file, which means this route.
+    const cwd = await createTempWorkspace();
+    const entry = {
+      changeName: "demo",
+      path: "chain",
+      startAt: "2026-09-09T18:00:00.000Z",
+      requestedAt: "2026-09-09T12:00:00.000Z",
+    };
+
+    const added = await (await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, add: entry }),
+    })).json();
+    expect(added.entries).toEqual([entry]);
+
+    const read = await (await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    })).json();
+    expect(read.entries).toEqual([entry]);
+
+    const removed = await (await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, remove: entry }),
+    })).json();
+    expect(removed.entries).toEqual([]);
+  });
+
+  it("returns an empty schedule for a workspace with none", async () => {
+    // The ordinary state, and not an error.
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).entries).toEqual([]);
+  });
+
   it("returns the custom agents a workspace defines, with where they were looked for", async () => {
     // custom-agent-picker. The discovery reads directories, so the
     // browser cannot call it; this route is the whole reason a picker

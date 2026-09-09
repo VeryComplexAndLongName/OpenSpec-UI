@@ -60,6 +60,9 @@ export interface DashboardContext {
     /** The change the plan is about. The dialog names it, and a choice
      * posted back is about this change. */
     changeName?: string;
+    /** Why the dialog opened, when a schedule opened it rather than a
+     * person. See a-run-can-be-scheduled. */
+    runNote?: string;
     /** Mount the harness settings view. Like the plan it decides which
      * component mounts, so it is read from the first render's HTML. See
      * harness-settings-in-the-panel. */
@@ -89,13 +92,17 @@ export function resolveInitialDashboardContext(
  * which component mounts and a follow-up message would show the wrong one
  * first. Unparseable JSON mounts the ordinary panel rather than throwing:
  * a malformed attribute should cost the dialog, not the whole webview. */
-function readRunPlan(container: HTMLElement): { runPlan?: RunPlan; changeName?: string } {
+function readRunPlan(container: HTMLElement): { runPlan?: RunPlan; changeName?: string; runNote?: string } {
     const raw = container.dataset.runPlan;
     if (!raw) return {};
     try {
-        const parsed = JSON.parse(raw) as { plan?: RunPlan; changeName?: string };
+        const parsed = JSON.parse(raw) as { plan?: RunPlan; changeName?: string; note?: string };
         if (!parsed.plan) return {};
-        return { runPlan: parsed.plan, ...(parsed.changeName ? { changeName: parsed.changeName } : {}) };
+        return {
+          runPlan: parsed.plan,
+          ...(parsed.changeName ? { changeName: parsed.changeName } : {}),
+          ...(parsed.note ? { runNote: parsed.note } : {}),
+        };
     } catch {
         return {};
     }

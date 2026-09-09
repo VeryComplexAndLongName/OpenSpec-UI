@@ -31,6 +31,8 @@ export * from "./workbench-recovery.js";
 export * from "./agent-detection.js";
 export * from "./changeset-reminder.js";
 export * from "./change-dates.js";
+export * from "./scheduled-runs.js";
+export * from "./scheduled-runs-file.js";
 export * from "./change-timeline.js";
 export * from "./stale-tasks.js";
 export * from "./sprint-report.js";

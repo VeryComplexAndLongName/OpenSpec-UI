@@ -1,4 +1,6 @@
+import { useState } from "react";
 import {
+  checkScheduleTime,
   resolveEffortLevel,
   templatesForScope,
   type HarnessEffortLevel,
@@ -48,7 +50,7 @@ function effortNote(
 }
 
 export function RunDialog(
-  { changeName, plan, stats, onChoose, onApplyTemplate, onDismiss }: {
+  { changeName, plan, stats, note, onChoose, onApplyTemplate, onSchedule, onDismiss }: {
     changeName: string;
     plan: RunPlan;
     /** What the workspace's recorded runs have cost. Absent where it
@@ -61,15 +63,39 @@ export function RunDialog(
      * path is chosen for one run, a configuration is chosen until someone
      * changes it. */
     onApplyTemplate: (template: HarnessTemplate) => void;
+    /** Asking for a run at a time rather than now. Absent in a host that
+     * cannot keep a schedule, and then the section is not rendered at
+     * all — an unusable control is the defect this dialog exists to
+     * remove. See a-run-can-be-scheduled. */
+    onSchedule?: (path: RunPathId, startAt: string) => void;
+    /** Why this dialog is open, when something other than a person
+     * opened it — a schedule that came due, and how late it is. */
+    note?: string;
     onDismiss: () => void;
   },
 ) {
   const advice = plan.advice;
   const templates = templatesForScope("change");
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduleProblem, setScheduleProblem] = useState<string | undefined>(undefined);
+
+  function schedule(path: RunPathId): void {
+    // A local `datetime-local` value has no zone; the person means their
+    // own clock, which is what `new Date()` reads it as.
+    const startAt = new Date(scheduleAt).toISOString();
+    const problem = checkScheduleTime(startAt, new Date());
+    setScheduleProblem(problem);
+    if (problem) return;
+    onSchedule?.(path, startAt);
+  }
 
   return (
     <section className="openspec-shell-panel" data-testid="run-dialog">
       <h3>{`Run ${changeName}`}</h3>
+      {/* Said before anything else: this dialog opening by itself is a
+          different event from a person opening it, and which one it was
+          has to be legible. */}
+      {note ? <p className="openspec-shell-note" data-testid="run-dialog-note"><strong>{note}</strong></p> : null}
       <p className="openspec-shell-note" data-testid="run-dialog-because">{plan.because}.</p>
 
       {/* Headed, because the two lists below are both bullets and read as
@@ -156,6 +182,43 @@ export function RunDialog(
         ))}
         <button type="button" data-testid="run-dialog-cancel" onClick={onDismiss}>Cancel</button>
       </div>
+
+      {onSchedule ? (
+        <div data-testid="run-dialog-schedule">
+          <p className="openspec-shell-note"><strong>Or start it at a time</strong></p>
+          <label className="openspec-shell-field">
+            Start at
+            <input
+              type="datetime-local"
+              aria-label="Start at"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+            />
+          </label>
+          <div className="openspec-ai-panel-controls">
+            {plan.offered.map((path) => (
+              <button
+                key={`schedule-${path.id}`}
+                type="button"
+                data-testid={`run-dialog-schedule-${path.id}`}
+                disabled={scheduleAt.trim().length === 0}
+                onClick={() => schedule(path.id)}
+              >
+                {`Schedule: ${path.title}`}
+              </button>
+            ))}
+          </div>
+          {scheduleProblem
+            ? <p className="openspec-shell-note" data-testid="run-dialog-schedule-problem">{scheduleProblem}</p>
+            : null}
+          {/* The limit, said before it is relied on rather than
+              discovered afterwards. */}
+          <p className="openspec-shell-note">
+            A scheduled run needs this application open at that time. If it is closed, the run starts the next
+            time you open it, and says how late it is.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

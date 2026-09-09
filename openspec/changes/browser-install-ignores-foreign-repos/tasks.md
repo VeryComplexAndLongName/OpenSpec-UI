@@ -10,6 +10,9 @@ Three identical failures across half an hour, none of them ours.
 ## 2. Verification
 
 - [x] 2.1 `openspec validate --strict --changes`.
-- [ ] 2.2 The browser suite passes on this pull request — the only place
+- [x] 2.2 The browser suite passes on this pull request — the only place
   this failure was ever visible, and the reason a local run proves
-  nothing here.
+  nothing here. Verified on CI after merge: workflow `quality` for
+  `Stop the browser install reading an apt source we never use (#353)`
+  on `main` completed successfully, including the standalone browser
+  job; the local browser suite also passed all 8 tests on 2026-09-09.
