@@ -130,6 +130,18 @@ and the user directory is offered once, with the project's winning — it
 is the one its own CLI would use. Neither CLI has a command that lists
 them, and neither needs one: the definitions are files.
 
+They are chosen in the standalone UI's harness settings, beside the
+stage's agent, effort and budget — one picker per stage, listing only the
+definitions that stage's own CLI accepts. A stage whose agent takes none
+says so instead of showing an empty control, as does a workspace that
+defines none, which also names the directories that were read. A name in
+the file that the discovery no longer finds stays selected and is marked
+as not found rather than being replaced.
+
+In VS Code, `Configure Harness for this Change` asks its questions as
+quick-picks and has no custom-agent question yet; a `harness.json` naming
+one is read and passed by both hosts either way.
+
 Gemini and Codex accept no custom agent here. Their CLIs were not
 installed on the machine this was verified on, so their convention could
 not be checked, and offering one that cannot be passed is the same defect

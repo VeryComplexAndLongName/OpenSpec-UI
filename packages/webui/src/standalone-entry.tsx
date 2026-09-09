@@ -45,6 +45,7 @@ import { HarnessSettingsView, type HarnessSettingsApi } from "./components/Harne
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
+import { loadCustomAgents } from "./custom-agents-client.js";
 import {
   applyTemplateToChange as applyTemplateToChangeApi,
   resolveRunWithHarnessDispatch,
@@ -300,6 +301,7 @@ function StandaloneApp() {
   }, [cwd]);
 
   const harnessSettingsApi = useMemo<HarnessSettingsApi>(() => ({
+    listCustomAgents: () => loadCustomAgents(apiFetch, cwd),
     resolveGlobal: () => resolveHarnessConfigApi(apiFetch, cwd),
     writeGlobal: (config) => writeHarnessConfigApi(apiFetch, cwd, config),
     readChangeOverride: (changeName) => readChangeHarnessOverrideApi(apiFetch, cwd, changeName),

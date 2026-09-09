@@ -12,7 +12,7 @@
 // needed to reach each screen.
 
 import { expect, test } from "@playwright/test";
-import { rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
@@ -45,6 +45,16 @@ test.describe("standalone harness screenshots", () => {
         stepAgents: { propose: { agent: "claude-cli", effort: "high", budget: { maxCostUsd: 5 } } },
         autonomyLevel: "assisted",
       }, null, 2)}\n`,
+      "utf8",
+    );
+    // A custom agent definition, so the per-stage picker renders with
+    // something in it rather than with its "this workspace defines none"
+    // note. It is the same file `claude --agent` itself reads, written
+    // where that CLI reads it. See custom-agent-picker.
+    await mkdir(path.join(workspaceRoot, ".claude", "agents"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".claude", "agents", "spec-reviewer.md"),
+      ["---", "description: Reviews a change against its spec", "---", "", "Body.", ""].join("\n"),
       "utf8",
     );
     // Per-change override: semi-autonomous, so "Run with Agentic Harness"
@@ -85,6 +95,10 @@ test.describe("standalone harness screenshots", () => {
       await expect(page.getByTestId("harness-settings-view")).toBeVisible();
       await expect(page.getByLabel("propose agent")).toHaveValue("claude-cli", { timeout: 15000 });
       await expect(page.getByLabel("propose effort")).toHaveValue("high");
+      // Waited for before capturing: the definitions arrive over their
+      // own route, and a screenshot taken first would show the picker's
+      // "this workspace defines none" note instead of the picker.
+      await expect(page.getByLabel("propose custom agent")).toBeVisible({ timeout: 15000 });
       // Full-page: the stage list plus autonomy/review-gate controls below
       // it are taller than one viewport, and a documentation screenshot
       // that only shows the top half would misrepresent the screen.
