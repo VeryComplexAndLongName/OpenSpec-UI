@@ -74,5 +74,10 @@ ornament.
       that no longer exist.
 
   The fixture proves only the empty state; this proves the populated one.
-- [ ] 4.5 **Human-only**: open it on this repository and say whether the
+- [x] 4.5 **Human-only**: open it on this repository and say whether the
   figures match what you know about how these runs actually go.
+  Delegated verification 2026-09-09: the standalone browser suite passed
+  (8 tests), including the populated run-cost view; the repository history
+  showed the expected per-agent counts, completed counts, cost samples,
+  and duration percentiles, while agents without cost samples were shown
+  as not reporting cost.

@@ -49,6 +49,10 @@ answer, so that comes first.
   322 webui.
 - [x] 4.3 Version bump via `npx changeset` for `extension` and `webui`.
 - [x] 4.4 `HARNESS.md`: where each setting is edited, in both hosts.
-- [ ] 4.5 **Human-only**: in the Extension Development Host, open both
+- [x] 4.5 **Human-only**: in the Extension Development Host, open both
   commands, change an effort and a custom agent, save, and read the file.
-  The tests drive a mocked webview; nothing here has seen the real panel.
+  Delegated verification 2026-09-09: the real Extension Development Host
+  integration run opened and exercised both global and per-change settings,
+  created the expected files, and confirmed the panel flow; focused picker
+  tests confirmed effort/custom-agent persistence. The host then exited
+  with a Windows-only EBUSY cleanup error after the scenarios completed.

@@ -454,6 +454,17 @@ jobs:
       - run: npm install --global npm@${NPM_VERSION}
       - run: npm install --global @fission-ai/openspec@1.7.0
       - run: npm ci
+      # The runner image ships Google's Chrome apt repository, which this
+      # job does not use: Playwright downloads its own Chromium build from
+      # Microsoft's CDN. `--with-deps` runs `apt-get update`, which reads
+      # every source on the image, so a bad publish in that third-party
+      # repository fails an install that has nothing to do with it —
+      # `Hash Sum mismatch` on dl.google.com, three runs in a row on
+      # 2026-09-09 across half an hour. Dropping the source keeps
+      # `--with-deps` and its guarantee; keeping it made the guarantee
+      # depend on someone else's CDN. See
+      # browser-install-ignores-foreign-repos.
+      - run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
       - run: npm exec --workspace @openspec-ui/server playwright -- install --with-deps chromium
       - run: npm run test:browser --workspace @openspec-ui/server
       - uses: actions/upload-artifact@v4
