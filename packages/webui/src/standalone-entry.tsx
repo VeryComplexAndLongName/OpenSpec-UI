@@ -44,13 +44,14 @@ import {
 import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
+import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import {
   applyTemplateToChange as applyTemplateToChangeApi,
   resolveRunWithHarnessDispatch,
   type RunWithHarnessDispatch,
 } from "./run-with-harness-dispatch.js";
 import { DEFAULT_STALE_TASK_THRESHOLD_DAYS } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -235,6 +236,10 @@ function StandaloneApp() {
   // What the run entry resolved, held so it can be shown before it is
   // acted on. `null` means no dialog is open.
   const [runDispatch, setRunDispatch] = useState<RunWithHarnessDispatch | null>(null);
+  // Read beside the plan, not with it: the figures are about the
+  // workspace rather than this change, and a failure to read them must
+  // not stop a run from being started.
+  const [runStats, setRunStats] = useState<WorkspaceRunStats | undefined>(undefined);
   const [chainBudget, setChainBudget] = useState<HarnessBudget | undefined>(undefined);
   const [runHarnessLoading, setRunHarnessLoading] = useState(false);
   const [runHarnessMessage, setRunHarnessMessage] = useState<string | null>(null);
@@ -423,6 +428,9 @@ function StandaloneApp() {
     try {
       const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
       setRunDispatch(dispatch);
+      // Absent rather than zeroed if it cannot be read. Zeroes would be a
+      // claim about this workspace; absence is the truth about the read.
+      setRunStats(await loadWorkspaceRunStats(apiFetch, cwd).catch(() => undefined));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRunHarnessMessage(`Run with Agentic Harness failed: ${message}`);
@@ -1140,6 +1148,7 @@ function StandaloneApp() {
           <RunDialog
             changeName={editorChangeName}
             plan={runDispatch.plan}
+            stats={runStats}
             onChoose={startChosenRun}
             onApplyTemplate={(template) => void applyTemplateToChange(template)}
             onDismiss={() => setRunDispatch(null)}

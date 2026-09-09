@@ -5,7 +5,7 @@
 // openspec/changes/standalone-app/design.md, "Decisions").
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { access } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   ArchivedChangeNotFoundError,
@@ -35,6 +35,10 @@ import {
   renderSprintReportPdf,
   renderTemplate,
   resolveHarnessConfig,
+  buildWorkspaceRunStats,
+  auditLogPath,
+  FileAuditLog,
+  type KnownChanges,
   saveChangeEditorDocument,
   showChange,
   statusChange,
@@ -924,6 +928,72 @@ export async function handleStatusJsonRequest(req: IncomingMessage, res: ServerR
   }
 
   sendJson(res, 200, { events });
+}
+
+interface WorkspaceRunStatsRequest {
+  cwd: string;
+}
+
+function isWorkspaceRunStatsRequest(value: unknown): value is WorkspaceRunStatsRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0;
+}
+
+/** Which changes the workspace still has. A change that is neither active
+ * nor archived was deleted, and `buildWorkspaceRunStats` uses that to
+ * drop experiments from its aggregates — see what-runs-cost-here. */
+async function readKnownChanges(cwd: string): Promise<KnownChanges> {
+  const changesDir = path.join(cwd, "openspec", "changes");
+  const active: string[] = [];
+  const archived: string[] = [];
+  try {
+    for (const entry of await readdir(changesDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === "archive") continue;
+      active.push(entry.name);
+    }
+  } catch {
+    // No changes directory is not an error: a workspace can have an audit
+    // log and no changes left, and the aggregate over it is empty rather
+    // than a failure.
+  }
+  try {
+    for (const entry of await readdir(path.join(changesDir, "archive"), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      archived.push(entry.name.replace(/^\d{4}-\d{2}-\d{2}-/u, ""));
+    }
+  } catch {
+    // Likewise: a workspace that has archived nothing yet.
+  }
+  return { active, archived };
+}
+
+export async function handleWorkspaceRunStatsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isWorkspaceRunStatsRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    // `readEntries` skips a torn line rather than failing, and a missing
+    // file yields none — a workspace that has never run anything gets an
+    // empty aggregate, which the dialog reports as "nothing recorded yet"
+    // rather than as an error.
+    const entries = await new FileAuditLog(auditLogPath(parsed.cwd)).readEntries();
+    sendJson(res, 200, buildWorkspaceRunStats(entries, await readKnownChanges(parsed.cwd)));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 interface HarnessConfigResolveRequest {

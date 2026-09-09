@@ -689,6 +689,65 @@ describe("server — REST /api/status", () => {
     expect(body.reviewGate).toEqual({ mode: "agent-sufficient" });
   });
 
+  it("aggregates the workspace's recorded runs, excluding changes that no longer exist", async () => {
+    // dialog-shows-what-runs-cost. A change that is neither active nor
+    // archived was deleted, which makes its runs experiments rather than
+    // part of the record — see what-runs-cost-here.
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec", "changes", "kept"), { recursive: true });
+    await mkdir(path.join(cwd, ".openspec-ui"), { recursive: true });
+
+    const run = (change: string, runId: string, cost?: number) => [
+      { agent: "claude-cli-acp", changeDir: path.join(cwd, "openspec", "changes", change), cwd, runId, outcome: "started", timestamp: "2026-09-09T00:00:00.000Z" },
+      { agent: "claude-cli-acp", changeDir: path.join(cwd, "openspec", "changes", change), cwd, runId, outcome: "completed", timestamp: "2026-09-09T00:02:00.000Z", ...(cost === undefined ? {} : { usage: { costUsd: cost } }) },
+    ];
+    await writeFile(
+      path.join(cwd, ".openspec-ui", "audit.jsonl"),
+      [...run("kept", "a", 2), ...run("deleted-smoke", "b", 99)].map((e) => JSON.stringify(e)).join("\n"),
+    );
+
+    const response = await fetch(`${baseUrl}/api/workspace-run-stats`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.entriesRead).toBe(4);
+    expect(body.entriesFromDeletedChanges).toBe(2);
+    expect(body.runs).toBe(1);
+    expect(body.byAgent).toHaveLength(1);
+    expect(body.byAgent[0].medianCostUsd).toBe(2);
+  });
+
+  it("returns an empty aggregate for a workspace that has never run anything", async () => {
+    // Not an error: a missing audit file is the ordinary state of a new
+    // workspace, and the dialog reports it as "nothing recorded yet".
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/workspace-run-stats`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.entriesRead).toBe(0);
+    expect(body.runs).toBe(0);
+  });
+
+  it("refuses a run-stats request with no cwd", async () => {
+    const response = await fetch(`${baseUrl}/api/workspace-run-stats`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("writes the global harness config, and it round-trips through resolve", async () => {
     const cwd = await createTempWorkspace();
 
