@@ -175,7 +175,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     );
   });
 
-  test("Harness Settings: global command creates openspec/agent-harness.json with the documented default and opens it", async () => {
+  test("Harness Settings: global command creates openspec/agent-harness.json with the documented default and opens the view", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
     const uri = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "agent-harness.json");
@@ -185,9 +185,14 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const bytes = await vscode.workspace.fs.readFile(uri);
     const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
     assert.deepEqual(written, { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+    // harness-settings-in-the-panel: the settings view opens, not the
+    // JSON. The file is still written first — a view over a file that
+    // does not exist would have to explain the difference between
+    // "inherits everything" and "not configured".
+    assert.equal(api.getDashboardContext()?.showSettings, true, "expected the settings view to be revealed");
     assert.ok(
-      vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
-      "expected openspec/agent-harness.json to be open in an editor",
+      !vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
+      "expected the raw JSON not to be opened as well — one surface for this, not two",
     );
 
     assert.ok(api.changesTree, "expected changesTree to be registered for a workspace with openspec/");
@@ -197,7 +202,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.equal(harnessSettingsRoot.command?.command, "openspec-ui.configureHarness");
   });
 
-  test("Harness Settings: per-change command creates openspec/changes/<name>/harness.json and opens it", async () => {
+  test("Harness Settings: per-change command creates openspec/changes/<name>/harness.json and opens the view on it", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
     const changeDir = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo");
@@ -213,10 +218,11 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const bytes = await vscode.workspace.fs.readFile(uri);
     const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
     assert.deepEqual(written, {});
-    assert.ok(
-      vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
-      "expected the per-change harness.json to be open in an editor",
-    );
+    const context = api.getDashboardContext();
+    assert.equal(context?.showSettings, true, "expected the settings view to be revealed");
+    // Carrying the change, so the view opens on the override being
+    // edited rather than asking for a name that was just right-clicked.
+    assert.equal(context?.changeName, "demo");
   });
 
   test("mode-toggle: enabling the localhost setting starts the same server/standalone bundle used by standalone-app", async () => {
