@@ -85,6 +85,33 @@ async function readDirectory(directory: string, convention: FamilyConvention): P
   return found;
 }
 
+/** A directory a definition would be read from, whether or not it
+ * exists. What a surface needs to say "this workspace defines none" and
+ * be useful about it: the answer to "then where would I put one?" is a
+ * path, and the surface should not have to rebuild it from a convention
+ * it cannot see. */
+export interface CustomAgentDirectory {
+  family: CustomAgentFamily;
+  /** `"project"` is read from the workspace root, `"user"` from the
+   * home directory the caller passed. */
+  scope: "project" | "user";
+  path: string;
+}
+
+/** Every directory `findCustomAgents` would read, in the order it reads
+ * them. Reported rather than described, so a message naming them cannot
+ * drift from the ones actually read. */
+export function customAgentDirectories(workspaceRoot: string, homeDir?: string): CustomAgentDirectory[] {
+  const directories: CustomAgentDirectory[] = [];
+  for (const convention of CONVENTIONS) {
+    if (convention.userDir !== undefined && homeDir !== undefined) {
+      directories.push({ family: convention.family, scope: "user", path: path.join(homeDir, convention.userDir) });
+    }
+    directories.push({ family: convention.family, scope: "project", path: path.join(workspaceRoot, convention.projectDir) });
+  }
+  return directories;
+}
+
 /** Every custom agent this workspace can offer.
  *
  * A name defined both in the project and for the user is offered once,

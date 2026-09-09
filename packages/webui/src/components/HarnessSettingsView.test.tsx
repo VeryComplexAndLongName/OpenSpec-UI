@@ -11,6 +11,16 @@ import { HarnessSettingsView, type HarnessSettingsApi } from "./HarnessSettingsV
 
 function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettingsApi {
   return {
+    // A workspace defining none is the ordinary case, including this
+    // one — so that is what the default mock answers, and a test about
+    // the picker overrides it.
+    listCustomAgents: vi.fn().mockResolvedValue({
+      agents: [],
+      directories: [
+        { family: "claude", scope: "project", path: "/repo/.claude/agents" },
+        { family: "copilot", scope: "project", path: "/repo/.github/agents" },
+      ],
+    }),
     resolveGlobal: vi.fn().mockResolvedValue({
       stepAgents: { propose: "claude-cli" },
       autonomyLevel: "assisted",
@@ -461,5 +471,105 @@ describe("HarnessSettingsView — a per-change template", () => {
     const applied = HARNESS_TEMPLATES.find((template) => template.id === "economy")!;
     expect(saved.timeout).toEqual(applied.config.timeout);
     expect(saved.maxStageAttempts).toBe(applied.config.maxStageAttempts);
+  });
+});
+
+describe("HarnessSettingsView — custom agents", () => {
+  // custom-agent-picker. The path shipped without a way to pick one: a
+  // person had to hand-edit `harness.json` with a name nothing on screen
+  // had ever shown them.
+
+  const withAgents = (): Partial<HarnessSettingsApi> => ({
+    listCustomAgents: vi.fn().mockResolvedValue({
+      agents: [
+        { name: "reviewer", description: "Reviews against the spec", family: "claude", filePath: "/repo/.claude/agents/reviewer.md" },
+        { name: "shipper", family: "copilot", filePath: "/repo/.github/agents/shipper.md" },
+      ],
+      directories: [
+        { family: "claude", scope: "project", path: "/repo/.claude/agents" },
+        { family: "copilot", scope: "project", path: "/repo/.github/agents" },
+      ],
+    }),
+  });
+
+  it("offers only the definitions the stage's own CLI accepts", async () => {
+    // A definition written for one CLI is not a name the other takes,
+    // and offering it would produce a configuration the validator
+    // refuses.
+    render(<HarnessSettingsView api={createApi(withAgents())} />);
+    await screen.findByLabelText("propose agent");
+
+    const select = await screen.findByLabelText("propose custom agent");
+    const options = [...select.querySelectorAll("option")].map((option) => option.getAttribute("value"));
+    expect(options).toEqual(["", "reviewer"]);
+    // The description rides with the name: two names alone give no help
+    // choosing between them.
+    expect(select.textContent).toContain("Reviews against the spec");
+  });
+
+  it("says the CLI takes none rather than showing an empty control", async () => {
+    render(<HarnessSettingsView api={createApi(withAgents())} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
+
+    expect(screen.queryByLabelText("apply custom agent")).toBeNull();
+    expect(screen.getByTestId("custom-agent-none-apply").textContent).toContain("takes no custom agent");
+  });
+
+  it("says where definitions are read from when the workspace defines none", async () => {
+    // "None defined" is only useful if it answers "then where would I
+    // put one?".
+    render(<HarnessSettingsView api={createApi()} />);
+    await screen.findByLabelText("propose agent");
+
+    const empty = await screen.findByTestId("custom-agent-empty-propose");
+    expect(empty.textContent).toContain(".claude/agents");
+  });
+
+  it("keeps a configured name the discovery no longer finds, marked as such", async () => {
+    // Replacing it silently would edit a configuration nobody asked to
+    // change and hide that a file it depends on is gone.
+    const api = createApi({
+      ...withAgents(),
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: { agent: "claude-cli", customAgent: "deleted-one" } },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      }),
+    });
+    render(<HarnessSettingsView api={api} />);
+
+    const select = await screen.findByLabelText("propose custom agent");
+    expect(select).toHaveValue("deleted-one");
+    expect(select.textContent).toContain("not found");
+  });
+
+  it("saves the chosen name as that stage's custom agent, keeping its other fields", async () => {
+    const api = createApi({
+      ...withAgents(),
+      resolveGlobal: vi.fn().mockResolvedValue({
+        // A model this form has no control for. Saving used to delete
+        // it — the same defect as settings-save-what-was-shown, one
+        // level down in the stage entry.
+        stepAgents: { propose: { agent: "claude-cli", model: "some-model", effort: "high" } },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      }),
+    });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(await screen.findByLabelText("propose custom agent"), { target: { value: "reviewer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save global config" }));
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalled());
+    const saved = (api.writeGlobal as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { stepAgents: Record<string, unknown> };
+    expect(saved.stepAgents.propose).toEqual({
+      agent: "claude-cli",
+      model: "some-model",
+      effort: "high",
+      customAgent: "reviewer",
+    });
   });
 });

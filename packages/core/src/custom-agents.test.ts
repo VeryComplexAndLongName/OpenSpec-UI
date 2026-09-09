@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { agentsAcceptingCustomAgents, customAgentFamilyFor, findCustomAgents } from "./custom-agents.js";
+import { agentsAcceptingCustomAgents, customAgentDirectories, customAgentFamilyFor, findCustomAgents } from "./custom-agents.js";
 import { normalizeStepAgent } from "./harness-step-agent.js";
 
 // custom-agents-are-visible:
@@ -108,5 +108,29 @@ describe("normalizeStepAgent carries the custom agent", () => {
     // days. Asserted directly, because a type is not a test.
     expect(normalizeStepAgent({ agent: "claude-cli-acp", customAgent: "reviewer" }))
       .toMatchObject({ agent: "claude-cli-acp", customAgent: "reviewer" });
+  });
+});
+
+describe("customAgentDirectories", () => {
+  // custom-agent-picker. A surface saying "this workspace defines none"
+  // is only useful if it can answer "then where would I put one?", and a
+  // path it rebuilt from a convention it cannot see would drift from the
+  // one actually read.
+
+  it("reports every directory the discovery reads, in the order it reads them", () => {
+    const directories = customAgentDirectories(path.join("/repo"), path.join("/home", "someone"));
+
+    expect(directories).toEqual([
+      { family: "claude", scope: "user", path: path.join("/home", "someone", ".claude", "agents") },
+      { family: "claude", scope: "project", path: path.join("/repo", ".claude", "agents") },
+      { family: "copilot", scope: "project", path: path.join("/repo", ".github", "agents") },
+    ]);
+  });
+
+  it("omits the user-level directory when no home is given", () => {
+    // The same condition `findCustomAgents` applies, so the report cannot
+    // name a directory the discovery skipped.
+    expect(customAgentDirectories(path.join("/repo")).map((entry) => entry.scope))
+      .toEqual(["project", "project"]);
   });
 });

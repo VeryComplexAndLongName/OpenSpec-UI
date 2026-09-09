@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AGENT_REGISTRY,
+  customAgentFamilyFor,
   HARNESS_AGENT_CAPABILITIES,
   findHarnessConfigLimits,
   resolveEffortLevel,
@@ -20,6 +21,7 @@ import {
   type HarnessFinding,
   type HarnessTemplate,
 } from "@openspec-ui/core/browser";
+import type { CustomAgentsResult } from "../custom-agents-client.js";
 
 // Harness Settings — see openspec/changes/agentic-harness/. Two levels:
 // a global default (this view's top section) and a per-change override
@@ -27,6 +29,11 @@ import {
 // everything else stays inherited from the global config).
 
 export interface HarnessSettingsApi {
+  /** The custom agents this workspace defines, and the directories they
+   * were looked for in. A host that cannot read them offers no picker
+   * and says so, which is why the result carries the directories rather
+   * than only the list. See custom-agent-picker. */
+  listCustomAgents(): Promise<CustomAgentsResult>;
   resolveGlobal(): Promise<HarnessConfig>;
   writeGlobal(config: Partial<HarnessConfig>): Promise<void>;
   readChangeOverride(changeName: string): Promise<Partial<HarnessConfig> | null>;
@@ -58,6 +65,8 @@ type StepAgentsForm = Record<HarnessStepAgentStage, string>;
 // "" (INHERIT) means unset in both, same sentinel as StepAgentsForm.
 type StepEffortForm = Record<HarnessStepAgentStage, string>;
 type StepBudgetForm = Record<HarnessStepAgentStage, string>;
+// "" (INHERIT) means "no custom agent", the same sentinel as the others.
+type StepCustomAgentForm = Record<HarnessStepAgentStage, string>;
 
 // This view only ever shows/writes the agent id — no model selector yet
 // (see harness-step-models design.md, Non-Goals). A hand-edited config
@@ -128,12 +137,27 @@ function toBudgetForm(stepAgents: HarnessStepAgents | undefined): StepBudgetForm
   return form;
 }
 
-/** Combines all three per-stage forms back into `HarnessStepAgents`. A
+function toCustomAgentForm(stepAgents: HarnessStepAgents | undefined): StepCustomAgentForm {
+  const form = {} as StepCustomAgentForm;
+  for (const stage of CONFIGURABLE_STAGES) {
+    const entry = stepAgents?.[stage];
+    form[stage] = entry === undefined || typeof entry === "string" ? INHERIT : entry.customAgent ?? INHERIT;
+  }
+  return form;
+}
+
+/** Combines all four per-stage forms back into `HarnessStepAgents`. A
  * stage whose effort/budget is unset (or whose value isn't accepted by
  * its currently-selected agent) writes the plain bare-string form,
  * exactly as before effort/budget existed — see tasks.md 3.6's
  * "byte-identical" guarantee, applied to this surface's own output. */
-function toStepAgents(agentForm: StepAgentsForm, effortForm: StepEffortForm, budgetForm: StepBudgetForm): HarnessStepAgents {
+function toStepAgents(
+  agentForm: StepAgentsForm,
+  effortForm: StepEffortForm,
+  budgetForm: StepBudgetForm,
+  customAgentForm: StepCustomAgentForm,
+  loaded?: HarnessStepAgents,
+): HarnessStepAgents {
   const result: HarnessStepAgents = {};
   for (const stage of CONFIGURABLE_STAGES) {
     if (agentForm[stage] === INHERIT) continue;
@@ -141,20 +165,33 @@ function toStepAgents(agentForm: StepAgentsForm, effortForm: StepEffortForm, bud
     const capabilities = HARNESS_AGENT_CAPABILITIES[agentId];
     const effortValue = effortForm[stage];
     const budgetRaw = budgetForm[stage].trim();
+    const customAgent = customAgentForm[stage];
     const hasEffort = effortValue !== INHERIT && (capabilities?.effort ?? []).includes(effortValue as HarnessEffort);
     const hasBudget = budgetRaw !== "" && capabilities?.budgetField !== undefined;
+    const hasCustomAgent = customAgent !== INHERIT && customAgentFamilyFor(agentId) !== undefined;
+    // What this form has no control for, kept from the file it loaded —
+    // and only while the stage still names the same agent, since a model
+    // belongs to the agent it was written for. Without this, saving
+    // deleted a hand-written `model`: the same defect as
+    // settings-save-what-was-shown, one level down in the entry.
+    const previous = loaded?.[stage];
+    const keptModel = previous !== undefined && typeof previous !== "string" && previous.agent === agentId
+      ? previous.model
+      : undefined;
 
-    if (!hasEffort && !hasBudget) {
+    if (!hasEffort && !hasBudget && !hasCustomAgent && keptModel === undefined) {
       result[stage] = agentId;
       continue;
     }
     const entry: Exclude<HarnessStepAgent, string> = { agent: agentId };
+    if (keptModel !== undefined) entry.model = keptModel;
     if (hasEffort) entry.effort = effortValue as HarnessEffort;
     if (hasBudget) {
       entry.budget = capabilities!.budgetField === "maxCostUsd"
         ? { maxCostUsd: Number(budgetRaw) }
         : { maxAiCredits: Number(budgetRaw) };
     }
+    if (hasCustomAgent) entry.customAgent = customAgent;
     result[stage] = entry;
   }
   return result;
@@ -236,6 +273,74 @@ function BudgetInput({ stage, agentId, value, onChange, ariaLabel }: { stage: st
   );
 }
 
+/** Offers the custom agents this workspace defines for the stage's own
+ * CLI — `claude --agent <name>`, `copilot --agent <name>`.
+ *
+ * A select rather than a text field: a field accepts any name, including
+ * one no definition matches, and the CLI's complaint about an unknown
+ * agent arrives when the stage runs, long after the mistake.
+ *
+ * Nothing is rendered as an empty control. Where the stage's agent takes
+ * none, or the workspace defines none for that CLI, the row says which of
+ * the two it is — an empty dropdown is a promise of a choice that is not
+ * there. See custom-agent-picker. */
+function CustomAgentSelect(
+  { stage, agentId, value, onChange, ariaLabel, available }:
+  { stage: string; agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; available: CustomAgentsResult | null },
+) {
+  if (agentId === INHERIT) return null;
+  const family = customAgentFamilyFor(agentId);
+  if (family === undefined) {
+    // Said rather than left blank: "this CLI takes none" and "we found
+    // none" are different facts, and only one of them is worth looking
+    // for a file about.
+    return (
+      <p className="openspec-shell-note" data-testid={`custom-agent-none-${stage}`}>
+        {stage}: {agentId} takes no custom agent.
+      </p>
+    );
+  }
+  if (available === null) return null;
+
+  const forFamily = available.agents.filter((agent) => agent.family === family);
+  // A configured name the discovery no longer finds stays selected and
+  // is marked, rather than being replaced. Silently resetting it would
+  // edit a configuration nobody asked to change and hide that a file it
+  // depends on is gone.
+  const missing = value !== INHERIT && !forFamily.some((agent) => agent.name === value);
+
+  if (forFamily.length === 0 && !missing) {
+    const directories = available.directories
+      .filter((entry) => entry.family === family)
+      .map((entry) => entry.path);
+    return (
+      <p className="openspec-shell-note" data-testid={`custom-agent-empty-${stage}`}>
+        {stage}: no custom agents defined for {family}. Read from {directories.join(" and ")}.
+      </p>
+    );
+  }
+
+  return (
+    <label className="openspec-shell-field">
+      {stage} custom agent
+      <select
+        aria-label={ariaLabel}
+        data-testid={`custom-agent-select-${stage}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value={INHERIT}>(none)</option>
+        {missing ? <option value={value}>{value} (not found)</option> : null}
+        {forFamily.map((agent) => (
+          <option key={agent.name} value={agent.name}>
+            {agent.description === undefined ? agent.name : `${agent.name} — ${agent.description}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /** Named configurations, offered by intent. Both sentences are shown
  * before applying — the "not for" one is what actually helps someone
  * choose, since a list of options carrying only advantages gives no help
@@ -310,6 +415,11 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [globalStepAgents, setGlobalStepAgents] = useState<StepAgentsForm>(toForm(undefined));
   const [globalEffort, setGlobalEffort] = useState<StepEffortForm>(toEffortForm(undefined));
   const [globalBudget, setGlobalBudget] = useState<StepBudgetForm>(toBudgetForm(undefined));
+  const [globalCustomAgent, setGlobalCustomAgent] = useState<StepCustomAgentForm>(toCustomAgentForm(undefined));
+  /** What the workspace defines, or `null` while it has not been read.
+   * Null renders no picker at all rather than an empty one — "not read
+   * yet" is not "none defined". */
+  const [customAgents, setCustomAgents] = useState<CustomAgentsResult | null>(null);
   const [globalAutonomyLevel, setGlobalAutonomyLevel] = useState<HarnessAutonomyLevel>("assisted");
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
   // Recomputed as the operator changes an agent, not only on load: the
@@ -349,6 +459,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   const [changeStepAgents, setChangeStepAgents] = useState<StepAgentsForm>(toForm(undefined));
   const [changeEffort, setChangeEffort] = useState<StepEffortForm>(toEffortForm(undefined));
   const [changeBudget, setChangeBudget] = useState<StepBudgetForm>(toBudgetForm(undefined));
+  const [changeCustomAgent, setChangeCustomAgent] = useState<StepCustomAgentForm>(toCustomAgentForm(undefined));
   const [changeAutonomyLevel, setChangeAutonomyLevel] = useState<HarnessAutonomyLevel | "">(INHERIT);
   const [changeReviewGateMode, setChangeReviewGateMode] = useState<HarnessReviewGateMode | "">(INHERIT);
   const [changeMessage, setChangeMessage] = useState<string | null>(null);
@@ -379,6 +490,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       setGlobalStepAgents(toForm(config.stepAgents));
       setGlobalEffort(toEffortForm(config.stepAgents));
       setGlobalBudget(toBudgetForm(config.stepAgents));
+      setGlobalCustomAgent(toCustomAgentForm(config.stepAgents));
       setGlobalAutonomyLevel(config.autonomyLevel);
       setGlobalMessage(null);
     } catch (error) {
@@ -387,6 +499,24 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       setGlobalLoading(false);
     }
   }
+
+  useEffect(() => {
+    // Read once, beside the config. A definition is a file on disk; it
+    // does not change while a form is open, and re-reading it per stage
+    // would be a request per select.
+    let cancelled = false;
+    void (async () => {
+      try {
+        const found = await api.listCustomAgents();
+        if (!cancelled) setCustomAgents(found);
+      } catch {
+        // A host that cannot read them offers no picker rather than an
+        // empty one. Not surfaced as a failure of the settings form,
+        // which loaded fine.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api]);
 
   useEffect(() => {
     void loadGlobal();
@@ -401,7 +531,13 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       // pressing Save. See settings-save-what-was-shown.
       await api.writeGlobal({
         ...(globalConfig ?? {}),
-        stepAgents: toStepAgents(globalStepAgents, globalEffort, globalBudget),
+        stepAgents: toStepAgents(
+          globalStepAgents,
+          globalEffort,
+          globalBudget,
+          globalCustomAgent,
+          globalConfig?.stepAgents,
+        ),
         autonomyLevel: globalAutonomyLevel,
       });
       setGlobalMessage("Saved.");
@@ -422,6 +558,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       setChangeStepAgents(toForm(override?.stepAgents));
       setChangeEffort(toEffortForm(override?.stepAgents));
       setChangeBudget(toBudgetForm(override?.stepAgents));
+      setChangeCustomAgent(toCustomAgentForm(override?.stepAgents));
       setChangeAutonomyLevel(override?.autonomyLevel ?? INHERIT);
       setChangeReviewGateMode(override?.reviewGate?.mode ?? INHERIT);
       setChangeMessage(null);
@@ -440,7 +577,13 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
       // the writer replaces the file.
       const config: Partial<HarnessConfig> = {
         ...(changeOverride ?? {}),
-        stepAgents: toStepAgents(changeStepAgents, changeEffort, changeBudget),
+        stepAgents: toStepAgents(
+          changeStepAgents,
+          changeEffort,
+          changeBudget,
+          changeCustomAgent,
+          changeOverride?.stepAgents,
+        ),
       };
       // Inherit means "not set here", so these two are removed rather
       // than carried over from the loaded file.
@@ -493,6 +636,14 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
               ariaLabel={`${stage} budget`}
               value={globalBudget[stage]}
               onChange={(value) => setGlobalBudget((prev) => ({ ...prev, [stage]: value }))}
+            />
+            <CustomAgentSelect
+              stage={stage}
+              agentId={globalStepAgents[stage]}
+              ariaLabel={`${stage} custom agent`}
+              value={globalCustomAgent[stage]}
+              onChange={(value) => setGlobalCustomAgent((prev) => ({ ...prev, [stage]: value }))}
+              available={customAgents}
             />
           </div>
         )))}
@@ -566,6 +717,14 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
                   ariaLabel={`change ${stage} budget`}
                   value={changeBudget[stage]}
                   onChange={(value) => setChangeBudget((prev) => ({ ...prev, [stage]: value }))}
+                />
+                <CustomAgentSelect
+                  stage={stage}
+                  agentId={changeStepAgents[stage]}
+                  ariaLabel={`change ${stage} custom agent`}
+                  value={changeCustomAgent[stage]}
+                  onChange={(value) => setChangeCustomAgent((prev) => ({ ...prev, [stage]: value }))}
+                  available={customAgents}
                 />
               </div>
             )))}

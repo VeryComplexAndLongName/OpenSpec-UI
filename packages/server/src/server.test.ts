@@ -748,6 +748,69 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(400);
   });
 
+  it("returns the custom agents a workspace defines, with where they were looked for", async () => {
+    // custom-agent-picker. The discovery reads directories, so the
+    // browser cannot call it; this route is the whole reason a picker
+    // can exist at all.
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, ".claude", "agents"), { recursive: true });
+    await writeFile(
+      path.join(cwd, ".claude", "agents", "reviewer.md"),
+      ["---", "description: Reviews a change against its spec", "---", "", "Body."].join("\n"),
+    );
+
+    const response = await fetch(`${baseUrl}/api/custom-agents`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    // Asserted by name rather than by count: the route reads the
+    // server's own home as well, and whoever runs this may have defined
+    // agents there. A count would fail on their machine and pass on CI,
+    // which is the worst way for a test to be wrong.
+    expect(body.agents.find((entry: { name: string }) => entry.name === "reviewer")).toMatchObject({
+      name: "reviewer",
+      family: "claude",
+      description: "Reviews a change against its spec",
+    });
+    // The directories travel with the answer, so a surface reporting
+    // "none defined" can say where one would go without rebuilding a
+    // convention it cannot see.
+    expect(body.directories.some((entry: { path: string }) => entry.path.includes(".github"))).toBe(true);
+  });
+
+  it("returns an empty list for a workspace that defines none", async () => {
+    // The ordinary case, including in this repository. Not an error.
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/custom-agents`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    // Nothing from this workspace. Same reason as above: a bare
+    // `toEqual([])` would be asserting that the machine running the test
+    // defines none of its own.
+    expect(body.agents.filter((entry: { filePath: string }) => entry.filePath.startsWith(cwd))).toEqual([]);
+    expect(body.directories.length).toBeGreaterThan(0);
+  });
+
+  it("refuses a custom-agents request with no cwd", async () => {
+    const response = await fetch(`${baseUrl}/api/custom-agents`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("writes the global harness config, and it round-trips through resolve", async () => {
     const cwd = await createTempWorkspace();
 

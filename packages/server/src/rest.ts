@@ -6,6 +6,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { access, readdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   ArchivedChangeNotFoundError,
@@ -36,6 +37,8 @@ import {
   renderTemplate,
   resolveHarnessConfig,
   buildWorkspaceRunStats,
+  customAgentDirectories,
+  findCustomAgents,
   auditLogPath,
   FileAuditLog,
   type KnownChanges,
@@ -991,6 +994,56 @@ export async function handleWorkspaceRunStatsRequest(req: IncomingMessage, res: 
     // rather than as an error.
     const entries = await new FileAuditLog(auditLogPath(parsed.cwd)).readEntries();
     sendJson(res, 200, buildWorkspaceRunStats(entries, await readKnownChanges(parsed.cwd)));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface CustomAgentsRequest {
+  cwd: string;
+}
+
+function isCustomAgentsRequest(value: unknown): value is CustomAgentsRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0;
+}
+
+/** The custom agents this workspace defines, with the directories they
+ * were looked for in.
+ *
+ * The whole list, unfiltered: the browser knows which agent each stage
+ * uses and that changes as a select changes, so filtering by family here
+ * would be a round trip per keystroke for what a two-line filter answers.
+ *
+ * The directories travel with the answer because an empty list is the
+ * ordinary case — most workspaces define none, including this one — and
+ * "none, and here is where one would go" is the useful form of that.
+ * See custom-agent-picker. */
+export async function handleCustomAgentsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isCustomAgentsRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    // The server's own home, because that is the machine whose CLI would
+    // read it — the same directory `claude` looks in when this host
+    // spawns it.
+    const homeDir = os.homedir();
+    sendJson(res, 200, {
+      agents: await findCustomAgents(parsed.cwd, homeDir),
+      directories: customAgentDirectories(parsed.cwd, homeDir),
+    });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
