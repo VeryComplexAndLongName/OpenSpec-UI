@@ -1,7 +1,7 @@
 ---
 "@openspec-ui/core": minor
 "@openspec-ui/webui": minor
-"@openspec-ui/extension": minor
+"openspec-ui-vscode": minor
 ---
 
 Name the four configurations by the effort they ask for.

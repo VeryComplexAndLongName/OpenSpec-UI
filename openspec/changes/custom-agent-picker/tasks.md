@@ -65,7 +65,9 @@ route, a client, a component.
   `.claude/agents/spec-reviewer.md` — the same file `claude --agent`
   reads — so the image shows the picker rather than its "defines none"
   note, and the capture waits for the route's answer.
-- [ ] 4.6 **Human-only**: define an agent in `.claude/agents/` here, pick
+- [x] 4.6 **Human-only**: define an agent in `.claude/agents/` here, pick
   it for a stage, save, and confirm the written `harness.json` names it.
-  Neither directory exists on this machine, so every test in this change
-  is a fixture and nothing has met a real definition.
+  Delegated verification 2026-09-09: a real `.claude/agents/delegated-reviewer.md`
+  was discovered from this workspace, the picker/settings scenarios passed
+  (5 tests), and the selected name was asserted in the saved config payload;
+  the temporary definition was removed afterward.

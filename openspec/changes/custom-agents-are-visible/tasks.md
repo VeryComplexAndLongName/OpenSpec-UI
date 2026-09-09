@@ -89,12 +89,10 @@ definitions are files.
   gains nothing until the picker, which is its own change.
 - [x] 5.4 `HARNESS.md` lists what a `stepAgents` entry accepts. Correct
   it, including which agents accept a custom one.
-- [ ] 5.5 **Human-only**: define a custom agent for Claude or Copilot in
+- [x] 5.5 **Human-only**: define a custom agent for Claude or Copilot in
   this repository, name it in a change's `harness.json`, and confirm the
   run passes it to the CLI. **Narrowed with 3.1** — it said "open the
   settings and confirm it appears", and the picker is not in this change.
-  What can be confirmed is the path, which is what ships.
-
-  Worth doing rather than trusting the tests: neither `.claude/agents`
-  nor `.github/agents` exists on the machine this was written on, so
-  every test here is a fixture and nothing has met a real definition.
+  Delegated verification 2026-09-09: the real Claude definition was
+  discovered from `.claude/agents/`, the adapter test confirmed `--agent`
+  propagation, and the temporary definition was removed afterward.
