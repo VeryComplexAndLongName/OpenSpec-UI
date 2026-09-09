@@ -450,7 +450,7 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      await applyTemplateToChangeApi(apiFetch, cwd, editorChangeName, template.config);
+      await applyTemplateToChangeApi(apiFetch, cwd, editorChangeName, template);
       setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
       setRunHarnessMessage(`Applied "${template.title}" to ${editorChangeName}.`);
     } catch (error) {

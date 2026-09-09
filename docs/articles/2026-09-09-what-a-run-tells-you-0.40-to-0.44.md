@@ -92,12 +92,12 @@ all — and it says so **where the configuration is edited**, and, since
 
 ### Configurations by intent
 
-Three named configurations — **Minimum cost**, **Balanced**, **Fastest** —
-each carrying what it is for, when it is the wrong choice, and where each
-number came from. They are titled by what a person is actually choosing
-between, with the ceilings in the title rather than three lines down:
+Four named configurations — **Thorough**, **Careful**, **Balanced**,
+**Economy** — each carrying what it is for, when it is the wrong choice,
+and where each number came from. They are named by the one thing the
+product can set honestly: how much effort the agent is asked for.
 
-![The per-change settings section, with the three templates and the
+![The per-change settings section, with the named configurations and the
 stage controls below them](../images/standalone/harness-change-override.png)
 
 Every ceiling in them is drawn from this repository's own audit log,
@@ -196,31 +196,48 @@ Four faults, and every one of them is the mistake the entry was built to
 fix — showing less than was known — committed by the thing fixing it.
 
 0.44 is that finished. The recommendation appears in both hosts, with its
-grounds beneath it. The three named configurations are offered where the
+grounds beneath it. The named configurations are offered where the
 choice is made, and applying one writes the change's file. A
 configuration whose ceilings can all act says so.
 
-### The configurations are named for what you are choosing between
+### The configurations are named for the effort they ask for
 
 They were Careful, Overnight and Thrifty — named for how closely a person
 watches, which is a consequence of the choice rather than the choice.
-Someone picking one is deciding between spending less and finishing
-sooner, and the figures answering that sat three lines below the title.
+Then they were named for their ceilings, with the figures in the title.
+That was closer and still wrong: a title reading "up to $3" was read as
+what the run would cost, and it is not a price. It is the point at which
+a run is stopped.
 
-Now the figures are the title:
+So they are named for the effort now, and the figures stayed — with
+where each came from — one line down:
 
 | | |
 | --- | --- |
-| **Minimum cost · up to $3, 45 min** | smaller model, tightest ceilings |
-| **Balanced · up to $5, 60 min** | capable model, pauses between stages |
-| **Fastest · up to $25, 4 hours** | no checkpoints, ceilings wide enough not to restart |
+| **Thorough** | highest effort; up to $25 and 4 hours, so a stage is not cut |
+| **Careful** | above ordinary effort; up to $10 and 2 hours |
+| **Balanced** | the middle of the agent's range; up to $5 and 60 minutes |
+| **Economy** | the least the agent will do; up to $3 and 45 minutes |
 
-"Fastest" says what makes it fast, because nothing here makes an agent
-work faster. Two levers exist and it sets both: the run never waits for a
-person — where most of a supervised run's wall-clock goes — and its
-ceilings are wide enough not to cut a stage. That second one is
-counter-intuitive and worth stating: a stage cut at a ceiling is retried
-from the start, so a **tight ceiling makes a run take longer**.
+Effort is the only dial that can be set honestly. Every agent declares
+which values it accepts, so "the highest this agent takes" is always
+expressible — and no agent lists its models, so **none of these sets a
+model**. Whichever you configured is the one that runs. A named
+configuration that overrode it would be discarding a choice nobody asked
+it to make.
+
+The vocabularies differ, which is why a configuration stores a *level*
+and not a value. "Highest" resolves to `max` for Claude, `high` for
+Codex, and to nothing at all for the five registered agents that take no
+effort setting — where the four configurations differ in their ceilings
+alone, and the dialog says so rather than showing a dial that does
+nothing. The table of every agent against every level is in the change's
+`design.md`; building it is what caught a spacing that put two
+configurations on one value for Codex and left a third unreachable.
+
+None of them turns the checkpoints off any more, either. The ceilings are
+still worth a sentence: a stage cut at a ceiling is retried from the
+start, so a **tight ceiling makes a run take longer**.
 
 ### Three defects, none found by a test
 

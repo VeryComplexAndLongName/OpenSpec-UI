@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { buildRunPlan, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessConfig, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { buildRunPlan, resolveRunWithHarnessTarget, templateConfigToWrite, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -96,13 +96,24 @@ async function readOpenTaskCount(
  *
  * A failing read propagates rather than falling back to writing the
  * template alone: losing a key because a read failed is the same harm
- * arriving by a different route. */
+ * arriving by a different route.
+ *
+ * The configuration carries an effort level rather than a value, so what
+ * is written is computed by `templateConfigToWrite` — the same function
+ * the extension writes through. See presets-by-effort. */
 export async function applyTemplateToChange(
   request: ChangeEditorRequest,
   cwd: string,
   changeName: string,
-  config: Partial<HarnessConfig>,
+  template: HarnessTemplate,
 ): Promise<void> {
-  const existing = await readChangeHarnessOverride(request, cwd, changeName);
-  await writeHarnessConfig(request, cwd, { ...(existing ?? {}), ...config }, changeName);
+  const [existing, resolved] = await Promise.all([
+    readChangeHarnessOverride(request, cwd, changeName),
+    // The resolved config, not the override: the effort has to be
+    // resolved against the agent the stage will actually use, and that
+    // is usually named in the global file rather than in the change.
+    resolveHarnessConfig(request, cwd, changeName),
+  ]);
+  const config = templateConfigToWrite(template, resolved.stepAgents ?? {}, existing ?? {});
+  await writeHarnessConfig(request, cwd, config, changeName);
 }

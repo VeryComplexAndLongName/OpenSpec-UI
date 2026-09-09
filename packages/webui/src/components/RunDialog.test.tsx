@@ -58,7 +58,7 @@ describe("RunDialog", () => {
     render(
       <RunDialog
         changeName="demo"
-        plan={plan({ advice: { template: { id: "balanced", title: "Balanced", intent: "", notFor: "", basis: "", scope: "either", config: {} }, grounds: ["20 tasks still open"] } })}
+        plan={plan({ advice: { template: { id: "balanced", title: "Balanced", intent: "", notFor: "", basis: "", effortLevel: "medium", scope: "either", config: {} }, grounds: ["20 tasks still open"] } })}
         onChoose={vi.fn()}
         onApplyTemplate={vi.fn()} onDismiss={vi.fn()}
       />,
@@ -131,7 +131,7 @@ describe("RunDialog — advising, not just picking a path", () => {
 
     const templates = screen.getByTestId("run-dialog-templates").textContent ?? "";
     expect(templates).toContain("Not for:");
-    expect(screen.getByTestId("run-dialog-template-fastest")).toBeTruthy();
+    expect(screen.getByTestId("run-dialog-template-thorough")).toBeTruthy();
   });
 
   it("marks the recommended configuration among the ones it offers", () => {
@@ -153,9 +153,9 @@ describe("RunDialog — advising, not just picking a path", () => {
     const onApplyTemplate = vi.fn();
     render(<RunDialog changeName="demo" plan={plan()} onChoose={vi.fn()} onApplyTemplate={onApplyTemplate} onDismiss={vi.fn()} />);
 
-    fireEvent.click(screen.getByTestId("run-dialog-template-fastest").querySelector("button")!);
+    fireEvent.click(screen.getByTestId("run-dialog-template-economy").querySelector("button")!);
 
-    expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "fastest" }));
+    expect(onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "economy" }));
   });
 
   it("offers only the configurations a change may be given", () => {
@@ -165,12 +165,48 @@ describe("RunDialog — advising, not just picking a path", () => {
 
     const ids = [...screen.getByTestId("run-dialog-templates").querySelectorAll("li")]
       .map((item) => item.getAttribute("data-testid"));
-    // Cheapest first, then in order of what each will spend — the axis
-    // they are named on (templates-by-cost-and-speed).
+    // Most effort first, then in order down the range — the axis they
+    // are named on (presets-by-effort).
     expect(ids).toEqual([
-      "run-dialog-template-min-cost",
+      "run-dialog-template-thorough",
+      "run-dialog-template-careful",
       "run-dialog-template-balanced",
-      "run-dialog-template-fastest",
+      "run-dialog-template-economy",
     ]);
+  });
+
+  it("says what each configuration would set for the agents this change uses", () => {
+    // A level is not a value: `max` is one `claude` accepts and `codex`
+    // does not. The dialog resolves it so the answer is visible before
+    // the configuration is applied rather than after.
+    render(
+      <RunDialog
+        changeName="demo"
+        plan={plan({ stageAgents: [{ stage: "apply", agent: "codex-cli" }] })}
+        onChoose={vi.fn()}
+        onApplyTemplate={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("run-dialog-template-thorough-effort").textContent).toContain("codex-cli high");
+  });
+
+  it("says plainly when the agent takes no effort setting at all", () => {
+    // Five of the ten registered agents accept none, and for those the
+    // configurations differ in their ceilings alone. A dial that does
+    // nothing silently is worse than one that says so.
+    render(
+      <RunDialog
+        changeName="demo"
+        plan={plan({ stageAgents: [{ stage: "apply", agent: "gemini-cli" }] })}
+        onChoose={vi.fn()}
+        onApplyTemplate={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("run-dialog-template-thorough-effort").textContent)
+      .toContain("only the ceilings differ");
   });
 });
