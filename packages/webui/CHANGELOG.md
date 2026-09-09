@@ -1,5 +1,107 @@
 # @openspec-ui/webui
 
+## 1.31.0
+
+### Minor Changes
+
+- 24925a7: Chart what a project finished, and what the chart rests on.
+  
+  Two charts under the multi-change timeline, in both hosts: how many
+  changes were archived per day, and how long each took from the commit
+  that proposed it to the one that archived it. Every day between the first
+  and the last is a column, so a quiet day is a gap rather than a missing
+  column.
+  
+  Each chart states what it drew, how many changes it left out for having
+  no date, and how many of its dates came from a commit rather than from a
+  folder name — a chart that drops the source plots an inference and a
+  measurement identically.
+  
+  Two more charts were measured and deliberately not drawn: the work span
+  and the wait before work are flat here (135 of 185 changes have exactly
+  zero days between being proposed and their first finished task), and the
+  view says so rather than shipping a flat line that reads as a finding.
+  
+  The multi-change timeline now plots an archived change at the commit that
+  archived it. The end-of-day anchor remains for the case it was written
+  for — a date read off the folder name, which carries no time of day.
+- f4beaaf: Name the four configurations by the effort they ask for.
+  
+  They were named by their ceilings, with the figures in the title. A title
+  reading "up to $3" was read as what a run would cost, and it is not a
+  price — it is the point at which a run is stopped.
+  
+  Thorough, Careful, Balanced and Economy each carry an effort *level*
+  rather than a value, resolved when the configuration is applied against
+  the agent that stage will use: "highest" is `max` for `claude-cli` and
+  `high` for `codex-cli`, and nothing at all for the five registered agents
+  that accept no effort, where both surfaces say the configurations differ
+  in their ceilings alone. None of them sets a model — the model is
+  whichever the workspace already configured, and each says so in its own
+  text. The ceilings are unchanged and still carry where each figure came
+  from.
+  
+  Applying one now goes through one function in `core` for both hosts, so
+  the change's existing `harness.json` is kept and the stage's agent is
+  written beside the resolved effort.
+- 8987e8b: Choose a custom agent where the stage's agent is chosen.
+  
+  `POST /api/custom-agents` returns the definitions a workspace holds, with
+  the directories they were looked for in, and the harness settings offer
+  one picker per stage — listing only the definitions that stage's own CLI
+  accepts.
+  
+  Nothing is offered as an empty control: a stage whose agent takes none
+  says so, a workspace defining none says so and names the directories
+  read, and a configured name the discovery no longer finds stays selected
+  and is marked as not found rather than being replaced.
+  
+  Saving a stage now keeps a `model` this form has no control for. It was
+  being deleted on save — the same defect as `settings-save-what-was-shown`,
+  one level down in the stage entry.
+- 432769d: Edit the harness configuration in VS Code through the settings view.
+  
+  Both `Configure Harness` commands opened the JSON file, which carries
+  none of what the surface knows: which effort values the chosen agent
+  accepts, which spending field it honours, which custom agents the
+  workspace defines, and which configured ceilings cannot act. They now
+  open the same settings view the standalone shell renders, in the panel,
+  with the per-change command loading that change's override.
+  
+  The files stay hand-editable and the view names them.
+  
+  This needed the webview to be able to ask its host a question: the bridge
+  carried a command one way and events the other, and neither shape is a
+  read. Requests name one of five operations — never a path, a file or a
+  function — and the host answers against its own workspace root, carrying
+  a refusal back as the error rather than swallowing it.
+- 8b7f4b8: Show the run dialog in the panel instead of a quick-pick.
+  
+  `Run` in VS Code asked its question through a control that gives one line
+  per item and cuts the rest without saying so — every named
+  configuration's intent ended mid-word. It now renders the same dialog the
+  standalone shell renders, from the same components, in the panel that
+  already hosts them.
+  
+  The plan travels in the first render's context, because it decides which
+  component mounts. Choosing a chain or a single stage mounts it in place;
+  the two answers only the extension can carry out — opening a chat
+  session, and writing a named configuration — come back as one message,
+  and the configuration's id rather than its contents, so a message cannot
+  decide what is written to a file. After a write the host re-reads and
+  posts the plan the file now resolves to.
+  
+  The quick-pick is deleted rather than kept as a fallback: two dialogs
+  that must agree is the shape this removes.
+
+### Patch Changes
+
+- Updated dependencies [db5e02c]
+- Updated dependencies [f4beaaf]
+- Updated dependencies [8987e8b]
+- Updated dependencies [09a49fd]
+  - @openspec-ui/core@0.60.0
+
 ## 1.30.0
 
 ### Minor Changes

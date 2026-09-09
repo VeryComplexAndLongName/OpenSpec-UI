@@ -1,5 +1,84 @@
 # @openspec-ui/core
 
+## 0.60.0
+
+### Minor Changes
+
+- db5e02c: Date a change by evidence, and say where each date came from.
+  
+  A change now carries four dates — proposed, first worked on, last worked
+  on, archived — each with the source it was read from: a commit, a blame
+  line, the audit log, the folder name, or nothing at all. Without the
+  source a chart cannot tell a measured date from an inferred one, and
+  they plot identically.
+  
+  The archiving date comes from the commit that put the change under
+  `archive/`. The `YYYY-MM-DD-` folder prefix is the fallback, used only
+  where there is no commit to read, and it says so when it is used. Over
+  this repository's 178 archived changes it answered nothing.
+  
+  Two defects fixed on the way:
+  
+  - `getFileCreatedDate` combined `--follow` with `--reverse`, and git
+    prints nothing at all for that pair. It returned `null` for every file
+    that had ever been renamed — every archived change, silently, as
+    "undeterminable".
+  - `getChangeTimelines` ran every change at once and died with `EMFILE:
+    too many open files` on a 185-change repository. It reads in batches
+    now, and reads the whole archive's dates in one git call instead of one
+    per change (0.5s against 80s).
+- f4beaaf: Name the four configurations by the effort they ask for.
+  
+  They were named by their ceilings, with the figures in the title. A title
+  reading "up to $3" was read as what a run would cost, and it is not a
+  price — it is the point at which a run is stopped.
+  
+  Thorough, Careful, Balanced and Economy each carry an effort *level*
+  rather than a value, resolved when the configuration is applied against
+  the agent that stage will use: "highest" is `max` for `claude-cli` and
+  `high` for `codex-cli`, and nothing at all for the five registered agents
+  that accept no effort, where both surfaces say the configurations differ
+  in their ceilings alone. None of them sets a model — the model is
+  whichever the workspace already configured, and each says so in its own
+  text. The ceilings are unchanged and still carry where each figure came
+  from.
+  
+  Applying one now goes through one function in `core` for both hosts, so
+  the change's existing `harness.json` is kept and the stage's agent is
+  written beside the resolved effort.
+
+### Patch Changes
+
+- 8987e8b: Choose a custom agent where the stage's agent is chosen.
+  
+  `POST /api/custom-agents` returns the definitions a workspace holds, with
+  the directories they were looked for in, and the harness settings offer
+  one picker per stage — listing only the definitions that stage's own CLI
+  accepts.
+  
+  Nothing is offered as an empty control: a stage whose agent takes none
+  says so, a workspace defining none says so and names the directories
+  read, and a configured name the discovery no longer finds stays selected
+  and is marked as not found rather than being replaced.
+  
+  Saving a stage now keeps a `model` this form has no control for. It was
+  being deleted on save — the same defect as `settings-save-what-was-shown`,
+  one level down in the stage entry.
+- 09a49fd: Date a change's work by what was finished, not by what was written.
+  
+  `firstWorked` and `lastWorked` came from every blame date on `tasks.md`.
+  That file is added by the same commit that adds `proposal.md`, so the
+  earliest of those dates *is* the proposal date — measured across 185
+  changes the day after it shipped, the span from proposed to first worked
+  was exactly zero for every one of them. It also made the audit log
+  unreachable, since a run always happens after the file exists and the
+  earliest evidence wins.
+  
+  Evidence of work is now a ticked task or a recorded run. The same
+  measurement gives p90 0.18d and max 2.06d, and a change whose task list
+  is written but untouched reports no work dates at all rather than the
+  day the file was written.
+
 ## 0.59.0
 
 ### Minor Changes
