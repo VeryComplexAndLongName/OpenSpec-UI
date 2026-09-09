@@ -10,6 +10,7 @@
 import { createRoot } from "react-dom/client";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
+import { ChangeChartsView } from "./components/ChangeChartsView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import type { ChangeTimeline } from "./change-timeline-client.js";
 
@@ -42,7 +43,10 @@ function TimelineApp({
       {timeline ? (
         <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} />
       ) : multi ? (
-        <MultiChangeTimelineView timelines={multi.timelines} rangeStart={multi.rangeStart} rangeEnd={multi.rangeEnd} />
+        <>
+          <MultiChangeTimelineView timelines={multi.timelines} rangeStart={multi.rangeStart} rangeEnd={multi.rangeEnd} />
+          <ChangeChartsView timelines={multi.timelines} />
+        </>
       ) : (
         <p>No timeline data.</p>
       )}

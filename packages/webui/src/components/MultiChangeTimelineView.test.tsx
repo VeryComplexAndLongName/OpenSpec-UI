@@ -85,3 +85,58 @@ describe("MultiChangeTimelineView", () => {
     expect(screen.getByText("No changes selected.")).toBeInTheDocument();
   });
 });
+
+describe("MultiChangeTimelineView — when a change was archived", () => {
+  // charts-over-what-happened. The end-of-day anchor existed because the
+  // only archiving date available was a calendar date read off the
+  // folder name; a commit carries a time of day, so it plots where it
+  // happened.
+
+  function archivedAt(date: string | null, source: "git-commit" | "folder-name"): ChangeTimeline {
+    return {
+      changeName: "archived-change",
+      archived: true,
+      dates: {
+        proposed: { date: null, source: "none" },
+        firstWorked: { date: null, source: "none" },
+        lastWorked: { date: null, source: "none" },
+        archived: { date, source },
+      },
+      createdDate: null,
+      archivedDate: "2026-01-03",
+      proposal: "",
+      design: "",
+      specs: [],
+      tasks: [],
+    };
+  }
+
+  /** Where the one point on the lane sits, as the component placed it. */
+  function pointPosition(timeline: ChangeTimeline): string {
+    const { container } = render(
+      <MultiChangeTimelineView timelines={[timeline]} rangeStart={rangeStart} rangeEnd={rangeEnd} />,
+    );
+    const point = container.querySelector(".openspec-multi-timeline-point-archived") as HTMLElement;
+    return point.style.left;
+  }
+
+  it("plots the archiving where the commit that did it happened", () => {
+    const fromCommit = pointPosition(archivedAt("2026-01-03T06:00:00.000Z", "git-commit"));
+    const fromFolderName = pointPosition(archivedAt("2026-01-03T00:00:00.000Z", "folder-name"));
+
+    // Six in the morning is not the end of that day, and the lane shows
+    // the difference now.
+    expect(fromCommit).not.toBe(fromFolderName);
+  });
+
+  it("keeps the end-of-day anchor where only the folder name answered", () => {
+    // Midnight would plot archiving before that same day's task ticks,
+    // which is the case the anchor was written for.
+    const fromFolderName = pointPosition(archivedAt("2026-01-03T00:00:00.000Z", "folder-name"));
+    const endOfDay = pointPosition({
+      ...archivedAt("2026-01-03T23:59:59.999Z", "git-commit"),
+    });
+
+    expect(fromFolderName).toBe(endOfDay);
+  });
+});

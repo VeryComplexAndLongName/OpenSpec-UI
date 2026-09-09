@@ -763,6 +763,30 @@ export const shellThemeCss = `
     background: var(--surface-2);
   }
 
+  .openspec-charts {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  .openspec-chart-block h4 {
+    margin: 0 0 4px;
+  }
+  .openspec-chart {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 8px 0;
+  }
+  .openspec-chart-table {
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .openspec-chart-table th,
+  .openspec-chart-table td {
+    border-bottom: 1px solid var(--line);
+    padding: 2px 12px 2px 0;
+    text-align: left;
+  }
   .openspec-timeline-header dl {
     display: flex;
     flex-wrap: wrap;

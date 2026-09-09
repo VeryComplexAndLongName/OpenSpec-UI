@@ -25,13 +25,19 @@ function pointsFor(timeline: ChangeTimeline): TimelinePoint[] {
   for (const task of timeline.tasks) {
     if (task.date) points.push({ kind: "task", label: task.text, date: task.date });
   }
-  if (timeline.archived && timeline.archivedDate) {
-    // Archiving is chronologically the last thing that happens to a
-    // change, but `archivedDate` is a plain calendar date (parsed from
-    // the archive folder name, no time-of-day available) — anchoring it
-    // to end-of-day rather than midnight avoids it plotting *before*
-    // that same day's actual created/task timestamps.
-    points.push({ kind: "archived", label: "Archived", date: `${timeline.archivedDate}T23:59:59.999Z` });
+  if (timeline.archived) {
+    const archived = timeline.dates.archived;
+    // The commit that archived it carries a time of day, so it plots
+    // where it happened. The end-of-day anchor below is for the case it
+    // was written for and no longer the common one: a date read off the
+    // folder name has no time, and plotting it at midnight would put
+    // archiving *before* that same day's task ticks. See
+    // charts-over-what-happened.
+    if (archived.source === "git-commit" && archived.date) {
+      points.push({ kind: "archived", label: "Archived", date: archived.date });
+    } else if (timeline.archivedDate) {
+      points.push({ kind: "archived", label: "Archived", date: `${timeline.archivedDate}T23:59:59.999Z` });
+    }
   }
   return points;
 }
