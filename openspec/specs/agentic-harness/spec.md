@@ -1800,31 +1800,38 @@ that happen as a side effect.
 
 ### Requirement: Named configurations are titled by what is being chosen between
 
-The named configurations SHALL be titled by cost and time, and each
-SHALL state its ceilings where the choice is made rather than in prose
-below it.
+The named configurations SHALL be titled by the effort they ask for, and
+each SHALL state its ceilings and where each figure came from.
 
-Cost and time are what a person is deciding between. A title naming a
-consequence instead — how closely the run is watched — leaves the axis
-they reason on out of the list they reason from.
+Effort is what the product can set honestly: every agent declares which
+values it accepts. Cost and time are ceilings rather than prices, and a
+title carrying one was read as what a run would cost — the confusion a
+title naming the effort does not create. The figures remain, stated with
+their basis, and are no longer the name.
 
-A configuration whose title claims speed SHALL state what it does to
-achieve it. Nothing here makes an agent work faster; the levers are that
-the run does not wait for a person and that its ceilings are wide enough
-not to cut and restart a stage. A title claiming a lever the product does
-not have is the same defect as a configuration promising behaviour it
-does not set.
+A configuration SHALL NOT claim a property the product does not control.
+Nothing here makes an agent work faster, and nothing here chooses a
+model; a title claiming either is the same defect as a configuration
+promising behaviour it does not set.
 
 #### Scenario: Comparing the configurations
 
 - **WHEN** the named configurations are offered
-- **THEN** each title carries its spending and time ceilings
+- **THEN** each states the effort it asks for, its ceilings, and where
+  each figure came from
 
 #### Scenario: The configuration that claims speed
 
-- **WHEN** the configuration titled for speed is read
-- **THEN** it states that it removes waiting and avoids restarts, rather
-  than implying the work itself goes faster
+- **WHEN** the named configurations are read
+- **THEN** none of them claims speed, because nothing here makes an agent
+  work faster — a title claiming it is the same defect as a configuration
+  promising behaviour it does not set
+
+#### Scenario: A configuration and the model
+
+- **WHEN** a named configuration is read
+- **THEN** it says the model is whichever the workspace already
+  configured, rather than leaving that to be inferred from an absence
 
 ### Requirement: What runs have cost in this workspace is readable back
 
@@ -1928,4 +1935,89 @@ saying nothing ran is indistinguishable from one saying nothing failed.
 
 - **WHEN** a change declares no mechanical checks
 - **THEN** nothing is recorded for them
+
+### Requirement: A named configuration names an effort level, not a value
+
+A named configuration SHALL declare where in an agent's own effort range
+it sits, and the value SHALL be resolved when it is applied, against the
+agent that stage uses.
+
+Effort vocabularies differ between agents: `copilot` accepts seven
+values, `claude` five, `codex` four, and five agents accept none. A
+configuration storing a literal is wrong for some agent the moment it is
+applied, and shipping one the validator would then reject is shipping a
+configuration the product refuses.
+
+A named configuration SHALL NOT set a model. Applying one would discard
+the model the workspace already chose, no model name it could ship can be
+checked against the CLI that will receive it, and which model to use is
+not a question a named configuration was asked. Each SHALL say so in its
+own text, so a reader is not left to infer it from an absence.
+
+Where two levels resolve to the same value for an agent, or where the
+agent accepts no effort at all, that SHALL be reported rather than
+presented as configurations that differ.
+
+#### Scenario: The same level against different agents
+
+- **WHEN** the highest level is resolved for an agent accepting five
+  values and for one accepting four
+- **THEN** each resolves to that agent's own highest value
+
+#### Scenario: An agent that accepts no effort
+
+- **WHEN** a configuration is resolved for an agent with no effort values
+- **THEN** it sets no effort, and the surface says the configurations
+  differ only in their ceilings for this agent
+
+#### Scenario: Two levels landing on one value
+
+- **WHEN** an agent's range is narrow enough that two levels resolve
+  alike
+- **THEN** that is reported rather than shown as two distinct choices
+
+### Requirement: Recommendations are drawn from the workspace's own runs
+
+Where the recorded runs support a comparison, the run entry SHALL offer
+recommendations drawn from them, each named for what it recommends and
+carrying the observation it was drawn from.
+
+A name that states the conclusion — the cheapest, the fastest, the most
+likely to finish — is what makes a recommendation usable without reading
+the table it came from. The observation beside it is what makes it
+arguable.
+
+A recommendation SHALL NOT be offered where its comparison cannot be
+made. A superlative over one candidate is not a comparison, and
+presenting it as one claims a distinction that was never established.
+
+Where candidates tie on the measure, all of them SHALL be named. Breaking
+a tie arbitrarily presents a fabricated distinction as a finding.
+
+A group resting on fewer runs than the aggregate's threshold SHALL NOT
+win a recommendation. The threshold exists because a figure over too few
+runs is not an answer, and a superlative is the one place a figure is
+stated as an answer rather than as a reading.
+
+#### Scenario: Two agents that reported a cost
+
+- **WHEN** at least two agents have recorded costs above the threshold
+- **THEN** the cheapest is recommended by name, with its median cost and
+  the runs behind it
+
+#### Scenario: Only one agent reports a cost
+
+- **WHEN** one agent has recorded costs and the others have none
+- **THEN** no cost recommendation is offered
+
+#### Scenario: A tie on the measure
+
+- **WHEN** two agents are equal on the measure being recommended
+- **THEN** both are named
+
+#### Scenario: A candidate below the threshold
+
+- **WHEN** the best figure belongs to a group with fewer runs than the
+  threshold
+- **THEN** it does not win the recommendation
 
