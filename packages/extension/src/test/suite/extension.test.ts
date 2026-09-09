@@ -225,6 +225,37 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.equal(context?.changeName, "demo");
   });
 
+  test("Run with Harness renders the panel and applies a named configuration", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const changeDir = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo");
+    const harnessUri = vscode.Uri.joinPath(changeDir, "harness.json");
+
+    await vscode.workspace.fs.writeFile(harnessUri, Buffer.from(JSON.stringify({ autonomyLevel: "assisted" }), "utf8"));
+    try {
+      const roots = await api.changesTree!.getChildren();
+      const change = roots.find((item) => item.label === "demo");
+      assert.ok(change, "expected the demo change in the Changes tree");
+
+      await vscode.commands.executeCommand("openspec-ui.runWithHarness", change);
+      const context = api.getDashboardContext();
+      assert.equal(context?.changeName, "demo");
+      assert.ok(context?.runPlan, "expected the run plan in the panel context");
+      const html = api.getWebviewHtml();
+      assert.ok(html?.includes("data-run-plan="), "expected the run plan in the real webview HTML");
+      assert.ok(html?.includes('<div id="root"'), "expected the real webview root element");
+
+      api.deliverWebviewRunChoice({ kind: "apply-template", templateId: "economy" });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const written = JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(harnessUri)).toString("utf8")) as Record<string, unknown>;
+      assert.deepEqual(written.budget, { maxCostUsd: 3, maxStageCostUsd: 2 });
+      assert.equal(written.autonomyLevel, "semi-autonomous");
+      assert.ok(api.getDashboardContext()?.runPlan, "expected the panel to refresh after applying the configuration");
+    } finally {
+      await vscode.workspace.fs.delete(harnessUri, { useTrash: false });
+    }
+  });
+
   test("mode-toggle: enabling the localhost setting starts the same server/standalone bundle used by standalone-app", async () => {
     const config = vscode.workspace.getConfiguration("openspec-ui");
 
