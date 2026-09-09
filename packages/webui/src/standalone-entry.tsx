@@ -29,6 +29,7 @@ import {
 import { loadChangeTimeline, loadChangeTimelines, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
 import { fetchSprintReportPdf } from "./sprint-report-client.js";
 import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
+import { ChangeChartsView } from "./components/ChangeChartsView.js";
 import {
   customizeTemplate as customizeTemplateApi,
   deleteProjectTemplate as deleteProjectTemplateApi,
@@ -1482,11 +1483,14 @@ function StandaloneApp() {
 
             {multiMessage ? <p className="openspec-shell-note">{multiMessage}</p> : null}
             {multiTimelines.length > 0 && multiRangeStart && multiRangeEnd ? (
-              <MultiChangeTimelineView
-                timelines={multiTimelines}
-                rangeStart={new Date(multiRangeStart).toISOString()}
-                rangeEnd={new Date(multiRangeEnd).toISOString()}
-              />
+              <Fragment>
+                <MultiChangeTimelineView
+                  timelines={multiTimelines}
+                  rangeStart={new Date(multiRangeStart).toISOString()}
+                  rangeEnd={new Date(multiRangeEnd).toISOString()}
+                />
+                <ChangeChartsView timelines={multiTimelines} />
+              </Fragment>
             ) : null}
           </Fragment>
         ) : (
