@@ -36,7 +36,7 @@ import { registerFollowSelection } from "./follow-selection.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
-import type { AiPanelContext } from "./webview/ai-panel.js";
+import type { AiPanelContext, RunChoice } from "./webview/ai-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
@@ -78,6 +78,8 @@ export interface ExtensionTestApi {
    * openspec/changes/dispatch-to-chat-integration-coverage/proposal.md.
    * No-op if the AI panel has never been revealed. */
   deliverWebviewCommand: (command: Command) => void;
+  deliverWebviewRunChoice: (choice: RunChoice) => void;
+  getWebviewHtml: () => string | undefined;
   /** The receiving half of `deliverWebviewCommand` above: observes every
    * `"openspec-ui/event"` message the AI panel posts back to the webview
    * (`AiPanel.onWebviewEventForTesting()`) — the wire-level artifact a
@@ -356,6 +358,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     changesTree,
     templatesTree,
     deliverWebviewCommand: (command) => aiPanel.deliverWebviewCommandForTesting(command),
+    deliverWebviewRunChoice: (choice) => aiPanel.deliverWebviewRunChoiceForTesting(choice),
+    getWebviewHtml: () => aiPanel.getWebviewHtmlForTesting(),
     onWebviewEvent: (listener) => aiPanel.onWebviewEventForTesting(listener),
   };
 }

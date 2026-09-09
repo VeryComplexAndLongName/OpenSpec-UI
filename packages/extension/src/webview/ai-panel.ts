@@ -603,6 +603,19 @@ export class AiPanel {
     this.handleWebviewMessage(this.panel, { type: COMMAND_MESSAGE_TYPE, command });
   }
 
+  deliverWebviewRunChoiceForTesting(choice: RunChoice): void {
+    if (!this.panel) return;
+    this.handleWebviewMessage(this.panel, {
+      type: RUN_CHOICE_MESSAGE_TYPE,
+      choice: choice.kind,
+      ...(choice.kind === "apply-template" ? { templateId: choice.templateId } : {}),
+    });
+  }
+
+  getWebviewHtmlForTesting(): string | undefined {
+    return this.panel?.webview.html;
+  }
+
   /** Test-only in intent, real API in effect: the receiving half of
    * `deliverWebviewCommandForTesting()` above — observes every
    * `"openspec-ui/event"` message this panel posts to the webview

@@ -352,7 +352,16 @@ async function determineStartStage(cwd: string, changeName: string, changeDir: s
       const normalized = artifact.status.toLowerCase();
       return normalized === "done" || normalized === "complete";
     });
-  const proposeDone = isDone("proposal") && isDone("design") && isDone("tasks");
+  // `design` is deliberately not required. A change may carry none — the
+  // validator accepts that, and three of this repository's own active
+  // changes and many of its archived ones have no `design.md`. The status
+  // command reports a missing artifact as `ready`, meaning "could be
+  // produced"; reading that as an unfinished proposal sent a finished
+  // change back to `propose` and re-proposed work that was already
+  // written. A change that is genuinely mid-proposal has no task list
+  // yet, which `tasks` already answers.
+  // See design-is-optional-for-resume.
+  const proposeDone = isDone("proposal") && isDone("tasks");
   if (!proposeDone) return "propose";
   const tasks = await countTasks(changeDir);
   // Unknown progress picks the reversible stage: a redundant `apply` costs

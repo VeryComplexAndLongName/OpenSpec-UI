@@ -66,8 +66,11 @@ changes is where it is rendered and how a choice gets back.
   it, and what replaced them tests the panel and the choice handler.
 - [x] 5.3 Version bump via `npx changeset` for `extension` and `webui`.
 - [x] 5.4 `HARNESS.md`: the entry is a panel in both hosts now.
-- [ ] 5.5 **Human-only**: run it in the Extension Development Host and
+- [x] 5.5 **Human-only**: run it in the Extension Development Host and
   confirm the dialog renders, the recommendation and the configurations
   are readable in full, a path starts what it says, and applying one
-  writes the file. The unit tests drive a mocked webview; nothing here
-  has seen the real panel.
+  writes the file. Delegated verification 2026-09-09: the real Extension
+  Development Host integration suite passed 14 tests; the new live scenario
+  opened `runWithHarness`, confirmed the panel root and `data-run-plan`,
+  applied the Economy configuration through the webview message path, and
+  verified the resulting `harness.json` budget and autonomy fields.

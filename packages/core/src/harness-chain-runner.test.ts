@@ -75,6 +75,24 @@ function mockStatus(proposeDone: boolean): void {
   mockCliJson(statusFixture(proposeDone));
 }
 
+/** The shape a change with no `design.md` reports: everything else done,
+ * the design `ready` — the CLI's word for an artifact it could produce,
+ * including one nobody intends to write. Read from this repository on
+ * 2026-09-09 for `dialog-shows-what-runs-cost`. See
+ * design-is-optional-for-resume. */
+function mockStatusWithoutDesign(): void {
+  mockCliJson({
+    changeName: "demo",
+    schemaName: "spec-driven",
+    artifacts: [
+      { id: "proposal", outputPath: "proposal.md", status: "done", requires: [] },
+      { id: "design", outputPath: "design.md", status: "ready", requires: [] },
+      { id: "tasks", outputPath: "tasks.md", status: "done", requires: [] },
+    ],
+    root: { path: "/workspace", source: "cwd" },
+  });
+}
+
 /** Writes `openspec/changes/demo/tasks.md` with `unchecked` incomplete and
  * `checked` complete task lines — the only signal the chain is now allowed
  * to read for "is the implementation done". */
@@ -2463,5 +2481,75 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     }
 
     expect(auditLog.entries.filter((entry) => entry.agent === "verify-checks")).toEqual([]);
+  });
+});
+
+describe("HarnessChainRunner — a change with no design", () => {
+  // design-is-optional-for-resume. A change may deliberately carry no
+  // design; the validator accepts one that does not, and three of this
+  // repository's own active changes have none. Requiring it sent a
+  // finished change back to `propose`.
+
+  it("resumes at verify when every task is checked, rather than re-proposing", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatusWithoutDesign();
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    // Not "propose": the work is written, and re-proposing it spends a
+    // run and points an agent at a finished proposal.
+    expect(calls.map((c) => c.kind)).toEqual(["verify"]);
+  });
+
+  it("resumes at apply when tasks are still unchecked", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatusWithoutDesign();
+    await writeTasks(root, 2, 1);
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls[0]?.kind).toBe("implement");
+  });
+
+  it("still starts at propose when the proposal itself is not written", async () => {
+    // The case the check exists for: `ready` is not `done`, and an
+    // unwritten proposal must not look finished.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(calls[0]?.kind).toBe("plan");
   });
 });
