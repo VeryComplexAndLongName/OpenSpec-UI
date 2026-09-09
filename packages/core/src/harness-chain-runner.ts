@@ -61,6 +61,10 @@ export const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply"
 export const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive", "git"] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
 const GIT_STAGE_AGENT_NAME = "git-stage";
+/** The `agent` an audit entry carries when this runner recorded a check
+ * run rather than an agent's work. Named like `git-stage` for the same
+ * reason: an entry whose agent is not an agent has to say so. */
+const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
 const DEFAULT_GIT_REMOTE = "origin";
 const DEFAULT_PR_BASE_BRANCH = "main";
 
@@ -1012,6 +1016,10 @@ export class HarnessChainRunner {
       // 3.5.
       try {
         verifyCheckOutcome = await runMechanicalChecksForVerify(cwd, context.changeDir);
+        // Recorded before the gate below, which returns without invoking
+        // the verifying agent — so the failing case, which records
+        // nothing today, is exactly the one this must not miss.
+        this.recordVerifyChecks(command, verifyCheckOutcome);
       } catch (error) {
         yield failedEvent(runId, error instanceof Error ? error.message : String(error));
         return "failed";
@@ -1167,6 +1175,35 @@ export class HarnessChainRunner {
         },
       ],
     };
+  }
+
+  /** Records what `verify`'s declared checks found.
+   *
+   * Written by this runner rather than by an agent run, for the reason
+   * `recordGitAction` exists: mechanical work that no agent performed
+   * still belongs in the record. And it matters most in the case that
+   * records nothing today — a `verify` whose checks failed never invokes
+   * the verifying agent, so the run that found the most left no trace.
+   *
+   * A change declaring no checks records nothing at all: an entry saying
+   * none ran is indistinguishable from one saying none failed. */
+  private recordVerifyChecks(command: Command, outcome: MechanicalCheckRunOutcome): void {
+    if (!outcome.ranAny) return;
+    const failures = outcome.failed
+      .map((entry) => `${entry.check.name}${entry.check.param ? `(${entry.check.param})` : ""}: ${entry.result.reason}`)
+      .join("; ");
+    this.deps.auditLog?.record({
+      runId: command.runId,
+      agent: VERIFY_CHECKS_AGENT_NAME,
+      outcome: outcome.failed.length === 0 ? "completed" : "failed",
+      cwd: command.cwd,
+      timestamp: nowIso(),
+      changeDir: command.context.changeDir,
+      stage: "verify",
+      checksRan: outcome.passed.length + outcome.failed.length,
+      checksFailed: outcome.failed.length,
+      ...(failures.length > 0 ? { reason: failures } : {}),
+    });
   }
 
   private recordGitAction(

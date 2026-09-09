@@ -352,6 +352,20 @@ export interface AuditEntry {
    * — never from a second spawn. Absent when it could not be determined;
    * this never affects whether the run itself is recorded. */
   agentVersion?: string;
+  /** How many of a change's declared mechanical checks `verify` ran, and
+   * how many of those failed.
+   *
+   * The only machine-produced statement about the quality of what an
+   * earlier stage produced, and it was computed and discarded until now.
+   * Their own fields rather than a sentence: a number in prose is a
+   * number nothing can aggregate.
+   *
+   * Absent on every entry that is not a verify check run — including a
+   * change that declares no checks, where an entry saying nothing ran
+   * would read the same as one saying nothing failed. See
+   * verify-records-what-it-found. */
+  checksRan?: number;
+  checksFailed?: number;
   /** Which chain stage this run was, when it was part of a chain. Absent
    * for a single-stage run, and never inferred for an entry written
    * before this field existed — every stage of a chain runs under the

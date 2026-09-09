@@ -209,6 +209,17 @@ Every ceiling above is compared against **recorded audit usage** —
 reported by the agent only — never estimated or derived." Absent means no
 usage was reported, **not zero usage**.
 
+Not every entry is an agent's run. `verify` records what a change's
+declared mechanical checks found — `agent: "verify-checks"`, with
+`checksRan` and `checksFailed` — and the `git` stage records its own
+mechanical actions as `agent: "git-stage"`. Neither carries `usage`,
+because neither invoked a model. An entry whose agent is not an agent
+says so in that field.
+
+The check counts are recorded whether or not the verifying agent then
+runs. A `verify` whose checks failed does not invoke it, so before this
+the run that found the most left no trace at all.
+
 The practical consequence: **a ceiling can only count what an agent
 actually reported.** A change whose runs never report usage at all never
 trips the chain-level `budget` ceiling — not because it stayed under
