@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.45.1
+
+### Patch Changes
+
+- Updated dependencies [6abc8fa]
+  - @openspec-ui/core@0.60.1
+  - @openspec-ui/server@1.15.1
+  - @openspec-ui/webui@1.31.1
+
 ## 0.45.0
 
 ### Minor Changes
