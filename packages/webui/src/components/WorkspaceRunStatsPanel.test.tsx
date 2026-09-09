@@ -104,3 +104,37 @@ describe("WorkspaceRunStatsPanel", () => {
     expect(basis).toContain("28 set aside");
   });
 });
+
+describe("WorkspaceRunStatsPanel — the conclusions", () => {
+  // recommend-from-what-happened. Three rows of medians leave the reader
+  // to draw the conclusion; the conclusions are the easy part and the
+  // figures already support them.
+
+  it("names what it recommends, with the figure behind it", () => {
+    render(<WorkspaceRunStatsPanel stats={stats({
+      byAgent: [
+        { agent: "cheap-one", runs: 10, completed: 10, costSamples: 10, medianCostUsd: 1, medianSeconds: 600, enough: true },
+        { agent: "dear-one", runs: 10, completed: 10, costSamples: 10, medianCostUsd: 5, medianSeconds: 120, enough: true },
+      ],
+    })} />);
+
+    const cheapest = screen.getByTestId("run-stats-recommendation-cheapest").textContent ?? "";
+    expect(cheapest).toContain("Cheapest here: cheap-one");
+    expect(cheapest).toContain("$1.00 median");
+    expect(screen.getByTestId("run-stats-recommendation-fastest").textContent).toContain("dear-one");
+  });
+
+  it("says why a comparison was not made, rather than showing figures alone", () => {
+    // "Nothing can be compared yet" and "no comparison was attempted"
+    // look identical if the box just omits the conclusion.
+    render(<WorkspaceRunStatsPanel stats={stats({
+      byAgent: [
+        { agent: "claude-cli-acp", runs: 18, completed: 16, costSamples: 16, medianCostUsd: 1.88, medianSeconds: 462, enough: true },
+        { agent: "copilot-cli-acp", runs: 12, completed: 7, costSamples: 0, medianSeconds: 354, enough: true },
+      ],
+    })} />);
+
+    expect(screen.queryByTestId("run-stats-recommendation-cheapest")).toBeNull();
+    expect(screen.getByTestId("run-stats-gap-cheapest").textContent).toContain("only claude-cli-acp reports a cost");
+  });
+});
