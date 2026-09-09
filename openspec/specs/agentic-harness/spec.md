@@ -1711,6 +1711,16 @@ recommendation is built to say what it does not know.
 The recommendation SHALL be shown where it can be read, not in a hint
 that truncates.
 
+That entry SHALL be rendered where every sentence it has fits. A control
+that shows one line per item and cuts the rest without saying so
+publishes less than is known, which is the defect this entry exists to
+remove: measured from a screenshot on 2026-09-08, every named
+configuration's intent ended mid-word in the quick-pick that hosted it.
+
+Both hosts SHALL render it from the same components. Two surfaces
+answering one question drift, and the one that shows less is the one a
+person keeps seeing.
+
 The named configuration a recommendation proposes SHALL be applicable
 from the same place. A recommendation that cannot be acted on is a
 remark. Applying one writes the change's configuration, which is a
@@ -1778,6 +1788,12 @@ here can act" indistinguishable from "nothing was examined".
 - **WHEN** the VS Code agent is wanted for this work
 - **THEN** it is chosen inside this entry, and no separate command starts
   it
+
+#### Scenario: Where the entry is rendered
+
+- **WHEN** the entry is shown in either host
+- **THEN** it is rendered in a surface that shows each configuration's
+  full text, rather than in one that truncates it
 
 ### Requirement: Applying a named configuration preserves what it does not set
 
@@ -2020,4 +2036,203 @@ stated as an answer rather than as a reading.
 - **WHEN** the best figure belongs to a group with fewer runs than the
   threshold
 - **THEN** it does not win the recommendation
+
+### Requirement: Custom agents are offered where a stage's agent is chosen
+
+The custom agents a workspace defines SHALL be offered for each stage
+whose agent accepts one, and the choice SHALL be saved as that stage's
+`customAgent`.
+
+A name that was never shown cannot be chosen. The definitions are files
+in directories a person may not know the harness reads, and requiring
+them to be typed from memory into a configuration file is the same as not
+offering them.
+
+The offer SHALL be limited to the definitions the stage's own agent can
+take. A definition written for one CLI is not a name the other accepts,
+and offering it would produce a configuration the validator refuses.
+
+Where a stage's agent accepts no custom agent, or where the workspace
+defines none for that CLI, the surface SHALL say so and where such
+definitions are read from, rather than rendering an empty control. An
+empty control is a promise of a choice that is not there.
+
+A configured name the discovery no longer finds SHALL remain visible and
+be reported as not found. Replacing it silently would edit a
+configuration nobody asked to change and hide that a file it depends on
+is gone.
+
+#### Scenario: A stage whose agent accepts one
+
+- **WHEN** a workspace defines custom agents and a stage uses an agent
+  whose CLI accepts one
+- **THEN** the definitions for that CLI are offered for that stage, and
+  choosing one saves it as the stage's custom agent
+
+#### Scenario: A stage whose agent accepts none
+
+- **WHEN** a stage uses an agent whose CLI takes no custom agent
+- **THEN** no picker is offered for that stage, and the surface says that
+  CLI takes none
+
+#### Scenario: A workspace that defines none
+
+- **WHEN** no definition exists for the stage's CLI
+- **THEN** the surface says so and names the directories that were read
+
+#### Scenario: A configured name that no longer exists
+
+- **WHEN** a stage names a custom agent the discovery does not find
+- **THEN** the name stays selected and is reported as not found, rather
+  than being replaced
+
+### Requirement: A stage may run a custom agent its CLI defines
+
+Where an agent's CLI accepts a named custom agent, a stage SHALL be able
+to name one, and the name SHALL reach that CLI.
+
+A custom agent is a preset a person has already written for their own
+work. Being unable to name one means the harness runs a different agent
+than the person would have, for no reason other than that nothing carried
+the name.
+
+The custom agents a workspace defines SHALL be discoverable from the
+directories the CLIs themselves read. Neither CLI has a command that
+lists them, and neither needs one: the definitions are files.
+
+Naming a custom agent for an agent whose CLI accepts none SHALL be
+refused rather than dropped. A setting that is accepted and then ignored
+is one nothing reads, which is indistinguishable from one that works.
+
+#### Scenario: A stage naming a custom agent
+
+- **WHEN** a stage names a custom agent for an agent whose CLI accepts
+  one
+- **THEN** the name is passed to that CLI when the stage runs
+
+#### Scenario: An agent whose CLI accepts none
+
+- **WHEN** a stage names a custom agent for an agent with no such flag
+- **THEN** the configuration is refused, naming the agent
+
+#### Scenario: Discovering what a workspace defines
+
+- **WHEN** definitions exist in the directories a CLI reads, in the
+  project and for the user
+- **THEN** all of them are found, and a name defined in both is reported
+  once as the project's
+
+### Requirement: A missing design does not make a proposed change unproposed
+
+Where a chain resumes, a change SHALL be treated as proposed when its
+proposal and its task list exist, whether or not it has a design.
+
+A change may deliberately carry no design, and the validator accepts one
+that does not. The status command reports such an artifact as ready to be
+produced rather than as done, and reading that as an unfinished proposal
+sends a chain back to its proposing stage on work that is already
+written.
+
+An artifact reported as ready SHALL NOT be read as complete. Ready is
+what the command says about an artifact it could produce, including one
+nobody has started.
+
+#### Scenario: Resuming a change that has no design
+
+- **WHEN** a chain resumes on a change whose proposal and tasks exist and
+  whose design does not
+- **THEN** it starts from the implementation, not from proposing
+
+#### Scenario: Resuming a change whose proposal is not written
+
+- **WHEN** a chain resumes on a change with no proposal
+- **THEN** it starts at proposing
+
+### Requirement: The run entry shows what runs have cost in this workspace
+
+The entry that starts a run SHALL show what the workspace's recorded runs
+have cost and how long they took, per agent, alongside how many runs each
+figure rests on.
+
+This is where a person decides what to spend, and the figures answering
+"what does this usually cost here" are recorded and were shown nowhere.
+
+Where a group rests on fewer runs than the threshold, the entry SHALL say
+so rather than omit the group or present its figures as an answer.
+
+Where nothing has been recorded, the entry SHALL say that statistics are
+still accumulating and how much has been read, rather than showing an
+empty space. A surface that looks identical before and after a run has
+happened gives a reader no way to tell it is working.
+
+#### Scenario: An agent with enough recorded runs
+
+- **WHEN** the run entry is opened in a workspace where an agent has at
+  least the threshold of recorded runs
+- **THEN** its median cost and duration are shown with the number of runs
+  behind them
+
+#### Scenario: An agent that reports no cost
+
+- **WHEN** an agent's runs are recorded but none reported a cost
+- **THEN** the entry shows the duration figures and says the cost is not
+  reported, rather than showing a cost of zero
+
+#### Scenario: Nothing recorded yet
+
+- **WHEN** no runs have been recorded for this workspace
+- **THEN** the entry says so and states how many entries were read
+
+### Requirement: The configuration is edited through the same view in every host
+
+The harness configuration SHALL be editable through the same settings
+view in every host, with the same pickers and the same diagnostics.
+
+A host that offers only the file offers none of what the surface knows:
+which effort values the chosen agent accepts, which spending field it
+honours, which custom agents the workspace defines, and which of the
+configured ceilings cannot act. A person editing the file is doing the
+validator's work from memory.
+
+The file SHALL remain the configuration and SHALL remain hand-editable,
+and the view SHALL name it. A view that replaces a file people already
+edit takes away a way of working; one that names it does not.
+
+A refused write SHALL be reported where the edit was made. A form that
+cannot say a save was refused is indistinguishable from one that saved.
+
+#### Scenario: Editing the configuration in the editor host
+
+- **WHEN** the harness configuration is opened for editing in VS Code
+- **THEN** the settings view is shown, with the same pickers and
+  diagnostics the standalone shell shows, and it names the file it edits
+
+#### Scenario: A save the configuration refuses
+
+- **WHEN** a saved configuration is rejected
+- **THEN** the reason is shown where the edit was made
+
+### Requirement: The webview can ask its host a question
+
+Where a host renders the shared components without a server, the webview
+SHALL be able to ask that host for something and receive an answer or an
+error.
+
+A one-way command with a stream of events cannot express a read, and a
+surface that reads nothing can only be told what to show — which is why
+the settings view could not exist in that host.
+
+A request SHALL name an operation the host offers, never a path, a file
+or a function. The host SHALL refuse an operation it does not offer, and
+SHALL use its own workspace root rather than one named in the message.
+
+#### Scenario: Asking for the resolved configuration
+
+- **WHEN** the webview asks its host for something it offers
+- **THEN** the answer comes back against that request
+
+#### Scenario: Asking for something the host does not offer
+
+- **WHEN** a request names an operation the host does not offer
+- **THEN** it is refused, and nothing is read or written
 
