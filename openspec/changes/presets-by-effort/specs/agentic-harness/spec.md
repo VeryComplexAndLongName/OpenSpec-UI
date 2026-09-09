@@ -64,6 +64,13 @@ promising behaviour it does not set.
 - **THEN** each states the effort it asks for, its ceilings, and where
   each figure came from
 
+#### Scenario: The configuration that claims speed
+
+- **WHEN** the named configurations are read
+- **THEN** none of them claims speed, because nothing here makes an agent
+  work faster — a title claiming it is the same defect as a configuration
+  promising behaviour it does not set
+
 #### Scenario: A configuration and the model
 
 - **WHEN** a named configuration is read
