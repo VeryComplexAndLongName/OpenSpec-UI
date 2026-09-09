@@ -52,9 +52,21 @@ the table above — both are called out here explicitly.
 `resolveHarnessConfig(workspaceRoot, changeName)` reads both and merges
 the per-change file over the global one (`mergeHarnessConfig`):
 
-- `stepAgents` merges **key by key** — a per-change file overriding only
-  `stepAgents.apply` still inherits every other stage's agent from the
-  global file.
+- `stepAgents` merges **key by key**, and each stage's entry merges
+  **field by field** — a per-change file overriding only
+  `stepAgents.apply` still inherits every other stage from the global
+  file, and one that sets only an effort for `apply` still inherits the
+  model and budget the global file set for it.
+
+  With one exception: naming a **different agent** for a stage inherits
+  nothing. A stage's model, effort and budget belong to its agent —
+  effort vocabularies differ between agents (`copilot` accepts seven
+  values, `claude` five, `codex` four, and four agents accept none), and a
+  budget is denominated in whichever unit its agent reports — so carrying
+  them across a change of agent would build a configuration nobody wrote.
+
+  Until `stage-override-keeps-the-rest` a stage's entry was replaced
+  outright, so setting an effort silently discarded the model.
 - `autonomyLevel`, `reviewGate`, `checkpoints`, `budget`, and
   `gitStageAllowlist` are each a **whole-value override** — if the
   per-change file sets one at all, its value is used exactly as written,

@@ -738,10 +738,55 @@ export async function readChangeHarnessConfig(
  * (a change overriding only `reviewGate.mode` still inherits every
  * `stepAgents` entry from the global file) — see design.md, "Merge
  * semantics". */
+/** Merges one stage's entry over the base's, field by field.
+ *
+ * The base file is the default and a change states its differences. An
+ * entry replaced outright makes "run this stage at higher effort" also
+ * mean "and forget which model I chose" — which is what it meant until
+ * this function existed, and what silently discarded the model this
+ * repository sets for every stage.
+ *
+ * A change naming a **different agent** inherits nothing. A stage's
+ * model, effort and budget belong to its agent: `copilot` accepts seven
+ * effort values, `claude` five, `codex` four and four agents accept none,
+ * and a budget is denominated in whichever unit its agent reports
+ * (`maxCostUsd` or `maxAiCredits`). Carrying those across a change of
+ * agent builds a configuration its author never wrote.
+ *
+ * See stage-override-keeps-the-rest. */
+function mergeStepAgent(base: HarnessStepAgent | undefined, over: HarnessStepAgent): HarnessStepAgent {
+  if (base === undefined) return over;
+  const from = normalizeStepAgent(base);
+  const to = normalizeStepAgent(over);
+  if (from.agent !== to.agent) return over;
+  const merged: Exclude<HarnessStepAgent, string> = { agent: to.agent };
+  const model = to.model ?? from.model;
+  const effort = to.effort ?? from.effort;
+  const budget = to.budget ?? from.budget;
+  if (model !== undefined) merged.model = model;
+  if (effort !== undefined) merged.effort = effort;
+  if (budget !== undefined) merged.budget = budget;
+  // A stage that ends up carrying nothing but its agent is written back
+  // in the bare-string form it came in as, so a resolved config is not
+  // gratuitously different in shape from the files it was built from.
+  return merged.model === undefined && merged.effort === undefined && merged.budget === undefined
+    ? merged.agent
+    : merged;
+}
+
+function mergeStepAgents(base: HarnessStepAgents, over: HarnessStepAgents | undefined): HarnessStepAgents {
+  if (over === undefined) return base;
+  const result: HarnessStepAgents = { ...base };
+  for (const [stage, entry] of Object.entries(over) as Array<[HarnessStepAgentStage, HarnessStepAgent]>) {
+    result[stage] = mergeStepAgent(base[stage], entry);
+  }
+  return result;
+}
+
 export function mergeHarnessConfig(global: HarnessConfig, override: Partial<HarnessConfig> | undefined): HarnessConfig {
   if (override === undefined) return global;
   return {
-    stepAgents: { ...global.stepAgents, ...override.stepAgents },
+    stepAgents: mergeStepAgents(global.stepAgents, override.stepAgents),
     autonomyLevel: override.autonomyLevel ?? global.autonomyLevel,
     reviewGate: override.reviewGate ?? global.reviewGate,
     checkpoints: override.checkpoints ?? global.checkpoints,
