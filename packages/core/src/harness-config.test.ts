@@ -1150,3 +1150,100 @@ describe("HARNESS.md", () => {
     await expect(resolveHarnessConfig(root, "harness-md-worked-example")).resolves.toBeDefined();
   });
 });
+
+describe("mergeHarnessConfig — a stage override keeps what it does not name", () => {
+  // stage-override-keeps-the-rest. The base file is the default and a
+  // change states its differences. Until this, a stage entry was replaced
+  // outright, so "run this stage at higher effort" also meant "and forget
+  // which model I chose" — which is what discarded the model this
+  // repository sets for every one of its stages.
+
+  const base = (): HarnessConfig => ({
+    stepAgents: {
+      propose: { agent: "claude-cli-acp", model: "claude-opus-5", effort: "high" },
+      apply: { agent: "claude-cli-acp", model: "claude-sonnet-5", effort: "medium" },
+      verify: "claude-cli-acp",
+    },
+    autonomyLevel: "assisted",
+    reviewGate: { mode: "human-required" },
+  });
+
+  it("keeps the base's model when the change names only an effort", () => {
+    const merged = mergeHarnessConfig(base(), {
+      stepAgents: { apply: { agent: "claude-cli-acp", effort: "max" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({
+      agent: "claude-cli-acp",
+      model: "claude-sonnet-5",
+      effort: "max",
+    });
+  });
+
+  it("keeps the base's model and effort behind a bare-string override", () => {
+    // The common case, and the one that lost a model: a named
+    // configuration writing just the agent for a stage.
+    const merged = mergeHarnessConfig(base(), { stepAgents: { propose: "claude-cli-acp" } });
+
+    expect(merged.stepAgents.propose).toEqual({
+      agent: "claude-cli-acp",
+      model: "claude-opus-5",
+      effort: "high",
+    });
+  });
+
+  it("inherits nothing when the change names a different agent", () => {
+    // A stage's model, effort and budget belong to its agent: effort
+    // vocabularies differ between agents, and a budget is denominated in
+    // whichever unit its agent reports. Carrying them across builds a
+    // configuration its author never wrote.
+    const merged = mergeHarnessConfig(base(), {
+      stepAgents: { apply: { agent: "copilot-cli-acp", effort: "minimal" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({ agent: "copilot-cli-acp", effort: "minimal" });
+  });
+
+  it("leaves a stage the change does not mention alone", () => {
+    const merged = mergeHarnessConfig(base(), { stepAgents: { apply: "claude-cli-acp" } });
+
+    expect(merged.stepAgents.propose).toEqual({
+      agent: "claude-cli-acp",
+      model: "claude-opus-5",
+      effort: "high",
+    });
+  });
+
+  it("adds a stage the base does not set", () => {
+    const merged = mergeHarnessConfig(base(), {
+      stepAgents: { review: { agent: "claude-cli-acp", effort: "low" } },
+    });
+
+    expect(merged.stepAgents.review).toEqual({ agent: "claude-cli-acp", effort: "low" });
+  });
+
+  it("writes back a bare string when nothing but the agent survives", () => {
+    // A resolved config should not be gratuitously different in shape
+    // from the files it was built from.
+    const merged = mergeHarnessConfig(base(), { stepAgents: { verify: "claude-cli-acp" } });
+
+    expect(merged.stepAgents.verify).toBe("claude-cli-acp");
+  });
+
+  it("keeps a base budget behind an override that names only an effort", () => {
+    const withBudget: HarnessConfig = {
+      ...base(),
+      stepAgents: { apply: { agent: "claude-cli-acp", budget: { maxCostUsd: 4 } } },
+    };
+
+    const merged = mergeHarnessConfig(withBudget, {
+      stepAgents: { apply: { agent: "claude-cli-acp", effort: "max" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({
+      agent: "claude-cli-acp",
+      effort: "max",
+      budget: { maxCostUsd: 4 },
+    });
+  });
+});
