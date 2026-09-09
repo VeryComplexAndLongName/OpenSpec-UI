@@ -25,8 +25,8 @@ does not exist yet is an article describing what someone intends to show.
 
 ## 2. The article
 
-- [x] 2.1 Covers 0.40.0 through 0.43.0, picking up where the 0.37.3-0.40
-  article stopped.
+- [x] 2.1 Covers 0.40.0 through 0.44.0, picking up where the 0.37.3-0.40
+  article stopped. **Extended from 0.43** — see 3.6.
 - [x] 2.2 Every figure it cites exists in the repository, captured by
   task 1.
 - [x] 2.3 Every number in it is measured and says where it came from.
@@ -59,6 +59,21 @@ does not exist yet is an article describing what someone intends to show.
   first retake was byte-identical to the shot it was meant to replace.
 - [x] 3.4 No changeset. This ships documentation and a test, and no
   package's behaviour changes.
+- [x] 3.6 **Scope extended after this change was written**, at the
+  owner's instruction. The article covered 0.40 to 0.43; everything done
+  after that release — the Run entry finished, the configurations renamed
+  to the axis a person chooses on, and three defects — belongs in the
+  same account, so it now covers 0.40 to 0.44 and both files are renamed
+  with it.
+
+  The change keeps its id. Renaming it would break the record of what
+  produced the screenshots, and a second near-identical change would be
+  worse than one whose name is a version behind.
+
+  The 0.43 section is corrected as part of this: it described the dialog
+  as shipped complete, and it was not. What 0.43 shipped was the entry;
+  what 0.44 shipped is the entry doing what the entry claimed. Saying so
+  is the point of the article, not a footnote to it.
 - [ ] 3.5 **Human-only**: read the article against the product and say
   whether it describes the thing you have been using. It is written from
   changelogs and code, which is exactly how an article comes to describe
