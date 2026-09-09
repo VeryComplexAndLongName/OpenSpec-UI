@@ -14,6 +14,8 @@ import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-
 import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
+import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
+import { createBridgeRequester } from "./bridge-request.js";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
   isDashboardContextMessage,
@@ -65,8 +67,20 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
    * local variable. See run-dialog-in-the-panel. */
   const [runPlan, setRunPlan] = useState(initialContext.runPlan);
   const [changeName, setChangeName] = useState(initialContext.changeName);
+  const [showSettings, setShowSettings] = useState(initialContext.showSettings ?? false);
   const vscodeApi = useMemo(() => acquireVsCodeApi(), []);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi }), [vscodeApi]);
+  // The settings view reads as well as writes, which the command/event
+  // bridge cannot express. See harness-settings-in-the-panel.
+  const bridge = useMemo(() => createBridgeRequester(vscodeApi), [vscodeApi]);
+  useEffect(() => () => bridge.dispose(), [bridge]);
+  const harnessSettingsApi = useMemo<HarnessSettingsApi>(() => ({
+    listCustomAgents: () => bridge.request("custom-agents/list"),
+    resolveGlobal: () => bridge.request("harness/resolve-global"),
+    writeGlobal: (config) => bridge.request("harness/write-global", { config }),
+    readChangeOverride: (name) => bridge.request("harness/read-change-override", { changeName: name }),
+    writeChangeOverride: (name, config) => bridge.request("harness/write-change-override", { changeName: name, config }),
+  }), [bridge]);
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
@@ -102,6 +116,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setRunPlan(event.data.context.runPlan);
       setChangeName(event.data.context.changeName);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
+      // Reset like the others: a later reveal that is not about settings
+      // must not leave the form on screen.
+      setShowSettings(event.data.context.showSettings ?? false);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -141,7 +158,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           </label>
         </div>
       </section>
-      {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
+      {showSettings ? (
+        <HarnessSettingsView api={harnessSettingsApi} {...(changeName ? { initialChangeName: changeName } : {})} />
+      ) : cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
         runPlan ? (
           <RunDialog
             changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}

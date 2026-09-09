@@ -1400,8 +1400,13 @@ describe("registerCommands", () => {
   });
 
   describe("openspec-ui.configureHarness", () => {
-    it("seeds the file with the documented default when it doesn't exist yet, then opens it", async () => {
-      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    it("seeds the file with the documented default when it doesn't exist yet, then opens the view", async () => {
+      // harness-settings-in-the-panel: the view opens, not the JSON. The
+      // seeding stays — a view over a file that does not exist would
+      // have to explain the difference between "inherits everything" and
+      // "not configured", which the file itself answers.
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
 
@@ -1409,52 +1414,59 @@ describe("registerCommands", () => {
         "/workspace/repo",
         { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
       );
-      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
     });
 
-    it("opens the existing file without overwriting it", async () => {
+    it("opens the view on an existing file without overwriting it", async () => {
       vscodeMock.workspace.fs.stat.mockResolvedValueOnce({});
-      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
 
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
-      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
+      // The raw file is no longer what opens: one surface for this, not
+      // two that must agree.
+      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
     });
 
     it("does nothing without a workspace root", async () => {
-      registerCommands(
-        makeContext() as unknown as import("vscode").ExtensionContext,
-        makeDeps({ getWorkspaceRoot: () => undefined }),
-      );
+      const deps = makeDeps({ getWorkspaceRoot: () => undefined });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
 
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
-      expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
   });
 
   describe("openspec-ui.configureHarnessForChange", () => {
     const changeItem = { changeName: "demo-change", changeDir: "/workspace/repo/openspec/changes/demo-change", archived: false };
 
-    it("seeds an empty override (inherit everything) when none exists yet, then opens it", async () => {
-      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+    it("seeds an empty override (inherit everything) when none exists yet, then opens the view", async () => {
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {});
-      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
+        showSettings: true,
+        changeName: "demo-change",
+      }));
     });
 
-    it("opens an existing override without overwriting it", async () => {
+    it("opens the view on an existing override without overwriting it", async () => {
       vscodeMock.workspace.fs.stat.mockResolvedValueOnce({});
-      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
-      expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
     });
 
     it("warns instead of silently doing nothing without a tree item (invoked outside the context menu)", async () => {

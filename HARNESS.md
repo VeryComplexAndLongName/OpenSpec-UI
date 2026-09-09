@@ -138,9 +138,8 @@ defines none, which also names the directories that were read. A name in
 the file that the discovery no longer finds stays selected and is marked
 as not found rather than being replaced.
 
-In VS Code, `Configure Harness for this Change` asks its questions as
-quick-picks and has no custom-agent question yet; a `harness.json` naming
-one is read and passed by both hosts either way.
+In VS Code they are chosen in the same view, in the panel — see "Where
+each setting is edited" below.
 
 Gemini and Codex accept no custom agent here. Their CLIs were not
 installed on the machine this was verified on, so their convention could
@@ -240,10 +239,10 @@ settings screen that doesn't have the control:
 
 | Setting | Standalone (webui) | VS Code |
 | --- | --- | --- |
-| `stepAgents.<stage>.agent`, `.effort`, `.budget` | **Harness Settings** tab, both the "Global default" and "Per-change override" sections (`HarnessSettingsView.tsx`) — the effort/budget fields only appear once a stage's agent accepts them. | **OpenSpec UI: Configure Harness Settings** opens `openspec/agent-harness.json`; **OpenSpec UI: Configure Harness for this Change** opens that change's `harness.json`. Edit the JSON directly. The commands do not provide a Quick Pick wizard. |
+| `stepAgents.<stage>.agent`, `.effort`, `.budget`, `.customAgent` | **Harness Settings** tab, both the "Global default" and "Per-change override" sections (`HarnessSettingsView.tsx`) — the effort, budget and custom-agent fields only appear once a stage's agent accepts them. | The same view, in the panel. **OpenSpec UI: Configure Harness Settings** opens it on the global file; **OpenSpec UI: Configure Harness for this Change** opens it on that change's override, already loaded. Both files stay hand-editable and the view names them. See harness-settings-in-the-panel. |
 | `stepAgents.<stage>.model` | **Not editable in either UI.** Hand-edit the JSON file's object-form entry directly. | Same — not editable in either UI. |
-| `autonomyLevel` | Both sections of the Harness Settings tab. | Edit the JSON opened by either command above. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
-| `reviewGate.mode` | Per-change override section only (the global value is fixed at `"human-required"` and shown, not editable). | Edit the per-change `harness.json`; the Configure Harness commands open the file directly. |
+| `autonomyLevel` | Both sections of the Harness Settings tab. | The same view, from either command above. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
+| `reviewGate.mode` | Per-change override section only (the global value is fixed at `"human-required"` and shown, not editable). | The same, in the panel's per-change section. |
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |

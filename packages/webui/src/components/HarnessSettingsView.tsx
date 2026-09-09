@@ -410,7 +410,16 @@ function HarnessFindingsPanel({ findings }: { findings: readonly HarnessFinding[
   );
 }
 
-export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
+export function HarnessSettingsView(
+  { api, initialChangeName }: {
+    api: HarnessSettingsApi;
+    /** The change to load on mount, when the view was opened from one —
+     * the editor host opens it from a change in the tree, and asking a
+     * person to type back the name they just right-clicked is asking
+     * them to repeat what the host already knows. */
+    initialChangeName?: string;
+  },
+) {
   const [globalConfig, setGlobalConfig] = useState<HarnessConfig | null>(null);
   const [globalStepAgents, setGlobalStepAgents] = useState<StepAgentsForm>(toForm(undefined));
   const [globalEffort, setGlobalEffort] = useState<StepEffortForm>(toEffortForm(undefined));
@@ -454,7 +463,7 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
   }, [globalConfig, globalStepAgents]);
   const [globalLoading, setGlobalLoading] = useState(false);
 
-  const [changeName, setChangeName] = useState("");
+  const [changeName, setChangeName] = useState(initialChangeName ?? "");
   const [changeOverride, setChangeOverride] = useState<Partial<HarnessConfig> | null | undefined>(undefined);
   const [changeStepAgents, setChangeStepAgents] = useState<StepAgentsForm>(toForm(undefined));
   const [changeEffort, setChangeEffort] = useState<StepEffortForm>(toEffortForm(undefined));
@@ -517,6 +526,12 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
     })();
     return () => { cancelled = true; };
   }, [api]);
+
+  useEffect(() => {
+    // Loaded on mount when the host opened this from a change. Not on
+    // every `changeName` keystroke: typing a name is not asking for it.
+    if (initialChangeName) void loadChangeOverride();
+  }, [initialChangeName]);
 
   useEffect(() => {
     void loadGlobal();
@@ -611,6 +626,12 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
           Applies to every change unless a change explicitly overrides it below. Recommends an agent per stage in
           the Agent Selection picker — never enforces one.
         </p>
+        {/* Named, because this view is a way to edit the file and not a
+            replacement for it: whoever wants the JSON should not have to
+            hunt for it. */}
+        <p className="openspec-shell-note">
+          Saved to <code>openspec/agent-harness.json</code>, which stays hand-editable.
+        </p>
         {globalMessage ? <p className="openspec-shell-note" role="status">{globalMessage}</p> : null}
         {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
           <MechanicalStageRow key={stage} stage={stage} />
@@ -675,6 +696,9 @@ export function HarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
 
       <section>
         <h3>Per-change override</h3>
+        <p className="openspec-shell-note">
+          Saved to <code>openspec/changes/&lt;change&gt;/harness.json</code>, which stays hand-editable.
+        </p>
         <label className="openspec-shell-field">
           Change name
           <input

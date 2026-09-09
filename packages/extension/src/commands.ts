@@ -1068,15 +1068,19 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await vscode.workspace.fs.stat(uri);
       } catch {
         // Doesn't exist yet — seed it with the documented default so the
-        // file is immediately valid and schema-editable, not empty.
+        // file is immediately valid and schema-editable, not empty. A
+        // view over a file that does not exist would have to explain the
+        // difference between "inherits everything" and "not configured",
+        // which the file itself answers.
         await writeGlobalHarnessConfig(workspaceRoot, DEFAULT_HARNESS_CONFIG);
       }
-      try {
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc, { preview: false });
-      } catch (error) {
-        await showCommandError("open harness config", error);
-      }
+      // The settings view, not the raw JSON. Which effort values this
+      // agent accepts, which spending field it honours, which custom
+      // agents this workspace defines and which ceilings cannot act are
+      // all absent from the file, and a person editing it is doing the
+      // validator's work from memory. The file stays hand-editable and
+      // the view names it. See harness-settings-in-the-panel.
+      deps.revealAiPanel({ ...dashboardContext(workspaceRoot), showSettings: true });
     }),
     vscode.commands.registerCommand("openspec-ui.configureHarnessForChange", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
@@ -1093,12 +1097,14 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // fields.
         await writeChangeHarnessConfig(workspaceRoot, item.changeName, {});
       }
-      try {
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc, { preview: false });
-      } catch (error) {
-        await showCommandError("open per-change harness config", error);
-      }
+      // Carrying the change name, so the view opens on the override
+      // being edited: asking someone to type back the name they just
+      // right-clicked is asking them to repeat what the host knows.
+      deps.revealAiPanel({
+        ...dashboardContext(workspaceRoot, item.changeDir),
+        showSettings: true,
+        changeName: item.changeName,
+      });
     }),
     // Registered, but contributed by no menu and no palette entry — see
     // one-way-in-to-run tasks.md 3.2, which first said this command would
