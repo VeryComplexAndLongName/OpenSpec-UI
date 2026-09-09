@@ -21,7 +21,7 @@ import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
-import { registerCommands } from "./commands.js";
+import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import type { ChangeTreeItem } from "./tree/changes-tree.js";
@@ -298,11 +298,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     scheduler,
   });
 
-  registerCommands(context, {
+  const commandsDeps = {
     getWorkspaceRoot,
     runController,
     outputChannel,
-    revealAiPanel: (panelContext) => aiPanel.reveal(panelContext),
+    revealAiPanel: (panelContext: AiPanelContext | undefined) => aiPanel.reveal(panelContext),
     refreshTrees: () => {
       changesTree?.refresh();
       archiveTree?.refresh();
@@ -320,6 +320,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // audit log to live — the same real case `chain-runner-audit-deps.ts`
     // treats as absent rather than as a reader over nothing.
     ...(auditLog ? { readAuditEntries: () => (auditLog as FileAuditLog).readEntries() } : {}),
+  } satisfies CommandsDeps;
+
+  registerCommands(context, commandsDeps);
+  // The run dialog lives in the panel now, so the two answers only this
+  // host can carry out — opening a chat session, writing a named
+  // configuration — come back as messages. The handler is built from the
+  // same deps the commands use, because it needs the same things. See
+  // run-dialog-in-the-panel.
+  aiPanel.onRunChoice((choice, choiceContext) => {
+    void createRunChoiceHandler(commandsDeps)(choice, choiceContext);
   });
   registerOpenSpecChatParticipant(context, { getWorkspaceRoot });
 

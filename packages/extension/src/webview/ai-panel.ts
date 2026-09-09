@@ -17,12 +17,14 @@ import {
   type HarnessStage,
   type HarnessBudget,
   type HarnessStepAgents,
+  type RunPlan,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
 import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
+const RUN_CHOICE_MESSAGE_TYPE = "openspec-ui/run-choice";
 const EVENT_MESSAGE_TYPE = "openspec-ui/event";
 const CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 
@@ -67,6 +69,51 @@ export interface AiPanelContext {
    * Absent for every other reveal — a panel opened without naming a
    * change has nothing to implement, and `list` remains right there. */
   runChange?: boolean;
+  /** The resolved run plan, set by `openspec-ui.runWithHarness`. Like
+   * `startChain` it decides which component mounts, so it is baked into
+   * the initial HTML rather than posted afterwards — a follow-up would
+   * show the ordinary panel first and replace it. See
+   * run-dialog-in-the-panel. */
+  runPlan?: RunPlan;
+  /** The change the plan is about, so the dialog can name it without
+   * re-deriving it from a path. */
+  changeName?: string;
+}
+
+/** What the webview posts back when someone answers the run dialog.
+ *
+ * Only the two answers this host alone can carry out travel: opening a
+ * chat session, and writing a file. Choosing a chain or a single stage
+ * only decides which component mounts, and both are already in that
+ * bundle. */
+export type RunChoice =
+  | { kind: "vscode-agent" }
+  | { kind: "apply-template"; templateId: string };
+
+export interface RunChoiceContext {
+  cwd: string;
+  changeDir: string;
+  changeName?: string;
+}
+
+interface RunChoiceMessage {
+  type: typeof RUN_CHOICE_MESSAGE_TYPE;
+  choice: string;
+  templateId?: string;
+}
+
+function toRunChoice(data: unknown): RunChoice | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const message = data as Partial<RunChoiceMessage>;
+  if (message.type !== RUN_CHOICE_MESSAGE_TYPE) return undefined;
+  if (message.choice === "vscode-agent") return { kind: "vscode-agent" };
+  // An id, not a configuration: a message must not decide what is
+  // written to a file. An unrecognised shape is ignored rather than
+  // guessed at.
+  if (message.choice === "apply-template" && typeof message.templateId === "string" && message.templateId.length > 0) {
+    return { kind: "apply-template", templateId: message.templateId };
+  }
+  return undefined;
 }
 
 interface BridgeCommandMessage {
@@ -118,6 +165,7 @@ export interface AiPanelDeps {
 export class AiPanel {
   private panel: vscode.WebviewPanel | undefined;
   private panelContext: AiPanelContext | undefined;
+  private runChoiceHandler: ((choice: RunChoice, context: RunChoiceContext) => void) | undefined;
   /** Which agent each live run was started against.
    *
    * A `"cancel"` command carries no `agentId` — the webview does not know
@@ -305,6 +353,13 @@ export class AiPanel {
     this.postEventMessage(panel, { kind: "handedOff", runId: command.runId, timestamp: new Date().toISOString(), stage });
   }
 
+  /** Registers the one handler for answers posted from the run dialog.
+   * Set by `extension.ts` to a `commands.ts` function, so the host logic
+   * lives where its neighbours and their tests already are. */
+  onRunChoice(handler: (choice: RunChoice, context: RunChoiceContext) => void): void {
+    this.runChoiceHandler = handler;
+  }
+
   reveal(panelContext?: AiPanelContext): void {
     if (panelContext) this.panelContext = { ...panelContext };
     if (this.panel) {
@@ -358,6 +413,19 @@ export class AiPanel {
    * code path — including `dispatchOrRun()`/`dispatchToChat()` — instead
    * of a test needing its own copy of this routing. */
   private handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown): void {
+    const runChoice = toRunChoice(message);
+    if (runChoice) {
+      // Handled by whoever registered for it — `commands.ts`, which has
+      // the workspace root, the configuration list and the same
+      // recommendation input the plan was built from. Nothing here
+      // decides what a choice means.
+      this.runChoiceHandler?.(runChoice, {
+        cwd: this.panelContext?.cwd ?? "",
+        changeDir: this.panelContext?.changeDir ?? "",
+        ...(this.panelContext?.changeName ? { changeName: this.panelContext.changeName } : {}),
+      });
+      return;
+    }
     if (!isBridgeCommandMessage(message)) return;
     const command = message.command;
 
@@ -504,6 +572,12 @@ export class AiPanel {
     // HTML here, not posted afterward.
     const startChain = panelContext?.startChain ? "true" : "false";
     const runChange = panelContext?.runChange ? "true" : "false";
+    // The plan rides here for the same reason `startChain` does: it
+    // decides which component mounts, and a follow-up message would show
+    // the ordinary panel first and then replace it.
+    const runPlan = panelContext?.runPlan
+      ? escapeHtmlAttribute(JSON.stringify({ plan: panelContext.runPlan, changeName: panelContext.changeName }))
+      : "";
     return `<!doctype html>
 <html>
   <head>
@@ -512,7 +586,7 @@ export class AiPanel {
     <title>OpenSpec UI</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-run-plan="${runPlan}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

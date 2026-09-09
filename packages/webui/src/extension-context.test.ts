@@ -77,4 +77,35 @@ describe("extension dashboard context", () => {
             },
         })).toBe(true);
     });
+
+    it("reads the run plan from the first render, with the change it is about", () => {
+        // run-dialog-in-the-panel: the plan decides which component
+        // mounts, so it arrives in the HTML rather than in a follow-up
+        // message that would show the wrong surface first.
+        const container = document.createElement("div");
+        container.dataset.workspaceRoot = "/repo";
+        container.dataset.changeDirectory = "/repo/openspec/changes/demo";
+        container.dataset.runPlan = JSON.stringify({
+            plan: { resolved: "chain", because: "autonomyLevel says chain", stageAgents: [], offered: [], findings: [] },
+            changeName: "demo",
+        });
+
+        const context = resolveInitialDashboardContext(container, () => "");
+
+        expect(context.runPlan?.resolved).toBe("chain");
+        expect(context.changeName).toBe("demo");
+    });
+
+    it("mounts the ordinary panel when the plan attribute cannot be read", () => {
+        // A malformed attribute should cost the dialog, not the whole
+        // webview.
+        const container = document.createElement("div");
+        container.dataset.workspaceRoot = "/repo";
+        container.dataset.changeDirectory = "/repo/openspec/changes/demo";
+        container.dataset.runPlan = "{not json";
+
+        const context = resolveInitialDashboardContext(container, () => "");
+
+        expect(context.runPlan).toBeUndefined();
+    });
 });

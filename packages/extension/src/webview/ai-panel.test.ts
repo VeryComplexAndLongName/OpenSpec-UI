@@ -770,3 +770,69 @@ describe("AiPanel vscode-chat stage dispatch", () => {
         );
     });
 });
+
+describe("AiPanel and the run dialog", () => {
+    // run-dialog-in-the-panel. The plan decides which component mounts,
+    // so it rides in the first render's HTML — a follow-up message would
+    // show the ordinary panel and then replace it.
+
+    const plan = {
+        resolved: "chain",
+        because: "autonomyLevel says chain",
+        stageAgents: [{ stage: "apply", agent: "claude-cli" }],
+        offered: [{ id: "chain", title: "Run the chain", describes: "Runs every stage." }],
+        findings: [],
+    };
+
+    it("bakes the plan into the first render, escaped", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", runPlan: plan as never, changeName: "demo" });
+
+        // Escaped, because it is JSON inside a double-quoted attribute.
+        expect(panel.webview.html).toContain("data-run-plan=");
+        expect(panel.webview.html).toContain("&quot;resolved&quot;:&quot;chain&quot;");
+        expect(panel.webview.html).not.toContain('"resolved":"chain"');
+    });
+
+    it("carries no plan attribute when the panel was not opened by Run", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo" });
+
+        expect(panel.webview.html).toContain('data-run-plan=""');
+    });
+
+    it("hands a run choice to the registered handler, with the change it is about", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        const handler = vi.fn();
+        aiPanel.onRunChoice(handler);
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", runPlan: plan as never, changeName: "demo" });
+        const deliver = panel.webview.onDidReceiveMessage.mock.calls[0]![0] as (message: unknown) => void;
+
+        deliver({ type: "openspec-ui/run-choice", choice: "apply-template", templateId: "economy" });
+
+        expect(handler).toHaveBeenCalledWith(
+            { kind: "apply-template", templateId: "economy" },
+            expect.objectContaining({ cwd: "/repo", changeName: "demo" }),
+        );
+    });
+
+    it("ignores a run choice it cannot read rather than guessing at it", () => {
+        // A message must not decide what is written to a file.
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        const handler = vi.fn();
+        aiPanel.onRunChoice(handler);
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo" });
+        const deliver = panel.webview.onDidReceiveMessage.mock.calls[0]![0] as (message: unknown) => void;
+
+        deliver({ type: "openspec-ui/run-choice", choice: "apply-template" });
+        deliver({ type: "openspec-ui/run-choice", choice: "something-else" });
+
+        expect(handler).not.toHaveBeenCalled();
+    });
+});

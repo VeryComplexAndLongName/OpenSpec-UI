@@ -1,4 +1,21 @@
+import type { RunPlan } from "@openspec-ui/core/browser";
+
 export const DASHBOARD_CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
+
+/** What the webview posts back when someone answers the run dialog.
+ *
+ * A path is not here: choosing one only decides which component mounts,
+ * and both are already in this bundle. Only the two answers the host
+ * alone can carry out travel — opening a chat session, and writing a
+ * file. See run-dialog-in-the-panel. */
+export const RUN_CHOICE_MESSAGE_TYPE = "openspec-ui/run-choice";
+
+export type RunChoiceMessage =
+    | { type: typeof RUN_CHOICE_MESSAGE_TYPE; choice: "vscode-agent" }
+    /** The configuration's id, not its contents. The host has the list;
+     * taking what to write from a message would let the webview decide
+     * what lands in a file. */
+    | { type: typeof RUN_CHOICE_MESSAGE_TYPE; choice: "apply-template"; templateId: string };
 
 export interface DashboardContext {
     cwd: string;
@@ -34,6 +51,15 @@ export interface DashboardContext {
      * first render's HTML, like `startChain`, because the panel's initial
      * command kind depends on it. */
     runChange?: boolean;
+    /** The resolved run plan, when the panel was opened by `Run`. Built
+     * host-side — the browser can read neither the harness files, the
+     * audit log nor the task list — and present on the very first render,
+     * because it decides whether the dialog mounts instead of the panel.
+     * See run-dialog-in-the-panel. */
+    runPlan?: RunPlan;
+    /** The change the plan is about. The dialog names it, and a choice
+     * posted back is about this change. */
+    changeName?: string;
 }
 
 export interface DashboardContextMessage {
@@ -50,7 +76,24 @@ export function resolveInitialDashboardContext(
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
         startChain: container.dataset.startChain === "true",
         runChange: container.dataset.runChange === "true",
+        ...readRunPlan(container),
     };
+}
+
+/** The plan rides in the first render's HTML as JSON, because it decides
+ * which component mounts and a follow-up message would show the wrong one
+ * first. Unparseable JSON mounts the ordinary panel rather than throwing:
+ * a malformed attribute should cost the dialog, not the whole webview. */
+function readRunPlan(container: HTMLElement): { runPlan?: RunPlan; changeName?: string } {
+    const raw = container.dataset.runPlan;
+    if (!raw) return {};
+    try {
+        const parsed = JSON.parse(raw) as { plan?: RunPlan; changeName?: string };
+        if (!parsed.plan) return {};
+        return { runPlan: parsed.plan, ...(parsed.changeName ? { changeName: parsed.changeName } : {}) };
+    } catch {
+        return {};
+    }
 }
 
 export function isDashboardContextMessage(value: unknown): value is DashboardContextMessage {
