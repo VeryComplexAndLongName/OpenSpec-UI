@@ -1826,3 +1826,72 @@ does not set.
 - **THEN** it states that it removes waiting and avoids restarts, rather
   than implying the work itself goes faster
 
+### Requirement: What runs have cost in this workspace is readable back
+
+The recorded history of runs SHALL be readable as an aggregate over the
+workspace: per agent, and per agent and effort together.
+
+Each group SHALL carry how many runs it rests on and how many of those
+reported a cost. A median over fifteen samples and a median over two are
+different claims, and a figure that does not say which will be believed
+equally.
+
+A group resting on fewer runs than the stated threshold SHALL be reported
+as such rather than omitted. Omitting it makes "too little is known here"
+indistinguishable from "this combination has never run", which are
+different facts and lead to different decisions.
+
+Runs recorded against a change that is neither active nor archived SHALL
+be excluded. Such a change was deleted, and a deleted change is an
+experiment rather than part of the project's record — counting one makes
+the project's own testing look like its behaviour.
+
+#### Scenario: An agent with enough recorded runs
+
+- **WHEN** an agent has at least the threshold of paired runs
+- **THEN** its group reports the figures together with the number of runs
+  and the number that reported a cost
+
+#### Scenario: A combination with too little recorded
+
+- **WHEN** an agent and effort together have fewer runs than the
+  threshold
+- **THEN** the group is reported as below the threshold, with how many it
+  has and how many are needed
+
+#### Scenario: A run against a change that was deleted
+
+- **WHEN** the audit log contains runs against a change that is neither
+  in the active changes nor in the archive
+- **THEN** those runs are excluded from every aggregate
+
+### Requirement: A per-change stage entry overrides the fields it names
+
+Where a change's configuration sets a stage that the base configuration
+also sets, the resolved entry SHALL take the fields the change names and
+SHALL inherit the rest from the base.
+
+The base file is the default and the change states its differences. A
+stage entry replaced outright makes "run this stage at higher effort"
+also mean "and forget which model I chose", which no one writing it
+intends and nothing reports.
+
+Where the change names a **different agent** for that stage, nothing
+SHALL be inherited. A stage's model, effort and budget belong to its
+agent: effort vocabularies differ between agents, and a budget is
+denominated in whichever unit its agent reports, so carrying them across
+a change of agent produces a configuration its author never wrote.
+
+#### Scenario: A stage override that names only the effort
+
+- **WHEN** the base sets a model for a stage and the change sets only an
+  effort for it
+- **THEN** the resolved stage keeps the base's model and takes the
+  change's effort
+
+#### Scenario: A stage override that names a different agent
+
+- **WHEN** the base sets a model, effort and budget for a stage and the
+  change names a different agent for it
+- **THEN** the resolved stage carries only what the change names
+

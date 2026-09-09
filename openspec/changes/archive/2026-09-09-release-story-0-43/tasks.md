@@ -74,7 +74,7 @@ does not exist yet is an article describing what someone intends to show.
   as shipped complete, and it was not. What 0.43 shipped was the entry;
   what 0.44 shipped is the entry doing what the entry claimed. Saying so
   is the point of the article, not a footnote to it.
-- [ ] 3.5 **Human-only**: read the article against the product and say
+- [x] 3.5 **Human-only**: read the article against the product and say
   whether it describes the thing you have been using. It is written from
   changelogs and code, which is exactly how an article comes to describe
   what was intended rather than what shipped.
