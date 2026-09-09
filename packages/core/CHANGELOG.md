@@ -1,5 +1,33 @@
 # @openspec-ui/core
 
+## 0.58.0
+
+### Minor Changes
+
+- 9f323c1: `buildWorkspaceRunStats` reads the audit log back as an aggregate over
+  the workspace: per agent, and per agent and effort together. Each group
+  carries how many runs it rests on and how many of those reported a cost,
+  and a group below the threshold of five is reported as below it rather
+  than omitted — "too little is known here" and "this has never run" are
+  different facts.
+  
+  Runs recorded against a change that is neither active nor archived are
+  excluded. Such a change was deleted, which makes it an experiment rather
+  than part of the project's record; without this, a project's own smoke
+  tests count as its behaviour.
+
+### Patch Changes
+
+- 94a295e: A per-change stage entry now overrides the fields it names and inherits
+  the rest from `agent-harness.json`. It used to replace the stage's entry
+  outright, so a change setting only an effort for `apply` silently
+  discarded the model the global file set for that stage — and every named
+  configuration did exactly that.
+  
+  Naming a different agent for a stage still inherits nothing: a stage's
+  model, effort and budget belong to its agent, whose effort vocabulary and
+  budget unit differ from another's.
+
 ## 0.57.0
 
 ### Minor Changes
