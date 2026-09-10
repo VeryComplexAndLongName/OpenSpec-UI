@@ -1,5 +1,96 @@
 # @openspec-ui/core
 
+## 0.63.0
+
+### Minor Changes
+
+- be28986: A task that needs a live check can name the agent that performs it.
+  `**Delegated to <agent-id>**` sits beside `**Human-only**`: the first
+  means another agent can make the check, the second that none can. The
+  inbox in both hosts now carries both kinds and says who each item waits
+  on, naming an agent id the registry does not carry rather than treating
+  it as assigned.
+- 9dd0767: A name arriving from a request is checked before it is used. A change
+  name now passes the change-name rule before it is joined into a path,
+  in core beside the path it protects, so a message naming
+  `../../../../Users/me/.claude` no longer decides where a `harness.json`
+  is written — the bridge answers `ok: false` and the REST routes answer
+  400, both carrying the rule the name broke. A schedule entry is
+  validated on the way in by the same rule the reader applies on the way
+  out, so a stored row and the response that reported it can no longer
+  disagree, and a body asking for an addition and a removal at once is
+  refused rather than half-applied. A `customAgent` obeys the same shape
+  rule as a model id, for the same reason: both reach the CLI as the value
+  of a flag, and a value beginning with `-` may be read as a second one. A
+  custom-agent definition whose file name that rule refuses is reported as
+  found and not offered, rather than dropped in silence.
+- 1b67bee: What a verifying stage's checks found is now charged to the agent whose
+  work they covered. The entry gains `checkedAgent`, taken from the chain's
+  resolved `apply` stage, and the quality readback groups by it — grouping
+  by the entry's `agent` could only ever produce one row, named
+  `verify-checks`, whatever had run the apply. An entry recorded before
+  that field existed is counted and reported as such rather than charged to
+  a group.
+  
+  A checks entry is also no longer counted as a run. It carries a terminal
+  outcome and no `started` partner, so the per-change cost report listed it
+  as a run refused before it started and one chain run of apply and verify
+  reported two previous runs; one predicate in core now says which entries
+  are runs, and both counters use it. A checks entry therefore no longer
+  appears as a row in the per-change cost report — what it found is read
+  back beside the run figures instead.
+  
+  A recommendation's gap says which nothing it is: nothing reported the
+  measure, something reported it but rests on too few runs, or one
+  candidate is eligible with nothing to compare against. Four runs that
+  each reported a cost previously read as "no agent has reported a cost
+  across 4 recorded run(s)".
+- c679bd4: A scheduled run keeps the promise the dialog makes. Opening the
+  application is now enough: the workspace is read on open, so the
+  schedule is read too and a due run starts with nothing else done — it
+  used to wait for a click that a real reopen never makes. The run starts
+  on the path that was chosen when it was scheduled rather than reopening
+  the dialog for the same choice, and the entry leaves the file only once
+  the run has been opened, so a configuration that cannot be resolved
+  reports itself as a run that could not be opened instead of consuming
+  the schedule under the wrong message. A change archived after being
+  scheduled is dropped and says it was archived, and a run due behind it
+  starts on the same reading. Firing is decided once, in
+  `planScheduleFiring` in core, with each host performing only the
+  effects it is handed. The dialog is announced as a dialog and takes
+  focus when it opens by itself, and what the schedule did is readable
+  from any tab of the standalone shell.
+
+### Patch Changes
+
+- ad1a8ae: A stage override keeps its custom agent, and one function decides what
+  applying a named configuration writes.
+  
+  `mergeStepAgent` merged three named fields across a per-change override.
+  `customAgent` was the fourth field a stage entry may carry, so a change
+  naming the same agent plus a custom agent resolved without it and the
+  chain ran with no `--agent` flag, silently. The merge now iterates
+  `STEP_AGENT_KEYS` — the list the validator already reads — so the next
+  field added to an entry arrives already merged, and it agrees with
+  `templateConfigToWrite`, which kept the field by spread.
+  
+  Applying a named configuration to a change now goes through one core
+  function, `changeTemplateConfigToWrite`, from all three surfaces. The
+  run dialog resolved a configuration's effort against the change's
+  resolved configuration and the settings view against the change's own
+  override, where every stage the change does not name reads as
+  "inherit" — so the two wrote different files for the same change, and
+  the settings view's message said "None of the agents on screen takes an
+  effort setting" when that was not the reason. That message now names the
+  stages given an effort, the agents that take none, and the stages with
+  no agent chosen, each only where it is true.
+  
+  The balanced and careful configurations describe their effort by its
+  position in the agent's range ("a third of the way up", "two thirds")
+  rather than as "the middle", which the thirds mapping never produced:
+  for `copilot-cli` the medium level resolves to `low`, the third of
+  seven. `HARNESS.md` carries the resolved value per registered agent.
+
 ## 0.62.0
 
 ### Minor Changes

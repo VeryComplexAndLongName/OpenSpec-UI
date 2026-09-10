@@ -1,5 +1,48 @@
 # @openspec-ui/server
 
+## 1.18.0
+
+### Minor Changes
+
+- 9dd0767: A name arriving from a request is checked before it is used. A change
+  name now passes the change-name rule before it is joined into a path,
+  in core beside the path it protects, so a message naming
+  `../../../../Users/me/.claude` no longer decides where a `harness.json`
+  is written — the bridge answers `ok: false` and the REST routes answer
+  400, both carrying the rule the name broke. A schedule entry is
+  validated on the way in by the same rule the reader applies on the way
+  out, so a stored row and the response that reported it can no longer
+  disagree, and a body asking for an addition and a removal at once is
+  refused rather than half-applied. A `customAgent` obeys the same shape
+  rule as a model id, for the same reason: both reach the CLI as the value
+  of a flag, and a value beginning with `-` may be read as a second one. A
+  custom-agent definition whose file name that rule refuses is reported as
+  found and not offered, rather than dropped in silence.
+
+### Patch Changes
+
+- c679bd4: A scheduled run keeps the promise the dialog makes. Opening the
+  application is now enough: the workspace is read on open, so the
+  schedule is read too and a due run starts with nothing else done — it
+  used to wait for a click that a real reopen never makes. The run starts
+  on the path that was chosen when it was scheduled rather than reopening
+  the dialog for the same choice, and the entry leaves the file only once
+  the run has been opened, so a configuration that cannot be resolved
+  reports itself as a run that could not be opened instead of consuming
+  the schedule under the wrong message. A change archived after being
+  scheduled is dropped and says it was archived, and a run due behind it
+  starts on the same reading. Firing is decided once, in
+  `planScheduleFiring` in core, with each host performing only the
+  effects it is handed. The dialog is announced as a dialog and takes
+  focus when it opens by itself, and what the schedule did is readable
+  from any tab of the standalone shell.
+- Updated dependencies [be28986]
+- Updated dependencies [9dd0767]
+- Updated dependencies [1b67bee]
+- Updated dependencies [c679bd4]
+- Updated dependencies [ad1a8ae]
+  - @openspec-ui/core@0.63.0
+
 ## 1.17.0
 
 ### Minor Changes
