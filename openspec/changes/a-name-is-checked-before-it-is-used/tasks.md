@@ -57,5 +57,9 @@ their shape is read. All three are closed in core.
   staged. Record the run.
 - [ ] 5.3 Version bump via `npx changeset` for core, server and the
   extension.
-- [ ] 5.4 **Human-only**: in VS Code, open the settings view for a change
-  and confirm the per-change override still reads and saves.
+- [ ] 5.4 **Delegated to copilot-cli**: in the VS Code integration suite
+  (`packages/extension/src/test/suite/extension.test.ts`, which runs a
+  real VS Code host), open the settings view for a change through the
+  bridge, read the per-change override, save it, and assert the file
+  round-trips unchanged. Evidence to record here: the test name and the
+  run that passed.

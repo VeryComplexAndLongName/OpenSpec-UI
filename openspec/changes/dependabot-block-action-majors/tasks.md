@@ -34,5 +34,18 @@ what taught it.
   changes; this is a regression check.
 - [x] 3.4 No changeset: repository configuration, nothing published
   changes.
-- [ ] 3.5 **Human-only**: at the next weekly Dependabot run, confirm that
-  minor and patch action bumps still arrive and majors do not.
+- [ ] 3.5 **Delegated to copilot-cli**: after the first weekly Dependabot
+  run following 2026-09-04 — the commit that added the rule, #214 — list
+  the pull requests it opened and confirm the `github-actions` ecosystem
+  produced no major bump, and that a minor or patch bump arrived if one
+  was available. Evidence to record here: the `gh pr list` output and the
+  run's date, quoted. The first such run is due 2026-09-10 at about 22:25
+  UTC; a partial reading taken before it is recorded in the change, not
+  as a tick.
+
+  Partial reading, 2026-09-10 by `copilot-cli`: no Dependabot pull
+  request of any ecosystem exists with `createdAt > "2026-09-04"`. The
+  three most recent (#207, #208, #209) were opened 2026-09-03, before
+  the rule landed. Nothing to confirm yet, and the agent said so rather
+  than confirming — see a-live-check-names-who-performs-it item 6.1 for
+  the run it was quoted from.

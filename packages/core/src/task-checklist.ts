@@ -33,6 +33,15 @@ export interface TaskChecklistItem {
    * person — see `isHumanOnlyTask` below. Absent, not `false`, for every
    * other task, matching `check`'s own absent-when-not-applicable shape. */
   humanOnly?: true;
+  /** The registry id of the agent this task is delegated to — present
+   * only when the task's first bold span reads "Delegated to <id>" and
+   * no bold span on the line marks it human-only. Absent, not empty,
+   * for every other task, matching `humanOnly`'s shape.
+   *
+   * "No agent can make this check" and "the agent running this change
+   * cannot make it" are different facts, and only the first is a
+   * question for a person. See a-live-check-names-who-performs-it. */
+  delegatedTo?: string;
 }
 
 /** A task is human-only when its first bold (`**...**`) span begins with
@@ -51,6 +60,33 @@ export const HUMAN_ONLY_LEAD_RE = /\*\*([^*]+)\*\*/;
 export function isHumanOnlyTask(text: string): boolean {
   const match = text.match(HUMAN_ONLY_LEAD_RE);
   return match !== null && /^human-only/i.test(match[1] ?? "");
+}
+
+/** The whole bold lead, so `**Delegated to copilot-cli**` names an agent
+ * and `**Delegated to whoever is free**` names nothing. An id is matched
+ * by the same shape a registry id has; whether it is *registered* is
+ * checked where the registry is in scope (`human-only-inbox.ts`), since
+ * a misspelled id must be reported as unknown rather than dropped. */
+const DELEGATED_LEAD_RE = /^delegated to\s+([A-Za-z0-9][A-Za-z0-9._-]*)$/i;
+
+/** A human-only marking in *any* bold span on the line, not only the
+ * lead. `isHumanOnlyTask` deliberately reads the lead alone and is left
+ * that way — it is public, and its prefix rule was measured against
+ * every marking this repository had written. This is the wider test,
+ * used only to settle a line that carries both markings. */
+const HUMAN_ONLY_ANYWHERE_RE = /\*\*\s*human-only/i;
+
+/** The agent a task is delegated to, or `undefined`.
+ *
+ * A line marked human-only anywhere is never delegated, whichever
+ * marker comes first: "nobody can do this" and "this agent does this"
+ * cannot both be true, and of the two the safer answer is the one that
+ * reaches a person. */
+export function delegatedAgentFor(text: string): string | undefined {
+  if (HUMAN_ONLY_ANYWHERE_RE.test(text)) return undefined;
+  const match = text.match(HUMAN_ONLY_LEAD_RE);
+  if (!match) return undefined;
+  return DELEGATED_LEAD_RE.exec((match[1] ?? "").trim())?.[1];
 }
 
 /** A task names a check the registry (`mechanical-checks.ts`) does not
@@ -159,6 +195,14 @@ function parseChecklist(content: string): TaskChecklistItem[] {
     const item: TaskChecklistItem = { lineNumber, text, done };
     if (check) item.check = check;
     if (isHumanOnlyTask(text)) item.humanOnly = true;
+    else {
+      const delegatedTo = delegatedAgentFor(text);
+      if (delegatedTo !== undefined) item.delegatedTo = delegatedTo;
+      // Delegated by its lead but marked human-only further along: the
+      // marking wins, and without this branch the line would carry
+      // neither and drop out of the inbox entirely.
+      else if (HUMAN_ONLY_ANYWHERE_RE.test(text)) item.humanOnly = true;
+    }
     items.push(item);
   });
   return items;

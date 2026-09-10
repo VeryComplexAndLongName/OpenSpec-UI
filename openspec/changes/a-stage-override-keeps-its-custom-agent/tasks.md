@@ -51,6 +51,11 @@ the middle configuration describe a different arithmetic.
 - [ ] 5.2 `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run.
 - [ ] 5.3 Version bump via `npx changeset` for core and webui.
-- [ ] 5.4 **Human-only**: with a per-change override naming a custom
-  agent for `apply`, run the chain and confirm the audit entry's command
-  carries `--agent`.
+- [ ] 5.4 **Delegated to copilot-cli**: this is a live run, and
+  `copilot-cli` is an agent whose CLI accepts `--agent`. Against a
+  scratch change, set the global config's `apply` stage to `copilot-cli`
+  and the change's override to the same agent plus a `customAgent` — the
+  case the merge drops today — run the chain, and read
+  `.openspec-ui/audit.jsonl` for the entry whose command carries
+  `--agent <name>`. Evidence to record here: the run id and the audit
+  line, quoted.

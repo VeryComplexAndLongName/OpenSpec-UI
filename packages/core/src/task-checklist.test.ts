@@ -15,6 +15,7 @@ import {
   UnknownMechanicalCheckError,
   deleteTaskLine,
   getArchivedChangeSummary,
+  delegatedAgentFor,
   isHumanOnlyTask,
   readTaskChecklist,
 } from "./task-checklist.js";
@@ -369,6 +370,31 @@ describe("isHumanOnlyTask", () => {
   });
 });
 
+describe("delegatedAgentFor", () => {
+  it("reads the agent out of the bold lead", () => {
+    expect(delegatedAgentFor("5.4 **Delegated to copilot-cli**: quote the audit line")).toBe("copilot-cli");
+    expect(delegatedAgentFor("**delegated to copilot-cli-acp**: lowercase lead")).toBe("copilot-cli-acp");
+  });
+
+  it("names nobody when the lead names nobody", () => {
+    // A lead that reads as an assignment but carries no id would leave
+    // the item waiting on nothing while looking assigned.
+    expect(delegatedAgentFor("**Delegated to whoever is free**: no")).toBeUndefined();
+    expect(delegatedAgentFor("**Delegated**: to nobody in particular")).toBeUndefined();
+    expect(delegatedAgentFor("1.1 Delegated to copilot-cli, but never bolded")).toBeUndefined();
+  });
+
+  it("yields to a human-only marking wherever it appears on the line", () => {
+    expect(delegatedAgentFor("**Human-only**: judge it. **Delegated to copilot-cli**: no")).toBeUndefined();
+    expect(delegatedAgentFor("**Delegated to copilot-cli**: run it. **Human-only**: judge it")).toBeUndefined();
+  });
+
+  it("does not read an ordinary task as an assignment", () => {
+    expect(delegatedAgentFor("1.1 Add a unit test")).toBeUndefined();
+    expect(delegatedAgentFor("2.3 **Note**: copilot-cli accepts --agent")).toBeUndefined();
+  });
+});
+
 describe("readTaskChecklist humanOnly field", () => {
   it("marks a human-only task and leaves other tasks without the field", async () => {
     const root = await temporaryRoot();
@@ -383,6 +409,27 @@ describe("readTaskChecklist humanOnly field", () => {
     expect(items).toEqual([
       { lineNumber: 2, text: "1.1 Run tests", done: false },
       { lineNumber: 3, text: "1.2 **Human-only**: confirm the UI by hand", done: false, humanOnly: true },
+    ]);
+  });
+});
+
+describe("readTaskChecklist delegatedTo field", () => {
+  it("carries the agent an item is delegated to, and nothing for the rest", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "with-delegated");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      "## 1. Verification\n\n- [ ] 1.1 Run tests\n"
+      + "- [ ] 1.2 **Delegated to copilot-cli**: quote the audit line\n"
+      + "- [ ] 1.3 **Human-only**: judge whether it reads well\n",
+    );
+
+    const items = await readTaskChecklist(root, "with-delegated", false);
+    expect(items).toEqual([
+      { lineNumber: 2, text: "1.1 Run tests", done: false },
+      { lineNumber: 3, text: "1.2 **Delegated to copilot-cli**: quote the audit line", done: false, delegatedTo: "copilot-cli" },
+      { lineNumber: 4, text: "1.3 **Human-only**: judge whether it reads well", done: false, humanOnly: true },
     ]);
   });
 });

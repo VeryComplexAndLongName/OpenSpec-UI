@@ -87,7 +87,10 @@ given.
   the extension.
 - [ ] 8.4 `HARNESS.md`, the scheduling section: what an archived change
   does to a schedule, and that opening the application is enough.
-- [ ] 8.5 **Human-only**: in VS Code, schedule a run two minutes ahead,
-  archive the change, and confirm the output channel says it was dropped
-  as archived. Then schedule another and confirm it starts on the chosen
-  path without a further click.
+- [ ] 8.5 **Delegated to copilot-cli**: in the VS Code integration suite,
+  against a real workspace, write a schedule entry already due, archive
+  the change it names, run `checkScheduleOnce`, and assert the output
+  channel line says the entry was dropped as archived. Then a second
+  entry naming a path asserts `revealAiPanel` received that path and no
+  further input was needed. Evidence to record here: the two test names
+  and the run that passed.
