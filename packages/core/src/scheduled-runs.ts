@@ -15,7 +15,8 @@
 //
 // See a-run-can-be-scheduled.
 
-import type { RunPathId } from "./run-plan.js";
+import { isValidChangeName } from "./change-name.js";
+import { RUN_PATH_IDS, type RunPathId } from "./run-plan.js";
 
 export interface ScheduledRun {
   changeName: string;
@@ -128,6 +129,50 @@ export function checkScheduleTime(startAt: string, now: Date): string | undefine
   if (Number.isNaN(at)) return "That is not a time this can read.";
   if (at <= now.getTime()) return "That time has already passed. Pick a later one, or start the run now.";
   return undefined;
+}
+
+/** What is wrong with a would-be schedule entry, naming the field, or
+ * `undefined` when nothing is.
+ *
+ * One validator for the reader and for the route that writes. Until
+ * this existed, `/api/scheduled-runs` stored whatever `add` carried and
+ * `readScheduledRuns` filtered it out again on the way back: the
+ * response said the entry was there and the next read said it was not.
+ * A record accepted on the way in has to be one the reader will hand
+ * back. See a-name-is-checked-before-it-is-used.
+ *
+ * The field is named because a 400 that says only "invalid" leaves the
+ * sender to guess which of four fields it was. */
+export function describeScheduledRunProblem(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return "a scheduled run must be an object";
+  const entry = value as Record<string, unknown>;
+
+  if (typeof entry.changeName !== "string" || entry.changeName.length === 0) {
+    return "changeName must be a non-empty string";
+  }
+  // The same rule that guards every path built from a change name: an
+  // entry is stored and later started, and a name that cannot be a
+  // directory cannot be a run.
+  if (!isValidChangeName(entry.changeName)) {
+    return `changeName "${entry.changeName}" is not a valid change name`;
+  }
+  if (typeof entry.path !== "string" || !RUN_PATH_IDS.includes(entry.path as RunPathId)) {
+    return `path must be one of: ${RUN_PATH_IDS.join(", ")}`;
+  }
+  for (const field of ["startAt", "requestedAt"] as const) {
+    const at = entry[field];
+    if (typeof at !== "string" || at.length === 0) return `${field} must be a non-empty ISO 8601 string`;
+    // A time nothing can compare against can never come due, so an
+    // entry carrying one is a schedule that silently never happens.
+    if (Number.isNaN(new Date(at).getTime())) return `${field} "${at}" is not a time this can read`;
+  }
+  return undefined;
+}
+
+/** Whether a value is a schedule entry this can act on — the reader's
+ * own rule, stated once. */
+export function isScheduledRun(value: unknown): value is ScheduledRun {
+  return describeScheduledRunProblem(value) === undefined;
 }
 
 /** The schedule with one entry removed — what to write back after it

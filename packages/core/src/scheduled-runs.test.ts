@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   checkScheduleTime,
   describeLateness,
+  describeScheduledRunProblem,
+  isScheduledRun,
   readSchedule,
   withoutEntry,
   type ScheduledRun,
@@ -109,6 +111,41 @@ describe("checkScheduleTime", () => {
 
   it("accepts a time still ahead", () => {
     expect(checkScheduleTime("2026-09-09T18:00:00.000Z", new Date("2026-09-09T12:00:00.000Z"))).toBeUndefined();
+  });
+});
+
+describe("describeScheduledRunProblem", () => {
+  // a-name-is-checked-before-it-is-used, task 2. One rule for the route
+  // that writes and the reader that filters: an entry accepted with a
+  // 200 and then discarded on the next read makes the response and the
+  // file disagree.
+  it("accepts an entry the reader would hand back", () => {
+    expect(describeScheduledRunProblem(entry("demo", "2026-09-09T18:00:00.000Z"))).toBeUndefined();
+    expect(isScheduledRun(entry("demo", "2026-09-09T18:00:00.000Z"))).toBe(true);
+  });
+
+  it("names the field that is wrong, rather than saying only that something is", () => {
+    expect(describeScheduledRunProblem({ ...entry("demo", "2026-09-09T18:00:00.000Z"), changeName: 5 }))
+      .toMatch(/^changeName /u);
+    expect(describeScheduledRunProblem({ ...entry("demo", "2026-09-09T18:00:00.000Z"), path: "sideways" }))
+      .toMatch(/^path /u);
+    expect(describeScheduledRunProblem({ ...entry("demo", "2026-09-09T18:00:00.000Z"), startAt: "tomorrow-ish" }))
+      .toMatch(/^startAt /u);
+    expect(describeScheduledRunProblem({ ...entry("demo", "2026-09-09T18:00:00.000Z"), requestedAt: "whenever" }))
+      .toMatch(/^requestedAt /u);
+  });
+
+  it("refuses a change name that could not be a change", () => {
+    // The entry is stored and later started, so the name is one that
+    // will be joined into a path.
+    expect(describeScheduledRunProblem(entry("../../escaped", "2026-09-09T18:00:00.000Z")))
+      .toMatch(/is not a valid change name/u);
+  });
+
+  it("refuses something that is not an entry at all", () => {
+    expect(describeScheduledRunProblem(null)).toBeDefined();
+    expect(describeScheduledRunProblem("chain")).toBeDefined();
+    expect(isScheduledRun(undefined)).toBe(false);
   });
 });
 

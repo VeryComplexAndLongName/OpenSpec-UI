@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ScheduledRun } from "./scheduled-runs.js";
+import { isScheduledRun, type ScheduledRun } from "./scheduled-runs.js";
 
 export function scheduledRunsPath(workspaceRoot: string): string {
   return path.join(path.resolve(workspaceRoot), ".openspec-ui", "scheduled-runs.json");
@@ -51,13 +51,4 @@ export async function addScheduledRun(workspaceRoot: string, entry: ScheduledRun
   const entries = [...await readScheduledRuns(workspaceRoot), entry];
   await writeScheduledRuns(workspaceRoot, entries);
   return entries;
-}
-
-function isScheduledRun(value: unknown): value is ScheduledRun {
-  if (typeof value !== "object" || value === null) return false;
-  const entry = value as Record<string, unknown>;
-  return typeof entry.changeName === "string" && entry.changeName.length > 0
-    && typeof entry.startAt === "string" && entry.startAt.length > 0
-    && typeof entry.path === "string"
-    && typeof entry.requestedAt === "string";
 }

@@ -80,6 +80,22 @@ describe("findCustomAgents", () => {
 
     expect((await findCustomAgents(root)).map((agent) => agent.name)).toEqual(["real"]);
   });
+
+  it("reports a definition whose name a configuration could not carry, rather than dropping it", async () => {
+    // a-name-is-checked-before-it-is-used, task 3.2. Discovery and
+    // validation have to agree: a picker offering `--flag` would hand
+    // the person a save that is then refused, and leaving the file out
+    // entirely would leave them with a directory listing and no reason.
+    const root = await workspace();
+    await define(root, path.join(".claude", "agents"), "reviewer", "body");
+    await define(root, path.join(".claude", "agents"), "--flag", "body");
+
+    const found = await findCustomAgents(root);
+
+    expect(found.map((agent) => agent.name).sort()).toEqual(["--flag", "reviewer"]);
+    expect(found.find((agent) => agent.name === "reviewer")?.refused).toBeUndefined();
+    expect(found.find((agent) => agent.name === "--flag")?.refused).toMatch(/must not begin with "-"/u);
+  });
 });
 
 describe("which agents accept a custom one", () => {

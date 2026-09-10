@@ -121,14 +121,17 @@ Each entry is either a bare agent-id string (`"claude-cli"`) or an object:
 | `model` | A string matching `/^[A-Za-z0-9][A-Za-z0-9._:-]*$/`, and only for an agent whose registry entry declares a `modelFlag` (`claude-cli`, `copilot-cli`, `claude-cli-acp`, `copilot-cli-acp`). |
 | `effort` | One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — restricted per agent; see the reference table below. |
 | `budget` | `{ "maxCostUsd": <positive number> }` or `{ "maxAiCredits": <positive integer, minimum 30> }` — whichever field the chosen agent's own capabilities accept; the other field is rejected. |
-| `customAgent` | The name of a custom agent you defined yourself, passed to the CLI as `--agent <name>`. Only for an agent whose registry entry declares a `customAgentFlag` — the `claude-cli` and `copilot-cli` families, raw and ACP alike. Setting one for any other agent is rejected rather than dropped. |
+| `customAgent` | The name of a custom agent you defined yourself, passed to the CLI as `--agent <name>`. A string matching `/^[A-Za-z0-9][A-Za-z0-9._:-]*$/` — the same rule `model` obeys, and for the same reason: both reach the CLI as the value of a flag, so a value beginning with `-` could be read as a second flag. Only for an agent whose registry entry declares a `customAgentFlag` — the `claude-cli` and `copilot-cli` families, raw and ACP alike. Setting one for any other agent is rejected rather than dropped. |
 
 Custom agents are discovered from the directories the CLIs themselves
 read: `.claude/agents/*.md` for Claude, in the project and for the user,
 and `.github/agents/*.md` for Copilot. A name defined in both the project
 and the user directory is offered once, with the project's winning — it
 is the one its own CLI would use. Neither CLI has a command that lists
-them, and neither needs one: the definitions are files.
+them, and neither needs one: the definitions are files. A definition
+whose file name the rule above would refuse is reported as found and not
+offered, rather than dropped without a word — discovery and validation
+say the same thing about the same name.
 
 They are chosen in the standalone UI's harness settings, beside the
 stage's agent, effort and budget — one picker per stage, listing only the

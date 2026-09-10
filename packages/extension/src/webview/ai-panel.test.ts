@@ -920,4 +920,50 @@ describe("AiPanel answers what the webview asks", () => {
             error: expect.stringContaining("no change"),
         }));
     });
+
+    it("refuses a change name that would write outside the workspace, and says why", async () => {
+        // a-name-is-checked-before-it-is-used, tasks 1.2/4.2. This
+        // file's own header says a message must not decide what is read
+        // or written, and until the check went into core this one
+        // could: `../../../../Users/me/.claude` was a change name as
+        // far as the bridge was concerned. The refusal comes from core,
+        // so the bridge only has to carry it.
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({
+            type: "openspec-ui/request",
+            id: "z:4",
+            op: "harness/write-change-override",
+            args: { changeName: "../../../../escaped", config: { autonomyLevel: "assisted" } },
+        });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: "z:4",
+            ok: false,
+            error: expect.stringContaining("Invalid OpenSpec change name"),
+        }));
+    });
+
+    it("refuses the same name on the read side, so both directions agree", async () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes/demo", showSettings: true });
+
+        deliverTo(panel)({
+            type: "openspec-ui/request",
+            id: "z:5",
+            op: "harness/read-change-override",
+            args: { changeName: "../../../../escaped" },
+        });
+        await settled();
+
+        expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+            id: "z:5",
+            ok: false,
+            error: expect.stringContaining("Invalid OpenSpec change name"),
+        }));
+    });
 });

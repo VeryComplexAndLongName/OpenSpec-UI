@@ -1,6 +1,12 @@
 import { access, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { readChangeState, type ChangeState } from "./change-state.js";
+import {
+  assertValidChangeName,
+  CHANGE_NAME_PATTERN,
+  InvalidChangeNameError,
+  isValidChangeName,
+} from "./change-name.js";
 
 export type ChangeArtifactKind = "proposal" | "design" | "tasks" | "delta-spec";
 
@@ -41,13 +47,11 @@ export interface OpenSpecWorkspace {
 
 export type ChangeLocation = "active" | "archive";
 
-const CHANGE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
-
-export function assertValidChangeName(changeName: string): void {
-  if (!CHANGE_NAME_PATTERN.test(changeName) || changeName === "." || changeName === "..") {
-    throw new Error(`Invalid OpenSpec change name: ${changeName}`);
-  }
-}
+// The rule itself lives in `change-name.ts`, a module with no Node
+// imports, so the pure half of core (`scheduled-runs.ts`, and the
+// browser bundle built from it) applies the same one. Re-exported here
+// because this is where callers have always found it.
+export { assertValidChangeName, CHANGE_NAME_PATTERN, InvalidChangeNameError, isValidChangeName };
 
 function changePath(root: string, changeName: string, location: ChangeLocation): string {
   assertValidChangeName(changeName);

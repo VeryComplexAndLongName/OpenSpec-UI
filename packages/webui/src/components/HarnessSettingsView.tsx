@@ -302,42 +302,59 @@ function CustomAgentSelect(
   }
   if (available === null) return null;
 
-  const forFamily = available.agents.filter((agent) => agent.family === family);
+  // A definition whose file name validation would refuse comes back
+  // marked rather than dropped, so the discovery can say it exists. It
+  // is still not offered: a choice that is refused the moment it is
+  // saved is not a choice. See a-name-is-checked-before-it-is-used.
+  const forFamily = available.agents.filter((agent) => agent.family === family && agent.refused === undefined);
+  const refused = available.agents.filter((agent) => agent.family === family && agent.refused !== undefined);
   // A configured name the discovery no longer finds stays selected and
   // is marked, rather than being replaced. Silently resetting it would
   // edit a configuration nobody asked to change and hide that a file it
   // depends on is gone.
   const missing = value !== INHERIT && !forFamily.some((agent) => agent.name === value);
 
+  const refusedNote = refused.length === 0 ? null : (
+    <p className="openspec-shell-note" data-testid={`custom-agent-refused-${stage}`}>
+      {stage}: found but not offered — {refused.map((agent) => agent.refused).join("; ")}
+    </p>
+  );
+
   if (forFamily.length === 0 && !missing) {
     const directories = available.directories
       .filter((entry) => entry.family === family)
       .map((entry) => entry.path);
     return (
-      <p className="openspec-shell-note" data-testid={`custom-agent-empty-${stage}`}>
-        {stage}: no custom agents defined for {family}. Read from {directories.join(" and ")}.
-      </p>
+      <>
+        <p className="openspec-shell-note" data-testid={`custom-agent-empty-${stage}`}>
+          {stage}: no custom agents defined for {family}. Read from {directories.join(" and ")}.
+        </p>
+        {refusedNote}
+      </>
     );
   }
 
   return (
-    <label className="openspec-shell-field">
-      {stage} custom agent
-      <select
-        aria-label={ariaLabel}
-        data-testid={`custom-agent-select-${stage}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value={INHERIT}>(none)</option>
-        {missing ? <option value={value}>{value} (not found)</option> : null}
-        {forFamily.map((agent) => (
-          <option key={agent.name} value={agent.name}>
-            {agent.description === undefined ? agent.name : `${agent.name} — ${agent.description}`}
-          </option>
-        ))}
-      </select>
-    </label>
+    <>
+      <label className="openspec-shell-field">
+        {stage} custom agent
+        <select
+          aria-label={ariaLabel}
+          data-testid={`custom-agent-select-${stage}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value={INHERIT}>(none)</option>
+          {missing ? <option value={value}>{value} (not found)</option> : null}
+          {forFamily.map((agent) => (
+            <option key={agent.name} value={agent.name}>
+              {agent.description === undefined ? agent.name : `${agent.name} — ${agent.description}`}
+            </option>
+          ))}
+        </select>
+      </label>
+      {refusedNote}
+    </>
   );
 }
 

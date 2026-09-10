@@ -16,6 +16,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { CustomAgent, CustomAgentFamily } from "./custom-agent-family.js";
+import { MODEL_ID_PATTERN } from "./harness-step-agent.js";
 
 // `customAgentFamilyFor` and `agentsAcceptingCustomAgents` live in
 // `custom-agent-family.ts`, not here: `webui` needs them, and a value
@@ -75,11 +76,21 @@ async function readDirectory(directory: string, convention: FamilyConvention): P
     } catch {
       // Unreadable file: still a named agent, just an undescribed one.
     }
+    // Discovery and validation agree, or the picker offers a name the
+    // save then refuses. The name is a file name, and a file name
+    // beginning with `-` is one the CLI may read as a second flag —
+    // the same rule, and the same message, as
+    // `stepAgents.<stage>.customAgent`.
+    const name = fileName.slice(0, -convention.extension.length);
+    const refused = MODEL_ID_PATTERN.test(name)
+      ? undefined
+      : `"${name}" must not begin with "-" and may contain only letters, digits, ".", "_", ":" and "-"`;
     found.push({
-      name: fileName.slice(0, -convention.extension.length),
+      name,
       ...(description !== undefined ? { description } : {}),
       family: convention.family,
       filePath,
+      ...(refused !== undefined ? { refused } : {}),
     });
   }
   return found;
@@ -116,7 +127,13 @@ export function customAgentDirectories(workspaceRoot: string, homeDir?: string):
  *
  * A name defined both in the project and for the user is offered once,
  * with the project's definition winning — it is the one its own CLI would
- * use. */
+ * use.
+ *
+ * A definition whose file name a configuration could not name comes
+ * back carrying `refused` rather than being left out. Dropping it
+ * silently would leave the person who wrote the file with a directory
+ * listing and no explanation; a surface offering it as a choice would
+ * hand them a save that is then refused. */
 export async function findCustomAgents(workspaceRoot: string, homeDir?: string): Promise<CustomAgent[]> {
   const byKey = new Map<string, CustomAgent>();
   for (const convention of CONVENTIONS) {

@@ -23,6 +23,14 @@ export interface CustomAgent {
   family: CustomAgentFamily;
   /** Where it was found, so a person can open the file that defines it. */
   filePath: string;
+  /** Why this one cannot be named in a configuration, when it cannot.
+   * A file whose base name would be refused by the same rule
+   * `stepAgents.<stage>.customAgent` obeys is reported rather than
+   * dropped: the person wrote the file, and "we found it and here is
+   * why it is unusable" is the only form of that fact they can act on.
+   * Absent on every agent that can be named. See
+   * a-name-is-checked-before-it-is-used. */
+  refused?: string;
 }
 
 /** Which family an agent id belongs to. Derived from the id rather than

@@ -25,7 +25,14 @@ export { buildChangeDates, NO_DATE } from "./change-dates.js";
 // Pure: whether a schedule is due is a comparison, and the browser makes
 // it against the same function the hosts do. The file reader stays out —
 // it imports `node:fs`.
-export { checkScheduleTime, describeLateness, readSchedule, withoutEntry } from "./scheduled-runs.js";
+export {
+  checkScheduleTime,
+  describeLateness,
+  describeScheduledRunProblem,
+  isScheduledRun,
+  readSchedule,
+  withoutEntry,
+} from "./scheduled-runs.js";
 // Pure over entries the host reads for it, like the run figures beside it.
 export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./verify-quality.js";
 // From the leaf module, not from the collector beside it: that one reads

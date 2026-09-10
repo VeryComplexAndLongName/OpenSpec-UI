@@ -24,6 +24,7 @@ import {
   getArchivedChangeSummary,
   getChangeTimeline,
   getChangeTimelines,
+  InvalidChangeNameError,
   InvalidHarnessConfigError,
   initOpenSpec,
   listBuiltInTemplates,
@@ -43,6 +44,8 @@ import {
   customAgentDirectories,
   findCustomAgents,
   auditLogPath,
+  describeScheduledRunProblem,
+  isScheduledRun,
   readScheduledRuns,
   writeScheduledRuns,
   withoutEntry,
@@ -1085,6 +1088,29 @@ export async function handleScheduledRunsRequest(req: IncomingMessage, res: Serv
     sendJson(res, 400, { error: "body must contain a non-empty cwd" });
     return;
   }
+  // There is no order in which both are what the sender meant, and
+  // applying one silently answers a question that was not asked. Until
+  // this refusal existed, `add` won and `remove` was dropped without a
+  // word. See a-name-is-checked-before-it-is-used.
+  if (parsed.add !== undefined && parsed.remove !== undefined) {
+    sendJson(res, 400, { error: "body must carry add or remove, not both" });
+    return;
+  }
+  // Validated on the way in by the rule the reader applies on the way
+  // out, so what a 200 says is stored is what the next read returns.
+  if (parsed.add !== undefined) {
+    const problem = describeScheduledRunProblem(parsed.add);
+    if (problem !== undefined) {
+      sendJson(res, 400, { error: `add: ${problem}` });
+      return;
+    }
+  }
+  if (parsed.remove !== undefined && !isScheduledRun(parsed.remove)) {
+    // Removal names an entry, so it has to be one — a malformed
+    // `remove` matches nothing and would answer 200 having done nothing.
+    sendJson(res, 400, { error: `remove: ${describeScheduledRunProblem(parsed.remove)}` });
+    return;
+  }
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
@@ -1193,6 +1219,10 @@ export async function handleHarnessConfigResolveRequest(req: IncomingMessage, re
     const config = await resolveHarnessConfig(parsed.cwd, parsed.changeName);
     sendJson(res, 200, config);
   } catch (error) {
+    if (error instanceof InvalidChangeNameError) {
+      sendJson(res, 400, { error: error.message });
+      return;
+    }
     if (error instanceof InvalidHarnessConfigError) {
       sendJson(res, 422, { error: error.message });
       return;
@@ -1228,6 +1258,13 @@ export async function handleHarnessConfigReadChangeOverrideRequest(req: Incoming
     const override = await readChangeHarnessConfig(parsed.cwd, parsed.changeName);
     sendJson(res, 200, { override: override ?? null });
   } catch (error) {
+    // A name that is not a change name is a refused request, not a
+    // fault here: 400, with the rule it broke. The check itself lives
+    // in core, beside the path it protects, so both hosts inherit it.
+    if (error instanceof InvalidChangeNameError) {
+      sendJson(res, 400, { error: error.message });
+      return;
+    }
     if (error instanceof InvalidHarnessConfigError) {
       sendJson(res, 422, { error: error.message });
       return;
@@ -1281,6 +1318,10 @@ export async function handleHarnessConfigWriteRequest(req: IncomingMessage, res:
     }
     sendJson(res, 200, { written: true });
   } catch (error) {
+    if (error instanceof InvalidChangeNameError) {
+      sendJson(res, 400, { error: error.message });
+      return;
+    }
     if (error instanceof InvalidHarnessConfigError) {
       sendJson(res, 422, { error: error.message });
       return;
