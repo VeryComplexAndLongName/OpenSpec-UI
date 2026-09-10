@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   checkScheduleTime,
+  describeDrop,
   describeLateness,
+  describePathNoLongerOffered,
   describeScheduledRunProblem,
   isScheduledRun,
+  planScheduleFiring,
   readSchedule,
   withoutEntry,
   type ScheduledRun,
@@ -46,7 +49,7 @@ describe("readSchedule", () => {
     expect(reading.waiting.map((item) => item.entry.changeName)).toEqual(["other"]);
   });
 
-  it("drops an entry for a change that no longer exists, and says it did", () => {
+  it("drops an entry for a change that no longer exists, and says it was deleted", () => {
     // Neither active nor archived means deleted, and a schedule for it
     // would wait forever.
     const reading = readSchedule(
@@ -56,26 +59,93 @@ describe("readSchedule", () => {
     );
 
     expect(reading.start).toBeUndefined();
-    expect(reading.dropped.map((item) => item.changeName)).toEqual(["deleted-experiment"]);
+    expect(reading.dropped.map((item) => [item.entry.changeName, item.reason]))
+      .toEqual([["deleted-experiment", "deleted"]]);
   });
 
-  it("finds a change that was archived after being scheduled", () => {
-    // The prefix `openspec archive` adds must not lose someone's
-    // schedule.
+  it("drops a change that was archived after being scheduled, as archived", () => {
+    // a-schedule-keeps-its-promise. The prefix match used to make this
+    // the alive case: the entry was promoted to a start, both hosts
+    // removed it, and then looked the change up under a name no
+    // directory had. A chain does not run against an archived change —
+    // its work is done — so this is a drop, and one that says why.
     const reading = readSchedule(
       [entry("old", "2026-09-09T09:00:00.000Z")],
       known,
       new Date("2026-09-09T12:00:00.000Z"),
     );
 
-    expect(reading.start?.entry.changeName).toBe("old");
+    expect(reading.start).toBeUndefined();
+    expect(reading.dropped.map((item) => item.reason)).toEqual(["archived"]);
+    expect(describeDrop(reading.dropped[0]!)).toContain("archived");
+  });
+
+  it("starts a due run standing behind an archived entry, on the same reading", () => {
+    // The archived entry used to be promoted to the start, so the run
+    // genuinely due behind it waited an extra tick for no reason.
+    const reading = readSchedule(
+      [entry("old", "2026-09-09T08:00:00.000Z"), entry("demo", "2026-09-09T09:00:00.000Z")],
+      known,
+      new Date("2026-09-09T12:00:00.000Z"),
+    );
+
+    expect(reading.start?.entry.changeName).toBe("demo");
+    expect(reading.dropped.map((item) => item.entry.changeName)).toEqual(["old"]);
   });
 
   it("drops a time it cannot read rather than keeping a permanent pending", () => {
     const reading = readSchedule([entry("demo", "not a time")], known, new Date("2026-09-09T12:00:00.000Z"));
 
-    expect(reading.dropped).toHaveLength(1);
+    expect(reading.dropped.map((item) => item.reason)).toEqual(["unreadable-time"]);
     expect(reading.pending).toEqual([]);
+  });
+});
+
+describe("planScheduleFiring", () => {
+  // a-schedule-keeps-its-promise, task 1.2. The read-drop-write-pick-
+  // remove loop was written twice, once per host, and had already
+  // diverged. It is decided here and nowhere else.
+  const now = new Date("2026-09-09T12:00:00.000Z");
+
+  it("leaves the started entry out of what is written back and keeps the waiting ones", () => {
+    const due = entry("demo", "2026-09-09T09:00:00.000Z");
+    const later = entry("other", "2026-09-09T11:00:00.000Z");
+    const notYet = entry("demo", "2026-09-09T18:00:00.000Z");
+
+    const firing = planScheduleFiring([due, later, notYet], known, now);
+
+    expect(firing.start?.entry).toEqual(due);
+    expect(firing.remaining).toEqual([later, notYet]);
+    expect(firing.waitingCount).toBe(1);
+    expect(firing.startNote).toContain("1 more scheduled run(s) are still waiting");
+  });
+
+  it("keeps the starting entry in what is written after the drops", () => {
+    // An entry is consumed only once its run has been opened, so a host
+    // that drops first and fails to open still has the run.
+    const due = entry("demo", "2026-09-09T09:00:00.000Z");
+    const gone = entry("deleted-experiment", "2026-09-09T09:00:00.000Z");
+
+    const firing = planScheduleFiring([gone, due], known, now);
+
+    expect(firing.afterDrops).toEqual([due]);
+    expect(firing.remaining).toEqual([]);
+    expect(firing.dropNotes).toHaveLength(1);
+  });
+
+  it("says nothing about a start when nothing is due", () => {
+    const firing = planScheduleFiring([entry("demo", "2026-09-09T18:00:00.000Z")], known, now);
+
+    expect(firing.start).toBeUndefined();
+    expect(firing.startNote).toBeUndefined();
+    expect(firing.remaining).toHaveLength(1);
+  });
+});
+
+describe("describePathNoLongerOffered", () => {
+  it("names the path and asks for a choice", () => {
+    expect(describePathNoLongerOffered("vscode-agent")).toContain("vscode-agent");
+    expect(describePathNoLongerOffered("vscode-agent")).toContain("choose one");
   });
 });
 

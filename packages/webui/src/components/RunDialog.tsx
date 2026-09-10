@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   checkScheduleTime,
   resolveEffortLevel,
@@ -79,19 +79,47 @@ export function RunDialog(
   const templates = templatesForScope("change");
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleProblem, setScheduleProblem] = useState<string | undefined>(undefined);
+  const container = useRef<HTMLElement | null>(null);
+
+  // A dialog that opened by itself takes focus, so a screen reader says
+  // a run dialog appeared without anyone asking for it just now. Only
+  // then: stealing focus from a person who pressed the button would move
+  // them away from what they were reading. `note` is set by a schedule
+  // and by nothing else. See a-schedule-keeps-its-promise.
+  useEffect(() => {
+    if (note) container.current?.focus();
+  }, [note]);
 
   function schedule(path: RunPathId): void {
+    // The button is not disabled on an empty or unreadable value: a
+    // control that does nothing and says nothing is the defect this
+    // dialog exists to remove, and it also made the sentence below
+    // unreachable. A browser that does not implement `datetime-local`
+    // renders a text box, and then anything at all can arrive here.
+    //
+    // Checked before it is converted. `toISOString()` throws a
+    // `RangeError` on a value no date can be made of, so converting
+    // first made "That is not a time this can read" unreachable from
+    // here and replaced it with an uncaught exception.
+    //
     // A local `datetime-local` value has no zone; the person means their
-    // own clock, which is what `new Date()` reads it as.
-    const startAt = new Date(scheduleAt).toISOString();
-    const problem = checkScheduleTime(startAt, new Date());
+    // own clock, which is what `new Date()` reads it as, here and in the
+    // check.
+    const problem = checkScheduleTime(scheduleAt, new Date());
     setScheduleProblem(problem);
     if (problem) return;
-    onSchedule?.(path, startAt);
+    onSchedule?.(path, new Date(scheduleAt).toISOString());
   }
 
   return (
-    <section className="openspec-shell-panel" data-testid="run-dialog">
+    <section
+      className="openspec-shell-panel"
+      data-testid="run-dialog"
+      ref={container}
+      role="dialog"
+      aria-label={`Run ${changeName}`}
+      tabIndex={-1}
+    >
       <h3>{`Run ${changeName}`}</h3>
       {/* Said before anything else: this dialog opening by itself is a
           different event from a person opening it, and which one it was
@@ -202,7 +230,6 @@ export function RunDialog(
                 key={`schedule-${path.id}`}
                 type="button"
                 data-testid={`run-dialog-schedule-${path.id}`}
-                disabled={scheduleAt.trim().length === 0}
                 onClick={() => schedule(path.id)}
               >
                 {`Schedule: ${path.title}`}

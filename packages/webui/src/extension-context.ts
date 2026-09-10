@@ -1,4 +1,4 @@
-import type { RunPlan } from "@openspec-ui/core/browser";
+import type { RunPathId, RunPlan } from "@openspec-ui/core/browser";
 
 export const DASHBOARD_CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 
@@ -63,6 +63,12 @@ export interface DashboardContext {
     /** Why the dialog opened, when a schedule opened it rather than a
      * person. See a-run-can-be-scheduled. */
     runNote?: string;
+    /** The path a schedule already chose. The dialog renders so the note
+     * can be read, and then takes this path without waiting — the choice
+     * was made when the run was asked for. Absent when a person opened
+     * the dialog, and absent when the plan no longer offers it.
+     * See a-schedule-keeps-its-promise. */
+    runPath?: RunPathId;
     /** Mount the harness settings view. Like the plan it decides which
      * component mounts, so it is read from the first render's HTML. See
      * harness-settings-in-the-panel. */
@@ -92,16 +98,24 @@ export function resolveInitialDashboardContext(
  * which component mounts and a follow-up message would show the wrong one
  * first. Unparseable JSON mounts the ordinary panel rather than throwing:
  * a malformed attribute should cost the dialog, not the whole webview. */
-function readRunPlan(container: HTMLElement): { runPlan?: RunPlan; changeName?: string; runNote?: string } {
+function readRunPlan(
+    container: HTMLElement,
+): { runPlan?: RunPlan; changeName?: string; runNote?: string; runPath?: RunPathId } {
     const raw = container.dataset.runPlan;
     if (!raw) return {};
     try {
-        const parsed = JSON.parse(raw) as { plan?: RunPlan; changeName?: string; note?: string };
+        const parsed = JSON.parse(raw) as {
+            plan?: RunPlan;
+            changeName?: string;
+            note?: string;
+            path?: RunPathId;
+        };
         if (!parsed.plan) return {};
         return {
           runPlan: parsed.plan,
           ...(parsed.changeName ? { changeName: parsed.changeName } : {}),
           ...(parsed.note ? { runNote: parsed.note } : {}),
+          ...(parsed.path ? { runPath: parsed.path } : {}),
         };
     } catch {
         return {};

@@ -16,6 +16,7 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
 import { createBridgeRequester } from "./bridge-request.js";
+import type { RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
   isDashboardContextMessage,
@@ -68,6 +69,11 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [runPlan, setRunPlan] = useState(initialContext.runPlan);
   const [changeName, setChangeName] = useState(initialContext.changeName);
   const [runNote, setRunNote] = useState(initialContext.runNote);
+  /** The path a schedule already chose, taken as soon as the dialog is
+   * on screen. The dialog is still rendered — its note says who asked
+   * and how late — but it does not wait for a choice that was made when
+   * the run was scheduled. See a-schedule-keeps-its-promise. */
+  const [runPath, setRunPath] = useState(initialContext.runPath);
   const [showSettings, setShowSettings] = useState(initialContext.showSettings ?? false);
   const vscodeApi = useMemo(() => acquireVsCodeApi(), []);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi }), [vscodeApi]);
@@ -117,6 +123,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setRunPlan(event.data.context.runPlan);
       setChangeName(event.data.context.changeName);
       setRunNote(event.data.context.runNote);
+      setRunPath(event.data.context.runPath);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
       // Reset like the others: a later reveal that is not about settings
       // must not leave the form on screen.
@@ -125,6 +132,29 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
+
+  function choosePath(path: RunPathId) {
+    if (path === "vscode-agent") {
+      // The only path the host has to carry out: opening a chat session
+      // is not something this bundle can do.
+      vscodeApi.postMessage({ type: RUN_CHOICE_MESSAGE_TYPE, choice: "vscode-agent" });
+      return;
+    }
+    setStartChain(path === "chain");
+    setRunChange(path !== "chain");
+    setRunPlan(undefined);
+  }
+
+  // A scheduled run takes the path it was given rather than asking for
+  // it a second time. Where the plan no longer offers that path the
+  // dialog stays open for a choice, and its note says the configured
+  // paths changed — the host leaves `runPath` off in that case.
+  useEffect(() => {
+    if (!runPath || !runPlan) return;
+    if (!runPlan.offered.some((offered) => offered.id === runPath)) return;
+    setRunPath(undefined);
+    choosePath(runPath);
+  }, [runPath, runPlan]);
 
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);
@@ -168,17 +198,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
             changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}
             plan={runPlan}
             {...(runNote ? { note: runNote } : {})}
-            onChoose={(path) => {
-              if (path === "vscode-agent") {
-                // The only path the host has to carry out: opening a chat
-                // session is not something this bundle can do.
-                vscodeApi.postMessage({ type: RUN_CHOICE_MESSAGE_TYPE, choice: "vscode-agent" });
-                return;
-              }
-              setStartChain(path === "chain");
-              setRunChange(path !== "chain");
-              setRunPlan(undefined);
-            }}
+            onChoose={choosePath}
             onApplyTemplate={(template) => {
               // The id, not the configuration: the host has the list, and
               // it writes the file and posts the plan back.

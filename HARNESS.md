@@ -336,9 +336,27 @@ named after another.
 A run can also be asked for at a time rather than now. The schedule is
 kept in `.openspec-ui/scheduled-runs.json`, gitignored beside the audit
 log: "start this one at six" is one person's intent on one machine, not
-project configuration. It needs the application open at that time; if it
-is closed, the run starts the next time it is opened and the dialog says
-how late it is. See a-run-can-be-scheduled.
+project configuration.
+
+It needs the application open at that time. If it is closed, **opening
+the application is enough**: the workspace is read on open and the
+schedule with it, so the run starts on the next open with nothing else
+done, and says how late it is. It starts on the path that was chosen
+when it was asked for, not on whatever the configuration resolves to at
+that hour; where that path is no longer offered for the change, the
+dialog opens for a choice and says the configured paths changed. The
+entry leaves the file only once the run has been opened — a failure to
+open reports itself as that, and the schedule keeps the run.
+
+**A change archived after being scheduled drops its schedule**, and the
+drop says it was archived — distinct from a change that was deleted. A
+chain does not run against an archived change: its work is done by
+definition. A run due behind such an entry starts on the same reading.
+
+What to do with a schedule is decided in one place,
+`planScheduleFiring` in `packages/core/src/scheduled-runs.ts`; each host
+performs the effects it is handed and decides nothing itself. See
+a-run-can-be-scheduled, corrected by a-schedule-keeps-its-promise.
 
 It is a panel in both hosts. In VS Code it used to be a quick-pick, which
 gives one line per item and cuts the rest without saying so — measured

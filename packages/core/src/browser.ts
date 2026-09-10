@@ -27,9 +27,12 @@ export { buildChangeDates, NO_DATE } from "./change-dates.js";
 // it imports `node:fs`.
 export {
   checkScheduleTime,
+  describeDrop,
   describeLateness,
+  describePathNoLongerOffered,
   describeScheduledRunProblem,
   isScheduledRun,
+  planScheduleFiring,
   readSchedule,
   withoutEntry,
 } from "./scheduled-runs.js";
@@ -41,7 +44,15 @@ export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./ve
 export { describeHumanOnlyInbox, describeWaitingOn } from "./human-only-inbox-view.js";
 export type { HumanOnlyInbox, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
 export type { AgentQuality, VerifyQuality } from "./verify-quality.js";
-export type { DueRun, ScheduleReading, ScheduledRun } from "./scheduled-runs.js";
+export type {
+  DroppedRun,
+  DueRun,
+  KnownChangeNames,
+  ScheduleDropReason,
+  ScheduleFiring,
+  ScheduleReading,
+  ScheduledRun,
+} from "./scheduled-runs.js";
 export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } from "./change-dates.js";
 // Pure over a resolved config, with only type imports from the Node-side
 // modules — safe in the browser bundle, unlike harness-config.js itself.

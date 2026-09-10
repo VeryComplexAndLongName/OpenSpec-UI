@@ -271,4 +271,39 @@ describe("RunDialog — asking for a run at a time", () => {
 
     expect(screen.getByTestId("run-dialog-note").textContent).toContain("3 hours late");
   });
+
+  it("refuses a time it cannot read rather than throwing on the way to one", () => {
+    // a-schedule-keeps-its-promise, task 6.3. `toISOString()` used to
+    // run first, so a value no date can be made of raised an uncaught
+    // RangeError and the sentence written for it was unreachable.
+    const onSchedule = vi.fn();
+    render(<RunDialog {...baseProps()} onSchedule={onSchedule} />);
+
+    // A `datetime-local` input blanks a value it cannot parse, and a
+    // browser that does not implement the type renders a text box that
+    // does not. Either way what reaches the handler is unreadable.
+    fireEvent.change(screen.getByLabelText("Start at"), { target: { value: "not-a-time" } });
+    fireEvent.click(screen.getByTestId("run-dialog-schedule-chain"));
+
+    expect(onSchedule).not.toHaveBeenCalled();
+    expect(screen.getByTestId("run-dialog-schedule-problem").textContent)
+      .toContain("not a time this can read");
+  });
+
+  it("is a dialog with a name, and takes focus when it opened by itself", () => {
+    // a-schedule-keeps-its-promise, task 6.1. A screen-reader user has
+    // to be told a run dialog appeared without their action.
+    render(<RunDialog {...baseProps()} note="Scheduled for 09:00 — starting 3 hours late." />);
+
+    const dialog = screen.getByRole("dialog", { name: "Run demo" });
+    expect(dialog).toBeTruthy();
+    expect(document.activeElement).toBe(dialog);
+  });
+
+  it("does not steal focus from the person who opened it", () => {
+    render(<RunDialog {...baseProps()} />);
+
+    expect(screen.getByRole("dialog", { name: "Run demo" })).toBeTruthy();
+    expect(document.activeElement).toBe(document.body);
+  });
 });

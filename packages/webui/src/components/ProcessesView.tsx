@@ -131,7 +131,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
         </label>
         <button type="button" onClick={() => void cleanup()} disabled={loading}>Clean old history</button>
       </div>
-      {message ? <p className="openspec-shell-note" role="status">{message}</p> : null}
+      {message ? <p className="openspec-shell-note" role="status" data-testid="processes-message">{message}</p> : null}
       {processes.length === 0 ? <p className="openspec-shell-note">No persisted processes.</p> : (
         <table className="openspec-overview-table">
           <thead><tr><th>Operation</th><th>Change</th><th>Agent</th><th>Progress</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
