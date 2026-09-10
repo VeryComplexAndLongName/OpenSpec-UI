@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-10
+follows:
+  - harness-settings-in-the-panel
+  - a-run-can-be-scheduled
+  - custom-agents-are-visible
