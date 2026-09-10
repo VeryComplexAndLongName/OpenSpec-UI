@@ -72,6 +72,9 @@ is shown to everyone.
 - [ ] 7.4 Render the charts over this repository and look at them, as
   `charts-of-what-was-finished` did; confirm the two early-morning
   archives moved to the day their folders say.
-- [ ] 7.5 **Human-only**: open the timeline in VS Code over this
-  repository and confirm the sentence under the charts gives this
-  repository's own figures.
+- [ ] 7.5 **Delegated to copilot-cli**: drive the standalone shell over
+  this repository with Playwright, open the timeline, and assert the
+  sentence under the charts carries this repository's own change count
+  and its own count of flat changes — not the constant "135 of 185".
+  Evidence to record here: the spec file and test name, and the run that
+  passed.

@@ -10,6 +10,10 @@ vi.mock("vscode", () => vscodeMock);
 const collectHumanOnlyInboxMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   collectHumanOnlyInbox: (...args: unknown[]) => collectHumanOnlyInboxMock(...args),
+  describeWaitingOn: (waitingOn: { kind: string; agent?: string; known?: boolean }) =>
+    (waitingOn.kind === "person"
+      ? "a person"
+      : waitingOn.known ? waitingOn.agent : `"${waitingOn.agent}", which is not a registered agent`),
 }));
 
 const { HumanOnlyInboxItemTreeItem, HumanOnlyInboxTreeProvider } = await import("./human-only-inbox-tree.js");
@@ -18,9 +22,15 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function inbox(items: Array<{ changeName: string; lineNumber: number; text: string }>) {
+type Waiting = { kind: "person" } | { kind: "agent"; agent: string; known: boolean };
+
+function inbox(items: Array<{ changeName: string; lineNumber: number; text: string; waitingOn?: Waiting }>) {
   return {
-    items: items.map((item) => ({ ...item, changeDir: `/repo/openspec/changes/${item.changeName}` })),
+    items: items.map((item) => ({
+      waitingOn: { kind: "person" } as Waiting,
+      ...item,
+      changeDir: `/repo/openspec/changes/${item.changeName}`,
+    })),
     changesRead: 2,
   };
 }
@@ -41,7 +51,8 @@ describe("HumanOnlyInboxTreeProvider", () => {
 
     expect(items).toHaveLength(2);
     expect(items.every((item) => item instanceof HumanOnlyInboxItemTreeItem)).toBe(true);
-    expect(items.map((item) => item.description)).toEqual(["change-a", "change-b"]);
+    expect(items.map((item) => item.description))
+      .toEqual(["change-a — waiting on a person", "change-b — waiting on a person"]);
     expect(items.map((item) => item.label)).toEqual([
       "1.2 **Human-only**: confirm by hand",
       "2.1 **Human-only**: another one",
@@ -88,5 +99,40 @@ describe("HumanOnlyInboxTreeProvider", () => {
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const [item] = await provider.getChildren();
     expect(await provider.getChildren(item)).toEqual([]);
+  });
+});
+
+describe("HumanOnlyInboxTreeProvider — who each row waits on", () => {
+  it("names the agent for a delegated item and a person for a human-only one", async () => {
+    // Before a-live-check-names-who-performs-it both read identically,
+    // and an item assigned to an agent that had not run looked like a
+    // question nobody had answered.
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([
+      { changeName: "change-a", lineNumber: 3, text: "1.2 **Human-only**: judge it" },
+      {
+        changeName: "change-b",
+        lineNumber: 5,
+        text: "2.1 **Delegated to copilot-cli**: quote the audit line",
+        waitingOn: { kind: "agent", agent: "copilot-cli", known: true },
+      },
+    ]));
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items.map((item) => item.description))
+      .toEqual(["change-a — waiting on a person", "change-b — waiting on copilot-cli"]);
+  });
+
+  it("says so when the named agent is not one the registry carries", async () => {
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([{
+      changeName: "change-a",
+      lineNumber: 1,
+      text: "1.1 **Delegated to copilto-cli**: a typo",
+      waitingOn: { kind: "agent", agent: "copilto-cli", known: false },
+    }]));
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items[0]?.description).toBe('change-a — waiting on "copilto-cli", which is not a registered agent');
   });
 });

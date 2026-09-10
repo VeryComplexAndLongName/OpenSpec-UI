@@ -52,6 +52,8 @@ is counted as a run. A gap reason misnames the gap.
 - [ ] 5.3 Version bump via `npx changeset` for core and webui.
 - [ ] 5.4 `LIMITS.md`, the audit entry table: the new field and what it
   means for entries written before it existed.
-- [ ] 5.5 **Human-only**: run a chain on a change with a declared check
-  and read the quality block; it names the apply agent, not
-  `verify-checks`.
+- [ ] 5.5 **Delegated to copilot-cli**: against a scratch change
+  declaring one mechanical check, run the chain, then read the quality
+  block. Assert the group names the `apply` stage's agent and not
+  `verify-checks`. Evidence to record here: the run id, the audit
+  entry's `checkedAgent` value, and the rendered sentence, quoted.

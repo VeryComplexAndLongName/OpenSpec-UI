@@ -31,8 +31,8 @@ export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./ve
 // From the leaf module, not from the collector beside it: that one reads
 // task files, and a value re-exported from it puts `node:fs` in this
 // bundle.
-export { describeHumanOnlyInbox } from "./human-only-inbox-view.js";
-export type { HumanOnlyInbox, HumanOnlyItem } from "./human-only-inbox-view.js";
+export { describeHumanOnlyInbox, describeWaitingOn } from "./human-only-inbox-view.js";
+export type { HumanOnlyInbox, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
 export type { AgentQuality, VerifyQuality } from "./verify-quality.js";
 export type { DueRun, ScheduleReading, ScheduledRun } from "./scheduled-runs.js";
 export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } from "./change-dates.js";

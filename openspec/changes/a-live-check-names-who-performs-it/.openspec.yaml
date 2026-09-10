@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-10
+follows:
+  - human-only-inbox-in-the-shell
+  - custom-agents-are-visible
+  - a-check-that-passes-checked-something

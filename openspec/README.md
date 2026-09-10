@@ -52,6 +52,13 @@ An item marked **human-only** stays open until a person reports it done.
 Passing automated checks are not evidence for it, and neither is half of
 it having been observed.
 
+An item marked **Delegated to `<agent-id>`** waits on that agent instead
+of on a person — a live run, a real VS Code host, a browser, a query
+against GitHub. It is still outstanding, and it closes only when the
+evidence the item names is written into the item: a test and its run, a
+run id and the audit line, a command and its output. Use it where
+another agent can make the check, and **human-only** where none can.
+
 ### Say what a change follows, when it follows something
 
 A change's `.openspec.yaml` may state three optional relations:

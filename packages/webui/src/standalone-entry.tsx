@@ -62,6 +62,7 @@ import {
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   describeHumanOnlyInbox,
   describeLateness,
+  describeWaitingOn,
   readSchedule,
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
@@ -1139,7 +1140,7 @@ function StandaloneApp() {
 
         {humanOnly ? (
           <div className="openspec-overview-block" data-testid="human-only-inbox">
-            <h3>Waiting on a person</h3>
+            <h3>Waiting on somebody</h3>
             <p className="openspec-shell-note" data-testid="human-only-inbox-basis">
               {describeHumanOnlyInbox(humanOnly)}
             </p>
@@ -1148,6 +1149,7 @@ function StandaloneApp() {
                 {humanOnly.items.map((item) => (
                   <li key={`${item.changeName}:${item.lineNumber}`}>
                     <strong>{item.changeName}</strong>{` — ${item.text}`}
+                    {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
                   </li>
                 ))}
               </ul>

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { collectHumanOnlyInbox } from "@openspec-ui/core";
+import { collectHumanOnlyInbox, describeWaitingOn, type WaitingOn } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
 
 /** One open human-only item, from one active change's `tasks.md`. Reveals
@@ -18,10 +18,15 @@ export class HumanOnlyInboxItemTreeItem extends vscode.TreeItem {
     public readonly changeDir: string,
     public readonly lineNumber: number,
     public readonly text: string,
+    public readonly waitingOn: WaitingOn,
   ) {
     super(text, vscode.TreeItemCollapsibleState.None);
     this.id = `human-only-inbox:${changeName}:${lineNumber}`;
-    this.description = changeName;
+    // Who it waits on, not only which change it belongs to: an item
+    // assigned to an agent that has not run and an item nobody can
+    // close read the same otherwise. See
+    // a-live-check-names-who-performs-it.
+    this.description = `${changeName} — waiting on ${describeWaitingOn(waitingOn)}`;
     this.contextValue = "openspec-ui.humanOnlyInboxItem";
     this.iconPath = new vscode.ThemeIcon("watch");
     this.command = { command: "openspec-ui.revealTask", title: "Reveal Task", arguments: [this] };
@@ -52,10 +57,10 @@ export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<Human
     // person" and the other could not. See human-only-inbox-in-the-shell.
     const inbox = await collectHumanOnlyInbox(this.workspaceRoot);
     const items = inbox.items.map((item) =>
-      new HumanOnlyInboxItemTreeItem(item.changeName, item.changeDir, item.lineNumber, item.text));
+      new HumanOnlyInboxItemTreeItem(item.changeName, item.changeDir, item.lineNumber, item.text, item.waitingOn));
 
     if (items.length === 0) {
-      return [new EmptyTreeItem("Nothing is waiting on a person", "No open human-only item in any active change")];
+      return [new EmptyTreeItem("Nothing is waiting", "No open item waiting on a person or an agent in any active change")];
     }
     return items;
   }
