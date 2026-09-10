@@ -47,7 +47,7 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
-import { loadHumanOnlyInbox, type HumanOnlyInbox } from "./human-only-inbox-client.js";
+import { loadHumanOnlyInbox } from "./human-only-inbox-client.js";
 import {
   addScheduledRun as addScheduledRunApi,
   loadScheduledRuns,
@@ -61,10 +61,10 @@ import {
 import { fireDueSchedule, type ScheduleFiringHost } from "./scheduled-run-firing.js";
 import {
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
-  describeHumanOnlyInbox,
+  describeHumanOnlyInboxState,
   describeWaitingOn,
 } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 interface OverviewChange {
@@ -424,9 +424,12 @@ function StandaloneApp() {
       // whose task files cannot be read still has a summary worth
       // showing, and losing that to this would be a worse trade.
       try {
-        setHumanOnly(await loadHumanOnlyInbox(apiFetch, root));
-      } catch {
-        setHumanOnly(null);
+        setHumanOnly({ status: "loaded", inbox: await loadHumanOnlyInbox(apiFetch, root) });
+      } catch (error) {
+        // Kept as a state with a reason, not dropped to `null`: an
+        // absent block is what "not loaded yet" looks like, and this is
+        // not that. See a-check-that-passes-checked-something.
+        setHumanOnly({ status: "failed", reason: error instanceof Error ? error.message : String(error) });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -553,7 +556,7 @@ function StandaloneApp() {
    * answers a question about the same list — a change with one unticked
    * human-only item is indistinguishable, in that list, from one nobody
    * has started. See human-only-inbox-in-the-shell. */
-  const [humanOnly, setHumanOnly] = useState<HumanOnlyInbox | null>(null);
+  const [humanOnly, setHumanOnly] = useState<HumanOnlyInboxState | null>(null);
 
   /** Asks for a run at a time. The dialog closes: what happens next is a
    * schedule, not a run, and leaving the run buttons on screen would
@@ -1226,12 +1229,15 @@ function StandaloneApp() {
         {humanOnly ? (
           <div className="openspec-overview-block" data-testid="human-only-inbox">
             <h3>Waiting on somebody</h3>
-            <p className="openspec-shell-note" data-testid="human-only-inbox-basis">
-              {describeHumanOnlyInbox(humanOnly)}
+            <p
+              className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
+              data-testid="human-only-inbox-basis"
+            >
+              {describeHumanOnlyInboxState(humanOnly)}
             </p>
-            {humanOnly.items.length > 0 ? (
+            {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
               <ul className="openspec-shell-note">
-                {humanOnly.items.map((item) => (
+                {humanOnly.inbox.items.map((item) => (
                   <li key={`${item.changeName}:${item.lineNumber}`}>
                     <strong>{item.changeName}</strong>{` — ${item.text}`}
                     {` (waiting on ${describeWaitingOn(item.waitingOn)})`}

@@ -13,6 +13,7 @@ import {
   getPathAddedDate,
   readArchiveCommitDates,
 } from "./change-timeline.js";
+import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
 // Measured baseline on 2026-09-02 before this optimization: this file
 // passed 14/14 in 14.7s and 16.1s on two idle runs. One repository-
@@ -53,13 +54,15 @@ async function getSharedReadOnlyRepoRoot(): Promise<string> {
 }
 
 async function initRepo(root: string): Promise<SimpleGit> {
-  const git = simpleGit(root);
+  // Isolated from the machine's git configuration, like every other call
+  // here — see test-support/git-isolation.ts.
+  const git = simpleGit(root, await gitIsolationOptions());
   await git.init();
   return git;
 }
 
 async function commitAll(root: string, message: string, isoDate: string): Promise<void> {
-  const git = simpleGit(root).env({
+  const git = simpleGit(root, await gitIsolationOptions()).env({
     GIT_AUTHOR_DATE: isoDate,
     GIT_COMMITTER_DATE: isoDate,
     GIT_AUTHOR_NAME: "Test User",
@@ -78,7 +81,7 @@ async function commitAllAs(
   authorName: string,
   authorEmail: string,
 ): Promise<void> {
-  const git = simpleGit(root).env({
+  const git = simpleGit(root, await gitIsolationOptions()).env({
     GIT_AUTHOR_DATE: isoDate,
     GIT_COMMITTER_DATE: isoDate,
     GIT_AUTHOR_NAME: authorName,

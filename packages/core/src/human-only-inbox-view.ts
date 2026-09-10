@@ -39,6 +39,16 @@ export interface HumanOnlyInbox {
   changesRead: number;
 }
 
+/** What a host has, once it has asked.
+ *
+ * Three states, not two: a surface that renders a failed read as no
+ * block at all says exactly what it says when nothing has been asked for
+ * yet, and telling those apart is the distinction this surface exists to
+ * make. See a-check-that-passes-checked-something. */
+export type HumanOnlyInboxState =
+  | { status: "loaded"; inbox: HumanOnlyInbox }
+  | { status: "failed"; reason: string };
+
 /** Who one item waits on, in words — for a row's label in either host. */
 export function describeWaitingOn(waitingOn: WaitingOn): string {
   if (waitingOn.kind === "person") return "a person";
@@ -86,4 +96,16 @@ export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
   }
 
   return `${head}: ${parts.join(", ")}.`;
+}
+
+/** The same sentence, over a read that may have failed.
+ *
+ * A failure says so, and says why, in the place the count would have
+ * been: "nothing is waiting" and "nobody could find out" are different
+ * facts about a workspace, and only one of them means the reader can
+ * stop looking. */
+export function describeHumanOnlyInboxState(state: HumanOnlyInboxState): string {
+  if (state.status === "loaded") return describeHumanOnlyInbox(state.inbox);
+  const reason = state.reason.trim();
+  return `What is waiting could not be read: ${reason.length > 0 ? reason : "no reason given"}.`;
 }

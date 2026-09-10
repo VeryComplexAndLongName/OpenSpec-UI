@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/browser.ts"
+    "./browser": "./src/browser.ts",
+    "./test-support/git-isolation": "./src/test-support/git-isolation.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

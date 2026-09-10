@@ -61,8 +61,25 @@ test.describe("standalone change charts", () => {
       // Four days: two archived on the 2nd, one on the 3rd, none on the
       // 4th, one on the 5th. The quiet day is a bar of zero, not a
       // missing column.
+      //
+      // Asserted row by row, count included. Checking only that one date
+      // appears passes a chart that drew every bar as zero, which is the
+      // shape this test is named for — see
+      // a-check-that-passes-checked-something.
       const perDay = page.getByTestId("chart-archived-per-day-table");
-      await expect(perDay).toContainText("2026-03-04");
+      const rows = perDay.locator("tbody tr");
+      const expected: [string, string][] = [
+        ["2026-03-02", "2"],
+        ["2026-03-03", "1"],
+        ["2026-03-04", "0"],
+        ["2026-03-05", "1"],
+      ];
+      await expect(rows).toHaveCount(expected.length);
+      for (const [index, [day, count]] of expected.entries()) {
+        const cells = rows.nth(index).locator("td");
+        await expect(cells.nth(0)).toHaveText(day);
+        await expect(cells.nth(1)).toHaveText(count);
+      }
       // What it rests on, in the chart: every one of these dates is a
       // commit, because this fixture has a history.
       await expect(page.getByTestId("chart-archived-per-day-basis")).toContainText("dated from a commit");

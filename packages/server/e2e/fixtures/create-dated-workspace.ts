@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
 
 const run = promisify(execFile);
 
@@ -33,7 +34,11 @@ async function git(cwd: string, args: string[], isoDate?: string): Promise<void>
     GIT_COMMITTER_EMAIL: "fixture@example.com",
     ...(isoDate ? { GIT_AUTHOR_DATE: isoDate, GIT_COMMITTER_DATE: isoDate } : {}),
   };
-  await run("git", args, { cwd, env });
+  // The author and the committer came from the environment here and the
+  // rest of the configuration came from the developer's machine, so this
+  // fixture failed to commit at all where `commit.gpgsign` or
+  // `core.hooksPath` is set globally.
+  await run("git", [...(await gitIsolationArgs()), ...args], { cwd, env });
 }
 
 async function writeChange(workspaceRoot: string, change: DatedChange): Promise<string> {
