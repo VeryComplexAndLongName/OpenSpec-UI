@@ -7,15 +7,21 @@
 // route, and it is worth its cost because the figures are the point of
 // the box that shows them.
 
-export type { WorkspaceRunStats, AgentRunGroup } from "@openspec-ui/core/browser";
-import type { WorkspaceRunStats } from "@openspec-ui/core/browser";
+export type { WorkspaceRunStats, AgentRunGroup, VerifyQuality } from "@openspec-ui/core/browser";
+import type { VerifyQuality, WorkspaceRunStats } from "@openspec-ui/core/browser";
+
+/** The figures and what the verifying stages found, from one read of the
+ * same log. */
+export interface WorkspaceRunStatsResult extends WorkspaceRunStats {
+  quality: VerifyQuality;
+}
 
 export type WorkspaceRunStatsRequest = (pathname: string, init: RequestInit) => Promise<Response>;
 
 export async function loadWorkspaceRunStats(
   request: WorkspaceRunStatsRequest,
   cwd: string,
-): Promise<WorkspaceRunStats> {
+): Promise<WorkspaceRunStatsResult> {
   const response = await request("/api/workspace-run-stats", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -25,5 +31,5 @@ export async function loadWorkspaceRunStats(
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
   }
-  return response.json() as Promise<WorkspaceRunStats>;
+  return response.json() as Promise<WorkspaceRunStatsResult>;
 }

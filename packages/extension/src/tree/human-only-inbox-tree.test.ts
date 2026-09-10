@@ -4,11 +4,12 @@ import { createVscodeMock } from "../test-utils/vscode-mock.js";
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
-const discoverOpenSpecWorkspaceMock = vi.fn();
-const readTaskChecklistMock = vi.fn();
+// Which items are waiting is `collectHumanOnlyInbox`'s question now, and
+// is tested where it lives — see core's `human-only-inbox.test.ts`. What
+// these assert is what this tree does with the answer.
+const collectHumanOnlyInboxMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
-  discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
-  readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
+  collectHumanOnlyInbox: (...args: unknown[]) => collectHumanOnlyInboxMock(...args),
 }));
 
 const { HumanOnlyInboxItemTreeItem, HumanOnlyInboxTreeProvider } = await import("./human-only-inbox-tree.js");
@@ -17,26 +18,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function inbox(items: Array<{ changeName: string; lineNumber: number; text: string }>) {
+  return {
+    items: items.map((item) => ({ ...item, changeDir: `/repo/openspec/changes/${item.changeName}` })),
+    changesRead: 2,
+  };
+}
+
 beforeEach(() => {
-  discoverOpenSpecWorkspaceMock.mockResolvedValue({
-    changes: [
-      { name: "change-a", path: "/repo/openspec/changes/change-a" },
-      { name: "change-b", path: "/repo/openspec/changes/change-b" },
-    ],
-  });
+  collectHumanOnlyInboxMock.mockResolvedValue(inbox([]));
 });
 
 describe("HumanOnlyInboxTreeProvider", () => {
   it("lists open human-only items across active changes, each naming its change", async () => {
-    readTaskChecklistMock.mockImplementation(async (_root: string, changeName: string) => {
-      if (changeName === "change-a") {
-        return [
-          { lineNumber: 2, text: "1.1 Ordinary task", done: false },
-          { lineNumber: 3, text: "1.2 **Human-only**: confirm by hand", done: false, humanOnly: true },
-        ];
-      }
-      return [{ lineNumber: 5, text: "2.1 **Human-only**: another one", done: false, humanOnly: true }];
-    });
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([
+      { changeName: "change-a", lineNumber: 3, text: "1.2 **Human-only**: confirm by hand" },
+      { changeName: "change-b", lineNumber: 5, text: "2.1 **Human-only**: another one" },
+    ]));
 
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const items = await provider.getChildren();
@@ -50,13 +48,7 @@ describe("HumanOnlyInboxTreeProvider", () => {
     ]);
   });
 
-  it("excludes a human-only item already marked done", async () => {
-    readTaskChecklistMock.mockImplementation(async (_root: string, changeName: string) => {
-      if (changeName === "change-a") {
-        return [{ lineNumber: 2, text: "1.1 **Human-only**: done already", done: true, humanOnly: true }];
-      }
-      return [];
-    });
+  it("shows the empty note when nothing is waiting", async () => {
 
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const items = await provider.getChildren();
@@ -66,8 +58,6 @@ describe("HumanOnlyInboxTreeProvider", () => {
   });
 
   it("says nothing is waiting rather than showing an empty list", async () => {
-    readTaskChecklistMock.mockResolvedValue([]);
-
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const items = await provider.getChildren();
 
@@ -76,12 +66,9 @@ describe("HumanOnlyInboxTreeProvider", () => {
   });
 
   it("selecting an item reveals the task it belongs to, with no mutating control bound to it", async () => {
-    readTaskChecklistMock.mockImplementation(async (_root: string, changeName: string) => {
-      if (changeName === "change-a") {
-        return [{ lineNumber: 2, text: "1.1 **Human-only**: confirm by hand", done: false, humanOnly: true }];
-      }
-      return [];
-    });
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([
+      { changeName: "change-a", lineNumber: 2, text: "1.1 **Human-only**: confirm by hand" },
+    ]));
 
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const [item] = await provider.getChildren();
@@ -95,12 +82,9 @@ describe("HumanOnlyInboxTreeProvider", () => {
   });
 
   it("returns no children for an item, since rows never nest", async () => {
-    readTaskChecklistMock.mockImplementation(async (_root: string, changeName: string) => {
-      if (changeName === "change-a") {
-        return [{ lineNumber: 2, text: "1.1 **Human-only**: x", done: false, humanOnly: true }];
-      }
-      return [];
-    });
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([
+      { changeName: "change-a", lineNumber: 2, text: "1.1 **Human-only**: x" },
+    ]));
     const provider = new HumanOnlyInboxTreeProvider("/repo");
     const [item] = await provider.getChildren();
     expect(await provider.getChildren(item)).toEqual([]);

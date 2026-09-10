@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { discoverOpenSpecWorkspace, readTaskChecklist } from "@openspec-ui/core";
+import { collectHumanOnlyInbox } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
 
 /** One open human-only item, from one active change's `tasks.md`. Reveals
@@ -47,16 +47,12 @@ export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<Human
   async getChildren(element?: HumanOnlyInboxTreeNode): Promise<HumanOnlyInboxTreeNode[]> {
     if (element) return [];
 
-    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
-    const items: HumanOnlyInboxItemTreeItem[] = [];
-    for (const change of workspace.changes) {
-      const tasks = await readTaskChecklist(this.workspaceRoot, change.name, false);
-      for (const task of tasks) {
-        if (task.humanOnly && !task.done) {
-          items.push(new HumanOnlyInboxItemTreeItem(change.name, change.path, task.lineNumber, task.text));
-        }
-      }
-    }
+    // The same collector the standalone shell reads. It was this loop,
+    // here, which is why one host could answer "what is waiting on a
+    // person" and the other could not. See human-only-inbox-in-the-shell.
+    const inbox = await collectHumanOnlyInbox(this.workspaceRoot);
+    const items = inbox.items.map((item) =>
+      new HumanOnlyInboxItemTreeItem(item.changeName, item.changeDir, item.lineNumber, item.text));
 
     if (items.length === 0) {
       return [new EmptyTreeItem("Nothing is waiting on a person", "No open human-only item in any active change")];

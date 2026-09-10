@@ -47,6 +47,7 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
+import { loadHumanOnlyInbox, type HumanOnlyInbox } from "./human-only-inbox-client.js";
 import {
   addScheduledRun as addScheduledRunApi,
   loadScheduledRuns,
@@ -57,7 +58,12 @@ import {
   resolveRunWithHarnessDispatch,
   type RunWithHarnessDispatch,
 } from "./run-with-harness-dispatch.js";
-import { DEFAULT_STALE_TASK_THRESHOLD_DAYS, describeLateness, readSchedule } from "@openspec-ui/core/browser";
+import {
+  DEFAULT_STALE_TASK_THRESHOLD_DAYS,
+  describeHumanOnlyInbox,
+  describeLateness,
+  readSchedule,
+} from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
@@ -390,6 +396,14 @@ function StandaloneApp() {
 
       const payload = (await response.json()) as OpenSpecOverview;
       setOverview(payload);
+      // Read beside the summary, and its failure is its own: a workspace
+      // whose task files cannot be read still has a summary worth
+      // showing, and losing that to this would be a worse trade.
+      try {
+        setHumanOnly(await loadHumanOnlyInbox(apiFetch, cwd));
+      } catch {
+        setHumanOnly(null);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setOverviewError(message);
@@ -477,6 +491,11 @@ function StandaloneApp() {
    * person. Cleared on a dismissal, so a later run does not inherit an
    * explanation that is not its own. */
   const [runNote, setRunNote] = useState<string | null>(null);
+  /** What is waiting on a person. Read with the summary, because it
+   * answers a question about the same list — a change with one unticked
+   * human-only item is indistinguishable, in that list, from one nobody
+   * has started. See human-only-inbox-in-the-shell. */
+  const [humanOnly, setHumanOnly] = useState<HumanOnlyInbox | null>(null);
 
   /** Asks for a run at a time. The dialog closes: what happens next is a
    * schedule, not a run, and leaving the run buttons on screen would
@@ -522,6 +541,12 @@ function StandaloneApp() {
    * would fire again on the next tick. */
   async function fireDueRuns() {
     if (cwd.trim().length === 0 || runDispatch) return;
+    // Not until the workspace's changes are known. Without this the
+    // first pass ran with an empty list, decided every scheduled change
+    // had been deleted, and removed the entries — losing a schedule to
+    // not having read yet. Absence of knowledge is not evidence of
+    // absence, and here it was destructive.
+    if (!overview) return;
     try {
       const entries = await loadScheduledRuns(apiFetch, cwd);
       if (entries.length === 0) return;
@@ -542,6 +567,12 @@ function StandaloneApp() {
 
       await removeScheduledRunApi(apiFetch, cwd, due.entry);
       setEditorChangeName(due.entry.changeName);
+      // The dialog lives in the change editor, and a tab that is not
+      // active is not rendered. Without this the schedule fired, the
+      // entry was consumed and nothing appeared — worse than not firing,
+      // because the run was spent invisibly. Found by the browser test
+      // that stayed on the summary tab.
+      setActiveTab("change-editor");
       const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, due.entry.changeName);
       setRunNote(describeLateness(due));
       setRunDispatch(dispatch);
@@ -1105,6 +1136,24 @@ function StandaloneApp() {
         </div>
 
         {overviewError ? <p className="openspec-overview-error">Failed to load summary: {overviewError}</p> : null}
+
+        {humanOnly ? (
+          <div className="openspec-overview-block" data-testid="human-only-inbox">
+            <h3>Waiting on a person</h3>
+            <p className="openspec-shell-note" data-testid="human-only-inbox-basis">
+              {describeHumanOnlyInbox(humanOnly)}
+            </p>
+            {humanOnly.items.length > 0 ? (
+              <ul className="openspec-shell-note">
+                {humanOnly.items.map((item) => (
+                  <li key={`${item.changeName}:${item.lineNumber}`}>
+                    <strong>{item.changeName}</strong>{` — ${item.text}`}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
 
         {overview ? (
           <div className="openspec-overview" data-testid="openspec-overview">

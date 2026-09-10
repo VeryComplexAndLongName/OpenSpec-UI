@@ -80,6 +80,20 @@ function changeNameOf(changeDir: string): string {
   return normalized.slice(normalized.lastIndexOf("/") + 1);
 }
 
+/** Whether an entry belongs to a change the workspace still has.
+ *
+ * Exported because more than one analysis needs the same rule, and two
+ * copies of "which runs count" would drift into two answers about the
+ * same log. A change that is neither active nor archived was deleted,
+ * and a deleted change is an experiment rather than part of the record.
+ * An entry with no change at all is not counted either — there is
+ * nothing to attribute it to. */
+export function belongsToKnownChange(entry: { changeDir?: string }, known: KnownChanges): boolean {
+  if (entry.changeDir === undefined) return false;
+  return known.active.includes(changeNameOf(entry.changeDir))
+    || known.archived.includes(changeNameOf(entry.changeDir));
+}
+
 function quantile(sorted: readonly number[], fraction: number): number | undefined {
   if (sorted.length === 0) return undefined;
   // Nearest-rank, which for these sample sizes is the honest choice:
@@ -144,12 +158,11 @@ export function buildWorkspaceRunStats(
   entries: readonly AuditEntry[],
   known: KnownChanges,
 ): WorkspaceRunStats {
-  const exists = new Set<string>([...known.active, ...known.archived]);
   const kept: AuditEntry[] = [];
   let fromDeleted = 0;
   for (const entry of entries) {
     if (entry.changeDir === undefined) continue;
-    if (exists.has(changeNameOf(entry.changeDir))) kept.push(entry);
+    if (belongsToKnownChange(entry, known)) kept.push(entry);
     else fromDeleted += 1;
   }
 

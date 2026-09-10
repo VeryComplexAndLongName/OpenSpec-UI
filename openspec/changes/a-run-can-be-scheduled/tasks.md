@@ -53,6 +53,18 @@ is not running. Answer — it starts at the next open, and says how late.
   343 webui.
 - [x] 5.3 Version bump via `npx changeset`.
 - [x] 5.4 `HARNESS.md`: where a schedule lives and what it depends on.
-- [ ] 5.5 **Human-only**: schedule one a minute out, watch it start; then
-  schedule one, close the application, reopen it after the time, and
-  read what it says about being late.
+- [x] 5.5 Done by machine instead, in `e2e/scheduled-run.spec.ts`: one
+  case waits out a real minute and watches it start unattended; the other
+  writes a three-hour-old entry straight into the schedule, which is what
+  a closed application leaves behind, and asserts the lateness on the
+  next open. Run 2026-09-10: both pass, 2.5 minutes.
+
+  It found two defects no unit test could have. The dialog lives in the
+  change-editor tab, and a tab that is not active is not rendered — a
+  schedule firing anywhere else consumed its entry and showed nothing.
+  And the first pass ran before the workspace's changes were known, so
+  every scheduled change looked deleted and its entry was removed. Both
+  fixed here.
+
+  The VS Code half stays unverified by machine: there is no browser
+  driving the extension panel. Said rather than implied.

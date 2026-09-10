@@ -138,3 +138,45 @@ describe("WorkspaceRunStatsPanel — the conclusions", () => {
     expect(screen.getByTestId("run-stats-gap-cheapest").textContent).toContain("only claude-cli-acp reports a cost");
   });
 });
+
+describe("WorkspaceRunStatsPanel — what the verifying stages found", () => {
+  // quality-of-what-a-verify-found. Two questions about one log: an
+  // agent that is cheap and fails its checks is not the cheap one.
+
+  it("says which of the two empty states this is", () => {
+    // A log with nothing in it and a log whose runs never reached a
+    // verifying stage are different facts, and only one is fixed by
+    // running something.
+    render(<WorkspaceRunStatsPanel
+      stats={stats()}
+      quality={{ entriesRead: 108, entriesWithChecks: 0, byAgent: [] }}
+    />);
+
+    const basis = screen.getByTestId("verify-quality-basis").textContent ?? "";
+    expect(basis).toContain("108 runs recorded");
+    expect(basis).toContain("none of which reached a verifying stage");
+  });
+
+  it("reports a thin group as thin rather than as a rate", () => {
+    render(<WorkspaceRunStatsPanel
+      stats={stats()}
+      quality={{
+        entriesRead: 20,
+        entriesWithChecks: 2,
+        byAgent: [{ agent: "claude-cli", verifies: 2, withFailures: 1, checksRan: 6, checksFailed: 1, enough: false }],
+      }}
+    />);
+
+    const row = screen.getByTestId("verify-quality-by-agent").textContent ?? "";
+    expect(row).toContain("1 of 2 verifying stages");
+    expect(row).toContain("1 of 6 checks failed");
+    expect(row).toContain("too few to read as a rate");
+  });
+
+  it("renders nothing about quality in a host that did not read it", () => {
+    // An empty block would claim every verify passed.
+    render(<WorkspaceRunStatsPanel stats={stats()} />);
+
+    expect(screen.queryByTestId("verify-quality")).toBeNull();
+  });
+});

@@ -26,6 +26,14 @@ export { buildChangeDates, NO_DATE } from "./change-dates.js";
 // it against the same function the hosts do. The file reader stays out —
 // it imports `node:fs`.
 export { checkScheduleTime, describeLateness, readSchedule, withoutEntry } from "./scheduled-runs.js";
+// Pure over entries the host reads for it, like the run figures beside it.
+export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./verify-quality.js";
+// From the leaf module, not from the collector beside it: that one reads
+// task files, and a value re-exported from it puts `node:fs` in this
+// bundle.
+export { describeHumanOnlyInbox } from "./human-only-inbox-view.js";
+export type { HumanOnlyInbox, HumanOnlyItem } from "./human-only-inbox-view.js";
+export type { AgentQuality, VerifyQuality } from "./verify-quality.js";
 export type { DueRun, ScheduleReading, ScheduledRun } from "./scheduled-runs.js";
 export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } from "./change-dates.js";
 // Pure over a resolved config, with only type imports from the Node-side
