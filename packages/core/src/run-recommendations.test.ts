@@ -61,6 +61,37 @@ describe("recommendFromRunStats", () => {
     expect(result.gaps.find((entry) => entry.kind === "cheapest")?.reason).toContain("no agent has reported a cost");
   });
 
+  it("says the costs are too few, not that none were reported", () => {
+    // quality-is-charged-to-the-agent-whose-work-was-checked. The reason
+    // was drawn from the eligible groups only, so four runs that each
+    // reported a cost read as "no agent has reported a cost across 4
+    // recorded run(s)" — a reason that is false about the very log it
+    // was drawn from.
+    const result = recommendFromRunStats(stats([
+      group({ agent: "claude-cli-acp", runs: 2, completed: 2, medianCostUsd: 1.88, medianSeconds: 462, enough: false }),
+      group({ agent: "codex-cli", runs: 2, completed: 2, medianCostUsd: 4.2, medianSeconds: 300, enough: false }),
+    ]));
+
+    const gap = result.gaps.find((entry) => entry.kind === "cheapest");
+    expect(gap?.reason).toContain("2 agents reported a cost");
+    expect(gap?.reason).toContain("fewer than 5 runs");
+    expect(gap?.reason).not.toContain("no agent has reported a cost");
+    // The same three-way distinction on the other two measures.
+    expect(result.gaps.find((entry) => entry.kind === "fastest")?.reason).toContain("2 agents recorded a duration");
+    expect(result.gaps.find((entry) => entry.kind === "most-likely-to-finish")?.reason)
+      .toContain("2 agents recorded runs");
+  });
+
+  it("says nothing has run when the log holds no runs at all", () => {
+    const result = recommendFromRunStats(stats([]));
+
+    expect(result.offered).toEqual([]);
+    expect(result.gaps.find((entry) => entry.kind === "cheapest")?.reason)
+      .toContain("no agent has reported a cost across 0 recorded runs");
+    expect(result.gaps.find((entry) => entry.kind === "most-likely-to-finish")?.reason)
+      .toContain("no run has been recorded");
+  });
+
   it("does not treat an agent that reported nothing as costing zero", () => {
     const result = recommendFromRunStats(stats([
       group({ agent: "claude-cli-acp", medianCostUsd: 1.88, medianSeconds: 462 }),

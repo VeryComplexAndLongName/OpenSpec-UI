@@ -210,11 +210,40 @@ reported by the agent only — never estimated or derived." Absent means no
 usage was reported, **not zero usage**.
 
 Not every entry is an agent's run. `verify` records what a change's
-declared mechanical checks found — `agent: "verify-checks"`, with
-`checksRan` and `checksFailed` — and the `git` stage records its own
-mechanical actions as `agent: "git-stage"`. Neither carries `usage`,
-because neither invoked a model. An entry whose agent is not an agent
-says so in that field.
+declared mechanical checks found, and the `git` stage records its own
+mechanical actions. Neither carries `usage`, because neither invoked a
+model. An entry whose agent is not an agent says so in that field:
+
+| Entry | `agent` | Its own fields | Counted as a run |
+| --- | --- | --- | --- |
+| An agent's run | the agent's registry id | `usage`, `agentVersion`, `effort` | Yes — a `started` and a terminal partner make one run |
+| What `verify`'s checks found | `verify-checks` | `checksRan`, `checksFailed`, `checkedAgent` | **No** — it is a fact about the run beside it |
+| A `git` stage action | `git-stage` | `invocation` | Yes — each action is written as its own `started`/terminal pair |
+
+`checkedAgent` on a checks entry names **the agent whose work the checks
+covered** — the agent the chain resolved for its `apply` stage — because
+`agent` there names the runner that wrote the entry rather than anything
+that ran. The quality readback (`verify-quality.ts`, shown in the run
+dialog) groups by `checkedAgent` for exactly that reason: grouping by
+`agent` produced one row named `verify-checks` whatever had run the
+apply.
+
+**An entry written before that field existed carries no `checkedAgent`.**
+It is counted in the totals and reported as recorded before the agent
+was named, and it is charged to no agent — nothing on it says which
+agent that would be, and inferring one from the entries around it would
+fail silently on a log that had been rotated or filtered by change. Every
+checks entry in this repository's log predates the field, because none
+had been written at all when it was added (see
+`quality-is-charged-to-the-agent-whose-work-was-checked`).
+
+A checks entry is also excluded wherever runs are counted — the per-change
+cost report, the workspace figures, and the "previous runs" in a
+recommendation's grounds — by one predicate, `isRunEntry`
+(`packages/core/src/audit-runs.ts`). It carries a terminal outcome and no
+`started` partner, so before that it was counted as a run refused before
+it started, and one chain run of apply and verify reported two previous
+runs.
 
 The check counts are recorded whether or not the verifying agent then
 runs. A `verify` whose checks failed does not invoke it, so before this

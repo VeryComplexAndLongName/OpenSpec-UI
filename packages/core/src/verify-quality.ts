@@ -1,4 +1,5 @@
-// How often a verifying stage found something wrong, per agent.
+// How often a verifying stage found something wrong, per the agent whose
+// work was checked.
 //
 // `workspace-run-stats.ts` answers what runs cost. This answers whether
 // what they produced held up — the two are different questions about the
@@ -12,6 +13,14 @@
 // "nothing recorded yet" and means it — the alternative is a view that
 // appears the day the data does, which is a day later than the data is
 // worth reading.
+//
+// The grouping key is `checkedAgent`, not `agent`. `agent` on a checks
+// entry is the pseudo-agent that wrote it — the chain runner — so
+// grouping by it produced one row named `verify-checks` whatever ran the
+// apply, and the module's own promise that "an agent that is cheap and
+// fails its checks is not the cheap one" could not be kept by a row that
+// named no agent. See
+// quality-is-charged-to-the-agent-whose-work-was-checked.
 //
 // Pure over entries, like its neighbours: the caller supplies both the
 // entries and which changes still exist.
@@ -29,6 +38,8 @@ import { belongsToKnownChange } from "./workspace-run-stats.js";
 export const ENOUGH_VERIFIES = 5;
 
 export interface AgentQuality {
+  /** The agent whose work these checks examined — an entry's
+   * `checkedAgent`, never its `agent`. */
   agent: string;
   /** Verifying stages that reported what their checks found. */
   verifies: number;
@@ -53,10 +64,17 @@ export interface VerifyQuality {
    * state of a workspace whose chains have not run a verify stage yet,
    * and is different from having no entries at all. */
   entriesWithChecks: number;
+  /** Of those, how many name no checked agent — every entry written
+   * before `checkedAgent` existed. Counted here and charged to no group:
+   * the entry says what the checks found and not whose work they were
+   * about, and putting it under a guessed name would be worse than
+   * saying it is unattributed. */
+  entriesBeforeAgentNamed: number;
   byAgent: AgentQuality[];
 }
 
-/** What the verifying stages recorded, per agent.
+/** What the verifying stages recorded, per the agent whose work they
+ * checked.
  *
  * Runs against a change that no longer exists are excluded, the same
  * rule the cost figures apply: a deleted change was an experiment, and
@@ -73,13 +91,23 @@ export function buildVerifyQuality(
     checksFailed: number;
   }>();
   let entriesWithChecks = 0;
+  let entriesBeforeAgentNamed = 0;
 
   for (const entry of entries) {
     if (entry.checksRan === undefined) continue;
     if (!belongsToKnownChange(entry, known)) continue;
     entriesWithChecks += 1;
 
-    const group = byAgent.get(entry.agent) ?? {
+    // Counted, never grouped. `agent` here is the pseudo-agent that
+    // wrote the entry, so falling back to it would rebuild exactly the
+    // row this change removed.
+    const checked = entry.checkedAgent;
+    if (checked === undefined) {
+      entriesBeforeAgentNamed += 1;
+      continue;
+    }
+
+    const group = byAgent.get(checked) ?? {
       verifies: 0,
       withFailures: 0,
       checksRan: 0,
@@ -94,12 +122,13 @@ export function buildVerifyQuality(
     const failed = entry.checksFailed ?? 0;
     group.checksFailed += failed;
     if (failed > 0) group.withFailures += 1;
-    byAgent.set(entry.agent, group);
+    byAgent.set(checked, group);
   }
 
   return {
     entriesRead: entries.length,
     entriesWithChecks,
+    entriesBeforeAgentNamed,
     byAgent: [...byAgent.entries()]
       .map(([agent, group]) => ({
         agent,
@@ -115,16 +144,27 @@ export function buildVerifyQuality(
 
 /** The sentence a surface shows above the figures.
  *
- * Says which of the two empty states this is: a log with nothing in it
- * and a log whose runs never reached a verifying stage are different
- * facts, and only one of them is fixed by running something. */
+ * Says which of the empty states this is: a log with nothing in it, a
+ * log whose runs never reached a verifying stage, and a log whose
+ * verifying stages all predate the field naming whose work they checked
+ * are three different facts, and only the first two say anything about
+ * running something. */
 export function describeVerifyQuality(quality: VerifyQuality): string {
   if (quality.entriesRead === 0) return "Nothing recorded yet — no runs have been logged in this workspace.";
   if (quality.entriesWithChecks === 0) {
     return `Nothing to report yet — ${quality.entriesRead} runs recorded, none of which reached a verifying stage`
       + " that reported what its checks found.";
   }
+  if (quality.byAgent.length === 0) {
+    return `${quality.entriesWithChecks} verifying stage(s) recorded, none of which names the agent whose work was`
+      + " checked. They were recorded before that was written down, so none is charged to an agent.";
+  }
   const thin = quality.byAgent.filter((group) => !group.enough).length;
-  return `${quality.entriesWithChecks} verifying stage(s) across ${quality.byAgent.length} agent(s)`
-    + (thin === 0 ? "." : `; ${thin} rest${thin === 1 ? "s" : ""} on fewer than ${ENOUGH_VERIFIES} and is reported as thin.`);
+  const unnamed = quality.entriesBeforeAgentNamed;
+  return `${quality.entriesWithChecks} verifying stage(s) across ${quality.byAgent.length} checked agent(s)`
+    + (thin === 0 ? "." : `; ${thin} rest${thin === 1 ? "s" : ""} on fewer than ${ENOUGH_VERIFIES} and is reported as thin.`)
+    + (unnamed === 0
+      ? ""
+      : ` ${unnamed} of them named no checked agent, having been recorded before that was written down, and`
+        + ` ${unnamed === 1 ? "is" : "are"} charged to no agent.`);
 }

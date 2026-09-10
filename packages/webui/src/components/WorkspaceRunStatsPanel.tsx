@@ -76,11 +76,19 @@ function Recommendations({ stats }: { stats: WorkspaceRunStats }) {
  * because "no verify has reported yet" and "every verify passed" are
  * different facts and an empty space says neither.
  *
+ * The heading names the grouping outright. Each row is the agent whose
+ * work the checks examined, not the pseudo-agent that ran them — a
+ * distinction a reader cannot make from a bare agent name, and the one
+ * this block got wrong until
+ * quality-is-charged-to-the-agent-whose-work-was-checked.
+ *
  * See quality-of-what-a-verify-found. */
 function VerifyQualityBlock({ quality }: { quality: VerifyQuality }) {
   return (
     <div data-testid="verify-quality">
-      <p className="openspec-shell-note"><strong>What the verifying stages found</strong></p>
+      <p className="openspec-shell-note">
+        <strong>What the verifying stages found, by the agent whose work was checked</strong>
+      </p>
       <p className="openspec-shell-note" data-testid="verify-quality-basis">{describeVerifyQuality(quality)}</p>
       {quality.byAgent.length > 0 ? (
         <ul className="openspec-shell-note" data-testid="verify-quality-by-agent">

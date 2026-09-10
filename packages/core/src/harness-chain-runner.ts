@@ -37,6 +37,8 @@ import {
   resolveHarnessConfig,
 } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
+import { VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates, type TaskCheckDeclaration } from "./task-checklist.js";
@@ -61,10 +63,6 @@ export const CHAIN_STAGE_COMMAND: Readonly<Record<"propose" | "review" | "apply"
 export const CHAIN_STAGES = ["propose", "review", "apply", "verify", "archive", "git"] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
 const GIT_STAGE_AGENT_NAME = "git-stage";
-/** The `agent` an audit entry carries when this runner recorded a check
- * run rather than an agent's work. Named like `git-stage` for the same
- * reason: an entry whose agent is not an agent has to say so. */
-const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
 const DEFAULT_GIT_REMOTE = "origin";
 const DEFAULT_PR_BASE_BRANCH = "main";
 
@@ -223,6 +221,18 @@ function changeNameFromDir(changeDir: string): string {
 
 function failedEvent(runId: string, reason: string): Event {
   return { kind: "failed", runId, timestamp: nowIso(), reason };
+}
+
+/** Which agent this chain's `apply` stage runs as — the agent whose work
+ * a later `verify` stage's checks examine.
+ *
+ * An unset `apply` entry falls back to `DEFAULT_AGENT_ID`, which is the
+ * same fallback `resolveRunner` applies (`default-runners.ts`), so the
+ * name recorded here matches the `agent` the apply stage's own audit
+ * entries carry and the two group together. */
+function resolvedApplyAgent(harnessConfig: HarnessConfig): string {
+  const entry = harnessConfig.stepAgents.apply;
+  return entry === undefined ? DEFAULT_AGENT_ID : normalizeStepAgent(entry).agent;
 }
 
 function wildcardPatternToRegExp(pattern: string): RegExp {
@@ -1028,7 +1038,7 @@ export class HarnessChainRunner {
         // Recorded before the gate below, which returns without invoking
         // the verifying agent — so the failing case, which records
         // nothing today, is exactly the one this must not miss.
-        this.recordVerifyChecks(command, verifyCheckOutcome);
+        this.recordVerifyChecks(command, verifyCheckOutcome, harnessConfig);
       } catch (error) {
         yield failedEvent(runId, error instanceof Error ? error.message : String(error));
         return "failed";
@@ -1195,8 +1205,19 @@ export class HarnessChainRunner {
    * the verifying agent, so the run that found the most left no trace.
    *
    * A change declaring no checks records nothing at all: an entry saying
-   * none ran is indistinguishable from one saying none failed. */
-  private recordVerifyChecks(command: Command, outcome: MechanicalCheckRunOutcome): void {
+   * none ran is indistinguishable from one saying none failed.
+   *
+   * `agent` names the writer, which is this runner — so the entry also
+   * carries `checkedAgent`, the agent whose work these checks examined.
+   * Without it the only thing a per-agent readback could group by was
+   * the pseudo-agent, and it produced one row naming nobody however many
+   * agents had run. See
+   * quality-is-charged-to-the-agent-whose-work-was-checked. */
+  private recordVerifyChecks(
+    command: Command,
+    outcome: MechanicalCheckRunOutcome,
+    harnessConfig: HarnessConfig,
+  ): void {
     if (!outcome.ranAny) return;
     const failures = outcome.failed
       .map((entry) => `${entry.check.name}${entry.check.param ? `(${entry.check.param})` : ""}: ${entry.result.reason}`)
@@ -1209,6 +1230,7 @@ export class HarnessChainRunner {
       timestamp: nowIso(),
       changeDir: command.context.changeDir,
       stage: "verify",
+      checkedAgent: resolvedApplyAgent(harnessConfig),
       checksRan: outcome.passed.length + outcome.failed.length,
       checksFailed: outcome.failed.length,
       ...(failures.length > 0 ? { reason: failures } : {}),

@@ -9,6 +9,7 @@
 // what is.
 
 import type { AgentUsage } from "./agent-usage.js";
+import { isRunEntry } from "./audit-runs.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
 import type { HarnessStage } from "./harness-stage.js";
 import type { AuditEntry, AuditOutcome } from "./security.js";
@@ -84,9 +85,17 @@ function elapsedMs(startedAt: string, endedAt: string): number | undefined {
  * `verify` to `apply` has two `started` and two terminal entries sharing
  * a `runId` and a `stage`, and matching on the key would take the wrong
  * end time. Each `started` takes the next unclaimed terminal entry with
- * the same pair. */
+ * the same pair.
+ *
+ * Entries that are not runs are dropped first (`isRunEntry`). A checks
+ * entry carries a terminal outcome and no `started` partner, so the
+ * unpaired-entry pass below read it as "a run refused before it
+ * started" — and one chain run of apply and verify then told the
+ * recommendation that counts these rows there had been two previous
+ * runs. It is a fact about the run beside it, not a run; what it found
+ * is read back by `verify-quality.ts`. */
 export function buildChangeCostReport(entries: readonly AuditEntry[], changeDir: string): ChangeCostReport {
-  const mine = entries.filter((entry) => entry.changeDir === changeDir);
+  const mine = entries.filter((entry) => entry.changeDir === changeDir && isRunEntry(entry));
   if (mine.length === 0) {
     return { rows: [], rowsWithNothingReported: 0, hasRecords: false };
   }

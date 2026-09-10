@@ -366,6 +366,24 @@ export interface AuditEntry {
    * verify-records-what-it-found. */
   checksRan?: number;
   checksFailed?: number;
+  /** The agent whose work the checks covered — the agent the chain
+   * resolved for its `apply` stage — on an entry that carries
+   * `checksRan`.
+   *
+   * `agent` on such an entry names the pseudo-agent that wrote it,
+   * because the audit log records the writer and the writer here is the
+   * chain runner rather than a model. Grouping the quality readback by
+   * `agent` therefore produced exactly one group, naming no agent; this
+   * field is what the readback groups by instead.
+   *
+   * Absent on every entry that is not a checks entry, and on every
+   * checks entry written before this field existed. Such an entry is
+   * counted and reported as recorded before the agent was named, never
+   * charged to a group — nothing on it says which group that would be,
+   * and inferring one from neighbouring entries would fail silently on a
+   * log that was rotated or filtered. See
+   * quality-is-charged-to-the-agent-whose-work-was-checked. */
+  checkedAgent?: string;
   /** Which chain stage this run was, when it was part of a chain. Absent
    * for a single-stage run, and never inferred for an entry written
    * before this field existed — every stage of a chain runs under the
