@@ -29,7 +29,16 @@ export interface RunRecommendation {
 /** Why a comparison was not offered. Reported rather than left silent:
  * "nothing can be compared yet" and "no comparison was attempted" are
  * different, and a box showing figures with no conclusion looks like the
- * second. */
+ * second.
+ *
+ * The reason distinguishes three nothings, because they are three
+ * different facts and only the first is answered by an agent starting
+ * to report: nothing reported the measure at all; something reported it
+ * but every group rests on fewer runs than the threshold; exactly one
+ * group is eligible and has nothing to compare against. Saying "no
+ * agent has reported a cost" of four runs that each reported one is a
+ * reason that is simply false, which is what this said before
+ * quality-is-charged-to-the-agent-whose-work-was-checked. */
 export interface RunRecommendationGap {
   kind: RunRecommendationKind;
   reason: string;
@@ -73,6 +82,26 @@ function runsBehind(candidates: readonly AgentRunGroup[], agents: readonly strin
     .reduce((total, group) => total + group.runs, 0);
 }
 
+/** The reason a measure produced no comparison, said as the state it
+ * actually is.
+ *
+ * `reporting` is every group that reported the measure at all, thin or
+ * not; `eligible` is the subset that also clears the run threshold. The
+ * three branches are the three nothings — see `RunRecommendationGap`. */
+function gapReason(
+  measure: { nothingReported: string; tooFew: (reporting: number) => string; onlyOne: (agent: string) => string },
+  reporting: readonly AgentRunGroup[],
+  eligible: readonly AgentRunGroup[],
+): string {
+  if (reporting.length === 0) return measure.nothingReported;
+  if (eligible.length === 0) return measure.tooFew(reporting.length);
+  return measure.onlyOne(eligible[0]?.agent ?? "");
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 /** Draws what the workspace's own runs support.
  *
  * A comparison needing two candidates is not offered with one. On this
@@ -84,13 +113,21 @@ export function recommendFromRunStats(stats: WorkspaceRunStats): RunRecommendati
   const offered: RunRecommendation[] = [];
   const gaps: RunRecommendationGap[] = [];
 
+  // Both lists, not just the eligible one. Filtering to the eligible
+  // groups before writing the reason is what made four runs that each
+  // reported a cost read as "no agent has reported a cost": every one of
+  // them was thin, so the list the reason was drawn from was empty.
+  const reportingCost = stats.byAgent.filter((group) => group.medianCostUsd !== undefined);
   const withCost = groups.filter((group) => group.medianCostUsd !== undefined);
   if (withCost.length < 2) {
     gaps.push({
       kind: "cheapest",
-      reason: withCost.length === 0
-        ? `no agent has reported a cost across ${stats.runs} recorded run(s)`
-        : `only ${withCost[0]?.agent} reports a cost, so there is nothing to compare it against`,
+      reason: gapReason({
+        nothingReported: `no agent has reported a cost across ${plural(stats.runs, "recorded run")}`,
+        tooFew: (reporting) => `${plural(reporting, "agent")} reported a cost, but each rests on fewer than`
+          + ` ${stats.enoughRuns} runs, which is too few to compare`,
+        onlyOne: (agent) => `only ${agent} reports a cost, so there is nothing to compare it against`,
+      }, reportingCost, withCost),
     });
   } else {
     const won = winners(withCost, (group) => group.medianCostUsd, (left, right) => left < right);
@@ -104,11 +141,22 @@ export function recommendFromRunStats(stats: WorkspaceRunStats): RunRecommendati
     }
   }
 
+  const reportingTime = stats.byAgent.filter((group) => group.medianSeconds !== undefined);
   const withTime = groups.filter((group) => group.medianSeconds !== undefined);
   if (withTime.length < 2) {
     gaps.push({
       kind: "fastest",
-      reason: `fewer than two agents have enough recorded runs to compare durations`,
+      // The same three states as cost. A duration is derived from the
+      // entries' own timestamps rather than reported by an agent, so
+      // "nothing recorded a duration" is rarer here — and saying it
+      // when it is true is what tells a reader the log itself is
+      // unusable, rather than merely thin.
+      reason: gapReason({
+        nothingReported: `no run has recorded a usable duration across ${plural(stats.runs, "recorded run")}`,
+        tooFew: (reporting) => `${plural(reporting, "agent")} recorded a duration, but each rests on fewer than`
+          + ` ${stats.enoughRuns} runs, which is too few to compare`,
+        onlyOne: (agent) => `only ${agent} has enough recorded runs to time, so there is nothing to compare it against`,
+      }, reportingTime, withTime),
     });
   } else {
     const won = winners(withTime, (group) => group.medianSeconds, (left, right) => left < right);
@@ -125,7 +173,15 @@ export function recommendFromRunStats(stats: WorkspaceRunStats): RunRecommendati
   if (groups.length < 2) {
     gaps.push({
       kind: "most-likely-to-finish",
-      reason: `fewer than two agents have enough recorded runs to compare`,
+      // Every paired run has an outcome, so "nothing reported it" here
+      // means the log has no runs at all rather than that agents were
+      // silent.
+      reason: gapReason({
+        nothingReported: "no run has been recorded in this workspace",
+        tooFew: (reporting) => `${plural(reporting, "agent")} recorded runs, but each rests on fewer than`
+          + ` ${stats.enoughRuns} runs, which is too few to compare`,
+        onlyOne: (agent) => `only ${agent} has enough recorded runs, so there is nothing to compare it against`,
+      }, stats.byAgent, groups),
     });
   } else {
     const won = winners(groups, (group) => group.runs === 0 ? undefined : group.completed / group.runs, (left, right) => left > right);

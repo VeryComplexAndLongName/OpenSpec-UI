@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AgentAdapter, type AgentRunner, createAgentRunner } from "./agent-runner.js";
+import { DEFAULT_AGENT_ID } from "./agents/registry.js";
+import { buildChangeCostReport } from "./change-cost-report.js";
+import { recommendTemplate } from "./harness-recommendation.js";
+import { buildWorkspaceRunStats } from "./workspace-run-stats.js";
 import type { PullRequestGateway } from "./gh-pr-gateway.js";
 import type { GitWrapper } from "./git.js";
 import type { Command, Event } from "./protocol.js";
@@ -2406,11 +2410,14 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
   // whether to invoke the verifying agent, and then discarded — and the
   // failing case, which never invokes the agent, wrote no entry at all.
 
-  it("records how many checks ran and that none failed", async () => {
+  it("records how many checks ran, that none failed, and whose work was checked", async () => {
     const root = await temporaryRoot();
+    // The apply agent is deliberately not the verify agent: with both
+    // set to the same id, an assertion on `checkedAgent` passes whether
+    // the runner reads the apply stage or any other.
     await writeGlobalHarnessConfig(root, {
       autonomyLevel: "semi-autonomous",
-      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+      stepAgents: { apply: "codex-cli", verify: "claude-cli" },
     });
     mockStatus(true);
     await setupChangeset(root, true);
@@ -2430,6 +2437,36 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     // Fields, not prose: a number in a sentence is a number nothing can
     // aggregate.
     expect(recorded[0]).toMatchObject({ outcome: "completed", checksRan: 1, checksFailed: 0, stage: "verify" });
+    // quality-is-charged-to-the-agent-whose-work-was-checked. Asserted
+    // over what a chain run actually recorded, because the reader's own
+    // tests were hand-built entries of a shape the runner never wrote,
+    // and they passed for it.
+    expect(recorded[0]?.checkedAgent).toBe("codex-cli");
+    // The writer stays in `agent`: the audit log records who wrote the
+    // entry, and this one was written by no agent at all.
+    expect(recorded[0]?.agent).toBe("verify-checks");
+  });
+
+  it("names the default agent as checked when no apply agent is configured", async () => {
+    // `resolveRunner` falls back to DEFAULT_AGENT_ID for an unset stage,
+    // so that is the agent the apply run's own entries carry — and the
+    // two have to group together.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", stepAgents: { verify: "claude-cli" } });
+    mockStatus(true);
+    await setupChangeset(root, true);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+    mockArchiveSucceeds();
+
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+    for await (const event of chain.run(command)) {
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    expect(auditLog.entries.find((entry) => entry.agent === "verify-checks")?.checkedAgent).toBe(DEFAULT_AGENT_ID);
   });
 
   it("records a failing check even though the verifying agent never runs", async () => {
@@ -2481,6 +2518,62 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     }
 
     expect(auditLog.entries.filter((entry) => entry.agent === "verify-checks")).toEqual([]);
+  });
+});
+
+describe("HarnessChainRunner — a checks entry is not a previous run", () => {
+  // quality-is-charged-to-the-agent-whose-work-was-checked. The checks
+  // entry has a terminal outcome and no `started` partner, so
+  // `buildChangeCostReport` listed it as "a run refused before it
+  // started" and the recommendation's grounds read "2 previous runs"
+  // after one apply. Asserted over a chain run whose audit entries the
+  // real `createAgentRunner` wrote, so the shape is the product's.
+
+  it("counts one previous run after an apply and a verify whose checks failed", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { apply: "claude-cli", verify: "claude-cli" },
+    });
+    mockStatus(true);
+    // The changeset is missing, so the declared check fails and the
+    // verifying agent is never invoked — exactly one agent run happened,
+    // beside one checks entry.
+    await setupChangeset(root, false);
+    await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
+
+    const adapter: AgentAdapter = {
+      name: "claude-cli",
+      buildInvocation: () => ({ kind: "process", executable: "claude", args: ["-p"] }),
+      async *execute(_invocation, command) {
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
+      },
+    };
+    const allowlist: AllowlistConfig = { "claude-cli": [{ executable: "claude", argsAllowed: () => true }] };
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot: root, allowlist, auditLog });
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+    for await (const event of chain.run(command)) {
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const changeDir = path.join(root, "openspec", "changes", "demo");
+    expect(auditLog.entries.filter((entry) => entry.checksRan !== undefined)).toHaveLength(1);
+
+    const report = buildChangeCostReport(auditLog.entries, changeDir);
+    expect(report.rows).toHaveLength(1);
+    expect(report.rows[0]).toMatchObject({ stage: "apply", agent: "claude-cli" });
+
+    const grounds = recommendTemplate({ openTaskCount: 1, history: report }).grounds;
+    expect(grounds).toContain("1 previous run");
+    expect(grounds).not.toContain("2 previous runs");
+
+    // And the same entry is excluded from the workspace-wide figures,
+    // by the same predicate rather than by a second copy of the rule.
+    const known = { active: ["demo"], archived: [] };
+    expect(buildWorkspaceRunStats(auditLog.entries, known).runs).toBe(1);
   });
 });
 

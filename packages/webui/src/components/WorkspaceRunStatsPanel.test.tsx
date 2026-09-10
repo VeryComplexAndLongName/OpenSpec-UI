@@ -149,7 +149,7 @@ describe("WorkspaceRunStatsPanel — what the verifying stages found", () => {
     // running something.
     render(<WorkspaceRunStatsPanel
       stats={stats()}
-      quality={{ entriesRead: 108, entriesWithChecks: 0, byAgent: [] }}
+      quality={{ entriesRead: 108, entriesWithChecks: 0, entriesBeforeAgentNamed: 0, byAgent: [] }}
     />);
 
     const basis = screen.getByTestId("verify-quality-basis").textContent ?? "";
@@ -163,6 +163,7 @@ describe("WorkspaceRunStatsPanel — what the verifying stages found", () => {
       quality={{
         entriesRead: 20,
         entriesWithChecks: 2,
+        entriesBeforeAgentNamed: 0,
         byAgent: [{ agent: "claude-cli", verifies: 2, withFailures: 1, checksRan: 6, checksFailed: 1, enough: false }],
       }}
     />);
@@ -171,6 +172,41 @@ describe("WorkspaceRunStatsPanel — what the verifying stages found", () => {
     expect(row).toContain("1 of 2 verifying stages");
     expect(row).toContain("1 of 6 checks failed");
     expect(row).toContain("too few to read as a rate");
+  });
+
+  it("names the agent whose work was checked, not the pseudo-agent that checked it", () => {
+    // quality-is-charged-to-the-agent-whose-work-was-checked. The row
+    // used to read "verify-checks" whatever ran the apply, so the
+    // heading has to say which agent the name is.
+    render(<WorkspaceRunStatsPanel
+      stats={stats()}
+      quality={{
+        entriesRead: 20,
+        entriesWithChecks: 1,
+        entriesBeforeAgentNamed: 0,
+        byAgent: [{ agent: "codex-cli", verifies: 1, withFailures: 0, checksRan: 3, checksFailed: 0, enough: false }],
+      }}
+    />);
+
+    expect(screen.getByTestId("verify-quality").textContent ?? "")
+      .toContain("by the agent whose work was checked");
+    const row = screen.getByTestId("verify-quality-by-agent").textContent ?? "";
+    expect(row).toContain("codex-cli");
+    expect(row).not.toContain("verify-checks");
+  });
+
+  it("reports stages recorded before the checked agent was named", () => {
+    // Counted, and charged to no agent. An entry that predates the
+    // field says what the checks found and not whose work they were
+    // about.
+    render(<WorkspaceRunStatsPanel
+      stats={stats()}
+      quality={{ entriesRead: 20, entriesWithChecks: 3, entriesBeforeAgentNamed: 3, byAgent: [] }}
+    />);
+
+    expect(screen.getByTestId("verify-quality-basis").textContent ?? "")
+      .toContain("none of which names the agent whose work was checked");
+    expect(screen.queryByTestId("verify-quality-by-agent")).toBeNull();
   });
 
   it("renders nothing about quality in a host that did not read it", () => {

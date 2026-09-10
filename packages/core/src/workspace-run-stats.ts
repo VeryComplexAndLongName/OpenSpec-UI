@@ -11,6 +11,7 @@
 
 import type { AuditEntry, AuditOutcome } from "./security.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
+import { isRunEntry } from "./audit-runs.js";
 
 /** How many paired runs a group needs before its figures are offered as
  * an answer rather than as an accumulation.
@@ -162,6 +163,12 @@ export function buildWorkspaceRunStats(
   let fromDeleted = 0;
   for (const entry of entries) {
     if (entry.changeDir === undefined) continue;
+    // Not a run, so not a candidate for pairing and not a `started`
+    // waiting for one — a checks entry is a fact about the run beside
+    // it, and `verify-quality.ts` is what reads it back. Excluded here
+    // rather than skipped inside the loop so it cannot be claimed as
+    // some other `started`'s terminal partner either.
+    if (!isRunEntry(entry)) continue;
     if (belongsToKnownChange(entry, known)) kept.push(entry);
     else fromDeleted += 1;
   }
