@@ -103,6 +103,11 @@ describe("ArchiveTreeProvider", () => {
 
       expect(provider.getParent(change!)).toBeUndefined();
       expect(provider.getParent(proposal!)?.id).toBe(change?.id);
+      // And it says archived, the state the tree drew — the row used to
+      // be rebuilt with `draft` written in. See
+      // a-restored-row-says-what-it-is.
+      expect((provider.getParent(proposal!) as { state?: string }).state).toBe("archived");
+      expect(provider.getParent(proposal!)?.description).toBe("archived");
     });
   });
 });

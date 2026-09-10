@@ -54,6 +54,10 @@ export class ArtifactTreeItem extends vscode.TreeItem {
     public readonly changeName?: string,
     public readonly changeDir?: string,
     public readonly archived?: boolean,
+    // The row this one was built under, kept so `getParent` can return
+    // it rather than assemble a second answer. See
+    // a-restored-row-says-what-it-is.
+    public readonly parent?: ChangeTreeItem,
   ) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.id = `artifact:${artifactPath}`;
@@ -87,6 +91,7 @@ export class TasksArtifactTreeItem extends vscode.TreeItem {
     public readonly changeName: string,
     public readonly changeDir: string,
     public readonly archived: boolean,
+    public readonly parent?: ChangeTreeItem,
   ) {
     super(label, exists ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
     this.id = `artifact:${artifactPath}`;
@@ -226,6 +231,7 @@ export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] 
         element.changeName,
         element.changeDir,
         element.archived,
+        element,
       );
     }
     return new ArtifactTreeItem(
@@ -236,6 +242,7 @@ export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] 
       element.changeName,
       element.changeDir,
       element.archived,
+      element,
     );
   });
 }
@@ -263,19 +270,22 @@ export async function getTasksArtifactChildren(
  * but an artifact resolves to its change too, since that costs nothing
  * once `ArtifactTreeItem`/`TasksArtifactTreeItem` already carry it.
  *
- * Returns a freshly built `ChangeTreeItem`, not the one `getChildren`
- * handed out earlier — matching is by `.id`, which both set the same way,
- * not by object identity. `state` is a placeholder: it only affects the
- * row's description/icon, neither of which `reveal`'s internal matching
- * reads. */
+ * Returns the very row `getChildren` handed out, carried on the child
+ * since it was built. It used to rebuild one and write `"draft"` in as
+ * the state, on the grounds that `reveal`'s matching reads only `.id` —
+ * true, and beside the point: `getTreeItem` hands this object straight
+ * back, so VS Code *draws* it, and `ChangeTreeItem`'s description is its
+ * state. A window reload restores the tree's selection through this
+ * chain, which is how a change with every task done came to read
+ * `draft`. See a-restored-row-says-what-it-is.
+ *
+ * No parent carried means no parent: the workspace-level artifact
+ * belongs to no change, and a row assembled from defaults is the thing
+ * that went wrong. */
 export function getWorkbenchParent(element: WorkbenchTreeItem): WorkbenchTreeItem | undefined {
   if (element instanceof ChangeTreeItem) return undefined;
-  if (
-    (element instanceof ArtifactTreeItem || element instanceof TasksArtifactTreeItem)
-    && element.changeName !== undefined
-    && element.changeDir !== undefined
-  ) {
-    return new ChangeTreeItem(element.changeName, element.changeDir, "draft", [], element.archived ?? false);
+  if (element instanceof ArtifactTreeItem || element instanceof TasksArtifactTreeItem) {
+    return element.parent;
   }
   return undefined;
 }

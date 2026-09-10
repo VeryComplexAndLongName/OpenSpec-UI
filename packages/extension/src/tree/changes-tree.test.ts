@@ -11,7 +11,8 @@ vi.mock("@openspec-ui/core", () => ({
   readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
 }));
 
-const { ChangesTreeProvider } = await import("./changes-tree.js");
+const { ChangesTreeProvider, ChangeTreeItem } = await import("./changes-tree.js");
+type ChangeTreeItem = InstanceType<typeof ChangeTreeItem>;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -265,6 +266,48 @@ describe("ChangesTreeProvider", () => {
 
       expect(provider.getParent(proposal!)?.id).toBe(change?.id);
       expect(provider.getParent(tasks!)?.id).toBe(change?.id);
+    });
+
+    it("gives the parent the state the tree drew, not a written-in one", async () => {
+      // The reported symptom: a change with every task done read `draft`
+      // after a window reload, because VS Code restores the selection
+      // through this chain and draws what it returns. Asserting the id
+      // alone passed while the state was wrong — the id is built from the
+      // name and the archived flag, which the rebuilt row had right.
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        configPath: "/workspace/repo/openspec/config.yaml",
+        configExists: true,
+        changes: [{
+          name: "all-done",
+          path: "/changes/all-done",
+          state: "implemented",
+          artifacts: [
+            { id: "proposal", kind: "proposal", label: "Proposal", path: "/changes/all-done/proposal.md", exists: true },
+            { id: "tasks", kind: "tasks", label: "Tasks", path: "/changes/all-done/tasks.md", exists: true },
+          ],
+        }],
+      });
+      const provider = new ChangesTreeProvider("/workspace/repo");
+      const change = (await provider.getChildren())[3] as ChangeTreeItem;
+      const [proposal, tasks] = await provider.getChildren(change);
+
+      for (const child of [proposal, tasks]) {
+        const parent = provider.getParent(child!) as ChangeTreeItem;
+        expect(parent.state).toBe("implemented");
+        expect(parent.description).toBe("implemented");
+      }
+    });
+
+    it("resolves a workspace-level artifact to no parent, rather than to an assembled row", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        configPath: "/workspace/repo/openspec/config.yaml",
+        configExists: true,
+        changes: [],
+      });
+      const provider = new ChangesTreeProvider("/workspace/repo");
+      const config = (await provider.getChildren())[0];
+
+      expect(provider.getParent(config!)).toBeUndefined();
     });
   });
 });
