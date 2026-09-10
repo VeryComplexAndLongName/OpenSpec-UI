@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.47.0
+
+### Minor Changes
+
+- be28986: A task that needs a live check can name the agent that performs it.
+  `**Delegated to <agent-id>**` sits beside `**Human-only**`: the first
+  means another agent can make the check, the second that none can. The
+  inbox in both hosts now carries both kinds and says who each item waits
+  on, naming an agent id the registry does not carry rather than treating
+  it as assigned.
+- c679bd4: A scheduled run keeps the promise the dialog makes. Opening the
+  application is now enough: the workspace is read on open, so the
+  schedule is read too and a due run starts with nothing else done — it
+  used to wait for a click that a real reopen never makes. The run starts
+  on the path that was chosen when it was scheduled rather than reopening
+  the dialog for the same choice, and the entry leaves the file only once
+  the run has been opened, so a configuration that cannot be resolved
+  reports itself as a run that could not be opened instead of consuming
+  the schedule under the wrong message. A change archived after being
+  scheduled is dropped and says it was archived, and a run due behind it
+  starts on the same reading. Firing is decided once, in
+  `planScheduleFiring` in core, with each host performing only the
+  effects it is handed. The dialog is announced as a dialog and takes
+  focus when it opens by itself, and what the schedule did is readable
+  from any tab of the standalone shell.
+
+### Patch Changes
+
+- 9dd0767: A name arriving from a request is checked before it is used. A change
+  name now passes the change-name rule before it is joined into a path,
+  in core beside the path it protects, so a message naming
+  `../../../../Users/me/.claude` no longer decides where a `harness.json`
+  is written — the bridge answers `ok: false` and the REST routes answer
+  400, both carrying the rule the name broke. A schedule entry is
+  validated on the way in by the same rule the reader applies on the way
+  out, so a stored row and the response that reported it can no longer
+  disagree, and a body asking for an addition and a removal at once is
+  refused rather than half-applied. A `customAgent` obeys the same shape
+  rule as a model id, for the same reason: both reach the CLI as the value
+  of a flag, and a value beginning with `-` may be read as a second one. A
+  custom-agent definition whose file name that rule refuses is reported as
+  found and not offered, rather than dropped in silence.
+- 683fef4: A change row rebuilt to answer "what is this element's parent" now
+  carries the state the tree drew, instead of `draft` written in. VS Code
+  restores the tree's selection through that chain after a window reload
+  and draws what it returns, so a change with every task done could read
+  `draft` until the next refresh.
+- ad1a8ae: A stage override keeps its custom agent, and one function decides what
+  applying a named configuration writes.
+  
+  `mergeStepAgent` merged three named fields across a per-change override.
+  `customAgent` was the fourth field a stage entry may carry, so a change
+  naming the same agent plus a custom agent resolved without it and the
+  chain ran with no `--agent` flag, silently. The merge now iterates
+  `STEP_AGENT_KEYS` — the list the validator already reads — so the next
+  field added to an entry arrives already merged, and it agrees with
+  `templateConfigToWrite`, which kept the field by spread.
+  
+  Applying a named configuration to a change now goes through one core
+  function, `changeTemplateConfigToWrite`, from all three surfaces. The
+  run dialog resolved a configuration's effort against the change's
+  resolved configuration and the settings view against the change's own
+  override, where every stage the change does not name reads as
+  "inherit" — so the two wrote different files for the same change, and
+  the settings view's message said "None of the agents on screen takes an
+  effort setting" when that was not the reason. That message now names the
+  stages given an effort, the agents that take none, and the stages with
+  no agent chosen, each only where it is true.
+  
+  The balanced and careful configurations describe their effort by its
+  position in the agent's range ("a third of the way up", "two thirds")
+  rather than as "the middle", which the thirds mapping never produced:
+  for `copilot-cli` the medium level resolves to `low`, the third of
+  seven. `HARNESS.md` carries the resolved value per registered agent.
+- Updated dependencies [be28986]
+- Updated dependencies [9dd0767]
+- Updated dependencies [1b67bee]
+- Updated dependencies [c679bd4]
+- Updated dependencies [ad1a8ae]
+  - @openspec-ui/core@0.63.0
+  - @openspec-ui/webui@1.34.0
+  - @openspec-ui/server@1.18.0
+
 ## 0.46.1
 
 ### Patch Changes
