@@ -2,13 +2,29 @@
 
 ## Decision: a day is the day where the action happened
 
-A commit records its own offset (`%cI`); the day is taken from that
+A commit records its own offset (`%aI`); the day is taken from that
 string before any normalisation, so a commit made at 02:30 in Moscow is
-the 27th, as the person who made it would say. A folder name is already
-that day. An audit timestamp is written by this application in the
-machine's local time and carries an offset too. Every source therefore
-yields the same day for the same action, and the chart's per-day buckets
-mean "the day someone did it" rather than "the UTC day".
+the 27th, as the person who made it would say. `git blame`'s porcelain
+output carries the same thing as `author-time` plus `author-tz`, and the
+two are read together. A folder name is already a day. Every source
+therefore yields the day its own record names, and the chart's per-day
+buckets mean "the day someone did it" rather than "the UTC day".
+
+Two corrections to what this said when it was written, found while
+implementing it:
+
+- **An audit timestamp carries no offset.** Every writer of one calls
+  `new Date().toISOString()`, so it is UTC with a `Z`, and the day read
+  from it is the UTC day. That is the day its record names, which is
+  the rule above; giving those timestamps an offset would be a change
+  to what is written, not to how it is read, and it is not made here.
+- **The commit and the folder name are not always the same action.**
+  `openspec archive` names the folder with the local day the command
+  ran and the commit lands whenever it lands. Two of this repository's
+  archives were committed at `00:00:24 +03:00`, twenty-four seconds
+  after the day the folder is named for ended. The commit is still the
+  measurement and still wins; "every source agrees" is true of one
+  action read two ways, and archiving across midnight is two actions.
 
 The full instant is kept beside the day, with its offset, for ordering
 and for lead times. Only the day changes meaning; a comparison between

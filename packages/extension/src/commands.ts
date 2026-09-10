@@ -35,6 +35,8 @@ import {
   detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
+  openTaskCount,
+  runTimestampsByChange,
   readChangeGraph,
   getChangeTimelines,
   initOpenSpec,
@@ -615,7 +617,7 @@ async function readRecommendationInput(
     const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
     return {
       recommendationInput: {
-        openTaskCount: tasks.filter((task) => !task.done).length,
+        openTaskCount: openTaskCount(tasks),
         history: buildChangeCostReport(entries, item.changeDir),
       },
     };
@@ -1376,7 +1378,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const tasks = await readTaskChecklist(workspaceRoot, item.changeName, item.archived);
         const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
         const recommendation = recommendTemplate({
-          openTaskCount: tasks.filter((task) => !task.done).length,
+          openTaskCount: openTaskCount(tasks),
           history: buildChangeCostReport(entries, item.changeDir),
         });
         // The grounds are shown with the answer, never behind it: a
@@ -1945,7 +1947,15 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const entries = await pickChangesForTimeline(workspaceRoot);
       if (!entries) return;
       try {
-        const timelines = await getChangeTimelines(workspaceRoot, entries);
+        // The audit log read once for the whole request, as the run
+        // statistics already read it, so a run recorded before anyone
+        // ticked a box is evidence of when work started here too. It
+        // was accepted by the single-change function and passable from
+        // no host at all. See a-date-is-one-day-in-every-source.
+        const auditTimestampsByChange = runTimestampsByChange(
+          deps.readAuditEntries ? await deps.readAuditEntries() : [],
+        );
+        const timelines = await getChangeTimelines(workspaceRoot, entries, { auditTimestampsByChange });
         const { rangeStart, rangeEnd } = computeDefaultRange(timelines);
         timelinePanel.showMulti({ timelines, rangeStart, rangeEnd });
       } catch (error) {

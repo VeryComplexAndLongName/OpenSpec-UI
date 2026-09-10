@@ -21,7 +21,36 @@ export type {
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
 // Types and one pure builder — no git, no filesystem, so the browser can
 // read a change's dates and say where each came from.
-export { buildChangeDates, NO_DATE } from "./change-dates.js";
+export { buildChangeDates, NO_DATE, UNREADABLE_DATE, normalizedInstant, readDatedFact, withoutArchivePrefix } from "./change-dates.js";
+// The chart arithmetic itself, from its own leaf module: pure over the
+// timelines the host loaded, with only type imports from the Node-side
+// change-timeline.js. It lived in `webui` and had to move — a figure a
+// second host wants to print is a figure two hosts would compute twice.
+export {
+  archivedPerDay,
+  describeBasis,
+  describeWorkDurationNotCharted,
+  FLAT_WORK_SHARE,
+  LEAD_BUCKETS,
+  leadTimes,
+  workDurationBasis,
+} from "./change-charts.js";
+export type {
+  ArchivedPerDay,
+  ChartBasis,
+  DayCount,
+  LeadTimeBucket,
+  LeadTimes,
+  WorkDurationBasis,
+} from "./change-charts.js";
+// The one count of a change's open tasks, from the leaf beside the
+// checklist reader — the reader itself opens files.
+export { openTaskCount } from "./task-checklist-counts.js";
+// The audit-log rules, from their own leaf module: pure over entries a
+// host read, with only a type import from security.js. Already in this
+// bundle by way of workspace-run-stats.js, which reads `changeNameOf`
+// from here.
+export { changeNameOf, isRunEntry, runTimestampsByChange, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 // Pure: whether a schedule is due is a comparison, and the browser makes
 // it against the same function the hosts do. The file reader stays out —
 // it imports `node:fs`.

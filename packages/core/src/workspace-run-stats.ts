@@ -11,7 +11,7 @@
 
 import type { AuditEntry, AuditOutcome } from "./security.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
-import { isRunEntry } from "./audit-runs.js";
+import { changeNameOf, isRunEntry } from "./audit-runs.js";
 
 /** How many paired runs a group needs before its figures are offered as
  * an answer rather than as an accumulation.
@@ -74,11 +74,6 @@ export interface WorkspaceRunStats {
 export interface KnownChanges {
   active: readonly string[];
   archived: readonly string[];
-}
-
-function changeNameOf(changeDir: string): string {
-  const normalized = changeDir.replace(/\\/gu, "/").replace(/\/+$/u, "");
-  return normalized.slice(normalized.lastIndexOf("/") + 1);
 }
 
 /** Whether an entry belongs to a change the workspace still has.

@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { buildRunPlan, changeTemplateConfigToWrite, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -67,7 +67,12 @@ export async function resolveRunWithHarnessDispatch(
  *
  * A timeline that cannot be read leaves the recommendation out entirely
  * rather than passing a count of zero. Absent is honest; zero is a claim,
- * and it happens to be the claim that produces the thriftiest answer. */
+ * and it happens to be the claim that produces the thriftiest answer.
+ *
+ * The fetch is this host's; the count is `openTaskCount` in core, which
+ * the extension's two command handlers now call as well — the same one
+ * line had been written three times. See
+ * a-date-is-one-day-in-every-source. */
 async function readOpenTaskCount(
   request: ChangeEditorRequest,
   cwd: string,
@@ -75,7 +80,7 @@ async function readOpenTaskCount(
 ): Promise<{ recommendationInput?: { openTaskCount: number } }> {
   try {
     const timeline = await loadChangeTimeline(request, cwd, changeName, false);
-    return { recommendationInput: { openTaskCount: timeline.tasks.filter((task) => !task.done).length } };
+    return { recommendationInput: { openTaskCount: openTaskCount(timeline.tasks) } };
   } catch {
     return {};
   }

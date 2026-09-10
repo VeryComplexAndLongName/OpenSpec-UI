@@ -14,11 +14,21 @@ local day of whoever archived, stamped as UTC midnight
 archived by a commit at `02:30 +03:00` on the 27th; normalised, that is
 the 26th at 23:30 UTC, so its archived date reads `2026-08-26` in the
 sprint report, the timeline and the per-day chart, while its folder says
-the 27th. Two of this repository's ninety-one archive commits fall in
-that window; every workspace in a positive-offset timezone has the same
+the 27th. Every workspace in a positive-offset timezone has the same
 band each night. Before this range `archivedDate` was always the folder
 prefix, so the field changed meaning for those changes without anyone
 deciding it should.
+
+Measured while implementing, correcting the count first written here:
+of the 192 archived changes this repository can date from a commit,
+three were committed in that band, not two — `2026-08-27-add-stale-task-
+detection` at `02:30:40 +03:00`, and `2026-09-08-run-dialog-actually-
+advises` and `2026-09-08-source-stays-text`, both at `00:00:24 +03:00`.
+The first moves onto the day its folder names; the other two move off
+it, to the 9th, because `openspec archive` named those folders before
+midnight and the commit landed twenty-four seconds after. Both are the
+same rule — the day the record names — and the commit is the
+measurement.
 
 **The audit-log source is unreachable.** `getChangeTimeline` accepts
 `options.auditTimestamps` (`change-timeline.ts:285`); `getChangeTimelines`
