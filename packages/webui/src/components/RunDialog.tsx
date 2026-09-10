@@ -7,6 +7,7 @@ import {
   type HarnessTemplate,
   type RunPathId,
   type RunPlan,
+  type VerifyQuality,
   type WorkspaceRunStats,
 } from "@openspec-ui/core/browser";
 import { WorkspaceRunStatsPanel } from "./WorkspaceRunStatsPanel.js";
@@ -56,7 +57,7 @@ export function RunDialog(
     /** What the workspace's recorded runs have cost. Absent where it
      * could not be read — shown as nothing rather than as zeroes, which
      * would be a claim. */
-    stats?: WorkspaceRunStats;
+    stats?: WorkspaceRunStats & { quality?: VerifyQuality };
     onChoose: (path: RunPathId) => void;
     /** Applying a named configuration writes the change's file. That is
      * deliberate and is not the path override, which writes nothing: a
@@ -128,7 +129,7 @@ export function RunDialog(
         </p>
       )}
 
-      {stats ? <WorkspaceRunStatsPanel stats={stats} /> : null}
+      {stats ? <WorkspaceRunStatsPanel stats={stats} {...(stats.quality ? { quality: stats.quality } : {})} /> : null}
 
       {advice ? (
         <div data-testid="run-dialog-advice">

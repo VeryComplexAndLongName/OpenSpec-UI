@@ -31,6 +31,8 @@ export * from "./workbench-recovery.js";
 export * from "./agent-detection.js";
 export * from "./changeset-reminder.js";
 export * from "./change-dates.js";
+export * from "./verify-quality.js";
+export * from "./human-only-inbox.js";
 export * from "./scheduled-runs.js";
 export * from "./scheduled-runs-file.js";
 export * from "./change-timeline.js";

@@ -1,5 +1,5 @@
-import { recommendFromRunStats } from "@openspec-ui/core/browser";
-import type { AgentRunGroup, WorkspaceRunStats } from "@openspec-ui/core/browser";
+import { describeVerifyQuality, ENOUGH_VERIFIES, recommendFromRunStats } from "@openspec-ui/core/browser";
+import type { AgentRunGroup, VerifyQuality, WorkspaceRunStats } from "@openspec-ui/core/browser";
 
 // What runs have cost in this workspace, shown where a person decides
 // what to spend. See dialog-shows-what-runs-cost.
@@ -69,7 +69,46 @@ function Recommendations({ stats }: { stats: WorkspaceRunStats }) {
   );
 }
 
-export function WorkspaceRunStatsPanel({ stats }: { stats: WorkspaceRunStats }) {
+/** What the verifying stages found, beside what the runs cost.
+ *
+ * Two questions about the same log: an agent that is cheap and fails its
+ * checks is not the cheap one. Rendered even when it has nothing to say,
+ * because "no verify has reported yet" and "every verify passed" are
+ * different facts and an empty space says neither.
+ *
+ * See quality-of-what-a-verify-found. */
+function VerifyQualityBlock({ quality }: { quality: VerifyQuality }) {
+  return (
+    <div data-testid="verify-quality">
+      <p className="openspec-shell-note"><strong>What the verifying stages found</strong></p>
+      <p className="openspec-shell-note" data-testid="verify-quality-basis">{describeVerifyQuality(quality)}</p>
+      {quality.byAgent.length > 0 ? (
+        <ul className="openspec-shell-note" data-testid="verify-quality-by-agent">
+          {quality.byAgent.map((group) => (
+            <li key={group.agent}>
+              <strong>{group.agent}</strong>
+              {` — ${group.withFailures} of ${group.verifies} verifying stage${group.verifies === 1 ? "" : "s"}`}
+              {` found something; ${group.checksFailed} of ${group.checksRan} checks failed`}
+              {/* The threshold travels with the figure: a rate over two
+                  stages is an accumulation, not an answer. */}
+              {group.enough ? "" : ` (too few to read as a rate — fewer than ${ENOUGH_VERIFIES})`}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+export function WorkspaceRunStatsPanel(
+  { stats, quality }: {
+    stats: WorkspaceRunStats;
+    /** What the verifying stages found. Absent in a host that reads the
+     * figures without it — then the block is not rendered rather than
+     * rendered empty, which would claim every verify passed. */
+    quality?: VerifyQuality;
+  },
+) {
   return (
     <section data-testid="run-stats">
       <p className="openspec-shell-note"><strong>What runs have cost in this workspace</strong></p>
@@ -123,6 +162,8 @@ export function WorkspaceRunStatsPanel({ stats }: { stats: WorkspaceRunStats }) 
           </p>
         </>
       )}
+
+      {quality ? <VerifyQualityBlock quality={quality} /> : null}
     </section>
   );
 }

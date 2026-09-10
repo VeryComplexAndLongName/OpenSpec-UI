@@ -37,7 +37,9 @@ import {
   renderTemplate,
   resolveHarnessConfig,
   buildWorkspaceRunStats,
+  buildVerifyQuality,
   addScheduledRun,
+  collectHumanOnlyInbox,
   customAgentDirectories,
   findCustomAgents,
   auditLogPath,
@@ -998,7 +1000,52 @@ export async function handleWorkspaceRunStatsRequest(req: IncomingMessage, res: 
     // empty aggregate, which the dialog reports as "nothing recorded yet"
     // rather than as an error.
     const entries = await new FileAuditLog(auditLogPath(parsed.cwd)).readEntries();
-    sendJson(res, 200, buildWorkspaceRunStats(entries, await readKnownChanges(parsed.cwd)));
+    const known = await readKnownChanges(parsed.cwd);
+    // Two questions about the same entries, answered in one read: what
+    // the runs cost, and whether what they produced held up. A second
+    // route would read the same file again to answer half of it.
+    sendJson(res, 200, {
+      ...buildWorkspaceRunStats(entries, known),
+      quality: buildVerifyQuality(entries, known),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface HumanOnlyInboxRequest {
+  cwd: string;
+}
+
+function isHumanOnlyInboxRequest(value: unknown): value is HumanOnlyInboxRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0;
+}
+
+/** What is waiting on a person, across every active change.
+ *
+ * A change with one unticked human-only item is `in-progress` with a
+ * task open, which is exactly what an unstarted change looks like. The
+ * editor host has answered this since human-only-inbox; this is the same
+ * answer for the shell. See human-only-inbox-in-the-shell. */
+export async function handleHumanOnlyInboxRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isHumanOnlyInboxRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await collectHumanOnlyInbox(parsed.cwd));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
