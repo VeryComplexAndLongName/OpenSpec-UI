@@ -8,6 +8,7 @@ import {
   getChangeArchivedDate,
   getChangeAuthorship,
   getChangeTimeline,
+  getChangeTimelines,
   getFileCreatedDate,
   getPathAddedDate,
   readArchiveCommitDates,
@@ -126,8 +127,11 @@ describe("blameLineDates", () => {
 
     const dates = await blameLineDates(root, tasksPath);
 
-    expect(dates?.get(0)).toBe("2026-01-02T00:00:00.000Z");
-    expect(dates?.get(1)).toBe("2026-01-03T00:00:00.000Z");
+    // The offset git recorded, not a normalisation of it: the day is
+    // read from this string, and normalising here is what moved an
+    // after-midnight commit to the day before.
+    expect(dates?.get(0)).toBe("2026-01-02T00:00:00+00:00");
+    expect(dates?.get(1)).toBe("2026-01-03T00:00:00+00:00");
     expect(dates?.get(2)).toBe(dates?.get(1));
   });
 });
@@ -142,7 +146,7 @@ describe("getFileCreatedDate", () => {
     await writeFile(filePath, "## Why\n\nUpdated.\n");
     await commitAll(root, "update proposal", "2026-01-05T00:00:00Z");
 
-    expect(await getFileCreatedDate(root, filePath)).toBe("2026-01-01T00:00:00.000Z");
+    expect(await getFileCreatedDate(root, filePath)).toBe("2026-01-01T00:00:00Z");
   });
 
   it("returns null when the file was never committed", async () => {
@@ -174,9 +178,9 @@ describe("getPathAddedDate, and the pair that dates an archived change", () => {
 
     const proposalPath = path.join(archived, "proposal.md");
     // Followed through the rename: when it was proposed.
-    expect(await getFileCreatedDate(root, proposalPath)).toBe("2026-03-01T10:00:00.000Z");
+    expect(await getFileCreatedDate(root, proposalPath)).toBe("2026-03-01T10:00:00Z");
     // Not followed: when it appeared under `archive/`.
-    expect(await getPathAddedDate(root, proposalPath)).toBe("2026-03-04T15:00:00.000Z");
+    expect(await getPathAddedDate(root, proposalPath)).toBe("2026-03-04T15:00:00Z");
   });
 
   it("reads every archived change's date in one call", async () => {
@@ -193,15 +197,43 @@ describe("getPathAddedDate, and the pair that dates an archived change", () => {
     await rename(active, archived);
     await commitAll(root, "archive demo", "2026-03-04T15:00:00Z");
 
-    const dates = await readArchiveCommitDates(root);
+    const read = await readArchiveCommitDates(root);
 
-    expect(dates.get("2026-03-04-demo")).toBe("2026-03-04T15:00:00.000Z");
+    expect(read.dates.get("2026-03-04-demo")).toBe("2026-03-04T15:00:00Z");
+    expect(read.unreadableLines).toBe(0);
   });
 
   it("returns an empty map where there is no archive to read", async () => {
     const root = await getSharedReadOnlyRepoRoot();
 
-    expect((await readArchiveCommitDates(root)).size).toBe(0);
+    expect((await readArchiveCommitDates(root)).dates.size).toBe(0);
+  });
+
+  it("reads the archive of a workspace nested under a directory named Core", async () => {
+    // a-date-is-one-day-in-every-source, 4.3. `--name-only` prints
+    // paths relative to the *repository* root, and this told a date
+    // line from a path line by `line.startsWith("C")` — so every path
+    // under a directory beginning with `C` was parsed as a date, the
+    // parse threw inside the `try`, and the map came back short. Every
+    // affected change then fell through to the per-change call
+    // measured at 80 seconds, with its source still correct: a
+    // regression nothing reported.
+    const repoRoot = await temporaryRoot();
+    await initRepo(repoRoot);
+    const workspaceRoot = path.join(repoRoot, "Core");
+    const active = path.join(workspaceRoot, "openspec", "changes", "nested");
+    await mkdir(active, { recursive: true });
+    await writeFile(path.join(active, "proposal.md"), "## Why\n");
+    await commitAll(repoRoot, "propose nested", "2026-03-01T10:00:00Z");
+    const archived = path.join(workspaceRoot, "openspec", "changes", "archive", "2026-03-04-nested");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(active, archived);
+    await commitAll(repoRoot, "archive nested", "2026-03-04T15:00:00Z");
+
+    const read = await readArchiveCommitDates(workspaceRoot);
+
+    expect(read.dates.get("2026-03-04-nested")).toBe("2026-03-04T15:00:00Z");
+    expect(read.unreadableLines).toBe(0);
   });
 
   it("returns null for a path git knows nothing about", async () => {
@@ -308,8 +340,10 @@ describe("getChangeTimeline — when the work happened", () => {
     expect(timeline.dates.proposed.date).toBe("2026-02-01T00:00:00.000Z");
     // Two days after it was proposed, which is the span the old
     // definition could never report.
-    expect(timeline.dates.firstWorked).toEqual({ date: "2026-02-03T00:00:00.000Z", source: "git-blame" });
-    expect(timeline.dates.lastWorked).toEqual({ date: "2026-02-05T00:00:00.000Z", source: "git-blame" });
+    expect(timeline.dates.firstWorked)
+      .toEqual({ date: "2026-02-03T00:00:00.000Z", day: "2026-02-03", source: "git-blame" });
+    expect(timeline.dates.lastWorked)
+      .toEqual({ date: "2026-02-05T00:00:00.000Z", day: "2026-02-05", source: "git-blame" });
   });
 
   it("carries no work dates for a task list nobody has finished anything in", async () => {
@@ -321,7 +355,7 @@ describe("getChangeTimeline — when the work happened", () => {
     const timeline = await getChangeTimeline(root, "written-only", false);
 
     expect(timeline.dates.proposed.date).toBe("2026-02-01T00:00:00.000Z");
-    expect(timeline.dates.firstWorked).toEqual({ date: null, source: "none" });
+    expect(timeline.dates.firstWorked).toEqual({ date: null, day: null, source: "none" });
   });
 
   it("dates the work from a run recorded before the first tick", async () => {
@@ -338,7 +372,48 @@ describe("getChangeTimeline — when the work happened", () => {
 
     // An agent ran two days before anyone checked a box, and that is
     // when work started.
-    expect(timeline.dates.firstWorked).toEqual({ date: "2026-02-02T09:00:00.000Z", source: "audit-log" });
+    expect(timeline.dates.firstWorked)
+      .toEqual({ date: "2026-02-02T09:00:00.000Z", day: "2026-02-02", source: "audit-log" });
+  });
+
+  it("dates the work from a run when the host passes the audit log to the batch call", async () => {
+    // a-date-is-one-day-in-every-source, 2.2. `getChangeTimeline` took
+    // audit timestamps and `getChangeTimelines` had no way to pass
+    // them, and `getChangeTimelines` is the only production entry from
+    // either host — so this source existed in the two tests above and
+    // in no workspace anyone could open.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "ran-first-too", "- [ ] first\n");
+    await commitAll(root, "propose", "2026-02-01T00:00:00Z");
+    await writeFile(path.join(root, "openspec", "changes", "ran-first-too", "tasks.md"), "- [x] first\n");
+    await commitAll(root, "finish", "2026-02-05T00:00:00Z");
+
+    const timelines = await getChangeTimelines(root, [{ changeName: "ran-first-too", archived: false }], {
+      auditTimestampsByChange: new Map([["ran-first-too", ["2026-02-02T09:00:00.000Z"]]]),
+    });
+
+    expect(timelines[0]?.dates.firstWorked.source).toBe("audit-log");
+    expect(timelines[0]?.dates.firstWorked.date).toBe("2026-02-02T09:00:00.000Z");
+  });
+
+  it("finds an archived change's runs under the name it had when they were recorded", async () => {
+    // The audit log holds the change's directory as it was at the time,
+    // and archiving renames it. Looking an archived change up by its
+    // dated name alone would find nothing, which is the same defect one
+    // level down.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "2026-02-06-was-active", "- [x] only\n", "changes/archive");
+    await commitAll(root, "archive it", "2026-02-06T00:00:00Z");
+
+    const timelines = await getChangeTimelines(root, [
+      { changeName: "2026-02-06-was-active", archived: true },
+    ], {
+      auditTimestampsByChange: new Map([["was-active", ["2026-02-02T09:00:00.000Z"]]]),
+    });
+
+    expect(timelines[0]?.dates.firstWorked.source).toBe("audit-log");
   });
 });
 
@@ -380,7 +455,13 @@ describe("getChangeTimeline", () => {
     ]);
   });
 
-  it("resolves the archived date from the folder name and still blames tasks after the move", async () => {
+  it("resolves the archived date from the archiving commit and still blames tasks after the move", async () => {
+    // The folder says one day and the commit that moved it says
+    // another. The commit is the measurement, and it wins — this test
+    // was named for the folder-name path and committed the archive on
+    // exactly the folder's date, so it passed through the commit path
+    // and never reached the fallback it claimed to cover. The fallback
+    // has its own test below. See a-date-is-one-day-in-every-source.
     const root = await temporaryRoot();
     await initRepo(root);
     await writeChangeFiles(root, "my-change", "- [ ] only\n");
@@ -397,12 +478,13 @@ describe("getChangeTimeline", () => {
       path.join(root, "openspec", "changes", "my-change"),
       path.join(archiveDir, "2026-01-03-my-change"),
     );
-    await commitAll(root, "archive change", "2026-01-03T00:00:00Z");
+    await commitAll(root, "archive change", "2026-01-05T00:00:00Z");
 
     const timeline = await getChangeTimeline(root, "2026-01-03-my-change", true);
 
     expect(timeline.archived).toBe(true);
-    expect(timeline.archivedDate).toBe("2026-01-03");
+    expect(timeline.dates.archived.source).toBe("git-commit");
+    expect(timeline.archivedDate).toBe("2026-01-05");
     expect(timeline.tasks).toEqual([
       {
         lineNumber: 0,
@@ -412,6 +494,76 @@ describe("getChangeTimeline", () => {
         lastTouchedDate: "2026-01-02T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("falls back to the folder name when no commit moved the change", async () => {
+    // a-date-is-one-day-in-every-source, 6.1. A change moved under
+    // `archive/` by hand and not committed: there is no commit to date
+    // the archiving by, so the folder answers and says so.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "moved-by-hand", "- [x] only\n");
+    await commitAll(root, "create change", "2026-01-01T00:00:00Z");
+
+    const archiveDir = path.join(root, "openspec", "changes", "archive");
+    await mkdir(archiveDir, { recursive: true });
+    await rename(
+      path.join(root, "openspec", "changes", "moved-by-hand"),
+      path.join(archiveDir, "2026-01-03-moved-by-hand"),
+    );
+
+    const timeline = await getChangeTimeline(root, "2026-01-03-moved-by-hand", true);
+
+    expect(timeline.dates.archived.source).toBe("folder-name");
+    expect(timeline.archivedDate).toBe("2026-01-03");
+  });
+
+  it("gives an after-midnight archive the day its own record names", async () => {
+    // a-date-is-one-day-in-every-source, 1.3. Normalised to UTC this
+    // commit is the 26th at 23:30, and the directory the same command
+    // named says the 27th. Two sources, one action, one day.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "late-night", "- [x] only\n", "changes/archive");
+    await rename(
+      path.join(root, "openspec", "changes", "archive", "late-night"),
+      path.join(root, "openspec", "changes", "archive", "2026-08-27-late-night"),
+    );
+    await commitAll(root, "archive after midnight", "2026-08-27T02:30:00+03:00");
+
+    const fromCommit = await getChangeTimeline(root, "2026-08-27-late-night", true);
+
+    expect(fromCommit.dates.archived.source).toBe("git-commit");
+    // The instant is kept as it always was — the offset only decides
+    // which day it is called.
+    expect(fromCommit.dates.archived.date).toBe("2026-08-26T23:30:00.000Z");
+    expect(fromCommit.dates.archived.day).toBe("2026-08-27");
+    expect(fromCommit.archivedDate).toBe("2026-08-27");
+  });
+
+  it("returns every other change's dates when one folder name is not a date", async () => {
+    // a-date-is-one-day-in-every-source, 3.2. `new Date("2026-13-01T…")
+    // .toISOString()` throws, and it threw through `buildChangeDates`
+    // and out of the whole multi-change request: one hand-moved folder
+    // with a typo rejected the timeline for every change beside it.
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "sound-change", "- [x] only\n");
+    await commitAll(root, "a change with a readable history", "2026-03-01T10:00:00Z");
+    // Written after the commit, so nothing dates it but its own name —
+    // a folder moved by hand, with a typo in the prefix.
+    await writeChangeFiles(root, "2026-13-01-typo", "- [x] only\n", "changes/archive");
+
+    const timelines = await getChangeTimelines(root, [
+      { changeName: "2026-13-01-typo", archived: true },
+      { changeName: "sound-change", archived: false },
+    ]);
+
+    const typo = timelines.find((timeline) => timeline.changeName === "2026-13-01-typo");
+    expect(typo?.dates.archived).toEqual({ date: null, day: null, source: "unreadable" });
+    expect(typo?.archivedDate).toBeNull();
+    expect(timelines.find((timeline) => timeline.changeName === "sound-change")?.dates.proposed.date)
+      .toBe("2026-03-01T10:00:00.000Z");
   });
 
   it("returns empty content and no tasks for a change that does not exist", async () => {

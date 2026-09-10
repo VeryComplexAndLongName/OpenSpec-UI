@@ -14,12 +14,17 @@
 //
 // See charts-over-what-happened.
 
+// The arithmetic comes from core, not from a module beside this one:
+// what a chart computes is core's, so a host printing the same figure
+// in another form draws it from the same function. See
+// a-date-is-one-day-in-every-source.
 import {
   archivedPerDay,
   describeBasis,
+  describeWorkDurationNotCharted,
   leadTimes,
   type ChartBasis,
-} from "../change-charts.js";
+} from "@openspec-ui/core/browser";
 import type { ChangeTimeline } from "../change-timeline-client.js";
 
 export interface ChangeChartsViewProps {
@@ -164,7 +169,8 @@ function ChartBlock(
     valueHeading: string;
     testId: string;
     /** Columns for a run of days, rows for named categories. The choice
-     * is the labels: a day fits under a column and "3-7 days" does not. */
+     * is the labels: a day fits under a column and "8 days or more"
+     * does not. */
     orientation: "columns" | "rows";
   },
 ) {
@@ -237,13 +243,13 @@ export function ChangeChartsView({ timelines }: ChangeChartsViewProps) {
         testId="chart-lead-times"
         orientation="rows"
       />
-      {/* Said rather than left out silently: both were measured over this
-          repository and both are flat, and an absence that is not
-          explained reads as an omission. */}
-      <p className="openspec-shell-note">
-        How long the work itself took is not charted: measured over this repository, 135 of 185 changes have
-        exactly zero days between being proposed and their first finished task, so the chart would be a flat
-        line presented as a finding.
+      {/* Said rather than left out silently: an absence that is not
+          explained reads as an omission. Computed over the changes on
+          screen, not stated as a fact about one repository to every
+          user — it used to read "measured over this repository, 135 of
+          185 changes…" wherever it was shown. */}
+      <p className="openspec-shell-note" data-testid="chart-work-duration-note">
+        {describeWorkDurationNotCharted(timelines)}
       </p>
     </div>
   );

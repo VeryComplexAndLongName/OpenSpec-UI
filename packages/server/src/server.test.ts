@@ -575,6 +575,38 @@ describe("server — REST /api/status", () => {
     expect(body.map((t) => t.changeName)).toEqual(["first-change", "second-change"]);
   });
 
+  it("dates work from the audit log it reads for the request", async () => {
+    // a-date-is-one-day-in-every-source, 2.1. `getChangeTimelines` took
+    // no audit timestamps and is the only production entry from either
+    // host, so `firstWorked.source === "audit-log"` was reachable from
+    // tests and from no workspace. The route reads the log once, the
+    // way the run-statistics route already does.
+    const cwd = await createTempWorkspace();
+    const changeDir = path.join(cwd, "openspec", "changes", "ran-first");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] todo\n");
+    await mkdir(path.dirname(auditLogPath(cwd)), { recursive: true });
+    await writeFile(auditLogPath(cwd), `${JSON.stringify({
+      runId: "run-1",
+      agent: "claude-cli",
+      outcome: "completed",
+      cwd,
+      timestamp: "2026-02-02T09:00:00.000Z",
+      changeDir,
+    })}\n`, "utf8");
+
+    const response = await fetch(`${baseUrl}/api/change-timelines`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, entries: [{ changeName: "ran-first", archived: false }] }),
+    });
+    const body = (await response.json()) as Array<{ dates: { firstWorked: { source: string; date: string | null } } }>;
+
+    expect(response.status).toBe(200);
+    expect(body[0]?.dates.firstWorked.source).toBe("audit-log");
+    expect(body[0]?.dates.firstWorked.date).toBe("2026-02-02T09:00:00.000Z");
+  });
+
   it("rejects a change-timeline request missing archived", async () => {
     const cwd = await createTempWorkspace();
 

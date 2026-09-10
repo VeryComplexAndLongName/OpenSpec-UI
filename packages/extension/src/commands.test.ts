@@ -5,7 +5,11 @@ import { createVscodeMock } from "./test-utils/vscode-mock.js";
 // "@openspec-ui/core" below does not swallow it. What gets written when
 // a configuration is applied is the behaviour under test, and a stub
 // would assert the stub.
-import { changeTemplateConfigToWrite as changeTemplateConfigToWriteReal } from "@openspec-ui/core/browser";
+import {
+  changeTemplateConfigToWrite as changeTemplateConfigToWriteReal,
+  openTaskCount as openTaskCountReal,
+  runTimestampsByChange as runTimestampsByChangeReal,
+} from "@openspec-ui/core/browser";
 
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
@@ -81,6 +85,12 @@ vi.mock("@openspec-ui/core", () => ({
   // behaviour these tests are about, and a stub would assert the mock.
   changeTemplateConfigToWrite: (...args: unknown[]) =>
     changeTemplateConfigToWriteReal(...(args as Parameters<typeof changeTemplateConfigToWriteReal>)),
+  // Both real, reached through the browser entry: they are pure, and
+  // a stub would assert the stub. `runTimestampsByChange` is how the
+  // timeline command hands the audit log down.
+  openTaskCount: (...args: unknown[]) => openTaskCountReal(...(args as Parameters<typeof openTaskCountReal>)),
+  runTimestampsByChange: (...args: unknown[]) =>
+    runTimestampsByChangeReal(...(args as Parameters<typeof runTimestampsByChangeReal>)),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -552,15 +562,32 @@ describe("registerCommands", () => {
       },
     ];
     getChangeTimelinesMock.mockResolvedValue(timelines);
-    const deps = makeDeps();
+    const deps = makeDeps({
+      readAuditEntries: async () => [{
+        runId: "r1",
+        agent: "claude-cli",
+        outcome: "completed" as const,
+        cwd: "/workspace/repo",
+        timestamp: "2026-02-02T09:00:00.000Z",
+        changeDir: "/workspace/repo/openspec/changes/active-change",
+      }],
+    });
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
     await vscodeMock._registeredCommands.get("openspec-ui.showAllChangesTimeline")?.();
 
-    expect(getChangeTimelinesMock).toHaveBeenCalledWith("/workspace/repo", [
-      { changeName: "active-change", archived: false },
-      { changeName: "2026-01-01-old-change", archived: true },
-    ]);
+    // The audit log read once for the whole request and handed down:
+    // this was the one production entry that could not pass it, so
+    // `firstWorked.source === "audit-log"` existed only in tests. See
+    // a-date-is-one-day-in-every-source.
+    expect(getChangeTimelinesMock).toHaveBeenCalledWith(
+      "/workspace/repo",
+      [
+        { changeName: "active-change", archived: false },
+        { changeName: "2026-01-01-old-change", archived: true },
+      ],
+      { auditTimestampsByChange: new Map([["active-change", ["2026-02-02T09:00:00.000Z"]]]) },
+    );
     expect(timelinePanelShowMultiMock).toHaveBeenCalledWith(
       expect.objectContaining({
         timelines,

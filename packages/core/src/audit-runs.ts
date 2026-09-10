@@ -38,3 +38,44 @@ export const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
 export function isRunEntry(entry: Pick<AuditEntry, "agent">): boolean {
   return entry.agent !== VERIFY_CHECKS_AGENT_NAME;
 }
+
+/** The directory name at the end of a recorded `changeDir`, in either
+ * separator — the name the change had when the run was recorded.
+ *
+ * Exported for the same reason `isRunEntry` is: more than one analysis
+ * needs it, and two copies of "which change is this entry about" drift
+ * into two answers about one log. */
+export function changeNameOf(changeDir: string): string {
+  const normalized = changeDir.replaceAll("\\", "/").replace(/\/+$/u, "");
+  return normalized.slice(normalized.lastIndexOf("/") + 1);
+}
+
+/** When a run happened, per change, for a host that has just read the
+ * audit log and is about to ask for timelines.
+ *
+ * A run is evidence that work happened, and it is the only evidence for
+ * work done before anyone ticked a box. Grouped here rather than in
+ * each host: the server route and the extension command need the same
+ * map, and two copies of "which entry belongs to which change" is the
+ * drift this module exists to prevent.
+ *
+ * Every entry with a `changeDir` counts, including the mechanical ones
+ * — `isRunEntry` excludes what would inflate a *count* of runs, and
+ * this is not a count: a verify check ran against the change on the day
+ * it says, and that day is evidence of work as much as any other.
+ *
+ * See a-date-is-one-day-in-every-source. */
+export function runTimestampsByChange(
+  entries: readonly AuditEntry[],
+): Map<string, string[]> {
+  const byChange = new Map<string, string[]>();
+  for (const entry of entries) {
+    if (entry.changeDir === undefined || !entry.timestamp) continue;
+    const name = changeNameOf(entry.changeDir);
+    if (name.length === 0) continue;
+    const existing = byChange.get(name);
+    if (existing) existing.push(entry.timestamp);
+    else byChange.set(name, [entry.timestamp]);
+  }
+  return byChange;
+}

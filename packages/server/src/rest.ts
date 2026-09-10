@@ -32,6 +32,7 @@ import {
   listProjectTemplates,
   listSpecs,
   readArchivedChangeTasksTemplate,
+  runTimestampsByChange,
   readChangeEditorDocument,
   readChangeHarnessConfig,
   renderSprintReportPdf,
@@ -476,10 +477,30 @@ export async function handleChangeTimelinesRequest(req: IncomingMessage, res: Se
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    sendJson(res, 200, await getChangeTimelines(parsed.cwd, parsed.entries));
+    // The audit log read once for the whole request, the way the run
+    // statistics route already reads it: a run recorded against a
+    // change before anyone ticked one of its boxes is when work
+    // started, and this was the only production entry from either host
+    // that could not say so. See a-date-is-one-day-in-every-source.
+    const auditTimestampsByChange = await readAuditTimestampsByChange(parsed.cwd);
+    sendJson(res, 200, await getChangeTimelines(parsed.cwd, parsed.entries, { auditTimestampsByChange }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change timelines: ${message}` });
+  }
+}
+
+/** When each change was run against, from the workspace's audit log.
+ *
+ * A workspace with no log, or one this process cannot read, hands back
+ * nothing and every date falls back on git — which is what happened
+ * everywhere before this. A dating aid is not a reason to fail a
+ * request. */
+async function readAuditTimestampsByChange(cwd: string): Promise<Map<string, string[]>> {
+  try {
+    return runTimestampsByChange(await new FileAuditLog(auditLogPath(cwd)).readEntries());
+  } catch {
+    return new Map();
   }
 }
 
