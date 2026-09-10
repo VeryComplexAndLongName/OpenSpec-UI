@@ -6,7 +6,7 @@
 
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -782,6 +782,79 @@ describe("server — REST /api/status", () => {
     expect(removed.entries).toEqual([]);
   });
 
+  it("refuses an entry the reader would discard, naming the field (400)", async () => {
+    // a-name-is-checked-before-it-is-used, tasks 2.1/4.3. The route
+    // used to append `add` as sent, so `{changeName: 5}` answered 200
+    // with the junk row and the next read returned nothing: the
+    // response and the file disagreed.
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, add: { changeName: 5, path: "chain", startAt: "x", requestedAt: "y" } }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/^add: changeName /u);
+
+    const read = await (await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    })).json();
+    expect(read.entries).toEqual([]);
+  });
+
+  it("refuses a scheduled entry whose change name would leave the workspace (400)", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        cwd,
+        add: {
+          changeName: "../../escaped",
+          path: "chain",
+          startAt: "2026-09-09T18:00:00.000Z",
+          requestedAt: "2026-09-09T12:00:00.000Z",
+        },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/is not a valid change name/u);
+  });
+
+  it("refuses a body carrying both an addition and a removal (400)", async () => {
+    // There is no order in which both are what the sender meant.
+    // `add` used to win and `remove` was dropped without a word.
+    const cwd = await createTempWorkspace();
+    const entry = {
+      changeName: "demo",
+      path: "chain",
+      startAt: "2026-09-09T18:00:00.000Z",
+      requestedAt: "2026-09-09T12:00:00.000Z",
+    };
+
+    const response = await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, add: entry, remove: entry }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/not both/u);
+
+    const read = await (await fetch(`${baseUrl}/api/scheduled-runs`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    })).json();
+    expect(read.entries).toEqual([]);
+  });
+
   it("returns an empty schedule for a workspace with none", async () => {
     // The ordinary state, and not an error.
     const cwd = await createTempWorkspace();
@@ -932,6 +1005,43 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(200);
     // Only what's explicitly in harness.json — not the inherited stepAgents.
     expect(body.override).toEqual({ reviewGate: { mode: "agent-sufficient" } });
+  });
+
+  it("refuses a change name that would write outside the workspace (400)", async () => {
+    // a-name-is-checked-before-it-is-used, tasks 1.3/4.3. The guard
+    // used to check only that `changeName` was a non-empty string, so
+    // `../../..` decided where a `harness.json` was written. The check
+    // is in core now, and this route carries the refusal as a 400 —
+    // the request was understood and is being refused.
+    const cwd = await createTempWorkspace();
+    const escaped = path.join(cwd, "..", "escaped-harness");
+
+    const response = await fetch(`${baseUrl}/api/harness-config/write`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        cwd,
+        changeName: "../../escaped-harness",
+        config: { autonomyLevel: "assisted" },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/Invalid OpenSpec change name/u);
+    await expect(stat(escaped)).rejects.toThrow();
+  });
+
+  it("refuses a traversal change name on the read route too, with the same status", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/harness-config/read-change-override`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "../../escaped-harness" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/Invalid OpenSpec change name/u);
   });
 
   it("returns override: null when no per-change override file exists", async () => {

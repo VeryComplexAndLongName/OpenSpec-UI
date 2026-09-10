@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
+import { assertValidChangeName } from "./change-name.js";
+import type { ChangeLocation } from "./workbench.js";
 import { STAGES, type HarnessStage } from "./harness-stage.js";
 import {
   COPILOT_MIN_AI_CREDITS,
@@ -396,6 +398,18 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
       if (typeof customAgent !== "string" || customAgent.trim().length === 0) {
         throw new InvalidHarnessConfigError(`stepAgents.${stage}.customAgent must be a non-empty string`);
       }
+      // The same character rule a model id obeys, for the same reason:
+      // both reach the CLI as the value of a flag, a change's
+      // `harness.json` is repository content, and a value beginning with
+      // `-` is one the CLI may read as a second flag. One pattern rather
+      // than two, so there is one thing to keep true — see design.md,
+      // "One shape rule for every value that reaches argv".
+      if (!MODEL_ID_PATTERN.test(customAgent)) {
+        throw new InvalidHarnessConfigError(
+          `stepAgents.${stage}.customAgent "${customAgent}" must not begin with "-" and may contain only ` +
+            `letters, digits, ".", "_", ":" and "-"`,
+        );
+      }
       if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.customAgentFlag) {
         throw new InvalidHarnessConfigError(
           `stepAgents.${stage} sets a custom agent, but agent "${agentId}" does not accept one`,
@@ -694,8 +708,27 @@ function globalHarnessConfigPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, "openspec", "agent-harness.json");
 }
 
-function changeHarnessConfigPath(workspaceRoot: string, changeName: string): string {
-  return path.join(workspaceRoot, "openspec", "changes", changeName, "harness.json");
+/** The check is here, not in the hosts. Both a REST body and a webview
+ * message reach this function with a name they were handed, and
+ * `../../../../Users/me/.claude` is a path traversal that writes a
+ * `harness.json` outside the workspace. A host that checks and a host
+ * that does not are two security models over one function; the function
+ * is where the rule is kept. See a-name-is-checked-before-it-is-used.
+ *
+ * An archived change is named by `location`, never by an `archive/`
+ * inside the name — the same split `workbench.ts`'s `changePath` makes,
+ * and the reason a change name can stay one path segment with a rule
+ * that admits no separator. */
+function changeHarnessConfigPath(
+  workspaceRoot: string,
+  changeName: string,
+  location: ChangeLocation = "active",
+): string {
+  assertValidChangeName(changeName);
+  const changesRoot = path.join(workspaceRoot, "openspec", "changes");
+  return location === "archive"
+    ? path.join(changesRoot, "archive", changeName, "harness.json")
+    : path.join(changesRoot, changeName, "harness.json");
 }
 
 async function readJsonFile(filePath: string): Promise<unknown | undefined> {
@@ -739,14 +772,16 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
   };
 }
 
-/** Reads `openspec/changes/<changeName>/harness.json`. Returns
- * `undefined` when the file doesn't exist (distinct from an empty
- * override — callers merge only when this is defined). */
+/** Reads `openspec/changes/<changeName>/harness.json`, or the archived
+ * change's file when `location` is `"archive"`. Returns `undefined`
+ * when the file doesn't exist (distinct from an empty override —
+ * callers merge only when this is defined). */
 export async function readChangeHarnessConfig(
   workspaceRoot: string,
   changeName: string,
+  location: ChangeLocation = "active",
 ): Promise<Partial<HarnessConfig> | undefined> {
-  const filePath = changeHarnessConfigPath(workspaceRoot, changeName);
+  const filePath = changeHarnessConfigPath(workspaceRoot, changeName, location);
   const raw = await readJsonFile(filePath);
   if (raw === undefined) return undefined;
 

@@ -93,6 +93,11 @@ const PATHS: Readonly<Record<RunPathId, RunPath>> = {
   },
 };
 
+/** Every path id, read from the descriptions rather than listed again:
+ * a validator checking a stored `path` against a second list would
+ * accept an id no path exists for the day one is added or renamed. */
+export const RUN_PATH_IDS: readonly RunPathId[] = Object.keys(PATHS) as RunPathId[];
+
 function describeAutonomy(level: HarnessAutonomyLevel, resolved: RunPathId): string {
   return resolved === "chain"
     ? `autonomyLevel is "${level}", so a chain runs rather than one stage`

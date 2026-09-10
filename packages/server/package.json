@@ -9,6 +9,7 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@openspec-ui/webui": "*",
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.62.1",
     "@types/ws": "^8.18.0",

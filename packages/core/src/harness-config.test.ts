@@ -1086,9 +1086,15 @@ describe("top-level key validation (harness-config-top-level-keys)", () => {
     expect(harnessFiles.length).toBeGreaterThan(0);
 
     for (const entry of harnessFiles) {
-      const changeName = path.relative(changesRoot, entry.parentPath);
+      // A change name is one path segment, and an archived change is
+      // named by its location rather than by an `archive/` smuggled
+      // into the name — which is what this loop used to do, and what
+      // a-name-is-checked-before-it-is-used closed off.
+      const relative = path.relative(changesRoot, entry.parentPath).split(path.sep);
+      const archived = relative[0] === "archive";
+      const changeName = relative[relative.length - 1]!;
       await expect(
-        readChangeHarnessConfig(workspaceRoot, changeName),
+        readChangeHarnessConfig(workspaceRoot, changeName, archived ? "archive" : "active"),
         `${path.join(entry.parentPath, entry.name)} failed to load`,
       ).resolves.toBeDefined();
     }
@@ -1292,5 +1298,73 @@ describe("a stage's custom agent", () => {
     // Spelling the keys out here is how the next one added to the entry
     // gets forgotten. The list is the thing to assert on.
     expect(STEP_AGENT_KEYS).toContain("customAgent");
+  });
+
+  it("is refused when it begins with a dash, so it cannot be read as a second flag", async () => {
+    // a-name-is-checked-before-it-is-used, tasks 3.1/4.4. A change's
+    // `harness.json` is repository content and the value is pushed to
+    // argv as `--agent <value>`; whether the CLI reads
+    // `--dangerously-skip-permissions` as a value or as a flag is not a
+    // question this repository's security model leaves to the CLI.
+    const cwd = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "claude-cli-acp", customAgent: "--dangerously-skip-permissions" } as never },
+    })).rejects.toThrow(/must not begin with "-"/u);
+  });
+
+  it("accepts every character a model id may carry, since it is the same rule", async () => {
+    const cwd = await temporaryRoot();
+
+    await writeGlobalHarnessConfig(cwd, {
+      stepAgents: { apply: { agent: "claude-cli-acp", customAgent: "review-2.0_beta:1" } as never },
+    });
+
+    expect(normalizeStepAgent((await readGlobalHarnessConfig(cwd)).stepAgents.apply!).customAgent)
+      .toBe("review-2.0_beta:1");
+  });
+});
+
+describe("a change name that would leave the workspace", () => {
+  // a-name-is-checked-before-it-is-used, tasks 1.1/4.1. The name
+  // arrives from a REST body or a webview message and used to reach
+  // `path.join` unread, so `../../..` wrote a `harness.json` wherever it
+  // pointed. The contents were always constrained; the location was not.
+  const TRAVERSAL = path.join("..", "..", "..", "escaped");
+
+  it("is refused by writeChangeHarnessConfig, and writes nothing anywhere", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace, { recursive: true });
+
+    await expect(writeChangeHarnessConfig(workspace, TRAVERSAL, { autonomyLevel: "assisted" }))
+      .rejects.toThrow(/Invalid OpenSpec change name/u);
+
+    // Not "the workspace is unchanged" but "nothing was written at all":
+    // the whole point of the traversal is that it lands outside.
+    await expect(readdir(root)).resolves.toEqual(["workspace"]);
+    await expect(readdir(workspace)).resolves.toEqual([]);
+  });
+
+  it("is refused by readChangeHarnessConfig rather than read from outside", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace, { recursive: true });
+
+    await expect(readChangeHarnessConfig(workspace, TRAVERSAL)).rejects.toThrow(/Invalid OpenSpec change name/u);
+  });
+
+  it("names the rule it broke, not just the name", async () => {
+    const root = await temporaryRoot();
+
+    await expect(readChangeHarnessConfig(root, "../../etc"))
+      .rejects.toThrow(/may then contain only lowercase letters, digits/u);
+  });
+
+  it("is refused for an archived change too, where the location is named separately", async () => {
+    const root = await temporaryRoot();
+
+    await expect(readChangeHarnessConfig(root, TRAVERSAL, "archive"))
+      .rejects.toThrow(/Invalid OpenSpec change name/u);
   });
 });
