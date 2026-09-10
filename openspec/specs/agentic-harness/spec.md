@@ -2236,3 +2236,91 @@ SHALL use its own workspace root rather than one named in the message.
 - **WHEN** a request names an operation the host does not offer
 - **THEN** it is refused, and nothing is read or written
 
+### Requirement: A run can be asked for at a time, and reports what became of it
+
+A run SHALL be requestable for a time rather than for now, from the same
+entry that starts one immediately.
+
+Where the application is open at that time, the run SHALL start. Where it
+is not, the run SHALL start when the application is next opened, and the
+surface SHALL say how late it is.
+
+A schedule that does not happen SHALL NOT be indistinguishable from one
+that does. The entry SHALL say, before it is made, that it depends on the
+application being open, and SHALL say afterwards when a run started later
+than it was asked for.
+
+A time already past SHALL be refused where it is entered rather than
+accepted and fired at once.
+
+Where several runs are due together, one SHALL start and the rest SHALL
+be reported as waiting. A second mutating run is refused by the workspace
+lease, and presenting that refusal as an error would describe a fault
+that is not one.
+
+A schedule naming a change that no longer exists SHALL be dropped, and
+the drop SHALL be reported. A change that is neither active nor archived
+was deleted, and an entry for it would wait forever.
+
+#### Scenario: A run scheduled while the application stays open
+
+- **WHEN** a run is scheduled for a time and the application is open then
+- **THEN** it starts at that time
+
+#### Scenario: A run whose time passed while nothing was open
+
+- **WHEN** the application is opened after a scheduled time has passed
+- **THEN** the run starts and the surface says how late it is
+
+#### Scenario: A time in the past
+
+- **WHEN** a time earlier than now is entered
+- **THEN** it is refused where it was entered
+
+#### Scenario: Two runs due at once
+
+- **WHEN** two scheduled runs come due together
+- **THEN** one starts and the other is reported as still waiting
+
+#### Scenario: A schedule for a change that was deleted
+
+- **WHEN** a scheduled run names a change that is neither active nor
+  archived
+- **THEN** the entry is dropped and the drop is reported
+
+### Requirement: What the verifying stages found is readable per agent
+
+What a change's verifying stages found SHALL be readable back per agent,
+beside what the runs cost.
+
+The audit log records how many checks a verifying stage ran and how many
+failed. An agent that is cheap and fails its checks is not the cheap one,
+and a surface that reports only cost invites exactly that reading.
+
+Each group SHALL carry how many verifying stages it rests on, and a group
+resting on fewer than the stated threshold SHALL be reported as such
+rather than omitted. Omitting it makes "too little is known here"
+indistinguishable from "this agent never fails".
+
+Where nothing has been recorded, the surface SHALL distinguish a log with
+no runs from a log whose runs never reached a verifying stage. They are
+different facts and only one of them is answered by running something.
+
+Runs recorded against a change that is neither active nor archived SHALL
+be excluded, by the same rule the cost figures apply.
+
+#### Scenario: An agent whose checks have failed
+
+- **WHEN** verifying stages have recorded what their checks found
+- **THEN** each agent's stages, failures and check counts are readable
+
+#### Scenario: Too few stages to read as a rate
+
+- **WHEN** an agent has fewer verifying stages than the threshold
+- **THEN** it is shown and reported as resting on too few
+
+#### Scenario: A log whose runs never verified
+
+- **WHEN** runs are recorded but none reached a verifying stage
+- **THEN** the surface says so, distinctly from having no runs at all
+
