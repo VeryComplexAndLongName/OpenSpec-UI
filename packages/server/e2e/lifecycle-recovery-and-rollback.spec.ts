@@ -39,7 +39,11 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
       await expect(rollbackButton).toBeEnabled();
       await rollbackButton.click();
 
-      await expect(page.getByRole("status")).toContainText("Rollback restored 1 files.", { timeout: 15000 });
+      // Named, not "the" status region: the shell has more than one
+      // since the schedule got its own live region, and an assertion
+      // that means this one has to say so.
+      await expect(page.getByTestId("processes-message"))
+        .toContainText("Rollback restored 1 files.", { timeout: 15000 });
       await expect.poll(() => readFile(path.join(workspaceRoot, RELATIVE_FILE_PATH), "utf8")).toBe("before\n");
     } finally {
       await server.close();

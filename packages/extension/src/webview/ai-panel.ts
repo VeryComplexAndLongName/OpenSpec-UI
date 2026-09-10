@@ -23,6 +23,7 @@ import {
   type HarnessStage,
   type HarnessBudget,
   type HarnessStepAgents,
+  type RunPathId,
   type RunPlan,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
@@ -93,6 +94,16 @@ export interface AiPanelContext {
   /** Why the dialog is open, when a schedule opened it rather than a
    * person — and how late it is. See a-run-can-be-scheduled. */
   runNote?: string;
+  /** The path a schedule already chose, taken rather than asked for
+   * again. The dialog still renders — the note has to be read — but it
+   * does not wait: the webview takes this path the moment it mounts, as
+   * if the button had been pressed.
+   *
+   * Absent for every reveal a person made, and absent when the plan no
+   * longer offers it, in which case `runNote` says the configured paths
+   * changed. Rides in the first render's HTML with the plan, for the
+   * same reason the plan does. See a-schedule-keeps-its-promise. */
+  runPath?: RunPathId;
 }
 
 /** What the webview may ask this host for.
@@ -702,6 +713,7 @@ export class AiPanel {
         plan: panelContext.runPlan,
         changeName: panelContext.changeName,
         ...(panelContext.runNote ? { note: panelContext.runNote } : {}),
+        ...(panelContext.runPath ? { path: panelContext.runPath } : {}),
       }))
       : "";
     return `<!doctype html>

@@ -5,7 +5,7 @@
 // not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
@@ -58,12 +58,11 @@ import {
   resolveRunWithHarnessDispatch,
   type RunWithHarnessDispatch,
 } from "./run-with-harness-dispatch.js";
+import { fireDueSchedule, type ScheduleFiringHost } from "./scheduled-run-firing.js";
 import {
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   describeHumanOnlyInbox,
-  describeLateness,
   describeWaitingOn,
-  readSchedule,
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
@@ -330,6 +329,14 @@ function StandaloneApp() {
         setCwd(workspaceRoot);
         setChangeDir(buildDefaultChangeDir(workspaceRoot));
         setWorkspaceRootSyncError(null);
+        // Opening the application is enough. This used to stop at the
+        // root field, and the overview was loaded only when someone left
+        // that field, pressed "Load summary" or saved something — so a
+        // schedule, which correctly refuses to read until the changes
+        // are known, refused forever. The dialog promised "the run
+        // starts the next time you open it" and it did not.
+        // See a-schedule-keeps-its-promise.
+        if (!cancelled) await loadOverviewFor(workspaceRoot);
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -369,6 +376,14 @@ function StandaloneApp() {
     writeStoredValue(STORAGE_KEYS.changeDir, changeDir);
   }, [changeDir]);
 
+  /** Re-reads the workspace when the root field is left, and only when
+   * it names a different root than the overview on screen. The button
+   * beside it stays an unconditional reload — that one is asked for. */
+  async function handleRootBlur() {
+    if (cwd.trim().length === 0 || cwd === overviewRoot.current) return;
+    await handleLoadOverview();
+  }
+
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);
     setChangeDir(buildDefaultChangeDir(nextCwd));
@@ -379,14 +394,22 @@ function StandaloneApp() {
       setOverviewError("Enter a workspace root before loading overview.");
       return;
     }
+    await loadOverviewFor(cwd);
+  }
 
+  /** Reads the workspace, for a root that is not necessarily in state
+   * yet — the open path has just learned it from the server and React
+   * has not re-rendered. The blur and the "Load summary" button call the
+   * same thing, as reloads. */
+  async function loadOverviewFor(root: string) {
+    overviewRoot.current = root;
     setOverviewLoading(true);
     setOverviewError(null);
     try {
       const response = await apiFetch("/api/overview", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd }),
+        body: JSON.stringify({ cwd: root }),
       });
 
       if (!response.ok) {
@@ -401,7 +424,7 @@ function StandaloneApp() {
       // whose task files cannot be read still has a summary worth
       // showing, and losing that to this would be a worse trade.
       try {
-        setHumanOnly(await loadHumanOnlyInbox(apiFetch, cwd));
+        setHumanOnly(await loadHumanOnlyInbox(apiFetch, root));
       } catch {
         setHumanOnly(null);
       }
@@ -409,6 +432,9 @@ function StandaloneApp() {
       const message = error instanceof Error ? error.message : String(error);
       setOverviewError(message);
       setOverview(null);
+      // Forgotten, so leaving the field retries rather than trusting a
+      // reading that never arrived.
+      overviewRoot.current = null;
     } finally {
       setOverviewLoading(false);
     }
@@ -426,6 +452,7 @@ function StandaloneApp() {
       setEditorFiles(payload.files ?? EMPTY_EDITOR_FILES);
       setEditorRevision(payload.revision);
       setEditorChangeName(changeName);
+      unsavedChange.current = null;
       setEditorMessage(`Loaded ${changeName}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -448,6 +475,10 @@ function StandaloneApp() {
     if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) return;
     setRunHarnessLoading(true);
     setRunHarnessMessage(null);
+    // A person opened this one, so no schedule explains it. The note
+    // used to survive, and reappeared here saying a run had been
+    // scheduled that nobody had scheduled.
+    setRunNote(null);
     try {
       const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
       setRunDispatch(dispatch);
@@ -489,9 +520,35 @@ function StandaloneApp() {
    * configuration change, and a later run behaving differently for a
    * reason nobody recorded is worse than being asked again. */
   /** Why the dialog opened, when a schedule opened it rather than a
-   * person. Cleared on a dismissal, so a later run does not inherit an
-   * explanation that is not its own. */
+   * person. Cleared on a dismissal and on any start, so a later run does
+   * not inherit an explanation that is not its own. */
   const [runNote, setRunNote] = useState<string | null>(null);
+  /** What the schedule did, shown in a live region outside the tabs.
+   *
+   * Separate from `runHarnessMessage`, which belongs to the change
+   * editor: a schedule can move a person to another tab, and the reason
+   * has to be readable from wherever they land. */
+  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  /** The root the overview on screen was read for, or is being read
+   * for, or `null` when the last reading failed.
+   *
+   * Leaving the root field re-reads the workspace only when it names a
+   * different root. The overview is loaded on open now, and a blur that
+   * changed nothing used to start a second reading of the same
+   * workspace while the first was still running — two `openspec` CLI
+   * processes for one answer. Recorded when the reading starts rather
+   * than when it lands, because the blur usually arrives while it is
+   * still in flight. */
+  const overviewRoot = useRef<string | null>(null);
+  /** A schedule pass already running. A pass that outlasts the tick must
+   * not be overlapped by the next — the second reading would find the
+   * same entry still in the file and open the run twice. */
+  const firingInFlight = useRef(false);
+  /** The change whose editor content has edits nobody has saved, or
+   * `null`. A ref rather than state: the firing effect's closure is from
+   * the render that created it, and a stale `false` here would load
+   * another change's files over someone's work. */
+  const unsavedChange = useRef<string | null>(null);
   /** What is waiting on a person. Read with the summary, because it
    * answers a question about the same list — a change with one unticked
    * human-only item is indistinguishable, in that list, from one nobody
@@ -519,13 +576,22 @@ function StandaloneApp() {
     }
   }
 
-  function startChosenRun(path: RunPathId) {
-    if (!runDispatch) return;
-    const { changeDir: targetChangeDir, budget } = runDispatch;
+  /** Starts the path that was picked.
+   *
+   * `dispatch` is passed when a schedule starts the run: the state has
+   * only just been set and this render still holds the old value. */
+  function startChosenRun(path: RunPathId, dispatch: RunWithHarnessDispatch | null = runDispatch) {
+    if (!dispatch) return;
+    const { changeDir: targetChangeDir, budget } = dispatch;
     setRunDispatch(null);
+    // A lateness note belongs to the run it explained. Left standing, it
+    // reappeared over the next dialog a person opened themselves, which
+    // said a schedule had started something that nobody scheduled.
+    setRunNote(null);
     if (path === "chain") {
       setChainChangeDir(targetChangeDir);
       setChainBudget(budget);
+      setActiveTab("change-editor");
       return;
     }
     setChainChangeDir(null);
@@ -533,13 +599,17 @@ function StandaloneApp() {
     setActiveTab("run-a-command");
   }
 
-  /** Opens the dialog for a schedule that has come due.
+  /** Acts on a schedule that has come due.
    *
-   * The dialog rather than a silent start: a surface that acts on a
-   * configuration and shows nothing of what it read is the defect this
-   * dialog exists to remove, and a delay does not change that. The entry
-   * is removed first — a schedule that fired and stayed in the file
-   * would fire again on the next tick. */
+   * Nothing here decides anything about the schedule: `fireDueSchedule`
+   * does, over `planScheduleFiring` in core, and this supplies the
+   * effects. The same loop used to be written here and again in the
+   * extension's watcher, and the two had already diverged in how they
+   * wrote back and in what they did with an archived change.
+   *
+   * The run starts on the path the entry named rather than reopening a
+   * dialog to be answered again — the choice was made when the run was
+   * asked for. See a-schedule-keeps-its-promise. */
   async function fireDueRuns() {
     if (cwd.trim().length === 0 || runDispatch) return;
     // Not until the workspace's changes are known. Without this the
@@ -548,41 +618,46 @@ function StandaloneApp() {
     // not having read yet. Absence of knowledge is not evidence of
     // absence, and here it was destructive.
     if (!overview) return;
+    // A pass that outlasts the tick is not overlapped by the next: the
+    // second reading would find the same entry still in the file.
+    if (firingInFlight.current) return;
+    firingInFlight.current = true;
+
+    const host: ScheduleFiringHost = {
+      loadEntries: () => loadScheduledRuns(apiFetch, cwd),
+      removeEntry: (entry) => removeScheduledRunApi(apiFetch, cwd, entry),
+      resolveDispatch: (changeName) => resolveRunWithHarnessDispatch(apiFetch, cwd, changeName),
+      loadChange: async (changeName) => {
+        const dirty = unsavedChange.current;
+        if (dirty && dirty !== changeName) {
+          return `${dirty} has unsaved edits, so the editor was left on it. Save or reload it, then choose a path.`;
+        }
+        // The same load a manual selection takes. Pointing the editor at
+        // a change without loading it left the previous change's files
+        // and revision on screen under the new name, and saving then
+        // posted one change's edits under another's.
+        await loadChangeEditor(changeName);
+        return undefined;
+      },
+      startRun: (path, dispatch) => startChosenRun(path, dispatch),
+      openDialog: (dispatch, note) => {
+        // The dialog lives in the change editor, and a tab that is not
+        // active is not rendered. Without this the schedule fired and
+        // nothing appeared.
+        setActiveTab("change-editor");
+        setRunNote(note);
+        setRunDispatch(dispatch);
+      },
+      say: setScheduleMessage,
+    };
+
     try {
-      const entries = await loadScheduledRuns(apiFetch, cwd);
-      if (entries.length === 0) return;
-      const reading = readSchedule(entries, {
+      await fireDueSchedule(host, {
         active: (overview?.changes ?? []).map((change) => change.name),
         archived: overview?.archivedChanges ?? [],
       }, new Date());
-
-      if (reading.dropped.length > 0) {
-        await Promise.all(reading.dropped.map((entry) => removeScheduledRunApi(apiFetch, cwd, entry)));
-        setRunHarnessMessage(
-          `Dropped ${reading.dropped.length} scheduled run(s) for change(s) that no longer exist: `
-          + `${reading.dropped.map((entry) => entry.changeName).join(", ")}.`,
-        );
-      }
-      const due = reading.start;
-      if (!due) return;
-
-      await removeScheduledRunApi(apiFetch, cwd, due.entry);
-      setEditorChangeName(due.entry.changeName);
-      // The dialog lives in the change editor, and a tab that is not
-      // active is not rendered. Without this the schedule fired, the
-      // entry was consumed and nothing appeared — worse than not firing,
-      // because the run was spent invisibly. Found by the browser test
-      // that stayed on the summary tab.
-      setActiveTab("change-editor");
-      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, due.entry.changeName);
-      setRunNote(describeLateness(due));
-      setRunDispatch(dispatch);
-      const waiting = reading.waiting.length === 0
-        ? ""
-        : ` ${reading.waiting.length} more scheduled run(s) are still waiting.`;
-      setRunHarnessMessage(`${describeLateness(due)}${waiting}`);
-    } catch (error) {
-      setRunHarnessMessage(`Reading the schedule failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      firingInFlight.current = false;
     }
   }
 
@@ -958,6 +1033,7 @@ function StandaloneApp() {
         revision: editorRevision,
       });
       setEditorRevision(saved.revision);
+      unsavedChange.current = null;
 
       await handleLoadOverview();
       setEditorMessage(`Saved ${editorChangeName}.`);
@@ -1017,6 +1093,15 @@ function StandaloneApp() {
         <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
       </header>
 
+      {/* Outside the tabs, because a schedule moves a person between
+          them: a sentence rendered only inside the change editor was
+          unreadable to whoever it had just moved somewhere else, and
+          unannounced to a screen reader either way.
+          See a-schedule-keeps-its-promise. */}
+      <div role="status" aria-live="polite" data-testid="schedule-status">
+        {scheduleMessage ? <p className="openspec-shell-note">{scheduleMessage}</p> : null}
+      </div>
+
       <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
 
       <TabPanel id="run-a-command" activeTab={activeTab} lazy>
@@ -1029,7 +1114,7 @@ function StandaloneApp() {
               type="text"
               value={cwd}
               onChange={(e) => handleCwdChange(e.target.value)}
-              onBlur={() => void handleLoadOverview()}
+              onBlur={() => void handleRootBlur()}
               placeholder="C:\\path\\to\\repo"
             />
           </label>
@@ -1346,6 +1431,13 @@ function StandaloneApp() {
               value={editorFiles[editorTab]}
               onChange={(e) => {
                 const value = e.target.value;
+                // Which change has edits nobody has saved. A schedule
+                // that came due must not load another change's files
+                // over them — the save would then post these files
+                // under that change's name, be refused by the hash
+                // check, and the person would be told to reload, which
+                // discards them. See a-schedule-keeps-its-promise.
+                unsavedChange.current = editorChangeName;
                 setEditorFiles((prev) => ({ ...prev, [editorTab]: value }));
               }}
               placeholder="Write markdown content"
