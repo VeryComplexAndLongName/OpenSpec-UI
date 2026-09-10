@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AGENT_REGISTRY,
+  changeTemplateConfigToWrite,
   customAgentFamilyFor,
   HARNESS_AGENT_CAPABILITIES,
   findHarnessConfigLimits,
+  mergeStepAgents,
   resolveEffortLevel,
   templatesForScope,
   isHarnessStepAgentStage,
@@ -49,6 +51,15 @@ const STAGES: readonly HarnessStage[] = ["propose", "review", "apply", "verify",
  * harness-mechanical-checks tasks.md 4.4 (`archive`) and
  * harness-git-stage-no-agent tasks.md 3.1 (`git`, added here later). */
 const CONFIGURABLE_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarnessStepAgentStage);
+/** Stands in only while the global file has not been read yet — the
+ * same shape `readGlobalHarnessConfig` returns for a workspace that has
+ * no global file at all, so a configuration applied before the read
+ * lands behaves as it would in that workspace rather than throwing. */
+const NO_GLOBAL_CONFIG: HarnessConfig = {
+  stepAgents: {},
+  autonomyLevel: "assisted",
+  reviewGate: { mode: "human-required" },
+};
 const INHERIT = "" as const;
 const STAGE_RUNNER_OPTIONS = [
   ...AGENT_REGISTRY,
@@ -110,16 +121,78 @@ function effortFormFor(level: HarnessEffortLevel, agents: StepAgentsForm): StepE
 
 /** What applying one just did, said rather than left to be noticed.
  *
- * Where no stage on screen accepts an effort setting the configurations
- * differ only in their ceilings, and saying so is the difference between
- * a dial that does nothing and a dial that does nothing silently. */
-function templateAppliedMessage(template: HarnessTemplate, effort: StepEffortForm): string {
+ * Three facts, each said only where it is true: which stages were given
+ * an effort, which stages have an agent that takes none, and which
+ * stages have no agent at all.
+ *
+ * "None of the agents on screen takes an effort setting" used to be said
+ * whenever nothing got an effort — which on the per-change form was
+ * every time, because every stage the change does not name reads as
+ * "inherit" there and no effort could be resolved for it. The sentence
+ * named a reason that was not the reason, and the two are worth telling
+ * apart: one is a fact about the agents, the other is a form that has
+ * not been filled in. See a-stage-override-keeps-its-custom-agent. */
+function templateEffortNote(
+  template: HarnessTemplate,
+  effort: StepEffortForm,
+  agents: StepAgentsForm,
+): string {
   const set = CONFIGURABLE_STAGES.filter((stage) => effort[stage] !== INHERIT);
-  const effortNote = set.length === 0
-    ? "None of the agents on screen takes an effort setting, so only the ceilings changed."
-    : `Effort set to ${template.effortLevel} of what each agent accepts: `
-      + `${set.map((stage) => `${stage} ${effort[stage]}`).join(", ")}.`;
-  return `Filled from "${template.title}". ${effortNote} The agents and models on screen are unchanged.`
+  const takesNone = CONFIGURABLE_STAGES.filter((stage) => agents[stage] !== INHERIT && effort[stage] === INHERIT);
+  const noAgent = CONFIGURABLE_STAGES.filter((stage) => agents[stage] === INHERIT);
+  // Where every stage has an agent and none of those agents takes an
+  // effort, the configurations differ only in their ceilings — and
+  // saying so is the difference between a dial that does nothing and a
+  // dial that does nothing silently.
+  if (set.length === 0 && noAgent.length === 0 && takesNone.length > 0) {
+    return "None of the agents on screen takes an effort setting, so only the ceilings changed.";
+  }
+  const notes: string[] = [];
+  if (set.length > 0) {
+    notes.push(
+      `Effort set to ${template.effortLevel} of what each agent accepts: `
+      + `${set.map((stage) => `${stage} ${effort[stage]}`).join(", ")}.`,
+    );
+  }
+  if (takesNone.length > 0) {
+    notes.push(
+      `No effort for ${takesNone.map((stage) => `${stage} (${agents[stage]})`).join(", ")}: `
+      + `${takesNone.length === 1 ? "that agent takes" : "those agents take"} none.`,
+    );
+  }
+  if (noAgent.length > 0) {
+    notes.push(`No agent is chosen for ${noAgent.join(", ")}, so nothing was set there.`);
+  }
+  return notes.join(" ");
+}
+
+function templateAppliedMessage(
+  template: HarnessTemplate,
+  effort: StepEffortForm,
+  agents: StepAgentsForm,
+): string {
+  return `Filled from "${template.title}". ${templateEffortNote(template, effort, agents)}`
+    + " The agents and models on screen are unchanged. Nothing is saved until you save.";
+}
+
+/** The per-change twin. Applying a configuration to a change writes the
+ * agent beside the effort for a stage that was inheriting one, so this
+ * one cannot claim, as the global one truthfully can, that the agents on
+ * screen are unchanged. It names the stages whose agent it did change —
+ * usually a stage that read "inherit" and now names the global file's
+ * agent, and a stage whose unsaved edit the applied configuration
+ * replaced, which is the same sentence and worth seeing either way. */
+function changeTemplateAppliedMessage(
+  template: HarnessTemplate,
+  effort: StepEffortForm,
+  agents: StepAgentsForm,
+  reset: readonly HarnessStepAgentStage[],
+): string {
+  const agentNote = reset.length === 0
+    ? " The agents and models on screen are unchanged."
+    : ` ${reset.join(", ")} now name${reset.length === 1 ? "s" : ""} the agent the change resolves to,`
+      + " because an effort without its agent means nothing.";
+  return `Filled from "${template.title}". ${templateEffortNote(template, effort, agents)}${agentNote}`
     + " Nothing is saved until you save.";
 }
 
@@ -465,7 +538,7 @@ export function HarnessSettingsView(
       ...(previous ?? { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } }),
       ...template.config,
     }));
-    setGlobalMessage(templateAppliedMessage(template, effort));
+    setGlobalMessage(templateAppliedMessage(template, effort, globalStepAgents));
   };
 
   const findings = useMemo<HarnessFinding[]>(() => {
@@ -493,19 +566,38 @@ export function HarnessSettingsView(
 
   /** The per-change twin of `applyTemplate`. It is also the only place a
    * per-change-only configuration could be applied from, which is why it
-   * exists separately from the global picker above. */
+   * exists separately from the global picker above.
+   *
+   * Unlike the global twin it does not resolve against the form. Every
+   * stage the change does not name reads as "inherit" there, so
+   * resolving against it gave no stage an effort at all — while the run
+   * dialog, resolving against the merged configuration, gave each one
+   * the effort of the agent it will actually run. Two surfaces wrote
+   * different files for the same change and the same configuration.
+   * Both now produce what is written through one core function, so the
+   * divergence has nowhere to live. "Inherit" stays available for
+   * someone who clears a stage; applying a configuration is a choice to
+   * set something. See a-stage-override-keeps-its-custom-agent. */
   const applyChangeTemplate = (template: HarnessTemplate): void => {
-    // Same as the global twin: the agents, models and per-stage budgets
-    // on screen are the operator's, and only the effort is the
-    // configuration's.
-    const effort = effortFormFor(template.effortLevel, changeStepAgents);
+    const base = globalConfig ?? NO_GLOBAL_CONFIG;
+    const written = changeTemplateConfigToWrite(template, base, changeOverride ?? undefined);
+    const agents = toForm(written.stepAgents);
+    const effort = toEffortForm(written.stepAgents);
+    // What the change resolves to, for the message: a stage with no
+    // entry of its own still runs the global file's agent, and that
+    // agent is the reason it did or did not get an effort.
+    const resolvedAgents = toForm(mergeStepAgents(base.stepAgents, changeOverride?.stepAgents));
+    const reset = CONFIGURABLE_STAGES.filter((stage) => changeStepAgents[stage] !== agents[stage]);
+    setChangeStepAgents(agents);
     setChangeEffort(effort);
-    if (template.config.autonomyLevel) setChangeAutonomyLevel(template.config.autonomyLevel);
-    if (template.config.reviewGate) setChangeReviewGateMode(template.config.reviewGate.mode);
+    setChangeBudget(toBudgetForm(written.stepAgents));
+    setChangeCustomAgent(toCustomAgentForm(written.stepAgents));
+    if (written.autonomyLevel) setChangeAutonomyLevel(written.autonomyLevel);
+    if (written.reviewGate) setChangeReviewGateMode(written.reviewGate.mode);
     // The ceilings ride here, not in the form, and the save lays the form
     // over this rather than replacing it.
-    setChangeOverride((previous) => ({ ...(previous ?? {}), ...template.config }));
-    setChangeMessage(templateAppliedMessage(template, effort));
+    setChangeOverride(written);
+    setChangeMessage(changeTemplateAppliedMessage(template, effort, resolvedAgents, reset));
   };
 
   async function loadGlobal() {

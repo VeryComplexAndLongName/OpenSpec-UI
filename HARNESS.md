@@ -56,17 +56,27 @@ the per-change file over the global one (`mergeHarnessConfig`):
   **field by field** — a per-change file overriding only
   `stepAgents.apply` still inherits every other stage from the global
   file, and one that sets only an effort for `apply` still inherits the
-  model and budget the global file set for it.
+  model, budget and custom agent the global file set for it. Every field
+  an entry may carry is merged: the merge iterates `STEP_AGENT_KEYS`
+  (`packages/core/src/harness-step-agent.ts`), the same list the
+  validator reads, so the next field added to an entry arrives already
+  merged.
 
   With one exception: naming a **different agent** for a stage inherits
-  nothing. A stage's model, effort and budget belong to its agent —
-  effort vocabularies differ between agents (`copilot` accepts seven
-  values, `claude` five, `codex` four, and four agents accept none), and a
-  budget is denominated in whichever unit its agent reports — so carrying
-  them across a change of agent would build a configuration nobody wrote.
+  nothing. A stage's model, effort, budget and custom agent belong to
+  its agent — effort vocabularies differ between agents (`copilot`
+  accepts seven values, `claude` five, `codex` four, and five agents
+  accept none), a budget is denominated in whichever unit its agent
+  reports, and a custom agent is a definition one CLI reads — so
+  carrying them across a change of agent would build a configuration
+  nobody wrote.
 
   Until `stage-override-keeps-the-rest` a stage's entry was replaced
-  outright, so setting an effort silently discarded the model.
+  outright, so setting an effort silently discarded the model. Until
+  `a-stage-override-keeps-its-custom-agent` the merge named three fields
+  where the entry carried four, so an override naming the same agent
+  plus a `customAgent` resolved without it and the chain ran with no
+  `--agent` flag.
 - `autonomyLevel`, `reviewGate`, `checkpoints`, `budget`, and
   `gitStageAllowlist` are each a **whole-value override** — if the
   per-change file sets one at all, its value is used exactly as written,
@@ -382,13 +392,38 @@ Four named configurations are offered in the same place — **Thorough**,
 it is the wrong choice, and where each of its ceilings came from.
 
 They are named by the effort they ask for, and each carries a *level*
-rather than a value: the highest, high, medium or lowest of what the
-agent accepts. The value is resolved when the configuration is applied,
-against the agent that stage will use — `max` for `claude-cli` and `high`
-for `codex-cli` are both "highest", and five of the ten registered agents
-accept no effort at all, for which the surface says the configurations
-differ in their ceilings alone rather than showing a dial that does
-nothing.
+rather than a value: a position in the agent's own range, at the top,
+two thirds up, a third up, or at the bottom. The value is resolved when
+the configuration is applied, against the agent that stage will use —
+`max` for `claude-cli` and `high` for `codex-cli` are both "highest",
+and five of the ten registered agents accept no effort at all, for which
+the surface says the configurations differ in their ceilings alone
+rather than showing a dial that does nothing.
+
+The positions are thirds, not quarters, and the words are the position
+rather than a synonym for it: "the middle" of a seven-value range is not
+where `medium` lands. Resolved per registered agent, from
+`HARNESS_AGENT_CAPABILITIES` (this is `presets-by-effort`'s own table,
+carried here so a reader sees the value before choosing):
+
+| Agent | Thorough (highest) | Careful (high) | Balanced (medium) | Economy (lowest) |
+| --- | --- | --- | --- | --- |
+| `claude-cli` | `max` | `xhigh` | `medium` | `low` |
+| `claude-cli-acp` | `max` | `xhigh` | `medium` | `low` |
+| `codex-cli` | `high` | `medium` | `low` | `minimal` |
+| `copilot-cli` | `max` | `high` | `low` | `none` |
+| `copilot-cli-acp` | `max` | `high` | `low` | `none` |
+| `codex-cli-acp` | — | — | — | — |
+| `gemini-cli` | — | — | — | — |
+| `gemini-cli-acp` | — | — | — | — |
+| `local-llm` | — | — | — | — |
+| `vscode-chat` | — | — | — | — |
+
+Even thirds — 1, 2/3, 1/3, 0 — rather than the tidier-looking 1, 0.75,
+0.5, 0: over `codex-cli`'s four values those two put `high` and `medium`
+on the same one and left `low` unreachable. The mapping lives in
+`packages/core/src/harness-effort-level.ts`, and
+`effortLevelCollisions` reports where two levels still resolve alike.
 
 None of them sets a model. The model is whichever the workspace already
 configured, and each says so in its own text rather than leaving it to be

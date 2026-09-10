@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { findHarnessConfigLimits } from "./harness-config-findings.js";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js";
 import { HARNESS_AGENT_CAPABILITIES, normalizeStepAgent } from "./harness-step-agent.js";
-import { HARNESS_EFFORT_LEVELS } from "./harness-effort-level.js";
-import type { HarnessStepAgent } from "./harness-step-agent.js";
-import { HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
+import { HARNESS_EFFORT_LEVELS, resolveEffortLevel } from "./harness-effort-level.js";
+import type { HarnessStepAgent, HarnessStepAgents } from "./harness-step-agent.js";
+import { changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 
 // settings-templates:
 // pure over in-memory data — no files, no processes. Measured 2026-09-08
@@ -151,6 +151,63 @@ describe("HARNESS_TEMPLATES — named by the effort they ask for", () => {
   }
 });
 
+describe("HARNESS_TEMPLATES — the words describe the position the resolver produces", () => {
+  // a-stage-override-keeps-its-custom-agent. "The middle of this agent's
+  // range" was the balanced configuration's own sentence, and the
+  // mapping is thirds: for `copilot-cli` the medium level resolves to
+  // `low`, the third of seven, which is nowhere near the middle. The
+  // arithmetic was decided deliberately (presets-by-effort's design.md
+  // carries the table), so the sentence is what was wrong.
+  //
+  // Checked over every registered agent, because a position claim can be
+  // true for one vocabulary and false for another — with five values
+  // "the middle" and "a third of the way up" happen to differ by one
+  // index, and with seven they differ by two.
+
+  const wordsOf = (template: (typeof HARNESS_TEMPLATES)[number]): string =>
+    `${template.title} ${template.intent} ${template.notFor} ${template.basis}`.toLowerCase();
+
+  /** Positional phrases a configuration may use about itself, and the
+   * fraction of the agent's range each one claims. Deliberately narrow:
+   * most of a template's prose cannot be read mechanically, and this
+   * covers the class the defect came from — a word standing in for an
+   * index. */
+  const POSITION_CLAIMS: ReadonlyArray<{ label: string; pattern: RegExp; fraction: number }> = [
+    { label: "the middle", pattern: /\bthe middle\b|\bhalfway\b|\bhalf way\b/, fraction: 0.5 },
+    { label: "a third of the way up", pattern: /\ba third of the way up\b/, fraction: 1 / 3 },
+    { label: "two thirds of the way up", pattern: /\btwo thirds of the way up\b/, fraction: 2 / 3 },
+  ];
+
+  for (const template of HARNESS_TEMPLATES) {
+    it(`"${template.id}" claims no position its own level does not resolve to`, () => {
+      const words = wordsOf(template);
+      const claimed = POSITION_CLAIMS.filter((claim) => claim.pattern.test(words));
+      for (const [agent, capabilities] of Object.entries(HARNESS_AGENT_CAPABILITIES)) {
+        const accepted = capabilities.effort ?? [];
+        // An agent with no vocabulary is told the configurations differ
+        // in their ceilings alone; there is no position to be wrong
+        // about.
+        if (accepted.length === 0) continue;
+        const { effort } = resolveEffortLevel(agent, template.effortLevel);
+        for (const claim of claimed) {
+          expect(
+            effort,
+            `"${template.id}" says "${claim.label}" and resolves to "${effort}" for ${agent}`,
+          ).toBe(accepted[Math.round(claim.fraction * (accepted.length - 1))]);
+        }
+      }
+    });
+  }
+
+  it("at least one configuration states its position, so the check has something to read", () => {
+    // A guard over prose passes vacuously the moment the prose stops
+    // saying anything, and a check that cannot fail is not a check.
+    const stating = HARNESS_TEMPLATES.filter((template) =>
+      POSITION_CLAIMS.some((claim) => claim.pattern.test(wordsOf(template))));
+    expect(stating.length).toBeGreaterThan(0);
+  });
+});
+
 /** A stage entry may be a bare agent id, so read it the way the runner
  * does rather than reaching for a field the string form does not have. */
 const effortOf = (entry: HarnessStepAgent | undefined): string | undefined =>
@@ -250,5 +307,91 @@ describe("templateConfigToWrite", () => {
     const written = templateConfigToWrite(economy, { apply: { agent: "vscode-chat" } });
 
     expect(written.stepAgents).toBeUndefined();
+  });
+});
+
+describe("changeTemplateConfigToWrite — one file, whichever surface applied it", () => {
+  // a-stage-override-keeps-its-custom-agent. The run dialog resolved a
+  // configuration's effort against the change's *resolved* config, so an
+  // inherited stage got the effort of the agent it would actually run.
+  // The settings view resolved it against the change's own override,
+  // where every stage the change does not name reads as "inherit", so
+  // nothing got an effort at all. Same change, same configuration, two
+  // files. Both surfaces now call this.
+
+  const economy = HARNESS_TEMPLATES[HARNESS_TEMPLATES.length - 1] as (typeof HARNESS_TEMPLATES)[number];
+
+  const global = (stepAgents: HarnessStepAgents): HarnessConfig => ({
+    ...DEFAULT_HARNESS_CONFIG,
+    stepAgents,
+  });
+
+  it("gives a stage the change does not name the effort of the agent it will run", () => {
+    // The settings-view defect, at the level it was fixed: the override
+    // names no stage, and the stage still runs `claude-cli`.
+    const written = changeTemplateConfigToWrite(economy, global({ apply: "claude-cli" }), undefined);
+
+    expect(written.stepAgents?.apply).toEqual({ agent: "claude-cli", effort: "low" });
+  });
+
+  it("produces one file from what each caller has in hand", () => {
+    // The run dialog reaches this holding the global file and the
+    // change's override; the settings view holds the same two, and used
+    // to hold only the second. One input, one output, asserted rather
+    // than described.
+    const base = global({ propose: "claude-cli", apply: { agent: "codex-cli", model: "gpt-5" } });
+    const override = { gitStageAllowlist: { remotes: ["origin"], branches: ["main"] } };
+
+    const fromRunDialog = changeTemplateConfigToWrite(economy, base, override);
+    const fromSettingsView = changeTemplateConfigToWrite(economy, base, { ...override });
+
+    expect(fromRunDialog).toEqual(fromSettingsView);
+    expect(fromRunDialog).toEqual({
+      ...economy.config,
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+      stepAgents: {
+        propose: { agent: "claude-cli", effort: "low" },
+        // The global file's model is not restated in the change's
+        // override — the change inherits it, and writing it here would
+        // pin a choice the workspace is free to change.
+        apply: { agent: "codex-cli", effort: "minimal" },
+      },
+    });
+  });
+
+  it("resolves against the agent the change names, not the one it replaced", () => {
+    const written = changeTemplateConfigToWrite(
+      economy,
+      global({ apply: "claude-cli" }),
+      { stepAgents: { apply: "codex-cli" } },
+    );
+
+    // `low` is `claude-cli`'s bottom and `minimal` is `codex-cli`'s.
+    expect(written.stepAgents?.apply).toEqual({ agent: "codex-cli", effort: "minimal" });
+  });
+
+  it("keeps a custom agent the change set for the stage it is applied to", () => {
+    // The two halves of this change meeting: the merge has to carry
+    // `customAgent` for the entry the configuration then lays an effort
+    // over, or applying a configuration silently drops it.
+    const written = changeTemplateConfigToWrite(
+      economy,
+      global({ apply: "claude-cli" }),
+      { stepAgents: { apply: { agent: "claude-cli", customAgent: "reviewer" } } },
+    );
+
+    expect(written.stepAgents?.apply).toEqual({
+      agent: "claude-cli",
+      customAgent: "reviewer",
+      effort: "low",
+    });
+  });
+
+  it("keeps every key the change had that the configuration does not mention", () => {
+    const written = changeTemplateConfigToWrite(economy, global({}), {
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+    });
+
+    expect(written.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["main"] });
   });
 });

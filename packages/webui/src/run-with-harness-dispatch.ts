@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { buildRunPlan, resolveRunWithHarnessTarget, templateConfigToWrite, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { buildRunPlan, changeTemplateConfigToWrite, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -99,21 +99,24 @@ async function readOpenTaskCount(
  * arriving by a different route.
  *
  * The configuration carries an effort level rather than a value, so what
- * is written is computed by `templateConfigToWrite` — the same function
- * the extension writes through. See presets-by-effort. */
+ * is written is computed by `changeTemplateConfigToWrite` — the one core
+ * function every surface applies a configuration to a change through,
+ * the extension's run dialog and the settings view included. See
+ * presets-by-effort and a-stage-override-keeps-its-custom-agent. */
 export async function applyTemplateToChange(
   request: ChangeEditorRequest,
   cwd: string,
   changeName: string,
   template: HarnessTemplate,
 ): Promise<void> {
-  const [existing, resolved] = await Promise.all([
+  const [existing, global] = await Promise.all([
     readChangeHarnessOverride(request, cwd, changeName),
-    // The resolved config, not the override: the effort has to be
-    // resolved against the agent the stage will actually use, and that
-    // is usually named in the global file rather than in the change.
-    resolveHarnessConfig(request, cwd, changeName),
+    // The global file, not the change's own override: the effort has to
+    // be resolved against the agent the stage will actually use, and
+    // that is usually named globally rather than in the change. The
+    // core function merges the two.
+    resolveHarnessConfig(request, cwd),
   ]);
-  const config = templateConfigToWrite(template, resolved.stepAgents ?? {}, existing ?? {});
+  const config = changeTemplateConfigToWrite(template, global, existing ?? undefined);
   await writeHarnessConfig(request, cwd, config, changeName);
 }

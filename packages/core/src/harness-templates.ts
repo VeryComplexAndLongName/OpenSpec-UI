@@ -27,7 +27,7 @@
 
 import type { HarnessConfig } from "./harness-config.js";
 import { resolveEffortLevel, type HarnessEffortLevel } from "./harness-effort-level.js";
-import { normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents, type HarnessStepAgentStage } from "./harness-step-agent.js";
+import { mergeStepAgents, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents, type HarnessStepAgentStage } from "./harness-step-agent.js";
 
 /** Where a template may be applied.
  *
@@ -53,7 +53,13 @@ export interface HarnessTemplate {
   /** Where in the agent's own effort range this sits. Resolved when the
    * configuration is applied, against the agent that stage uses — a
    * stored literal would be wrong for any agent that does not accept it,
-   * and `max` is not a value `codex-cli` accepts. */
+   * and `max` is not a value `codex-cli` accepts.
+   *
+   * The four levels are positions in the range by thirds — 1, 2/3, 1/3,
+   * 0 (`harness-effort-level.ts`) — so the words a configuration uses
+   * about itself name a position and never a synonym. "The middle of
+   * this agent's range" was a third of the way up, which for
+   * `copilot-cli` is `low`, the third of seven. */
   effortLevel: HarnessEffortLevel;
   scope: HarnessTemplateScope;
   config: Partial<HarnessConfig>;
@@ -89,8 +95,8 @@ export const HARNESS_TEMPLATES: readonly HarnessTemplate[] = [
     title: "Careful",
     effortLevel: "high",
     intent:
-      "Above ordinary effort, with room to finish. For work you want done properly but do not"
-      + " need the most expensive setting for.",
+      "Two thirds of the way up this agent's range, with room to finish. For work you want done"
+      + " properly but do not need the most expensive setting for.",
     notFor:
       "A change that has already failed twice. More effort at the same approach is not what"
       + " that needs.",
@@ -111,8 +117,8 @@ export const HARNESS_TEMPLATES: readonly HarnessTemplate[] = [
     title: "Balanced",
     effortLevel: "medium",
     intent:
-      "The middle of this agent's range, with ceilings close to what an ordinary change here"
-      + " actually costs.",
+      "A third of the way up this agent's range, with ceilings close to what an ordinary change"
+      + " here actually costs.",
     notFor:
       "Work you cannot afford to have cut short. Its stage ceiling sits at p75, so it stops"
       + " the slowest quarter of runs.",
@@ -222,6 +228,34 @@ export function templateConfigToWrite(
     ...template.config,
     ...(Object.keys(stepAgents).length > 0 ? { stepAgents } : {}),
   };
+}
+
+/** The override to write when a named configuration is applied to one
+ * change — the single function every surface applies one through.
+ *
+ * A configuration's effort belongs to the agent the stage will actually
+ * run, and for a stage the change does not name that agent comes from
+ * the base file. Resolving against the override on its own gives every
+ * inherited stage no effort at all, which is what the settings view did
+ * while the run dialog resolved against the merged configuration: two
+ * surfaces, one change, one named configuration, and two different
+ * files. Merging here rather than at each caller leaves that divergence
+ * nowhere to live. See a-stage-override-keeps-its-custom-agent.
+ *
+ * `base` is the global `openspec/agent-harness.json`. `override` is the
+ * change's own `harness.json`, or `undefined` when it has none — and
+ * what comes back is a whole override file, since the writer replaces
+ * it. */
+export function changeTemplateConfigToWrite(
+  template: HarnessTemplate,
+  base: HarnessConfig,
+  override: Partial<HarnessConfig> | undefined,
+): Partial<HarnessConfig> {
+  return templateConfigToWrite(
+    template,
+    mergeStepAgents(base.stepAgents, override?.stepAgents),
+    override ?? {},
+  );
 }
 
 /** `normalizeStepAgent` fills every field, absent ones as `undefined`.

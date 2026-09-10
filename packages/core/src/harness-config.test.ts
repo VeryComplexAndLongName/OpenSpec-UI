@@ -25,6 +25,11 @@ import {
   writeGlobalHarnessConfig,
   type HarnessConfig,
 } from "./harness-config.js";
+// The other half of the disagreement this file pins: `templateConfigToWrite`
+// merged a stage entry by spread and kept `customAgent`, `mergeStepAgent`
+// named three fields and dropped it, so the same entry came out of the two
+// differently. See a-stage-override-keeps-its-custom-agent.
+import { HARNESS_TEMPLATES, templateConfigToWrite } from "./harness-templates.js";
 
 // suite-survives-a-loaded-machine:
 // measured 2026-09-05 for this file alone at 734ms test time (3.91s wall)
@@ -1252,6 +1257,122 @@ describe("mergeHarnessConfig — a stage override keeps what it does not name", 
       effort: "max",
       budget: { maxCostUsd: 4 },
     });
+  });
+});
+
+describe("mergeHarnessConfig — the merge carries every field the entry may carry", () => {
+  // a-stage-override-keeps-its-custom-agent. The merge named model,
+  // effort and budget. `customAgent` was added to the entry, to the
+  // validator's accepted-key list and to every adapter, and not here —
+  // so a change naming the same agent plus a custom agent resolved
+  // without it and the chain ran with no `--agent` flag, silently. The
+  // merge now iterates `STEP_AGENT_KEYS`, so the fifth field arrives
+  // already merged.
+
+  const base = (): HarnessConfig => ({
+    stepAgents: { apply: { agent: "claude-cli", model: "claude-opus-5", effort: "high" } },
+    autonomyLevel: "assisted",
+    reviewGate: { mode: "human-required" },
+  });
+
+  it("takes a custom agent the change names over a base that names none", () => {
+    const merged = mergeHarnessConfig(base(), {
+      stepAgents: { apply: { agent: "claude-cli", customAgent: "reviewer" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({
+      agent: "claude-cli",
+      model: "claude-opus-5",
+      effort: "high",
+      customAgent: "reviewer",
+    });
+  });
+
+  it("keeps a base custom agent behind an override that names only an effort", () => {
+    const withCustomAgent: HarnessConfig = {
+      ...base(),
+      stepAgents: { apply: { agent: "claude-cli", customAgent: "reviewer" } },
+    };
+
+    const merged = mergeHarnessConfig(withCustomAgent, {
+      stepAgents: { apply: { agent: "claude-cli", effort: "max" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({
+      agent: "claude-cli",
+      effort: "max",
+      customAgent: "reviewer",
+    });
+  });
+
+  it("lets the change's custom agent win over the base's for the same agent", () => {
+    const withCustomAgent: HarnessConfig = {
+      ...base(),
+      stepAgents: { apply: { agent: "claude-cli", customAgent: "reviewer" } },
+    };
+
+    const merged = mergeHarnessConfig(withCustomAgent, {
+      stepAgents: { apply: { agent: "claude-cli", customAgent: "shipper" } },
+    });
+
+    expect(normalizeStepAgent(merged.stepAgents.apply!).customAgent).toBe("shipper");
+  });
+
+  it("inherits no custom agent when the change names a different agent", () => {
+    // A custom agent is a definition one CLI reads: `claude` looks in
+    // `.claude/agents`, `copilot` in `.github/agents`. Carrying a name
+    // across a change of agent points at a file the new CLI has never
+    // heard of.
+    const withCustomAgent: HarnessConfig = {
+      ...base(),
+      stepAgents: { apply: { agent: "claude-cli", customAgent: "reviewer" } },
+    };
+
+    const merged = mergeHarnessConfig(withCustomAgent, {
+      stepAgents: { apply: { agent: "copilot-cli", effort: "high" } },
+    });
+
+    expect(merged.stepAgents.apply).toEqual({ agent: "copilot-cli", effort: "high" });
+  });
+
+  it("carries every field of the entry, asserted over STEP_AGENT_KEYS", () => {
+    // Naming the fields is what let `customAgent` be forgotten. The
+    // list is the thing to assert on, so the sixth field added to an
+    // entry fails here rather than being dropped in silence.
+    const everyField = {
+      agent: "claude-cli",
+      model: "claude-opus-5",
+      effort: "max",
+      budget: { maxCostUsd: 4 },
+      customAgent: "reviewer",
+    } as const;
+    const full: HarnessConfig = { ...base(), stepAgents: { apply: { ...everyField } } };
+
+    // An override naming the agent alone inherits all of it.
+    const merged = mergeHarnessConfig(full, { stepAgents: { apply: "claude-cli" } });
+
+    for (const key of STEP_AGENT_KEYS) {
+      expect(merged.stepAgents.apply).toHaveProperty(key, everyField[key]);
+    }
+  });
+
+  it("agrees with templateConfigToWrite, which merges the same entry by spread", () => {
+    // The two disagreed: the spread kept `customAgent` and the merge
+    // dropped it, so what a named configuration wrote and what the
+    // configuration then resolved to were not the same entry.
+    const entry = { agent: "claude-cli", model: "claude-opus-5", customAgent: "reviewer" } as const;
+    const merged = mergeHarnessConfig(
+      { ...base(), stepAgents: { apply: { ...entry } } },
+      { stepAgents: { apply: { agent: "claude-cli", effort: "low" } } },
+    );
+    const written = templateConfigToWrite(
+      HARNESS_TEMPLATES.find((template) => template.effortLevel === "lowest")!,
+      { apply: { ...entry } },
+      { stepAgents: { apply: { ...entry } } },
+    );
+
+    expect(written.stepAgents?.apply).toEqual({ ...entry, effort: "low" });
+    expect(merged.stepAgents.apply).toEqual(written.stepAgents?.apply);
   });
 });
 

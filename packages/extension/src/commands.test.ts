@@ -5,7 +5,7 @@ import { createVscodeMock } from "./test-utils/vscode-mock.js";
 // "@openspec-ui/core" below does not swallow it. What gets written when
 // a configuration is applied is the behaviour under test, and a stub
 // would assert the stub.
-import { templateConfigToWrite as templateConfigToWriteReal } from "@openspec-ui/core/browser";
+import { changeTemplateConfigToWrite as changeTemplateConfigToWriteReal } from "@openspec-ui/core/browser";
 
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
@@ -74,12 +74,13 @@ vi.mock("@openspec-ui/core", () => ({
   // the thing run-dialog-actually-advises adds.
   templatesForScope: () => [
     { id: "thorough", title: "Thorough", effortLevel: "highest", intent: "The most careful work this agent can do.", notFor: "Ordinary work.", basis: "judgement.", scope: "either", config: { maxStageAttempts: 3 } },
-    { id: "balanced", title: "Balanced", effortLevel: "medium", intent: "The middle of this agent's range.", notFor: "Work you cannot afford to have cut short.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
+    { id: "balanced", title: "Balanced", effortLevel: "medium", intent: "A third of the way up this agent's range.", notFor: "Work you cannot afford to have cut short.", basis: "p75.", scope: "either", config: { maxStageAttempts: 2 } },
     { id: "economy", title: "Economy", effortLevel: "lowest", intent: "The least this agent will do.", notFor: "Work that failed once.", basis: "median.", scope: "either", config: { maxStageAttempts: 2 } },
   ],
   // The real one: what is written when a configuration is applied is the
   // behaviour these tests are about, and a stub would assert the mock.
-  templateConfigToWrite: (...args: unknown[]) => templateConfigToWriteReal(...(args as Parameters<typeof templateConfigToWriteReal>)),
+  changeTemplateConfigToWrite: (...args: unknown[]) =>
+    changeTemplateConfigToWriteReal(...(args as Parameters<typeof changeTemplateConfigToWriteReal>)),
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
@@ -2526,6 +2527,14 @@ describe("createRunChoiceHandler", () => {
   });
 
   it("writes the named configuration and posts the plan the file now resolves to", async () => {
+    // The global file is what the effort is resolved against — the
+    // change's own override names no agent here, and an inherited stage
+    // still runs the one the global file names.
+    readGlobalHarnessConfigMock.mockResolvedValue({
+      stepAgents: { apply: { agent: "codex-cli" } },
+      autonomyLevel: "assisted",
+      reviewGate: { mode: "human-required" },
+    });
     resolveHarnessConfigMock.mockResolvedValue({
       stepAgents: { apply: { agent: "codex-cli" } },
       autonomyLevel: "assisted",
