@@ -57,7 +57,7 @@ export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } fro
 // Pure over a resolved config, with only type imports from the Node-side
 // modules — safe in the browser bundle, unlike harness-config.js itself.
 export { findHarnessConfigLimits } from "./harness-config-findings.js";
-export { HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
+export { changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 export { HARNESS_EFFORT_LEVELS, effortLevelCollisions, resolveEffortLevel } from "./harness-effort-level.js";
 export type { HarnessEffortLevel, ResolvedEffort } from "./harness-effort-level.js";
 export { recommendTemplate } from "./harness-recommendation.js";
@@ -91,7 +91,10 @@ export {
   HARNESS_AGENT_CAPABILITIES,
   HARNESS_EFFORT_VALUES,
   isHarnessStepAgentStage,
+  mergeStepAgent,
+  mergeStepAgents,
   normalizeStepAgent,
+  STEP_AGENT_KEYS,
   stepAgentFor,
   VSCODE_CHAT_STEP_AGENT_ID,
   type HarnessAgentCapabilities,

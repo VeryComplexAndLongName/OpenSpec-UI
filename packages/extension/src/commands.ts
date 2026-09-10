@@ -22,7 +22,7 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   buildRunPlan,
-  templateConfigToWrite,
+  changeTemplateConfigToWrite,
   templatesForScope,
   type RecommendationInput,
   recommendTemplate,
@@ -571,17 +571,19 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
       }
 
       // Laid over what the change already has, through the same `core`
-      // function the standalone shell writes through — the configuration
-      // carries an effort level rather than a value, and the writer
-      // replaces the file, so a key it does not mention would be deleted
-      // by applying one. See applying-a-template-keeps-the-rest and
-      // presets-by-effort.
-      const config = await resolveHarnessConfig(workspaceRoot, changeName);
+      // function every other surface writes through — the configuration
+      // carries an effort level rather than a value, the effort belongs
+      // to the agent the stage will actually run (usually named in the
+      // global file, not in the change), and the writer replaces the
+      // file, so a key it does not mention would be deleted by applying
+      // one. See applying-a-template-keeps-the-rest, presets-by-effort
+      // and a-stage-override-keeps-its-custom-agent.
+      const global = await readGlobalHarnessConfig(workspaceRoot);
       const existing = await readChangeHarnessConfig(workspaceRoot, changeName);
       await writeChangeHarnessConfig(
         workspaceRoot,
         changeName,
-        templateConfigToWrite(template, config.stepAgents ?? {}, existing ?? {}),
+        changeTemplateConfigToWrite(template, global, existing),
       );
 
       // Re-read rather than re-render what was on screen: the dialog

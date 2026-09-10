@@ -25,6 +25,19 @@ export const VSCODE_CHAT_STEP_AGENT_ID = "vscode-chat";
 export type HarnessStepAgent =
   | string
   | { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget; customAgent?: string };
+
+/** Every field a stage entry may carry.
+ *
+ * Exported for the same reason `TOP_LEVEL_CONFIG_KEYS` is: a guard that
+ * iterates the list catches the next key added to the entry and
+ * forgotten elsewhere, where a guard naming the keys would not. It lives
+ * beside the type it describes so that both readers of it —
+ * `harness-config.ts`'s validator and `mergeStepAgent` below — read one
+ * list. `customAgent` was added to the type and to the validator and not
+ * to the merge, and a per-change override naming the same agent plus a
+ * custom agent resolved without it. See
+ * a-stage-override-keeps-its-custom-agent. */
+export const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget", "customAgent"] as const;
 /** Stages `CHAIN_STAGES` (harness-chain-runner.ts) drives that never
  * invoke a CLI agent — each is either a mechanical operation (`archive`
  * calls `openspec archive` directly) or a dedicated non-agent sequence
@@ -174,4 +187,67 @@ export function normalizeStepAgent(
 ): { agent: string; model?: string; effort?: HarnessEffort; budget?: HarnessStepBudget; customAgent?: string } {
   if (typeof entry === "string") return { agent: entry };
   return { agent: entry.agent, model: entry.model, effort: entry.effort, budget: entry.budget, customAgent: entry.customAgent };
+}
+
+/** Merges one stage's entry over the base's, field by field.
+ *
+ * The base file is the default and a change states its differences. An
+ * entry replaced outright makes "run this stage at higher effort" also
+ * mean "and forget which model I chose" — which is what it meant until
+ * this function existed, and what silently discarded the model this
+ * repository sets for every stage.
+ *
+ * The fields come from `STEP_AGENT_KEYS`, not from a list written out
+ * here. Three names were written out here, `customAgent` became the
+ * fourth field an entry may carry, and the merge dropped it: a change
+ * naming the same agent plus a custom agent resolved without one, and
+ * the chain ran with no `--agent` flag and said nothing. Driving both
+ * the merge and the bare-string collapse below off the list is what
+ * makes the fifth field arrive already merged. See
+ * a-stage-override-keeps-its-custom-agent.
+ *
+ * A change naming a **different agent** inherits nothing — the one rule
+ * that stays explicit. A stage's model, effort, budget and custom agent
+ * belong to its agent: `copilot` accepts seven effort values, `claude`
+ * five, `codex` four and five agents accept none, a budget is
+ * denominated in whichever unit its agent reports (`maxCostUsd` or
+ * `maxAiCredits`), and a custom agent is a definition one CLI reads.
+ * Carrying those across a change of agent builds a configuration its
+ * author never wrote.
+ *
+ * Lives in this leaf module rather than in `harness-config.ts` so that
+ * `changeTemplateConfigToWrite` (harness-templates.ts) can resolve an
+ * override over the base in the browser bundle too — see this file's
+ * header comment for why importing a value from `harness-config.ts`
+ * would pull `node:fs` in with it.
+ *
+ * See stage-override-keeps-the-rest. */
+export function mergeStepAgent(base: HarnessStepAgent | undefined, over: HarnessStepAgent): HarnessStepAgent {
+  if (base === undefined) return over;
+  const from = normalizeStepAgent(base);
+  const to = normalizeStepAgent(over);
+  if (from.agent !== to.agent) return over;
+  const merged: Exclude<HarnessStepAgent, string> = { agent: to.agent };
+  const fields = merged as Record<string, unknown>;
+  for (const key of STEP_AGENT_KEYS) {
+    if (key === "agent") continue;
+    const value = to[key] ?? from[key];
+    if (value !== undefined) fields[key] = value;
+  }
+  // A stage that ends up carrying nothing but its agent is written back
+  // in the bare-string form it came in as, so a resolved config is not
+  // gratuitously different in shape from the files it was built from.
+  const carriesOnlyAgent = STEP_AGENT_KEYS.every((key) => key === "agent" || fields[key] === undefined);
+  return carriesOnlyAgent ? merged.agent : merged;
+}
+
+/** Merges a per-change `stepAgents` map over the base's, key by key —
+ * a change overriding only `apply` still inherits every other stage. */
+export function mergeStepAgents(base: HarnessStepAgents, over: HarnessStepAgents | undefined): HarnessStepAgents {
+  if (over === undefined) return base;
+  const result: HarnessStepAgents = { ...base };
+  for (const [stage, entry] of Object.entries(over) as Array<[HarnessStepAgentStage, HarnessStepAgent]>) {
+    result[stage] = mergeStepAgent(base[stage], entry);
+  }
+  return result;
 }

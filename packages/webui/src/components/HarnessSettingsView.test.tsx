@@ -472,6 +472,91 @@ describe("HarnessSettingsView — a per-change template", () => {
     expect(saved.timeout).toEqual(applied.config.timeout);
     expect(saved.maxStageAttempts).toBe(applied.config.maxStageAttempts);
   });
+
+  describe("applied against what the change resolves to", () => {
+    // a-stage-override-keeps-its-custom-agent. This form resolved a
+    // configuration's effort against the override's own fields, where
+    // every stage the change does not name reads as "inherit" — so
+    // nothing ever got an effort, and the message blamed the agents:
+    // "None of the agents on screen takes an effort setting", which was
+    // not the reason. The run dialog, resolving against the merged
+    // configuration, wrote a different file for the same change.
+
+    /** `verify` deliberately left unset: a stage with no agent anywhere
+     * and a stage whose agent takes no effort are different facts, and
+     * the message has to tell them apart. */
+    const mixedGlobal = () => ({
+      stepAgents: { propose: "claude-cli", review: "gemini-cli", apply: "codex-cli" },
+      autonomyLevel: "assisted",
+      reviewGate: { mode: "human-required" },
+    });
+
+    async function applyEconomyToChange(api: HarnessSettingsApi) {
+      render(<HarnessSettingsView api={api} />);
+      await screen.findByLabelText("propose agent");
+      fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+      fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+      await screen.findByTestId("harness-template-change-economy");
+      fireEvent.click(screen.getByTestId("harness-template-change-economy").querySelector("button")!);
+    }
+
+    it("writes an effort for each stage whose inherited agent accepts one", async () => {
+      const api = createApi({
+        resolveGlobal: vi.fn().mockResolvedValue(mixedGlobal()),
+        readChangeOverride: vi.fn().mockResolvedValue(null),
+      });
+      await applyEconomyToChange(api);
+
+      // Each agent's own bottom value, and the agent beside it: an
+      // effort without its agent means nothing.
+      expect(screen.getByLabelText("change propose effort")).toHaveValue("low");
+      expect(screen.getByLabelText("change apply effort")).toHaveValue("minimal");
+      expect(screen.getByLabelText("change propose agent")).toHaveValue("claude-cli");
+      expect(screen.getByLabelText("change apply agent")).toHaveValue("codex-cli");
+
+      fireEvent.click(screen.getByRole("button", { name: "Save override" }));
+      await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+      const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+      expect(saved.stepAgents).toEqual({
+        propose: { agent: "claude-cli", effort: "low" },
+        apply: { agent: "codex-cli", effort: "minimal" },
+      });
+    });
+
+    it("says which stages were given an effort, and why the others were not", async () => {
+      const api = createApi({
+        resolveGlobal: vi.fn().mockResolvedValue(mixedGlobal()),
+        readChangeOverride: vi.fn().mockResolvedValue(null),
+      });
+      await applyEconomyToChange(api);
+
+      const message = screen.getByRole("status").textContent ?? "";
+      expect(message).toContain("propose low");
+      expect(message).toContain("apply minimal");
+      // The agent that takes none, named — and distinguished from the
+      // stage that has no agent at all.
+      expect(message).toContain("review (gemini-cli)");
+      expect(message).toContain("No agent is chosen for verify");
+      // The sentence that used to be said here is a claim about the
+      // agents, and it is false of these.
+      expect(message).not.toContain("None of the agents on screen");
+    });
+
+    it("says no agent on screen accepts an effort only when that is so", async () => {
+      const api = createApi({
+        resolveGlobal: vi.fn().mockResolvedValue({
+          stepAgents: { propose: "gemini-cli", review: "gemini-cli", apply: "local-llm", verify: "local-llm" },
+          autonomyLevel: "assisted",
+          reviewGate: { mode: "human-required" },
+        }),
+        readChangeOverride: vi.fn().mockResolvedValue(null),
+      });
+      await applyEconomyToChange(api);
+
+      expect(screen.getByRole("status").textContent)
+        .toContain("None of the agents on screen takes an effort setting");
+    });
+  });
 });
 
 describe("HarnessSettingsView — custom agents", () => {
