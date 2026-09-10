@@ -4,6 +4,7 @@ import path from "node:path";
 import simpleGit, { type SimpleGit } from "simple-git";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { buildSprintReport } from "./sprint-report.js";
+import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
 // Measured baseline on 2026-09-02 before this optimization: this file
 // intermittently timed out under co-load at Vitest's 5000ms default,
@@ -46,7 +47,9 @@ async function getSharedReadOnlyRepoRoot(): Promise<string> {
 }
 
 async function initRepo(root: string): Promise<SimpleGit> {
-  const git = simpleGit(root);
+  // Isolated from the machine's git configuration, like every other call
+  // here — see test-support/git-isolation.ts.
+  const git = simpleGit(root, await gitIsolationOptions());
   await git.init();
   return git;
 }
@@ -58,7 +61,7 @@ async function commitAllAs(
   authorName: string,
   authorEmail: string,
 ): Promise<void> {
-  const git = simpleGit(root).env({
+  const git = simpleGit(root, await gitIsolationOptions()).env({
     GIT_AUTHOR_DATE: isoDate,
     GIT_COMMITTER_DATE: isoDate,
     GIT_AUTHOR_NAME: authorName,

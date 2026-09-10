@@ -658,3 +658,53 @@ describe("HarnessSettingsView — custom agents", () => {
     });
   });
 });
+
+describe("HarnessSettingsView — a host that never answers", () => {
+  // The bridge now rejects a request nobody replied to, after a stated
+  // interval (see bridge-request.ts). This is what the form does with
+  // that rejection: before it existed, the promise never settled and the
+  // form sat on "Working..." with its save button disabled and nothing
+  // said. See a-check-that-passes-checked-something.
+  const noReply = () => new Error("the host did not reply within 10 seconds to harness/write-global");
+
+  it("shows the reason a save got no answer, and re-enables the save button", async () => {
+    const api = createApi({ writeGlobal: vi.fn().mockRejectedValue(noReply()) });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save global config" }));
+
+    expect(await screen.findByText(/did not reply within 10 seconds to harness\/write-global/u)).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: "Save global config" });
+    expect(button).toBeEnabled();
+  });
+
+  it("shows the reason a load got no answer rather than an empty form", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockRejectedValue(
+        new Error("the host did not reply within 10 seconds to harness/resolve-global"),
+      ),
+    });
+    render(<HarnessSettingsView api={api} />);
+
+    expect(await screen.findByText(/did not reply within 10 seconds to harness\/resolve-global/u)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Save global config" })).toBeEnabled();
+  });
+
+  it("shows the reason a change override got no answer", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockRejectedValue(
+        new Error("the host did not reply within 10 seconds to harness/read-change-override"),
+      ),
+    });
+    render(<HarnessSettingsView api={api} />);
+    await screen.findByLabelText("propose agent");
+
+    fireEvent.change(screen.getByTestId("change-override-name-input"), { target: { value: "demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load override" }));
+
+    expect(await screen.findByText(/did not reply within 10 seconds to harness\/read-change-override/u))
+      .toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Load override" })).toBeEnabled();
+  });
+});

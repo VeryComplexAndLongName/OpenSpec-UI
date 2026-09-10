@@ -49,7 +49,15 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await server?.close();
-  if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+  // Retried, unlike the other e2e fixtures' cleanups: this file now
+  // loads the page twice against one workspace, and on Windows the
+  // second load's handles outlive `close()` by a few milliseconds — the
+  // first run of the second test failed the whole file with `EBUSY:
+  // resource busy or locked, rmdir` while every assertion in it had
+  // passed. `maxRetries` is what `fs.rm` offers for exactly that.
+  if (workspaceRoot) {
+    await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });
 
 test("says how much is waiting, and on whom, per row", async ({ page }) => {
@@ -84,4 +92,35 @@ test("says how much is waiting, and on whom, per row", async ({ page }) => {
   // The ordinary open task of the first change is not here: this is what
   // nobody's implementing agent will close, not what is unfinished.
   await expect(inbox).not.toContainText("1.1 Ordinary");
+});
+
+test("says the inbox could not be read, rather than showing no block", async ({ page }) => {
+  // a-check-that-passes-checked-something: the shell used to set the
+  // inbox to `null` when the request failed, so "could not read the task
+  // files" and "not loaded yet" rendered identically — nothing at all.
+  //
+  // The failure is injected at the network rather than by breaking the
+  // workspace: what is asserted is the shell's rendering of a refusal,
+  // and the server has its own tests for refusing.
+  test.setTimeout(60_000);
+
+  await page.route("**/api/human-only-inbox", (route) => route.fulfill({
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: "EACCES: permission denied, scandir 'openspec/changes'" }),
+  }));
+
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByLabel("Workspace root (cwd)").blur();
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+
+  const inbox = page.getByTestId("human-only-inbox");
+  await expect(inbox).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("human-only-inbox-basis"))
+    .toContainText("What is waiting could not be read: EACCES: permission denied");
+
+  // The summary beside it still loaded: one read failing is not the
+  // other read failing.
+  await expect(page.getByTestId("openspec-overview")).toBeVisible();
 });

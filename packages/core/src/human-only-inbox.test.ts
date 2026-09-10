@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collectHumanOnlyInbox, describeHumanOnlyInbox, describeWaitingOn } from "./human-only-inbox.js";
+import {
+  collectHumanOnlyInbox,
+  describeHumanOnlyInbox,
+  describeHumanOnlyInboxState,
+  describeWaitingOn,
+} from "./human-only-inbox.js";
 import type { HumanOnlyItem } from "./human-only-inbox.js";
 
 // human-only-inbox-in-the-shell, a-live-check-names-who-performs-it:
@@ -173,5 +178,28 @@ describe("describeHumanOnlyInbox", () => {
 
     expect(describeHumanOnlyInbox({ items, changesRead: 1 }))
       .toContain("1 on \"copilto-cli\", which is not a registered agent");
+  });
+});
+
+describe("describeHumanOnlyInboxState", () => {
+  it("says a read failed, and why, where the count would have been", () => {
+    // A failure the surface renders as nothing is indistinguishable from
+    // a block that has not loaded yet, which is the distinction this
+    // surface exists to make. See
+    // a-check-that-passes-checked-something.
+    expect(describeHumanOnlyInboxState({ status: "failed", reason: "EACCES: permission denied" }))
+      .toBe("What is waiting could not be read: EACCES: permission denied.");
+  });
+
+  it("says so even when the failure carried no reason", () => {
+    expect(describeHumanOnlyInboxState({ status: "failed", reason: "  " }))
+      .toBe("What is waiting could not be read: no reason given.");
+  });
+
+  it("says what a successful read says", () => {
+    const inbox = { items: [person("a", 1)], changesRead: 2 };
+
+    expect(describeHumanOnlyInboxState({ status: "loaded", inbox }))
+      .toBe(describeHumanOnlyInbox(inbox));
   });
 });

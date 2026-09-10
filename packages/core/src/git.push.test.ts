@@ -4,6 +4,7 @@ import path from "node:path";
 import simpleGit from "simple-git";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { createGitWrapper } from "./git.js";
+import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
 // This file used to carry no timeout deliberately, and the reason still
 // matters: it does not stall because it is slow. On Windows, Git for
@@ -41,7 +42,9 @@ afterAll(async () => {
 });
 
 async function commitAll(repoRoot: string, message: string, isoDate: string): Promise<void> {
-  const git = simpleGit(repoRoot).env({
+  // Isolated from the machine's git configuration — see
+  // test-support/git-isolation.ts.
+  const git = simpleGit(repoRoot, await gitIsolationOptions()).env({
     GIT_AUTHOR_NAME: "Test User",
     GIT_AUTHOR_EMAIL: "test@example.com",
     GIT_COMMITTER_NAME: "Test User",
@@ -58,9 +61,10 @@ describe("createGitWrapper.push", () => {
     const remoteRoot = await temporaryRoot("openspec-git-remote-");
     const repoRoot = await temporaryRoot("openspec-git-local-");
 
-    await simpleGit(remoteRoot).init(true);
+    const isolated = await gitIsolationOptions();
+    await simpleGit(remoteRoot, isolated).init(true);
 
-    const localGit = simpleGit(repoRoot);
+    const localGit = simpleGit(repoRoot, isolated);
     await localGit.init();
     await localGit.raw(["branch", "-M", "main"]);
     await localGit.addRemote("origin", remoteRoot);
@@ -75,7 +79,7 @@ describe("createGitWrapper.push", () => {
     await wrapper.push("origin", "main");
 
     const localHead = (await localGit.raw(["rev-parse", "HEAD"])).trim();
-    const remoteHead = (await simpleGit(remoteRoot).raw(["rev-parse", "refs/heads/main"])).trim();
+    const remoteHead = (await simpleGit(remoteRoot, isolated).raw(["rev-parse", "refs/heads/main"])).trim();
     expect(remoteHead).toBe(localHead);
   });
 });

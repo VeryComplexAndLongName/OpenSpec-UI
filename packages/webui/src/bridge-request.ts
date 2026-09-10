@@ -14,6 +14,25 @@
 export const BRIDGE_REQUEST_MESSAGE_TYPE = "openspec-ui/request";
 export const BRIDGE_RESPONSE_MESSAGE_TYPE = "openspec-ui/response";
 
+/** How long a request waits before it says nobody answered.
+ *
+ * The host replies on every path it knows — success, refusal, unknown
+ * operation, a thrown error — so the only ways to get no reply at all
+ * are a request posted before the panel's listener attaches and a host
+ * that dies between receiving and replying. Neither used to settle the
+ * promise, and the settings view then sat on "Working..." with its save
+ * button disabled and nothing said. See
+ * a-check-that-passes-checked-something.
+ *
+ * Sized from what these operations cost, measured 2026-09-10 over this
+ * repository (247 changes, 59 specs), five runs each after a warm-up:
+ * `harness/resolve-global` 0.4-0.9 ms warm and 10.4 ms cold,
+ * `harness/read-change-override` 0.2-0.4 ms, `custom-agents/list`
+ * 0.7-1.0 ms. Ten seconds is three orders of magnitude over the slowest
+ * of those: it is a ceiling for "nobody is coming", not a budget any
+ * real answer has to beat. */
+export const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
+
 /** What the host offers. Named operations, never a path, a file or a
  * function name: a message must not be able to say what gets read or
  * written. */
@@ -65,16 +84,34 @@ export interface EventTargetLike {
 export function createBridgeRequester(
     poster: BridgePoster,
     eventTarget: EventTargetLike = window,
+    timeoutMs: number = BRIDGE_REQUEST_TIMEOUT_MS,
 ): { request: <T>(op: BridgeOperation, args?: unknown) => Promise<T>; dispose: () => void } {
-    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+    interface Waiting {
+        resolve: (value: unknown) => void;
+        reject: (error: Error) => void;
+        timer: ReturnType<typeof setTimeout>;
+    }
+    const pending = new Map<string, Waiting>();
     let nextId = 0;
+
+    /** Takes a request out of the map and stops its clock. Every path
+     * that settles a promise goes through here, so a reply arriving
+     * after a timeout finds nothing waiting and is ignored — settling an
+     * already-settled promise is silent, but leaving the timer running
+     * is not. */
+    const claim = (id: string): Waiting | undefined => {
+        const waiting = pending.get(id);
+        if (!waiting) return undefined;
+        pending.delete(id);
+        clearTimeout(waiting.timer);
+        return waiting;
+    };
 
     const handler = (event: Event): void => {
         const data = (event as MessageEvent<unknown>).data;
         if (!isBridgeResponseMessage(data)) return;
-        const waiting = pending.get(data.id);
+        const waiting = claim(data.id);
         if (!waiting) return;
-        pending.delete(data.id);
         if (data.ok) waiting.resolve(data.value);
         // A refusal reaching the caller as a rejection is the whole point
         // of the channel having two outcomes.
@@ -86,7 +123,15 @@ export function createBridgeRequester(
         request<T>(op: BridgeOperation, args?: unknown): Promise<T> {
             const id = `${op}:${nextId++}`;
             return new Promise<T>((resolve, reject) => {
-                pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
+                const timer = setTimeout(() => {
+                    // The operation is named because the caller may have
+                    // two in flight, and "something did not answer" is
+                    // not a message anybody can act on.
+                    claim(id)?.reject(new Error(
+                        `the host did not reply within ${Math.round(timeoutMs / 1000)} seconds to ${op}`,
+                    ));
+                }, timeoutMs);
+                pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
                 poster.postMessage({ type: BRIDGE_REQUEST_MESSAGE_TYPE, id, op, ...(args === undefined ? {} : { args }) });
             });
         },
@@ -94,8 +139,9 @@ export function createBridgeRequester(
             eventTarget.removeEventListener("message", handler as EventListener);
             // Nothing will answer these now. Left pending they would be
             // promises that never settle, which is worse than an error.
-            for (const waiting of pending.values()) waiting.reject(new Error("the panel closed before an answer arrived"));
-            pending.clear();
+            for (const id of [...pending.keys()]) {
+                claim(id)?.reject(new Error("the panel closed before an answer arrived"));
+            }
         },
     };
 }

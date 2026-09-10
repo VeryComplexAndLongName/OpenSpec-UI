@@ -25,8 +25,8 @@ import { discoverOpenSpecWorkspace } from "./workbench.js";
 // module with no Node imports: `webui` needs them, and re-exporting a
 // value from here would pull `node:fs` into the browser bundle through
 // `readTaskChecklist`.
-export type { HumanOnlyInbox, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
-export { describeHumanOnlyInbox, describeWaitingOn } from "./human-only-inbox-view.js";
+export type { HumanOnlyInbox, HumanOnlyInboxState, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
+export { describeHumanOnlyInbox, describeHumanOnlyInboxState, describeWaitingOn } from "./human-only-inbox-view.js";
 
 /** Who this task waits on, or `undefined` where it waits on the
  * implementing agent like any other task.
