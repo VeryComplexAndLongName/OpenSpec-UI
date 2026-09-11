@@ -20,6 +20,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import type { AgentRunner } from "./agent-runner.js";
 import { isValidChangeName } from "./change-name.js";
+import { findUnmetBlockers, readChangeGraph } from "./change-graph.js";
 import {
   type HarnessConfig,
   type HarnessStepAgentStage,
@@ -148,6 +149,45 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
           + ` checkpoints.requireConfirmationBetweenSteps to false in openspec/changes/${changeName}/harness.json`
           + " to say that this change may run unattended.",
         configKey: "checkpoints.requireConfirmationBetweenSteps",
+      },
+    };
+  }
+
+  // A blocker the change declared about itself, before the work a run
+  // would do. Not the cheapest check — it builds the change graph,
+  // where the agent check below is a map lookup — and it sits here
+  // anyway for the other half of the ordering principle: a run refused
+  // for a blocker should say so, rather than report a detail of a run
+  // that was never going to start.
+  //
+  // This is the RUN gate, not the validation gate. `checkChangeGraph`
+  // answers "does this repository validate", and an unmet blocker is
+  // deliberately not a violation there: it states a plan, and a plan
+  // not yet carried out is not a defect. Whether a run may start now is
+  // a different question, and the declaration answers it itself.
+  let unmet: string[] = [];
+  try {
+    const graph = await readChangeGraph(workspaceRoot);
+    unmet = findUnmetBlockers(graph)
+      .filter((blocker) => blocker.changeId === changeName)
+      .map((blocker) => blocker.blockedBy);
+  } catch {
+    // The graph could not be read. A run is not refused on a check that
+    // did not run — the same posture every other unestablished fact
+    // gets here.
+  }
+  if (unmet.length > 0) {
+    return {
+      ok: false,
+      refusal: {
+        // Every blocker, not the first: a reader who lands one and is
+        // refused again for the next was told half the truth.
+        reason: `this change declares that it is blocked by ${unmet.join(", ")},`
+          + ` which ${unmet.length === 1 ? "is" : "are"} still active.`
+          + " Land it and archive it, or remove the line from"
+          + ` openspec/changes/${changeName}/.openspec.yaml — there is no option that starts it anyway,`
+          + " because the declaration is a sentence its author wrote in a file under version control.",
+        // Deliberately no configKey: the remedy is not a setting.
       },
     };
   }

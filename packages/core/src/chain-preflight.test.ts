@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveChainStart } from "./chain-preflight.js";
+import { checkChangeGraph, readChangeGraph } from "./change-graph.js";
 import type { AgentRunner } from "./agent-runner.js";
 
 // every-varying-check-has-a-budget: every test here is a few small file
@@ -284,5 +285,123 @@ describe("resolveChainStart — declared steps", () => {
     // `anyAgent` throws if one ever is.
     expect(resolution).toMatchObject({ ok: false });
     if (!resolution.ok) expect(resolution.refusal.reason).toContain("could not be read");
+  });
+});
+
+describe("resolveChainStart — a declared blocker (a-declared-blocker-blocks)", () => {
+  /** A change whose `.openspec.yaml` carries relations. */
+  async function makeChangeWithRelations(
+    root: string,
+    changeName: string,
+    options: { blockedBy?: string[]; harness?: Record<string, unknown>; archived?: boolean } = {},
+  ): Promise<void> {
+    const base = options.archived
+      ? path.join(root, "openspec", "changes", "archive", `2026-09-11-${changeName}`)
+      : path.join(root, "openspec", "changes", changeName);
+    await mkdir(base, { recursive: true });
+    await writeFile(path.join(base, "proposal.md"), "# A change\n\n## Why\n\nBecause.\n", "utf8");
+    await writeFile(path.join(base, "tasks.md"), "- [ ] 1.1 Do the thing\n", "utf8");
+    const relations = (options.blockedBy ?? []).map((name) => `  - ${name}`).join("\n");
+    await writeFile(
+      path.join(base, ".openspec.yaml"),
+      `schema: spec-driven\ncreated: 2026-09-11\n${relations ? `blocked_by:\n${relations}\n` : ""}`,
+      "utf8",
+    );
+    if (options.harness) {
+      await writeFile(path.join(base, "harness.json"), JSON.stringify(options.harness, null, 2), "utf8");
+    }
+  }
+
+  const RUNS_UNATTENDED = { autonomyLevel: "autonomous" } as const;
+
+  it("refuses a chain whose blocker is still active, naming it", async () => {
+    const root = await temporaryRoot();
+    await makeChangeWithRelations(root, "the-blocker");
+    await makeChangeWithRelations(root, "a-change", { blockedBy: ["the-blocker"], harness: RUNS_UNATTENDED });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    expect(resolution).toMatchObject({ ok: false });
+    if (!resolution.ok) {
+      expect(resolution.refusal.reason).toContain("the-blocker");
+      // The remedy is not a setting, so nothing points at one.
+      expect(resolution.refusal.configKey).toBeUndefined();
+    }
+  });
+
+  it("starts once the blocker has been archived", async () => {
+    const root = await temporaryRoot();
+    await makeChangeWithRelations(root, "the-blocker", { archived: true });
+    await makeChangeWithRelations(root, "a-change", { blockedBy: ["the-blocker"], harness: RUNS_UNATTENDED });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    expect(resolution.ok).toBe(true);
+  });
+
+  it("does not hold a run on a blocker that names nothing that exists", async () => {
+    // That is a fault in the declaration, reported as one by the check
+    // that validates relations. Holding the run on it would hide a
+    // fault behind something that reads as a schedule.
+    const root = await temporaryRoot();
+    await makeChangeWithRelations(root, "a-change", { blockedBy: ["never-proposed"], harness: RUNS_UNATTENDED });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    expect(resolution.ok).toBe(true);
+  });
+
+  it("names every unmet blocker, not just the first", async () => {
+    // A reader who lands one and is refused again for the next was told
+    // half the truth.
+    const root = await temporaryRoot();
+    await makeChangeWithRelations(root, "first-blocker");
+    await makeChangeWithRelations(root, "second-blocker");
+    await makeChangeWithRelations(root, "a-change", {
+      blockedBy: ["first-blocker", "second-blocker"],
+      harness: RUNS_UNATTENDED,
+    });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    expect(resolution).toMatchObject({ ok: false });
+    if (!resolution.ok) {
+      expect(resolution.refusal.reason).toContain("first-blocker");
+      expect(resolution.refusal.reason).toContain("second-blocker");
+    }
+  });
+
+  it("leaves the validation gate alone: a blocked change is still valid", async () => {
+    // The run gate and the validation gate are one word apart in
+    // conversation, and a future reader will try to "fix" the
+    // inconsistency. A change declaring a blocker states a plan, and a
+    // plan not yet carried out is not a defect.
+    const root = await temporaryRoot();
+    await makeChangeWithRelations(root, "the-blocker");
+    await makeChangeWithRelations(root, "a-change", { blockedBy: ["the-blocker"] });
+
+    const violations = checkChangeGraph(await readChangeGraph(root));
+
+    expect(violations).toEqual([]);
   });
 });
