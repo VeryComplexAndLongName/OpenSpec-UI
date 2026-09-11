@@ -58,7 +58,9 @@ import {
   validateChange,
   writeAgentInstructions,
   writeChangeHarnessConfig,
+  repoSetupActionVerdict,
   writeDependabotConfig,
+  type RepoSetupActionId,
   writeGlobalHarnessConfig,
   writeSubtypeInstructions,
   type AgentDescriptor,
@@ -79,6 +81,7 @@ import {
   type AuditEntry,
   type ChangeCostReport,
 } from "@openspec-ui/core";
+import { readRepoSetupFacts } from "./repo-setup-facts.js";
 import type { RunController } from "./run-controller.js";
 import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode } from "./tree/change-graph-tree.js";
 import { describeEvent } from "./describe-event.js";
@@ -993,6 +996,30 @@ async function promptSprintRange(): Promise<{ rangeStart: string; rangeEnd: stri
   return { rangeStart: `${start}T00:00:00.000Z`, rangeEnd: `${end}T23:59:59.999Z` };
 }
 
+/** Whether a setup action that may not be listed should go ahead.
+ *
+ * Returns `true` immediately where the action applies. Where it does
+ * not, it says what was established and what was not, and offers to
+ * proceed — which is the only correct answer to a GitHub Enterprise
+ * host, since no inspection of a remote URL can recognise one.
+ *
+ * See openspec/changes/setup-offers-only-what-applies/design.md. */
+async function confirmSetupActionThatDoesNotApply(
+  workspaceRoot: string,
+  id: RepoSetupActionId,
+  title: string,
+): Promise<boolean> {
+  const verdict = repoSetupActionVerdict(await readRepoSetupFacts(workspaceRoot), id);
+  if (verdict.applies) return true;
+
+  const proceed = await vscode.window.showWarningMessage(
+    `${title}: ${verdict.reason ?? "this does not apply to this repository."}`,
+    { modal: true },
+    "Run anyway",
+  );
+  return proceed === "Run anyway";
+}
+
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
@@ -1179,6 +1206,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.configureDependabot", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
+      if (!(await confirmSetupActionThatDoesNotApply(workspaceRoot, "configure-dependabot", "Configure Dependabot"))) {
+        return;
+      }
       const picked = await vscode.window.showQuickPick(
         listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
         { title: "Configure Dependabot", placeHolder: "Select project type(s)", canPickMany: true },
@@ -1204,6 +1234,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.generateSubtypeInstructions", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
+      if (!(await confirmSetupActionThatDoesNotApply(
+        workspaceRoot,
+        "generate-subtype-instructions",
+        "Generate Path-Scoped Copilot Instructions",
+      ))) {
+        return;
+      }
       const projectType = await vscode.window.showQuickPick(
         listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
         { title: "Generate Path-Scoped Instructions", placeHolder: "Select a project type" },

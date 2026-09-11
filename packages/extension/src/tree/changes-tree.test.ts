@@ -6,9 +6,18 @@ vi.mock("vscode", () => vscodeMock);
 
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const readTaskChecklistMock = vi.fn();
+const applicableRepoSetupActionIdsMock = vi.fn((..._args: unknown[]) => [] as string[]);
 vi.mock("@openspec-ui/core", () => ({
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
   readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
+  applicableRepoSetupActionIds: (...args: unknown[]) => applicableRepoSetupActionIdsMock(...args),
+}));
+
+// Detection is the host's half and costs a process; the tree is given
+// the facts rather than gathering them here.
+const readRepoSetupFactsMock = vi.fn(async (..._args: unknown[]) => ({} as Record<string, unknown>));
+vi.mock("../repo-setup-facts.js", () => ({
+  readRepoSetupFacts: (...args: unknown[]) => readRepoSetupFactsMock(...args),
 }));
 
 const { ChangesTreeProvider, ChangeTreeItem } = await import("./changes-tree.js");
@@ -54,7 +63,48 @@ describe("ChangesTreeProvider", () => {
     ]);
   });
 
-  it("expands the Repository Setup node to the three bootstrap actions, each with a stable id", async () => {
+  it("lists only what the rule says applies", async () => {
+    // The whole point of setup-offers-only-what-applies: an action that
+    // configures something absent writes a file nothing reads, and
+    // worse, states that a thing is configured when nothing acts on it.
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [],
+    });
+    applicableRepoSetupActionIdsMock.mockReturnValue(["generate-agent-instructions"]);
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const actions = await provider.getChildren(roots[1]);
+
+    expect(actions.map((item) => item.command?.command)).toEqual([
+      "openspec-ui.generateAgentInstructions",
+    ]);
+  });
+
+  it("decides from facts the host gathered, not from the tree's own guess", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [],
+    });
+    readRepoSetupFactsMock.mockResolvedValue({ originUrl: "https://gitlab.com/o/r" } as never);
+    applicableRepoSetupActionIdsMock.mockReturnValue(["generate-agent-instructions"]);
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    await provider.getChildren(roots[1]);
+
+    expect(applicableRepoSetupActionIdsMock).toHaveBeenCalledWith({ originUrl: "https://gitlab.com/o/r" });
+  });
+
+  it("expands the Repository Setup node to the actions that apply, each with a stable id", async () => {
+    applicableRepoSetupActionIdsMock.mockReturnValue([
+      "generate-agent-instructions",
+      "configure-dependabot",
+      "generate-subtype-instructions",
+    ]);
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",
       configExists: true,

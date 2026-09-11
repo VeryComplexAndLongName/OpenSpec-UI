@@ -87,6 +87,12 @@ export interface GitWrapper {
    * runs is the command that was decided on. */
   worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void>;
   worktreeRemove(path: string): Promise<void>;
+  /** A remote's URL, or `undefined` where the remote does not exist.
+   * Read-only, and never inferred: where a repository is hosted is the
+   * only thing that decides whether a Dependabot config could mean
+   * anything (ADR 0007's descendants, see
+   * setup-offers-only-what-applies). */
+  remoteUrl(remote: string): Promise<string | undefined>;
   /** The files `branch` has changed against `base`, as repository-
    * relative paths. Three dots: what the branch changed since they
    * diverged, not everything that has happened on `base` since — the
@@ -145,6 +151,18 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // point, and `git worktree remove --force` is right there for
       // somebody who means it.
       await git.raw(["worktree", "remove", worktreePath]);
+    },
+    async remoteUrl(remote: string): Promise<string | undefined> {
+      try {
+        const out = await git.raw(["remote", "get-url", remote]);
+        const trimmed = out.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+      } catch {
+        // No such remote, or not a repository. Both mean the caller
+        // could not establish where this is hosted, which is not the
+        // same as establishing that it is nowhere.
+        return undefined;
+      }
     },
     async changedFilesBetween(base: string, branch: string): Promise<string[]> {
       const out = await git.raw(["diff", "--name-only", `${base}...${branch}`]);

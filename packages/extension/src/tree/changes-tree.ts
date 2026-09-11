@@ -1,10 +1,14 @@
 import * as vscode from "vscode";
 import {
+  applicableRepoSetupActionIds,
   discoverOpenSpecWorkspace,
   readTaskChecklist,
   type ChangeState,
+  type RepoSetupActionId,
+  type RepoSetupFacts,
   type WorkbenchArtifact,
 } from "@openspec-ui/core";
+import { readRepoSetupFacts } from "../repo-setup-facts.js";
 
 // Every TreeItem subclass here sets an explicit, stable `.id`. Without one,
 // VS Code falls back to a label-derived identity; since every getChildren()
@@ -168,27 +172,46 @@ export class RepoBootstrapActionTreeItem extends vscode.TreeItem {
   }
 }
 
-export function getRepoBootstrapActions(): RepoBootstrapActionTreeItem[] {
-  return [
-    new RepoBootstrapActionTreeItem(
-      "Generate Agent Instructions",
-      "CLAUDE.md / AGENTS.md",
-      "openspec-ui.generateAgentInstructions",
-      "book",
-    ),
-    new RepoBootstrapActionTreeItem(
-      "Configure Dependabot",
-      ".github/dependabot.yml",
-      "openspec-ui.configureDependabot",
-      "shield",
-    ),
-    new RepoBootstrapActionTreeItem(
-      "Generate Path-Scoped Copilot Instructions",
-      ".github/instructions/<subtype>.instructions.md",
-      "openspec-ui.generateSubtypeInstructions",
-      "file-code",
-    ),
-  ];
+/** Every setup action this tree can show, keyed by the id the core rule
+ * decides on. The rule says WHICH apply; this says what each looks
+ * like, which is the host's half of it. */
+const REPO_BOOTSTRAP_ACTIONS: Record<
+  RepoSetupActionId,
+  { label: string; description: string; command: string; icon: string }
+> = {
+  "generate-agent-instructions": {
+    label: "Generate Agent Instructions",
+    description: "CLAUDE.md / AGENTS.md",
+    command: "openspec-ui.generateAgentInstructions",
+    icon: "book",
+  },
+  "configure-dependabot": {
+    label: "Configure Dependabot",
+    description: ".github/dependabot.yml",
+    command: "openspec-ui.configureDependabot",
+    icon: "shield",
+  },
+  "generate-subtype-instructions": {
+    label: "Generate Path-Scoped Copilot Instructions",
+    description: ".github/instructions/<subtype>.instructions.md",
+    command: "openspec-ui.generateSubtypeInstructions",
+    icon: "file-code",
+  },
+};
+
+/** Only the actions that can do something here — see
+ * setup-offers-only-what-applies. An action that is not listed is still
+ * invocable from the Command Palette, where it says why it is not
+ * listed and offers to proceed; that is the escape hatch for a GitHub
+ * Enterprise host, which no URL check can recognise.
+ *
+ * `facts` is passed in rather than read here so the rule and the
+ * rendering can both be tested without an editor. */
+export function getRepoBootstrapActions(facts: RepoSetupFacts = {}): RepoBootstrapActionTreeItem[] {
+  return applicableRepoSetupActionIds(facts).map((id) => {
+    const action = REPO_BOOTSTRAP_ACTIONS[id];
+    return new RepoBootstrapActionTreeItem(action.label, action.description, action.command, action.icon);
+  });
 }
 
 /** A single, direct action — unlike Repository Setup (three actions), the
@@ -316,7 +339,11 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       return getTasksArtifactChildren(this.workspaceRoot, element);
     }
     if (element instanceof RepoBootstrapRootTreeItem) {
-      return getRepoBootstrapActions();
+      // Detection happens here and nowhere else: this branch is reached
+      // only when the section is expanded, and the facts are cached for
+      // the session so a tree refresh — which happens on every
+      // workspace change — spawns nothing.
+      return getRepoBootstrapActions(await readRepoSetupFacts(this.workspaceRoot));
     }
 
     if (element) return [];

@@ -36,6 +36,13 @@ const deleteTaskLineMock = vi.fn();
 const renderTemplateMock = vi.fn();
 const writeAgentInstructionsMock = vi.fn();
 const writeDependabotConfigMock = vi.fn();
+const repoSetupActionVerdictMock = vi.fn(
+  (..._args: unknown[]) => ({ id: "configure-dependabot", applies: true } as { id: string; applies: boolean; reason?: string }),
+);
+const readRepoSetupFactsMock = vi.fn(async (..._args: unknown[]) => ({} as Record<string, unknown>));
+vi.mock("./repo-setup-facts.js", () => ({
+  readRepoSetupFacts: (...args: unknown[]) => readRepoSetupFactsMock(...args),
+}));
 const writeSubtypeInstructionsMock = vi.fn();
 const writeGlobalHarnessConfigMock = vi.fn();
 const writeChangeHarnessConfigMock = vi.fn();
@@ -135,6 +142,10 @@ vi.mock("@openspec-ui/core", () => ({
   writeAgentInstructions: (...args: unknown[]) => writeAgentInstructionsMock(...args),
   writeChangeHarnessConfig: (...args: unknown[]) => writeChangeHarnessConfigMock(...args),
   writeDependabotConfig: (...args: unknown[]) => writeDependabotConfigMock(...args),
+  // Applies by default, so every existing test about what these
+  // commands WRITE is unaffected by the gate that decides whether they
+  // are offered. The gate has its own tests below.
+  repoSetupActionVerdict: (...args: unknown[]) => repoSetupActionVerdictMock(...args),
   writeGlobalHarnessConfig: (...args: unknown[]) => writeGlobalHarnessConfigMock(...args),
   writeSubtypeInstructions: (...args: unknown[]) => writeSubtypeInstructionsMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
@@ -1835,6 +1846,55 @@ describe("registerCommands", () => {
 
       expect(vscodeMock.window.showErrorMessage).toHaveBeenCalled();
       expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a setup action that does not apply", () => {
+    // Hidden from the tree is not forbidden. An action nobody can reach
+    // is a capability nobody can discover, and no inspection here is
+    // certain enough to refuse somebody who knows their own setup
+    // better than it does — GitHub Enterprise being exactly that case.
+    it("explains why, and writes nothing when the answer is no", async () => {
+      repoSetupActionVerdictMock.mockReturnValue({
+        id: "configure-dependabot",
+        applies: false,
+        reason: "this repository's origin is https://gitlab.com/o/r, which is not github.com",
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureDependabot")?.();
+
+      expect(String(vscodeMock.window.showWarningMessage.mock.calls[0]?.[0])).toContain("gitlab.com");
+      expect(writeDependabotConfigMock).not.toHaveBeenCalled();
+    });
+
+    it("does what it would have done when the answer is to proceed", async () => {
+      repoSetupActionVerdictMock.mockReturnValue({
+        id: "configure-dependabot",
+        applies: false,
+        reason: "not github.com",
+      });
+      vscodeMock.window.showWarningMessage.mockResolvedValueOnce("Run anyway");
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce([{ label: "Node.js / TypeScript", id: "node" }]);
+      writeDependabotConfigMock.mockResolvedValue("created");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureDependabot")?.();
+
+      expect(writeDependabotConfigMock).toHaveBeenCalled();
+    });
+
+    it("asks nothing when the action applies", async () => {
+      repoSetupActionVerdictMock.mockReturnValue({ id: "configure-dependabot", applies: true });
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce([{ label: "Node.js / TypeScript", id: "node" }]);
+      writeDependabotConfigMock.mockResolvedValue("created");
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.configureDependabot")?.();
+
+      expect(vscodeMock.window.showWarningMessage).not.toHaveBeenCalled();
+      expect(writeDependabotConfigMock).toHaveBeenCalled();
     });
   });
 
