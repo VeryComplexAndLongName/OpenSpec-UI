@@ -129,6 +129,37 @@ describe("runMain", () => {
   });
 });
 
+describe("runMain — lease", () => {
+  it("asks who holds the workspace with no action", async () => {
+    const io = collectingIo();
+    const leaseCommand = vi.fn().mockResolvedValue(0);
+
+    const code = await runMain(["lease", "--cwd", "/repo"], { leaseCommand, ...io });
+
+    expect(code).toBe(0);
+    expect(leaseCommand).toHaveBeenCalledWith({ workspaceRoot: "/repo", format: "text" }, expect.anything());
+  });
+
+  it("passes the release action through", async () => {
+    const io = collectingIo();
+    const leaseCommand = vi.fn().mockResolvedValue(1);
+
+    const code = await runMain(["lease", "release", "--cwd", "/repo"], { leaseCommand, ...io });
+
+    expect(code).toBe(1);
+    expect(leaseCommand.mock.calls[0]?.[0]).toMatchObject({ action: "release" });
+  });
+
+  it("passes --format json through to lease", async () => {
+    const io = collectingIo();
+    const leaseCommand = vi.fn().mockResolvedValue(0);
+
+    await runMain(["lease", "--format", "json"], { leaseCommand, ...io });
+
+    expect(leaseCommand.mock.calls[0]?.[0]).toMatchObject({ format: "json" });
+  });
+});
+
 describe("runMain — run and check", () => {
   it("passes the change name and the repository root to run", async () => {
     const io = collectingIo();

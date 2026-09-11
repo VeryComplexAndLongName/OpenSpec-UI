@@ -14,6 +14,7 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  readGitAuthor,
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
   runDelegatedItem,
@@ -120,8 +121,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       journal = undefined;
     }
   }
+  // Once, at activation. The lease renews every five seconds and must
+  // not spawn a git process each time (a-lease-says-who).
   const lease = workspaceRoot
-    ? new WorkspaceLeaseManager(workspaceRoot, { hostKind: "vscode-extension" })
+    ? new WorkspaceLeaseManager(workspaceRoot, {
+      hostKind: "vscode-extension",
+      author: await readGitAuthor(workspaceRoot),
+    })
     : undefined;
   const scheduler = new WorkbenchProcessScheduler(restoredRuns.processes, lease);
   const persistRuns = () => {

@@ -221,6 +221,7 @@ function makeGitStageDeps(options: {
     pathExistsInRef: vi.fn(async () => true),
     changedFilesBetween: vi.fn(async () => []),
     remoteUrl: vi.fn(async () => undefined),
+    configuredIdentity: vi.fn(async () => undefined),
   };
   const gateway: PullRequestGateway = {
     createPullRequest: vi.fn(async () => {

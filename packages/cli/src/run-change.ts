@@ -17,6 +17,7 @@ import {
   auditLogPath,
   buildDefaultAgentRunners,
   createGitWrapper,
+  readGitAuthor,
   readRepositoryAuditEntries,
   describeWorkspaceLeaseConflict,
   describeWorkspaceLeaseReclamation,
@@ -87,7 +88,11 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
     return 2;
   }
 
-  const lease = new WorkspaceLeaseManager(workspaceRoot, { hostKind: "cli" });
+  // Read once, here, and not in the heartbeat five seconds from now.
+  const lease = new WorkspaceLeaseManager(workspaceRoot, {
+    hostKind: "cli",
+    author: await readGitAuthor(workspaceRoot),
+  });
   const held = await withWorkspaceLease(lease, async (hold) => {
     if (hold.reclaimedFrom) deps.stderr(`openspec-ui-cli: ${describeWorkspaceLeaseReclamation(hold.reclaimedFrom)}`);
     return await driveChain(

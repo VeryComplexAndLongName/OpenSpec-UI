@@ -7,6 +7,7 @@
 import { readChangeGraph } from "@openspec-ui/core";
 import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
 import { checkChange } from "./check-change.js";
+import { leaseCommand } from "./lease-command.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
 import { readyCommand } from "./ready-command.js";
 import { worktreeCommand } from "./worktree-command.js";
@@ -25,6 +26,8 @@ Usage:
   openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli ready [--cwd <path>] [--base <ref>] [--format text|json]
+  openspec-ui-cli lease [--cwd <path>] [--format text|json]
+  openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -71,6 +74,14 @@ Exit codes:
      unreadable package.json, a change whose configuration this terminal
      cannot honour, another host holding the workspace)
 
+'lease' exits 0 whether or not the workspace is held: it answered the
+question either way. 'lease release' exits 0 when it cleared a lease and
+1 when it refused. It clears one only where the holder can be shown to be
+gone — its heartbeat is already stale, or it is on this machine and its
+process is not running. A live holder is refused: taking its lease would
+let a second mutating run start against files it still has open, which is
+what the lease exists to prevent.
+
 A run does only what the change's own harness configuration already
 permits. There is no flag that starts a chain for a change configured to
 run one stage at a time, and none that answers a confirmation the change
@@ -112,6 +123,7 @@ export interface MainDeps {
   worktreeCommand?: typeof worktreeCommand;
   readyCommand?: typeof readyCommand;
   checkChange?: typeof checkChange;
+  leaseCommand?: typeof leaseCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
    * change configured to pause refuse to start rather than hang.
@@ -244,6 +256,19 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "lease") {
+    return await (deps.leaseCommand ?? leaseCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        // `lease release` puts the action where `run <change>` puts its
+        // subject, so it arrives as the same positional.
+        ...(options.changeName !== undefined ? { action: options.changeName } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "remove") {
@@ -295,7 +320,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, lease, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;
