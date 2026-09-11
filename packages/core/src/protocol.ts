@@ -5,7 +5,7 @@
 // (`server`, `extension`) serialize these same values for their own
 // transport (REST/WS, message bridge) and must not define their own variants.
 
-import { STAGES, type HarnessStage } from "./harness-stage.js";
+import { STAGES, isChainPart, type ChainPart, type HarnessStage } from "./harness-stage.js";
 import type { AgentUsage } from "./agent-usage.js";
 import type { HarnessEffort, HarnessStepBudget } from "./harness-step-agent.js";
 
@@ -292,7 +292,10 @@ export interface CancellingEvent extends BaseEvent {
  * reads as "no agent required", not "unknown". */
 export interface StageStartedEvent extends BaseEvent {
   kind: "stageStarted";
-  stage: HarnessStage;
+  /** `ChainPart`, not `HarnessStage`: a declared step (ADR 0021) travels
+   * this same timeline rather than a second pair of events, so a surface
+   * that renders a chain renders one without knowing what it is. */
+  stage: ChainPart;
   agentId: string;
   /** Which attempt at this stage is starting, counting from one. Absent
    * on a first attempt — the case every chain had before stages could be
@@ -309,16 +312,16 @@ export interface StageStartedEvent extends BaseEvent {
  * confirmation required for this transition). */
 export interface StageCompletedEvent extends BaseEvent {
   kind: "stageCompleted";
-  stage: HarnessStage;
-  nextStage: HarnessStage;
+  stage: ChainPart;
+  nextStage: ChainPart;
 }
 
 /** A chain paused between stages, waiting for a `"confirmCheckpoint"` (or
  * `"cancel"`) command before it proceeds to `nextStage`. */
 export interface CheckpointEvent extends BaseEvent {
   kind: "checkpoint";
-  stage: HarnessStage;
-  nextStage: HarnessStage;
+  stage: ChainPart;
+  nextStage: ChainPart;
   nextAgentId: string;
 }
 
@@ -401,21 +404,21 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.usage === "object" && v.usage !== null;
     case "stageStarted":
       return (
-        typeof v.stage === "string" && STAGES.includes(v.stage as HarnessStage) && typeof v.agentId === "string"
+        typeof v.stage === "string" && isChainPart(v.stage) && typeof v.agentId === "string"
       );
     case "stageCompleted":
       return (
         typeof v.stage === "string" &&
-        STAGES.includes(v.stage as HarnessStage) &&
+        isChainPart(v.stage) &&
         typeof v.nextStage === "string" &&
-        STAGES.includes(v.nextStage as HarnessStage)
+        isChainPart(v.nextStage)
       );
     case "checkpoint":
       return (
         typeof v.stage === "string" &&
-        STAGES.includes(v.stage as HarnessStage) &&
+        isChainPart(v.stage) &&
         typeof v.nextStage === "string" &&
-        STAGES.includes(v.nextStage as HarnessStage) &&
+        isChainPart(v.nextStage) &&
         typeof v.nextAgentId === "string"
       );
     case "handedOff":

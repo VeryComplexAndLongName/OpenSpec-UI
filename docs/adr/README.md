@@ -27,5 +27,6 @@ Alternatives / Consequences.
 | [0018](0018-event-driven-harness-orchestration.md) | Event-driven harness orchestration | Accepted |
 | [0019](0019-mechanical-task-checks.md) | Mechanical task checks | Accepted |
 | [0020](0020-cli-runs-a-change.md) | The CLI runs a change | Accepted |
+| [0021](0021-declared-chain-steps.md) | Declared chain steps | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

@@ -9,6 +9,7 @@ import {
   GlobalAgentSufficientReviewGateError,
   GlobalAutonomousAutonomyLevelError,
   GlobalCheckpointsDisabledError,
+  GlobalChainStepsError,
   GlobalGitAllowlistError,
   GlobalTaskAgentsError,
   HARNESS_AGENT_CAPABILITIES,
@@ -982,6 +983,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     maxStageAttempts: 3,
     gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
     taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
+    steps: [{ step: "await-change", before: "verify", param: "the-other-change", maxWaitSeconds: 600 }],
   };
 
   it("has a sample for every accepted key, and no others", () => {
@@ -991,10 +993,11 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
   });
 
   for (const key of TOP_LEVEL_CONFIG_KEYS) {
-    // `gitStageAllowlist`, `checkpoints` and `taskAgents` are per-change
-    // only; a global file setting any of them is refused, so those are
-    // exercised through the per-change path alone.
-    const globalAccepts = key !== "gitStageAllowlist" && key !== "checkpoints" && key !== "taskAgents";
+    // `gitStageAllowlist`, `checkpoints`, `taskAgents` and `steps` are
+    // per-change only; a global file setting any of them is refused, so
+    // those are exercised through the per-change path alone.
+    const PER_CHANGE_ONLY = ["gitStageAllowlist", "checkpoints", "taskAgents", "steps"];
+    const globalAccepts = !PER_CHANGE_ONLY.includes(key);
 
     if (globalAccepts) {
       it(`carries "${key}" back out of the global file`, async () => {
@@ -1561,5 +1564,98 @@ describe("a change name that would leave the workspace", () => {
 
     await expect(readChangeHarnessConfig(root, TRAVERSAL, "archive"))
       .rejects.toThrow(/Invalid OpenSpec change name/u);
+  });
+});
+
+describe("declared steps (a-change-can-declare-a-step)", () => {
+  const valid = { step: "await-change", before: "verify", param: "the-other-change" };
+
+  it("accepts a declaration and carries it back out", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { steps: [valid] } as never);
+
+    const config = await resolveHarnessConfig(root, "demo");
+
+    expect(config.steps).toEqual([valid]);
+  });
+
+  it("refuses steps in the global file, distinctly", async () => {
+    const root = await temporaryRoot();
+
+    // A global "wait for change X before verifying" is a statement about
+    // every change that will ever exist, X included — which would then
+    // wait for itself forever.
+    await expect(writeGlobalHarnessConfig(root, { steps: [valid] } as never))
+      .rejects.toThrow(GlobalChainStepsError);
+  });
+
+  it("refuses a step the registry does not have, listing the ones it does", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-pull-request", before: "verify", param: "x" }],
+    } as never)).rejects.toThrow(/is not a declared step.*await-change/s);
+  });
+
+  it("refuses a declaration that states both positions", async () => {
+    const root = await temporaryRoot();
+
+    // Guessing which one the author meant produces a chain nobody
+    // described.
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-change", before: "verify", after: "apply", param: "x" }],
+    } as never)).rejects.toThrow(/exactly one of "before" or "after", not both/);
+  });
+
+  it("refuses a declaration that states neither position", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-change", param: "x" }],
+    } as never)).rejects.toThrow(/exactly one of "before" or "after".*states neither/);
+  });
+
+  it("refuses a position that is not a fixed stage", async () => {
+    const root = await temporaryRoot();
+
+    // A step is placed against the shared sequence, never against
+    // another declared step — otherwise two declarations could depend on
+    // each other's order.
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-change", before: "await-change", param: "x" }],
+    } as never)).rejects.toThrow(/must name a stage/);
+  });
+
+  it("refuses a step that is missing the parameter it needs", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-change", before: "verify" }],
+    } as never)).rejects.toThrow(/param is required for step "await-change"/);
+  });
+
+  it("refuses an unrecognized key inside a declaration", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ ...valid, untilMerged: true }],
+    } as never)).rejects.toThrow(/unrecognized key "untilMerged" in steps\[0\]/);
+  });
+
+  it("refuses a wait whose ceiling is not a positive number of seconds", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [{ ...valid, maxWaitSeconds: 0 }],
+    } as never)).rejects.toThrow(/maxWaitSeconds must be a positive number/);
+  });
+
+  it("names the entry's index, so a file with several is actionable", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      steps: [valid, { step: "await-change", before: "apply" }],
+    } as never)).rejects.toThrow(/steps\[1\]/);
   });
 });

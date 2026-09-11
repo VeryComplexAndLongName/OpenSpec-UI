@@ -222,3 +222,67 @@ describe("resolveChainStart", () => {
     }
   });
 });
+
+describe("resolveChainStart — declared steps", () => {
+  it("refuses a change that waits for itself, before anything runs", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "a-change", {
+      autonomyLevel: "autonomous",
+      steps: [{ step: "await-change", before: "verify", param: "a-change" }],
+    });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    expect(resolution).toMatchObject({ ok: false });
+    if (!resolution.ok) {
+      expect(resolution.refusal.reason).toContain("is this change itself");
+      expect(resolution.refusal.configKey).toBe("steps[0].param");
+    }
+  });
+
+  it("does not refuse a wait on a change that does not exist yet", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "a-change", {
+      autonomyLevel: "autonomous",
+      steps: [{ step: "await-change", before: "verify", param: "not-proposed-yet" }],
+    });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    // A change that has not been proposed yet is exactly the case a wait
+    // is for. Refusing here would make the declaration useless for the
+    // schedule it describes.
+    expect(resolution.ok).toBe(true);
+  });
+
+  it("refuses a declaration the configuration itself rejects, as a configuration error", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "a-change", {
+      autonomyLevel: "autonomous",
+      steps: [{ step: "await-nothing", before: "verify" }],
+    });
+
+    const resolution = await resolveChainStart({
+      workspaceRoot: root,
+      changeName: "a-change",
+      canAnswerCheckpoints: true,
+      resolveRunner: anyAgent,
+    });
+
+    // Reached through the configuration read, so a misspelled step name
+    // late in the chain still costs nothing: no agent was invoked, and
+    // `anyAgent` throws if one ever is.
+    expect(resolution).toMatchObject({ ok: false });
+    if (!resolution.ok) expect(resolution.refusal.reason).toContain("could not be read");
+  });
+});

@@ -34,6 +34,7 @@ import {
 } from "./declared-checks.js";
 import type { Command, CommandContext, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
 import {
+  type HarnessChainStep,
   type HarnessConfig,
   isHarnessStepAgentStage,
   normalizeStepAgent,
@@ -41,6 +42,11 @@ import {
   resolveHarnessConfig,
 } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
+import {
+  DEFAULT_CHAIN_STEP_MAX_WAIT_MS,
+  isWaitingStep,
+  runChainStep,
+} from "./chain-steps.js";
 import { VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
@@ -371,6 +377,56 @@ async function determineStartStage(cwd: string, changeName: string, changeDir: s
   return tasks.unchecked > 0 ? "apply" : "verify";
 }
 
+/** One entry in the sequence a chain actually runs: a fixed stage, or a
+ * step this change declared. */
+type ChainEntry =
+  | { kind: "stage"; stage: ChainStage }
+  | { kind: "step"; declaration: HarnessChainStep };
+
+/** Places each declared step against the fixed sequence.
+ *
+ * A step is anchored to a stage, never to another step, so two
+ * declarations can never depend on each other's order — and a step whose
+ * anchor is not in this (already resumed-sliced) sequence is anchored to
+ * work that already happened, so it does not run.
+ *
+ * Declaration order decides the order of two steps anchored to the same
+ * side of the same stage, which is the only ordering question this can
+ * be asked. */
+function insertDeclaredSteps(
+  stages: readonly ChainStage[],
+  declared: readonly HarnessChainStep[] | undefined,
+): ChainEntry[] {
+  const entries: ChainEntry[] = [];
+  for (const stage of stages) {
+    for (const declaration of declared ?? []) {
+      if (declaration.before === stage) entries.push({ kind: "step", declaration });
+    }
+    entries.push({ kind: "stage", stage });
+    for (const declaration of declared ?? []) {
+      if (declaration.after === stage) entries.push({ kind: "step", declaration });
+    }
+  }
+  return entries;
+}
+
+/** The next fixed stage at or after `index`, skipping declared steps.
+ *
+ * The chain asks this only about `git`, and skipping steps is the whole
+ * point: `git` is gated on `reviewGate.mode`, re-derived immediately
+ * before `archive` moves the change's own file out of the active
+ * directory. A version that looked only at the very next entry would see
+ * a declared step there and conclude that `git` was not next — and the
+ * chain would then walk into the git stage with its gate never
+ * evaluated. Found by the test for a step declared after `archive`. */
+function nextStageAfter(sequence: readonly ChainEntry[], index: number): ChainStage | undefined {
+  for (let i = index; i < sequence.length; i += 1) {
+    const entry = sequence[i];
+    if (entry !== undefined && entry.kind === "stage") return entry.stage;
+  }
+  return undefined;
+}
+
 export class HarnessChainRunner {
   private readonly active = new Map<string, ChainState>();
 
@@ -590,7 +646,15 @@ export class HarnessChainRunner {
       return;
     }
 
-    const sequence = CHAIN_STAGES.slice(CHAIN_STAGES.indexOf(startStage));
+    // The sequence is what this change declares, not a constant — ADR
+    // 0021. Steps are inserted AFTER the resume slice, so a step
+    // anchored to a stage that already happened does not run, and one
+    // anchored to the stage the chain resumes at does: reaching that
+    // stage is exactly what it was placed before.
+    const sequence = insertDeclaredSteps(
+      CHAIN_STAGES.slice(CHAIN_STAGES.indexOf(startStage)),
+      harnessConfig.steps,
+    );
 
     // Populated around the "apply" stage only (see `captureApplyCheckpoint`/
     // `finalizeApplyCheckpoint`), and handed to the "verify" stage's own
@@ -601,8 +665,22 @@ export class HarnessChainRunner {
     // absent-field path.
     let verifiedDelta: VerifiedDeltaEntry[] | undefined;
 
+    // Set when `archive` has run and the review gate says `git` must not.
+    // The git stage is then skipped while the rest of the sequence — a
+    // step a change declared after `archive` — still runs, and the chain
+    // reports the archive it actually performed.
+    let gitStageSkipped = false;
+    let archivedSummary: string | undefined;
+
     for (let index = 0; index < sequence.length; index += 1) {
-      const stage = sequence[index] as ChainStage;
+      const entry = sequence[index] as ChainEntry;
+      if (entry.kind === "stage" && entry.stage === "git" && gitStageSkipped) continue;
+      if (entry.kind === "step") {
+        const stepOk = yield* this.runDeclaredStep(entry.declaration, command, state, changeName);
+        if (!stepOk) return;
+        continue;
+      }
+      const stage = entry.stage;
       const hasNextStage = index < sequence.length - 1;
 
       // Checked BEFORE the stage starts, never during it — a stage
@@ -638,7 +716,7 @@ export class HarnessChainRunner {
       // changes directory. Reading it after a successful archive always
       // resolves to "not configured" and silently skips the git stage.
       let shouldRunGitAfterArchive: boolean | undefined;
-      if (stage === "archive" && sequence[index + 1] === "git") {
+      if (stage === "archive" && nextStageAfter(sequence, index + 1) === "git") {
         try {
           shouldRunGitAfterArchive = await this.shouldRunGitStage(cwd, changeName);
         } catch (error) {
@@ -773,7 +851,7 @@ export class HarnessChainRunner {
       if (outcome === "checks-failed") {
         const summary = state.checkFailureSummary ?? "";
         state.checkFailureSummary = undefined;
-        const applyIndex = sequence.indexOf("apply");
+        const applyIndex = sequence.findIndex((item) => item.kind === "stage" && item.stage === "apply");
         const applyMaxAttempts = harnessConfig.maxStageAttempts ?? 1;
         const applyAttempts = state.attemptsByStage.get("apply") ?? 0;
         // The same guard, for the same reason, as the unchecked-task edge
@@ -801,7 +879,7 @@ export class HarnessChainRunner {
       // detect unfinished work correctly and then stop with an error
       // instead of finishing it.
       if (stage === "verify") {
-        const applyIndex = sequence.indexOf("apply");
+        const applyIndex = sequence.findIndex((item) => item.kind === "stage" && item.stage === "apply");
         const tasks = await countTasks(context.changeDir);
         const applyMaxAttempts = harnessConfig.maxStageAttempts ?? 1;
         // Nothing configured means one attempt, which means no return is
@@ -833,10 +911,19 @@ export class HarnessChainRunner {
       }
       if (!hasNextStage) return;
 
-      if (stage === "archive" && sequence[index + 1] === "git") {
-        if (!shouldRunGitAfterArchive) {
-          yield { kind: "completed", runId, timestamp: nowIso(), summary: `archived ${changeName}` };
-          return;
+      if (stage === "archive") {
+        archivedSummary = `archived ${changeName}`;
+        if (nextStageAfter(sequence, index + 1) === "git" && !shouldRunGitAfterArchive) {
+          // Ending here is right when `git` is all that remains, which is
+          // every chain that declares no step after `archive`. Where a
+          // declared step does remain, only the git stage is skipped —
+          // returning would silently drop a step the change asked for,
+          // which is the "setting nothing reads" this project refuses.
+          if (!sequence.slice(index + 1).some((later) => later.kind === "step")) {
+            yield { kind: "completed", runId, timestamp: nowIso(), summary: archivedSummary };
+            return;
+          }
+          gitStageSkipped = true;
         }
       }
 
@@ -845,7 +932,13 @@ export class HarnessChainRunner {
         return;
       }
 
-      const nextStage = sequence[index + 1] as ChainStage;
+      // Names the next PART, step or stage alike: a chain that announced
+      // "next: archive" while a declared wait stood between them would be
+      // describing a sequence it is not about to run.
+      const nextEntry = sequence[index + 1];
+      // Unreachable: `hasNextStage` above already returned otherwise.
+      if (nextEntry === undefined) return;
+      const nextStage = nextEntry.kind === "stage" ? nextEntry.stage : nextEntry.declaration.step;
       const requireConfirmation = harnessConfig.autonomyLevel === "semi-autonomous"
         && harnessConfig.checkpoints?.requireConfirmationBetweenSteps !== false;
 
@@ -888,6 +981,20 @@ export class HarnessChainRunner {
         yield { kind: "stageCompleted", runId, timestamp: nowIso(), stage, nextStage };
       }
     }
+
+    // Reached only when the last part of the sequence was a declared step
+    // (ADR 0021): a stage that is last returns out of the loop above,
+    // having yielded its own terminal event. A step does not, because it
+    // is not the thing whose completion the chain reports — so without
+    // this, a chain ending in a step would end with no terminal event at
+    // all, and every consumer would be left waiting on a run that had
+    // finished.
+    yield {
+      kind: "completed",
+      runId,
+      timestamp: nowIso(),
+      summary: archivedSummary ?? `finished ${changeName}`,
+    };
   }
 
   /** Returns a failure reason naming the budget, or `undefined` when the
@@ -1185,6 +1292,63 @@ export class HarnessChainRunner {
         },
       ],
     };
+  }
+
+  /** Runs one declared step, reporting it on the chain's own timeline.
+   * Returns `false` when the chain must stop.
+   *
+   * The time a waiting step spends is deliberately NOT added to
+   * `state.elapsedMs`: a chain waiting for something outside itself is
+   * not consuming anything, exactly as a chain paused at a checkpoint is
+   * not, and counting it would fire the run-time ceiling on chains
+   * behaving exactly as they were configured. Each wait carries its own
+   * maximum duration instead, so a chain still never waits forever. */
+  private async *runDeclaredStep(
+    declaration: HarnessChainStep,
+    command: Command,
+    state: ChainState,
+    changeName: string,
+  ): AsyncGenerator<Event, boolean> {
+    const { runId, cwd } = command;
+    yield {
+      kind: "stageStarted",
+      runId,
+      timestamp: nowIso(),
+      // A step names itself in the field a stage names itself in — one
+      // timeline, so a surface that renders stages renders this with no
+      // new event kind to learn.
+      stage: declaration.step,
+      // The convention `archive` and `git` already use for a part of the
+      // chain that invokes no agent, rather than a second spelling.
+      agentId: "",
+    };
+
+    const startedAt = Date.now();
+    let result;
+    try {
+      result = await runChainStep(declaration.step, declaration.param, {
+        workspaceRoot: cwd,
+        changeName,
+        maxWaitMs: declaration.maxWaitSeconds !== undefined
+          ? declaration.maxWaitSeconds * 1000
+          : DEFAULT_CHAIN_STEP_MAX_WAIT_MS,
+      });
+    } catch (error) {
+      yield failedEvent(runId, `step "${declaration.step}" failed: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+
+    if (!isWaitingStep(declaration.step)) {
+      state.elapsedMs += Date.now() - startedAt;
+    }
+
+    if (!result.ok) {
+      yield failedEvent(runId, `step "${declaration.step}" did not succeed: ${result.reason}`);
+      return false;
+    }
+
+    yield { kind: "progress", runId, timestamp: nowIso(), message: `${declaration.step}: ${result.reason}` };
+    return true;
   }
 
   /** Records what `verify`'s declared checks found.

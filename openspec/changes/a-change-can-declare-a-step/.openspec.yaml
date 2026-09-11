@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-11
+follows:
+  - agentic-harness-autonomy
+  - harness-suspendable-stage
+  - harness-mechanical-checks
+  - a-change-runs-from-the-terminal
