@@ -251,3 +251,28 @@ export function mergeStepAgents(base: HarnessStepAgents, over: HarnessStepAgents
   }
   return result;
 }
+
+/** The autonomy levels, and which of them a given file may set.
+ *
+ * Here rather than in `harness-config.ts` so the surfaces can read the
+ * same list the writer enforces. They did not: the settings view kept
+ * its own array and offered `autonomous` in the workspace-level
+ * section, which `writeGlobalHarnessConfig` refuses outright — a
+ * control offering a value the save rejects. See
+ * an-autonomy-level-says-what-it-does. */
+export type HarnessAutonomyLevel = "assisted" | "semi-autonomous" | "autonomous";
+
+export const HARNESS_AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = [
+  "assisted",
+  "semi-autonomous",
+  "autonomous",
+];
+
+/** `autonomous` is reachable only from a change's own `harness.json`:
+ * a workspace-wide "never stop to confirm" is a decision no single
+ * change's author gets to make for every other change. */
+export function autonomyLevelsFor(scope: "global" | "change"): readonly HarnessAutonomyLevel[] {
+  return scope === "change"
+    ? HARNESS_AUTONOMY_LEVELS
+    : HARNESS_AUTONOMY_LEVELS.filter((level) => level !== "autonomous");
+}

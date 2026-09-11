@@ -118,7 +118,9 @@ export type {
 export {
   COPILOT_MIN_AI_CREDITS,
   HARNESS_AGENT_CAPABILITIES,
+  HARNESS_AUTONOMY_LEVELS,
   HARNESS_EFFORT_VALUES,
+  autonomyLevelsFor,
   isHarnessStepAgentStage,
   mergeStepAgent,
   mergeStepAgents,
