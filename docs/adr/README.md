@@ -30,5 +30,6 @@ Alternatives / Consequences.
 | [0021](0021-declared-chain-steps.md) | Declared chain steps | Accepted |
 | [0022](0022-changes-run-side-by-side.md) | Changes run side by side, in git worktrees | Accepted |
 | [0023](0023-standalone-shell-visual-direction.md) | The standalone shell commits to an editor-native look | Accepted |
+| [0024](0024-parallel-readiness-is-derived.md) | Parallel readiness is derived, never declared | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
