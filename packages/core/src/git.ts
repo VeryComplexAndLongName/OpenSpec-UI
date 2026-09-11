@@ -18,6 +18,56 @@ export interface GitStatusSummary {
   isClean: boolean;
 }
 
+/** One working directory of this repository, as `git worktree list`
+ * reports it. The main working tree is one of these. */
+export interface GitWorktree {
+  /** Absolute path, as git reports it. */
+  path: string;
+  /** The commit it has checked out, or `undefined` for one that is bare
+   * or has no checkout. */
+  head?: string;
+  /** The branch it is on, without the `refs/heads/` prefix, or
+   * `undefined` for a detached head. */
+  branch?: string;
+}
+
+/** Parses `git worktree list --porcelain`.
+ *
+ * The porcelain format, not the human one: the human format is column
+ * aligned and puts the path first with no quoting, so a path containing
+ * a space cannot be recovered from it. Porcelain gives one `key value`
+ * line per fact and a blank line between entries, and the path is
+ * everything after the first space. */
+export function parseWorktreePorcelain(output: string): GitWorktree[] {
+  const worktrees: GitWorktree[] = [];
+  let current: GitWorktree | undefined;
+
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trimEnd();
+    if (line.length === 0) {
+      if (current) worktrees.push(current);
+      current = undefined;
+      continue;
+    }
+    const separator = line.indexOf(" ");
+    const key = separator === -1 ? line : line.slice(0, separator);
+    const value = separator === -1 ? "" : line.slice(separator + 1);
+
+    if (key === "worktree") {
+      if (current) worktrees.push(current);
+      current = { path: value };
+      continue;
+    }
+    if (!current) continue;
+    if (key === "HEAD") current.head = value;
+    // `detached` carries no value and leaves `branch` absent, which is
+    // exactly what a detached head means here.
+    if (key === "branch") current.branch = value.replace(/^refs\/heads\//, "");
+  }
+  if (current) worktrees.push(current);
+  return worktrees;
+}
+
 export interface GitWrapper {
   status(): Promise<GitStatusSummary>;
   diff(pathspec?: string): Promise<string>;
@@ -30,6 +80,18 @@ export interface GitWrapper {
    * that has never been pushed. */
   push(remote: string, branch: string): Promise<void>;
   currentBranch(): Promise<string>;
+  /** Every working directory of this repository, the main one included. */
+  worktreeList(): Promise<GitWorktree[]>;
+  /** Creates a working directory at `path`, on a new branch `branch` cut
+   * from `base`. Explicit in all three, as `push` is: the command that
+   * runs is the command that was decided on. */
+  worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void>;
+  worktreeRemove(path: string): Promise<void>;
+  /** Whether `ref` contains `pathInRepo`. Used before creating a working
+   * directory: `git worktree add` checks out a commit, so a change that
+   * is not in that commit would produce a directory without the change it
+   * was created for. */
+  pathExistsInRef(ref: string, pathInRepo: string): Promise<boolean>;
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
@@ -65,6 +127,29 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
     async currentBranch(): Promise<string> {
       const s = await git.status();
       return s.current ?? "";
+    },
+    async worktreeList(): Promise<GitWorktree[]> {
+      return parseWorktreePorcelain(await git.raw(["worktree", "list", "--porcelain"]));
+    },
+    async worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void> {
+      await git.raw(["worktree", "add", "-b", options.branch, options.path, options.base]);
+    },
+    async worktreeRemove(worktreePath: string): Promise<void> {
+      // No `--force`. Refusing a directory that still holds work is the
+      // point, and `git worktree remove --force` is right there for
+      // somebody who means it.
+      await git.raw(["worktree", "remove", worktreePath]);
+    },
+    async pathExistsInRef(ref: string, pathInRepo: string): Promise<boolean> {
+      try {
+        // `--` separates the path from anything git could read as a
+        // revision, so a change named like a ref cannot be resolved as
+        // one.
+        await git.raw(["cat-file", "-e", `${ref}:${pathInRepo}`]);
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }

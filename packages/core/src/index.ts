@@ -55,6 +55,8 @@ export * from "./harness-recommendation.js";
 export * from "./chain-preflight.js";
 export * from "./declared-checks.js";
 export * from "./chain-steps.js";
+export * from "./change-worktrees.js";
+export * from "./repository-audit.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

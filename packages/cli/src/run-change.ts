@@ -16,6 +16,8 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  createGitWrapper,
+  readRepositoryAuditEntries,
   describeWorkspaceLeaseConflict,
   describeWorkspaceLeaseReclamation,
   resolveChainStart,
@@ -126,7 +128,16 @@ async function driveChain(
   const runId = randomUUID();
   const chain = makeChainRunner({
     resolveRunner: wiring.resolve,
-    listAuditEntries: () => wiring.auditLog.readEntries(),
+    // Summed across every working directory of the repository, not just
+    // this one — ADR 0022 decision 5. Two changes running in two
+    // worktrees share one budget; reading only this directory's log
+    // would turn `budget.maxCostUsd` into a per-worktree allowance and
+    // let three worktrees silently spend three times the ceiling.
+    listAuditEntries: () =>
+      readRepositoryAuditEntries({
+        git: createGitWrapper({ cwd: run.workspaceRoot }),
+        workspaceRoot: run.workspaceRoot,
+      }),
     auditLog: wiring.auditLog,
   });
 

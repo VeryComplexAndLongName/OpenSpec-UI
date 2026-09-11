@@ -52,7 +52,7 @@ import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
-import { buildUsageReport } from "./usage-report.js";
+import { buildUsageReport, type UsageTotal } from "./usage-report.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
  * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
@@ -425,6 +425,43 @@ function nextStageAfter(sequence: readonly ChainEntry[], index: number): ChainSt
     if (entry !== undefined && entry.kind === "stage") return entry.stage;
   }
   return undefined;
+}
+
+/** What one change has spent, gathered from every working directory that
+ * recorded it — ADR 0022 decision 5.
+ *
+ * `totalsByChange` is keyed by the change directory's absolute path, and
+ * that path is different in every git worktree of the same repository.
+ * Looking the change up by its own path therefore finds only what this
+ * directory recorded, so a ceiling would be permitted once per worktree
+ * — which is exactly what summing the audit logs across worktrees was
+ * meant to prevent, and did not, until this.
+ *
+ * Matched on the directory's last segment, which is the change's name:
+ * `openspec/changes/<name>` is the only shape a change directory takes,
+ * and every entry being summed came from one repository's own worktrees,
+ * so two different changes cannot collide here.
+ *
+ * Found by running two chains in two worktrees for real. */
+function totalForChange(
+  totalsByChange: Record<string, UsageTotal>,
+  changeDir: string,
+): UsageTotal | undefined {
+  const changeName = path.basename(changeDir);
+  let found: UsageTotal | undefined;
+
+  for (const [key, total] of Object.entries(totalsByChange)) {
+    if (path.basename(key) !== changeName) continue;
+    found = found
+      ? {
+        runCount: found.runCount + total.runCount,
+        inputTokens: found.inputTokens + total.inputTokens,
+        outputTokens: found.outputTokens + total.outputTokens,
+        costUsd: found.costUsd + total.costUsd,
+      }
+      : total;
+  }
+  return found;
 }
 
 export class HarnessChainRunner {
@@ -1023,7 +1060,7 @@ export class HarnessChainRunner {
     if (!this.deps.listAuditEntries) return undefined;
 
     const entries = await this.deps.listAuditEntries();
-    const total = buildUsageReport(entries).totalsByChange[changeDir];
+    const total = totalForChange(buildUsageReport(entries).totalsByChange, changeDir);
     if (!total) return undefined;
 
     if (budget.maxCostUsd !== undefined && total.costUsd >= budget.maxCostUsd) {

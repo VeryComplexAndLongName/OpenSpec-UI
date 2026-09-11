@@ -65,6 +65,12 @@ it as part of this same change.
    (ADR 0004 decision 1). It records a random per-activation holder id,
    a host kind (`vscode-extension` / `standalone-server`), hostname,
    pid, and a heartbeat timestamp.
+   The isolation this decision names as its own precondition arrived in
+   [ADR-0022](0022-changes-run-side-by-side.md): a git worktree per
+   change. The lease is unchanged by it, and becomes what it always
+   described — a guard on one working directory rather than a queue for
+   the repository.
+
 2. **The lease is acquired only around a mutating run, not for the
    lifetime of a host.** A host attempts to acquire or renew the lease
    exactly where `WorkbenchProcessScheduler.run()` already sets
