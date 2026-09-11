@@ -177,14 +177,86 @@ to start a chain without an editor open.
   were already pending from earlier changes when this was written. The
   part it cannot check: one of them versions `core` and `cli` for this
   change.
-- [ ] 9.5 **Delegated to `claude-cli`**: run a real change from a real
+- [x] 9.5 **Delegated to `claude-cli`**: run a real change from a real
   terminal, end to end, in a throwaway workspace — not this repository.
   Evidence to record here: the command, the change's `harness.json`, the
   stages that ran, the exit code, and the audit log lines the run wrote.
   Unit tests cover the dispatch and the exit codes against a fake runner;
   only a real run shows whether the wiring spends, records and releases
   the way the two hosts do.
-- [ ] 9.6 **Delegated to `claude-cli`**: the two refusals that cost
+
+  Run 2026-09-11 in a throwaway git repository under the scratchpad,
+  initialised with `openspec init --tools none`, holding one change
+  `a-terminal-run` whose `harness.json` is
+  `{"autonomyLevel": "autonomous", "checkpoints": {"requireConfirmationBetweenSteps": false}}`.
+
+  The first attempt is the more useful half, so it is recorded first.
+  Everything in the change was ticked but nothing was implemented. The
+  chain resumed at `verify`, the agent read the repository, found no
+  implementation, **unticked the task**, and `archive` then refused:
+
+      npm run start --workspace @openspec-ui/cli -- run a-terminal-run --cwd <tw>
+      ▶ verify
+      Unchecked task 1.1. ... the repo contains no implementation of any kind
+      ✓ verify → archive
+      ▶ archive
+      ✗ cannot archive "a-terminal-run": 1 task(s) still unchecked
+      EXIT=1
+
+  A real `greeting.js` was then written and the task re-ticked. Second
+  run, same command:
+
+      ▶ verify
+      Task 1.1 verifies. No changes to `tasks.md`.
+      - `greeting.js:2` exports `greet(name)` ... Executed it: greet('Ada') → Hello, Ada.
+      ✓ verify → archive
+      ▶ archive
+      ✓ archived a-terminal-run
+      EXIT=0
+
+  Afterwards `openspec/changes/` held only `archive/2026-09-11-a-terminal-run`
+  and the requirement had merged into `openspec/specs/greeting/`.
+
+  `.openspec-ui/audit.jsonl`, written by the run and by nothing else,
+  held four entries — two per run, the agent named and the change
+  directory recorded:
+
+      2026-09-11T07:00:02.128Z claude-cli started   a-terminal-run
+      2026-09-11T07:00:31.338Z claude-cli completed a-terminal-run
+      2026-09-11T07:01:39.519Z claude-cli started   a-terminal-run
+      2026-09-11T07:01:57.883Z claude-cli completed a-terminal-run
+
+  That file is what the Processes view and the budget ceilings read, so
+  a terminal run is visible and counted exactly where the two hosts are.
+  Which stage ran is worth noting: the chain resumed at `verify` rather
+  than starting at `propose`, because the change was already written —
+  the resume logic is shared, not re-derived here.
+- [x] 9.6 **Delegated to `claude-cli`**: the two refusals that cost
   nothing, live — an `assisted` change, and a `semi-autonomous` one with
   its input not a terminal. Evidence: the command, the message, the exit
   code, and the audit log showing no entry was written for either.
+
+  Run 2026-09-11 against a copy of the same workspace with its audit log
+  deleted first, both with standard input redirected from `/dev/null` so
+  it is genuinely not a terminal. The `assisted` case carries no
+  `harness.json` at all, so it is also the default every change starts
+  at:
+
+      $ openspec-ui-cli run an-assisted-change --cwd <tw2> < /dev/null
+      will not run: this change's autonomyLevel is "assisted", which starts
+      one stage at a time through a picker rather than running a chain...
+      the setting that governs this is autonomyLevel
+      EXIT=2
+
+      $ openspec-ui-cli run a-paused-change --cwd <tw2> < /dev/null
+      will not run: this change's configuration pauses between stages for a
+      confirmation, and there is no terminal here to put that choice to. Run
+      it where somebody can answer, or set
+      checkpoints.requireConfirmationBetweenSteps to false in
+      openspec/changes/a-paused-change/harness.json...
+      the setting that governs this is checkpoints.requireConfirmationBetweenSteps
+      EXIT=2
+
+  After both, `.openspec-ui/` was empty — `audit.jsonl` was never
+  recreated. Not "no entry for this run": no file, which is the strongest
+  available statement that nothing was invoked.
