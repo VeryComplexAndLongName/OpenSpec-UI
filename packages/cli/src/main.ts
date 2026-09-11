@@ -8,6 +8,7 @@ import { readChangeGraph } from "@openspec-ui/core";
 import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
 import { checkChange } from "./check-change.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
+import { readyCommand } from "./ready-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -23,6 +24,7 @@ Usage:
   openspec-ui-cli validate [--cwd <path>] [--format json|text]
   openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli ready [--cwd <path>] [--base <ref>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -108,6 +110,7 @@ export interface MainDeps {
    * runs `npm` — the same seam `validateAll` already is. */
   runChange?: typeof runChange;
   worktreeCommand?: typeof worktreeCommand;
+  readyCommand?: typeof readyCommand;
   checkChange?: typeof checkChange;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
@@ -230,6 +233,17 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     return 0;
   }
 
+  if (command === "ready") {
+    return await (deps.readyCommand ?? readyCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        ...(options.base !== undefined ? { base: options.base } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "remove") {
@@ -281,7 +295,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

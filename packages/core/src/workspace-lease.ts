@@ -94,6 +94,45 @@ export function describeWorkspaceLeaseReclamation(conflict: WorkspaceLeaseConfli
   );
 }
 
+/** Who holds a working directory right now, or `undefined` when nobody
+ * does — a read that never takes it.
+ *
+ * Everything else here acquires: `acquireOrRenew` is the only way the
+ * lease was readable, and calling it to find out who holds it would
+ * take it from them where it had gone stale. A reporter has to be able
+ * to look without touching, so this exists (ADR 0024).
+ *
+ * A lease whose heartbeat is older than the staleness window reads as
+ * nobody: the holder is gone and only its file is left, which is
+ * exactly what `acquireOrRenew` already treats as free. */
+export async function readWorkspaceLeaseHolder(
+  root: string,
+  options: { staleAfterMs?: number } = {},
+): Promise<WorkspaceLeaseConflict | undefined> {
+  const filePath = path.join(path.resolve(root), ".openspec-ui", "workspace.lease.json");
+  let document: WorkspaceLeaseDocument;
+  try {
+    document = JSON.parse(await readFile(filePath, "utf8")) as WorkspaceLeaseDocument;
+  } catch {
+    // Missing, or unreadable, or not JSON: all of them mean nobody is
+    // holding it, which is what a corrupt lease already means to
+    // `acquireOrRenew`.
+    return undefined;
+  }
+  if (document.version !== WORKSPACE_LEASE_VERSION) return undefined;
+
+  const heartbeatAgeMs = Date.now() - Date.parse(document.heartbeatAt);
+  if (!Number.isFinite(heartbeatAgeMs)) return undefined;
+  if (heartbeatAgeMs > (options.staleAfterMs ?? WORKSPACE_LEASE_STALE_AFTER_MS)) return undefined;
+
+  return {
+    hostKind: document.hostKind,
+    hostname: document.hostname,
+    pid: document.pid,
+    heartbeatAgeMs,
+  };
+}
+
 /** One host's handle on the cross-host workspace mutation lease. Every
  * `WorkspaceLeaseManager` instance has its own random `holderId` — one
  * instance is constructed per host activation (per `WorkbenchRecoveryService`

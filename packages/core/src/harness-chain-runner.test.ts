@@ -219,6 +219,7 @@ function makeGitStageDeps(options: {
     worktreeAdd: vi.fn(async () => undefined),
     worktreeRemove: vi.fn(async () => undefined),
     pathExistsInRef: vi.fn(async () => true),
+    changedFilesBetween: vi.fn(async () => []),
   };
   const gateway: PullRequestGateway = {
     createPullRequest: vi.fn(async () => {

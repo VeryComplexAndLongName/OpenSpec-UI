@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-11
+follows:
+  - changes-run-side-by-side
+  - change-graph-in-core
+  - a-change-runs-from-the-terminal

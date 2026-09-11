@@ -87,6 +87,12 @@ export interface GitWrapper {
    * runs is the command that was decided on. */
   worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void>;
   worktreeRemove(path: string): Promise<void>;
+  /** The files `branch` has changed against `base`, as repository-
+   * relative paths. Three dots: what the branch changed since they
+   * diverged, not everything that has happened on `base` since — the
+   * second would report a collision with every change that landed while
+   * this one was open. */
+  changedFilesBetween(base: string, branch: string): Promise<string[]>;
   /** Whether `ref` contains `pathInRepo`. Used before creating a working
    * directory: `git worktree add` checks out a commit, so a change that
    * is not in that commit would produce a directory without the change it
@@ -139,6 +145,10 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // point, and `git worktree remove --force` is right there for
       // somebody who means it.
       await git.raw(["worktree", "remove", worktreePath]);
+    },
+    async changedFilesBetween(base: string, branch: string): Promise<string[]> {
+      const out = await git.raw(["diff", "--name-only", `${base}...${branch}`]);
+      return out.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
     },
     async pathExistsInRef(ref: string, pathInRepo: string): Promise<boolean> {
       try {
