@@ -179,11 +179,41 @@ describe("this repository's own changes", () => {
     // nothing: a spec id that stopped resolving to a file would otherwise
     // read as "no drift" forever. Measured 2026-09-06: 5 delta specs
     // across the active changes, one of them carrying a MODIFIED block.
+    //
+    // Only where there is something to reach. On 2026-09-11 this
+    // assertion turned `main` red on the commit that archived the last
+    // seven changes: nothing was broken, the queue was simply empty, and
+    // an empty subject is not a broken reach. Finishing the work is not
+    // a regression. Do not restore the unconditional form — the empty
+    // case is covered over a fixture below, because this test cannot
+    // reach it while any change is active.
     const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
-    const deltaSpecs = workspace.changes.flatMap((change) =>
-      change.artifacts.filter((artifact) => artifact.kind === "delta-spec" && artifact.exists));
-    expect(deltaSpecs.length).toBeGreaterThan(0);
+    if (workspace.changes.length > 0) {
+      const deltaSpecs = workspace.changes.flatMap((change) =>
+        change.artifacts.filter((artifact) => artifact.kind === "delta-spec" && artifact.exists));
+      expect(deltaSpecs.length).toBeGreaterThan(0);
+    }
 
     expect(await checkSpecDeltaDrift(workspaceRoot)).toEqual([]);
+  });
+});
+
+describe("a workspace with no active change", () => {
+  // What the repository-level test above cannot cover: the change that
+  // fixed the empty case is itself an active change, so the moment it
+  // exists that branch is no longer taken. A fixture reaches the state
+  // directly, and keeps reaching it after this change is archived and
+  // the repository is empty again.
+  it("finds no drift, and does not mistake having nothing to read for a fault", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-empty-queue-"));
+    try {
+      await mkdir(path.join(root, "openspec", "changes"), { recursive: true });
+      await mkdir(path.join(root, "openspec", "specs"), { recursive: true });
+      await writeFile(path.join(root, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+
+      await expect(checkSpecDeltaDrift(root)).resolves.toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
