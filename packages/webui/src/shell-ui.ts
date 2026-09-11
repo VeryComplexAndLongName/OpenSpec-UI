@@ -85,6 +85,21 @@ export const shellThemeCss = `
     background: var(--bg);
   }
 
+  /* Never set anywhere before this, which is why every control given a
+     width of 100% stood exactly its own padding and border past its
+     box. It showed up as the Change Editor's textarea sticking 18px
+     out of its field — invisible, because it stuck out into an empty
+     gutter, and a whole class of the same bug waiting for a narrower
+     container. Scoped to the app rather than set on every element in
+     the document: this stylesheet is injected into a host document
+     that is not always ours to reset. */
+  .openspec-standalone-app,
+  .openspec-extension-app,
+  .openspec-standalone-app *,
+  .openspec-extension-app * {
+    box-sizing: border-box;
+  }
+
   .openspec-standalone-app,
   .openspec-extension-app {
     max-width: 980px;
@@ -211,6 +226,13 @@ export const shellThemeCss = `
      the one that fails a contrast check first. */
   .openspec-shell-field {
     display: grid;
+    /* minmax(0, 1fr), not the implicit default: a grid track's automatic
+       minimum is its item's min-content width, so a select whose widest
+       option is a sentence pushes the field past its own panel and
+       a max-width of 100% never gets to bite. Found on the Change Editor
+       by sweeping every tab; the settings pane needed the same thing
+       for its second column. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 3px;
     font-size: 12px;
     font-weight: 600;
@@ -251,7 +273,10 @@ export const shellThemeCss = `
   .openspec-shell-field select,
   .openspec-ai-panel-controls select {
     width: auto;
-    min-width: var(--w-name);
+    /* The floor is a preference, not a demand: min() lets it give way
+       where the space is smaller than it, which is what stops a column
+       of tidy 14rem selects from forcing a page to scroll sideways. */
+    min-width: min(var(--w-name), 100%);
     max-width: 100%;
     justify-self: start;
   }
@@ -259,8 +284,7 @@ export const shellThemeCss = `
   /* An input has no content to be measured, so it takes a width from
      the kind of value it holds. */
   .openspec-shell-field input {
-    width: var(--w-sentence);
-    max-width: 100%;
+    width: min(var(--w-sentence), 100%);
     justify-self: start;
   }
 
@@ -297,8 +321,14 @@ export const shellThemeCss = `
      Styled on the class the markup already carries rather than a new
      one: a rule written for a class nothing uses is a setting nothing
      reads. */
+  /* The value column is minmax(0, 1fr), not 1fr. A grid track's default
+     minimum is its item's min-content width, so a select whose widest
+     option is "Claude CLI (ACP) — progress only, no permission gate
+     (detected)" — 435px — pushed the whole field 18px past its panel.
+     The sweep across every tab found it on the Change Editor; nothing
+     asserted it. */
   [data-testid="harness-settings-view"] .openspec-shell-field {
-    grid-template-columns: minmax(11rem, max-content) 1fr;
+    grid-template-columns: minmax(11rem, max-content) minmax(0, 1fr);
     gap: 4px 16px;
     align-items: baseline;
   }
@@ -1138,6 +1168,28 @@ export const shellThemeCss = `
     .openspec-editor-grid { grid-template-columns: 1fr; }
     .openspec-standalone-app,
     .openspec-extension-app { margin: 10px auto; padding: 10px; }
+  }
+
+  /* LAST in this layer on purpose. These selectors have the same
+     specificity as the ones they override, and at equal specificity the
+     later rule wins — placed earlier, the whole block did nothing.
+
+     At phone width the two-column settings pane becomes one column and
+     every control gives up its preferred width. Without it the page
+     scrolled sideways by 274px at 400px wide, found by sweeping every
+     tab after the restyle and never checked before. */
+  @media (max-width: 720px) {
+    .openspec-shell-grid,
+    [data-testid="harness-settings-view"] .openspec-shell-field {
+      grid-template-columns: 1fr;
+    }
+
+    .openspec-shell-field select,
+    .openspec-ai-panel-controls select,
+    .openspec-shell-field input {
+      width: 100%;
+      min-width: 0;
+    }
   }
 `;
 

@@ -17,6 +17,20 @@ function rulesAfterRoot(css: string): string {
 }
 
 describe("shell themes", () => {
+    it("is a whole stylesheet, not a fragment ending at a stray backtick", () => {
+        // This one is not paranoia. A backtick inside the template
+        // literal — in a COMMENT, describing a CSS selector — ended the
+        // string early, and what followed happened to parse as valid
+        // JavaScript (`"a" * `b``), so the build succeeded and
+        // `shellThemeCss` became three characters. Every screen rendered
+        // in Times New Roman on a transparent ground, and nothing failed.
+        //
+        // The length and the last rule are what a truncation cannot fake.
+        expect(shellThemeCss.length).toBeGreaterThan(10_000);
+        expect(shellThemeCss).toContain("@media (max-width: 720px)");
+        expect(vscodeThemeCss.length).toBeGreaterThan(1_000);
+    });
+
     it("keeps VS Code variables in an extension-only override layer", () => {
         expect(shellThemeCss).not.toContain("--vscode-editor-background");
         expect(vscodeThemeCss).toContain("--vscode-editor-background");
@@ -63,7 +77,10 @@ describe("shell themes", () => {
         // autonomy level to "assisted — one stage at a time, a cl". A
         // select already knows how wide its widest option is; the token
         // is only its floor, so a column of short ones stays tidy.
-        expect(shellThemeCss).toContain("min-width: var(--w-name)");
+        // `min()` and not a bare floor: the preferred width has to give
+        // way where the space is smaller than it, or a column of tidy
+        // selects makes the page scroll sideways at phone width.
+        expect(shellThemeCss).toContain("min-width: min(var(--w-name)");
         // Not a bare `width` on the same token — that is the fixed
         // width that clipped it. `min-width` contains the substring,
         // so the check has to exclude the prefixed forms.
