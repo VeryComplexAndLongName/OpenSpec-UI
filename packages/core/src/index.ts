@@ -58,6 +58,7 @@ export * from "./chain-steps.js";
 export * from "./change-worktrees.js";
 export * from "./repository-audit.js";
 export * from "./change-readiness.js";
+export * from "./repo-setup-actions.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";
