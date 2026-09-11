@@ -84,6 +84,19 @@ test.describe("standalone change charts", () => {
       // commit, because this fixture has a history.
       await expect(page.getByTestId("chart-archived-per-day-basis")).toContainText("dated from a commit");
 
+      // The chart that is not drawn explains itself with this
+      // workspace's own figures. It used to be a constant sentence
+      // reading "measured over this repository, 135 of 185 changes",
+      // shown to every workspace — a fact about the repository that
+      // wrote it, presented as a fact about yours. Five changes are
+      // compared here and all five carry a finished task committed with
+      // their proposal, so the span is zero for every one of them.
+      // See a-date-is-one-day-in-every-source.
+      const workNote = page.getByTestId("chart-work-duration-note");
+      await expect(workNote).toContainText("5 of 5 changes have exactly zero days");
+      await expect(workNote).not.toContainText("185");
+      await expect(workNote).not.toContainText("this repository");
+
       // Scoped to the charts themselves: a full-page capture here is
       // mostly the range pickers and the lanes above them, which the
       // timeline's own image already shows.

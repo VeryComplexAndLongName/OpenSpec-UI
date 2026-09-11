@@ -117,7 +117,7 @@ the middle configuration describe a different arithmetic.
   `@openspec-ui/core`, `@openspec-ui/webui` and `openspec-ui-vscode` —
   the VS Code run dialog applies a configuration through the same core
   function and changed with it (see 2.1).
-- [ ] 5.4 **Delegated to copilot-cli**: this is a live run, and
+- [x] 5.4 **Delegated to copilot-cli**: this is a live run, and
   `copilot-cli` is an agent whose CLI accepts `--agent`. Against a
   scratch change, set the global config's `apply` stage to `copilot-cli`
   and the change's override to the same agent plus a `customAgent` — the
@@ -125,3 +125,19 @@ the middle configuration describe a different arithmetic.
   `.openspec-ui/audit.jsonl` for the entry whose command carries
   `--agent <name>`. Evidence to record here: the run id and the audit
   line, quoted.
+
+  Run 2026-09-11 against a throwaway workspace, never this repository.
+  The global config named `copilot-cli` for `apply`; the change's
+  override named the same agent plus `customAgent: "reviewer"`, with a
+  real definition under `.github/agents/` — the exact pair the merge
+  used to collapse to a bare agent id.
+
+  Resolved: `{"agent":"copilot-cli","customAgent":"reviewer"}`.
+
+  The audit log carried both the start and the terminal entry with the
+  same argv:
+
+      "args": ["-p", "--allow-all-tools", "--agent", "reviewer"]
+
+  The run completed, so the CLI accepted the flag rather than merely
+  being handed it.

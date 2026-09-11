@@ -28,9 +28,26 @@ restores the tree after a reload.
   staged. Run 2026-09-10: exit 0 — 48 cli, 835 core, 312 extension, 70
   server, 346 webui.
 - [x] 3.3 Version bump via `npx changeset` for the extension.
-- [ ] 3.4 **Delegated to copilot-cli**: in the VS Code integration suite,
-  build a workspace with one fully ticked change, select its `tasks.md`
-  row, reload the window, and assert the change row's description reads
-  `implemented`. Evidence to record here: the test name and the run that
-  passed. This is the reported symptom, and the unit tests above cover
-  the cause rather than the reload itself.
+- [x] 3.4 **Delegated to copilot-cli**: in the VS Code integration suite,
+  build a workspace with one fully ticked change and assert the row
+  `getParent` returns for its `tasks.md` is the change's own row,
+  reading `implemented`.
+
+  Premise corrected: the item asked for a window reload. That cannot be
+  done from inside the suite — `workbench.action.reloadWindow` restarts
+  the extension host the test is running in, so the run dies with it.
+  What a reload does that matters here is restore the tree's selection
+  by walking `getParent`, and that is exactly what this asserts, in a
+  real Extension Host against a real workspace. Said rather than
+  quietly narrowed.
+
+  Evidence: `packages/extension/src/test/suite/extension.test.ts`,
+  "Changes tree keeps an implemented change as the parent of its tasks
+  row after refresh". It writes a fully ticked `tasks.md`, refreshes,
+  and asserts both that the parent is the same row object and that its
+  description reads `implemented` — identity is the fix, the
+  description is what a person sees. Run 2026-09-11: 17 passing, 22s.
+
+  The test was written by `copilot-cli`; the second assertion was added
+  when this item was closed, because identity alone does not say what
+  the reader would have seen.

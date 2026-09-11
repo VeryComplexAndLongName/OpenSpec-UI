@@ -99,8 +99,37 @@ is counted as a run. A gap reason misnames the gap.
   followed by what an entry with no `checkedAgent` means. Every checks
   entry in this repository's log is one of those, because none had been
   written when the field was added.
-- [ ] 5.5 **Delegated to copilot-cli**: against a scratch change
+- [x] 5.5 **Delegated to copilot-cli**: against a scratch change
   declaring one mechanical check, run the chain, then read the quality
   block. Assert the group names the `apply` stage's agent and not
   `verify-checks`. Evidence to record here: the run id, the audit
   entry's `checkedAgent` value, and the rendered sentence, quoted.
+
+  Run 2026-09-11 against a throwaway workspace. The change declared one
+  check, `check(changeset-present)`, which fails there — the case that
+  matters, because a failing check never invokes the verifying agent, so
+  the checks entry is the only record of what the stage found.
+
+  The apply stage ran `copilot-cli` for real. Propose and review
+  resolved to a runner that completes immediately: what is under test is
+  which name the checks entry records, and that name comes from the
+  resolved apply stage, so three more live invocations would have proved
+  nothing further. Stated rather than left to be assumed from the word
+  "live".
+
+  The three audit entries:
+
+      {"agent":"copilot-cli","stage":"apply","outcome":"started",
+       "args":["-p","--allow-all-tools","--agent","reviewer"]}
+      {"agent":"copilot-cli","stage":"apply","outcome":"completed", ...}
+      {"agent":"verify-checks","checkedAgent":"copilot-cli",
+       "stage":"verify","outcome":"failed","checksRan":1,"checksFailed":1}
+
+  The readback groups by the checked agent, not the writer:
+
+      [{"agent":"copilot-cli","verifies":1,"withFailures":1,
+        "checksRan":1,"checksFailed":1,"enough":false}]
+
+  and says: "1 verifying stage(s) across 1 checked agent(s); 1 rests on
+  fewer than 5 and is reported as thin." Before this change the single
+  group would have been named `verify-checks`.
