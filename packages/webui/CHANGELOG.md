@@ -1,5 +1,47 @@
 # @openspec-ui/webui
 
+## 1.37.0
+
+### Minor Changes
+
+- 91f9ad7: A delegated item can be run by the agent it names. The marking has said
+  who closes an item since `a-live-check-names-who-performs-it`, and
+  nothing acted on it — seven items were closed on 2026-09-11 and a person
+  drove every one. Either host now offers a run on a row whose item names
+  an agent this build carries, through the same allowlist,
+  working-directory sandbox and audit log as any stage; the audit entry
+  carries the change and the task number. A change may also state which
+  agent a particular task uses, in its own `harness.json` under
+  `taskAgents`, keyed by the task's number — per-change only, taking
+  precedence over the task text, with a disagreement between the two
+  reported rather than resolved in silence, and a key matching no open
+  task reported as unmatched. An item that comes back ticked while saying
+  nothing it did not say before has the tick reverted and the run reported
+  as refused; nothing here judges whether written evidence is true, and
+  the surfaces say so.
+- 9c2c7d5: Text an agent streams over ACP reads as the prose it was written as. The
+  event log has folded consecutive `stdout` chunks into one since the panel
+  was written, which is why a raw-CLI agent's output runs on; an ACP agent
+  emits `agentUpdate` instead, and the fold had no case for it, so every
+  slice of a reply rendered as its own element — half a sentence, sometimes
+  half a word. Consecutive text chunks of the same kind now join with
+  nothing between them, as `stdout` does and unlike `stderr` and
+  `progress`, whose separator would land inside a split word. A message
+  chunk and a thought chunk never join with each other, and anything that
+  is not streamed text — a tool call, a plan, a usage figure — ends the run
+  around it, so a tool call that happened between two sentences still shows
+  between them. Whether an ACP update carries text, and what that text is,
+  is now answered by one function in `@openspec-ui/core` that both hosts
+  read; an update whose shape it does not recognise carries no text and is
+  rendered exactly as before, because guessing at an addition to a protocol
+  this project does not own would turn it into mangled output.
+
+### Patch Changes
+
+- Updated dependencies [91f9ad7]
+- Updated dependencies [9c2c7d5]
+  - @openspec-ui/core@0.66.0
+
 ## 1.36.0
 
 ### Minor Changes
