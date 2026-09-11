@@ -12,6 +12,8 @@ import {
   AGENT_REGISTRY,
   DEFAULT_AGENT_ID,
   normalizeStepAgent,
+  readAcpStreamedText,
+  withAcpStreamedText,
   type Command,
   type CommandKind,
   type Event,
@@ -345,6 +347,21 @@ function extractStepItems(text: string): StepItem[] {
   return items;
 }
 
+/** Folds consecutive events of the same kind into one, so the log shows
+ * what the agent said rather than how the transport cut it up.
+ *
+ * Three kinds fold, and they do not fold alike. `stdout` and an ACP text
+ * chunk concatenate with nothing between them — each is a slice cut
+ * wherever the producer happened to flush, routinely mid-sentence and
+ * sometimes mid-word, so anything inserted between two of them lands
+ * inside a word. `stderr` and `progress` are whole lines that arrived
+ * separately, and join with a newline. See
+ * openspec/changes/acp-text-reads-as-prose/design.md, "text chunks
+ * concatenate with nothing between them".
+ *
+ * Everything else, including an ACP update this build does not read as
+ * text, is pushed as its own entry and ends the run around it — a tool
+ * call that happened between two sentences happened between them. */
 export function collapseStreamEvents(events: Event[]): Event[] {
   const collapsed: Event[] = [];
 
@@ -364,6 +381,24 @@ export function collapseStreamEvents(events: Event[]): Event[] {
     if (event.kind === "progress" && previous?.kind === "progress") {
       previous.message += previous.message.endsWith("\n") ? event.message : `\n${event.message}`;
       continue;
+    }
+
+    if (event.kind === "agentUpdate" && previous?.kind === "agentUpdate") {
+      const incoming = readAcpStreamedText(event.update);
+      const accumulated = readAcpStreamedText(previous.update);
+      // Same kind only: a message chunk and a thought chunk are
+      // different statements, and running them together shows one that
+      // was never made.
+      if (incoming && accumulated && incoming.kind === accumulated.kind) {
+        // A new payload object rather than a mutated one — `previous` is
+        // this function's own shallow copy, but its `update` is still
+        // the caller's object.
+        const joined = withAcpStreamedText(previous.update, `${accumulated.text}${incoming.text}`);
+        if (joined) {
+          previous.update = joined;
+          continue;
+        }
+      }
     }
 
     collapsed.push({ ...event });
@@ -793,7 +828,15 @@ function renderStructuredText(raw: string, index: number): ReactNode {
  * adapter's own `"assistant"` message updates. `undefined` for every
  * other update kind (tool calls, plans, ...) — those fall back to
  * `describeEvent()`'s one-line summary rather than a guess at rendering
- * their own differently-shaped payload. */
+ * their own differently-shaped payload.
+ *
+ * Deliberately laxer than core's `readAcpStreamedText`, which
+ * `collapseStreamEvents` folds by: that one recognises only the two ACP
+ * text-chunk kinds and only a `{ type: "text" }` content block, because
+ * joining two payloads it misread would corrupt a sentence, whereas
+ * showing one payload's text on its own line is what this panel already
+ * did. An update this reader accepts and that one does not is rendered
+ * as its own entry, exactly as before. */
 function extractAgentUpdateText(update: Record<string, unknown>): string | undefined {
   const content = update.content;
   if (isObjectRecord(content) && typeof content.text === "string") return content.text;

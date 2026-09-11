@@ -165,3 +165,8 @@ export * from "./stale-tasks.js";
 // it imports AuditEntry from security.ts, which pulls in node:fs/node:path.
 export * from "./agent-usage.js";
 export * from "./verified-agent-versions.js";
+// Reading an ACP update's streamed text: a leaf beside the protocol, no
+// Node imports. Both hosts render this stream and both need the same
+// answer before they can show a streamed reply as prose rather than as
+// the slices it arrived in.
+export * from "./acp-streamed-text.js";

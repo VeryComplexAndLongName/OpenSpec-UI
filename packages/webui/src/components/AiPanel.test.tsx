@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Command, Event } from "@openspec-ui/core";
 import type { Transport } from "../transport/types.js";
-import { AiPanel } from "./AiPanel.js";
+import { AiPanel, collapseStreamEvents } from "./AiPanel.js";
 
 function createFakeTransport() {
     let listener: ((event: Event) => void) | null = null;
@@ -896,5 +896,147 @@ describe("AiPanel cancel control", () => {
             expect.objectContaining({ kind: "cancel", runId: "run-cancel-race" }),
         );
         expect(screen.getByTestId("run-status-label")).toHaveTextContent("Completed");
+    });
+});
+
+// acp-text-reads-as-prose tasks.md 3.2-3.5. Against the function rather
+// than the rendered panel: what is being asserted is which events fold
+// into which, and a DOM assertion would report that through however the
+// log happens to be laid out today.
+describe("collapseStreamEvents — ACP text chunks", () => {
+    const base = { runId: "run-1", timestamp: "t" } as const;
+
+    function messageChunk(text: string): Event {
+        return { ...base, kind: "agentUpdate", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text } } };
+    }
+
+    function thoughtChunk(text: string): Event {
+        return { ...base, kind: "agentUpdate", update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text } } };
+    }
+
+    function textOf(event: Event | undefined): unknown {
+        if (event?.kind !== "agentUpdate") return undefined;
+        return (event.update.content as Record<string, unknown> | undefined)?.text;
+    }
+
+    it("folds a run of message chunks into one, with no separator inside a split word", () => {
+        // The reported symptom: a slice cut wherever the model flushed,
+        // here in the middle of "sentence".
+        const collapsed = collapseStreamEvents([messageChunk("Here is half a sen"), messageChunk("tence, and the rest.")]);
+
+        expect(collapsed).toHaveLength(1);
+        expect(textOf(collapsed[0])).toBe("Here is half a sentence, and the rest.");
+    });
+
+    it("does not fold a message chunk and a thought chunk into each other", () => {
+        const collapsed = collapseStreamEvents([messageChunk("I will "), thoughtChunk("maybe "), messageChunk("do it.")]);
+
+        expect(collapsed).toHaveLength(3);
+        expect(collapsed.map(textOf)).toEqual(["I will ", "maybe ", "do it."]);
+    });
+
+    it("leaves three events, in order, when a tool call arrives between two message chunks", () => {
+        const toolCall: Event = {
+            ...base,
+            kind: "agentUpdate",
+            update: { sessionUpdate: "tool_call", toolCallId: "tool-1", title: "Write to src/index.ts" },
+        };
+        const collapsed = collapseStreamEvents([messageChunk("First."), toolCall, messageChunk("Second.")]);
+
+        expect(collapsed).toHaveLength(3);
+        expect(collapsed.map(textOf)).toEqual(["First.", undefined, "Second."]);
+        expect(collapsed[1]?.kind === "agentUpdate" && collapsed[1].update.sessionUpdate).toBe("tool_call");
+    });
+
+    it("folds nothing around an update whose shape it does not recognise", () => {
+        const unfamiliar: Event = {
+            ...base,
+            kind: "agentUpdate",
+            update: { sessionUpdate: "some_future_chunk", content: { type: "text", text: "?" } },
+        };
+        const collapsed = collapseStreamEvents([unfamiliar, unfamiliar, messageChunk("after")]);
+
+        expect(collapsed).toHaveLength(3);
+        expect(collapsed.map(textOf)).toEqual(["?", "?", "after"]);
+    });
+
+    it("keeps the rest of the first chunk's payload on the folded event", () => {
+        const first: Event = {
+            ...base,
+            kind: "agentUpdate",
+            update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "a" }, meta: { first: true } },
+        };
+        const collapsed = collapseStreamEvents([first, messageChunk("b")]);
+
+        expect(collapsed).toHaveLength(1);
+        expect(collapsed[0]?.kind === "agentUpdate" && collapsed[0].update.meta).toEqual({ first: true });
+        expect(textOf(collapsed[0])).toBe("ab");
+    });
+
+    it("does not mutate the events it was given", () => {
+        const first = messageChunk("a");
+        const second = messageChunk("b");
+        const input = [first, second];
+
+        collapseStreamEvents(input);
+
+        expect(textOf(first)).toBe("a");
+        expect(textOf(second)).toBe("b");
+        expect(input).toEqual([messageChunk("a"), messageChunk("b")]);
+    });
+});
+
+// 3.5: the folding the three older kinds already had, asserted here
+// because this change edits the function they share with the new one.
+describe("collapseStreamEvents — the kinds that already folded", () => {
+    const base = { runId: "run-1", timestamp: "t" } as const;
+
+    it("joins consecutive stdout chunks with nothing between them", () => {
+        const collapsed = collapseStreamEvents([
+            { ...base, kind: "stdout", chunk: "half a wo" },
+            { ...base, kind: "stdout", chunk: "rd\n" },
+        ]);
+
+        expect(collapsed).toHaveLength(1);
+        expect(collapsed[0]?.kind === "stdout" && collapsed[0].chunk).toBe("half a word\n");
+    });
+
+    it("joins consecutive stderr chunks with a newline, and adds none when one is already there", () => {
+        const collapsed = collapseStreamEvents([
+            { ...base, kind: "stderr", chunk: "first" },
+            { ...base, kind: "stderr", chunk: "second" },
+            { ...base, kind: "stderr", chunk: "third" },
+        ]);
+
+        expect(collapsed).toHaveLength(1);
+        expect(collapsed[0]?.kind === "stderr" && collapsed[0].chunk).toBe("first\nsecond\nthird");
+
+        const alreadyEnded = collapseStreamEvents([
+            { ...base, kind: "stderr", chunk: "first\n" },
+            { ...base, kind: "stderr", chunk: "second" },
+        ]);
+        expect(alreadyEnded[0]?.kind === "stderr" && alreadyEnded[0].chunk).toBe("first\nsecond");
+    });
+
+    it("joins consecutive progress messages with a newline", () => {
+        const collapsed = collapseStreamEvents([
+            { ...base, kind: "progress", message: "step one" },
+            { ...base, kind: "progress", message: "step two" },
+        ]);
+
+        expect(collapsed).toHaveLength(1);
+        expect(collapsed[0]?.kind === "progress" && collapsed[0].message).toBe("step one\nstep two");
+    });
+
+    it("never folds two different kinds together, and leaves every other kind alone", () => {
+        const collapsed = collapseStreamEvents([
+            { ...base, kind: "stdout", chunk: "out" },
+            { ...base, kind: "stderr", chunk: "err" },
+            { ...base, kind: "progress", message: "on" },
+            { ...base, kind: "completed" },
+            { ...base, kind: "completed" },
+        ]);
+
+        expect(collapsed.map((event) => event.kind)).toEqual(["stdout", "stderr", "progress", "completed", "completed"]);
     });
 });
