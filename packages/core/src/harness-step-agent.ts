@@ -53,6 +53,27 @@ export const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget", "customAge
 export type HarnessStepAgentStage = Exclude<HarnessStage, "archive" | "git">;
 export type HarnessStepAgents = Partial<Record<HarnessStepAgentStage, HarnessStepAgent>>;
 
+/** A task number as `tasks.md` writes it — the leading `1`, `1.1`,
+ * `1.1.1` token of a checklist line. The key a `taskAgents` entry is
+ * written under, and the shape `taskNumberOf` (task-checklist.ts) reads
+ * off a line, kept here so the writer's rule and the reader's rule are
+ * one thing rather than two that can drift.
+ *
+ * Anchored and digits-only on purpose: a key is a task number, never a
+ * heading, a range, or a phrase. See a-delegated-item-runs-its-agent. */
+export const TASK_NUMBER_PATTERN = /^\d+(?:\.\d+)*$/;
+
+/** Which agent runs one numbered task of a change, keyed by that task's
+ * number as `tasks.md` writes it. The value is the same entry shape a
+ * stage takes, validated by the same rules — a task and a stage both end
+ * up as one CLI invocation, so an entry that means something for one
+ * means the same for the other.
+ *
+ * Per-change only: a task number belongs to the change that wrote it, so
+ * the same statement made workspace-wide is about a task in some other
+ * change (see harness-config.ts's `GlobalTaskAgentsError`). */
+export type HarnessTaskAgents = Record<string, HarnessStepAgent>;
+
 /** Narrows a stage to one a `stepAgents` entry may name. A consumer
  * holding a plain `HarnessStage` — every dispatch and settings surface
  * does — needs this rather than an index, which the narrowed record

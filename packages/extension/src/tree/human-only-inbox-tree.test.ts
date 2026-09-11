@@ -16,7 +16,12 @@ vi.mock("@openspec-ui/core", () => ({
       : waitingOn.known ? waitingOn.agent : `"${waitingOn.agent}", which is not a registered agent`),
 }));
 
-const { HumanOnlyInboxItemTreeItem, HumanOnlyInboxTreeProvider } = await import("./human-only-inbox-tree.js");
+const {
+  HumanOnlyInboxItemTreeItem,
+  HumanOnlyInboxTreeProvider,
+  RUNNABLE_INBOX_ITEM_CONTEXT,
+  WAITING_INBOX_ITEM_CONTEXT,
+} = await import("./human-only-inbox-tree.js");
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -134,5 +139,60 @@ describe("HumanOnlyInboxTreeProvider — who each row waits on", () => {
     const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
 
     expect(items[0]?.description).toBe('change-a — waiting on "copilto-cli", which is not a registered agent');
+  });
+});
+
+describe("HumanOnlyInboxTreeProvider — which rows can be run", () => {
+  it("gives a row naming a registered agent the contextValue the run command binds to", async () => {
+    // The control exists only where it can do something. A row waiting
+    // on a person carries none, which is the distinction the marking
+    // exists for — see a-delegated-item-runs-its-agent.
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([
+      { changeName: "change-a", lineNumber: 3, text: "1.2 **Human-only**: judge it" },
+      {
+        changeName: "change-b",
+        lineNumber: 5,
+        text: "2.1 **Delegated to copilot-cli**: quote the audit line",
+        waitingOn: { kind: "agent", agent: "copilot-cli", known: true },
+      },
+      {
+        changeName: "change-c",
+        lineNumber: 1,
+        text: "1.1 **Delegated to copilto-cli**: a typo",
+        waitingOn: { kind: "agent", agent: "copilto-cli", known: false },
+      },
+    ]));
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items.map((item) => item.contextValue)).toEqual([
+      WAITING_INBOX_ITEM_CONTEXT,
+      RUNNABLE_INBOX_ITEM_CONTEXT,
+      // An id nothing recognises is not runnable either: the run would
+      // refuse it, and a control that always refuses is worse than none.
+      WAITING_INBOX_ITEM_CONTEXT,
+    ]);
+  });
+
+  it("shows what a run reported on the row it was started from", async () => {
+    // A notification that has been dismissed is an outcome nobody can
+    // go back and read, and the row is where the item lives.
+    const row = {
+      changeName: "change-b",
+      lineNumber: 5,
+      text: "2.1 **Delegated to copilot-cli**: quote the audit line",
+      waitingOn: { kind: "agent" as const, agent: "copilot-cli", known: true },
+    };
+    collectHumanOnlyInboxMock.mockResolvedValue(inbox([row]));
+
+    const provider = new HumanOnlyInboxTreeProvider("/repo");
+    const [before] = await provider.getChildren();
+    expect(before?.description).toBe("change-b — waiting on copilot-cli");
+
+    provider.reportOutcome(before as InstanceType<typeof HumanOnlyInboxItemTreeItem>, "refused: ticked with nothing written");
+    const [after] = await provider.getChildren();
+
+    expect(after?.description)
+      .toBe("change-b — waiting on copilot-cli — refused: ticked with nothing written");
   });
 });

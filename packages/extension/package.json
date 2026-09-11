@@ -155,6 +155,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "openspec-ui.runDelegatedItem",
+        "title": "OpenSpec UI: Run This Delegated Item",
+        "icon": "$(play)"
+      },
+      {
         "command": "openspec-ui.openspecView",
         "title": "OpenSpec UI: OpenSpec View (CLI)"
       },
@@ -442,6 +447,11 @@
           "command": "openspec-ui.deleteTask",
           "when": "viewItem == openspec-ui.activeTask",
           "group": "openspec@9"
+        },
+        {
+          "command": "openspec-ui.runDelegatedItem",
+          "when": "viewItem == openspec-ui.humanOnlyInboxItem.agent",
+          "group": "inline"
         },
         {
           "command": "openspec-ui.cancelProcess",

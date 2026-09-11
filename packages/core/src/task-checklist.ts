@@ -1,5 +1,6 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { isMechanicalCheckName, MECHANICAL_CHECK_NAMES, type MechanicalCheckName } from "./mechanical-checks.js";
+import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 // See openspec/changes/tasks-tree-expand/design.md. Paths always come
@@ -87,6 +88,25 @@ export function delegatedAgentFor(text: string): string | undefined {
   const match = text.match(HUMAN_ONLY_LEAD_RE);
   if (!match) return undefined;
   return DELEGATED_LEAD_RE.exec((match[1] ?? "").trim())?.[1];
+}
+
+/** The number a task line leads with, and nothing else: `1`, `1.1`,
+ * `1.1.1`, each followed by whitespace or the end of the line.
+ *
+ * A `taskAgents` key is written as this number, so the reader and the
+ * writer share `TASK_NUMBER_PATTERN` — a key that could never be read
+ * off a line is refused where it is written (`harness-config.ts`). A
+ * line that does not begin with one simply has no number, and can only
+ * be named by a `**Delegated to <id>**` marker in its own text. */
+const TASK_NUMBER_LEAD_RE = /^(\d+(?:\.\d+)*)(?=\s|$)/;
+
+/** The task number a checklist line's text leads with, or `undefined`.
+ *
+ * `text` is the task's text as `readTaskChecklist` reports it, i.e.
+ * already stripped of the `- [ ]` marker. */
+export function taskNumberOf(text: string): string | undefined {
+  const number = TASK_NUMBER_LEAD_RE.exec(text.trim())?.[1];
+  return number !== undefined && TASK_NUMBER_PATTERN.test(number) ? number : undefined;
 }
 
 /** A task names a check the registry (`mechanical-checks.ts`) does not
@@ -182,6 +202,21 @@ async function findTasksArtifactPath(
   const change = list.find((c) => c.name === changeName);
   const tasksArtifact = change?.artifacts.find((artifact) => artifact.id === "tasks");
   return tasksArtifact?.exists ? tasksArtifact.path : undefined;
+}
+
+/** Where a change's `tasks.md` is, or `undefined` when it has none.
+ *
+ * Exported for `delegated-item-run.ts`, which reads and rewrites the raw
+ * lines of one task rather than the parsed items. It goes through this
+ * function for the reason this file's header gives: a path always comes
+ * from `discoverOpenSpecWorkspace`'s own allowlisted `artifacts[]`,
+ * never from joining a caller-supplied change name onto a directory. */
+export async function tasksFilePath(
+  workspaceRoot: string,
+  changeName: string,
+  archived: boolean,
+): Promise<string | undefined> {
+  return findTasksArtifactPath(workspaceRoot, changeName, archived);
 }
 
 function parseChecklist(content: string): TaskChecklistItem[] {

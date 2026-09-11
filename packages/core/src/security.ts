@@ -390,6 +390,15 @@ export interface AuditEntry {
    * chain's own `runId`, so nothing else here can say which stage spent
    * what, and a guessed attribution would be worse than none. */
   stage?: HarnessStage;
+  /** The one task this run was asked to do, by the number its line
+   * carries in `tasks.md` — present only on a delegated item's run (see
+   * delegated-item-run.ts).
+   *
+   * `changeDir` already says which change; this says which line of it,
+   * which is the difference between "an agent ran here" and "an agent
+   * was asked to close 6.6". Absent on every whole-change run, and
+   * never inferred for an entry written before this field existed. */
+  taskNumber?: string;
   /** The reasoning effort the agent was asked for, where one was asked
    * for. Recorded because a figure without it is not comparable: the same
    * stage on the same agent at `high` and at `medium` are different runs,

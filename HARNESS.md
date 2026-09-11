@@ -16,6 +16,7 @@ what does **not** cap it), see [`LIMITS.md`](LIMITS.md).
 | See how checkpoints and resumed chains behave | [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer) |
 | Allow push, pull-request creation, and merge | [The `git` stage](#the-git-stage) |
 | Compare agents, models, effort, and caps | [Agent reference](#agents-models-effort-and-spending-caps) |
+| Hand one numbered task to an agent | [`taskAgents`](#taskagents) |
 | Set a spending ceiling | [Harness Spending Limits](LIMITS.md) |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
@@ -77,12 +78,13 @@ the per-change file over the global one (`mergeHarnessConfig`):
   where the entry carried four, so an override naming the same agent
   plus a `customAgent` resolved without it and the chain ran with no
   `--agent` flag.
-- `autonomyLevel`, `reviewGate`, `checkpoints`, `budget`, and
-  `gitStageAllowlist` are each a **whole-value override** — if the
-  per-change file sets one at all, its value is used exactly as written,
-  never merged field-by-field with the global file's own value.
+- `autonomyLevel`, `reviewGate`, `checkpoints`, `budget`,
+  `gitStageAllowlist` and `taskAgents` are each a **whole-value
+  override** — if the per-change file sets one at all, its value is used
+  exactly as written, never merged field-by-field with the global file's
+  own value.
 
-Four settings a **global** `openspec/agent-harness.json` may not set —
+Five settings a **global** `openspec/agent-harness.json` may not set —
 each one raises a dedicated `InvalidHarnessConfigError` subclass naming
 the reason if a global file tries:
 
@@ -92,8 +94,9 @@ the reason if a global file tries:
 | `reviewGate.mode: "agent-sufficient"` | No — `GlobalAgentSufficientReviewGateError` | This is what allows the `git` stage to push/PR/merge without a human present. A workspace default must never grant that; only a specific change's own file can. |
 | `checkpoints.requireConfirmationBetweenSteps: false` | No — `GlobalCheckpointsDisabledError` | Same reasoning as `autonomyLevel: "autonomous"`, one field over: skipping the pause between stages is a per-change opt-in. |
 | `gitStageAllowlist` (the key itself, any value) | No — `GlobalGitAllowlistError` | The allowlist is what a real `git push`/`gh pr create`/`gh pr merge` is checked against. A workspace-wide allowlist would apply to every change's git actions by default, which is exactly the blast radius this setting exists to avoid. |
+| `taskAgents` (the key itself, any value) | No — `GlobalTaskAgentsError` | Not too powerful, but meaningless: a task number belongs to the change whose `tasks.md` wrote it, so the same statement made workspace-wide is about a different piece of work in every change. |
 
-A per-change file may set any of the four above without restriction —
+A per-change file may set any of the five above without restriction —
 including a `budget` (see below) **higher** than the global file's. There
 is no equivalent restriction on the chain-level `budget` field itself: any
 file, global or per-change, may set any positive value for it.
@@ -108,7 +111,8 @@ it matches a known stage name, suggesting `stepAgents.<key>` instead.
 
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
 `checkpoints`, `budget`, `timeout`, `maxStageAttempts`,
-`gitStageAllowlist`. Nothing else is accepted, at either file.
+`gitStageAllowlist`, `taskAgents`. Nothing else is accepted, at either
+file.
 
 ### `stepAgents`
 
@@ -243,6 +247,61 @@ runs of a stage nobody configured. Each attempt records its own reason.
 entries are exact strings or simple `*` wildcards. Per-change only — see
 "Two configuration files" above. Detailed in "The `git` stage" below.
 
+### `taskAgents`
+
+Which agent runs one numbered task of this change, keyed by the task's
+number exactly as `tasks.md` writes it:
+
+```json
+{ "taskAgents": { "5.4": { "agent": "copilot-cli", "customAgent": "reviewer" } } }
+```
+
+The value is the same entry a `stepAgents` stage takes — the bare string
+form or the object with `model`, `effort`, `budget` and `customAgent` —
+validated by the same rules, including the character rule on
+`customAgent`. Two rules are this section's own: a key must be a task
+number (`1`, `1.1`, `1.1.1`), and `vscode-chat` is refused, because a
+delegated item's run spawns a CLI and cannot be handed to the editor's
+chat.
+
+**Per-change only.** The global `openspec/agent-harness.json` may not set
+it (`GlobalTaskAgentsError`) — not because the value is too powerful for
+one file to set for every change, which is why `autonomyLevel:
+"autonomous"` is refused there, but because it would be meaningless: a
+task number belongs to the change whose `tasks.md` wrote it, so "5.4 runs
+on copilot-cli" stated workspace-wide is a statement about a different
+piece of work in every change.
+
+**Precedence**, highest first:
+
+1. `taskAgents["<number>"]` in this change's `harness.json`;
+2. the `**Delegated to <agent-id>**` marker in the task's own text;
+3. nothing — the item is not delegated and is offered no run.
+
+Where the file and the task text name different agents, the file wins
+**and both are reported**: the row says "claude-cli (this change's
+harness.json names it; the task text names copilot-cli)". A
+disagreement between two statements about one task is worth seeing
+rather than resolving in silence.
+
+A key matching no open task line is reported as unmatched rather than
+ignored — in the inbox's own sentence, since it is otherwise visible
+nowhere. Two reasons are distinguished, because they are fixed
+differently: no open task carries that number (a renumbered or deleted
+task — change the key), or the task it names is marked `**Human-only**`
+(remove the key; an item marked for a person is never offered a run,
+whatever the file says).
+
+**What running one checks, and what it does not.** An item run this way
+goes through the same allowlist, working-directory sandbox and audit log
+as any stage, and its audit entry carries the change and the
+`taskNumber`. Afterwards the item's line and indented body are compared
+with what they were: an item that came back **ticked while saying
+nothing it did not say before** has the tick reverted and the run
+reported as refused. That is the whole of the check. It does not judge
+whether written evidence is true — nothing mechanical can — so a passed
+gate means something was recorded, never that it was verified.
+
 ## Where each setting is edited
 
 Neither UI is a full editor for every field above — some settings have no
@@ -259,6 +318,7 @@ settings screen that doesn't have the control:
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
+| `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec UI: Run This Delegated Item**. |
 
 ### Standalone settings, in pictures
 
@@ -567,6 +627,9 @@ any `git` or `gh` process starts — an action matching nothing in it is
   "gitStageAllowlist": {
     "remotes": ["origin"],
     "branches": ["feature/*"]
+  },
+  "taskAgents": {
+    "5.4": { "agent": "copilot-cli", "customAgent": "reviewer" }
   }
 }
 ```

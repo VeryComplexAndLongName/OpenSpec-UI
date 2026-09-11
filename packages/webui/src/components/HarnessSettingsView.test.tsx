@@ -363,9 +363,10 @@ describe("HarnessSettingsView — saving preserves what it cannot show", () => {
   // top-level keys and the per-change save 3.
   //
   // Asserted against TOP_LEVEL_CONFIG_KEYS rather than against a list of
-  // fields, so the ninth key added to the schema and forgotten here fails
+  // fields, so the next key added to the schema and forgotten here fails
   // immediately. Naming fields is what let this pass for as long as it
-  // did.
+  // did — and it worked: `taskAgents`, the ninth key, failed this on the
+  // first run after it was added (a-delegated-item-runs-its-agent).
 
   /** One value per accepted key, valid for a per-change file (which is
    * the stricter of the two: `autonomyLevel: "autonomous"` and
@@ -379,6 +380,7 @@ describe("HarnessSettingsView — saving preserves what it cannot show", () => {
     timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
     maxStageAttempts: 2,
     gitStageAllowlist: ["openspec/**"],
+    taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
   } as const;
 
   function keysMissingFrom(saved: Record<string, unknown>, expected: readonly string[]): string[] {

@@ -70,8 +70,23 @@ export { buildVerifyQuality, describeVerifyQuality, ENOUGH_VERIFIES } from "./ve
 // From the leaf module, not from the collector beside it: that one reads
 // task files, and a value re-exported from it puts `node:fs` in this
 // bundle.
-export { describeHumanOnlyInbox, describeHumanOnlyInboxState, describeWaitingOn } from "./human-only-inbox-view.js";
-export type { HumanOnlyInbox, HumanOnlyInboxState, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
+export {
+  describeHumanOnlyInbox,
+  describeHumanOnlyInboxState,
+  describeUnmatchedTaskAgent,
+  describeWaitingOn,
+} from "./human-only-inbox-view.js";
+export type {
+  HumanOnlyInbox,
+  HumanOnlyInboxState,
+  HumanOnlyItem,
+  UnmatchedTaskAgent,
+  WaitingOn,
+} from "./human-only-inbox-view.js";
+// Types only — `delegated-item-run.ts` reads and rewrites task files, so
+// its runtime never enters this bundle. The shell asks the server to run
+// an item and renders what comes back, which is this shape.
+export type { DelegatedItemGate, DelegatedItemRunResult } from "./delegated-item-run.js";
 export type { AgentQuality, VerifyQuality } from "./verify-quality.js";
 export type {
   DroppedRun,
@@ -134,6 +149,7 @@ export {
   type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessStepBudget,
+  type HarnessTaskAgents,
 } from "./harness-step-agent.js";
 // resolveRunWithHarnessTarget is a real value export (not just a type) —
 // imported from its own zero-Node-import leaf module, not from

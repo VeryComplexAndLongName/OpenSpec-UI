@@ -176,6 +176,12 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         invocation,
         ...(agentVersion !== undefined ? { agentVersion } : {}),
         ...(command.stage !== undefined ? { stage: command.stage } : {}),
+        // Which one task, where the run was asked for one task rather
+        // than a change. Recorded on both this entry and the terminal
+        // one below, like `stage`: either can be the entry a reader
+        // finds first, and one that says which change but not which
+        // line answers half the question.
+        ...(command.taskNumber !== undefined ? { taskNumber: command.taskNumber } : {}),
         ...(command.effort !== undefined ? { effort: command.effort } : {}),
       });
 
@@ -240,6 +246,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           // a gap: a `review` someone started by itself is a stage of
           // nothing.
           ...(command.stage !== undefined ? { stage: command.stage } : {}),
+          ...(command.taskNumber !== undefined ? { taskNumber: command.taskNumber } : {}),
           ...(command.effort !== undefined ? { effort: command.effort } : {}),
         });
       }

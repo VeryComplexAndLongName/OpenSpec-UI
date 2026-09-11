@@ -10,6 +10,7 @@ import {
   GlobalAutonomousAutonomyLevelError,
   GlobalCheckpointsDisabledError,
   GlobalGitAllowlistError,
+  GlobalTaskAgentsError,
   HARNESS_AGENT_CAPABILITIES,
   InvalidHarnessConfigError,
   mergeHarnessConfig,
@@ -891,6 +892,78 @@ describe("ACP adapter capabilities match their plain counterparts (acp-agent-cap
   });
 });
 
+describe("taskAgents (a-delegated-item-runs-its-agent)", () => {
+  it("accepts an entry keyed by a task number, in either entry form", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "demo", {
+      taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" }, "6": "claude-cli" },
+    });
+
+    const override = await readChangeHarnessConfig(root, "demo");
+
+    expect(override?.taskAgents).toEqual({
+      "5.4": { agent: "copilot-cli", customAgent: "reviewer" },
+      "6": "claude-cli",
+    });
+  });
+
+  it("refuses it in the global file, the way autonomyLevel autonomous is refused", async () => {
+    // A task number belongs to the change whose tasks.md wrote it, so the
+    // same statement made workspace-wide is about a different piece of
+    // work in every change.
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { taskAgents: { "1.1": "copilot-cli" } }))
+      .rejects.toThrow(GlobalTaskAgentsError);
+  });
+
+  it("refuses a key that is not a task number", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", { taskAgents: { "the live check": "copilot-cli" } }))
+      .rejects.toThrow(/taskAgents key "the live check" is not a task number/);
+  });
+
+  it("applies the same entry rules a stage entry obeys, naming the task", async () => {
+    // One validator over both, so the customAgent shape rule cannot come
+    // to hold for a stage and not for a task.
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "--dangerous" } },
+    })).rejects.toThrow(/taskAgents\."5\.4"\.customAgent "--dangerous" must not begin with "-"/);
+
+    await expect(writeChangeHarnessConfig(root, "demo", { taskAgents: { "5.4": "copilto-cli" } }))
+      .rejects.toThrow(/taskAgents\."5\.4" references unknown agent id "copilto-cli"/);
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      taskAgents: { "5.4": { agent: "gemini-cli", effort: "high" } },
+    })).rejects.toThrow(/taskAgents\."5\.4" sets effort/);
+  });
+
+  it("refuses vscode-chat, which cannot run one task", async () => {
+    // A delegated item's run spawns a CLI through `createAgentRunner`;
+    // handing a numbered task to the editor's chat is not something
+    // anything here can do, so accepting it would write a setting
+    // nothing reads.
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", { taskAgents: { "5.4": VSCODE_CHAT_STEP_AGENT_ID } }))
+      .rejects.toThrow(/taskAgents\."5\.4" selects agent "vscode-chat", which cannot run one task/);
+  });
+
+  it("survives the merge with a global file that has none", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { stepAgents: { apply: "claude-cli" } });
+    await writeChangeHarnessConfig(root, "demo", { taskAgents: { "2.1": "copilot-cli" } });
+
+    const config = await resolveHarnessConfig(root, "demo");
+
+    expect(config.taskAgents).toEqual({ "2.1": "copilot-cli" });
+    expect(config.stepAgents).toEqual({ apply: "claude-cli" });
+  });
+});
+
 describe("every accepted key survives a round trip (config-keys-survive-a-round-trip)", () => {
   /** A representative value per accepted top-level key.
    *
@@ -908,6 +981,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     timeout: { maxRunSeconds: 900, maxStageSeconds: 300 },
     maxStageAttempts: 3,
     gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+    taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
   };
 
   it("has a sample for every accepted key, and no others", () => {
@@ -917,10 +991,10 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
   });
 
   for (const key of TOP_LEVEL_CONFIG_KEYS) {
-    // `gitStageAllowlist` and `checkpoints` are per-change only; a global
-    // file setting either is refused, so those two are exercised through
-    // the per-change path alone.
-    const globalAccepts = key !== "gitStageAllowlist" && key !== "checkpoints";
+    // `gitStageAllowlist`, `checkpoints` and `taskAgents` are per-change
+    // only; a global file setting any of them is refused, so those are
+    // exercised through the per-change path alone.
+    const globalAccepts = key !== "gitStageAllowlist" && key !== "checkpoints" && key !== "taskAgents";
 
     if (globalAccepts) {
       it(`carries "${key}" back out of the global file`, async () => {

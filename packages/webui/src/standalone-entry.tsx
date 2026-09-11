@@ -47,7 +47,7 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
-import { loadHumanOnlyInbox } from "./human-only-inbox-client.js";
+import { loadHumanOnlyInbox, runDelegatedItem as runDelegatedItemApi } from "./human-only-inbox-client.js";
 import {
   addScheduledRun as addScheduledRunApi,
   loadScheduledRuns,
@@ -557,6 +557,38 @@ function StandaloneApp() {
    * human-only item is indistinguishable, in that list, from one nobody
    * has started. See human-only-inbox-in-the-shell. */
   const [humanOnly, setHumanOnly] = useState<HumanOnlyInboxState | null>(null);
+  /** What the last run of each delegated item reported, keyed the way
+   * its row is. Shown beside the row it was started from: an outcome
+   * that scrolled away somewhere else is an outcome nobody reads. */
+  const [delegatedOutcomes, setDelegatedOutcomes] = useState<Record<string, string>>({});
+  /** The row whose run is in flight, so its button says so and cannot
+   * be pressed twice. One item per request is the rule. */
+  const [runningDelegated, setRunningDelegated] = useState<string | null>(null);
+
+  /** Runs the agent one open delegated item names, and reports the
+   * outcome — including a refusal from the rubber-stamp gate — where
+   * the row is. The reading is then refreshed, because the run may have
+   * closed the item or written under it. */
+  async function runDelegatedItem(item: { changeName: string; lineNumber: number }): Promise<void> {
+    const key = `${item.changeName}:${item.lineNumber}`;
+    setRunningDelegated(key);
+    try {
+      const result = await runDelegatedItemApi(apiFetch, cwd, item);
+      setDelegatedOutcomes((current) => ({ ...current, [key]: result.message }));
+      try {
+        setHumanOnly({ status: "loaded", inbox: await loadHumanOnlyInbox(apiFetch, cwd) });
+      } catch {
+        // The run's own outcome is the answer here; a failed refresh of
+        // the list does not make it less true, and overwriting the
+        // block with a read error would hide it.
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setDelegatedOutcomes((current) => ({ ...current, [key]: `The run could not be started: ${reason}` }));
+    } finally {
+      setRunningDelegated(null);
+    }
+  }
 
   /** Asks for a run at a time. The dialog closes: what happens next is a
    * schedule, not a run, and leaving the run buttons on screen would
@@ -1237,12 +1269,39 @@ function StandaloneApp() {
             </p>
             {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
               <ul className="openspec-shell-note">
-                {humanOnly.inbox.items.map((item) => (
-                  <li key={`${item.changeName}:${item.lineNumber}`}>
-                    <strong>{item.changeName}</strong>{` — ${item.text}`}
-                    {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
-                  </li>
-                ))}
+                {humanOnly.inbox.items.map((item) => {
+                  const key = `${item.changeName}:${item.lineNumber}`;
+                  // The control exists only where it can do something:
+                  // an item waiting on a person is offered no run, and
+                  // neither is one naming an id this build does not
+                  // carry. See a-delegated-item-runs-its-agent.
+                  const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
+                  const outcome = delegatedOutcomes[key];
+                  return (
+                    <li key={key} data-testid={`waiting-row-${key}`}>
+                      <strong>{item.changeName}</strong>{` — ${item.text}`}
+                      {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
+                      {runnable ? (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            data-testid={`run-delegated-${key}`}
+                            disabled={runningDelegated !== null}
+                            onClick={() => void runDelegatedItem(item)}
+                          >
+                            {runningDelegated === key
+                              ? "Running..."
+                              : `Run ${item.waitingOn.kind === "agent" ? item.waitingOn.agent : ""}`}
+                          </button>
+                        </>
+                      ) : null}
+                      {outcome ? (
+                        <div data-testid={`delegated-outcome-${key}`}>{outcome}</div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </div>

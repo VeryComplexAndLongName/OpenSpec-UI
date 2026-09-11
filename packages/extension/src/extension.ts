@@ -16,6 +16,8 @@ import {
   buildDefaultAgentRunners,
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
+  runDelegatedItem,
+  shortDelegatedItemOutcome,
 } from "@openspec-ui/core";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
 import { getWorkspaceRoot, readConfig } from "./config.js";
@@ -32,7 +34,7 @@ import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
 import type { GraphTreeNode } from "./tree/change-graph-tree.js";
-import { HumanOnlyInboxTreeProvider } from "./tree/human-only-inbox-tree.js";
+import { HumanOnlyInboxTreeProvider, type HumanOnlyInboxItemTreeItem } from "./tree/human-only-inbox-tree.js";
 import { registerFollowSelection } from "./follow-selection.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
@@ -265,6 +267,56 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
 
     auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
     runners = buildDefaultAgentRunners({ workspaceRoot, auditLog });
+
+    // Running one delegated item, from the row that names its agent.
+    // Bound to `RUNNABLE_INBOX_ITEM_CONTEXT` in package.json, so a row
+    // waiting on a person never shows it; the refusals in
+    // `runDelegatedItem` are what catch the rest (an id the registry
+    // does not carry, an item already ticked, a task list that moved
+    // underneath the row). See a-delegated-item-runs-its-agent.
+    const inboxTree = humanOnlyInboxTree;
+    const inboxRoot = workspaceRoot;
+    context.subscriptions.push(
+      vscode.commands.registerCommand("openspec-ui.runDelegatedItem", async (item?: HumanOnlyInboxItemTreeItem) => {
+        // This view is registered read-only (`registerTreeDataProvider`
+        // exposes no selection), so the row has to come from the menu
+        // that invoked the command.
+        if (!item) {
+          void vscode.window.showWarningMessage(
+            "OpenSpec UI: run a delegated item from its own row in the Human-Only Inbox.",
+          );
+          return;
+        }
+        const agents = runners;
+        if (!agents) {
+          void vscode.window.showWarningMessage("OpenSpec UI: no workspace is open.");
+          return;
+        }
+        try {
+          const result = await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `OpenSpec UI: running ${item.changeName} — ${item.text}`,
+              cancellable: false,
+            },
+            () => runDelegatedItem({
+              workspaceRoot: inboxRoot,
+              changeName: item.changeName,
+              lineNumber: item.lineNumber,
+              resolveRunner: (agentId) => resolveAgentRunner(agents, agentId),
+            }),
+          );
+          inboxTree?.reportOutcome(item, shortDelegatedItemOutcome(result));
+          const refused = result.status === "refused" || result.gate.kind === "reverted";
+          const show = refused ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
+          void show(`OpenSpec UI: ${result.message}`);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          inboxTree?.reportOutcome(item, "the run could not be started");
+          void vscode.window.showErrorMessage(`OpenSpec UI: failed to run delegated item — ${reason}`);
+        }
+      }),
+    );
 
     const packageJsonWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(workspaceRoot, "package.json"),

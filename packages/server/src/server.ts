@@ -24,6 +24,7 @@ import {
   handleChangeEditorSaveRequest,
   handleChangeTimelineRequest,
   handleChangeTimelinesRequest,
+  handleDelegatedItemRunRequest,
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
@@ -235,6 +236,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/human-only-inbox") {
       void handleHumanOnlyInboxRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/delegated-item/run") {
+      void handleDelegatedItemRunRequest(req, res, runners, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/scheduled-runs") {

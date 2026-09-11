@@ -42,6 +42,7 @@ import {
   buildVerifyQuality,
   addScheduledRun,
   collectHumanOnlyInbox,
+  runDelegatedItem,
   customAgentDirectories,
   findCustomAgents,
   auditLogPath,
@@ -1070,6 +1071,65 @@ export async function handleHumanOnlyInboxRequest(req: IncomingMessage, res: Ser
 
   try {
     sendJson(res, 200, await collectHumanOnlyInbox(parsed.cwd));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface DelegatedItemRunRequest {
+  cwd: string;
+  changeName: string;
+  lineNumber: number;
+}
+
+function isDelegatedItemRunRequest(value: unknown): value is DelegatedItemRunRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0
+    && typeof record.changeName === "string" && record.changeName.trim().length > 0
+    && typeof record.lineNumber === "number" && Number.isInteger(record.lineNumber) && record.lineNumber >= 0;
+}
+
+/** Runs the agent one open delegated item names, against that item.
+ *
+ * One item per request, named by the change and the line the inbox
+ * already reports — there is no "run them all" here, deliberately (see
+ * a-delegated-item-runs-its-agent's proposal.md, "Out of scope").
+ *
+ * Every decision this could get wrong is core's: which agent the item
+ * resolves to, whether it may be run at all, and whether the tick that
+ * came back said anything. This route reads a body, checks the cwd the
+ * way every other route does, and hands over. */
+export async function handleDelegatedItemRunRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  runners: Map<string, AgentRunner>,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isDelegatedItemRunRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd, a changeName and a zero-based lineNumber" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const result = await runDelegatedItem({
+      workspaceRoot: parsed.cwd,
+      changeName: parsed.changeName,
+      lineNumber: parsed.lineNumber,
+      resolveRunner: (agentId) => resolveRunner(runners, agentId),
+    });
+    // A refusal is an answer, not a transport failure: the caller asked
+    // a legitimate question and is being told why nothing ran.
+    sendJson(res, 200, result);
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
