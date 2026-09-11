@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.49.4
+
+### Patch Changes
+
+- Updated dependencies [824b784]
+  - @openspec-ui/webui@1.38.0
+
 ## 0.49.3
 
 ### Patch Changes
