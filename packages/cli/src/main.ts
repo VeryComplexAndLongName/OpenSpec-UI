@@ -8,6 +8,7 @@ import { readChangeGraph } from "@openspec-ui/core";
 import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
 import { checkChange } from "./check-change.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
+import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
   type ReleaseAssets,
@@ -22,6 +23,10 @@ Usage:
   openspec-ui-cli validate [--cwd <path>] [--format json|text]
   openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
+                                        [--base <ref>]
+  openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
+  openspec-ui-cli worktree remove <change> [--cwd <path>]
   openspec-ui-cli change-graph [--cwd <path>] [--change <id>] [--all]
   openspec-ui-cli release-manifest [--cwd <path>] [--repository <owner/name>]
                                    [--ref <ref>] [--commit <sha>]
@@ -34,6 +39,10 @@ Options:
                       output is one document made at the end; default
                       text for run and check, which are watched. For
                       run, json is one event per line, as it happens.
+  --path <dir>        Where a working directory goes (default: a sibling
+                      of the repository, <repo>.worktrees/<change>)
+  --base <ref>        The ref a working directory is cut from
+                      (default: main)
   --change <id>       Print one change's ancestry instead of the whole
                       graph: what it follows, and what those follow
   --all               Include changes that state no relation
@@ -81,6 +90,12 @@ export interface MainOptions {
    * Distinct from `--change`, which selects a subtree of `change-graph`'s
    * output. */
   changeName?: string;
+  /** `worktree`'s own subject: `worktree add <change>` puts the action
+   * in the first positional and the change in the second. */
+  worktreeChange?: string;
+  /** Where a working directory goes, and the ref it is cut from. */
+  path?: string;
+  base?: string;
 }
 
 export interface MainDeps {
@@ -92,6 +107,7 @@ export interface MainDeps {
   /** `run` and `check`, injected so a unit test never spawns an agent or
    * runs `npm` — the same seam `validateAll` already is. */
   runChange?: typeof runChange;
+  worktreeCommand?: typeof worktreeCommand;
   checkChange?: typeof checkChange;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
@@ -126,11 +142,13 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--commit" ||
       arg === "--releases" ||
       arg === "--from" ||
+      arg === "--path" ||
+      arg === "--base" ||
       arg === "--change"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "change";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -150,6 +168,7 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
   }
 
   if (positional[1] !== undefined) options.changeName = positional[1];
+  if (positional[2] !== undefined) options.worktreeChange = positional[2];
   return { command: positional[0], options };
 }
 
@@ -211,6 +230,26 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     return 0;
   }
 
+  if (command === "worktree") {
+    const action = options.changeName;
+    if (action !== "add" && action !== "list" && action !== "remove") {
+      stderr();
+      stderr(USAGE);
+      return 2;
+    }
+    return await (deps.worktreeCommand ?? worktreeCommand)(
+      {
+        repositoryRoot: options.cwd ?? process.cwd(),
+        action,
+        ...(options.worktreeChange !== undefined ? { changeName: options.worktreeChange } : {}),
+        ...(options.path !== undefined ? { path: options.path } : {}),
+        ...(options.base !== undefined ? { base: options.base } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "run" || command === "check") {
     const changeName = options.changeName;
     if (!changeName) {
@@ -242,7 +281,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, release-manifest, change-graph)",
+      + " (supported: validate, run, check, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

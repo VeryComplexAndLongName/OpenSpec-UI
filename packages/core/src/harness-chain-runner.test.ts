@@ -13,7 +13,7 @@ import type { GitWrapper } from "./git.js";
 import type { Command, Event } from "./protocol.js";
 import { writeChangeHarnessConfig, writeGlobalHarnessConfig } from "./harness-config.js";
 import type { AllowlistConfig } from "./security.js";
-import { FileAuditLog, InMemoryAuditLog, auditLogPath } from "./security.js";
+import { FileAuditLog, InMemoryAuditLog, auditLogPath, type AuditEntry } from "./security.js";
 
 // every-varying-check-has-a-budget:
 // measured 2026-09-05 at 1.0s idle and 19.0s under deliberate 8-worker
@@ -212,6 +212,13 @@ function makeGitStageDeps(options: {
     push: vi.fn(async () => {
       calls.gitPush += 1;
     }),
+    // The git stage touches none of these. They are here because the
+    // wrapper is one interface, and a partial fake would compile only by
+    // being cast — which is how a fake stops matching what it fakes.
+    worktreeList: vi.fn(async () => []),
+    worktreeAdd: vi.fn(async () => undefined),
+    worktreeRemove: vi.fn(async () => undefined),
+    pathExistsInRef: vi.fn(async () => true),
   };
   const gateway: PullRequestGateway = {
     createPullRequest: vi.fn(async () => {
@@ -2854,5 +2861,83 @@ describe("HarnessChainRunner — declared steps (a-change-can-declare-a-step)", 
 
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
     expect(events.some((e) => e.kind === "cancelled")).toBe(false);
+  });
+});
+
+describe("HarnessChainRunner — one repository, one ceiling (changes-run-side-by-side)", () => {
+  /** An audit entry pair as a real run records one: a `started` carrying
+   * the change directory, and a `completed` carrying the usage. */
+  function recordedRun(runId: string, changeDir: string, costUsd: number): AuditEntry[] {
+    return [
+      {
+        timestamp: "2026-09-11T00:00:00.000Z",
+        runId,
+        agent: "claude-cli",
+        outcome: "started",
+        changeDir,
+      },
+      {
+        timestamp: "2026-09-11T00:01:00.000Z",
+        runId,
+        agent: "claude-cli",
+        outcome: "completed",
+        changeDir,
+        usage: { costUsd, inputTokens: 0, outputTokens: 0 },
+      },
+    ] as unknown as AuditEntry[];
+  }
+
+  it("counts what a sibling working directory spent on the same change", async () => {
+    // The gap a live pair of parallel runs exposed: `totalsByChange` is
+    // keyed by the change directory's ABSOLUTE path, which differs in
+    // every worktree. Summing the audit logs across worktrees therefore
+    // did nothing on its own — the ceiling was still permitted once per
+    // directory.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxCostUsd: 10 },
+    });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    mockStatus(false);
+
+    const siblingChangeDir = path.join(root, "..", "repo.worktrees", "demo", "openspec", "changes", "demo");
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      listAuditEntries: () => recordedRun("elsewhere", siblingChangeDir, 12),
+    });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as unknown as { reason: string }).reason).toContain("budget exceeded");
+  });
+
+  it("does not count a different change that happens to be recorded", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxCostUsd: 10 },
+    });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    await writeTasks(root, 0, 3);
+    mockStatus(false);
+    mockArchiveSucceeds();
+
+    const otherChangeDir = path.join(root, "openspec", "changes", "something-else");
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => runner,
+      listAuditEntries: () => recordedRun("other", otherChangeDir, 99),
+    });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    // Matching on the directory's last segment must not turn one
+    // change's spending into another's.
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
   });
 });
