@@ -7,6 +7,7 @@ import {
   WorkspaceLeaseManager,
   describeWorkspaceLeaseConflict,
   describeWorkspaceLeaseReclamation,
+  withWorkspaceLease,
   type WorkspaceLeaseDocument,
 } from "./workspace-lease.js";
 
@@ -117,5 +118,115 @@ describe("WorkspaceLeaseManager", () => {
     const result = await next.acquireOrRenew();
 
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe("a terminal run as a lease holder", () => {
+  it("names the terminal run in a conflict, rather than the standalone server", () => {
+    // The label was a ternary while there were two kinds, so a third one
+    // read as "standalone server" — a wrong answer plausible enough to
+    // survive. This is the test that fails if it goes back to one.
+    const message = describeWorkspaceLeaseConflict({
+      hostKind: "cli",
+      hostname: "build-agent-2",
+      pid: 4242,
+      heartbeatAgeMs: 3_000,
+    });
+
+    expect(message).toContain("terminal run on build-agent-2");
+    expect(message).not.toContain("standalone server");
+  });
+
+  it("names every host kind it can be told about", () => {
+    for (const [hostKind, label] of [
+      ["cli", "terminal run"],
+      ["vscode-extension", "VS Code extension"],
+      ["standalone-server", "standalone server"],
+    ] as const) {
+      expect(describeWorkspaceLeaseReclamation({ hostKind, hostname: "h", pid: 1, heartbeatAgeMs: 0 }))
+        .toContain(label);
+    }
+  });
+
+  it("takes the lease as its own kind of host", async () => {
+    const root = await temporaryRoot();
+    await new WorkspaceLeaseManager(root, { hostKind: "cli" }).acquireOrRenew();
+
+    expect(await readLease(root)).toMatchObject({ hostKind: "cli" });
+  });
+});
+
+describe("withWorkspaceLease", () => {
+  it("holds the lease for the body and releases it afterwards", async () => {
+    const root = await temporaryRoot();
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+
+    const outcome = await withWorkspaceLease(lease, async () => {
+      expect(await readLease(root)).toMatchObject({ hostKind: "cli" });
+      return "done";
+    });
+
+    expect(outcome).toEqual({ ok: true, value: "done" });
+    await expect(readLease(root)).rejects.toThrow();
+  });
+
+  it("releases the lease when the body throws", async () => {
+    const root = await temporaryRoot();
+    const lease = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+
+    await expect(
+      withWorkspaceLease(lease, async () => {
+        throw new Error("the run failed");
+      }),
+    ).rejects.toThrow("the run failed");
+
+    // A failed run that keeps the workspace would make the next one wait
+    // out the full staleness window for nothing.
+    await expect(readLease(root)).rejects.toThrow();
+  });
+
+  it("reports a live foreign holder instead of running the body", async () => {
+    const root = await temporaryRoot();
+    const holder = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });
+    await holder.acquireOrRenew();
+    const contender = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+    let ran = false;
+
+    const outcome = await withWorkspaceLease(contender, async () => {
+      ran = true;
+    });
+
+    expect(ran).toBe(false);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.conflict.hostKind).toBe("vscode-extension");
+    // The holder still holds it: a refused contender must not have
+    // deleted the file it failed to take.
+    expect(await readLease(root)).toMatchObject({ hostKind: "vscode-extension" });
+  });
+
+  it("does not release a lease that was reclaimed away mid-run", async () => {
+    const root = await temporaryRoot();
+    const first = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+
+    const outcome = await withWorkspaceLease(first, async () => {
+      // Somebody else decided this holder was stale and took over.
+      const second = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension", staleAfterMs: -1 });
+      await second.acquireOrRenew();
+      return "finished anyway";
+    });
+
+    expect(outcome).toMatchObject({ ok: true, value: "finished anyway" });
+    // The new owner's lease survives this one's exit.
+    expect(await readLease(root)).toMatchObject({ hostKind: "vscode-extension" });
+  });
+
+  it("reports that the workspace was reclaimed from a stopped holder", async () => {
+    const root = await temporaryRoot();
+    await new WorkspaceLeaseManager(root, { hostKind: "standalone-server" }).acquireOrRenew();
+    const taker = new WorkspaceLeaseManager(root, { hostKind: "cli", staleAfterMs: -1 });
+
+    const outcome = await withWorkspaceLease(taker, async () => "ran");
+
+    expect(outcome).toMatchObject({ ok: true, reclaimedFrom: { hostKind: "standalone-server" } });
   });
 });

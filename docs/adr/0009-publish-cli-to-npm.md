@@ -1,6 +1,7 @@
 # 0009: Publish `@openspec-ui/cli` to npm as a Bundled Package
 
-Status: Accepted
+Status: Accepted (decision 4 superseded by
+[ADR-0020](0020-cli-runs-a-change.md))
 
 Date: 2026-08-26
 
@@ -60,6 +61,10 @@ own project without installing this monorepo.
 4. **Scope stays exactly what ADR-0007 already decided: `validate` only.**
    This ADR is about the packaging/distribution mechanism, not about
    expanding the CLI's command surface.
+
+   Superseded by [ADR-0020](0020-cli-runs-a-change.md) along with the
+   ADR-0007 decision it restates. The packaging decisions in this ADR
+   are unaffected.
 5. **The actual `npm publish` is not performed by this change.** This
    development environment has no npm registry credentials
    (`npm whoami` fails with `ENEEDAUTH`); publishing the first real

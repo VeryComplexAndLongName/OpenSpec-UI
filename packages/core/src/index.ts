@@ -52,6 +52,8 @@ export * from "./change-cost-report.js";
 export * from "./harness-config-findings.js";
 export * from "./harness-templates.js";
 export * from "./harness-recommendation.js";
+export * from "./chain-preflight.js";
+export * from "./declared-checks.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
 export { CopilotCliAdapter } from "./agents/copilot.js";

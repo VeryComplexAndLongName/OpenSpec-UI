@@ -26,5 +26,6 @@ Alternatives / Consequences.
 | [0017](0017-structured-agent-output-parsing.md) | Structured agent output: parsing discipline and graceful degradation | Accepted |
 | [0018](0018-event-driven-harness-orchestration.md) | Event-driven harness orchestration | Accepted |
 | [0019](0019-mechanical-task-checks.md) | Mechanical task checks | Accepted |
+| [0020](0020-cli-runs-a-change.md) | The CLI runs a change | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
