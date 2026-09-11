@@ -7,30 +7,82 @@ export function buildDefaultChangeDir(cwd: string): string {
 }
 
 export const shellThemeCss = `
+  /* Every colour the shell draws is declared here and nowhere else —
+     ADR 0023 decision 3. A literal written into a rule is the reason a
+     palette change comes out patchy in the places nobody re-checks: a
+     diff tint, an event row's ground, a disabled control. Each name
+     says what it is FOR, so the next palette can be chosen without
+     reading the rules that use it.
+
+     Neutrals carry a slight cool bias rather than being pure grey, and
+     the accent is used sparingly: an active tab, a focus ring, the
+     primary button, a progress fill. Semantic colours are a separate
+     set — a thing that succeeded is not "the accent". */
   :root {
     color-scheme: light;
-    --bg: #f4f1ea;
-    --bg-accent: #eadcc8;
-    --surface: #fffef9;
-    --surface-2: #f8f3e8;
-    --ink: #1d1a16;
-    --muted: #6f665b;
-    --primary: #1f5d52;
-    --primary-ink: #e9fff8;
-    --danger: #9d2f2f;
-    --line: #d8ccb6;
-    --radius: 14px;
-    --shadow: 0 16px 40px rgba(29, 26, 22, 0.12);
+
+    /* grounds, lightest surface last: the page sits UNDER its panels */
+    --bg: #eef0f3;
+    --bg-accent: #e6e9ee;
+    --surface: #ffffff;
+    --surface-2: #f5f7f9;
+    --surface-3: #e9ecf0;
+
+    /* text. --muted is set from the contrast requirement, not from
+       taste: 6.0:1 on --surface, where the browser suite's axe run
+       covers WCAG AA and a quieter palette fails first. */
+    --ink: #1b1f24;
+    --muted: #5a6470;
+
+    /* One accent. Both steps carry white text, so both are measured
+       against it: --primary 7.1:1, --primary-soft 5.5:1. The soft
+       step was #2b8677 first and axe caught it at 4.39:1 — a hover
+       state is a state the checker evaluates, and "it is only the
+       hover" is how a palette fails AA in the one place nobody
+       screenshots. */
+    --primary: #0e6357;
+    --primary-soft: #14766a;
+    --primary-bg: #e7f1ef;
+    --primary-ink: #ffffff;
+
+    /* semantic, deliberately not the accent */
+    --good: #16704a;
+    --good-bg: #e6f2ea;
+    --warn: #7d5412;
+    --warn-bg: #f5edda;
+    --bad: #a02b2b;
+    --bad-bg: #fbeaea;
+    --danger: var(--bad);
+
+    /* edges. --line separates, --line-strong is for an edge that has
+       to hold its own against a filled surface. */
+    --line: #d7dbe1;
+    --line-strong: #bcc3cc;
+
+    /* A radius that softens a corner rather than announcing a card,
+       and ONE shadow, spent only on what genuinely overlays — see ADR
+       0023 decision 2. Border and fill do the separating. */
+    --radius: 6px;
+    --radius-sm: 4px;
+    --shadow: 0 6px 20px rgba(16, 22, 30, 0.10);
+
+    /* Control widths, named for the kind of value they hold rather
+       than numbered per field. A control that fills its container is
+       why a dropdown holding "high" was 900px wide and its arrow
+       900px from the word. A select needs no width here: it is sized
+       by its own options, and --w-name is only its floor. */
+    --w-amount: 6.5rem;
+    --w-name: 14rem;
+    --w-sentence: 26rem;
   }
 
   body {
     margin: 0;
-    font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+    font-family: system-ui, "Segoe UI", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
     color: var(--ink);
-    background:
-      radial-gradient(circle at 20% 10%, #fff9ef 0%, transparent 45%),
-      radial-gradient(circle at 85% 20%, #f5e9d3 0%, transparent 40%),
-      linear-gradient(160deg, var(--bg) 0%, var(--bg-accent) 100%);
+    background: var(--bg);
   }
 
   .openspec-standalone-app,
@@ -42,18 +94,19 @@ export const shellThemeCss = `
     gap: 14px;
   }
 
+  /* A heading is not a card. It gets a rule under it and nothing
+     else — ADR 0023 decision 2: where every block carries the same
+     border, radius and shadow, none of them is emphasised. */
   .openspec-shell-headline {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 16px 18px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--line);
   }
 
   .openspec-shell-headline h1 {
-    margin: 0 0 6px;
-    font-size: 28px;
-    letter-spacing: 0.2px;
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .openspec-shell-headline p {
@@ -68,21 +121,29 @@ export const shellThemeCss = `
     margin-bottom: 14px;
   }
 
+  /* A navigation strip, not a row of buttons: the resting tab is
+     plain text and the accent marks only the one you are on. */
   .openspec-page-tabs button {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--surface);
-    color: var(--ink);
-    padding: 8px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 10px;
     font: inherit;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 
+  .openspec-page-tabs button:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
   .openspec-page-tabs button.is-active {
-    background: var(--primary);
-    color: var(--primary-ink);
-    border-color: transparent;
+    background: var(--primary-bg);
+    color: var(--primary);
+    border-color: var(--line);
+    font-weight: 600;
   }
 
   .openspec-page-tab-panel {
@@ -94,31 +155,71 @@ export const shellThemeCss = `
     display: none;
   }
 
+  /* Border and fill separate a panel. No shadow: it does not overlay
+     anything. */
   .openspec-shell-panel {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 14px;
+    padding: 16px 18px;
   }
 
   .openspec-shell-panel h2 {
     margin: 0 0 10px;
-    font-size: 19px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
+  .openspec-shell-panel h3 {
+    margin: 22px 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  /* The panel's own first child sits at the top of it. Deliberately
+     not every section's first child: that reset removed the space
+     above "What this configuration cannot do", leaving the heading
+     jammed against the paragraph before it. The space belongs between
+     the sections instead. */
+  .openspec-shell-panel > :first-child {
+    margin-top: 0;
+  }
+
+  .openspec-shell-panel section {
+    margin-top: 26px;
+  }
+
+  .openspec-shell-panel > section:first-of-type {
+    margin-top: 0;
   }
 
   .openspec-shell-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    /* Between two fields, and larger than the gap inside one. */
+    gap: 18px;
     margin-bottom: 10px;
   }
 
+  /* Fault 1, and the whole of its fix is these two gaps. A name 6px
+     from its own control and 12px from the one above belongs, to the
+     eye, to the one above. Inside a field: 3px. Between fields: 18px.
+
+     The name is also told from prose by WEIGHT, never by colour alone
+     — that is the distinction a reader who cannot see it loses, and
+     the one that fails a contrast check first. */
   .openspec-shell-field {
     display: grid;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--muted);
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+  }
+
+  .openspec-page-tab-panel .openspec-shell-field + .openspec-shell-field {
+    margin-top: 18px;
   }
 
   .openspec-shell-field input,
@@ -126,27 +227,97 @@ export const shellThemeCss = `
   .openspec-shell-field select,
   .openspec-ai-panel-controls select,
   .openspec-ai-panel-controls button {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
     font: inherit;
+    font-weight: 400;
+    letter-spacing: normal;
     color: var(--ink);
-    background: var(--surface-2);
+    background: var(--surface);
   }
 
-  .openspec-shell-field input:focus,
-  .openspec-shell-field textarea:focus,
-  .openspec-shell-field select:focus,
-  .openspec-ai-panel-controls select:focus,
-  .openspec-ai-panel-controls button:focus {
-    outline: 2px solid color-mix(in srgb, var(--primary) 65%, white 35%);
+  /* Fault 3. Every control filled its container, which is why a
+     dropdown holding "high" was the width of the page and its arrow
+     was at the far right of it.
+
+     A select is sized by its own widest option, which is what a
+     browser already does well on its own — with a floor so a column
+     of short ones stays tidy and a ceiling so that nothing overflows.
+     A fixed width here was the first attempt and it clipped the
+     autonomy level to "assisted — one stage at a time, a cl"; a width
+     guessed per control is exactly how that happens, and clipped text
+     is a bug, not a tight fit. */
+  .openspec-shell-field select,
+  .openspec-ai-panel-controls select {
+    width: auto;
+    min-width: var(--w-name);
+    max-width: 100%;
+    justify-self: start;
+  }
+
+  /* An input has no content to be measured, so it takes a width from
+     the kind of value it holds. */
+  .openspec-shell-field input {
+    width: var(--w-sentence);
+    max-width: 100%;
+    justify-self: start;
+  }
+
+  .openspec-shell-field input[type="number"] {
+    width: var(--w-amount);
+  }
+
+  .openspec-shell-field textarea {
+    width: 100%;
+  }
+
+  .openspec-shell-field input:focus-visible,
+  .openspec-shell-field textarea:focus-visible,
+  .openspec-shell-field select:focus-visible,
+  .openspec-ai-panel-controls select:focus-visible,
+  .openspec-ai-panel-controls button:focus-visible {
+    outline: 2px solid var(--primary);
     outline-offset: 1px;
+    border-color: var(--primary);
   }
 
   .openspec-shell-note {
     margin: 0;
     color: var(--muted);
     font-size: 13px;
+  }
+
+  /* Where a row is a name and a value and nothing else — a stage that
+     runs mechanically — the name takes its own column instead of a
+     line above the value. A settings pane is a two-column document,
+     and making it one is what stops the page reading as an
+     undifferentiated stack.
+
+     Styled on the class the markup already carries rather than a new
+     one: a rule written for a class nothing uses is a setting nothing
+     reads. */
+  [data-testid="harness-settings-view"] .openspec-shell-field {
+    grid-template-columns: minmax(11rem, max-content) 1fr;
+    gap: 4px 16px;
+    align-items: baseline;
+  }
+
+  /* One rhythm down the whole pane. Without this the stage rows pack
+     together while the fields around them are spaced, because only
+     the plain fields are siblings of each other — the stages are each
+     wrapped in a row of their own. */
+  [data-testid="harness-settings-view"] .openspec-shell-field,
+  [data-testid="harness-settings-view"] .openspec-harness-stage-row {
+    margin-top: 10px;
+  }
+
+  [data-testid="harness-settings-view"] .openspec-harness-stage-row .openspec-shell-field {
+    margin-top: 0;
+  }
+
+  .openspec-harness-stage-row .openspec-shell-note {
+    font-size: 12px;
   }
 
   .openspec-shell-version-footer {
@@ -162,7 +333,7 @@ export const shellThemeCss = `
     border: 1px solid var(--line);
     border-radius: 12px;
     padding: 10px;
-    background: #fffdfa;
+    background: var(--surface);
   }
 
   .openspec-ai-panel-banner {
@@ -174,7 +345,7 @@ export const shellThemeCss = `
     margin-bottom: 10px;
     border-radius: 10px;
     border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line) 60%);
-    background: #fff3f1;
+    background: var(--bad-bg);
     color: var(--ink);
     font-size: 13px;
   }
@@ -189,11 +360,27 @@ export const shellThemeCss = `
     text-decoration: underline;
   }
 
+  /* Fault 2. A row of controls acts on the block above it, so it is
+     separated from that block by more than the fields inside it are
+     separated from each other. Flush against the last field, the
+     button reads as part of that field rather than as the end of the
+     group. */
   .openspec-ai-panel-controls {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+    margin-top: 22px;
     margin-bottom: 10px;
+  }
+
+  /* In a settings section the separation is drawn as well as spaced:
+     what you are editing ends, and the control that commits it
+     begins. */
+  [data-testid="harness-settings-view"] .openspec-ai-panel-controls {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
 
   .openspec-run-status {
@@ -207,7 +394,7 @@ export const shellThemeCss = `
     padding: 10px 12px;
     border-radius: 10px;
     border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line) 75%);
-    background: #f4fbf8;
+    background: var(--primary-bg);
     display: grid;
     gap: 8px;
   }
@@ -236,17 +423,33 @@ export const shellThemeCss = `
     margin: 0;
     padding: 8px 10px;
     border-radius: 8px;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--line);
     font-size: 12px;
   }
 
+  /* An action carries more padding than a control that holds a value:
+     it is pressed, not read, and a 5px target is not one. */
   .openspec-ai-panel-controls button {
     cursor: pointer;
+    padding: 7px 14px;
     background: var(--primary);
     color: var(--primary-ink);
     border-color: transparent;
     font-weight: 600;
+  }
+
+  .openspec-ai-panel-controls button:hover:not(:disabled) {
+    background: var(--primary-soft);
+  }
+
+  /* The focus ring sits on the accent here, so it has to be drawn
+     against the button rather than in it — a quieter palette is
+     exactly where a ring disappears into its own control. */
+  .openspec-ai-panel-controls button:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-color: transparent;
   }
 
   .openspec-ai-panel-controls button[data-testid="cancel-button"] {
@@ -291,7 +494,7 @@ export const shellThemeCss = `
     padding: 8px;
     border-radius: 8px;
     border: 1px solid var(--line);
-    background: #fff;
+    background: var(--surface);
   }
 
   .openspec-status-card-head {
@@ -312,12 +515,12 @@ export const shellThemeCss = `
     height: 7px;
     border-radius: 999px;
     overflow: hidden;
-    background: #ece4d4;
+    background: var(--surface-3);
   }
 
   .openspec-status-meter-fill {
     height: 100%;
-    background: linear-gradient(90deg, #1f5d52 0%, #3e8c7f 100%);
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-soft) 100%);
   }
 
   .openspec-status-artifacts {
@@ -346,20 +549,20 @@ export const shellThemeCss = `
     border-radius: 999px;
     text-transform: uppercase;
     font-weight: 700;
-    background: #efe8d7;
-    color: #6f665b;
+    background: var(--surface-3);
+    color: var(--muted);
   }
 
   .openspec-status-pill.is-done,
   .openspec-status-pill.is-complete {
-    background: #dff3ea;
-    color: #1f5d52;
+    background: var(--good-bg);
+    color: var(--good);
   }
 
   .openspec-status-pill.is-blocked,
   .openspec-status-pill.is-failed {
-    background: #fbe3e3;
-    color: #9d2f2f;
+    background: var(--bad-bg);
+    color: var(--bad);
   }
 
   .openspec-data-card {
@@ -368,7 +571,7 @@ export const shellThemeCss = `
     padding: 8px;
     border-radius: 8px;
     border: 1px solid var(--line);
-    background: #fff;
+    background: var(--surface);
   }
 
   .openspec-data-card-head {
@@ -446,13 +649,13 @@ export const shellThemeCss = `
   }
 
   .openspec-checkmark.is-checked {
-    background: #dff3ea;
-    color: #1f5d52;
+    background: var(--good-bg);
+    color: var(--good);
   }
 
   .openspec-checkmark.is-open {
-    background: #f2e8d7;
-    color: #705634;
+    background: var(--warn-bg);
+    color: var(--warn);
   }
 
   .openspec-event-kv {
@@ -479,12 +682,12 @@ export const shellThemeCss = `
   .openspec-event--failed,
   .openspec-event--stderr {
     border-color: color-mix(in srgb, var(--danger) 35%, var(--line) 65%);
-    background: #fff2f2;
+    background: var(--bad-bg);
   }
 
   .openspec-event--completed {
     border-color: color-mix(in srgb, var(--primary) 35%, var(--line) 65%);
-    background: #effaf6;
+    background: var(--good-bg);
   }
 
   .openspec-usage-summary {
@@ -558,13 +761,13 @@ export const shellThemeCss = `
   .openspec-diff-body {
     margin: 0;
     padding: 10px;
-    background: #fff;
+    background: var(--surface);
     font-family: Consolas, "Courier New", monospace;
     font-size: 12px;
   }
 
-  .openspec-diff-line--added { color: #15643f; }
-  .openspec-diff-line--removed { color: #9c2d2d; }
+  .openspec-diff-line--added { color: var(--good); }
+  .openspec-diff-line--removed { color: var(--bad); }
 
   .openspec-overview {
     display: grid;
@@ -615,7 +818,7 @@ export const shellThemeCss = `
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    background: #fffdfa;
+    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
     overflow: hidden;
@@ -701,10 +904,20 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
+  /* Running prose stays near 70 characters. This is the screen that
+     renders a proposal, and it ran the full width of the page.
+     Deliberately NOT applied to the short hints beside controls: a
+     caption is not running prose, and capping it leaves a narrow
+     column in a wide panel. */
+  .openspec-md-preview p,
+  .openspec-md-preview li {
+    max-width: 72ch;
+  }
+
   .openspec-md-preview {
     border: 1px solid var(--line);
-    border-radius: 10px;
-    background: #fff;
+    border-radius: var(--radius);
+    background: var(--surface);
     padding: 10px;
     min-height: 320px;
     overflow: auto;
@@ -729,7 +942,7 @@ export const shellThemeCss = `
   }
 
   .openspec-md-preview pre {
-    background: #f8f3e8;
+    background: var(--surface-2);
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 8px;
@@ -939,10 +1152,35 @@ export const vscodeThemeCss = `
     --muted: var(--vscode-descriptionForeground);
     --primary: var(--vscode-button-background);
     --primary-ink: var(--vscode-button-foreground);
-    --danger: var(--vscode-errorForeground);
+    --danger: var(--bad);
     --line: var(--vscode-panel-border, var(--vscode-contrastBorder, transparent));
     --radius: 4px;
     --shadow: none;
+
+    /* Every token the shell layer declares is defined here too. A name
+       present in one layer and missing from the other renders this
+       panel with no value at all — which nothing used to catch, and
+       shell-ui.test.ts now does. Each maps to the editor's own
+       theme rather than to a colour of ours: repainting somebody's
+       editor would override a choice that is theirs (ADR 0023
+       decision 4). */
+    --surface-3: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --primary-soft: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+    --primary-bg: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --good: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, var(--vscode-editor-foreground)));
+    --good-bg: var(--vscode-diffEditor-insertedTextBackground, transparent);
+    --warn: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, var(--vscode-editor-foreground)));
+    --warn-bg: var(--vscode-inputValidation-warningBackground, transparent);
+    --bad: var(--vscode-errorForeground);
+    --bad-bg: var(--vscode-inputValidation-errorBackground, transparent);
+    --line-strong: var(--vscode-contrastBorder, var(--vscode-input-border, var(--vscode-panel-border, transparent)));
+    --radius-sm: 2px;
+
+    /* Control widths are not colours and are not the editor's to
+       decide, so they are the shell's values verbatim. */
+    --w-amount: 6.5rem;
+    --w-name: 14rem;
+    --w-sentence: 26rem;
   }
 
   body {
