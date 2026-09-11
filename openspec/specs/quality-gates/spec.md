@@ -379,6 +379,12 @@ A test named for a shape SHALL assert that shape.
 A fixture that runs a tool SHALL isolate that tool from configuration
 outside the repository.
 
+A guard against a check reaching nothing SHALL distinguish a subject
+that is empty from a reach that is broken, and SHALL fail only for the
+second. A repository with no work in flight has reached that state by
+finishing its work; a build that goes red for it reports success as a
+regression.
+
 #### Scenario: A changeset with an unquoted name
 
 - **WHEN** a changeset names a package without quotes, misspelled
@@ -395,4 +401,10 @@ outside the repository.
 - **WHEN** the dated-workspace fixture runs on a machine whose global
   git configuration requires signed commits
 - **THEN** the fixture commits, and the test runs
+
+#### Scenario: No work in flight
+
+- **WHEN** every change has been archived and none is active
+- **THEN** the checks that read the active changes report nothing to
+  read, and the build stays green
 
