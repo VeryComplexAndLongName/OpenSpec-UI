@@ -11,7 +11,10 @@
 // single test edits and saves the change it fixtures, and an assertion
 // about a task file should not depend on whether it ran first.
 //
-// See a-live-check-names-who-performs-it.
+// See a-live-check-names-who-performs-it, and
+// a-delegated-item-runs-its-agent for the run control a row carries when
+// its item names an agent this build recognises. No test here starts a
+// real agent: the one that asserts an outcome stubs the route.
 
 import { expect, test } from "@playwright/test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -92,6 +95,62 @@ test("says how much is waiting, and on whom, per row", async ({ page }) => {
   // The ordinary open task of the first change is not here: this is what
   // nobody's implementing agent will close, not what is unfinished.
   await expect(inbox).not.toContainText("1.1 Ordinary");
+});
+
+test("offers a run only on the row whose item names an agent this build carries", async ({ page }) => {
+  // a-delegated-item-runs-its-agent: the control exists where it can do
+  // something. A row waiting on a person is offered none — that is the
+  // distinction the marking exists for — and neither is a row naming an
+  // id nothing recognises, where the run would only ever refuse.
+  test.setTimeout(60_000);
+
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByLabel("Workspace root (cwd)").blur();
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+
+  await expect(page.getByTestId("human-only-inbox")).toBeVisible({ timeout: 20_000 });
+
+  // The item's line is the third of its tasks.md ("## Tasks", blank, the
+  // item), and the row is keyed by change and line.
+  await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toBeVisible();
+  await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toHaveText("Run copilot-cli");
+  await expect(page.getByTestId("run-delegated-judged-by-a-person:3")).toHaveCount(0);
+  await expect(page.getByTestId("run-delegated-nobody-at-all:2")).toHaveCount(0);
+});
+
+test("shows a refusal from the gate beside the row it was started from", async ({ page }) => {
+  // The run itself is stubbed at the network: what is asserted here is
+  // the shell's rendering of an outcome, and nothing in this suite may
+  // spawn a real agent. The gate's own behaviour is core's, and is
+  // asserted over a file on disk there.
+  test.setTimeout(60_000);
+
+  await page.route("**/api/delegated-item/run", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      status: "ran",
+      runId: "run-1",
+      agent: "copilot-cli",
+      taskNumber: "2.1",
+      outcome: "completed",
+      gate: { kind: "reverted", reason: "the item became ticked while saying nothing it did not say before" },
+      message: "The run finished. Task 2.1 came back ticked with nothing written,"
+        + " so the tick was reverted and the run is refused.",
+    }),
+  }));
+
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByLabel("Workspace root (cwd)").blur();
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+
+  await expect(page.getByTestId("human-only-inbox")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("run-delegated-run-by-an-agent:2").click();
+
+  await expect(page.getByTestId("delegated-outcome-run-by-an-agent:2"))
+    .toContainText("came back ticked with nothing written");
 });
 
 test("says the inbox could not be read, rather than showing no block", async ({ page }) => {

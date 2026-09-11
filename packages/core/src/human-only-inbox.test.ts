@@ -79,7 +79,9 @@ describe("collectHumanOnlyInbox", () => {
     const inbox = await collectHumanOnlyInbox(root);
 
     expect(inbox.items).toHaveLength(1);
-    expect(inbox.items[0]?.waitingOn).toEqual({ kind: "agent", agent: "copilot-cli", known: true });
+    // `source` says which statement named it — the task's own text here,
+    // there being no `taskAgents` entry for this change.
+    expect(inbox.items[0]?.waitingOn).toEqual({ kind: "agent", agent: "copilot-cli", known: true, source: "task-text" });
   });
 
   it("reports an agent the registry does not carry, rather than trusting the name", async () => {
@@ -89,7 +91,7 @@ describe("collectHumanOnlyInbox", () => {
     });
 
     expect((await collectHumanOnlyInbox(root)).items[0]?.waitingOn)
-      .toEqual({ kind: "agent", agent: "copilto-cli", known: false });
+      .toEqual({ kind: "agent", agent: "copilto-cli", known: false, source: "task-text" });
   });
 
   it("sends an item marked both ways to a person", async () => {
@@ -201,5 +203,33 @@ describe("describeHumanOnlyInboxState", () => {
 
     expect(describeHumanOnlyInboxState({ status: "loaded", inbox }))
       .toBe(describeHumanOnlyInbox(inbox));
+  });
+});
+
+describe("collectHumanOnlyInbox — a change whose harness.json cannot be read", () => {
+  it("lists every change's items anyway, and names the one that could not be read", async () => {
+    // One broken file used to throw out of the collector, so a single
+    // change's typo hid what every other change was waiting on. The
+    // inbox exists to answer "what is not moving", and that answer is
+    // wrong when it is missing rows nobody was told about.
+    const root = await workspaceWith({
+      "broken-config": "- [ ] 1.1 **Delegated to copilot-cli**: still listed from its text\n",
+      "healthy": "- [ ] 2.1 **Human-only**: judge it\n",
+    });
+    await writeFile(path.join(root, "openspec", "changes", "broken-config", "harness.json"), "{ not json", "utf8");
+
+    const inbox = await collectHumanOnlyInbox(root);
+
+    expect(inbox.items.map((item) => item.changeName)).toEqual(["broken-config", "healthy"]);
+    // Resolved from the task text alone, which is what remains readable.
+    expect(inbox.items[0]?.waitingOn).toEqual({
+      kind: "agent",
+      agent: "copilot-cli",
+      known: true,
+      source: "task-text",
+    });
+    expect(inbox.unreadableTaskAgents?.map((entry) => entry.changeName)).toEqual(["broken-config"]);
+    expect(describeHumanOnlyInbox(inbox)).toContain("harness.json could not be read");
+    expect(describeHumanOnlyInbox(inbox)).toContain("broken-config");
   });
 });

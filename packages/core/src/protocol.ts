@@ -124,6 +124,16 @@ export interface Command {
    * under the chain's own `runId` (ADR 0012), so nothing else in the
    * record can say which stage spent what. */
   stage?: HarnessStage;
+  /** The number of the one task this run was asked to do, when it was
+   * asked to do one task rather than a whole change — see
+   * `delegated-item-run.ts`. Recorded on the audit entry beside the
+   * change, so the log answers "what was this agent asked to do here"
+   * without the transcript.
+   *
+   * Absent for every whole-change run, which is what an absent value
+   * has always meant: a run of `implement` covers the change's open
+   * work, not one line of it. */
+  taskNumber?: string;
   /** Why a `"cancel"` command was issued, where something other than a
    * person asking caused it — a ceiling naming itself.
    *

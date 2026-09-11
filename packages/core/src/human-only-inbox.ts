@@ -16,37 +16,45 @@
 // delegated to a named agent, which are waiting on something just as
 // surely as the ones waiting on a person.
 
-import type { HumanOnlyInbox, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
-import { AGENT_REGISTRY } from "./agents/registry.js";
-import { readTaskChecklist, type TaskChecklistItem } from "./task-checklist.js";
+import type {
+  HumanOnlyInbox,
+  HumanOnlyItem,
+  UnmatchedTaskAgent,
+  UnreadableTaskAgentsConfig,
+  WaitingOn,
+} from "./human-only-inbox-view.js";
+import type { HarnessTaskAgents } from "./harness-step-agent.js";
+import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-items.js";
+import { readTaskChecklist } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 // The shape and the sentence live in `human-only-inbox-view.ts`, a leaf
 // module with no Node imports: `webui` needs them, and re-exporting a
 // value from here would pull `node:fs` into the browser bundle through
 // `readTaskChecklist`.
-export type { HumanOnlyInbox, HumanOnlyInboxState, HumanOnlyItem, WaitingOn } from "./human-only-inbox-view.js";
-export { describeHumanOnlyInbox, describeHumanOnlyInboxState, describeWaitingOn } from "./human-only-inbox-view.js";
-
-/** Who this task waits on, or `undefined` where it waits on the
- * implementing agent like any other task.
- *
- * The registry check happens here rather than in the parser: whether a
- * line *names* an agent is a fact about the text, and whether that name
- * *is* an agent is a fact about this build's registry. */
-function waitingOnFor(task: TaskChecklistItem): WaitingOn | undefined {
-  if (task.humanOnly) return { kind: "person" };
-  if (task.delegatedTo === undefined) return undefined;
-  return {
-    kind: "agent",
-    agent: task.delegatedTo,
-    known: AGENT_REGISTRY.some((descriptor) => descriptor.id === task.delegatedTo),
-  };
-}
+export type {
+  HumanOnlyInbox,
+  HumanOnlyInboxState,
+  HumanOnlyItem,
+  UnmatchedTaskAgent,
+  WaitingOn,
+} from "./human-only-inbox-view.js";
+export {
+  describeHumanOnlyInbox,
+  describeHumanOnlyInboxState,
+  describeUnmatchedTaskAgent,
+  describeWaitingOn,
+} from "./human-only-inbox-view.js";
 
 /** Every unticked item in every active change that no implementing agent
  * will close: the ones marked for a person, and the ones delegated to a
  * named agent.
+ *
+ * Which agent a delegated item names is `assignTaskAgents`' answer, not
+ * this loop's: since a-delegated-item-runs-its-agent a change may name
+ * one for a numbered task in its own `harness.json`, and a second copy
+ * of that precedence rule here would be a second answer to the same
+ * question.
  *
  * Archived changes are not read: archiving requires every task ticked,
  * so an archived change has nothing waiting by construction — and
@@ -55,12 +63,34 @@ function waitingOnFor(task: TaskChecklistItem): WaitingOn | undefined {
 export async function collectHumanOnlyInbox(workspaceRoot: string): Promise<HumanOnlyInbox> {
   const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
   const items: HumanOnlyItem[] = [];
+  const unmatchedTaskAgents: UnmatchedTaskAgent[] = [];
+  const unreadableTaskAgents: UnreadableTaskAgentsConfig[] = [];
 
   for (const change of workspace.changes) {
     const tasks = await readTaskChecklist(workspaceRoot, change.name, false);
+    // One change's unreadable `harness.json` degrades that change, not
+    // the inbox. Letting it throw would hide what every other change is
+    // waiting on behind a single broken file — a failure swallowing an
+    // answer nobody asked it about. The change is named instead, and its
+    // items resolve from their task text alone.
+    let taskAgents: HarnessTaskAgents = {};
+    try {
+      taskAgents = await readTaskAgents(workspaceRoot, change.name);
+    } catch (error) {
+      unreadableTaskAgents.push({
+        changeName: change.name,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const { byLine, unmatched } = assignTaskAgents(tasks, taskAgents);
+    for (const entry of unmatched) unmatchedTaskAgents.push({ ...entry, changeName: change.name });
+
     for (const task of tasks) {
       if (task.done) continue;
-      const waitingOn = waitingOnFor(task);
+      const assignment = byLine.get(task.lineNumber);
+      const waitingOn: WaitingOn | undefined = task.humanOnly
+        ? { kind: "person" }
+        : assignment && waitingOnFor(assignment);
       if (!waitingOn) continue;
       items.push({
         changeName: change.name,
@@ -72,5 +102,5 @@ export async function collectHumanOnlyInbox(workspaceRoot: string): Promise<Huma
     }
   }
 
-  return { items, changesRead: workspace.changes.length };
+  return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents };
 }

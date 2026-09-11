@@ -12,6 +12,7 @@ import {
   HARNESS_EFFORT_VALUES,
   MODEL_ID_PATTERN,
   STEP_AGENT_KEYS,
+  TASK_NUMBER_PATTERN,
   VSCODE_CHAT_STEP_AGENT_ID,
   isHarnessStepAgentStage,
   mergeStepAgent,
@@ -24,6 +25,7 @@ import {
   type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessStepBudget,
+  type HarnessTaskAgents,
 } from "./harness-step-agent.js";
 
 export { STAGES, type HarnessStage };
@@ -35,6 +37,7 @@ export {
   // Re-exported from where it now lives, beside the type it describes
   // and beside the merge that reads it. Importers kept their path.
   STEP_AGENT_KEYS,
+  TASK_NUMBER_PATTERN,
   VSCODE_CHAT_STEP_AGENT_ID,
   isHarnessStepAgentStage,
   mergeStepAgent,
@@ -47,6 +50,7 @@ export {
   type HarnessStepAgentStage,
   type HarnessStepAgents,
   type HarnessStepBudget,
+  type HarnessTaskAgents,
 };
 
 
@@ -164,6 +168,20 @@ export interface HarnessConfig {
    * `remotes`/`branches` are simple wildcard patterns (`*` supported).
    * An action that does not match is blocked before any `git`/`gh` call. */
   gitStageAllowlist?: HarnessGitStageAllowlist;
+  /** Which agent runs one numbered task of this change, keyed by the
+   * task's number as `tasks.md` writes it. Per-change only: the global
+   * `openspec/agent-harness.json` may not set it — see
+   * `GlobalTaskAgentsError`.
+   *
+   * Takes precedence over a `**Delegated to <id>**` marker in the task's
+   * own text, and where the two disagree both are reported rather than
+   * one silently winning (see delegated-items.ts). Absent means every
+   * delegated item is the one its text names.
+   *
+   * A section here rather than a file per task: a file named after a
+   * task outlives the task, and nothing can tell a stale sidecar from a
+   * live one. See a-delegated-item-runs-its-agent's design.md. */
+  taskAgents?: HarnessTaskAgents;
 }
 
 /** The config to use when neither the global nor a per-change file
@@ -197,7 +215,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -325,11 +343,197 @@ export class GlobalGitAllowlistError extends InvalidHarnessConfigError {
   }
 }
 
-/** `autonomyLevel` is the value resolved for the same file being
+/** `taskAgents` is only ever valid in a per-change file — the same
+ * per-change-only guard as `GlobalAutonomousAutonomyLevelError`, for a
+ * different reason. The others are refused globally because the value is
+ * too powerful to set for every change at once; this one is refused
+ * because it is meaningless there. A task number belongs to the change
+ * whose `tasks.md` wrote it, so "5.4 runs on copilot-cli" stated
+ * workspace-wide is a statement about task 5.4 of every other change,
+ * which is a different piece of work in each. */
+export class GlobalTaskAgentsError extends InvalidHarnessConfigError {
+  constructor() {
+    super(
+      "taskAgents is only valid in a per-change harness.json, never in the global openspec/agent-harness.json"
+      + " — a task number names a task of one change",
+    );
+    this.name = "GlobalTaskAgentsError";
+  }
+}
+
+/** One agent entry — a `stepAgents` stage's or a `taskAgents` task's.
+ *
+ * `label` is how the entry is addressed in every message this throws
+ * (`stepAgents.apply`, `taskAgents."5.4"`), so the two callers produce
+ * messages that name the key their author actually wrote. One function
+ * rather than two: `taskAgents` takes the same shape a stage takes, and
+ * two validators over one shape are how the `customAgent` rule would
+ * come to hold in one place and not the other — the exact failure
+ * `STEP_AGENT_KEYS` exists to prevent one level down.
+ *
+ * `autonomyLevel` is the value resolved for the same file being
  * validated (its own `autonomyLevel`, or the default when absent) — see
  * design.md, "Validation splits between core and the host": core can
  * only know what this one file declares, not the merged result of a
  * global file plus a per-change override. */
+function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: HarnessAutonomyLevel): void {
+  {
+    let agentId: unknown;
+    let model: unknown;
+    let effort: unknown;
+    let budget: unknown;
+    if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+      const entryRecord = entry as Record<string, unknown>;
+      const unknownEntryKey = Object.keys(entryRecord).find(
+        (key) => !(STEP_AGENT_KEYS as readonly string[]).includes(key),
+      );
+      if (unknownEntryKey !== undefined) {
+        throw new InvalidHarnessConfigError(
+          `${label} has unknown key "${unknownEntryKey}" (accepted keys: ${formatAcceptedKeys(STEP_AGENT_KEYS)})`,
+        );
+      }
+      agentId = (entry as { agent?: unknown }).agent;
+      model = (entry as { model?: unknown }).model;
+      effort = (entry as { effort?: unknown }).effort;
+      budget = (entry as { budget?: unknown }).budget;
+    } else {
+      agentId = entry;
+    }
+
+    if (typeof agentId !== "string" || agentId.length === 0) {
+      throw new InvalidHarnessConfigError(`${label} must be a non-empty string`);
+    }
+    if (!KNOWN_AGENT_IDS.has(agentId)) {
+      throw new InvalidHarnessConfigError(`${label} references unknown agent id "${agentId}"`);
+    }
+
+    if (agentId === VSCODE_CHAT_STEP_AGENT_ID && autonomyLevel !== "assisted") {
+      throw new InvalidHarnessConfigError(
+        `${label} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
+      );
+    }
+
+    if (model !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `${label}.model cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
+      if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
+        throw new InvalidHarnessConfigError(`${label}.model "${String(model)}" is not a valid model id`);
+      }
+      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
+        throw new InvalidHarnessConfigError(`${label} sets a model, but agent "${agentId}" does not accept one`);
+      }
+    }
+
+    // Refused, not dropped. A `customAgent` an adapter cannot pass is a
+    // setting nothing reads, which is the defect this repository has
+    // spent several changes removing. See custom-agents-are-visible.
+    const customAgent = (entry as { customAgent?: unknown }).customAgent;
+    if (customAgent !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `${label}.customAgent cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
+      if (typeof customAgent !== "string" || customAgent.trim().length === 0) {
+        throw new InvalidHarnessConfigError(`${label}.customAgent must be a non-empty string`);
+      }
+      // The same character rule a model id obeys, for the same reason:
+      // both reach the CLI as the value of a flag, a change's
+      // `harness.json` is repository content, and a value beginning with
+      // `-` is one the CLI may read as a second flag. One pattern rather
+      // than two, so there is one thing to keep true — see design.md,
+      // "One shape rule for every value that reaches argv".
+      if (!MODEL_ID_PATTERN.test(customAgent)) {
+        throw new InvalidHarnessConfigError(
+          `${label}.customAgent "${customAgent}" must not begin with "-" and may contain only ` +
+            `letters, digits, ".", "_", ":" and "-"`,
+        );
+      }
+      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.customAgentFlag) {
+        throw new InvalidHarnessConfigError(
+          `${label} sets a custom agent, but agent "${agentId}" does not accept one`,
+        );
+      }
+    }
+
+    const capabilities: HarnessAgentCapabilities | undefined = HARNESS_AGENT_CAPABILITIES[agentId as string];
+
+    if (effort !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `${label}.effort cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
+      if (typeof effort !== "string" || !HARNESS_EFFORT_VALUES.includes(effort as HarnessEffort)) {
+        throw new InvalidHarnessConfigError(`${label}.effort must be one of: ${HARNESS_EFFORT_VALUES.join(", ")}`);
+      }
+      const accepted = capabilities?.effort;
+      if (!accepted || accepted.length === 0) {
+        throw new InvalidHarnessConfigError(
+          `${label} sets effort, but agent "${agentId}" has no command-line reasoning-effort control`,
+        );
+      }
+      if (!accepted.includes(effort as HarnessEffort)) {
+        throw new InvalidHarnessConfigError(
+          `${label}.effort "${effort}" is not accepted by agent "${agentId}" (accepted: ${accepted.join(", ")})`,
+        );
+      }
+    }
+
+    if (budget !== undefined) {
+      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(
+          `${label}.budget cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
+        );
+      }
+      if (typeof budget !== "object" || budget === null || Array.isArray(budget)) {
+        throw new InvalidHarnessConfigError(`${label}.budget must be an object`);
+      }
+      const budgetRecord = budget as Record<string, unknown>;
+      const unknownBudgetKey = Object.keys(budgetRecord).find(
+        (key) => !(STEP_BUDGET_KEYS as readonly string[]).includes(key),
+      );
+      if (unknownBudgetKey !== undefined) {
+        throw new InvalidHarnessConfigError(
+          `${label}.budget has unknown key "${unknownBudgetKey}" (accepted keys: ${formatAcceptedKeys(STEP_BUDGET_KEYS)})`,
+        );
+      }
+      const { maxCostUsd, maxAiCredits } = budget as { maxCostUsd?: unknown; maxAiCredits?: unknown };
+      if (maxCostUsd === undefined && maxAiCredits === undefined) {
+        throw new InvalidHarnessConfigError(`${label}.budget must set maxCostUsd or maxAiCredits`);
+      }
+      if (maxCostUsd !== undefined) {
+        if (!(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
+          throw new InvalidHarnessConfigError(`${label}.budget.maxCostUsd must be a positive number`);
+        }
+        if (capabilities?.budgetField !== "maxCostUsd") {
+          throw new InvalidHarnessConfigError(
+            `${label} sets budget.maxCostUsd, but agent "${agentId}" does not accept a cost cap in USD`,
+          );
+        }
+      }
+      if (maxAiCredits !== undefined) {
+        if (!(typeof maxAiCredits === "number" && Number.isInteger(maxAiCredits) && maxAiCredits > 0)) {
+          throw new InvalidHarnessConfigError(`${label}.budget.maxAiCredits must be a positive integer`);
+        }
+        if (capabilities?.budgetField !== "maxAiCredits") {
+          throw new InvalidHarnessConfigError(
+            `${label} sets budget.maxAiCredits, but agent "${agentId}" does not accept a credit cap`,
+          );
+        }
+        if (maxAiCredits < COPILOT_MIN_AI_CREDITS) {
+          throw new InvalidHarnessConfigError(
+            `${label}.budget.maxAiCredits must be at least ${COPILOT_MIN_AI_CREDITS} (copilot-cli's own minimum)`,
+          );
+        }
+      }
+    }
+  }
+}
+
 function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLevel): asserts value is HarnessStepAgents {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -344,159 +548,52 @@ function assertValidStepAgents(value: unknown, autonomyLevel: HarnessAutonomyLev
     if (!STEP_AGENT_STAGES.includes(stage as HarnessStepAgentStage)) {
       throw new InvalidHarnessConfigError(`unknown stepAgents key "${stage}" (expected one of: ${STEP_AGENT_STAGES.join(", ")})`);
     }
+    assertValidAgentEntry(`stepAgents.${stage}`, entry, autonomyLevel);
+  }
+}
 
-    let agentId: unknown;
-    let model: unknown;
-    let effort: unknown;
-    let budget: unknown;
-    if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
-      const entryRecord = entry as Record<string, unknown>;
-      const unknownEntryKey = Object.keys(entryRecord).find(
-        (key) => !(STEP_AGENT_KEYS as readonly string[]).includes(key),
-      );
-      if (unknownEntryKey !== undefined) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage} has unknown key "${unknownEntryKey}" (accepted keys: ${formatAcceptedKeys(STEP_AGENT_KEYS)})`,
-        );
-      }
-      agentId = (entry as { agent?: unknown }).agent;
-      model = (entry as { model?: unknown }).model;
-      effort = (entry as { effort?: unknown }).effort;
-      budget = (entry as { budget?: unknown }).budget;
-    } else {
-      agentId = entry;
-    }
-
-    if (typeof agentId !== "string" || agentId.length === 0) {
-      throw new InvalidHarnessConfigError(`stepAgents.${stage} must be a non-empty string`);
-    }
-    if (!KNOWN_AGENT_IDS.has(agentId)) {
-      throw new InvalidHarnessConfigError(`stepAgents.${stage} references unknown agent id "${agentId}"`);
-    }
-
-    if (agentId === VSCODE_CHAT_STEP_AGENT_ID && autonomyLevel !== "assisted") {
+/** `taskAgents` — the same entry shape a stage takes, under a key that is
+ * a task number rather than a stage name.
+ *
+ * Two rules are this section's own. A key that is not a task number is
+ * refused: an entry filed under a heading or a phrase can never match a
+ * line, so it would sit in the file forever doing nothing, which is the
+ * stale-sidecar failure design.md rejected a file-per-task to avoid. And
+ * `vscode-chat` is refused: a delegated item's run spawns a CLI through
+ * `createAgentRunner`, and handing a numbered task to the editor's chat
+ * is not something anything here can do — accepting it would write a
+ * setting nothing reads.
+ *
+ * A key naming a task no open line carries is NOT refused here. That is
+ * not a fact about this file — the tasks it refers to live in a
+ * different one that changes independently — so it is reported where the
+ * two are read together (`delegated-items.ts`), not thrown on load,
+ * where it would make a change's configuration unreadable the moment
+ * somebody ticked a box. */
+function assertValidTaskAgents(
+  value: unknown,
+  isPerChangeFile: boolean,
+  autonomyLevel: HarnessAutonomyLevel,
+): asserts value is HarnessTaskAgents | undefined {
+  if (value === undefined) return;
+  if (!isPerChangeFile) {
+    throw new GlobalTaskAgentsError();
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("taskAgents must be an object");
+  }
+  for (const [taskNumber, entry] of Object.entries(value)) {
+    if (!TASK_NUMBER_PATTERN.test(taskNumber)) {
       throw new InvalidHarnessConfigError(
-        `stepAgents.${stage} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which is only valid under autonomyLevel "assisted" — a chain cannot use it`,
+        `taskAgents key "${taskNumber}" is not a task number (expected the leading number of a tasks.md line, such as "5.4")`,
       );
     }
-
-    if (model !== undefined) {
-      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.model cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
-      }
-      if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.model "${String(model)}" is not a valid model id`);
-      }
-      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage} sets a model, but agent "${agentId}" does not accept one`);
-      }
-    }
-
-    // Refused, not dropped. A `customAgent` an adapter cannot pass is a
-    // setting nothing reads, which is the defect this repository has
-    // spent several changes removing. See custom-agents-are-visible.
-    const customAgent = (entry as { customAgent?: unknown }).customAgent;
-    if (customAgent !== undefined) {
-      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.customAgent cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
-      }
-      if (typeof customAgent !== "string" || customAgent.trim().length === 0) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.customAgent must be a non-empty string`);
-      }
-      // The same character rule a model id obeys, for the same reason:
-      // both reach the CLI as the value of a flag, a change's
-      // `harness.json` is repository content, and a value beginning with
-      // `-` is one the CLI may read as a second flag. One pattern rather
-      // than two, so there is one thing to keep true — see design.md,
-      // "One shape rule for every value that reaches argv".
-      if (!MODEL_ID_PATTERN.test(customAgent)) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.customAgent "${customAgent}" must not begin with "-" and may contain only ` +
-            `letters, digits, ".", "_", ":" and "-"`,
-        );
-      }
-      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.customAgentFlag) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage} sets a custom agent, but agent "${agentId}" does not accept one`,
-        );
-      }
-    }
-
-    const capabilities: HarnessAgentCapabilities | undefined = HARNESS_AGENT_CAPABILITIES[agentId as string];
-
-    if (effort !== undefined) {
-      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.effort cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
-      }
-      if (typeof effort !== "string" || !HARNESS_EFFORT_VALUES.includes(effort as HarnessEffort)) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.effort must be one of: ${HARNESS_EFFORT_VALUES.join(", ")}`);
-      }
-      const accepted = capabilities?.effort;
-      if (!accepted || accepted.length === 0) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage} sets effort, but agent "${agentId}" has no command-line reasoning-effort control`,
-        );
-      }
-      if (!accepted.includes(effort as HarnessEffort)) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.effort "${effort}" is not accepted by agent "${agentId}" (accepted: ${accepted.join(", ")})`,
-        );
-      }
-    }
-
-    if (budget !== undefined) {
-      if (agentId === VSCODE_CHAT_STEP_AGENT_ID) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.budget cannot reach anything when agent "${VSCODE_CHAT_STEP_AGENT_ID}" dispatches to VS Code chat`,
-        );
-      }
-      if (typeof budget !== "object" || budget === null || Array.isArray(budget)) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget must be an object`);
-      }
-      const budgetRecord = budget as Record<string, unknown>;
-      const unknownBudgetKey = Object.keys(budgetRecord).find(
-        (key) => !(STEP_BUDGET_KEYS as readonly string[]).includes(key),
+    const label = `taskAgents."${taskNumber}"`;
+    assertValidAgentEntry(label, entry, autonomyLevel);
+    if (normalizeStepAgent(entry as HarnessStepAgent).agent === VSCODE_CHAT_STEP_AGENT_ID) {
+      throw new InvalidHarnessConfigError(
+        `${label} selects agent "${VSCODE_CHAT_STEP_AGENT_ID}", which cannot run one task — a delegated item's run spawns a CLI agent`,
       );
-      if (unknownBudgetKey !== undefined) {
-        throw new InvalidHarnessConfigError(
-          `stepAgents.${stage}.budget has unknown key "${unknownBudgetKey}" (accepted keys: ${formatAcceptedKeys(STEP_BUDGET_KEYS)})`,
-        );
-      }
-      const { maxCostUsd, maxAiCredits } = budget as { maxCostUsd?: unknown; maxAiCredits?: unknown };
-      if (maxCostUsd === undefined && maxAiCredits === undefined) {
-        throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget must set maxCostUsd or maxAiCredits`);
-      }
-      if (maxCostUsd !== undefined) {
-        if (!(typeof maxCostUsd === "number" && Number.isFinite(maxCostUsd) && maxCostUsd > 0)) {
-          throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget.maxCostUsd must be a positive number`);
-        }
-        if (capabilities?.budgetField !== "maxCostUsd") {
-          throw new InvalidHarnessConfigError(
-            `stepAgents.${stage} sets budget.maxCostUsd, but agent "${agentId}" does not accept a cost cap in USD`,
-          );
-        }
-      }
-      if (maxAiCredits !== undefined) {
-        if (!(typeof maxAiCredits === "number" && Number.isInteger(maxAiCredits) && maxAiCredits > 0)) {
-          throw new InvalidHarnessConfigError(`stepAgents.${stage}.budget.maxAiCredits must be a positive integer`);
-        }
-        if (capabilities?.budgetField !== "maxAiCredits") {
-          throw new InvalidHarnessConfigError(
-            `stepAgents.${stage} sets budget.maxAiCredits, but agent "${agentId}" does not accept a credit cap`,
-          );
-        }
-        if (maxAiCredits < COPILOT_MIN_AI_CREDITS) {
-          throw new InvalidHarnessConfigError(
-            `stepAgents.${stage}.budget.maxAiCredits must be at least ${COPILOT_MIN_AI_CREDITS} (copilot-cli's own minimum)`,
-          );
-        }
-      }
     }
   }
 }
@@ -711,6 +808,7 @@ function assertValidHarnessConfigInput(
   assertValidTimeout(input.timeout);
   assertValidMaxStageAttempts(input.maxStageAttempts);
   assertValidGitStageAllowlist(input.gitStageAllowlist, isPerChangeFile);
+  assertValidTaskAgents(input.taskAgents, isPerChangeFile, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
 }
 
 function globalHarnessConfigPath(workspaceRoot: string): string {
@@ -778,6 +876,11 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     timeout: input.timeout ?? DEFAULT_HARNESS_CONFIG.timeout,
     maxStageAttempts: input.maxStageAttempts ?? DEFAULT_HARNESS_CONFIG.maxStageAttempts,
     gitStageAllowlist: input.gitStageAllowlist ?? DEFAULT_HARNESS_CONFIG.gitStageAllowlist,
+    // Always undefined in practice — `assertValidTaskAgents` refuses the
+    // key in this file. Read out anyway, for the reason the comment
+    // above gives: a field validated and then dropped on the way out is
+    // how `timeout` came to look configured and do nothing.
+    taskAgents: input.taskAgents ?? DEFAULT_HARNESS_CONFIG.taskAgents,
   };
 }
 
@@ -832,6 +935,10 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     timeout: override.timeout ?? global.timeout,
     maxStageAttempts: override.maxStageAttempts ?? global.maxStageAttempts,
     gitStageAllowlist: override.gitStageAllowlist ?? global.gitStageAllowlist,
+    // Whole-object, and in practice always the override's: the global
+    // file may not set this at all, so there is nothing on the other
+    // side to merge key by key with.
+    taskAgents: override.taskAgents ?? global.taskAgents,
   };
 }
 

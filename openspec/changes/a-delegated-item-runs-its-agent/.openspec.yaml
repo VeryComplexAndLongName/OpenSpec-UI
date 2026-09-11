@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-11
+follows:
+  - a-live-check-names-who-performs-it
+  - custom-agents-are-visible
+  - stage-override-keeps-the-rest
