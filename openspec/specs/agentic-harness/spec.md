@@ -1892,7 +1892,9 @@ the project's own testing look like its behaviour.
 
 Where a change's configuration sets a stage that the base configuration
 also sets, the resolved entry SHALL take the fields the change names and
-SHALL inherit the rest from the base.
+SHALL inherit the rest from the base. Every field a stage entry may
+carry SHALL be merged by this rule, including the custom agent; a field
+the merge does not know is a field the override silently loses.
 
 The base file is the default and the change states its differences. A
 stage entry replaced outright makes "run this stage at higher effort"
@@ -1900,10 +1902,11 @@ also mean "and forget which model I chose", which no one writing it
 intends and nothing reports.
 
 Where the change names a **different agent** for that stage, nothing
-SHALL be inherited. A stage's model, effort and budget belong to its
-agent: effort vocabularies differ between agents, and a budget is
-denominated in whichever unit its agent reports, so carrying them across
-a change of agent produces a configuration its author never wrote.
+SHALL be inherited. A stage's model, effort, budget and custom agent
+belong to its agent: effort vocabularies differ between agents, a budget
+is denominated in whichever unit its agent reports, and a custom agent
+is a definition one CLI reads, so carrying them across a change of agent
+produces a configuration its author never wrote.
 
 #### Scenario: A stage override that names only the effort
 
@@ -1911,6 +1914,13 @@ a change of agent produces a configuration its author never wrote.
   effort for it
 - **THEN** the resolved stage keeps the base's model and takes the
   change's effort
+
+#### Scenario: A stage override that names only a custom agent
+
+- **WHEN** the base names an agent for a stage and the change names the
+  same agent with a custom agent
+- **THEN** the resolved stage carries the custom agent, and it reaches
+  the CLI when the stage runs
 
 #### Scenario: A stage override that names a different agent
 
@@ -2007,6 +2017,12 @@ A recommendation SHALL NOT be offered where its comparison cannot be
 made. A superlative over one candidate is not a comparison, and
 presenting it as one claims a distinction that was never established.
 
+Where a recommendation is not offered, the reason SHALL say which of
+these is so: nothing reported the measure, something reported it but
+rests on too few runs, or one candidate is eligible and has nothing to
+compare against. "Nothing reported a cost" said of runs that did is a
+reason that is false.
+
 Where candidates tie on the measure, all of them SHALL be named. Breaking
 a tie arbitrarily presents a fabricated distinction as a finding.
 
@@ -2024,7 +2040,15 @@ stated as an answer rather than as a reading.
 #### Scenario: Only one agent reports a cost
 
 - **WHEN** one agent has recorded costs and the others have none
-- **THEN** no cost recommendation is offered
+- **THEN** no cost recommendation is offered, and the reason names that
+  agent as the only one
+
+#### Scenario: Costs reported by too few runs
+
+- **WHEN** agents have recorded costs but each rests on fewer runs than
+  the threshold
+- **THEN** no cost recommendation is offered, and the reason says the
+  runs are too few, not that none reported
 
 #### Scenario: A tie on the measure
 
@@ -2104,6 +2128,11 @@ Naming a custom agent for an agent whose CLI accepts none SHALL be
 refused rather than dropped. A setting that is accepted and then ignored
 is one nothing reads, which is indistinguishable from one that works.
 
+A custom agent name SHALL obey the same shape rule as a model name, and
+SHALL be refused at validation where it does not. Both reach the CLI as
+the value of a flag, a change's configuration is repository content, and
+a value beginning with `-` is one the CLI may read as a second flag.
+
 #### Scenario: A stage naming a custom agent
 
 - **WHEN** a stage names a custom agent for an agent whose CLI accepts
@@ -2121,6 +2150,11 @@ is one nothing reads, which is indistinguishable from one that works.
   project and for the user
 - **THEN** all of them are found, and a name defined in both is reported
   once as the project's
+
+#### Scenario: A name shaped like a flag
+
+- **WHEN** a stage names a custom agent whose value begins with `-`
+- **THEN** the configuration is refused, naming the rule
 
 ### Requirement: A missing design does not make a proposed change unproposed
 
@@ -2243,12 +2277,23 @@ entry that starts one immediately.
 
 Where the application is open at that time, the run SHALL start. Where it
 is not, the run SHALL start when the application is next opened, and the
-surface SHALL say how late it is.
+surface SHALL say how late it is. Opening the application SHALL be
+enough: a schedule that waits for a further action after the open is one
+that did not start at the next open.
 
 A schedule that does not happen SHALL NOT be indistinguishable from one
 that does. The entry SHALL say, before it is made, that it depends on the
 application being open, and SHALL say afterwards when a run started later
 than it was asked for.
+
+The path chosen when the run was asked for SHALL be the path it takes
+when it starts. Where that path is no longer offered for the change, the
+surface SHALL ask for a choice and say why.
+
+An entry SHALL be consumed only once the run it names has been opened.
+Where opening fails, the entry SHALL remain and the failure SHALL be
+reported as a failure to open the run, not as a failure to read the
+schedule.
 
 A time already past SHALL be refused where it is entered rather than
 accepted and fired at once.
@@ -2259,17 +2304,26 @@ lease, and presenting that refusal as an error would describe a fault
 that is not one.
 
 A schedule naming a change that no longer exists SHALL be dropped, and
-the drop SHALL be reported. A change that is neither active nor archived
-was deleted, and an entry for it would wait forever.
+the drop SHALL be reported. A schedule naming a change that has since
+been archived SHALL be dropped as archived, distinctly: its work is done,
+and a run against it is not one anybody asked for.
+
+What to do with a schedule SHALL be decided in one place, in core; a host
+SHALL perform the effects it is handed and decide nothing about the
+schedule itself.
+
+A run dialog that opens without the person's action SHALL be announced,
+and what the schedule did SHALL be readable from any part of the surface.
 
 #### Scenario: A run scheduled while the application stays open
 
 - **WHEN** a run is scheduled for a time and the application is open then
-- **THEN** it starts at that time
+- **THEN** it starts at that time, on the path that was chosen
 
 #### Scenario: A run whose time passed while nothing was open
 
-- **WHEN** the application is opened after a scheduled time has passed
+- **WHEN** the application is opened after a scheduled time has passed,
+  and nothing else is done
 - **THEN** the run starts and the surface says how late it is
 
 #### Scenario: A time in the past
@@ -2288,14 +2342,43 @@ was deleted, and an entry for it would wait forever.
   archived
 - **THEN** the entry is dropped and the drop is reported
 
+#### Scenario: A schedule for a change that was archived
+
+- **WHEN** a scheduled run names a change that was archived after it was
+  scheduled
+- **THEN** the entry is dropped, the report says it was archived, and a
+  run due behind it starts on the same reading
+
+#### Scenario: The run cannot be opened
+
+- **WHEN** a due run's configuration cannot be resolved
+- **THEN** the entry remains in the schedule and the surface says the run
+  could not be opened, and why
+
+#### Scenario: A dialog that opened by itself
+
+- **WHEN** a scheduled run opens the run dialog
+- **THEN** the dialog is announced and takes focus, and the schedule's
+  message is readable from any tab
+
 ### Requirement: What the verifying stages found is readable per agent
 
 What a change's verifying stages found SHALL be readable back per agent,
-beside what the runs cost.
+beside what the runs cost, where the agent is the one whose work the
+checks covered.
 
 The audit log records how many checks a verifying stage ran and how many
 failed. An agent that is cheap and fails its checks is not the cheap one,
 and a surface that reports only cost invites exactly that reading.
+
+A checks entry SHALL record the agent whose work it examined. The entry
+is written by the runner, not by an agent, and grouping by its writer
+yields one group that names no agent. An entry recorded before that
+field existed SHALL be counted and reported as such, not charged to a
+group.
+
+A checks entry SHALL NOT be counted as a run anywhere runs are counted.
+It is a fact about a run.
 
 Each group SHALL carry how many verifying stages it rests on, and a group
 resting on fewer than the stated threshold SHALL be reported as such
@@ -2312,7 +2395,20 @@ be excluded, by the same rule the cost figures apply.
 #### Scenario: An agent whose checks have failed
 
 - **WHEN** verifying stages have recorded what their checks found
-- **THEN** each agent's stages, failures and check counts are readable
+- **THEN** each group names the agent whose work was checked, with its
+  stages, failures and check counts
+
+#### Scenario: An entry recorded before the agent was named
+
+- **WHEN** a checks entry carries no checked agent
+- **THEN** it is counted and reported as recorded before the agent was
+  named, and no group is charged with it
+
+#### Scenario: A checks entry beside a run
+
+- **WHEN** one chain run performed an apply and a verify with declared
+  checks
+- **THEN** the run count everywhere is one
 
 #### Scenario: Too few stages to read as a rate
 
@@ -2323,4 +2419,50 @@ be excluded, by the same rule the cost figures apply.
 
 - **WHEN** runs are recorded but none reached a verifying stage
 - **THEN** the surface says so, distinctly from having no runs at all
+
+### Requirement: Applying a named configuration to a change writes one file from every surface
+
+Where a named configuration is applied to a change, the override written
+SHALL be the same whichever surface applied it, and SHALL be produced by
+one function in core.
+
+A configuration's effort belongs to the agent the stage will run, which
+for a stage the override does not name is the base's. A surface that
+resolves against the override alone gives no stage an effort and reports
+a reason that is not the reason.
+
+The surface SHALL say which stages were given an effort and which agents
+accept none. "No agent on screen accepts an effort" SHALL be said only
+where that is so.
+
+#### Scenario: The same configuration from two surfaces
+
+- **WHEN** a named configuration is applied to a change from the run
+  dialog, and the same one from the settings view
+- **THEN** the change's override file is identical
+
+#### Scenario: An override naming no stage
+
+- **WHEN** a named configuration is applied to a change whose override
+  names no stage, and the base's agents accept an effort
+- **THEN** each stage is written with the base's agent and the resolved
+  effort, and the message names them
+
+### Requirement: A configuration's words match what it resolves to
+
+A named configuration's description of the effort it asks for SHALL be
+true for every registered agent it can be applied to, and the reference
+SHALL show the resolved value per agent.
+
+The levels resolve to positions in an agent's range by thirds, chosen so
+that four levels stay distinct over four values. A word such as "middle"
+describes a different arithmetic, and a reader of an agent with seven
+values is told one thing and given another.
+
+#### Scenario: Reading the balanced configuration for an agent with seven values
+
+- **WHEN** the reference is read for the balanced configuration and an
+  agent accepting seven effort values
+- **THEN** it shows the value the resolver produces, and the
+  configuration's own text does not contradict it
 
