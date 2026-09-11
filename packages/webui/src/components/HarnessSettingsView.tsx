@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AGENT_REGISTRY,
+  autonomyLevelsFor,
   changeTemplateConfigToWrite,
   customAgentFamilyFor,
   HARNESS_AGENT_CAPABILITIES,
@@ -66,11 +67,29 @@ const STAGE_RUNNER_OPTIONS = [
   { id: VSCODE_CHAT_STEP_AGENT_ID, label: "VS Code Chat (dispatch target)" },
 ];
 
-const AUTONOMY_LEVEL_OPTIONS: ReadonlyArray<{ value: HarnessAutonomyLevel; label: string }> = [
-  { value: "assisted", label: "assisted" },
-  { value: "semi-autonomous", label: "semi-autonomous (not yet implemented)" },
-  { value: "autonomous", label: "autonomous (not yet implemented)" },
-];
+/** Named by what running under each one does.
+ *
+ * Two of these read "(not yet implemented)" until 2026-09-11, of levels
+ * the chain runner has treated distinctly, and tested, for as long as
+ * it has existed — so the only difference the surface offered between
+ * three choices was a claim about which ones worked, and it was false.
+ *
+ * `autonomous` is absent from the global scope because
+ * `writeGlobalHarnessConfig` refuses it: it is reachable only from a
+ * change's own `harness.json`. One shared list is how it came to be
+ * offered where saving it fails. See an-autonomy-level-says-what-it-does. */
+const AUTONOMY_LEVEL_LABELS: Readonly<Record<HarnessAutonomyLevel, string>> = {
+  "assisted": "assisted — one stage at a time, a chain is refused",
+  "semi-autonomous": "semi-autonomous — a chain, confirming between stages",
+  "autonomous": "autonomous — a chain with no confirmations, this change only",
+};
+
+/** Which levels a scope offers is core's answer, not this view's: the
+ * writer already refuses `autonomous` in a workspace-level file, and a
+ * second list here is how the two came to disagree. */
+export function autonomyLevelOptionsFor(scope: "global" | "change"): ReadonlyArray<{ value: HarnessAutonomyLevel; label: string }> {
+  return autonomyLevelsFor(scope).map((value) => ({ value, label: AUTONOMY_LEVEL_LABELS[value] }));
+}
 
 type StepAgentsForm = Record<HarnessStepAgentStage, string>;
 // "" (INHERIT) means unset in both, same sentinel as StepAgentsForm.
@@ -784,7 +803,7 @@ export function HarnessSettingsView(
             value={globalAutonomyLevel}
             onChange={(e) => setGlobalAutonomyLevel(e.target.value as HarnessAutonomyLevel)}
           >
-            {AUTONOMY_LEVEL_OPTIONS.map((option) => (
+            {autonomyLevelOptionsFor("global").map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -869,7 +888,7 @@ export function HarnessSettingsView(
                 onChange={(e) => setChangeAutonomyLevel(e.target.value as HarnessAutonomyLevel | "")}
               >
                 <option value={INHERIT}>(inherit: {globalAutonomyLevel})</option>
-                {AUTONOMY_LEVEL_OPTIONS.map((option) => (
+                {autonomyLevelOptionsFor("change").map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

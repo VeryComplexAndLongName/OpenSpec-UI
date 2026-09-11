@@ -1,3 +1,4 @@
+import { autonomyLevelsFor } from "@openspec-ui/core/browser";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { HARNESS_TEMPLATES } from "@openspec-ui/core/browser";
@@ -7,7 +8,7 @@ import { HARNESS_TEMPLATES } from "@openspec-ui/core/browser";
 // the package root rather than the list being duplicated here — a copy
 // would pass while the real list grew.
 import { TOP_LEVEL_CONFIG_KEYS } from "@openspec-ui/core";
-import { HarnessSettingsView, type HarnessSettingsApi } from "./HarnessSettingsView.js";
+import { autonomyLevelOptionsFor, HarnessSettingsView, type HarnessSettingsApi } from "./HarnessSettingsView.js";
 
 function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettingsApi {
   return {
@@ -706,5 +707,36 @@ describe("HarnessSettingsView — a host that never answers", () => {
     expect(await screen.findByText(/did not reply within 10 seconds to harness\/read-change-override/u))
       .toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Load override" })).toBeEnabled();
+  });
+});
+
+describe("autonomy level options", () => {
+  // Two of these read "(not yet implemented)" of levels the chain runner
+  // has treated distinctly, and tested, for as long as it has existed.
+  // The only difference the surface offered between three choices was a
+  // claim about which ones worked, and it was false.
+  it("names every level by what it does, and claims nothing about implementation", () => {
+    for (const scope of ["global", "change"] as const) {
+      for (const option of autonomyLevelOptionsFor(scope)) {
+        expect(option.label).not.toContain("not yet implemented");
+        expect(option.label).toContain("—");
+      }
+    }
+  });
+
+  it("offers autonomous only where a file may set it", () => {
+    // writeGlobalHarnessConfig refuses "autonomous" outright, so offering
+    // it in the workspace-level section was a control whose value the
+    // save rejects.
+    expect(autonomyLevelOptionsFor("global").map((option) => option.value))
+      .toEqual(["assisted", "semi-autonomous"]);
+    expect(autonomyLevelOptionsFor("change").map((option) => option.value))
+      .toEqual(["assisted", "semi-autonomous", "autonomous"]);
+  });
+
+  it("offers exactly what core says the scope accepts, so the two cannot drift", () => {
+    for (const scope of ["global", "change"] as const) {
+      expect(autonomyLevelOptionsFor(scope).map((option) => option.value)).toEqual([...autonomyLevelsFor(scope)]);
+    }
   });
 });

@@ -278,9 +278,11 @@ the package versions rendered by the capture.*
 [![Standalone Harness Settings tab: a loaded per-change override, showing inherited stages alongside explicit ones and the semi-autonomous autonomy level](./docs/images/standalone/harness-change-override.png)](./docs/images/standalone/harness-change-override.png)
 
 *Only this section is captured: inherited stages remain visible, while
-explicit values show exactly what the change overrides. The visible
-`(not yet implemented)` suffix is stale UI copy; semi-autonomous chains
-are implemented and described under [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer).*
+explicit values show exactly what the change overrides. Each autonomy
+level is named by what running under it does, and `autonomous` appears
+only here — a workspace-level file may not set it, so the workspace
+section does not offer it. See
+[Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer).*
 
 Both are produced by `packages/server/e2e/harness-screenshots.spec.ts`,
 which also produces the checkpoint screenshot in "What a checkpoint

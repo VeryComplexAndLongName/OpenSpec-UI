@@ -5,6 +5,8 @@ import { assertValidChangeName } from "./change-name.js";
 import type { ChangeLocation } from "./workbench.js";
 import { STAGES, type HarnessStage } from "./harness-stage.js";
 import {
+  HARNESS_AUTONOMY_LEVELS,
+  type HarnessAutonomyLevel,
   COPILOT_MIN_AI_CREDITS,
   HARNESS_AGENT_CAPABILITIES,
   HARNESS_EFFORT_VALUES,
@@ -56,7 +58,10 @@ export {
 // own source), so anything added there would look configured but do
 // nothing.
 
-export type HarnessAutonomyLevel = "assisted" | "semi-autonomous" | "autonomous";
+// Defined in the leaf module so the surfaces read the same list this
+// file enforces. Re-exported here because every existing import
+// takes it from this module. See an-autonomy-level-says-what-it-does.
+export type { HarnessAutonomyLevel } from "./harness-step-agent.js";
 export type HarnessReviewGateMode = "human-required" | "agent-sufficient";
 
 export interface HarnessReviewGate {
@@ -169,7 +174,7 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   reviewGate: { mode: "human-required" },
 };
 
-const AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous", "autonomous"];
+const AUTONOMY_LEVELS = HARNESS_AUTONOMY_LEVELS;
 const REVIEW_GATE_MODES: readonly HarnessReviewGateMode[] = ["human-required", "agent-sufficient"];
 const KNOWN_AGENT_IDS = new Set([...AGENT_REGISTRY.map((agent) => agent.id), VSCODE_CHAT_STEP_AGENT_ID]);
 const AGENT_DESCRIPTORS_BY_ID = new Map(AGENT_REGISTRY.map((agent) => [agent.id, agent]));
