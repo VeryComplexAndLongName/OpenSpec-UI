@@ -253,16 +253,26 @@ different claims. Presented alike they plot alike, and the one that
 survives someone renaming a directory is not the one that looks the
 same.
 
+The day a date falls on SHALL be the day where the action happened, as
+its record states it, whichever source it was read from. A commit made
+at half past two in the morning in one timezone is that day to the
+person who made it and to the directory the archive named; a reading
+that moves it to the previous day for one source and not the other
+makes the two sources disagree about one action.
+
 Evidence that work happened SHALL be a task that was finished or a run
 that was recorded, never a line that was merely written. A change's task
 list is created by the same commit that proposes it, so dating work by
 when its lines were written reports the proposal date under another
 name — measured across 185 changes, that field was exactly zero days
-after the proposal for every one of them.
+after the proposal for every one of them. A run that was recorded SHALL
+be evidence in every host, not only where a test can supply it.
 
 A date that cannot be determined SHALL be reported as absent, with its
 source saying so. A missing date filled in with today's is the kind of
-figure that is believed because it looks computed.
+figure that is believed because it looks computed. A date that cannot be
+read SHALL be absent too, with its source saying it was unreadable, and
+SHALL NOT fail the reading of any other change.
 
 Dates SHALL be read from the repository's own record — the commits that
 added the files, the times its task lines were checked, the runs
@@ -281,10 +291,24 @@ goes wrong.
 - **THEN** the archived date comes from the commit that moved it, and
   says so
 
+#### Scenario: A change archived early in the morning
+
+- **WHEN** the commit that archived a change was made after midnight in
+  the committer's timezone
+- **THEN** its archived day is that day, the same day its directory
+  names
+
 #### Scenario: A change archived by moving the directory
 
 - **WHEN** the directory carries no dated prefix and no commit moved it
 - **THEN** the archived date is reported as absent rather than guessed
+
+#### Scenario: A directory name that is not a date
+
+- **WHEN** an archived directory carries a prefix shaped like a date
+  that is not one, and no commit dates it
+- **THEN** its archived date is absent and says it was unreadable, and
+  every other change is still dated
 
 #### Scenario: When the work happened
 
@@ -302,7 +326,7 @@ goes wrong.
 #### Scenario: A run before the first checked task
 
 - **WHEN** a run is recorded against a change before any of its tasks is
-  checked
+  checked, and the timeline is read through a host
 - **THEN** the work started when the run did, and says it came from the
   audit log
 
@@ -328,10 +352,16 @@ the confusion the dates were built to remove.
 
 A chart SHALL NOT be shown for a figure measured to be flat. A chart of
 a quantity that is nearly always zero reads as a finding rather than as
-an absence, and the absence is the finding.
+an absence, and the absence is the finding. The sentence saying so SHALL
+be computed from the changes shown, not stated as a fact about one
+repository to every user.
 
 Every chart's values SHALL also be readable as text, so what it shows
 can be read by a screen reader and copied.
+
+What a chart computes SHALL live in core, so a host that shows the same
+figure in another form — a report, a tree — draws it from the same
+function. A bucket SHALL be named by its boundaries.
 
 #### Scenario: Reading what was finished
 
@@ -349,6 +379,12 @@ can be read by a screen reader and copied.
 
 - **WHEN** a chart is shown
 - **THEN** the same values are present as text
+
+#### Scenario: The chart that is not drawn
+
+- **WHEN** the timeline is shown for a workspace
+- **THEN** the sentence explaining the absent work-duration chart gives
+  that workspace's own count of changes and how many were flat
 
 ### Requirement: What is waiting on a person is readable in every host
 
