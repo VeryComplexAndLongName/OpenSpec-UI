@@ -25,6 +25,7 @@ export * from "./harness-config.js";
 export * from "./harness-chain-runner.js";
 export * from "./process-scheduler.js";
 export * from "./workspace-lease.js";
+export * from "./lease-release.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";
 export * from "./workbench-recovery.js";

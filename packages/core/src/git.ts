@@ -87,6 +87,15 @@ export interface GitWrapper {
    * runs is the command that was decided on. */
   worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void>;
   worktreeRemove(path: string): Promise<void>;
+  /** The git identity configured for this working directory —
+   * `user.email`, falling back to `user.name` — or `undefined` where
+   * none is set.
+   *
+   * ATTRIBUTION, NEVER AUTHENTICATION. Anybody can set this to
+   * anything; it is the same self-declared label that signs every
+   * commit. Nothing may be permitted or refused on the strength of it.
+   * See a-lease-says-who. */
+  configuredIdentity(): Promise<string | undefined>;
   /** A remote's URL, or `undefined` where the remote does not exist.
    * Read-only, and never inferred: where a repository is hosted is the
    * only thing that decides whether a Dependabot config could mean
@@ -152,6 +161,18 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // somebody who means it.
       await git.raw(["worktree", "remove", worktreePath]);
     },
+    async configuredIdentity(): Promise<string | undefined> {
+      for (const key of ["user.email", "user.name"]) {
+        try {
+          const value = (await git.raw(["config", "--get", key])).trim();
+          if (value.length > 0) return value;
+        } catch {
+          // Unset, or no git at all. Both mean there is no identity to
+          // record — never a guess.
+        }
+      }
+      return undefined;
+    },
     async remoteUrl(remote: string): Promise<string | undefined> {
       try {
         const out = await git.raw(["remote", "get-url", remote]);
@@ -180,4 +201,15 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       }
     },
   };
+}
+
+/** The git identity to record on a workspace lease, or `undefined`.
+ *
+ * ATTRIBUTION, NEVER AUTHENTICATION (a-lease-says-who). Its one caller
+ * shape is: read this once where a host starts up, and hand the result
+ * to `WorkspaceLeaseManager`. Never call it from a heartbeat — the value
+ * cannot change during a run, and the heartbeat runs every five
+ * seconds. */
+export async function readGitAuthor(cwd: string): Promise<string | undefined> {
+  return await createGitWrapper({ cwd }).configuredIdentity();
 }

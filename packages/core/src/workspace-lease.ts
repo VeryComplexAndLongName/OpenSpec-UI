@@ -36,11 +36,27 @@ export interface WorkspaceLeaseDocument {
   pid: number;
   acquiredAt: string;
   heartbeatAt: string;
+  /** The git identity of the working directory that took this lease.
+   *
+   * ATTRIBUTION, NEVER AUTHENTICATION — see a-lease-says-who. Anybody
+   * can set `user.email` to anything; this is the same self-declared
+   * label that signs every commit, recorded so a person can tell whose
+   * run holds the workspace. Nothing is permitted or refused on it.
+   *
+   * Optional because every lease written before this field existed has
+   * none, and a directory with no identity configured must still be
+   * able to take one. */
+  author?: string;
 }
 
 export interface WorkspaceLeaseManagerOptions {
   hostKind: WorkspaceLeaseHostKind;
   staleAfterMs?: number;
+  /** Gathered ONCE by whoever constructs this, never read here.
+   * `acquireOrRenew` runs every five seconds while a run is active, and
+   * reading git config there would spawn a process twelve times a
+   * minute for a value that cannot change mid-run. */
+  author?: string;
 }
 
 /** Details of the lease holder a conflicting or reclaimed acquire attempt
@@ -50,6 +66,9 @@ export interface WorkspaceLeaseConflict {
   hostname: string;
   pid: number;
   heartbeatAgeMs: number;
+  /** See `WorkspaceLeaseDocument.author`: attribution, not
+   * authentication. Absent where the holder recorded none. */
+  author?: string;
 }
 
 export type WorkspaceLeaseAcquireResult =
@@ -71,15 +90,19 @@ const HOST_KIND_LABELS: Readonly<Record<WorkspaceLeaseHostKind, string>> = {
  * "standalone server" — a wrong answer that reads as a plausible one, and
  * so survives. A lease written by a build newer than the reader still
  * falls through to the raw string rather than to someone else's name. */
-function hostKindLabel(hostKind: WorkspaceLeaseHostKind): string {
+export function hostKindLabel(hostKind: WorkspaceLeaseHostKind): string {
   return HOST_KIND_LABELS[hostKind] ?? String(hostKind);
 }
 
 export function describeWorkspaceLeaseConflict(conflict: WorkspaceLeaseConflict): string {
   const heartbeatAgeSeconds = Math.round(conflict.heartbeatAgeMs / 1000);
+  // "git author" and not "user": the value is self-declared, and a
+  // message that called it a user would read as an identity this system
+  // had established.
+  const author = conflict.author ? `, git author ${conflict.author}` : "";
   return (
     `Another OpenSpec UI host (${hostKindLabel(conflict.hostKind)} on ` +
-    `${conflict.hostname}, pid ${conflict.pid}, last active ${heartbeatAgeSeconds}s ago) ` +
+    `${conflict.hostname}, pid ${conflict.pid}${author}, last active ${heartbeatAgeSeconds}s ago) ` +
     `is currently running a mutating operation on this workspace. Wait for it to ` +
     `finish, or close it, before starting one here.`
   );
@@ -130,6 +153,7 @@ export async function readWorkspaceLeaseHolder(
     hostname: document.hostname,
     pid: document.pid,
     heartbeatAgeMs,
+    ...(document.author !== undefined ? { author: document.author } : {}),
   };
 }
 
@@ -142,11 +166,13 @@ export class WorkspaceLeaseManager {
   private readonly holderId = randomUUID();
   private readonly hostKind: WorkspaceLeaseHostKind;
   private readonly staleAfterMs: number;
+  private readonly author: string | undefined;
 
   constructor(root: string, options: WorkspaceLeaseManagerOptions) {
     this.filePath = path.join(path.resolve(root), ".openspec-ui", "workspace.lease.json");
     this.hostKind = options.hostKind;
     this.staleAfterMs = options.staleAfterMs ?? WORKSPACE_LEASE_STALE_AFTER_MS;
+    this.author = options.author;
   }
 
   /** Acquires the lease if unheld or stale, or renews it if already held by
@@ -159,13 +185,25 @@ export class WorkspaceLeaseManager {
       if (heartbeatAgeMs <= this.staleAfterMs) {
         return {
           ok: false,
-          conflict: { hostKind: existing.hostKind, hostname: existing.hostname, pid: existing.pid, heartbeatAgeMs },
+          conflict: {
+            hostKind: existing.hostKind,
+            hostname: existing.hostname,
+            pid: existing.pid,
+            heartbeatAgeMs,
+            ...(existing.author !== undefined ? { author: existing.author } : {}),
+          },
         };
       }
       await this.write();
       return {
         ok: true,
-        reclaimedFrom: { hostKind: existing.hostKind, hostname: existing.hostname, pid: existing.pid, heartbeatAgeMs },
+        reclaimedFrom: {
+          hostKind: existing.hostKind,
+          hostname: existing.hostname,
+          pid: existing.pid,
+          heartbeatAgeMs,
+          ...(existing.author !== undefined ? { author: existing.author } : {}),
+        },
       };
     }
     // Renewing our own, already-held lease: keep the original `acquiredAt`
@@ -213,6 +251,7 @@ export class WorkspaceLeaseManager {
       pid: process.pid,
       acquiredAt: acquiredAt ?? now,
       heartbeatAt: now,
+      ...(this.author !== undefined ? { author: this.author } : {}),
     };
     const directory = path.dirname(this.filePath);
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;

@@ -45,6 +45,48 @@ describe("WorkspaceLeaseManager", () => {
     expect(document).toMatchObject({ version: WORKSPACE_LEASE_VERSION, hostKind: "standalone-server" });
   });
 
+  it("records the git author it was given, and names it in a refusal", async () => {
+    const root = await temporaryRoot();
+    const holder = new WorkspaceLeaseManager(root, {
+      hostKind: "standalone-server",
+      author: "ada@example.com",
+    });
+    await holder.acquireOrRenew();
+
+    expect((await readLease(root)).author).toBe("ada@example.com");
+
+    const contender = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+    const result = await contender.acquireOrRenew();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.conflict.author).toBe("ada@example.com");
+      // "git author", never "user": nothing is gated on a self-declared
+      // label, and the message must not imply otherwise.
+      expect(describeWorkspaceLeaseConflict(result.conflict)).toContain("git author ada@example.com");
+    }
+  });
+
+  it("takes and describes a lease where no git author is configured", async () => {
+    const root = await temporaryRoot();
+    const holder = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    await holder.acquireOrRenew();
+
+    // Absent, not empty: every lease written before this field existed
+    // looks exactly like this one, and must stay readable.
+    expect((await readLease(root)).author).toBeUndefined();
+
+    const contender = new WorkspaceLeaseManager(root, { hostKind: "cli" });
+    const result = await contender.acquireOrRenew();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const described = describeWorkspaceLeaseConflict(result.conflict);
+      expect(described).not.toContain("git author");
+      expect(described).toContain("standalone server");
+      // No stray punctuation where the name would have been.
+      expect(described).not.toContain(", ,");
+    }
+  });
+
   it("renews its own lease, keeping the original acquiredAt", async () => {
     const root = await temporaryRoot();
     const manager = new WorkspaceLeaseManager(root, { hostKind: "vscode-extension" });

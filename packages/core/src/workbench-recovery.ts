@@ -9,6 +9,7 @@ import {
   type RollbackResult,
   type WorkbenchCheckpoint,
 } from "./checkpoint.js";
+import { readGitAuthor } from "./git.js";
 import { WorkbenchProcessScheduler, type StartProcessOptions, type WorkbenchProcess } from "./process-scheduler.js";
 import {
   WorkbenchRunJournal,
@@ -47,16 +48,19 @@ export class WorkbenchRecoveryService {
   private scheduler = new WorkbenchProcessScheduler();
   private readonly sessions = new Map<string, RecoverySession>();
 
-  private constructor(root: string, options: WorkbenchRunJournalOptions) {
+  private constructor(root: string, options: WorkbenchRunJournalOptions, author: string | undefined) {
     this.journal = new WorkbenchRunJournal(root, options);
-    this.lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server" });
+    this.lease = new WorkspaceLeaseManager(root, { hostKind: "standalone-server", author });
   }
 
   static async open(
     root: string,
     options: WorkbenchRunJournalOptions = {},
   ): Promise<WorkbenchRecoveryService> {
-    const service = new WorkbenchRecoveryService(root, options);
+    // Gathered here rather than in the constructor because reading it
+    // costs a subprocess, and because the lease's heartbeat must never
+    // be the thing that reads it (a-lease-says-who).
+    const service = new WorkbenchRecoveryService(root, options, await readGitAuthor(root));
     await service.initialize();
     return service;
   }
