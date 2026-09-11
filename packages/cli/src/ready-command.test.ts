@@ -12,6 +12,7 @@ const REPORT: ChangeReadinessReport = {
   changes: [
     {
       changeName: "running-one",
+      blockers: [],
       run: {
         state: "running",
         worktreePath: "/repo.worktrees/running-one",
@@ -24,6 +25,7 @@ const REPORT: ChangeReadinessReport = {
     },
     {
       changeName: "alpha",
+      blockers: [],
       run: { state: "ready" },
       capabilities: ["ci-cli"],
       worktreePath: "/repo.worktrees/alpha",
@@ -34,6 +36,7 @@ const REPORT: ChangeReadinessReport = {
     },
     {
       changeName: "gamma",
+      blockers: [],
       run: { state: "ready" },
       capabilities: [],
       canJoin: [],
@@ -42,6 +45,7 @@ const REPORT: ChangeReadinessReport = {
     },
     {
       changeName: "waiting",
+      blockers: ["alpha"],
       run: { state: "blocked", blockedBy: ["alpha"] },
       capabilities: [],
       canJoin: [],
@@ -94,7 +98,14 @@ describe("readyCommand", () => {
       {
         ...io,
         read: () => Promise.resolve({
-          changes: [{ changeName: "waiting", run: { state: "blocked", blockedBy: ["x"] }, capabilities: [], canJoin: [], blockedFrom: [] }],
+          changes: [{
+            changeName: "waiting",
+            blockers: ["x"],
+            run: { state: "blocked", blockedBy: ["x"] },
+            capabilities: [],
+            canJoin: [],
+            blockedFrom: [],
+          }],
         } satisfies ChangeReadinessReport),
       },
     );

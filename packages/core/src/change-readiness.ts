@@ -40,6 +40,15 @@ export type ChangeRunState =
 export interface ChangeReadiness {
   changeName: string;
   run: ChangeRunState;
+  /** The changes this one declares it is blocked by, kept to those that
+   * are still active — a blocker that has archived is satisfied, and is
+   * no longer a change to point at.
+   *
+   * Carried on every change, not only the blocked ones, because it is
+   * the relation the pipeline picture draws (ADR 0025) and a running
+   * change has one too. Equal to `run.blockedBy` where the change is
+   * blocked. */
+  blockers: string[];
   /** The capabilities this change's delta carries — the spec files it
    * will merge into at archive. */
   capabilities: string[];
@@ -195,6 +204,7 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
     changes.push({
       changeName,
       run,
+      blockers: unmet,
       capabilities,
       ...(worktree ? { worktreePath: worktree.path } : {}),
       canJoin: [],

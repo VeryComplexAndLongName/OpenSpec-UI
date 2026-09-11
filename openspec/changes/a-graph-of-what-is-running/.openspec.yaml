@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-11
+follows:
+  - changes-run-side-by-side
+  - what-can-start-now
+  - a-declared-blocker-blocks
+  - a-lease-says-who
