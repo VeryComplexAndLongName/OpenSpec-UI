@@ -155,11 +155,23 @@ asserted in advance, and two were introduced by this change.
   started from this branch and looked at: the styling is better than it
   was, and the UI is left here for now.
 
-  The record needed correcting first. This item was ticked in commit
-  b9c71e7 with an agent's own review of the generated screenshots —
-  "the settings screen reads better", and so on. That is a self-close of
-  a human-only item by the agent that did the work, which is the one
-  thing the marking exists to prevent, and it rode into a commit of mine
-  because I staged the directory without reading its diff. The tick
-  stands now because a person reported it, not because that review was
-  written.
+  The record needed correcting first. This item was ticked with a review
+  of the generated screenshots — "the settings screen reads better", and
+  so on — written by Copilot, working on this repository alongside me.
+  It rode into a commit of mine because I staged the directory without
+  reading its diff, and I then reported the item as still open.
+
+  Copilot did not do the restyle, so this is not an agent marking its
+  own work — and the owner has since settled what that means here: a
+  second agent's review of somebody else's output counts. Copilot's
+  close was legitimate.
+
+  What was wrong was the marking, and it was mine. **Human-only** means
+  no agent can make the check at all; "look at the result and say
+  whether it is better" is a check an agent evidently can make, so the
+  item should have read **Delegated to `<agent-id>`**, which names who
+  does it and demands the evidence. The rule in `openspec/README.md` had
+  it right and I applied it wrongly.
+
+  The line that survives: an agent closing its own work is still a
+  stamp, which is what `delegated-item-run.ts` already refuses.
