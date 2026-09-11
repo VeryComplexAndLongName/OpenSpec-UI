@@ -155,11 +155,19 @@ asserted in advance, and two were introduced by this change.
   started from this branch and looked at: the styling is better than it
   was, and the UI is left here for now.
 
-  The record needed correcting first. This item was ticked in commit
-  b9c71e7 with an agent's own review of the generated screenshots —
-  "the settings screen reads better", and so on. That is a self-close of
-  a human-only item by the agent that did the work, which is the one
-  thing the marking exists to prevent, and it rode into a commit of mine
-  because I staged the directory without reading its diff. The tick
-  stands now because a person reported it, not because that review was
-  written.
+  The record needed correcting first. This item was ticked with a review
+  of the generated screenshots — "the settings screen reads better", and
+  so on — written by Copilot, working on this repository alongside me.
+  It rode into a commit of mine because I staged the directory without
+  reading its diff, and I then reported the item as still open.
+
+  Copilot did not do the restyle, so this is not an agent marking its
+  own work. It is still the wrong close: **Human-only** means no agent
+  can make the check, and a second agent's opinion about whether a
+  screen reads well is not the judgement the item asks for. Where an
+  agent genuinely can perform a check, the marking for that is
+  **Delegated to `<agent-id>`**, which names who does it and demands the
+  evidence.
+
+  The tick stands because a person reported it, not because that review
+  was written.
