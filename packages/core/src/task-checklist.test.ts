@@ -332,12 +332,28 @@ describe("readTaskChecklist over this repository's own openspec/changes/*/tasks.
 
       const items = await readTaskChecklist(repoRoot, changeName, false);
       expect(items.length).toBe(expectedCount);
-      // None of these files' actual task lines declare a check today —
-      // prose describing the syntax (as this very change's own tasks.md
-      // does, e.g. "may carry a `check(...)` declaration") is not the
-      // same as a task line ending in one, so this asserts on the parsed
-      // result, not a raw-text search that would also match that prose.
-      expect(items.every((item) => item.check === undefined)).toBe(true);
+      // A check is declared only at the very end of a task line. Prose
+      // describing the syntax mid-sentence (as several of these files do,
+      // e.g. "may carry a `check(...)` declaration") is not a
+      // declaration, and this is what pins that difference.
+      //
+      // This asserted "no real task line declares a check" until
+      // a-change-runs-from-the-terminal declared the first two. That was
+      // a statement about the repository's contents on the day it was
+      // written, not an invariant — counting them independently is,
+      // and it still fails if prose starts parsing as a declaration.
+      //
+      // Spelled with `includes`/`endsWith` rather than a regex literal
+      // on purpose: `scripts/check-test-budgets.mjs` scans a test call's
+      // arguments by balancing brackets and skipping strings, and a
+      // backtick inside a regex literal reads to it as the start of a
+      // template string, so the file's stated time budget stops being
+      // found. A string literal is skipped correctly.
+      const expectedChecks = raw
+        .split(/\r?\n/)
+        .filter((line) => /^[ \t]*-\s\[[ xX]\]/.test(line))
+        .filter((line) => line.includes("`check(") && line.trimEnd().endsWith("`")).length;
+      expect(items.filter((item) => item.check !== undefined).length).toBe(expectedChecks);
     }
   }, 30_000);
 });

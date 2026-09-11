@@ -1,10 +1,13 @@
 // Argv parsing, output formatting, and the 0/1/2 exit-code contract (see
-// docs/adr/0007-ci-cli-third-delivery-target.md decision #3). Kept
-// separate from cli.ts so it can be unit-tested without spawning a real
-// process — cli.ts is just this function wired to process.argv/exit.
+// docs/adr/0007-ci-cli-third-delivery-target.md decision #3, extended by
+// docs/adr/0020-cli-runs-a-change.md decision 7). Kept separate from
+// cli.ts so it can be unit-tested without spawning a real process —
+// cli.ts is just this function wired to process.argv/exit.
 
 import { readChangeGraph } from "@openspec-ui/core";
 import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
+import { checkChange } from "./check-change.js";
+import { runChange, type CheckpointPrompt } from "./run-change.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
   type ReleaseAssets,
@@ -13,10 +16,12 @@ import {
   versionFingerprint,
 } from "./release-manifest.js";
 
-const USAGE = `openspec-ui-cli — non-interactive OpenSpec change validation for CI merge gates.
+const USAGE = `openspec-ui-cli — OpenSpec changes from a terminal: validate them, run them, check them.
 
 Usage:
   openspec-ui-cli validate [--cwd <path>] [--format json|text]
+  openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli change-graph [--cwd <path>] [--change <id>] [--all]
   openspec-ui-cli release-manifest [--cwd <path>] [--repository <owner/name>]
                                    [--ref <ref>] [--commit <sha>]
@@ -25,7 +30,10 @@ Usage:
 
 Options:
   --cwd <path>        Repository root (default: current directory)
-  --format json|text  Output format for the validate command (default: json)
+  --format json|text  Output format. Default json for validate, whose
+                      output is one document made at the end; default
+                      text for run and check, which are watched. For
+                      run, json is one event per line, as it happens.
   --change <id>       Print one change's ancestry instead of the whole
                       graph: what it follows, and what those follow
   --all               Include changes that state no relation
@@ -42,10 +50,20 @@ Options:
                       with a freshly built one by the same code
 
 Exit codes:
-  0  every active change passed strict validation / the manifest was built
-  1  at least one active change failed strict validation
-  2  the CLI itself could not complete the check (bad arguments, the
-     openspec CLI missing, a filesystem error, an unreadable package.json)`;
+  0  every active change passed strict validation / the chain completed /
+     every declared check passed / the manifest was built
+  1  the change did not pass or did not complete — a change failed strict
+     validation, a stage failed, a declared check failed, or a run was
+     cancelled
+  2  the CLI itself could not complete the check, or declined to start
+     (bad arguments, the openspec CLI missing, a filesystem error, an
+     unreadable package.json, a change whose configuration this terminal
+     cannot honour, another host holding the workspace)
+
+A run does only what the change's own harness configuration already
+permits. There is no flag that starts a chain for a change configured to
+run one stage at a time, and none that answers a confirmation the change
+asked for — see docs/adr/0020-cli-runs-a-change.md.`;
 
 export interface MainOptions {
   cwd?: string;
@@ -58,6 +76,11 @@ export interface MainOptions {
   fingerprint?: boolean;
   change?: string;
   all?: boolean;
+  /** The change `run`/`check` was given, as a second positional rather
+   * than a flag — it is the subject of the command, not an option on it.
+   * Distinct from `--change`, which selects a subtree of `change-graph`'s
+   * output. */
+  changeName?: string;
 }
 
 export interface MainDeps {
@@ -66,6 +89,19 @@ export interface MainDeps {
   readReleasesFile?: (filePath: string) => Promise<string>;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
+  /** `run` and `check`, injected so a unit test never spawns an agent or
+   * runs `npm` — the same seam `validateAll` already is. */
+  runChange?: typeof runChange;
+  checkChange?: typeof checkChange;
+  /** How a checkpoint is put to a person, and how their answer comes
+   * back. Absent `ask` means nobody is there, which is what makes a
+   * change configured to pause refuse to start rather than hang.
+   * Production derives it from whether standard input is a TTY. */
+  checkpoint?: CheckpointPrompt;
+  /** Writes without adding a newline — `run`'s text output joins the
+   * slices of a streamed reply, so it cannot go through a line-oriented
+   * writer. Defaults to `process.stdout.write`. */
+  writeOut?: (text: string) => void;
 }
 
 /** The repository the manifest describes. A default rather than a
@@ -113,7 +149,32 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
     }
   }
 
+  if (positional[1] !== undefined) options.changeName = positional[1];
   return { command: positional[0], options };
+}
+
+/** Whether a confirmation can actually be put to somebody, and how.
+ *
+ * An absent `ask` is not "assume yes" — it is what makes a change
+ * configured to pause between stages refuse to start at all (ADR 0020
+ * decision 4). A process whose input is not a terminal has nobody to ask,
+ * and there is deliberately no flag that answers on their behalf. */
+function defaultCheckpointPrompt(): CheckpointPrompt {
+  if (!process.stdin.isTTY) return {};
+  return {
+    ask: (question: string) =>
+      new Promise<boolean>((resolve) => {
+        process.stdout.write(`${question} [y/N] `);
+        const onData = (data: Buffer): void => {
+          process.stdin.off("data", onData);
+          process.stdin.pause();
+          const answer = data.toString("utf8").trim().toLowerCase();
+          resolve(answer === "y" || answer === "yes");
+        };
+        process.stdin.resume();
+        process.stdin.on("data", onData);
+      }),
+  };
 }
 
 function formatText(result: ValidateAllResult): string {
@@ -150,12 +211,39 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     return 0;
   }
 
+  if (command === "run" || command === "check") {
+    const changeName = options.changeName;
+    if (!changeName) {
+      stderr(`openspec-ui-cli: ${command} requires a change name`);
+      stderr(USAGE);
+      return 2;
+    }
+    const cwd = options.cwd ?? process.cwd();
+    // `run` and `check` are watched rather than collected, so their
+    // default is the readable one — the opposite of `validate`, whose
+    // output is a single document produced at the end.
+    const format = options.format ?? "text";
+
+    if (command === "check") {
+      return await (deps.checkChange ?? checkChange)({ workspaceRoot: cwd, changeName, format }, { stdout, stderr });
+    }
+
+    const writeOut = deps.writeOut ?? ((text: string) => void process.stdout.write(text));
+    return await (deps.runChange ?? runChange)(
+      { workspaceRoot: cwd, changeName, format },
+      { stdout: writeOut, stderr, checkpoint: deps.checkpoint ?? defaultCheckpointPrompt() },
+    );
+  }
+
   if (command === "release-manifest") {
     return await runReleaseManifest(options, { ...deps, stdout, stderr });
   }
 
   if (command !== "validate") {
-    stderr(`openspec-ui-cli: unknown command '${command ?? ""}' (supported: validate, release-manifest, change-graph)`);
+    stderr(
+      `openspec-ui-cli: unknown command '${command ?? ""}'`
+      + " (supported: validate, run, check, release-manifest, change-graph)",
+    );
     stderr(USAGE);
     return 2;
   }

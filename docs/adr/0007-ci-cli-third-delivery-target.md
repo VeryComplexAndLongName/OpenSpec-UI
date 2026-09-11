@@ -1,6 +1,7 @@
 # 0007: CI CLI as a Third Thin Delivery Target
 
-Status: Accepted
+Status: Accepted (decision 2 superseded by
+[ADR-0020](0020-cli-runs-a-change.md))
 
 Date: 2026-08-17
 
@@ -39,6 +40,13 @@ JSON summary — exactly the gap a thin core-consuming CLI closes.
    output") — not a general-purpose reimplementation of every `openspec`
    subcommand, which core's existing `openspec.ts` wrapper and the two
    interactive delivery targets already expose where a human is present.
+
+   Superseded by [ADR-0020](0020-cli-runs-a-change.md). The scope is now
+   a rule rather than a list — this one had already been overtaken twice
+   without an ADR (`change-graph`, `release-manifest`) — and the premise
+   that running a change needs a human-in-the-loop UI stopped being true
+   of the product when the harness gained autonomy levels that ask
+   nobody anything.
 3. **Exit codes are part of the contract.** `0` = every change is valid;
    `1` = at least one change failed strict validation (an actionable CI
    failure); `2` = the CLI itself could not complete the check (bad

@@ -27,7 +27,11 @@ import {
   type PullRequestGateway,
 } from "./gh-pr-gateway.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
-import { runMechanicalCheck, type MechanicalCheckContext, type MechanicalCheckResult } from "./mechanical-checks.js";
+import {
+  runDeclaredChecks,
+  type DeclaredCheckOutcomeEntry,
+  type DeclaredCheckRunOutcome,
+} from "./declared-checks.js";
 import type { Command, CommandContext, CommandKind, Event, VerifiedDeltaEntry } from "./protocol.js";
 import {
   type HarnessConfig,
@@ -41,7 +45,7 @@ import { VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
-import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates, type TaskCheckDeclaration } from "./task-checklist.js";
+import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
 import { buildUsageReport } from "./usage-report.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
@@ -277,19 +281,8 @@ async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
   return { unchecked, total };
 }
 
-interface MechanicalCheckOutcomeEntry {
-  text: string;
-  check: TaskCheckDeclaration;
-  result: MechanicalCheckResult;
-}
-
-interface MechanicalCheckRunOutcome {
-  /** `false` when the change's `tasks.md` declares no checks at all —
-   * task 3.5: behaves exactly as before this capability existed. */
-  ranAny: boolean;
-  passed: MechanicalCheckOutcomeEntry[];
-  failed: MechanicalCheckOutcomeEntry[];
-}
+type MechanicalCheckOutcomeEntry = DeclaredCheckOutcomeEntry;
+type MechanicalCheckRunOutcome = DeclaredCheckRunOutcome;
 
 /** Runs every mechanical check the change's `tasks.md` declares (task
  * 3.1), before the `verify` stage's agent is ever invoked, and writes
@@ -302,26 +295,24 @@ interface MechanicalCheckRunOutcome {
  * a failing check would (via the caller's own try/catch). */
 async function runMechanicalChecksForVerify(workspaceRoot: string, changeDir: string): Promise<MechanicalCheckRunOutcome> {
   const changeName = changeNameFromDir(changeDir);
-  const items = await readTaskChecklist(workspaceRoot, changeName, false);
-  const withChecks = items.filter((item) => item.check !== undefined);
-  if (withChecks.length === 0) {
-    return { ranAny: false, passed: [], failed: [] };
-  }
+  const outcome = await runDeclaredChecks(workspaceRoot, changeName, false);
+  if (!outcome.ranAny) return outcome;
 
-  const ctx: MechanicalCheckContext = { workspaceRoot, changeDir, changeName };
-  const passed: MechanicalCheckOutcomeEntry[] = [];
-  const failed: MechanicalCheckOutcomeEntry[] = [];
-  const updates: Array<{ lineNumber: number; expectedText: string; done: boolean }> = [];
-
-  for (const item of withChecks) {
-    const check = item.check as TaskCheckDeclaration;
-    const result = await runMechanicalCheck(check.name, check.param, ctx);
-    updates.push({ lineNumber: item.lineNumber, expectedText: item.text, done: result.pass });
-    (result.pass ? passed : failed).push({ text: item.text, check, result });
-  }
-
-  await writeTaskCheckStates(workspaceRoot, changeName, false, updates);
-  return { ranAny: true, passed, failed };
+  // The writing is what makes this the `verify` stage's version rather
+  // than `runDeclaredChecks` itself: a checkbox records what a check
+  // found during a run, and `openspec-ui-cli check` — which asks the same
+  // question outside a run — deliberately writes nothing.
+  await writeTaskCheckStates(
+    workspaceRoot,
+    changeName,
+    false,
+    [...outcome.passed, ...outcome.failed].map((entry) => ({
+      lineNumber: entry.lineNumber,
+      expectedText: entry.text,
+      done: entry.result.pass,
+    })),
+  );
+  return outcome;
 }
 
 /** Renders passing checks' results for the verifying agent's own prompt

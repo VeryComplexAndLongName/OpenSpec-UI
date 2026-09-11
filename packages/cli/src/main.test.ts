@@ -128,3 +128,103 @@ describe("runMain", () => {
     expect(io.errLines[1]).toContain("Usage:");
   });
 });
+
+describe("runMain — run and check", () => {
+  it("passes the change name and the repository root to run", async () => {
+    const io = collectingIo();
+    const runChange = vi.fn().mockResolvedValue(0);
+
+    const code = await runMain(["run", "a-change", "--cwd", "/repo"], { runChange, ...io });
+
+    expect(code).toBe(0);
+    expect(runChange).toHaveBeenCalledWith(
+      { workspaceRoot: "/repo", changeName: "a-change", format: "text" },
+      expect.anything(),
+    );
+  });
+
+  it("defaults run to text, unlike validate", async () => {
+    // `validate` produces one document at the end, so JSON is the useful
+    // default there. A run is watched.
+    const io = collectingIo();
+    const runChange = vi.fn().mockResolvedValue(0);
+
+    await runMain(["run", "a-change"], { runChange, ...io });
+
+    expect(runChange.mock.calls[0]?.[0]).toMatchObject({ format: "text" });
+  });
+
+  it("passes --format json through to run", async () => {
+    const io = collectingIo();
+    const runChange = vi.fn().mockResolvedValue(0);
+
+    await runMain(["run", "a-change", "--format", "json"], { runChange, ...io });
+
+    expect(runChange.mock.calls[0]?.[0]).toMatchObject({ format: "json" });
+  });
+
+  it("returns run's own exit code unchanged", async () => {
+    const io = collectingIo();
+
+    expect(await runMain(["run", "a"], { runChange: vi.fn().mockResolvedValue(2), ...io })).toBe(2);
+    expect(await runMain(["run", "a"], { runChange: vi.fn().mockResolvedValue(1), ...io })).toBe(1);
+  });
+
+  it("exits 2 when run is given no change", async () => {
+    const io = collectingIo();
+    const runChange = vi.fn();
+
+    const code = await runMain(["run"], { runChange, ...io });
+
+    expect(code).toBe(2);
+    expect(runChange).not.toHaveBeenCalled();
+    expect(io.errLines[0]).toContain("run requires a change name");
+  });
+
+  it("exits 2 when check is given no change", async () => {
+    const io = collectingIo();
+    const checkChange = vi.fn();
+
+    const code = await runMain(["check"], { checkChange, ...io });
+
+    expect(code).toBe(2);
+    expect(checkChange).not.toHaveBeenCalled();
+  });
+
+  it("passes the change name to check", async () => {
+    const io = collectingIo();
+    const checkChange = vi.fn().mockResolvedValue(1);
+
+    const code = await runMain(["check", "a-change", "--cwd", "/repo"], { checkChange, ...io });
+
+    expect(code).toBe(1);
+    expect(checkChange).toHaveBeenCalledWith(
+      { workspaceRoot: "/repo", changeName: "a-change", format: "text" },
+      expect.anything(),
+    );
+  });
+
+  it("offers no way to answer a checkpoint from the command line", async () => {
+    // ADR 0020 decision 3. A flag that answered a configured confirmation
+    // would make the CLI the way around the configuration, and the
+    // configuration is where consent is kept. This asserts the usage text
+    // never grows one.
+    const io = collectingIo();
+
+    await runMain(["--help"], { ...io });
+
+    const usage = io.outLines[0] as string;
+    for (const flag of ["--yes", "-y", "--autonomous", "--force", "--no-confirm"]) {
+      expect(usage).not.toContain(flag);
+    }
+  });
+
+  it("names run and check among the supported commands", async () => {
+    const io = collectingIo();
+
+    await runMain(["bogus"], { ...io });
+
+    expect(io.errLines[0]).toContain("run");
+    expect(io.errLines[0]).toContain("check");
+  });
+});

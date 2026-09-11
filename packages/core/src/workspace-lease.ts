@@ -22,7 +22,11 @@ export const WORKSPACE_LEASE_RENEW_INTERVAL_MS = 5_000;
  * pause without leaving a genuinely stopped host's lease live for long). */
 export const WORKSPACE_LEASE_STALE_AFTER_MS = 20_000;
 
-export type WorkspaceLeaseHostKind = "vscode-extension" | "standalone-server";
+/** Every kind of host that can hold the workspace. `"cli"` is a terminal
+ * run (`openspec-ui-cli run`) — ADR 0020 decision 6: a run started from a
+ * terminal mutates a workspace exactly as the two interactive hosts do,
+ * so it takes the same lease rather than a weaker one of its own. */
+export type WorkspaceLeaseHostKind = "vscode-extension" | "standalone-server" | "cli";
 
 export interface WorkspaceLeaseDocument {
   version: typeof WORKSPACE_LEASE_VERSION;
@@ -56,8 +60,19 @@ function isMissingFile(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
+const HOST_KIND_LABELS: Readonly<Record<WorkspaceLeaseHostKind, string>> = {
+  "vscode-extension": "VS Code extension",
+  "standalone-server": "standalone server",
+  cli: "terminal run",
+};
+
+/** Exhaustive by construction. This was a ternary while there were two
+ * kinds, which meant any third one would have been reported to a user as
+ * "standalone server" — a wrong answer that reads as a plausible one, and
+ * so survives. A lease written by a build newer than the reader still
+ * falls through to the raw string rather than to someone else's name. */
 function hostKindLabel(hostKind: WorkspaceLeaseHostKind): string {
-  return hostKind === "vscode-extension" ? "VS Code extension" : "standalone server";
+  return HOST_KIND_LABELS[hostKind] ?? String(hostKind);
 }
 
 export function describeWorkspaceLeaseConflict(conflict: WorkspaceLeaseConflict): string {
@@ -176,5 +191,64 @@ export class WorkspaceLeaseManager {
     } finally {
       await rm(temporaryPath, { force: true });
     }
+  }
+}
+
+/** What a body run under `withWorkspaceLease` is told about how it got
+ * the lease. Absent `reclaimedFrom` is the ordinary case; present means
+ * a previous holder had stopped renewing and this run took the workspace
+ * from it, which a caller should surface rather than swallow. */
+export interface WorkspaceLeaseHold {
+  reclaimedFrom?: WorkspaceLeaseConflict;
+}
+
+export type WorkspaceLeaseOutcome<T> =
+  | { ok: true; value: T; reclaimedFrom?: WorkspaceLeaseConflict }
+  | { ok: false; conflict: WorkspaceLeaseConflict };
+
+/** Holds the lease for exactly one async operation: acquire, renew on the
+ * standard interval while `body` runs, release on the way out including
+ * on throw.
+ *
+ * `WorkbenchProcessScheduler` deliberately keeps its own inline version of
+ * this dance rather than calling here. It releases the lease when a run is
+ * suspended and re-acquires it on resume, so its hold spans two disjoint
+ * intervals of one process's life — which a helper bound to a single scope
+ * cannot express. Two callers with genuinely different lifetimes, not a
+ * duplication to be unified; the CLI's hold (ADR 0020) is a single scope
+ * and this is the shape it needs.
+ *
+ * A conflicting live holder is reported, never thrown: the caller decides
+ * how to say "another host has this workspace", and in the CLI's case that
+ * is a refusal with its own exit code. */
+export async function withWorkspaceLease<T>(
+  lease: WorkspaceLeaseManager,
+  body: (hold: WorkspaceLeaseHold) => Promise<T>,
+  options: { renewIntervalMs?: number } = {},
+): Promise<WorkspaceLeaseOutcome<T>> {
+  const acquired = await lease.acquireOrRenew();
+  if (!acquired.ok) return { ok: false, conflict: acquired.conflict };
+
+  const renewIntervalMs = options.renewIntervalMs ?? WORKSPACE_LEASE_RENEW_INTERVAL_MS;
+  const timer = setInterval(() => {
+    // A failed renewal is not fatal here: the next one may succeed, and
+    // the staleness window is a multiple of this interval. Losing the
+    // lease outright is surfaced by whatever the body itself does, not by
+    // aborting it mid-write.
+    void lease.acquireOrRenew().catch(() => undefined);
+  }, renewIntervalMs);
+  // Never hold a process open on the heartbeat alone — a CLI that has
+  // finished its run must exit, not wait for a timer.
+  timer.unref?.();
+
+  try {
+    const value = await body({ reclaimedFrom: acquired.reclaimedFrom });
+    return { ok: true, value, reclaimedFrom: acquired.reclaimedFrom };
+  } finally {
+    clearInterval(timer);
+    // `release()` is already a no-op for a lease reclaimed away from this
+    // holder, so a slow run that lost the workspace never deletes the
+    // file its new owner wrote.
+    await lease.release();
   }
 }
