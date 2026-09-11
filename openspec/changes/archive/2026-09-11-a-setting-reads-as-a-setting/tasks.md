@@ -162,12 +162,16 @@ asserted in advance, and two were introduced by this change.
   reading its diff, and I then reported the item as still open.
 
   Copilot did not do the restyle, so this is not an agent marking its
-  own work. It is still the wrong close: **Human-only** means no agent
-  can make the check, and a second agent's opinion about whether a
-  screen reads well is not the judgement the item asks for. Where an
-  agent genuinely can perform a check, the marking for that is
-  **Delegated to `<agent-id>`**, which names who does it and demands the
-  evidence.
+  own work — and the owner has since settled what that means here: a
+  second agent's review of somebody else's output counts. Copilot's
+  close was legitimate.
 
-  The tick stands because a person reported it, not because that review
-  was written.
+  What was wrong was the marking, and it was mine. **Human-only** means
+  no agent can make the check at all; "look at the result and say
+  whether it is better" is a check an agent evidently can make, so the
+  item should have read **Delegated to `<agent-id>`**, which names who
+  does it and demands the evidence. The rule in `openspec/README.md` had
+  it right and I applied it wrongly.
+
+  The line that survives: an agent closing its own work is still a
+  stamp, which is what `delegated-item-run.ts` already refuses.
