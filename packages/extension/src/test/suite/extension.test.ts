@@ -2,7 +2,8 @@
 // OpenSpec mode and optional local-server toggle.
 
 import * as assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import * as vscode from "vscode";
 import type { ExtensionTestApi } from "../../extension.js";
 
@@ -225,6 +226,92 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.equal(context?.changeName, "demo");
   });
 
+  test("Harness Settings bridge reads and writes a per-change override unchanged", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const changeDir = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo");
+    const uri = vscode.Uri.joinPath(changeDir, "harness.json");
+    const override = { stepAgents: { apply: { agent: "copilot-cli", customAgent: "reviewer" } } };
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(`${JSON.stringify(override)}\n`, "utf8"));
+    await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", (await api.changesTree!.getChildren()).find((item) => item.label === "demo"));
+
+    const responses: Array<{ id?: string; ok?: boolean; value?: unknown }> = [];
+    const subscription = api.onWebviewResponse((response) => responses.push(response as { id?: string; ok?: boolean; value?: unknown }));
+    try {
+      api.deliverWebviewRequest({ id: "read-override", op: "harness/read-change-override", args: { changeName: "demo" } });
+      await waitFor(() => responses.some((response) => response.id === "read-override"));
+      assert.deepEqual(responses.find((response) => response.id === "read-override"), {
+        type: "openspec-ui/response",
+        id: "read-override",
+        ok: true,
+        value: override,
+      });
+
+      api.deliverWebviewRequest({ id: "write-override", op: "harness/write-change-override", args: { changeName: "demo", config: override } });
+      await waitFor(() => responses.some((response) => response.id === "write-override"));
+      assert.equal(responses.find((response) => response.id === "write-override")?.ok, true);
+      assert.deepEqual(JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8")), override);
+    } finally {
+      subscription.dispose();
+      await vscode.workspace.fs.delete(uri, { useTrash: false });
+    }
+  });
+
+  test("Changes tree keeps an implemented change as the parent of its tasks row after refresh", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const tasksUri = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo", "tasks.md");
+    await vscode.workspace.fs.writeFile(tasksUri, Buffer.from("## 1. Fixture\n\n- [x] 1.1 Placeholder task.\n", "utf8"));
+    try {
+      await vscode.commands.executeCommand("openspec-ui.refresh");
+      const change = (await api.changesTree!.getChildren()).find((item) => item.label === "demo");
+      assert.equal(change?.description, "implemented");
+      const tasks = (await api.changesTree!.getChildren(change!)).find((item) => item.label === "Tasks");
+      // The row VS Code draws when it restores the tree's selection
+      // after a window reload is whatever `getParent` returns. It used
+      // to return a rebuilt row with `draft` written into it, so an
+      // implemented change read `draft` — the reported symptom. Identity
+      // is the fix; the description is what a person actually sees, so
+      // both are asserted. A real reload cannot be performed here: it
+      // restarts the extension host this test runs in.
+      const parent = await api.changesTree!.getParent(tasks!);
+      assert.equal(parent, change);
+      assert.equal(parent?.description, "implemented");
+    } finally {
+      await vscode.workspace.fs.writeFile(tasksUri, Buffer.from("## 1. Fixture\n\n- [ ] 1.1 Placeholder task.\n", "utf8"));
+    }
+  });
+
+  test("scheduled runs drop archived changes and preserve the scheduled path", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, "no workspace folder open for the integration test");
+    const root = workspaceFolder.uri.fsPath;
+    const changeDir = path.join(root, "openspec", "changes", "scheduled-fixture");
+    const archiveDir = path.join(root, "openspec", "changes", "archive", "2026-09-11-scheduled-fixture");
+    const schedulePath = path.join(root, ".openspec-ui", "scheduled-runs.json");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nFixture.\n", "utf8");
+    await writeFile(path.join(changeDir, "tasks.md"), "## 1. Fixture\n\n- [ ] 1.1 Placeholder task.\n", "utf8");
+    await mkdir(path.dirname(schedulePath), { recursive: true });
+    const due = new Date(Date.now() - 60_000).toISOString();
+    try {
+      await writeFile(schedulePath, JSON.stringify([{ changeName: "scheduled-fixture", path: "single-stage", startAt: due, requestedAt: due }]), "utf8");
+      await mkdir(path.dirname(archiveDir), { recursive: true });
+      await rename(changeDir, archiveDir);
+      const archivedLines = await api.checkScheduledRunsOnce();
+      assert.ok(archivedLines.some((line) => line.includes("scheduled-fixture") && line.includes("archived")), archivedLines.join("\n"));
+
+      await rename(archiveDir, changeDir);
+      await writeFile(schedulePath, JSON.stringify([{ changeName: "scheduled-fixture", path: "single-stage", startAt: due, requestedAt: due }]), "utf8");
+      await api.checkScheduledRunsOnce();
+      assert.equal(api.getDashboardContext()?.runPath, "single-stage");
+    } finally {
+      await rm(changeDir, { recursive: true, force: true });
+      await rm(archiveDir, { recursive: true, force: true });
+      await rm(schedulePath, { force: true });
+    }
+  });
+
   test("Run with Harness renders the panel and applies a named configuration", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
@@ -360,3 +447,9 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.equal(Buffer.from(restored).toString("utf8"), "before");
   });
 });
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.ok(predicate(), "timed out waiting for the webview bridge response");
+}

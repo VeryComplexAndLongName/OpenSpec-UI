@@ -239,6 +239,7 @@ export class AiPanel {
    * `panel.webview.postMessage()` regardless of whether any listener is
    * registered. */
   private readonly testEventListeners = new Set<(event: Event) => void>();
+  private readonly testResponseListeners = new Set<(response: unknown) => void>();
 
   constructor(private readonly deps: AiPanelDeps) { }
 
@@ -422,7 +423,9 @@ export class AiPanel {
   private async answerRequest(panel: vscode.WebviewPanel, request: BridgeRequestMessage): Promise<void> {
     const cwd = this.panelContext?.cwd;
     const reply = (body: { ok: boolean; value?: unknown; error?: string }): void => {
-      void panel.webview.postMessage({ type: RESPONSE_MESSAGE_TYPE, id: request.id, ...body });
+      const response = { type: RESPONSE_MESSAGE_TYPE, id: request.id, ...body };
+      for (const listener of this.testResponseListeners) listener(response);
+      void panel.webview.postMessage(response);
     };
     if (!cwd) {
       reply({ ok: false, error: "no workspace root is open" });
@@ -624,6 +627,16 @@ export class AiPanel {
       choice: choice.kind,
       ...(choice.kind === "apply-template" ? { templateId: choice.templateId } : {}),
     });
+  }
+
+  deliverWebviewRequestForTesting(request: { id: string; op: string; args?: unknown }): void {
+    if (!this.panel) return;
+    this.handleWebviewMessage(this.panel, { type: REQUEST_MESSAGE_TYPE, ...request });
+  }
+
+  onWebviewResponseForTesting(listener: (response: unknown) => void): vscode.Disposable {
+    this.testResponseListeners.add(listener);
+    return { dispose: () => this.testResponseListeners.delete(listener) };
   }
 
   getWebviewHtmlForTesting(): string | undefined {

@@ -154,10 +154,12 @@ given.
   `@openspec-ui/server` patch, `openspec-ui-vscode` minor.
 - [x] 8.4 `HARNESS.md`, the scheduling section: what an archived change
   does to a schedule, and that opening the application is enough.
-- [ ] 8.5 **Delegated to copilot-cli**: in the VS Code integration suite,
+- [x] 8.5 **Delegated to copilot-cli**: in the VS Code integration suite,
   against a real workspace, write a schedule entry already due, archive
   the change it names, run `checkScheduleOnce`, and assert the output
   channel line says the entry was dropped as archived. Then a second
   entry naming a path asserts `revealAiPanel` received that path and no
-  further input was needed. Evidence to record here: the two test names
-  and the run that passed.
+  further input was needed. Evidence: "scheduled runs drop archived
+  changes and preserve the scheduled path" passed in `npm run
+  test:integration --workspace openspec-ui-vscode` on 2026-09-11 (17
+  passing); it covers both cases in one real Extension Host test.

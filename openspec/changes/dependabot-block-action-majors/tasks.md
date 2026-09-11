@@ -34,7 +34,7 @@ what taught it.
   changes; this is a regression check.
 - [x] 3.4 No changeset: repository configuration, nothing published
   changes.
-- [ ] 3.5 **Delegated to copilot-cli**: after the first weekly Dependabot
+- [x] 3.5 **Delegated to copilot-cli**: after the first weekly Dependabot
   run following 2026-09-04 — the commit that added the rule, #214 — list
   the pull requests it opened and confirm the `github-actions` ecosystem
   produced no major bump, and that a minor or patch bump arrived if one
@@ -49,3 +49,25 @@ what taught it.
   the rule landed. Nothing to confirm yet, and the agent said so rather
   than confirming — see a-live-check-names-who-performs-it item 6.1 for
   the run it was quoted from.
+
+  Closed 2026-09-11. The run happened on 2026-09-10 and opened two pull
+  requests, #375 "Bump the npm-development group with 6 updates" and
+  #376 "Bump @tanstack/react-virtual from 3.14.10 to 3.14.11". Both are
+  npm. The `github-actions` ecosystem produced nothing.
+
+  That silence is the rule working, not the ecosystem being idle. Every
+  action this repository uses is pinned to a major that is now behind:
+  `actions/checkout` and `actions/upload-artifact` v4 against v7.0.1,
+  `actions/setup-node` v4 against v7.0.0,
+  `actions/dependency-review-action` v4 against v5.0.0. Those are the
+  updates Dependabot saw and did not open, and before the rule it did
+  open exactly this kind — #14 (`upload-artifact` 4 to 7) and #207
+  (`changesets/action` 1 to 2).
+
+  No minor or patch bump was available to arrive: the only action inside
+  its pinned major is `changesets/action`, referenced as `@v2`, and the
+  floating tag already resolves to 2.1.2.
+
+  Read directly rather than through the named agent: nothing dispatches
+  a delegated item yet, so the marker names who would run it once
+  something does. Said rather than left to be assumed from the tick.

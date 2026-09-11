@@ -22,7 +22,7 @@ import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
-import { watchScheduledRuns } from "./scheduled-run-watcher.js";
+import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import type { ChangeTreeItem } from "./tree/changes-tree.js";
@@ -80,6 +80,9 @@ export interface ExtensionTestApi {
    * No-op if the AI panel has never been revealed. */
   deliverWebviewCommand: (command: Command) => void;
   deliverWebviewRunChoice: (choice: RunChoice) => void;
+  deliverWebviewRequest: (request: { id: string; op: string; args?: unknown }) => void;
+  onWebviewResponse: (listener: (response: unknown) => void) => vscode.Disposable;
+  checkScheduledRunsOnce: () => Promise<string[]>;
   getWebviewHtml: () => string | undefined;
   /** The receiving half of `deliverWebviewCommand` above: observes every
    * `"openspec-ui/event"` message the AI panel posts back to the webview
@@ -368,6 +371,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     templatesTree,
     deliverWebviewCommand: (command) => aiPanel.deliverWebviewCommandForTesting(command),
     deliverWebviewRunChoice: (choice) => aiPanel.deliverWebviewRunChoiceForTesting(choice),
+    deliverWebviewRequest: (request) => aiPanel.deliverWebviewRequestForTesting(request),
+    onWebviewResponse: (listener) => aiPanel.onWebviewResponseForTesting(listener),
+    checkScheduledRunsOnce: async () => {
+      const lines: string[] = [];
+      await checkScheduleOnce({
+        getWorkspaceRoot,
+        revealAiPanel: (panelContext) => aiPanel.reveal(panelContext),
+        outputChannel: { appendLine: (line) => { lines.push(line); outputChannel.appendLine(line); } },
+      });
+      return lines;
+    },
     getWebviewHtml: () => aiPanel.getWebviewHtmlForTesting(),
     onWebviewEvent: (listener) => aiPanel.onWebviewEventForTesting(listener),
   };

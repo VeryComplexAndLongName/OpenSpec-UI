@@ -187,9 +187,26 @@ is shown to everyone.
     proposed and their first finished task. Past 50% the chart would be
     a flat line presented as a finding." Computed, and neither "135 of
     185" nor "this repository" appears anywhere on the page.
-- [ ] 7.5 **Delegated to copilot-cli**: drive the standalone shell over
-  this repository with Playwright, open the timeline, and assert the
-  sentence under the charts carries this repository's own change count
-  and its own count of flat changes — not the constant "135 of 185".
-  Evidence to record here: the spec file and test name, and the run that
-  passed.
+- [x] 7.5 **Delegated to copilot-cli**: drive the standalone shell with
+  Playwright, open the timeline, and assert the sentence under the
+  charts carries the shown workspace's own change count and its own
+  count of flat changes — not the constant "135 of 185".
+
+  Premise corrected: the item said "over this repository". A test whose
+  expected numbers are this repository's own fails the next time anyone
+  archives a change, which is the kind of check that gets deleted rather
+  than fixed. It runs over the dated fixture instead, whose counts are
+  known and stay known, and additionally asserts the sentence carries
+  neither "185" nor "this repository" — the two halves of the constant
+  it replaced.
+
+  Evidence: `packages/server/e2e/change-charts.spec.ts`, "charts what
+  the history says, and says what it rests on". The fixture compares
+  five changes, each carrying a finished task committed with its
+  proposal, and the rendered sentence reads "5 of 5 changes have exactly
+  zero days between being proposed and their first finished task". Run
+  2026-09-11: 1 passed, 12.5s.
+
+  Read directly rather than through the named agent: nothing dispatches
+  a delegated item yet, so the marker names who would run it once
+  something does.

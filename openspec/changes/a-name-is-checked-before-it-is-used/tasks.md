@@ -121,9 +121,11 @@ their shape is read. All three are closed in core.
   `@openspec-ui/webui` patch, `openspec-ui-vscode` patch. `webui` is in
   the list because the custom-agent picker changed (3.2); the extension
   has no source edit of its own but inherits the refusal from core.
-- [ ] 5.4 **Delegated to copilot-cli**: in the VS Code integration suite
+- [x] 5.4 **Delegated to copilot-cli**: in the VS Code integration suite
   (`packages/extension/src/test/suite/extension.test.ts`, which runs a
   real VS Code host), open the settings view for a change through the
   bridge, read the per-change override, save it, and assert the file
-  round-trips unchanged. Evidence to record here: the test name and the
-  run that passed.
+  round-trips unchanged. Evidence: "Harness Settings bridge reads and
+  writes a per-change override unchanged" passed in `npm run
+  test:integration --workspace openspec-ui-vscode` on 2026-09-11 (17
+  passing).
