@@ -126,6 +126,11 @@ export type {
   HarnessStage,
   HarnessTimeout,
 } from "./harness-config.js";
+// From the zero-import leaf module rather than through harness-config.js:
+// a type-only re-export is safe either way, but `ChainPart` belongs
+// beside `HarnessStage`, and the surfaces that render a chain's parts
+// need it to describe a declared step (ADR 0021).
+export type { ChainPart, ChainStepName } from "./harness-stage.js";
 // HarnessStepAgent(s)/normalizeStepAgent come from their own zero-Node-
 // import leaf module, not from harness-config.js, for the same reason
 // resolveRunWithHarnessTarget comes from harness-dispatch.js below — see

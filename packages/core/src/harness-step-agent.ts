@@ -9,7 +9,7 @@
 // the browser bundle to actually load it at runtime, pulling those Node
 // built-ins in with it (see harness-dispatch.ts's identical note).
 
-import type { HarnessStage } from "./harness-stage.js";
+import type { ChainPart, HarnessStage } from "./harness-stage.js";
 
 /** Stage-runner id meaning "dispatch this stage to VS Code's own chat"
  * instead of spawning a CLI agent process — see
@@ -49,8 +49,17 @@ export const STEP_AGENT_KEYS = ["agent", "model", "effort", "budget", "customAge
  * to `CHAIN_STAGE_COMMAND`. Both are listed together, and any future
  * stage that runs without invoking an agent belongs on this same list,
  * not on a new one of its own — see harness-config.ts's `NO_AGENT_STAGES`,
- * built from this same pair. */
-export type HarnessStepAgentStage = Exclude<HarnessStage, "archive" | "git">;
+ * built from this same pair.
+ *
+ * Stated as the stages that DO run an agent rather than as everything
+ * except the two that do not. It was the second form — `Exclude<
+ * HarnessStage, "archive" | "git">` — until ADR 0021 gave the chain
+ * another kind of part. A blocklist over a union that can grow admits
+ * every name added to that union, so a declared step would have become a
+ * valid `stepAgents` key: a setting nothing reads, accepted without
+ * complaint. Naming the four cannot do that. */
+export type HarnessStepAgentStage = "propose" | "review" | "apply" | "verify";
+export const STEP_AGENT_STAGE_NAMES: readonly HarnessStepAgentStage[] = ["propose", "review", "apply", "verify"];
 export type HarnessStepAgents = Partial<Record<HarnessStepAgentStage, HarnessStepAgent>>;
 
 /** A task number as `tasks.md` writes it — the leading `1`, `1.1`,
@@ -78,8 +87,8 @@ export type HarnessTaskAgents = Record<string, HarnessStepAgent>;
  * holding a plain `HarnessStage` — every dispatch and settings surface
  * does — needs this rather than an index, which the narrowed record
  * cannot accept. */
-export function isHarnessStepAgentStage(stage: HarnessStage): stage is HarnessStepAgentStage {
-  return stage !== "archive" && stage !== "git";
+export function isHarnessStepAgentStage(stage: ChainPart): stage is HarnessStepAgentStage {
+  return (STEP_AGENT_STAGE_NAMES as readonly string[]).includes(stage);
 }
 
 /** The entry for `stage`, or `undefined` when the stage is one no entry

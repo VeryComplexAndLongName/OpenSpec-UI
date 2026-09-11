@@ -145,3 +145,20 @@ describe("COMMAND_KINDS", () => {
     }
   });
 });
+
+describe("a declared step travels the stage events (a-change-can-declare-a-step)", () => {
+  it("accepts a stageStarted naming a declared step", () => {
+    // One timeline: a step reports itself through the events every
+    // surface already renders, rather than through a pair of its own.
+    expect(isEvent({ ...base, kind: "stageStarted", stage: "await-change", agentId: "" })).toBe(true);
+  });
+
+  it("accepts a stageCompleted whose next part is a declared step", () => {
+    expect(isEvent({ ...base, kind: "stageCompleted", stage: "apply", nextStage: "await-change" })).toBe(true);
+  });
+
+  it("still rejects a name that is neither a stage nor a step", () => {
+    expect(isEvent({ ...base, kind: "stageStarted", stage: "deploy", agentId: "" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stageCompleted", stage: "apply", nextStage: "deploy" })).toBe(false);
+  });
+});

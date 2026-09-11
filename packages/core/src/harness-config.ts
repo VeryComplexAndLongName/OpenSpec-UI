@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { assertValidChangeName } from "./change-name.js";
+import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
 import type { ChangeLocation } from "./workbench.js";
-import { STAGES, type HarnessStage } from "./harness-stage.js";
+import { CHAIN_STEP_NAMES, STAGES, isChainStepName, type ChainStepName, type HarnessStage } from "./harness-stage.js";
 import {
   HARNESS_AUTONOMY_LEVELS,
   type HarnessAutonomyLevel,
@@ -182,6 +183,34 @@ export interface HarnessConfig {
    * task outlives the task, and nothing can tell a stale sidecar from a
    * live one. See a-delegated-item-runs-its-agent's design.md. */
   taskAgents?: HarnessTaskAgents;
+  /** Additional steps this change's chain runs, each positioned relative
+   * to one fixed stage — ADR 0021. Per-change only
+   * (`GlobalChainStepsError`).
+   *
+   * A declaration inserts; it can never remove a fixed stage, replace
+   * one, or reorder them. `step` names an entry in the closed registry
+   * `chain-steps.ts` owns, never something to execute. */
+  steps?: HarnessChainStep[];
+}
+
+/** One declared step: which step, where it goes, and what it needs.
+ *
+ * Exactly one of `before`/`after`, each naming a fixed `HarnessStage` —
+ * a step is placed against the shared sequence, not against another
+ * declared step, so two declarations can never depend on each other's
+ * order. */
+export interface HarnessChainStep {
+  step: ChainStepName;
+  before?: HarnessStage;
+  after?: HarnessStage;
+  /** The step's own argument, in whatever terms that step reads — a
+   * change name for `await-change`. One optional string, exactly as a
+   * `check(name, param)` declaration carries, rather than a shape per
+   * step: a second shape is a second validator, and the first drifts. */
+  param?: string;
+  /** How long a waiting step may wait, in seconds. Absent means the
+   * registry's own default. */
+  maxWaitSeconds?: number;
 }
 
 /** The config to use when neither the global nor a per-change file
@@ -215,7 +244,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -358,6 +387,21 @@ export class GlobalTaskAgentsError extends InvalidHarnessConfigError {
       + " — a task number names a task of one change",
     );
     this.name = "GlobalTaskAgentsError";
+  }
+}
+
+/** `steps` is only ever valid in a per-change file, for the same reason
+ * `taskAgents` is: it is meaningless anywhere else. "Wait for change X
+ * before verifying" stated workspace-wide is a statement about every
+ * change that will ever exist, including X itself, which would then wait
+ * for itself forever. See ADR 0021 decision 6. */
+export class GlobalChainStepsError extends InvalidHarnessConfigError {
+  constructor() {
+    super(
+      "steps is only valid in a per-change harness.json, never in the global openspec/agent-harness.json"
+      + " — a declared step belongs to the chain of one change",
+    );
+    this.name = "GlobalChainStepsError";
   }
 }
 
@@ -809,6 +853,81 @@ function assertValidHarnessConfigInput(
   assertValidMaxStageAttempts(input.maxStageAttempts);
   assertValidGitStageAllowlist(input.gitStageAllowlist, isPerChangeFile);
   assertValidTaskAgents(input.taskAgents, isPerChangeFile, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
+  assertValidChainSteps((input as { steps?: unknown }).steps, isPerChangeFile);
+}
+
+/** Every key a declared step entry may carry — the same posture
+ * `STEP_AGENT_KEYS` takes, so a key added to `HarnessChainStep` and
+ * forgotten here is caught by a guard that iterates rather than by one
+ * that names. */
+const CHAIN_STEP_KEYS = ["step", "before", "after", "param", "maxWaitSeconds"] as const;
+
+function assertValidChainSteps(
+  value: unknown,
+  isPerChangeFile: boolean,
+): asserts value is HarnessChainStep[] | undefined {
+  if (value === undefined) return;
+  if (!isPerChangeFile) throw new GlobalChainStepsError();
+  if (!Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("steps must be an array");
+  }
+
+  value.forEach((entry, index) => {
+    const label = `steps[${index}]`;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new InvalidHarnessConfigError(`${label} must be an object`);
+    }
+    const record = entry as Record<string, unknown>;
+
+    for (const key of Object.keys(record)) {
+      if (!(CHAIN_STEP_KEYS as readonly string[]).includes(key)) {
+        throw new InvalidHarnessConfigError(
+          `unrecognized key "${key}" in ${label} (accepted keys: ${formatAcceptedKeys(CHAIN_STEP_KEYS)})`,
+        );
+      }
+    }
+
+    const step = record.step;
+    if (typeof step !== "string" || !isChainStepName(step)) {
+      throw new InvalidHarnessConfigError(
+        `${label}.step is not a declared step (expected one of: ${CHAIN_STEP_NAMES.join(", ")})`,
+      );
+    }
+
+    // Exactly one position, naming exactly one fixed stage. Both or
+    // neither is not a detail to resolve with a default — a declaration
+    // that says both is a declaration whose author meant one of them,
+    // and guessing which produces a chain nobody described.
+    const hasBefore = record.before !== undefined;
+    const hasAfter = record.after !== undefined;
+    if (hasBefore === hasAfter) {
+      throw new InvalidHarnessConfigError(
+        `${label} must state exactly one of "before" or "after"`
+        + (hasBefore ? ", not both" : ", and states neither"),
+      );
+    }
+    const position = (hasBefore ? record.before : record.after) as unknown;
+    if (typeof position !== "string" || !(STAGES as readonly string[]).includes(position)) {
+      throw new InvalidHarnessConfigError(
+        `${label}.${hasBefore ? "before" : "after"} must name a stage (expected one of: ${STAGES.join(", ")})`
+        + " — a step is placed against the fixed sequence, never against another declared step",
+      );
+    }
+
+    if (record.param !== undefined && typeof record.param !== "string") {
+      throw new InvalidHarnessConfigError(`${label}.param must be a string`);
+    }
+    if ((CHAIN_STEPS_REQUIRING_PARAM as readonly string[]).includes(step) && !record.param) {
+      throw new InvalidHarnessConfigError(`${label}.param is required for step "${step}"`);
+    }
+
+    if (record.maxWaitSeconds !== undefined) {
+      const seconds = record.maxWaitSeconds;
+      if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+        throw new InvalidHarnessConfigError(`${label}.maxWaitSeconds must be a positive number of seconds`);
+      }
+    }
+  });
 }
 
 function globalHarnessConfigPath(workspaceRoot: string): string {
@@ -881,6 +1000,9 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     // above gives: a field validated and then dropped on the way out is
     // how `timeout` came to look configured and do nothing.
     taskAgents: input.taskAgents ?? DEFAULT_HARNESS_CONFIG.taskAgents,
+    // As `taskAgents`: refused in this file, read out anyway so the
+    // field cannot be validated and then silently dropped.
+    steps: input.steps ?? DEFAULT_HARNESS_CONFIG.steps,
   };
 }
 
@@ -939,6 +1061,11 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // file may not set this at all, so there is nothing on the other
     // side to merge key by key with.
     taskAgents: override.taskAgents ?? global.taskAgents,
+    // Whole-list, and in practice always the override's, for the same
+    // reason `taskAgents` is whole-object: the global file may not set
+    // this, so there is no other side to merge against. Two lists
+    // concatenated would also produce a sequence neither file states.
+    steps: override.steps ?? global.steps,
   };
 }
 

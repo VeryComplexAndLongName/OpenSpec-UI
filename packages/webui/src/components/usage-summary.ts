@@ -19,7 +19,7 @@
 // distinction `AuditEntry.usage` draws, where absent means unreported and
 // `checkBudget` fails open on it.
 
-import type { AgentUsage, Event, HarnessStage } from "@openspec-ui/core/browser";
+import type { AgentUsage, ChainPart, Event } from "@openspec-ui/core/browser";
 
 /** Summed token counts and USD cost. Every field stays `undefined` until
  * something reported it — a zero here would claim a run was free. */
@@ -52,9 +52,14 @@ export interface LiveUsage {
 export type StageState = "running" | "completed" | "failed" | "cancelled";
 
 export interface StageUsage {
-  stage: HarnessStage;
-  /** The agent that ran it, or `""` for a stage that runs no agent
-   * (`archive`, `git`). */
+  /** `ChainPart`, so a step a change declared (ADR 0021) gets a row of
+   * its own rather than being dropped from a summary that claims to
+   * describe the run. A step invokes no agent and reports no usage, so
+   * its row is a name and a state — which is exactly what `archive` and
+   * `git` already produce. */
+  stage: ChainPart;
+  /** The agent that ran it, or `""` for a part that runs no agent
+   * (`archive`, `git`, and every declared step). */
   agentId: string;
   state: StageState;
   /** What this stage's agent reported, or `undefined` when it reported

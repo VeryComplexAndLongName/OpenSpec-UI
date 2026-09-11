@@ -2646,3 +2646,213 @@ describe("HarnessChainRunner — a change with no design", () => {
     expect(calls[0]?.kind).toBe("plan");
   });
 });
+
+describe("HarnessChainRunner — declared steps (a-change-can-declare-a-step)", () => {
+  /** A workspace whose `demo` change declares `steps`, ready to run a
+   * chain with no confirmations. `theirs` is the change a wait names;
+   * `landTheirs` leaves it absent, which is what "already landed" looks
+   * like to the step. */
+  async function workspaceWithDeclaredStep(
+    steps: Array<Record<string, unknown>>,
+    options: { landTheirs?: boolean } = {},
+  ): Promise<string> {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", {
+      checkpoints: { requireConfirmationBetweenSteps: false },
+      steps,
+    } as never);
+    await writeTasks(root, 0, 3);
+
+    if (!options.landTheirs) {
+      const theirs = path.join(root, "openspec", "changes", "theirs");
+      await mkdir(theirs, { recursive: true });
+      await writeFile(path.join(theirs, "proposal.md"), "# Theirs\n\n## Why\n\nBecause.\n", "utf8");
+      await writeFile(path.join(theirs, "tasks.md"), "- [ ] 1.1 do it\n", "utf8");
+    }
+    return root;
+  }
+
+  async function collectChain(root: string, runner: AgentRunner): Promise<Event[]> {
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    return events;
+  }
+
+  function startedParts(events: Event[]): string[] {
+    return events.filter((e) => e.kind === "stageStarted").map((e) => (e as unknown as { stage: string }).stage);
+  }
+
+  it("runs a declared step at its position, with every fixed stage still in order", async () => {
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", before: "verify", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(false);
+    mockArchiveSucceeds();
+
+    const { runner, calls } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).toEqual(["propose", "review", "apply", "await-change", "verify", "archive"]);
+    // The step invoked no agent: the four agent stages ran and nothing else.
+    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement", "verify"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("places a step after the stage it names", async () => {
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", after: "apply", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(false);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).toEqual(["propose", "review", "apply", "await-change", "verify", "archive"]);
+  });
+
+  it("reports what the step did, on the chain's own timeline", async () => {
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", before: "verify", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(false);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    const said = events
+      .filter((e) => e.kind === "progress")
+      .map((e) => (e as unknown as { message: string }).message);
+    expect(said.some((message) => message.startsWith("await-change:") && message.includes("already landed"))).toBe(true);
+  });
+
+  it("ends the chain when a step does not succeed, naming the step", async () => {
+    const root = await workspaceWithDeclaredStep([
+      { step: "await-change", before: "verify", param: "theirs", maxWaitSeconds: 0.1 },
+    ]);
+    mockStatus(false);
+
+    const { runner, calls } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    const last = events.at(-1) as unknown as { kind: string; reason: string };
+    expect(last.kind).toBe("failed");
+    expect(last.reason).toContain("await-change");
+    expect(last.reason).toContain("theirs");
+    // `verify` never ran: a failing step stops the chain as a failing
+    // stage does.
+    expect(calls.map((c) => c.kind)).toEqual(["plan", "review", "implement"]);
+  });
+
+  it("does not run a step anchored to a stage the chain resumed past", async () => {
+    // Everything is written and every task is checked, so the chain
+    // resumes at `verify`. `apply` is not in the sequence, and a step
+    // anchored to it is anchored to work that already happened.
+    const root = await workspaceWithDeclaredStep([
+      { step: "await-change", after: "apply", param: "theirs", maxWaitSeconds: 0.1 },
+    ]);
+    mockStatus(true);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).toEqual(["verify", "archive"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("runs a step anchored to the stage the chain resumes at", async () => {
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", before: "verify", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(true);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).toEqual(["await-change", "verify", "archive"]);
+  });
+
+  it("a step declared after archive does not let the chain walk into the git stage", async () => {
+    // The regression this exists for: the git stage is gated on
+    // `reviewGate.mode`, re-derived immediately before `archive` moves
+    // the change's file. That gate used to ask whether the very next
+    // entry was `git` — and a declared step sitting between them made the
+    // answer "no", so the gate never ran and the chain walked into `git`
+    // with nothing having decided that it should.
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", after: "archive", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(true);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).not.toContain("git");
+  });
+
+  it("a chain whose last part is a step still reports that it finished", async () => {
+    // Without a terminal event here the run would look, to every consumer
+    // of the stream, like one still going — forever.
+    const root = await workspaceWithDeclaredStep(
+      [{ step: "await-change", after: "archive", param: "theirs" }],
+      { landTheirs: true },
+    );
+    mockStatus(true);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const events = await collectChain(root, runner);
+
+    expect(startedParts(events)).toEqual(["verify", "archive", "await-change"]);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("does not charge a wait against the chain's run-time ceiling", async () => {
+    // The ceiling is one second and the wait outlasts it. If waiting
+    // counted, this chain would be cancelled at the ceiling — and the
+    // configuration behaving exactly as written would be the one that
+    // fails.
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxRunSeconds: 1 } });
+    await writeChangeHarnessConfig(root, "demo", {
+      checkpoints: { requireConfirmationBetweenSteps: false },
+      steps: [{ step: "await-change", before: "verify", param: "theirs", maxWaitSeconds: 10 }],
+    } as never);
+    await writeTasks(root, 0, 3);
+    const theirs = path.join(root, "openspec", "changes", "theirs");
+    await mkdir(theirs, { recursive: true });
+    await writeFile(path.join(theirs, "proposal.md"), "# Theirs\n", "utf8");
+    mockStatus(true);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const events: Event[] = [];
+    const run = (async () => {
+      for await (const event of chain.run(baseCommand(root))) events.push(event);
+    })();
+
+    const archiveDir = path.join(root, "openspec", "changes", "archive");
+    setTimeout(() => {
+      void (async () => {
+        await mkdir(archiveDir, { recursive: true });
+        await rename(theirs, path.join(archiveDir, "2026-09-11-theirs"));
+      })();
+    }, 1_500);
+    await run;
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(events.some((e) => e.kind === "cancelled")).toBe(false);
+  });
+});

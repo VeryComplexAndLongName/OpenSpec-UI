@@ -152,6 +152,28 @@ export async function resolveChainStart(request: ChainStartRequest): Promise<Cha
     };
   }
 
+  // Each declared step, before the first stage — ADR 0021 decision 8.
+  // A chain that meets a misspelled step name at `verify` has already
+  // paid for `propose`, `review` and `apply`.
+  //
+  // Deliberately NOT checked: whether the change a step waits for
+  // exists. It may legitimately not exist yet — that is the case the
+  // wait is for — and refusing on it would make the declaration useless
+  // for the schedule it describes.
+  const declaredSteps = config.steps ?? [];
+  for (const [index, declaration] of declaredSteps.entries()) {
+    if (declaration.step === "await-change" && declaration.param === changeName) {
+      return {
+        ok: false,
+        refusal: {
+          reason: `steps[${index}] waits for "${changeName}", which is this change itself`
+            + " — a change cannot wait for itself, and this reads as the name of another one",
+          configKey: `steps[${index}].param`,
+        },
+      };
+    }
+  }
+
   for (const stage of agentStages()) {
     const entry = config.stepAgents[stage];
     const agentId = entry === undefined ? undefined : normalizeStepAgent(entry).agent;
