@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-13
+follows:
+  - an-agent-says-what-it-is-doing
+  - a-working-directory-is-disposable
+blocked_by:
+  - an-agent-says-what-it-is-doing
