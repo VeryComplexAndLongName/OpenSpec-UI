@@ -225,6 +225,24 @@ all — see "The `git` stage" below.
 means "confirmation required" wherever a `semi-autonomous` chain would
 otherwise pause. See "What a checkpoint offers" below.
 
+### `hints`
+
+`{ "enabled": <boolean> }`. Optional; absent means enabled, which is what
+every configuration written before this key existed says.
+
+The suggestions are derived from the readiness report — which changes can
+be started alongside each other, which is ready with nowhere to run,
+which workspace is held by a run that stopped reporting itself. They are
+shown in the Pipeline tab and printed by `openspec-ui-cli advise`, and
+they create nothing and start nothing: each carries the fact it came from
+and the commands a person would run.
+
+`false` means **not computed**, never computed-and-hidden: the payload
+carries no suggestions at all. Read from the workspace file rather than
+from a change's — the report they come from is about the whole
+repository, so a per-change value would be answering a different
+question.
+
 ### `budget` (chain-level)
 
 `{ "maxCostUsd"?: <positive number>, "maxTokens"?: <positive integer> }`.

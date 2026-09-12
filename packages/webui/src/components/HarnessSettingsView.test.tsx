@@ -382,6 +382,7 @@ describe("HarnessSettingsView — saving preserves what it cannot show", () => {
     gitStageAllowlist: ["openspec/**"],
     taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
     steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
+    hints: { enabled: false },
   } as const;
 
   function keysMissingFrom(saved: Record<string, unknown>, expected: readonly string[]): string[] {

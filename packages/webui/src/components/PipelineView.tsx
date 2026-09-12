@@ -20,6 +20,7 @@ import {
   type ChangeLayoutNode,
   type ChangeReadinessReport,
 } from "@openspec-ui/core/browser";
+import { HintList } from "./HintList.js";
 
 /** How often the picture re-reads while it is being looked at.
  *
@@ -86,6 +87,10 @@ export function PipelineView({ load, isActive, onOpenChange }: PipelineViewProps
     <div data-testid="pipeline">
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}
       <Picture layout={layout} onOpenChange={onOpenChange} />
+      {/* From the report this already read: no second fetch, and no
+          suggestion computed here — `buildHints` derived them in core
+          before the payload was sent. */}
+      <HintList hints={report.hints} />
       <p className="openspec-shell-note" data-testid="pipeline-read-at">
         {/* A reading, not a subscription: between two of them a run can
             start and finish, so this never presents itself as live. */}
