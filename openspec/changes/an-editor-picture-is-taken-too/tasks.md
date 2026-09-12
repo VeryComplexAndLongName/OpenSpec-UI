@@ -27,18 +27,31 @@ screenshot again with a mask — all four work against the binary in
 - [ ] 2.4 Opens a view by running its command rather than by clicking a
   path through menus. The workbench DOM is not a public API; selecting
   as little as possible is the mitigation.
-- [ ] 2.5 The nine, at their existing paths, so `README.md` and the
+- [x] 2.5 The nine, at their existing paths, so `README.md` and the
   extension's README keep working untouched.
-  **Two of nine done**: `overview-expanded.png` and
-  `overview-compact.png`, which are the two the READMEs lead with. The
-  remaining seven need a view driven into a particular state — an open
-  context menu for `archive-actions` and `template-actions`, an expanded
-  task tree for `nested-tasks`, a spec open in the editor for
-  `specs-editor` — and a context menu is the part of this that a version
-  bump is most likely to move.
-  One blemish to settle before the rest: the title bar reads
-  `[Extension Development Host]`, which is true of how the picture is
-  taken and not of the product a reader installs.
+  All nine, captured 2026-09-12. Three needed a context menu, which was
+  the part most likely to resist, and it did not.
+  The title bar reads `[Extension Development Host]`. Raised and **left
+  alone on the owner's decision**: what matters is that a picture shows
+  what its caption claims, not that the window chrome is cosmetically
+  perfect.
+- [ ] 2.8 The captions are checked against the pictures they now carry,
+  and corrected where they have fallen behind.
+  Found while doing 2.5: `archive-actions.png`'s caption promised four
+  actions — "unarchive, copy template, rollback, and delete" — and the
+  menu has **ten**. Show Change Timeline, Reveal in Change Graph, Show
+  What This Change Follows, Show What This Change Cost, Explain Harness
+  Settings and Recommend a Harness Configuration all arrived since it
+  was written. Not false, and six capabilities a reader was never told
+  about. Corrected. The other eight captions want the same treatment now
+  that there are fresh pictures to check them against.
+- [ ] 2.7 Each capture asserts the claim its caption makes before it
+  fires. `packages/extension/README.md` says what each picture shows —
+  "completed checklist items nested under a change Tasks artifact", "the
+  Specs tree listing capabilities and their requirement counts" — and a
+  capture that fires without that on screen produces a caption the
+  picture does not support. Truthfulness is the whole point; the
+  assertion is what makes it a property rather than a hope.
 - [x] 2.6 ~~Regions carrying the machine are masked with `mask` /
   `maskColor`, not cropped.~~ **Nothing needs masking, and the fixture
   is why.** The standalone captures mask two path fields because their
@@ -59,30 +72,30 @@ screenshot again with a mask — all four work against the binary in
 
 ## 4. The baseline
 
-- [ ] 4.1 The nine leave `scripts/screenshot-baseline.json`.
-- [ ] 4.2 The file stays, holding nothing. Deleting the mechanism would
+- [x] 4.1 The nine leave `scripts/screenshot-baseline.json`.
+- [x] 4.2 The file stays, holding nothing. Deleting the mechanism would
   make the next hand-taken picture legal by silence; an empty baseline
   keeps adding one a visible edit that states its reason.
-- [ ] 4.3 `editor-native` is retired from `BASELINE_REASONS` — it is the
+- [x] 4.3 `editor-native` is retired from `BASELINE_REASONS` — it is the
   reason that turned out not to be one.
-- [ ] 4.4 `check-screenshots.mjs` handles an empty baseline, and says so
+- [x] 4.4 `check-screenshots.mjs` handles an empty baseline, and says so
   rather than reporting nothing.
 
 ## 5. Tests
 
-- [ ] 5.1 The check accepts an empty baseline and still reports a
+- [x] 5.1 The check accepts an empty baseline and still reports a
   picture no spec takes.
-- [ ] 5.2 The check refuses `editor-native` as a reason.
+- [x] 5.2 The check refuses `editor-native` as a reason.
 - [ ] 5.3 The capture spec produces all nine, at the expected paths.
 - [ ] 5.4 No picture contains the account name — asserted against the
   fixture's own path, because that is the string that would leak.
 
 ## 6. Verification
 
-- [ ] 6.1 This change validates strictly. `check(validate-change)`
+- [x] 6.1 This change validates strictly. `check(validate-change)`
 - [ ] 6.2 `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and the per-package test counts.
-- [ ] 6.3 A pending changeset exists. `check(changeset-present)`
+- [x] 6.3 A pending changeset exists. `check(changeset-present)`
 - [ ] 6.4 **Delegated to `claude-cli`**: regenerate all nine, and look
   at each. A picture that captured an empty editor, a dialog that had
   not opened yet, or a view still loading is green to every automated

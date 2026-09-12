@@ -24,9 +24,14 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * reason nobody can spell freely is a reason a reviewer can read down a
  * column of.
  *
- * `editor-native` — a surface the editor itself draws (a tree view, a
- * context menu, a quick pick), which no browser can reach.
  * `external-product` — a picture of something that is not this product.
+ *
+ * `editor-native` was here, for surfaces the editor itself draws, "which
+ * no browser can reach". It is **retired**: Playwright drives Electron,
+ * VS Code is Electron, and `packages/extension/e2e` now takes those nine
+ * pictures. It is the reason that turned out not to be one, and it is
+ * named here so that nobody restores it without noticing what happened
+ * to it. See an-editor-picture-is-taken-too.
  *
  * A third, `published-asset`, was added during implementation for four
  * pictures made for a post published elsewhere and referenced by no
@@ -34,10 +39,19 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * It is recorded because the set is meant to stay small: a reason is
  * added when a picture genuinely cannot be captured, not when one is
  * merely inconvenient to delete. */
-export const BASELINE_REASONS = new Set(["editor-native", "external-product"]);
+export const BASELINE_REASONS = new Set(["external-product"]);
 
 const IMAGES_DIR = path.join("docs", "images");
-const CAPTURE_DIR = path.join("packages", "server", "e2e");
+/** Every directory a capture may live in.
+ *
+ * Two, because two things are photographed: the standalone shell, by a
+ * browser, and the editor, by Playwright driving it as the Electron
+ * application it is. A check that knew only the first would report the
+ * editor's pictures as taken by nobody. */
+const CAPTURE_DIRS = [
+  path.join("packages", "server", "e2e"),
+  path.join("packages", "extension", "e2e"),
+];
 const BASELINE_FILE = path.join("scripts", "screenshot-baseline.json");
 
 /** Repository-relative, forward-slashed — the spelling the baseline
@@ -98,17 +112,21 @@ export function capturedBy(source) {
 
 async function readCaptures(root) {
   const byPicture = new Map();
-  let entries;
-  try {
-    entries = await readdir(path.join(root, CAPTURE_DIR), { withFileTypes: true });
-  } catch {
-    return byPicture;
-  }
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".spec.ts")) continue;
-    const source = await readFile(path.join(root, CAPTURE_DIR, entry.name), "utf8");
-    for (const picture of capturedBy(source)) {
-      byPicture.set(picture, repoPath(CAPTURE_DIR, entry.name));
+  for (const captureDir of CAPTURE_DIRS) {
+    let entries;
+    try {
+      entries = await readdir(path.join(root, captureDir), { withFileTypes: true });
+    } catch {
+      // A package without a capture directory is not an error: only some
+      // of them photograph anything.
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".spec.ts")) continue;
+      const source = await readFile(path.join(root, captureDir, entry.name), "utf8");
+      for (const picture of capturedBy(source)) {
+        byPicture.set(picture, repoPath(captureDir, entry.name));
+      }
     }
   }
   return byPicture;
