@@ -140,13 +140,23 @@ screenshot again with a mask — all four work against the binary in
   vscode 327, server 84, webui 394 — 2062 across 164 files, 0 failed.
   `npm run test:pictures`: 9 passed.
 - [x] 6.3 A pending changeset exists. `check(changeset-present)`
-- [ ] 6.4 **Delegated to `claude-cli`**: regenerate all nine, and look
+- [x] 6.4 **Delegated to `claude-cli`**: regenerate all nine, and look
   at each. A picture that captured an empty editor, a dialog that had
   not opened yet, or a view still loading is green to every automated
   check and useless to a reader. Evidence: the nine, and what each one
   shows.
-  *Performed, and left unticked on purpose:* the looking is recorded in
-  2.8, and it was done by the agent that wrote the captures — the rubber
-  stamp the marking rule names. It was not a formality, though: it found
-  one false picture and three that had fallen behind their captions, all
-  of which had passed every automated check.
+  2026-09-13, closed on the owner's instruction, and said so: it was done
+  by the agent that wrote the captures, which the marking rule calls a
+  rubber stamp. It was not a formality — the first pass, recorded in 2.8,
+  found one false picture and three behind their captions, all green.
+  Regenerated against `main` at #442: `npm run test:pictures`, 9 passed.
+  Each looked at beside its caption — expanded overview shows a change's
+  Proposal and Design, the archived change, both specs with "1
+  requirement", the template catalogue and the graph; compact overview
+  shows all seven views; specs list shows both counts; the spec editor
+  shows `spec.md` coloured with a clean status bar; nested tasks show 1.1
+  and 1.2 done under Tasks; Repository Setup shows all three generators;
+  the archive menu shows all ten actions; the archived tasks sit beside
+  that menu; the template menu shows Customize and Insert. None empty,
+  none mid-load, none with a dialog not yet open. Three files differed in
+  bytes and not in picture, so they were not recommitted.
