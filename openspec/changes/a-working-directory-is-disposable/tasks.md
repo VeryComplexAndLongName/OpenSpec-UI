@@ -92,9 +92,60 @@ those.
   `lint:screenshots` and `lint:test-budgets`. Tests: cli 124, core 1130,
   vscode 327, server 84, webui 394 — 2059 across 163 files, 0 failed.
 - [x] 5.3 A pending changeset exists. `check(changeset-present)`
-- [ ] 5.4 **Delegated to `claude-cli`**: create a working directory, run
+- [ ] 5.4 **Delegated to `claude-cli`** — *performed, evidence below, but
+  NOT ticked: this was run by the agent that wrote the code, which is the
+  rubber stamp the marking rule names. A second reader closes it.*
+  Create a working directory, run
   a chain in it so it records history, remove it, and read that history
   back from the repository. Then remove one that recorded nothing.
   Evidence: both logs before and after, and what removal printed. The
   unit tests drive this with logs a test wrote; only a real run shows
   that what a chain records is what removal carries out.
+
+  2026-09-12, in a throwaway repository so this one's worktree list was
+  never touched. Real git, the real built CLI, real paths. The boundary,
+  stated because it matters: the audit entry was written into the
+  directory by the script rather than by a chain, since a chain run
+  spends an agent. Everything else — creation, the gitignore behaviour,
+  the harvest, the removal — is the real path.
+
+  `worktree add` (exit 0) created it under the root, at
+  `<root>/<repository>/<change>`.
+
+  With `.openspec-ui/audit.jsonl`, a checkpoint and a run journal inside
+  it, `git status` in that directory reported **clean** — which is the
+  whole reason removal used to destroy them.
+
+  `worktree remove` (exit 0):
+
+  ```
+  Took 1 run record into this repository's own history.
+  Discarding the run journal, which describes runs that have ended.
+  Discarding 1 checkpoint, which a rollback would have used.
+  Removed .../wt-root/<repository>/a-disposable-change.
+  ```
+
+  Read back from the repository afterwards, with its original `cwd`
+  intact — which is what lets a combined log stay unambiguous:
+
+  ```json
+  {"runId":"live-run-1","agent":"claude-cli","outcome":"completed",
+   "cwd":"...\\wt-root\\<repository>\\a-disposable-change",
+   "timestamp":"2026-09-12T17:40:00.000Z"}
+  ```
+
+  A second directory that recorded nothing: removed at exit 0, took
+  nothing, and the repository's log stayed at one entry.
+
+  **The run found a defect the unit tests could not.** Removing a
+  directory leaves its branch, so the second `worktree add` for one
+  change met a branch with no directory and fell through to git's own
+  "a branch named X already exists", which says nothing about what to do
+  next. Fixing it exposed a worse one: the first `branchExists` answered
+  from whether the call threw, and `rev-parse --verify --quiet` exits 1
+  silently for an absent ref without the client treating that as an
+  error — so it returned `true` for every branch, and the very first
+  `add` in a fresh repository was refused. A check that always says yes
+  reads exactly like a working check. It now answers from the output.
+  Verified after the fix: first add exit 0, remove exit 0, branch still
+  present, second add refused with the remedy.
