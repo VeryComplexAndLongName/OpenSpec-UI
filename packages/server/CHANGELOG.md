@@ -1,5 +1,28 @@
 # @openspec-ui/server
 
+## 1.22.0
+
+### Minor Changes
+
+- 4940254: The readiness report's facts are now offered as suggestions: which ready
+  changes can be started alongside each other, which is ready with nowhere
+  to run, and which workspace is held by a run that stopped reporting
+  itself. Each carries the fact it came from and the exact commands, shown
+  in the Pipeline tab and printed by `openspec-ui-cli advise`. They create
+  nothing and start nothing, they name every maximal set rather than
+  choosing one, and `hints.enabled: false` means they are not computed at
+  all.
+
+### Patch Changes
+
+- ee31b4d: Seven standalone documentation pictures are now captured from the running
+  application by `e2e/documentation-screenshots.spec.ts` instead of being
+  taken by hand, and a repository check refuses any documentation picture
+  that neither a capture writes nor a dated list accounts for.
+- Updated dependencies [f6b9389]
+- Updated dependencies [4940254]
+  - @openspec-ui/core@0.75.0
+
 ## 1.21.0
 
 ### Minor Changes
