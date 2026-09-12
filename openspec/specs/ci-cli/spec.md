@@ -614,3 +614,149 @@ appears as a report that says yes to a run which is then refused.
 - **THEN** it states that refusal's own reason and the setting that
   governs it
 
+### Requirement: Working directories are created under one root
+
+A change's working directory SHALL be created under a single configured
+root, in a place that identifies both the repository and the change, so
+that one root serves every repository.
+
+The root SHALL be outside the repository.
+
+Where nothing is configured, a default SHALL be used, so that creating a
+working directory never requires configuration first.
+
+#### Scenario: A working directory for a change
+
+- **WHEN** a working directory is created for a change
+- **THEN** it is placed under the root, under that repository
+
+#### Scenario: Two repositories, one root
+
+- **WHEN** changes of the same name exist in two repositories
+- **THEN** each gets its own working directory and neither displaces the
+  other
+
+### Requirement: Where working directories live is a setting of the machine
+
+The root SHALL be read from the environment and from a setting belonging
+to the person, and SHALL NOT be read from the repository's own
+configuration.
+
+#### Scenario: A repository opened on another machine
+
+- **WHEN** the same repository is opened by somebody else
+- **THEN** their working directories go where they configured, not where
+  anybody else did
+
+### Requirement: Removing a working directory keeps its run history
+
+Before a working directory is removed, the run history recorded in it
+SHALL be merged into the repository's own.
+
+Merging SHALL be repeatable without duplicating what it already took.
+
+#### Scenario: Removing a directory that recorded runs
+
+- **WHEN** a working directory holding run history is removed
+- **THEN** that history is readable in the repository afterwards
+
+#### Scenario: Removing a directory that recorded nothing
+
+- **WHEN** a working directory holding no run history is removed
+- **THEN** it is removed and nothing is reported as taken
+
+### Requirement: Removal says what it discards
+
+Where a working directory holds anything outside version control that is
+not taken, removal SHALL name it.
+
+#### Scenario: A directory holding rollback data
+
+- **WHEN** a working directory holding checkpoints is removed
+- **THEN** removal names them as discarded before removing the directory
+
+### Requirement: Existing working directories are reported, never moved unasked
+
+Working directories that already exist elsewhere SHALL be reported with
+where they are.
+
+They SHALL be relocatable on request, and SHALL NOT be moved as a side
+effect of anything else.
+
+Directories that this tool did not create SHALL NOT be moved or removed.
+
+#### Scenario: A directory created under an older default
+
+- **WHEN** a working directory exists outside the root
+- **THEN** it is reported, and moving it requires asking
+
+#### Scenario: A directory nothing here created
+
+- **WHEN** a directory beside the repository is not a working directory
+  of it
+- **THEN** nothing here moves or removes it
+
+### Requirement: What the repository already knows is offered as a suggestion
+
+Facts the repository computes about which changes can be started
+alongside each other SHALL be available as suggestions that name the
+action they imply, not only as a report a reader must interpret.
+
+A suggestion SHALL carry the fact it was derived from and the exact
+commands that act on it. A suggestion without its reason cannot be
+checked and becomes folklore the first time it is wrong; a suggestion
+without its commands leaves the reader to translate advice into action,
+which is the work it was meant to save.
+
+A suggestion SHALL NOT create, edit, or start anything.
+
+Where several sets of changes could run together, every maximal set
+SHALL be named, or — beyond a stated limit — none, with their number
+reported. One chosen set presented as the plan would decide for the
+reader and hide that a choice existed.
+
+#### Scenario: Two changes that can run side by side
+
+- **WHEN** two ready changes collide over nothing
+- **THEN** a suggestion names both, states that their deltas touch no
+  capability in common and their branches no file in common, and quotes
+  the commands that give each a working directory and start it
+
+#### Scenario: More sets than can usefully be listed
+
+- **WHEN** the number of maximal sets exceeds the stated limit
+- **THEN** the suggestion reports how many there are and names none
+
+#### Scenario: Suggestions turned off
+
+- **WHEN** suggestions are turned off
+- **THEN** none are computed, and the payload carries no suggestion
+  field at all
+
+### Requirement: Suggestions can be asked for from a terminal
+
+The suggestions SHALL be available from the command line, in a form a
+person reads and a form a machine parses.
+
+The command SHALL report success whether or not there are any
+suggestions: the question was answered either way, and a script asking
+"is there anything to do" should read the output rather than infer it
+from a failure code — the same contract `ready` and `lease` already
+have.
+
+#### Scenario: A workspace with suggestions
+
+- **WHEN** suggestions exist and the command is run
+- **THEN** they are printed and the command reports success
+
+#### Scenario: A workspace with none
+
+- **WHEN** no suggestion applies
+- **THEN** the command says so in words and reports success
+
+#### Scenario: A workspace whose report cannot be built
+
+- **WHEN** the readiness report cannot be built
+- **THEN** the command reports that it could not complete, distinctly
+  from having nothing to suggest
+
