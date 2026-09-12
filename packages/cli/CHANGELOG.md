@@ -1,5 +1,25 @@
 # @openspec-ui/cli
 
+## 0.9.0
+
+### Minor Changes
+
+- f6b9389: `openspec-ui-cli doctor` reports what this machine and this workspace are
+  missing before a run is started, instead of leaving it to be discovered
+  by being refused: the runtime against the pinned engines, the `openspec`
+  CLI, which agents are installed, whether the harness configuration reads,
+  who holds the workspace, and whether a git identity is configured.
+  `--change <id>` adds the preflight's own answer for one change. Exit `0`
+  nothing would stop a run, `1` something would, `2` it could not look.
+- 4940254: The readiness report's facts are now offered as suggestions: which ready
+  changes can be started alongside each other, which is ready with nowhere
+  to run, and which workspace is held by a run that stopped reporting
+  itself. Each carries the fact it came from and the exact commands, shown
+  in the Pipeline tab and printed by `openspec-ui-cli advise`. They create
+  nothing and start nothing, they name every maximal set rather than
+  choosing one, and `hints.enabled: false` means they are not computed at
+  all.
+
 ## 0.8.0
 
 ### Minor Changes
