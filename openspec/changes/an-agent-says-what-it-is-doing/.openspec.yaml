@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-12
+follows:
+  - cross-host-workspace-lease
+  - a-lease-says-who
+  - what-the-others-are-doing
