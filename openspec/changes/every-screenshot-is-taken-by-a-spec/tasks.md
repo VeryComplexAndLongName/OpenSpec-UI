@@ -128,6 +128,17 @@ mechanical check to keep four pictures fresh that nothing shows.
   `scripts/screenshot-baseline.json`. No agent here can drive the
   editor's own tree views and menus or capture its window; that is the
   reason they are baselined rather than captured.
+- [x] 3.6 No capture publishes the machine it was taken on. The fixture
+  lives in a temporary directory whose path carries the account name of
+  whoever regenerated the picture, and three captures showed it: the
+  two path fields in the command runner, and the summary's meta line.
+  Each is masked with a flat grey (`mask`/`maskColor`), not cropped —
+  the field is part of the screen, and a reader should see that
+  something was covered rather than that the screen has no such field.
+  Only the path is masked in the summary line; the counts beside it are
+  what the line is for. Added after the captures were reviewed: the
+  first run published `C:\Users\<account>\AppData\Local\Temp\...` in two
+  pictures.
 
 ## 4. Verification
 

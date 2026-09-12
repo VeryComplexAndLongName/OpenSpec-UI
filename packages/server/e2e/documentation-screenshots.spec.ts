@@ -17,7 +17,7 @@
 // a changed screen fail here instead of producing a picture of the wrong
 // thing. See every-screenshot-is-taken-by-a-spec.
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,20 @@ import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
 
 const CHANGE_NAME = "documentation-fixture";
 const IMAGES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "images", "standalone");
+
+/** A flat grey, so a masked field reads as "this was covered
+ * deliberately" rather than as a rendering fault. Playwright's own
+ * default is magenta, which in a documentation picture looks like a
+ * broken control. */
+const MASK_COLOR = "#94a3b8";
+
+/** The fields that show where the fixture workspace lives. Masked in
+ * every picture that contains them: the path is a temporary directory
+ * under the home of whoever regenerated the picture, and a published
+ * document should not carry that. Nothing a reader needs is in it. */
+function workspacePaths(page: Page): Locator[] {
+  return [page.getByLabel("Workspace root (cwd)"), page.getByLabel("Change directory")];
+}
 
 test.describe("standalone documentation screenshots", () => {
   let workspaceRoot: string;
@@ -100,16 +114,33 @@ test.describe("standalone documentation screenshots", () => {
       await page.getByTestId("run-button").click();
       await expect(page.getByTestId("event-log")).toBeVisible({ timeout: 20000 });
       await expect(page.getByTestId("run-status-label")).toContainText("Completed", { timeout: 20000 });
+      // The fixture lives in a temporary directory whose path contains
+      // the account name of whoever regenerated the picture. That is not
+      // something a published document should carry, and the path says
+      // nothing a reader needs, so it is masked rather than photographed.
       await page.locator("section", { has: page.getByRole("heading", { name: "Run a command" }) })
-        .screenshot({ path: path.join(IMAGES_DIR, "run-command.png") });
+        .screenshot({ path: path.join(IMAGES_DIR, "run-command.png"), mask: workspacePaths(page), maskColor: MASK_COLOR });
 
       // 2. The summary. Loading it shells out to the `openspec` CLI, the
       // same call standalone.spec.ts waits 15s for on a loaded runner.
       await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
       await page.getByRole("button", { name: "Load summary" }).click();
       await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME, { timeout: 20000 });
+      // Waited for after the content arrives: the button says "Loading..."
+      // until the last of the three CLI calls returns, and a picture
+      // taken before then shows a loaded screen with a busy control on
+      // it.
+      await expect(page.getByRole("button", { name: "Load summary" })).toBeEnabled({ timeout: 20000 });
       await page.locator("section", { has: page.getByRole("heading", { name: "OpenSpec view summary" }) })
-        .screenshot({ path: path.join(IMAGES_DIR, "view-summary.png") });
+        .screenshot({
+          // Same reason as above: the summary's meta line prints the
+          // workspace root it read. Only the path is masked — the
+          // counts beside it are what the line is for — and it is the
+          // first `strong` in that paragraph.
+          path: path.join(IMAGES_DIR, "view-summary.png"),
+          mask: [page.getByTestId("openspec-overview").locator("p.openspec-overview-meta strong").first()],
+          maskColor: MASK_COLOR,
+        });
 
       // 3. The diff preview. Its content is the panel's own fixture, so
       // this waits on the rendered diff rather than on a load.
