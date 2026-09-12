@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-12
+follows:
+  - every-screenshot-is-taken-by-a-spec
+blocked_by:
+  - every-screenshot-is-taken-by-a-spec

@@ -129,14 +129,21 @@ own copies, and git keeps these.
   `scripts/screenshot-baseline.json`. No agent here can drive the
   editor's own tree views and menus or capture its window; that is the
   reason they are baselined rather than captured.
-  2026-09-12, reviewed by `claude-cli` and **left human-only, which is
-  the right marking**. An agent could drive the editor — the integration
-  suite already spawns a real VS Code — but capturing its window needs
-  screen capture at the operating system's level, and 3.6 of this same
-  change requires that a capture not publish the machine it was taken
-  on. The masking that satisfies 3.6 is Playwright's, over a page it
-  controls; a screen grab has no equivalent and would take whatever was
-  on the screen, account name and all.
+  2026-09-12, reviewed by `claude-cli`. My first note here said this was
+  correctly marked human-only, and **that was wrong** — I argued from
+  the stated reason instead of checking it. Corrected below.
+  The premise "no agent can capture the editor's window" does not hold.
+  Playwright drives Electron, VS Code is Electron, and both Playwright
+  and a downloaded VS Code binary are already in this repository.
+  Measured: `_electron.launch()` against
+  `.vscode-test/vscode-win32-x64-archive-1.136.1/Code.exe` opened the
+  workbench, `window.screenshot()` captured it, and a second capture
+  with `mask`/`maskColor` masked a region — which is exactly the
+  mechanism 3.6 requires and the thing a screen grab was said to lack.
+  So these pictures can be taken by a spec, like the other thirteen.
+  That is a change of its own — driving nine specific views with the
+  extension installed into a fixture workspace is real work, not a tick
+  — and it is `an-editor-picture-is-taken-too`.
   What was checkable was checked, and the pictures **are** stale: 102
   commits have touched the extension's tree views or its contributed
   menus since the oldest capture on 2026-08-22. `repository-setup.png`
