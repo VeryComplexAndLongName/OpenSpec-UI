@@ -1,7 +1,8 @@
 # Hand one numbered task to an agent
 
 **Edit** the change's own `tasks.md`, and — only if you want a different
-agent than the marker names — `openspec/changes/<id>/harness.json`.
+agent than the marker names — `openspec/changes/<id>/harness.json`,
+creating that one if it is not there. Most changes have none.
 
 **1.** Mark the item in `tasks.md` with the agent it waits on, and state
 the evidence that agent has to write back into the item.

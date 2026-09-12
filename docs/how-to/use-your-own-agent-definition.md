@@ -9,8 +9,8 @@ Claude, `.github/agents/<name>.md` in the project for Copilot. The file
 name is the agent's name.
 
 **2.** Select it for a stage, in the Harness Settings view beside that
-stage's agent, or by hand in
-`openspec/changes/<id>/harness.json`:
+stage's agent, or by hand in `openspec/changes/<id>/harness.json`,
+creating that file if it is not there — most changes have none:
 
 ```json
 { "stepAgents": { "review": { "agent": "claude-cli", "customAgent": "spec-reviewer" } } }

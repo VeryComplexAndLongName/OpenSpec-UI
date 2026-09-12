@@ -1,7 +1,8 @@
 # Put a ceiling on what a run can spend
 
 **Edit** `openspec/agent-harness.json` for every change, or
-`openspec/changes/<id>/harness.json` for one.
+`openspec/changes/<id>/harness.json` for one — creating whichever you
+pick if it is not there. Most changes have no file of their own.
 
 **1.** Set the whole-chain ceilings.
 

@@ -1,7 +1,9 @@
 # Run a change without being asked anything
 
-**Edit** `openspec/changes/<id>/harness.json`. Not the workspace-wide
-file: neither key below may be set there.
+**Edit** `openspec/changes/<id>/harness.json`, creating it if it is not
+there — most changes have none, and an absent file means "no overrides",
+not a broken change. Not the workspace-wide file: neither key below may
+be set there.
 
 **1.** Say the chain may run unattended.
 

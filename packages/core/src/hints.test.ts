@@ -118,3 +118,42 @@ describe("buildHints", () => {
     expect(hints).toEqual([]);
   });
 });
+
+describe("buildHints — a set wide enough to scroll past", () => {
+  function ready(changeName: string, canJoin: string[]): ChangeReadiness {
+    return {
+      changeName,
+      blockers: [],
+      run: { state: "ready" },
+      capabilities: [],
+      worktreePath: `/wt/${changeName}`,
+      canJoin,
+      blockedFrom: [],
+    };
+  }
+
+  it("counts the names past a few rather than joining a dozen with and", () => {
+    const names = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"];
+    const hints = buildHints({
+      changes: names.map((name) => ready(name, names.filter((other) => other !== name))),
+    });
+
+    const together = hints.find((hint) => hint.kind === "can-run-together");
+    // Twelve joined by "and" is a run-on, and the module's own rule —
+    // a list long enough to need reading is not a suggestion — applies
+    // to the width of one set as much as to the number of them.
+    expect(together?.subject).toBe("alpha, beta, delta and 3 more can run at the same time");
+    // The commands still name every one: those are the work.
+    expect(together?.commands).toHaveLength(6);
+  });
+
+  it("names a small set in full, because there is nothing to spare the reader", () => {
+    const names = ["alpha", "beta", "gamma"];
+    const hints = buildHints({
+      changes: names.map((name) => ready(name, names.filter((other) => other !== name))),
+    });
+
+    expect(hints.find((hint) => hint.kind === "can-run-together")?.subject)
+      .toBe("alpha, beta and gamma can run at the same time");
+  });
+});
