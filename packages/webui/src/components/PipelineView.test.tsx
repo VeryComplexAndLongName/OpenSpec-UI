@@ -185,4 +185,28 @@ describe("PipelineView", () => {
     expect(node).toHaveTextContent("3 of the same files");
     expect(node).toHaveAttribute("title", expect.stringContaining("not with beta"));
   });
+
+  it("shows the suggestions the payload carried, and nothing where it carried none", async () => {
+    const withHints = {
+      ...report(change("alpha", { worktreePath: "/w/alpha" })),
+      hints: [{
+        id: "needs-a-worktree:beta",
+        kind: "needs-a-worktree" as const,
+        subject: "beta is ready and has nowhere to run",
+        because: "One workspace permits one mutating run.",
+        commands: ["openspec-ui-cli worktree add beta"],
+      }],
+    };
+    const { unmount } = render(<PipelineView isActive load={async () => withHints} />);
+    expect(await screen.findByTestId("hint-list")).toBeTruthy();
+    expect(screen.getByText("openspec-ui-cli worktree add beta")).toBeTruthy();
+    unmount();
+
+    // No `hints` key at all is what a workspace with suggestions turned
+    // off sends, and it has to read as "no news" rather than as an empty
+    // panel.
+    render(<PipelineView isActive load={async () => report(change("alpha", { worktreePath: "/w/alpha" }))} />);
+    await screen.findByTestId("pipeline");
+    expect(screen.queryByTestId("hint-list")).toBeNull();
+  });
 });

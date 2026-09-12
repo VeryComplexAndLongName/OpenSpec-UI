@@ -77,6 +77,15 @@ export interface HarnessCheckpoints {
   requireConfirmationBetweenSteps: boolean;
 }
 
+/** Whether this workspace computes suggestions at all.
+ *
+ * One field, and it is not a display setting: `false` means the
+ * suggestions are never built, not that they are built and hidden. See
+ * `HarnessConfig.hints` and a-hint-says-what-can-run-together. */
+export interface HarnessHints {
+  enabled: boolean;
+}
+
 /** A cost/token ceiling `HarnessChainRunner` checks before starting each
  * stage of a chain — see openspec/changes/agent-usage-accounting/design.md
  * and spec.md, "A configured budget stops work at stage boundaries". Both
@@ -143,6 +152,18 @@ export interface HarnessConfig {
    * `harness.json` may set `requireConfirmationBetweenSteps: false`; see
    * `GlobalCheckpointsDisabledError`. */
   checkpoints?: HarnessCheckpoints;
+  /** Whether this workspace computes the suggestions a host or the
+   * terminal can offer (`buildHints`). Absent means enabled, which is
+   * what every configuration written before this field existed says.
+   *
+   * Off means **not computed**: the call site does not call
+   * `buildHints` at all, and the payload carries no suggestions. A
+   * suggestion computed and then hidden costs the same and is a
+   * different promise than the switch makes. Read from the workspace
+   * file — a per-change value would be about one change's chain, and
+   * the report these are derived from is about the whole repository.
+   * See a-hint-says-what-can-run-together. */
+  hints?: HarnessHints;
   /** Absent means unlimited — matches every config written before this
    * field existed. A per-change `harness.json` may set a ceiling higher
    * than the global one; unlike `autonomyLevel`/`reviewGate.mode`/
@@ -244,7 +265,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -672,6 +693,19 @@ function assertValidReviewGate(
   }
 }
 
+/** Structural only, and no `isPerChangeFile` parameter: unlike the three
+ * settings a global file may not set, there is nothing dangerous about
+ * a workspace deciding it wants no suggestions. */
+function assertValidHints(value: unknown): asserts value is HarnessHints | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("hints must be an object");
+  }
+  if (typeof (value as { enabled?: unknown }).enabled !== "boolean") {
+    throw new InvalidHarnessConfigError("hints.enabled must be a boolean");
+  }
+}
+
 function assertValidCheckpoints(
   value: unknown,
   isPerChangeFile: boolean,
@@ -848,6 +882,7 @@ function assertValidHarnessConfigInput(
   assertValidStepAgents(input.stepAgents, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
+  assertValidHints((input as { hints?: unknown }).hints);
   assertValidBudget(input.budget);
   assertValidTimeout(input.timeout);
   assertValidMaxStageAttempts(input.maxStageAttempts);
@@ -986,6 +1021,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     autonomyLevel: input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel,
     reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
+    hints: input.hints ?? DEFAULT_HARNESS_CONFIG.hints,
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
     // A field added to `HarnessConfig` and to `TOP_LEVEL_CONFIG_KEYS` but
     // not to this list is accepted by validation and then silently
@@ -1041,6 +1077,11 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     autonomyLevel: override.autonomyLevel ?? global.autonomyLevel,
     reviewGate: override.reviewGate ?? global.reviewGate,
     checkpoints: override.checkpoints ?? global.checkpoints,
+    // Merged for completeness, and read from the workspace file in
+    // practice: the suggestions are about the whole repository, so the
+    // call site resolves the global configuration rather than one
+    // change's.
+    hints: override.hints ?? global.hints,
     // Whole-object override, like autonomyLevel/reviewGate/checkpoints
     // above — not a key-by-key merge like stepAgents. A per-change budget,
     // when set, is used exactly as declared regardless of whether it is

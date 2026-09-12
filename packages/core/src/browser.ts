@@ -182,4 +182,8 @@ export * from "./acp-streamed-text.js";
 // does (ADR 0025). `change-readiness.ts` itself stays Node-only: it
 // walks the changes directory and shells out to git.
 export * from "./change-readiness-facts.js";
+// Pure over that report, so the shell renders exactly the suggestions
+// the terminal prints rather than deriving its own —
+// a-hint-says-what-can-run-together.
+export * from "./hints.js";
 export * from "./change-layout.js";

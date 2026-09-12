@@ -1168,6 +1168,29 @@ describe("server — REST /api/status", () => {
     expect(Array.isArray(body.changes)).toBe(true);
   });
 
+  it("carries no suggestions at all where the workspace turned them off", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec"), { recursive: true });
+    await writeFile(
+      path.join(cwd, "openspec", "agent-harness.json"),
+      `${JSON.stringify({ hints: { enabled: false } }, null, 2)}\n`,
+      "utf8",
+    );
+
+    const response = await fetch(`${baseUrl}/api/change-readiness`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { changes: unknown[]; hints?: unknown };
+
+    expect(response.status).toBe(200);
+    // Absent, not empty. Off means they were never computed, and an
+    // empty array would say they were computed and found nothing — a
+    // different statement about the same workspace.
+    expect("hints" in body).toBe(false);
+  });
+
   it("rejects a change-readiness request for a cwd outside the workspace", async () => {
     await server.close();
     server = createServer({

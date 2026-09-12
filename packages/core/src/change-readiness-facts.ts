@@ -10,6 +10,7 @@
 // describing one fact differently is two facts as far as a reader is
 // concerned.
 
+import type { Hint } from "./hints.js";
 import type { WorkspaceLeaseConflict } from "./workspace-lease.js";
 
 /** Why two changes cannot be started alongside each other.
@@ -61,6 +62,15 @@ export interface ChangeReadiness {
 
 export interface ChangeReadinessReport {
   changes: ChangeReadiness[];
+  /** What this report suggests, where the workspace computes
+   * suggestions at all.
+   *
+   * Optional, and **absent** rather than empty where they are turned
+   * off: off means not computed, so there is nothing to report rather
+   * than nothing found. A host built before this field existed ignores
+   * it, which is why it rides on the report rather than wrapping it.
+   * Derived by `buildHints` — see a-hint-says-what-can-run-together. */
+  hints?: Hint[];
 }
 
 /** One collision in the terms a reader acts on. */
