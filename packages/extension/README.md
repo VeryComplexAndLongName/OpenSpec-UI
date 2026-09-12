@@ -13,11 +13,11 @@ Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
 
 #### Expanded artifacts and actions
 
-![Expanded OpenSpec Workbench with change artifacts, archive entries, specs, templates, processes, and the change graph](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
+![Expanded OpenSpec Workbench with a change's artifacts, an archived change, specs with their requirement counts, the template catalogue, and the change graph](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
 
 #### Compact repository overview
 
-![Compact OpenSpec Workbench with the Changes, Archive, Specs, Templates, Processes and Change Graph views](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-compact.png)
+![Compact OpenSpec Workbench with the Changes, Archive, Specs, Processes, Templates, Change Graph and Human-Only Inbox views](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-compact.png)
 
 ### Changes and archive
 
