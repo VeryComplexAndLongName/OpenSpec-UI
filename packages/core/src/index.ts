@@ -59,6 +59,7 @@ export * from "./chain-steps.js";
 export * from "./change-worktrees.js";
 export * from "./repository-audit.js";
 export * from "./change-readiness.js";
+export * from "./change-layout.js";
 export * from "./repo-setup-actions.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";

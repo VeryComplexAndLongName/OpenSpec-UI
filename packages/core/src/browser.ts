@@ -175,3 +175,11 @@ export * from "./verified-agent-versions.js";
 // answer before they can show a streamed reply as prose rather than as
 // the slices it arrived in.
 export * from "./acp-streamed-text.js";
+// The readiness report's shape, the words a collision is described in,
+// and where each change goes in the picture. Two leaf modules with only
+// type imports of the Node-side readers that fill the report in — the
+// shell draws what the host read, and places it exactly as the terminal
+// does (ADR 0025). `change-readiness.ts` itself stays Node-only: it
+// walks the changes directory and shells out to git.
+export * from "./change-readiness-facts.js";
+export * from "./change-layout.js";

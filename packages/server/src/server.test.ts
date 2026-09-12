@@ -1151,6 +1151,53 @@ describe("server — REST /api/status", () => {
     expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
   });
 
+  it("reports change readiness for an authorized cwd", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/change-readiness`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { changes: unknown[] };
+
+    expect(response.status).toBe(200);
+    // The report travels whole and is not summarised on the way: the tab
+    // draws it and the terminal prints it, and the one thing that must
+    // not happen is the two disagreeing (ADR 0025).
+    expect(Array.isArray(body.changes)).toBe(true);
+  });
+
+  it("rejects a change-readiness request for a cwd outside the workspace", async () => {
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+    });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/api/change-readiness`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/outside/repo" }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects a change-readiness request that names no workspace", async () => {
+    const response = await fetch(`${baseUrl}/api/change-readiness`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("deletes an existing project-level template", async () => {
     const cwd = await createTempWorkspace();
     const projectDir = path.join(cwd, "openspec", "templates", "my-template");

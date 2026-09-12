@@ -16,49 +16,20 @@ import { readChangeGraph, type ChangeGraph } from "./change-graph.js";
 import { listChangeWorktrees, type ChangeWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
-import { readWorkspaceLeaseHolder, type WorkspaceLeaseConflict } from "./workspace-lease.js";
+import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
+import type { ChangeCollision, ChangeReadiness, ChangeReadinessReport, ChangeRunState } from "./change-readiness-facts.js";
 
-/** Why two changes cannot be started alongside each other.
- *
- * Three kinds, reported as themselves rather than merged into a score: a
- * reader acts differently on "these two edit the same file" than on
- * "these two touch the same capability", and differently again on "this
- * one declares it waits for that one". */
-export type ChangeCollision =
-  | { kind: "declared-blocker"; blocker: string }
-  | { kind: "shared-capability"; capability: string }
-  | { kind: "overlapping-files"; files: string[] };
-
-export type ChangeRunState =
-  /** A working directory of this repository is holding the workspace for
-   * this change right now. */
-  | { state: "running"; worktreePath: string; holder: WorkspaceLeaseConflict }
-  /** Something this change declares is not satisfied yet. */
-  | { state: "blocked"; blockedBy: string[] }
-  | { state: "ready" };
-
-export interface ChangeReadiness {
-  changeName: string;
-  run: ChangeRunState;
-  /** The capabilities this change's delta carries — the spec files it
-   * will merge into at archive. */
-  capabilities: string[];
-  /** Its own working directory, if it has one. Without one it cannot run
-   * beside anything: one directory permits one mutating run. */
-  worktreePath?: string;
-  /** Other ready changes this one can be started alongside. */
-  canJoin: string[];
-  /** Other ready changes it cannot, and what they would meet over. */
-  blockedFrom: Array<{ changeName: string; collisions: ChangeCollision[] }>;
-  /** Present only where the change is ready but has nowhere of its own
-   * to run. The remedy is one command and naming it is most of the
-   * help. */
-  needsWorktree?: string;
-}
-
-export interface ChangeReadinessReport {
-  changes: ChangeReadiness[];
-}
+// The report's shape and the words it is described in live in a leaf the
+// browser can also import; this file is the part that reads a repository
+// to fill it in. Re-exported so every existing importer of this module
+// keeps working.
+export {
+  describeCollision,
+  type ChangeCollision,
+  type ChangeReadiness,
+  type ChangeReadinessReport,
+  type ChangeRunState,
+} from "./change-readiness-facts.js";
 
 /** The capabilities a change's spec delta names — the directories under
  * its own `specs/`. Two changes sharing one write to the same
@@ -195,6 +166,7 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
     changes.push({
       changeName,
       run,
+      blockers: unmet,
       capabilities,
       ...(worktree ? { worktreePath: worktree.path } : {}),
       canJoin: [],
@@ -221,16 +193,3 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
   return { changes };
 }
 
-/** One collision in the terms a reader acts on. */
-export function describeCollision(collision: ChangeCollision): string {
-  switch (collision.kind) {
-    case "declared-blocker":
-      return `one declares it is blocked by ${collision.blocker}`;
-    case "shared-capability":
-      return `both deliver a delta for "${collision.capability}", which archives into one spec file`;
-    case "overlapping-files":
-      return collision.files.length === 1
-        ? `both branches have changed ${collision.files[0]}`
-        : `both branches have changed ${collision.files.length} of the same files, including ${collision.files[0]}`;
-  }
-}
