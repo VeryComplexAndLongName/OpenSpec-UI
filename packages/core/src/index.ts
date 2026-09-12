@@ -89,3 +89,6 @@ export * from "./run-plan.js";
 export * from "./workspace-run-stats.js";
 export * from "./run-recommendations.js";
 export * from "./custom-agents.js";
+
+export * from "./worktree-root.js";
+export * from "./worktree-harvest.js";
