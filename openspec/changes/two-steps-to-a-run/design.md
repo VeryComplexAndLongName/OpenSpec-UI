@@ -68,3 +68,19 @@ is the same treatment `custom-agents.ts` already gives its own
 "verified on 2026-09-09" note.
 
 **No protocol impact.** No command, event, or adapter is touched.
+
+## Could not be done in two steps
+
+Empty, and written out rather than left off: all six goals reached their
+outcome in two steps against the configuration as it stands, so this
+change reports nothing about the product's shape.
+
+Two came close enough to record. **Handing a task to an agent** is two
+steps only because the marker in `tasks.md` is enough on its own —
+naming a different agent, or one of your own definitions, for that task
+is a third edit in a different file, and the page shows it as a variant
+rather than as a step. **Capping what a run can spend** is two steps
+because both ceilings live in the same object; a reader who set only the
+money ceiling would be done in one step and would have no ceiling with
+any force over the six agents that report no usage, which is why the
+page sets both.

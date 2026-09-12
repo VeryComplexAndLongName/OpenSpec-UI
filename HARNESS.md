@@ -8,17 +8,24 @@ what does **not** cap it), see [`LIMITS.md`](LIMITS.md).
 
 ## Find what you need
 
-| I want to... | Go to |
-| --- | --- |
-| Understand the run from proposal to merge | [The stage sequence](#the-stage-sequence) |
-| Configure global defaults or one change | [Two configuration files](#two-configuration-files) and [Every key](#every-key-and-its-accepted-values) |
-| Find a setting in the standalone app or VS Code | [Where each setting is edited](#where-each-setting-is-edited) |
-| See how checkpoints and resumed chains behave | [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer) |
-| Allow push, pull-request creation, and merge | [The `git` stage](#the-git-stage) |
-| Compare agents, models, effort, and caps | [Agent reference](#agents-models-effort-and-spending-caps) |
-| Hand one numbered task to an agent | [`taskAgents`](#taskagents) |
-| Set a spending ceiling | [Harness Spending Limits](LIMITS.md) |
-| Find out what would stop a run here | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
+The reference is below. Where a row names a **short path**, that is a
+page stating the goal, the file it edits and the two steps that reach
+it — start there and come back here for the detail.
+
+| I want to... | Short path | Reference |
+| --- | --- | --- |
+| Understand the run from proposal to merge | — | [The stage sequence](#the-stage-sequence) |
+| Configure global defaults or one change | — | [Two configuration files](#two-configuration-files) and [Every key](#every-key-and-its-accepted-values) |
+| Find a setting in the standalone app or VS Code | — | [Where each setting is edited](#where-each-setting-is-edited) |
+| Run a change with nobody watching | [How to](docs/how-to/run-a-change-unattended.md) | [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer) |
+| Allow push, pull-request creation, and merge | — | [The `git` stage](#the-git-stage) |
+| Compare agents, models, effort, and caps | — | [Agent reference](#agents-models-effort-and-spending-caps) |
+| Use your own agent definition for a stage | [How to](docs/how-to/use-your-own-agent-definition.md) | [`stepAgents`](#stepagents) |
+| Hand one numbered task to an agent | [How to](docs/how-to/hand-a-task-to-an-agent.md) | [`taskAgents`](#taskagents) |
+| Set a spending ceiling | [How to](docs/how-to/cap-what-a-run-can-spend.md) | [Harness Spending Limits](LIMITS.md) |
+| Run a change from a terminal | [How to](docs/how-to/run-a-change-from-a-terminal.md) | [CI CLI](README.md#ci-cli-merge-gate) |
+| Run two changes at the same time | [How to](docs/how-to/run-changes-side-by-side.md) | [CI CLI](README.md#ci-cli-merge-gate) |
+| Find out what would stop a run here | — | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →
@@ -147,6 +154,25 @@ them, and neither needs one: the definitions are files. A definition
 whose file name the rule above would refuse is reported as found and not
 offered, rather than dropped without a word — discovery and validation
 say the same thing about the same name.
+
+**Gemini and Codex cannot be given one.** Both CLIs have custom agents
+and both read them from directories, so what is missing is not
+discovery — it is selection. Read from each CLI's own published
+documentation on 2026-09-12:
+
+| CLI | Where its definitions live | How one is selected |
+| --- | --- | --- |
+| [Gemini](https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md) | `.gemini/agents/*.md` and `~/.gemini/agents/*.md` — Markdown with YAML frontmatter, the same shape Claude uses | `@name` at the start of the prompt, or the interactive `/agents` command. **No documented flag.** |
+| [Codex](https://learn.chatgpt.com/docs/customization/overview) | `.codex/agents/*.toml` and `~/.codex/agents/*.toml` — TOML, whose `name` field rather than the file name is the agent's name | Named in the prompt. **No documented `codex exec` flag.** |
+
+A custom agent reaches its CLI here as the value of a flag on an
+allowlisted invocation (`customAgentFlag` in the agent registry), so
+neither of these has anything to bind to. A prompt-prefix mechanism
+would put the agent's name inside the prompt rather than in the argument
+list, which the allowlist does not constrain — a different security
+question, and one nobody has asked for. If either CLI gains a flag,
+adding it here is a line: the conventions in
+`packages/core/src/custom-agents.ts` are data.
 
 They are chosen in the standalone UI's harness settings, beside the
 stage's agent, effort and budget — one picker per stage, listing only the
