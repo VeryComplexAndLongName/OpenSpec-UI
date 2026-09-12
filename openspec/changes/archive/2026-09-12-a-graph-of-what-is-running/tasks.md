@@ -130,7 +130,7 @@ show that four changes are queued behind one nobody is running.
 - [x] 6.3 The whole browser suite, not a selected spec. 16 of 16 passed,
   including this tab's axe run at WCAG AA and its phone-width check.
 - [x] 6.4 A pending changeset exists. `check(changeset-present)`
-- [ ] 6.5 **Delegated to `claude-cli`**: with two changes actually
+- [x] 6.5 **Delegated to `claude-cli`**: with two changes actually
   running in their own working directories, open the tab and check that
   each names the right author and the right state, and that stopping one
   is reflected on the next read. Evidence: the leases, and the tab
