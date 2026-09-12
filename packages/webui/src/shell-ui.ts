@@ -1292,6 +1292,32 @@ export const shellThemeCss = `
 
   .openspec-pipeline-cycles ul { margin: 4px 0 0; padding-left: 20px; }
 
+  .openspec-hints { margin-top: 16px; }
+  .openspec-hints h3 { margin: 0 0 8px; font-size: 14px; }
+  .openspec-hints-list { margin: 0; padding: 0; list-style: none; }
+  .openspec-hint { margin-bottom: 12px; }
+  .openspec-hint .openspec-shell-note { margin: 2px 0 6px; }
+
+  /* A command is one long line, and the page must not scroll sideways
+     at phone width — pipeline.spec.ts asserts exactly that, and is what
+     caught this: a pre element keeps its line intact by default, so the
+     command ran off the side of a 400px viewport. Wrapped rather than
+     scrolled: a command whose end a reader has to scroll to is one they
+     will copy incorrectly.
+
+     No backticks anywhere in this file: it is one template literal, and
+     a backtick in a comment ends the stylesheet. */
+  .openspec-hint-command {
+    margin: 0 0 4px;
+    padding: 6px 8px;
+    background: rgba(127, 127, 127, 0.12);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
   /* LAST in this layer on purpose. These selectors have the same
      specificity as the ones they override, and at equal specificity the
      later rule wins — placed earlier, the whole block did nothing.
