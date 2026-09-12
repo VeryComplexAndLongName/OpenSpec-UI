@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-12
+follows:
+  - what-can-start-now
+  - changes-run-side-by-side
+  - a-graph-of-what-is-running
