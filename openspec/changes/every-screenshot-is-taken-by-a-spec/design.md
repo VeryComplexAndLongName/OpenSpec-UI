@@ -40,6 +40,20 @@ looking for and a paragraph describing an icon column is worse than a
 dated picture. What the baseline forbids is an unlisted hand-taken
 picture, which is the actual defect: nobody knows it is stale.
 
+**A picture nothing references is deleted, not listed.** Four pictures
+(`docs/images/standalone/0*.png`) turned out to be assets made for a
+post published elsewhere, referenced by no document in this repository.
+A third reason, `published-asset`, was added for them while
+implementing, and then removed: listing them would have used the
+exception surface to avoid a decision, and the decision — taken by the
+owner on 2026-09-12 — was to delete them. The published post keeps its
+own copies and git keeps these.
+
+That is the rule the set of reasons is meant to hold to: a reason is
+added when a picture genuinely cannot be captured, never when one is
+merely inconvenient to delete. Two members, and the third is recorded in
+the code comment as a thing that was tried.
+
 **Capture specs stay where the ones that exist are.**
 `packages/server/e2e/` already holds `harness-screenshots.spec.ts`; new
 captures are added there, in files named for the screens they take, and
