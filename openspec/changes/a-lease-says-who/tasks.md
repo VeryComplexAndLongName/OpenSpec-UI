@@ -91,9 +91,59 @@ to start a run and being refused.
   (exit 1) because its pid was running, naming stopping that process as
   the remedy. What this did NOT show is a lease written by this build,
   which is what 5.4 is for.
-- [ ] 5.4 **Delegated to `claude-cli`**: with a real run holding a
+- [x] 5.4 **Delegated to `claude-cli`**: with a real run holding a
   workspace, ask who holds it and try to clear it; then after that run
   ends, ask again. Evidence: the lease file, both outputs, and the exit
   codes. The unit tests drive the reader with written files; only a real
   run shows that the identity a chain records is the one the command
   reports.
+  2026-09-12. A chain run of a throwaway change in a scratch workspace
+  whose `user.email` is `verycomplexandlongname@gmail.com`, driven by
+  `openspec-ui-cli run` built from this change: `apply` → `verify` →
+  `archive`, exit 0.
+
+  While it held the workspace, `.openspec-ui/workspace.lease.json` —
+  written by the run itself, not by a test:
+
+  ```json
+  {
+    "version": 1,
+    "holderId": "7b03fdff-f2ef-4332-9553-75e7c6c921d0",
+    "hostKind": "cli",
+    "hostname": "HPP-NTB63",
+    "pid": 3992,
+    "acquiredAt": "2026-09-12T05:53:41.724Z",
+    "heartbeatAt": "2026-09-12T05:53:51.763Z",
+    "author": "verycomplexandlongname@gmail.com"
+  }
+  ```
+
+  `lease` (exit 0) reported exactly that identity:
+
+  ```
+  Held by terminal run on HPP-NTB63, pid 3992.
+  Last reported itself 1s ago.
+  Git author verycomplexandlongname@gmail.com.
+  ```
+
+  `--format json` (exit 0) returned the reader's own shape —
+  `{"held": true, "holder": {"hostKind": "cli", "hostname": "HPP-NTB63",
+  "pid": 3992, "heartbeatAgeMs": 2414, "author":
+  "verycomplexandlongname@gmail.com"}}`.
+
+  `lease release` refused it (exit 1), naming the holder and the remedy:
+  "process 3992 is still running. Taking its lease would let a second
+  mutating run start against files it still has open, which is what the
+  lease prevents — stop that process instead." The lease file was still
+  there afterwards.
+
+  On the way past, 1.6 against a real conflict: a second
+  `openspec-ui-cli run` in the same workspace was refused with exit 2 and
+  "Another OpenSpec UI host (terminal run on HPP-NTB63, pid 3992, git
+  author verycomplexandlongname@gmail.com, last active 3s ago) is
+  currently running a mutating operation on this workspace."
+
+  After the run ended, the lease file was gone, `lease` printed "Nothing
+  holds this workspace." (exit 0, `{"held": false}` as json) and
+  `lease release` printed "Nothing held this workspace." (exit 0, the
+  `already-free` outcome).
