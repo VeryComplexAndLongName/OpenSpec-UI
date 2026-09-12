@@ -129,6 +129,24 @@ own copies, and git keeps these.
   `scripts/screenshot-baseline.json`. No agent here can drive the
   editor's own tree views and menus or capture its window; that is the
   reason they are baselined rather than captured.
+  2026-09-12, reviewed by `claude-cli` and **left human-only, which is
+  the right marking**. An agent could drive the editor — the integration
+  suite already spawns a real VS Code — but capturing its window needs
+  screen capture at the operating system's level, and 3.6 of this same
+  change requires that a capture not publish the machine it was taken
+  on. The masking that satisfies 3.6 is Playwright's, over a page it
+  controls; a screen grab has no equivalent and would take whatever was
+  on the screen, account name and all.
+  What was checkable was checked, and the pictures **are** stale: 102
+  commits have touched the extension's tree views or its contributed
+  menus since the oldest capture on 2026-08-22. `repository-setup.png`
+  is certainly wrong — `setup-offers-only-what-applies` changed exactly
+  what it shows — and no picture shows the Human-Only Inbox view, which
+  did not exist when these were taken.
+  So there is a decision here that is genuinely nobody else's: retake
+  the nine by hand, or drop them from the docs so that every remaining
+  picture is one a spec takes, which is what this change's own title
+  argues for. The second would close this item by removing its subject.
 - [x] 3.6 No capture publishes the machine it was taken on. The fixture
   lives in a temporary directory whose path carries the account name of
   whoever regenerated the picture, and three captures showed it: the

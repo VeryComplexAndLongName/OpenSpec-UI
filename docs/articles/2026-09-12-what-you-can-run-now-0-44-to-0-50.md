@@ -104,7 +104,7 @@ editor — and the agent runs against that one item.
 Which agent runs which task is configuration, not a marker in prose:
 
 ```json
-{ "taskAgents": { "5.4": { "agent": "copilot-cli", "customAgent": "reviewer" } } }
+{ "taskAgents": { "5.4": { "agent": "claude-cli", "customAgent": "reviewer" } } }
 ```
 
 An item waiting on a person is offered no button, because there is

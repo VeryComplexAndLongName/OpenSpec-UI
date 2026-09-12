@@ -120,11 +120,31 @@ function runTogether(sets: string[][], options: HintOptions): Hint[] {
   return sets.map((set) => ({
     id: `can-run-together:${set.join("+")}`,
     kind: "can-run-together" as const,
-    subject: `${set.join(" and ")} can run at the same time`,
+    subject: `${nameSome(set)} can run at the same time`,
     because: "Each is ready, each has a working directory of its own, and no two of them"
       + " declare a blocker, share a spec capability, or have changed the same file.",
     commands: set.map((changeName) => `openspec-ui-cli run ${changeName} --cwd <${changeName}'s worktree>`),
   }));
+}
+
+/** Names a set in a line a person reads rather than scrolls past.
+ *
+ * Beyond a few, the names are counted instead of listed. Twelve joined
+ * by "and" is a run-on sentence, and the module's own rule — "a list
+ * long enough to need reading is not a suggestion" — applies to the
+ * width of one set as much as to the number of them. The commands below
+ * still name every change: those are the work, and the reader needs all
+ * of them. This is the headline. */
+const NAMED_IN_A_SUBJECT = 3;
+
+function nameSome(set: string[]): string {
+  if (set.length <= NAMED_IN_A_SUBJECT + 1) {
+    return set.length === 1
+      ? (set[0] as string)
+      : `${set.slice(0, -1).join(", ")} and ${set[set.length - 1] as string}`;
+  }
+  const rest = set.length - NAMED_IN_A_SUBJECT;
+  return `${set.slice(0, NAMED_IN_A_SUBJECT).join(", ")} and ${rest} more`;
 }
 
 export function buildHints(report: ChangeReadinessReport, options: HintOptions = {}): Hint[] {

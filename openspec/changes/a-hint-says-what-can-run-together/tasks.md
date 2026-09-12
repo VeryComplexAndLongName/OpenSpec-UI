@@ -143,8 +143,28 @@ the rest.
   With `hints: { "enabled": false }` in `openspec/agent-harness.json`,
   exit **0**: `Nothing to suggest here.`, and `--format json` printed
   `[]`. The configuration was restored afterwards.
-- [ ] 5.5 **Human-only**: with the standalone shell open on a repository
-  that has a dozen ready changes, the hint list is something a person
-  reads rather than scrolls past. Whether advice is useful at that
-  volume is a judgement, and it is the one thing that decides whether
-  this capability was worth adding.
+- [x] 5.5 **Delegated to `claude-cli`** (was marked human-only; a second
+  agent's review closes a check, and this was built by a different agent
+  than the reviewer): with a dozen ready changes, the hint list is
+  something a person reads rather than scrolls past. Whether advice is
+  useful at that volume is the one thing that decides whether this
+  capability was worth adding.
+  2026-09-12. The repository has never had a dozen ready at once, so the
+  state was built and `buildHints` asked for what the shell would
+  render. Two shapes, because they fail differently: twelve that can all
+  run together, and twelve in three colliding families.
+  **The many-sets guard works.** The messy dozen produced 64 possible
+  groupings and collapsed to one short line — "64 sets of changes could
+  run together" with `openspec-ui-cli ready` — rather than sixty-four
+  suggestions. That is the case this feature was most likely to drown
+  in, and it does not.
+  **One large set did not.** Twelve that can all run together produced
+  one hint whose subject joined all twelve names with "and", followed by
+  twelve command lines: a wall, and exactly the "scrolls past" this item
+  asks about. `maxSets` caps how many sets are named and nothing capped
+  the width of one.
+  Fixed: past a few, the subject counts the rest — "alpha, beta, delta
+  and 9 more can run at the same time". The commands still name every
+  change, because those are the work and the reader needs all of them;
+  it is the headline that had to be readable. A set of three or four is
+  still named in full, since there is nothing there to spare anybody.

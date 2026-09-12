@@ -91,7 +91,26 @@ what they can now do.
   declaration is removed from this line with it: a declared check that
   cannot pass is a trap for whoever runs this change through the harness
   later.
-- [ ] 4.6 **Human-only**: the article reads as something written for a
+- [x] 4.6 **Delegated to `claude-cli`** (was marked human-only; a second
+  agent's review closes a check, and this one was written by a different
+  agent than the reviewer): the article reads as something written for a
   person who has the tool installed and does not know what is new,
   rather than as a list of changes. No automated check can make this
   judgement, and it is the whole point of the change.
+  2026-09-12, read start to finish. It passes, and the reasons are
+  specific rather than general. It opens with a thesis — "the tool
+  stopped needing to be watched" — not an enumeration, and frames itself
+  against the previous article's arc. Every section leads with a command
+  or a situation a reader would recognise ("Two people on one machine,
+  or one person with two checkouts, used to see..."), with the change
+  name demoted to an italic footer, which is where provenance belongs.
+  It repeatedly says *why*: why three exit codes, why there is no
+  `--yes`, why `ready` exits 0 with nothing ready, why the line says
+  "git author" and not "user". And it states what is deliberately
+  absent, which a changelog never does.
+  One real defect found and fixed: the `taskAgents` example named
+  `copilot-cli`, which would teach every reader the wrong default
+  against the standing instruction to name `claude-cli`.
+  One claim checked rather than assumed: the article says it was written
+  against `@openspec-ui/cli` 0.8.0 while documenting `lease`, and the
+  CLI changelog confirms `lease` shipped in 0.8.0. Accurate.
