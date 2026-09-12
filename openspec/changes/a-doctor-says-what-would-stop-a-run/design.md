@@ -2,19 +2,26 @@
 
 ## Decisions
 
-**A binary is checked by resolving it, never by running it.**
-`packages/core/src/environment-report.ts` looks each agent's executable
-up on the PATH and reports found or not found. It does not spawn
-`claude --version`.
+**Which agents are present is asked of the detection this repository
+already has.** `detectAvailableAgentsDetailed`
+(`packages/core/src/agent-detection.ts`) probes every id in
+`AGENT_REGISTRY` through the default allowlist and reports presence and,
+for a CLI agent, the version its own `--version` gave. The REST route,
+the VS Code bridge and `webui`'s agent picker all read it.
+`readEnvironmentReport` calls that, and turns what it returns into
+findings.
 
-Rejected: probing versions by execution. The allowlist in
-`security.ts` exists so that this product executes exactly the
-invocations it was configured to execute; a version probe is an
-invocation nobody allowlisted, run against a binary whose name came from
-a registry, at a moment when the user asked a question rather than
-started a run. The information gained — a version string — answers no
-question this report asks, because no capability here is gated on an
-agent's version.
+Corrected on 2026-09-12, before implementation: this proposal first said
+a binary must be resolved and never executed, on the grounds that a
+version probe is an invocation nobody allowlisted. That argument reads
+well and the decision was wrong — not because the reasoning is bad, but
+because the question is already answered in this repository, by code
+several surfaces depend on. A second implementation that answered
+"is this agent here" differently from the picker in the same build is
+exactly the drift this proposal objects to one decision further down,
+about the preflight. If the probe is the wrong mechanism, that is a
+change to `agent-detection.ts` and to every surface reading it, not a
+quiet second opinion inside a new command.
 
 **For a named change, the answer is the preflight's own.**
 `--change <id>` calls `resolveChainStart` with the same resolver the CLI

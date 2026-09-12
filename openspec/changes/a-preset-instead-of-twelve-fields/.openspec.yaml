@@ -1,5 +1,0 @@
-schema: spec-driven
-created: 2026-09-12
-follows:
-  - setup-offers-only-what-applies
-  - an-autonomy-level-says-what-it-does

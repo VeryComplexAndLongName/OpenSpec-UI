@@ -30,19 +30,23 @@ broken one.
 - **THEN** the holder is reported, and the report does not treat it as a
   failure
 
-### Requirement: An agent's presence is checked without invoking it
+### Requirement: An agent's presence is answered by the detection that already exists
 
-The presence of an agent's executable SHALL be determined by resolving
-it, and SHALL NOT be determined by executing it.
+Whether an agent is installed SHALL be answered by the same detection
+every other surface of this product reads, and SHALL NOT be determined a
+second way inside this report.
 
-Executing a binary to ask its version is an invocation no allowlist
-covers, performed because somebody asked a question rather than started
-a run. No behaviour here depends on an agent's version.
+A command that answered "is this agent here" differently from the agent
+picker in the same build would make the product disagree with itself,
+and a person would have no way to tell which answer to believe. If the
+way presence is detected is wrong, it is wrong for every surface and is
+changed in one place.
 
 #### Scenario: Reporting on an installed agent
 
 - **WHEN** the report covers an agent whose executable is installed
-- **THEN** it reports the executable as present without running it
+- **THEN** it reports what the shared detection reports, including the
+  version where that detection has one
 
 ### Requirement: A report about one change is the preflight's own answer
 

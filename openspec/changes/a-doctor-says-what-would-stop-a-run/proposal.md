@@ -46,9 +46,10 @@ Fixing anything. The doctor installs nothing, writes nothing and
 configures nothing. Where a finding has a remedy the repository already
 has a command for, it names that command.
 
-Running an agent to see whether it works. A binary's presence on the
-PATH is checked by resolving it, never by executing it — see
-`design.md`.
+Deciding for itself which agents are installed. That is
+`detectAvailableAgentsDetailed`'s question, already answered for the
+REST route, the VS Code bridge and the agent picker; this report asks it
+rather than probing a second way — see `design.md`.
 
 Network checks. Whether an agent's service is reachable, whether a
 token is valid, whether GitHub is up: each is a question about a remote
@@ -56,4 +57,5 @@ system at one moment, and a report that says "reachable" is stale before
 it is read. The doctor reports what is configured locally.
 
 Anything about secrets. No environment variable's value, no token, no
-credential is read or printed — only whether a named binary resolves.
+credential is read or printed — a finding may name a variable, never
+what it contains.

@@ -68,7 +68,10 @@ pass one. Offering a picker that cannot change what runs is worse than
 offering none. If either CLI gains a flag, that is its own change, and
 this one leaves the finding recorded for whoever proposes it.
 
-Presets. "Give me a sensible configuration in one action" is
-`a-preset-instead-of-twelve-fields`, a different answer to the same
-complaint, and the two are deliberately separate: a how-to explains what
-a person is choosing, a preset chooses for them.
+Named configurations. "Give me a sensible configuration in one action"
+is already answered: `HARNESS_TEMPLATES`
+(`packages/core/src/harness-templates.ts`) offers four, chosen by the
+effort they ask for, in the same settings view. A how-to and a named
+configuration answer the same complaint differently — one explains what
+a person is choosing, the other chooses for them — and each page here
+names the configuration to start from where one applies.

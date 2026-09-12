@@ -13,10 +13,13 @@ only be asked by starting a run and being refused.
 - [ ] 1.3 The `openspec` CLI: resolved on the PATH or not. Absent is
   `stops-a-run` — `validate-change` and the `archive` stage both call
   it.
-- [ ] 1.4 Each agent in `AGENT_REGISTRY`: its executable resolved on the
-  PATH or not. Resolve it; do not execute it. A version probe is an
-  invocation nobody allowlisted — state this prohibition in the code
-  comment, not only here.
+- [ ] 1.4 Each agent in `AGENT_REGISTRY`: present or absent, from
+  `detectAvailableAgentsDetailed` in
+  `packages/core/src/agent-detection.ts`, including the version it
+  reports where it has one. Do not probe a second way: the picker, the
+  REST route and the VS Code bridge all read that function, and a
+  command answering "is this agent here" differently from the picker in
+  the same build is the drift this change objects to elsewhere.
 - [ ] 1.5 The workspace's harness configuration: `resolveHarnessConfig`
   on the global file reads, or the error it raised, as `stops-a-run`.
 - [ ] 1.6 The workspace lease, via `readWorkspaceLeaseHolder`: who holds
