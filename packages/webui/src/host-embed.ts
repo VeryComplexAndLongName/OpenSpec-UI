@@ -20,6 +20,7 @@ export const ALL_TABS: readonly TabDefinition[] = [
   { id: "change-editor", label: "Change Editor" },
   { id: "templates", label: "Templates" },
   { id: "timeline", label: "Timeline" },
+  { id: "pipeline", label: "Pipeline" },
   { id: "harness-settings", label: "Harness Settings" },
 ];
 

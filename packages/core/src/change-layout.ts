@@ -10,7 +10,23 @@
 // Nothing here reads the filesystem, git, or a lease. Every fact it
 // arranges was derived once, by `readChangeReadiness`.
 
-import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness.js";
+import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
+
+/** The picture's units. Abstract, not pixels: the view renders one unit
+ * as one `em`, so the whole drawing scales with the reader's font size
+ * and no part of it is ever measured (ADR 0025).
+ *
+ * A card is wide enough for a change name of this project's usual length
+ * and tall enough for the name plus two lines about it. Longer text is
+ * truncated on the element rather than allowed to resize the card: a
+ * card that grew would move its neighbours, and the coordinates here
+ * would no longer be where anything is. */
+export const NODE_WIDTH = 16;
+export const NODE_HEIGHT = 5;
+/** Room between cards. The horizontal gap is where edges turn, so it is
+ * the wider of the two. */
+export const COLUMN_GAP = 6;
+export const ROW_GAP = 1.5;
 
 export interface ChangeLayoutNode {
   change: ChangeReadiness;
@@ -18,6 +34,11 @@ export interface ChangeLayoutNode {
   column: number;
   /** Position within the column, by change name. */
   row: number;
+  /** Top-left corner, in units. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** A declared blocker, from the blocker to the change it blocks.
@@ -28,6 +49,10 @@ export interface ChangeLayoutNode {
 export interface ChangeLayoutEdge {
   from: string;
   to: string;
+  /** The corners of the path, in units, from the blocker's right edge to
+   * the blocked change's left edge. Points rather than an SVG string so
+   * this stays a fact the tests can read; the view joins them. */
+  points: Array<{ x: number; y: number }>;
 }
 
 export interface ChangeLayout {
@@ -47,6 +72,11 @@ export interface ChangeLayout {
    * quietly put one somewhere would be a wrong answer that looks like a
    * right one — believed for exactly as long as nobody checked. */
   unplaced: string[];
+  /** How much room the whole picture needs, in units — every node and
+   * every path inside it. The view sizes its SVG from this, so an edge
+   * that turns outside the columns is not clipped. */
+  width: number;
+  height: number;
 }
 
 export function layoutChanges(report: ChangeReadinessReport): ChangeLayout {
@@ -79,18 +109,121 @@ export function layoutChanges(report: ChangeReadinessReport): ChangeLayout {
   }
 
   const nodes: ChangeLayoutNode[] = [];
+  const placed = new Map<string, ChangeLayoutNode>();
   columns.forEach((names, column) => {
     names.forEach((name, row) => {
-      nodes.push({ change: byName.get(name) as ChangeReadiness, column, row });
+      const node: ChangeLayoutNode = {
+        change: byName.get(name) as ChangeReadiness,
+        column,
+        row,
+        x: column * (NODE_WIDTH + COLUMN_GAP),
+        y: row * (NODE_HEIGHT + ROW_GAP),
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      };
+      nodes.push(node);
+      placed.set(name, node);
     });
   });
 
+  const gridWidth = columns.length === 0
+    ? 0
+    : columns.length * NODE_WIDTH + (columns.length - 1) * COLUMN_GAP;
+  const gridHeight = nodes.reduce((tallest, node) => Math.max(tallest, node.y + node.height), 0);
+
   const edges: ChangeLayoutEdge[] = [];
+  let detours = 0;
+  let deepestLane = 0;
   for (const [name, blockers] of [...blockersOf].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    for (const blocker of [...blockers].sort()) edges.push({ from: blocker, to: name });
+    for (const blocker of [...blockers].sort()) {
+      const from = placed.get(blocker);
+      const to = placed.get(name);
+      // An edge to or from something with no place has nowhere to start
+      // or end. The cycle it belongs to is reported in words instead.
+      if (!from || !to) continue;
+      if (to.column === from.column + 1) {
+        edges.push({ from: blocker, to: name, points: straightAcross(from, to) });
+        continue;
+      }
+      // Skipping a column: the space between the two is occupied, so the
+      // edge leaves the grid, travels in a lane of its own below it, and
+      // comes back up. One lane per detour — two sharing one would draw
+      // as a single line that appears to fork.
+      const laneY = gridHeight + ROW_GAP * (detours + 1);
+      detours += 1;
+      deepestLane = Math.max(deepestLane, laneY);
+      edges.push({ from: blocker, to: name, points: aroundTheOutside(from, to, laneY) });
+    }
   }
 
-  return { columns, nodes, edges, cycles, unplaced: [...unplaceable].sort() };
+  return {
+    columns,
+    nodes,
+    edges,
+    cycles,
+    unplaced: [...unplaceable].sort(),
+    width: gridWidth,
+    height: Math.max(gridHeight, deepestLane),
+  };
+}
+
+/** Out of the blocker's right edge, one turn in the gap, into the
+ * blocked change's left edge. */
+function straightAcross(from: ChangeLayoutNode, to: ChangeLayoutNode): Array<{ x: number; y: number }> {
+  const startY = from.y + from.height / 2;
+  const endY = to.y + to.height / 2;
+  const turn = from.x + from.width + COLUMN_GAP / 2;
+  return withoutRepeats([
+    { x: from.x + from.width, y: startY },
+    { x: turn, y: startY },
+    { x: turn, y: endY },
+    { x: to.x, y: endY },
+  ]);
+}
+
+/** Down out of the grid, along its own lane, and back up. */
+function aroundTheOutside(
+  from: ChangeLayoutNode,
+  to: ChangeLayoutNode,
+  laneY: number,
+): Array<{ x: number; y: number }> {
+  const startY = from.y + from.height / 2;
+  const endY = to.y + to.height / 2;
+  const leaves = from.x + from.width + COLUMN_GAP / 2;
+  const returns = to.x - COLUMN_GAP / 2;
+  return withoutRepeats([
+    { x: from.x + from.width, y: startY },
+    { x: leaves, y: startY },
+    { x: leaves, y: laneY },
+    { x: returns, y: laneY },
+    { x: returns, y: endY },
+    { x: to.x, y: endY },
+  ]);
+}
+
+/** Keeps only the places the line actually turns.
+ *
+ * A repeated point draws nothing, and a point in the middle of a
+ * straight run is not a corner — reporting either would make `points`
+ * something a reader has to interpret rather than something they can
+ * take at face value. Two changes in the same row are joined by a
+ * straight line of two points, and that is the whole of it. */
+function withoutRepeats(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  const kept: Array<{ x: number; y: number }> = [];
+  for (const point of points) {
+    const previous = kept[kept.length - 1];
+    if (previous && previous.x === point.x && previous.y === point.y) continue;
+    const before = kept[kept.length - 2];
+    if (
+      previous && before
+      && ((before.x === previous.x && previous.x === point.x)
+        || (before.y === previous.y && previous.y === point.y))
+    ) {
+      kept.pop();
+    }
+    kept.push(point);
+  }
+  return kept;
 }
 
 /** Depth: zero where nothing active blocks it, otherwise one past the

@@ -28,6 +28,7 @@ import {
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
+  handleChangeReadinessRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
   handleWorkspaceRunStatsRequest,
@@ -232,6 +233,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/agents/detect") {
       void handleAgentsDetectRequest(req, res, requestPolicy, options.localLlmBaseUrl);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-readiness") {
+      void handleChangeReadinessRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/human-only-inbox") {

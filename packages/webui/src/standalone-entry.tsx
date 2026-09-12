@@ -5,7 +5,7 @@
 // not library code reused in the extension.
 
 import { createRoot } from "react-dom/client";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
@@ -14,6 +14,8 @@ import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
+import { PipelineView } from "./components/PipelineView.js";
+import { loadChangeReadiness } from "./change-readiness-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
@@ -319,6 +321,17 @@ function StandaloneApp() {
     readChangeOverride: (changeName) => readChangeHarnessOverrideApi(apiFetch, cwd, changeName),
     writeChangeOverride: (changeName, config) => writeHarnessConfigApi(apiFetch, cwd, config, changeName),
   }), [cwd]);
+
+  // Stable across renders so the pipeline's polling effect is not torn
+  // down and restarted on every one of them.
+  const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
+
+  // `loadChangeEditor` is a hoisted declaration further down and reads
+  // `cwd` itself, so `cwd` is the only thing this has to be rebuilt for.
+  const openChangeInEditor = useCallback((changeName: string) => {
+    setActiveTab("change-editor");
+    void loadChangeEditor(changeName);
+  }, [cwd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1836,6 +1849,27 @@ function StandaloneApp() {
             {sprintReportMessage ? <p className="openspec-shell-note">{sprintReportMessage}</p> : null}
           </Fragment>
         )}
+      </section>
+      </TabPanel>
+      )}
+
+      {visibleTabIds.has("pipeline") && (
+      <TabPanel id="pipeline" activeTab={activeTab} lazy>
+      <section className="openspec-shell-panel">
+        <h2>Pipeline</h2>
+        <p className="openspec-shell-note">
+          Every active change in the order it declares, what is running right now, and what can be started
+          alongside what. The same report <code>openspec-ui-cli ready</code> prints.
+        </p>
+        {cwd.trim().length > 0
+          ? (
+            <PipelineView
+              load={pipelineLoad}
+              isActive={activeTab === "pipeline"}
+              onOpenChange={openChangeInEditor}
+            />
+          )
+          : <p>Enter workspace root to see the pipeline.</p>}
       </section>
       </TabPanel>
       )}

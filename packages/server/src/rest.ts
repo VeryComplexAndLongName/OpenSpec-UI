@@ -42,6 +42,7 @@ import {
   buildVerifyQuality,
   addScheduledRun,
   collectHumanOnlyInbox,
+  readChangeReadiness,
   runDelegatedItem,
   customAgentDirectories,
   findCustomAgents,
@@ -1038,11 +1039,13 @@ export async function handleWorkspaceRunStatsRequest(req: IncomingMessage, res: 
   }
 }
 
-interface HumanOnlyInboxRequest {
+/** A request whose whole subject is a workspace. Shared by the handlers
+ * that ask something about one and take no other argument. */
+interface WorkspaceRequest {
   cwd: string;
 }
 
-function isHumanOnlyInboxRequest(value: unknown): value is HumanOnlyInboxRequest {
+function isWorkspaceRequest(value: unknown): value is WorkspaceRequest {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return typeof record.cwd === "string" && record.cwd.trim().length > 0;
@@ -1063,7 +1066,7 @@ export async function handleHumanOnlyInboxRequest(req: IncomingMessage, res: Ser
     return;
   }
 
-  if (!isHumanOnlyInboxRequest(parsed)) {
+  if (!isWorkspaceRequest(parsed)) {
     sendJson(res, 400, { error: "body must contain a non-empty cwd" });
     return;
   }
@@ -1071,6 +1074,38 @@ export async function handleHumanOnlyInboxRequest(req: IncomingMessage, res: Ser
 
   try {
     sendJson(res, 200, await collectHumanOnlyInbox(parsed.cwd));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** Every active change, its state, and what it can run alongside.
+ *
+ * The report travels whole and is not summarised here. The shell draws
+ * it and `openspec-ui-cli ready` prints it, and the one thing that must
+ * not happen is the two disagreeing — which is what a second derivation
+ * anywhere on this path would eventually do, invisibly (ADR 0025). */
+export async function handleChangeReadinessRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await readChangeReadiness({ workspaceRoot: parsed.cwd }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }

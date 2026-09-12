@@ -1170,6 +1170,128 @@ export const shellThemeCss = `
     .openspec-extension-app { margin: 10px auto; padding: 10px; }
   }
 
+  /* The pipeline picture. Every position here came from core: the
+     element carries --pipeline-w/h and each card carries --x/--y/--w/--h,
+     all in the layout's abstract units, and this turns a unit into a
+     length. Nothing is measured (ADR 0025).
+
+     A unit is a rem and deliberately not an em. A custom property holds
+     a token, not a computed length, so --u set to 1em would resolve
+     against the font-size of whichever element used it — and the shell
+     fixes body font-size at 14px anyway, so an em would not follow the
+     reader's browser setting at all. A rem does. */
+  .openspec-pipeline-scroll {
+    overflow-x: auto;
+    /* Its own container, so the page body never scrolls sideways — the
+       same rule the shell's tables already follow. */
+    max-width: 100%;
+  }
+
+  .openspec-pipeline-picture {
+    --u: 1rem;
+    position: relative;
+    width: calc(var(--u) * var(--pipeline-w));
+    height: calc(var(--u) * var(--pipeline-h));
+    margin: 12px 0;
+  }
+
+  /* No box of its own: in the wide view a lane exists only to group,
+     and its cards are placed by coordinate. It becomes a real container
+     at phone width, at the bottom of this file. */
+  .openspec-pipeline-lane { display: contents; }
+  .openspec-pipeline-lane-heading { display: none; }
+
+  .openspec-pipeline-edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    /* A lane below the grid is inside the reported extent, but a stroke
+       has width and half of it falls outside. */
+    overflow: visible;
+  }
+
+  .openspec-pipeline-edges path {
+    stroke: var(--line-strong);
+    stroke-width: 0.1;
+    stroke-linejoin: round;
+  }
+
+  .openspec-pipeline-node {
+    position: absolute;
+    left: calc(var(--u) * var(--x));
+    top: calc(var(--u) * var(--y));
+    width: calc(var(--u) * var(--w));
+    height: calc(var(--u) * var(--h));
+    /* Sets no font-size of its own, on purpose: --u is a token, and a
+       card that changed its font-size would still be fine with rem but
+       would silently break the moment anybody made the unit an em. */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    /* Fixed size, so text beyond it is clipped rather than allowed to
+       move the card's neighbours away from the coordinates core gave.
+       The text stays in the DOM: a card must not be able to remove a
+       fact the change is required to state. */
+    overflow: hidden;
+    text-align: left;
+    padding: 6px 8px;
+    border: 1px solid var(--line-strong);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .openspec-pipeline-node:hover { border-color: var(--primary-soft); }
+
+  /* State is carried by the word inside the card first; these only
+     agree with it. A reader who cannot tell two hues apart has already
+     been told which state this is. */
+  .openspec-pipeline-node[data-state="running"] {
+    background: var(--primary-bg);
+    border-left-color: var(--primary);
+  }
+
+  .openspec-pipeline-node[data-state="blocked"] {
+    background: var(--warn-bg);
+    border-left-color: var(--warn);
+  }
+
+  .openspec-pipeline-node-name {
+    font-weight: 600;
+    /* The part a reader scans for gets the room. */
+    align-self: stretch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .openspec-pipeline-node-state {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-node-detail {
+    font-size: 0.85em;
+    color: var(--muted);
+    align-self: stretch;
+  }
+
+  .openspec-pipeline-cycles {
+    border: 1px solid var(--warn);
+    background: var(--warn-bg);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin: 12px 0;
+  }
+
+  .openspec-pipeline-cycles ul { margin: 4px 0 0; padding-left: 20px; }
+
   /* LAST in this layer on purpose. These selectors have the same
      specificity as the ones they override, and at equal specificity the
      later rule wins — placed earlier, the whole block did nothing.
@@ -1190,6 +1312,41 @@ export const shellThemeCss = `
       width: 100%;
       min-width: 0;
     }
+
+    /* The picture becomes headed lanes. Four columns of cards do not fit
+       a phone in any implementation, and shrinking until it is
+       technically present and practically unreadable is the worse
+       answer. Nothing is lost: each card already states in words what it
+       waits on, which is what the edges illustrate. */
+    .openspec-pipeline-picture {
+      width: auto;
+      height: auto;
+    }
+
+    .openspec-pipeline-edges { display: none; }
+
+    .openspec-pipeline-lane { display: block; margin-bottom: 16px; }
+
+    .openspec-pipeline-lane-heading {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 0.9em;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .openspec-pipeline-node {
+      position: static;
+      width: 100%;
+      height: auto;
+      /* Nothing is clipped here: there is room to run on, and the card
+         is no longer holding a coordinate for anything else. */
+      overflow: visible;
+      margin-bottom: 8px;
+    }
+
+    .openspec-pipeline-node-name { white-space: normal; }
   }
 `;
 
