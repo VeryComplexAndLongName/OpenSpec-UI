@@ -9,6 +9,7 @@ import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js
 import { checkChange } from "./check-change.js";
 import { leaseCommand } from "./lease-command.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
+import { doctorCommand } from "./doctor-command.js";
 import { readyCommand } from "./ready-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
@@ -26,6 +27,7 @@ Usage:
   openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli ready [--cwd <path>] [--base <ref>] [--format text|json]
+  openspec-ui-cli doctor [--cwd <path>] [--change <id>] [--format text|json]
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
@@ -82,6 +84,12 @@ process is not running. A live holder is refused: taking its lease would
 let a second mutating run start against files it still has open, which is
 what the lease exists to prevent.
 
+'doctor' exits 0 when nothing it found would stop a run, 1 when
+something would, and 2 when it could not look. A workspace held by a
+live run is reported and exits 0: being busy is not being broken.
+'--change <id>' adds the preflight's own answer for that change, from
+the same resolution a run would use.
+
 A run does only what the change's own harness configuration already
 permits. There is no flag that starts a chain for a change configured to
 run one stage at a time, and none that answers a confirmation the change
@@ -122,6 +130,7 @@ export interface MainDeps {
   runChange?: typeof runChange;
   worktreeCommand?: typeof worktreeCommand;
   readyCommand?: typeof readyCommand;
+  doctorCommand?: typeof doctorCommand;
   checkChange?: typeof checkChange;
   leaseCommand?: typeof leaseCommand;
   /** How a checkpoint is put to a person, and how their answer comes
@@ -256,6 +265,20 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "doctor") {
+    return await (deps.doctorCommand ?? doctorCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        ...(options.change !== undefined ? { changeName: options.change } : {}),
+        // The same fact `run` refuses on, read once here rather than
+        // twice and possibly differently.
+        canAnswerCheckpoints: (deps.checkpoint ?? {}).ask !== undefined,
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "lease") {
     return await (deps.leaseCommand ?? leaseCommand)(
       {
@@ -320,7 +343,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, lease, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, lease, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

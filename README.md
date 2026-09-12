@@ -341,6 +341,24 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
   `openspec-validate` job) runs it against `openspec/changes/` on every
   push/PR, as the real merge gate.
 
+### `doctor` — what would stop a run here
+
+`openspec-ui-cli doctor` answers, before a run is started, what this
+machine and this workspace are missing: the runtime against the pinned
+`engines`, the `openspec` CLI, which agents are installed, whether the
+harness configuration reads, who holds the workspace, and whether a git
+identity is configured. `--change <id>` adds the preflight's own answer
+for one change, from the same resolution a run would use.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- doctor --cwd .
+```
+
+Exit codes: `0` nothing found would stop a run, `1` something would, `2`
+it could not look. A workspace held by a live run is reported and exits
+`0` — being busy is not being broken, which is the answer `lease`
+already gives.
+
 ## Getting Started
 
 1. Read `docs/adr/0001-*.md` — the architecture decisions and rejected
