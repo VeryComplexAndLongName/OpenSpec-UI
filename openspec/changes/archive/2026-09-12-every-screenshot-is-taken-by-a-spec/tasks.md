@@ -124,11 +124,18 @@ own copies, and git keeps these.
   (`packages/extension/package.json`'s `contributes.views` still
   declares Changes, Archive, Specs, Templates, Processes and the change
   graph). What they show may be out of date, which is 3.5, not this.
-- [ ] 3.5 **Human-only**: retake the nine extension pictures against the
-  current build and update each `captured` date in
-  `scripts/screenshot-baseline.json`. No agent here can drive the
-  editor's own tree views and menus or capture its window; that is the
-  reason they are baselined rather than captured.
+- [x] 3.5 ~~**Human-only**: retake the nine extension pictures against
+  the current build and update each `captured` date in
+  `scripts/screenshot-baseline.json`.~~ **Superseded by
+  `an-editor-picture-is-taken-too`, on the owner's decision that they be
+  taken by a spec.**
+  Not abandoned: the nine are still stale, and that change retakes them.
+  Doing it by hand first would be the same work twice, and the hand-taken
+  picture it produced would be the thing this change exists to remove.
+  The reason recorded below — that no agent can capture the editor's
+  window — is the reason this item existed, and it is false. It is left
+  standing rather than edited away, because the useful part of this
+  record is that a claim was believed twice before anybody tested it.
   2026-09-12, reviewed by `claude-cli`. My first note here said this was
   correctly marked human-only, and **that was wrong** — I argued from
   the stated reason instead of checking it. Corrected below.
