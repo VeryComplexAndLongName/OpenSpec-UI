@@ -30,6 +30,7 @@ export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";
 export * from "./workbench-recovery.js";
 export * from "./agent-detection.js";
+export * from "./environment-report.js";
 export * from "./changeset-reminder.js";
 export * from "./change-dates.js";
 export * from "./verify-quality.js";

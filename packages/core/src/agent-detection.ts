@@ -52,6 +52,19 @@ export interface AgentDetectionConfig {
  * it best-effort; a probe whose output has no recognizable version token,
  * or that never printed anything, still counts as detected — see
  * `DetectedAgent`'s own doc comment. */
+/** Whether an executable is on the PATH, and the version its own
+ * `--version` reported.
+ *
+ * Exported for `environment-report.ts`, which asks the same question
+ * about the two tools that are not agents — `openspec` and `npm`. A
+ * second probe written beside this one would answer "is it installed"
+ * differently from the agent picker in the same build, which is the
+ * defect that report exists to avoid rather than to add. See
+ * a-doctor-says-what-would-stop-a-run. */
+export function detectExecutable(executable: string): Promise<DetectedAgent> {
+  return detectCliAgent(executable);
+}
+
 function detectCliAgent(executable: string): Promise<DetectedAgent> {
   return new Promise((resolve) => {
     let settled = false;

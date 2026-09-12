@@ -18,6 +18,7 @@ what does **not** cap it), see [`LIMITS.md`](LIMITS.md).
 | Compare agents, models, effort, and caps | [Agent reference](#agents-models-effort-and-spending-caps) |
 | Hand one numbered task to an agent | [`taskAgents`](#taskagents) |
 | Set a spending ceiling | [Harness Spending Limits](LIMITS.md) |
+| Find out what would stop a run here | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →
