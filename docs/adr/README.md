@@ -33,5 +33,6 @@ Alternatives / Consequences.
 | [0024](0024-parallel-readiness-is-derived.md) | Parallel readiness is derived, never declared | Accepted |
 | [0025](0025-the-pipeline-picture-is-derived-and-drawn-by-hand.md) | The pipeline picture is derived, and drawn without a graph library | Accepted |
 | [0026](0026-other-working-directories-are-observed-never-touched.md) | Other working directories are observed, never touched | Accepted |
+| [0027](0027-a-working-directory-is-disposable.md) | A working directory is disposable, and nothing of value stays in it | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
