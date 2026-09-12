@@ -31,7 +31,7 @@ context menu.
 
 #### Archive actions
 
-![Archived change context menu with unarchive, copy template, rollback, and delete actions](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-actions.png)
+![Archived change context menu: unarchive, copy tasks as a template, rollback, show the change timeline, reveal it in the change graph, show what it follows, show what it cost, explain and recommend harness settings, and delete](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-actions.png)
 
 #### Archived task history
 

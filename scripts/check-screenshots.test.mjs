@@ -71,7 +71,7 @@ test("a listed picture passes, and the listing says when it was taken", async ()
     const root = await repoWith({
         pictures: ["docs/images/extension/specs-list.png"],
         baseline: JSON.stringify([
-            { path: "docs/images/extension/specs-list.png", reason: "editor-native", captured: "2026-09-12" },
+            { path: "docs/images/extension/specs-list.png", reason: "external-product", captured: "2026-09-12" },
         ]),
     });
     try {
@@ -104,7 +104,7 @@ test("a listing with a reason outside the closed set fails", async () => {
 });
 
 test("a listing without a date fails", () => {
-    const { problems } = readBaseline(JSON.stringify([{ path: "docs/images/x.png", reason: "editor-native" }]));
+    const { problems } = readBaseline(JSON.stringify([{ path: "docs/images/x.png", reason: "external-product" }]));
     assert.equal(problems.length, 1);
     assert.match(problems[0] ?? "", /captured/u);
 });
@@ -112,7 +112,7 @@ test("a listing without a date fails", () => {
 test("a listing whose picture is gone fails", async () => {
     const root = await repoWith({
         baseline: JSON.stringify([
-            { path: "docs/images/extension/deleted.png", reason: "editor-native", captured: "2026-08-22" },
+            { path: "docs/images/extension/deleted.png", reason: "external-product", captured: "2026-08-22" },
         ]),
     });
     try {
@@ -133,4 +133,24 @@ test("a repository with no pictures at all passes", async () => {
     } finally {
         await rm(root, { recursive: true, force: true });
     }
+});
+
+test("an empty baseline is legal, and still reports a picture nobody takes", () => {
+  // The exception mechanism stays after the last picture leaves it.
+  // Deleting it would make the next hand-taken picture legal by silence;
+  // an empty list keeps adding one a visible edit that states a reason.
+  const { entries, problems } = readBaseline("[]");
+  assert.equal(problems.length, 0);
+  assert.equal(entries.length, 0);
+});
+
+test("editor-native is no longer a reason a picture may be listed with", () => {
+  // Retired by an-editor-picture-is-taken-too: Playwright drives
+  // Electron, VS Code is Electron, and those nine are captured now. The
+  // test exists so that restoring it is a deliberate act.
+  const { problems } = readBaseline(
+    JSON.stringify([{ path: "docs/images/x.png", reason: "editor-native", captured: "2026-09-12" }]),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /editor-native/);
 });
