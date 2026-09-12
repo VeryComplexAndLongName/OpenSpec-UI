@@ -16,7 +16,10 @@ export default defineConfig({
     // src/test/** — integration Mocha tests for @vscode/test-electron
     // (see src/test/run.mjs), not vitest unit tests. dist/** — built
     // esbuild bundles (including a compiled copy of src/test/**), not
-    // source files.
-    exclude: ["**/node_modules/**", ".vscode-test/**", "src/test/**", "dist/**"],
+    // source files. e2e/** — Playwright, which takes the editor
+    // pictures; vitest's default glob catches `*.spec.ts` and fails
+    // with "did not expect test.beforeAll() to be called here", which
+    // names the symptom and not the cause.
+    exclude: ["**/node_modules/**", ".vscode-test/**", "src/test/**", "dist/**", "e2e/**"],
   },
 });
