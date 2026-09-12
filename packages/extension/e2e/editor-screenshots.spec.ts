@@ -20,6 +20,7 @@
 import { expect, test, type ElectronApplication, type Page } from "@playwright/test";
 import { _electron } from "playwright";
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { createPictureWorkspace, type PictureWorkspace } from "./fixtures/create-picture-workspace.js";
 
@@ -141,6 +142,24 @@ async function settle(page: Page): Promise<void> {
   await expect(page.locator(".monaco-hover:visible")).toHaveCount(0);
 }
 
+/** The account a picture would betray, if any of the fixture's
+ * temporary path reached the screen. */
+const ACCOUNT = os.userInfo().username;
+
+/** The only way a picture is taken.
+ *
+ * Every capture passes through here, so this is where a picture that
+ * would publish the machine it was taken on is stopped. The fixture sits
+ * under a temporary directory whose path carries the account name, and a
+ * title, a tree description or a breadcrumb could put it on screen. This
+ * fails instead of the picture leaking it — asserted against the one
+ * string that would leak, and against rendered text only, since the
+ * editor's hidden accessibility regions carry full paths nobody sees. */
+async function shoot(file: string): Promise<void> {
+  await expect(window.locator(".monaco-workbench")).not.toContainText(ACCOUNT, { useInnerText: true });
+  await window.screenshot({ path: path.join(IMAGES, file) });
+}
+
 /** Removes the chrome a development host raises that the product does
  * not: the toast about disabled extensions, and the side bar the editor
  * opens on its own. */
@@ -157,12 +176,15 @@ test.describe("editor documentation screenshots", () => {
     await closeEditors();
     // What the README leads with: every view the extension contributes,
     // each with something in it.
-    const changes = window.locator('.monaco-list-row:has-text("a-change-in-progress")').first();
-    await expect(changes).toBeVisible();
+    // The caption promises change ARTIFACTS, so a change is opened to show
+    // them. Taken with every change collapsed, the first picture carried
+    // this caption over a list of names.
+    await expandRow("a-change-in-progress");
+    await expect(window.locator('.monaco-list-row:has-text("Proposal")').first()).toBeVisible();
     await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toBeVisible();
 
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "overview-expanded.png") });
+    await shoot("overview-expanded.png");
   });
 
   test("the workbench, compact", async () => {
@@ -179,7 +201,7 @@ test.describe("editor documentation screenshots", () => {
     await expect(window.locator(".pane-header.expanded")).toHaveCount(0);
 
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "overview-compact.png") });
+    await shoot("overview-compact.png");
   });
 
   test("the Specs tree, listing capabilities and their requirement counts", async () => {
@@ -193,7 +215,7 @@ test.describe("editor documentation screenshots", () => {
     await expect(window.locator('.monaco-list-row:has-text("another-capability")').first()).toContainText("1 requirement");
 
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "specs-list.png") });
+    await shoot("specs-list.png");
   });
 
   test("a spec selected in the tree and open in the editor", async () => {
@@ -206,8 +228,23 @@ test.describe("editor documentation screenshots", () => {
     await expect(window.locator('.tabs-container [aria-label*="spec.md"]').first()).toBeVisible();
     await expect(window.locator(".editor-instance .view-lines")).toContainText("Requirement");
 
+    // Opening a markdown file activates the editor's markdown support, and
+    // until it has, the file is uncoloured and the status bar reads
+    // "Activating Extensions…". This photographed that state twice: first
+    // with no wait, then with a `toHaveCount(0)` taken the moment the text
+    // appeared — before activation had started showing, so it passed and
+    // the picture still carried it. So wait for what activation PRODUCES, a
+    // heading tokenised as something other than plain text, and check the
+    // status bar last, right before the shutter, as a retrying assertion on
+    // an element that must exist — a selector matching nothing cannot pass
+    // by default that way.
+    await expect(window.locator('.editor-instance .view-line span[class^="mtk"]:not(.mtk1)').first()).toBeVisible();
+
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "specs-editor.png") });
+    const statusBar = window.locator(".part.statusbar");
+    await expect(statusBar).toBeVisible();
+    await expect(statusBar).not.toContainText("Activating Extensions");
+    await shoot("specs-editor.png");
   });
 
   test("completed checklist items nested under a change's Tasks artifact", async () => {
@@ -225,22 +262,34 @@ test.describe("editor documentation screenshots", () => {
     await expect(window.locator('.monaco-list-row:has-text("Something already done")').first()).toBeVisible();
 
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "nested-tasks.png") });
+    await shoot("nested-tasks.png");
   });
 
   test("the Repository Setup tree and what it offers", async () => {
     await closeEditors();
     await onlyExpand("Changes");
+    // Not part of this caption, and left expanded by an earlier capture.
+    await collapseRow("a-change-in-progress");
     await expandRow("Repository Setup");
 
-    // The caption names what the tree offers. `setup-offers-only-what-
-    // applies` made that list conditional on the repository, so a
-    // picture of it is a picture of one repository's answer — which is
-    // why the fixture is fixed and why this asserts what it shows.
-    await expect(window.locator('.monaco-list-row:has-text("CLAUDE.md")').first()).toBeVisible();
+    // Asserted on the CHILD rows, never on the parent. The first version
+    // waited for "CLAUDE.md" — which is in the Repository Setup row's own
+    // description — so it passed with the tree unexpanded and photographed
+    // a caption about generators beside no generators at all. Green, and
+    // false.
+    await expect(window.locator('.monaco-list-row:has-text("Generate Agent Instructions")').first()).toBeVisible();
+    // `setup-offers-only-what-applies` shows Dependabot where the origin is
+    // GitHub or unknown. The fixture has no git remote — unknown, so shown.
+    await expect(window.locator('.monaco-list-row:has-text("Configure Dependabot")').first()).toBeVisible();
+    // The Copilot row is offered only where Copilot is present — the
+    // extension, or a `copilot` CLI on the path. That is a fact about the
+    // machine taking the picture, not about the fixture. Asserted, so that
+    // regenerating on a machine without Copilot fails here rather than
+    // quietly producing a picture its caption no longer describes.
+    await expect(window.locator('.monaco-list-row:has-text("Generate Path-Scoped Copilot Instructions")').first()).toBeVisible();
 
     await settle(window);
-    await window.screenshot({ path: path.join(IMAGES, "repository-setup.png") });
+    await shoot("repository-setup.png");
   });
 
   test("the archive context menu and what it offers", async () => {
@@ -255,7 +304,7 @@ test.describe("editor documentation screenshots", () => {
       await expect(window.locator(`.context-view .action-label:has-text("${action}")`).first()).toBeVisible();
     }
 
-    await window.screenshot({ path: path.join(IMAGES, "archive-actions.png") });
+    await shoot("archive-actions.png");
   });
 
   test("an archived change's tasks, beside its context menu", async () => {
@@ -270,7 +319,7 @@ test.describe("editor documentation screenshots", () => {
     await openContextMenu("2026-08-01-a-change-that-shipped");
     await expect(window.locator(".context-view .action-label").first()).toBeVisible();
 
-    await window.screenshot({ path: path.join(IMAGES, "archive-tasks.png") });
+    await shoot("archive-tasks.png");
   });
 
   test("the template context menu and what it offers", async () => {
@@ -288,9 +337,13 @@ test.describe("editor documentation screenshots", () => {
     await template.click({ button: "right" });
     await window.locator(".context-view .monaco-menu").first().waitFor();
 
-    await expect(window.locator(".context-view .action-label").first()).toBeVisible();
+    // The caption names two actions. Asserting only that a menu opened
+    // would let a menu of different entries photograph under this caption.
+    for (const action of ["Customize Template", "Insert Template Into"]) {
+      await expect(window.locator(`.context-view .action-label:has-text("${action}")`).first()).toBeVisible();
+    }
 
-    await window.screenshot({ path: path.join(IMAGES, "template-actions.png") });
+    await shoot("template-actions.png");
   });
 });
 
@@ -306,13 +359,6 @@ async function openContextMenu(label: string): Promise<void> {
   await window.locator(".context-view .monaco-menu").first().waitFor();
 }
 
-/** Closes whatever a previous capture left open.
- *
- * Without this a picture inherits the editor the test before it opened,
- * so what it shows depends on the order the tests ran in — and a picture
- * whose contents depend on test order is not evidence of anything. Found
- * by looking at `nested-tasks.png` and seeing a `spec.md` its caption
- * never mentions. */
 /** Dismisses a context menu a previous capture left open.
  *
  * An open menu covers the tree and swallows clicks, so the capture after
@@ -325,6 +371,13 @@ async function dismissMenus(): Promise<void> {
   await expect(window.locator(".context-view .monaco-menu")).toHaveCount(0);
 }
 
+/** Closes whatever a previous capture left open.
+ *
+ * Without this a picture inherits the editor the test before it opened,
+ * so what it shows depends on the order the tests ran in — and a picture
+ * whose contents depend on test order is not evidence of anything. Found
+ * by looking at `nested-tasks.png` and seeing a `spec.md` its caption
+ * never mentions. */
 async function closeEditors(): Promise<void> {
   await dismissMenus();
   if (await window.locator(".tabs-container .tab").count() === 0) return;
@@ -357,4 +410,15 @@ async function expandRow(label: string): Promise<void> {
     await row.locator(".monaco-tl-twistie").click();
   }
   await expect(row).toHaveAttribute("aria-expanded", "true");
+}
+
+/** The opposite of `expandRow`, for a row an earlier capture opened that
+ * the next picture's caption says nothing about. */
+async function collapseRow(label: string): Promise<void> {
+  const row = window.locator(`.monaco-list-row:has-text("${label}")`).first();
+  if (await row.count() === 0) return;
+  if ((await row.getAttribute("aria-expanded")) === "true") {
+    await row.locator(".monaco-tl-twistie").click();
+  }
+  await expect(row).not.toHaveAttribute("aria-expanded", "true");
 }
