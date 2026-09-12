@@ -43,25 +43,5 @@
     "path": "docs/images/extension/repository-setup.png",
     "reason": "editor-native",
     "captured": "2026-08-22"
-  },
-  {
-    "path": "docs/images/standalone/01-permission-request.png",
-    "reason": "published-asset",
-    "captured": "2026-09-07"
-  },
-  {
-    "path": "docs/images/standalone/02-human-only-inbox.png",
-    "reason": "published-asset",
-    "captured": "2026-09-07"
-  },
-  {
-    "path": "docs/images/standalone/03-observation-record.png",
-    "reason": "published-asset",
-    "captured": "2026-09-07"
-  },
-  {
-    "path": "docs/images/standalone/04-mechanical-checks.png",
-    "reason": "published-asset",
-    "captured": "2026-09-07"
   }
 ]

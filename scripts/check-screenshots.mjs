@@ -27,14 +27,14 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  * `editor-native` — a surface the editor itself draws (a tree view, a
  * context menu, a quick pick), which no browser can reach.
  * `external-product` — a picture of something that is not this product.
- * `published-asset` — an image made for a post published elsewhere,
- * which this repository's documentation does not reference. It is kept
- * because it was published, not because anything here shows it; the
- * alternative is deleting it. Added during implementation: the four
- * `docs/images/standalone/0*.png` files are exactly this, and calling
- * them editor-native would have been a lie a reviewer could not see
- * through. */
-export const BASELINE_REASONS = new Set(["editor-native", "external-product", "published-asset"]);
+ *
+ * A third, `published-asset`, was added during implementation for four
+ * pictures made for a post published elsewhere and referenced by no
+ * document here, and then removed when those four were deleted instead.
+ * It is recorded because the set is meant to stay small: a reason is
+ * added when a picture genuinely cannot be captured, not when one is
+ * merely inconvenient to delete. */
+export const BASELINE_REASONS = new Set(["editor-native", "external-product"]);
 
 const IMAGES_DIR = path.join("docs", "images");
 const CAPTURE_DIR = path.join("packages", "server", "e2e");

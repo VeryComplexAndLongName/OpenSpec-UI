@@ -20,11 +20,13 @@ must find that capture without being told about it.
   `editor-native` or `external-product`) and `captured` (an ISO date).
   An entry with any other reason fails to parse rather than being
   accepted.
-  A third reason was added while implementing: `published-asset`, for
-  the four `docs/images/standalone/0*.png` files, which are assets for a
-  post published elsewhere and are referenced by no document here.
-  Listing them as `editor-native` would have been a lie a reviewer could
-  not see through. See `design.md`.
+  A third reason, `published-asset`, was added while implementing — for
+  the four `docs/images/standalone/0*.png` files, which were assets for
+  a post published elsewhere and referenced by no document here — and
+  then removed when the owner decided to delete those four instead. The
+  set is back to two, and the episode is recorded in the code comment:
+  a reason belongs here when a picture genuinely cannot be captured, not
+  when one is merely inconvenient to delete.
 - [x] 1.3 `scripts/check-screenshots.test.mjs` covers: a picture with a
   spec passes, a picture with neither fails, a baseline entry with an
   unknown reason fails, and a baseline entry naming a picture that no
@@ -64,25 +66,24 @@ against one fixture workspace.
 - [x] 2.7 `run-with-harness.png` — the "Run with Agentic Harness" entry
   point.
 
-The four below are **not** captured, and this is a decision rather than
-an omission: they are assets made for a post published elsewhere
-(`2026-09-07-linkedin-teaser-assets`), and no document in this
-repository references any of them. Each is listed in the baseline as
-`published-asset` with the date it was taken, which leaves the question
-open where a reader can see it. Capturing them would mean building
+The four below are **deleted** rather than captured. They were assets
+made for a post published elsewhere
+(`2026-09-07-linkedin-teaser-assets`), no document in this repository
+referenced any of them, and capturing them would have meant building
 fixtures for a permission request, an observation record and a failing
-mechanical check to keep four pictures fresh that nothing shows.
+mechanical check to keep four pictures fresh that nothing shows. The
+owner decided on 2026-09-12 to delete them; the published post keeps its
+own copies, and git keeps these.
 
-- [ ] 2.8 `01-permission-request.png`, and no other file in this task —
-  the permission request surface. **Waiting on a decision**: delete it,
-  or capture it and reference it somewhere.
-- [ ] 2.9 `02-human-only-inbox.png` — the "Waiting on somebody" block.
-  Same decision. This one is the cheapest to capture if kept:
+- [x] 2.8 `01-permission-request.png`, and no other file in this task —
+  the permission request surface. Deleted.
+- [x] 2.9 `02-human-only-inbox.png` — the "Waiting on somebody" block.
+  Deleted. Had they been kept, this was the cheapest to capture:
   `waiting-on-inbox.spec.ts` already drives that surface.
-- [ ] 2.10 `03-observation-record.png` — the observation record. Same
-  decision.
-- [ ] 2.11 `04-mechanical-checks.png` — the mechanical-check result.
-  Same decision.
+- [x] 2.10 `03-observation-record.png` — the observation record.
+  Deleted.
+- [x] 2.11 `04-mechanical-checks.png` — the mechanical-check result.
+  Deleted.
 - [x] 2.12 Each capture waits on a named element and fails when it is
   absent. A capture that screenshots the page after a fixed delay is not
   a capture that reports a changed screen, which is the entire reason
@@ -179,11 +180,12 @@ mechanical check to keep four pictures fresh that nothing shows.
   change among them.
 - [x] 4.5 `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and the per-package test counts.
-  2026-09-12, exit 0. Typecheck and lint clean across all five packages,
-  including the new `lint:screenshots` ("26 pictures: 13 captured, 13
-  listed as hand-taken"). Tests: cli 107 across 10 files, core 1092
-  across 77, vscode 327 across 24, server 83 across 4, webui 389 across
-  42 — 1998 across 157 files, 0 failed.
+  2026-09-12, exit 0, and again after the four pictures were deleted.
+  Typecheck and lint clean across all five packages, including the new
+  `lint:screenshots` — "22 pictures: 13 captured, 9 listed as
+  hand-taken" on the second run. Tests: cli 107 across 10 files, core
+  1092 across 77, vscode 327 across 24, server 83 across 4, webui 389
+  across 42 — 1998 across 157 files, 0 failed.
 - [x] 4.6 The browser suite's entry in `scripts/test-budget-baseline.json`
   is updated to its measured new value in the same commit that adds the
   captures, with the measurement quoted here.
