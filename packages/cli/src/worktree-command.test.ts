@@ -36,6 +36,7 @@ function fakeGit(options: {
   worktrees?: GitWorktree[];
   inRef?: boolean;
   clean?: boolean;
+  branchExists?: boolean;
 } = {}) {
   const added: Array<{ path: string; branch: string; base: string }> = [];
   const removed: string[] = [];
@@ -49,6 +50,7 @@ function fakeGit(options: {
     worktreeAdd: async (plan: { path: string; branch: string; base: string }) => {
       added.push(plan);
     },
+    branchExists: async () => options.branchExists ?? false,
     worktreeMove: async (from: string, to: string) => {
       moved.push({ from, to });
     },

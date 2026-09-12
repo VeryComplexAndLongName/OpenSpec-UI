@@ -157,6 +157,20 @@ export async function planChangeWorktree(options: {
     };
   }
 
+  // Removing a working directory leaves its branch behind, so the second
+  // attempt at one change meets a branch with no directory. Without this
+  // it fails with git's own "a branch named X already exists", which is
+  // true and says nothing about what to do next.
+  if (await git.branchExists(changeName)) {
+    return {
+      ok: false,
+      refusal: {
+        reason: `branch "${changeName}" already exists, with no working directory on it`,
+        remedy: `check it out where you want it, or delete it with "git branch -D ${changeName}" if its work has landed`,
+      },
+    };
+  }
+
   return { ok: true, path: target, branch: changeName, base };
 }
 

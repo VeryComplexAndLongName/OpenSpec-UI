@@ -32,6 +32,7 @@ afterEach(async () => {
 function fakeGit(options: {
   worktrees?: GitWorktree[];
   inRef?: (ref: string, pathInRepo: string) => boolean;
+  branchExists?: boolean;
 } = {}): GitWrapper & { added: unknown[]; removed: string[] } {
   const added: unknown[] = [];
   const removed: string[] = [];
@@ -43,6 +44,7 @@ function fakeGit(options: {
     commit: vi.fn(),
     push: vi.fn(),
     currentBranch: vi.fn(),
+    branchExists: async () => options.branchExists ?? false,
     worktreeList: async () => options.worktrees ?? [{ path: "/repo" }],
     worktreeAdd: async (plan: { path: string; branch: string; base: string }) => {
       added.push(plan);
@@ -235,5 +237,28 @@ describe("listChangeWorktrees", () => {
     const listed = await listChangeWorktrees({ git, repositoryRoot: root });
 
     expect(listed[1]?.changeName).toBeUndefined();
+  });
+});
+
+describe("planChangeWorktree — a branch left behind by a removal", () => {
+  it("refuses a change whose branch exists with no directory, and says what to do", async () => {
+    const root = await temporaryRoot();
+    // Removing a working directory leaves its branch, so the second
+    // attempt at one change meets exactly this.
+    const git = fakeGit({ branchExists: true });
+
+    const plan = await planChangeWorktree({
+      git,
+      repositoryRoot: root,
+      changeName: "a-change",
+      rootSources: { env: {}, homeDirectory: NO_SETTINGS },
+    });
+
+    expect(plan.ok).toBe(false);
+    if (!plan.ok) {
+      expect(plan.refusal.reason).toContain("no working directory on it");
+      // Git's own message is true and says nothing about what to do next.
+      expect(plan.refusal.remedy).toContain("git branch -D a-change");
+    }
   });
 });

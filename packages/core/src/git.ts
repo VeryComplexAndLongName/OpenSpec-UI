@@ -90,6 +90,13 @@ export interface GitWrapper {
    * step. Moving the folder by hand would leave that record pointing at
    * nothing. */
   worktreeMove(from: string, to: string): Promise<void>;
+  /** Whether a local branch of this name exists.
+   *
+   * Asked before creating a working directory, because removing one
+   * leaves its branch behind: without this the second attempt at a
+   * change fails with git's own "a branch named X already exists", which
+   * says nothing about what to do next. */
+  branchExists(name: string): Promise<boolean>;
   worktreeRemove(path: string): Promise<void>;
   /** The git identity configured for this working directory —
    * `user.email`, falling back to `user.name` — or `undefined` where
@@ -164,6 +171,22 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // cleanly, and a directory relocated over the top of something
       // else would be a worse outcome than a refusal.
       await git.raw(["worktree", "move", from, to]);
+    },
+    async branchExists(name: string): Promise<boolean> {
+      try {
+        // The OUTPUT decides, not whether this threw. `--quiet` makes
+        // git print nothing and exit 1 for a ref that is not there, and
+        // an exit code alone is not an error the client rejects on — so
+        // a version of this that only caught would have answered "yes"
+        // to every branch, which reads exactly like a working check.
+        const out = await git.raw(["rev-parse", "--verify", "--quiet", `refs/heads/${name}`]);
+        return out.trim().length > 0;
+      } catch {
+        // No such ref, or not a repository. Both mean there is no branch
+        // in the way, and the caller's next check meets the second case
+        // on its own terms.
+        return false;
+      }
     },
     async worktreeRemove(worktreePath: string): Promise<void> {
       // No `--force`. Refusing a directory that still holds work is the

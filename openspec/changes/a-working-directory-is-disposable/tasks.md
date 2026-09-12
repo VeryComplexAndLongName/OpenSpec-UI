@@ -92,7 +92,10 @@ those.
   `lint:screenshots` and `lint:test-budgets`. Tests: cli 124, core 1130,
   vscode 327, server 84, webui 394 — 2059 across 163 files, 0 failed.
 - [x] 5.3 A pending changeset exists. `check(changeset-present)`
-- [ ] 5.4 **Delegated to `claude-cli`**: create a working directory, run
+- [ ] 5.4 **Delegated to `claude-cli`** — *performed, evidence below, but
+  NOT ticked: this was run by the agent that wrote the code, which is the
+  rubber stamp the marking rule names. A second reader closes it.*
+  Create a working directory, run
   a chain in it so it records history, remove it, and read that history
   back from the repository. Then remove one that recorded nothing.
   Evidence: both logs before and after, and what removal printed. The
