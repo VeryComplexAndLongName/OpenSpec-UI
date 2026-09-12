@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,10 @@ import { worktreeCommand } from "./worktree-command.js";
 // wrapper is injected — so each test is a few small file writes.
 // Measured 2026-09-11 under 50ms for the slowest.
 vi.setConfig({ testTimeout: 15_000 });
+
+/** No environment variable and a home with no settings file, so a test
+ * reads the default rather than whatever the person running it has set. */
+const NO_SETTINGS = { env: {}, homeDirectory: path.join(os.tmpdir(), "openspec-ui-no-settings-here") };
 
 const temporaryRoots: string[] = [];
 
@@ -35,19 +39,28 @@ function fakeGit(options: {
 } = {}) {
   const added: Array<{ path: string; branch: string; base: string }> = [];
   const removed: string[] = [];
+  const moved: Array<{ from: string; to: string }> = [];
   const git = {
     added,
     removed,
+    moved,
     status: async () => ({ isClean: options.clean ?? true }),
     worktreeList: async () => options.worktrees ?? [{ path: "/repo", branch: "main" }],
     worktreeAdd: async (plan: { path: string; branch: string; base: string }) => {
       added.push(plan);
     },
+    worktreeMove: async (from: string, to: string) => {
+      moved.push({ from, to });
+    },
     worktreeRemove: async (target: string) => {
       removed.push(target);
     },
     pathExistsInRef: async () => options.inRef ?? true,
-  } as unknown as GitWrapper & { added: typeof added; removed: typeof removed };
+  } as unknown as GitWrapper & {
+    added: typeof added;
+    removed: typeof removed;
+    moved: typeof moved;
+  };
   return git;
 }
 
@@ -188,5 +201,116 @@ describe("worktree remove", () => {
 
     expect(code).toBe(1);
     expect(io.err.join("\n")).toContain("no working directory");
+  });
+});
+
+describe("worktree move", () => {
+  it("moves a directory that is not under the root, on request", async () => {
+    const root = await temporaryRoot();
+    await withActiveChange(root, "a-change");
+    const stray = path.join(path.dirname(root), `${path.basename(root)}.worktrees`, "a-change");
+    const git = fakeGit({
+      worktrees: [{ path: root, branch: "main" }, { path: stray, branch: "a-change" }],
+    });
+
+    const code = await worktreeCommand(
+      { repositoryRoot: root, action: "move", changeName: "a-change", format: "text" },
+      { ...collectingIo(), createGit: () => git, rootSources: NO_SETTINGS },
+    );
+
+    expect(code).toBe(0);
+    expect(git.moved).toHaveLength(1);
+    expect(git.moved[0]?.from).toBe(stray);
+    // Under the one root, named by its repository.
+    expect(git.moved[0]?.to).toContain(path.join(".worktrees", path.basename(root), "a-change"));
+  });
+
+  it("moves nothing that is already under the root", async () => {
+    const root = await temporaryRoot();
+    await withActiveChange(root, "a-change");
+    const proper = path.join(path.dirname(root), ".worktrees", path.basename(root), "a-change");
+    const git = fakeGit({
+      worktrees: [{ path: root, branch: "main" }, { path: proper, branch: "a-change" }],
+    });
+    const out = collectingIo();
+
+    const code = await worktreeCommand(
+      { repositoryRoot: root, action: "move", changeName: "a-change", format: "text" },
+      { ...out, createGit: () => git },
+    );
+
+    expect(code).toBe(0);
+    expect(git.moved).toEqual([]);
+    expect(out.out.join("\n")).toContain("already under the root");
+  });
+
+  it("reports a stray directory in the listing but never moves it there", async () => {
+    const root = await temporaryRoot();
+    await withActiveChange(root, "a-change");
+    const stray = path.join(path.dirname(root), "somewhere-else", "a-change");
+    const git = fakeGit({
+      worktrees: [{ path: root, branch: "main" }, { path: stray, branch: "a-change" }],
+    });
+    const out = collectingIo();
+
+    const code = await worktreeCommand(
+      { repositoryRoot: root, action: "list", format: "text" },
+      { ...out, createGit: () => git },
+    );
+
+    expect(code).toBe(0);
+    // Somebody may have scripts pointing at the path it has, so listing
+    // says where it would go and moves nothing (ADR 0027).
+    expect(out.out.join("\n")).toContain("not under the root");
+    expect(git.moved).toEqual([]);
+  });
+});
+
+describe("worktree remove — what leaves before the directory does", () => {
+  it("takes the run history into the repository before removing", async () => {
+    const root = await temporaryRoot();
+    await withActiveChange(root, "a-change");
+    const worktree = path.join(root, "w");
+    await mkdir(path.join(worktree, ".openspec-ui"), { recursive: true });
+    await writeFile(
+      path.join(worktree, ".openspec-ui", "audit.jsonl"),
+      JSON.stringify({ runId: "there-1", cwd: worktree }) + "\n",
+      "utf8",
+    );
+    const out = collectingIo();
+    const git = fakeGit({ worktrees: [{ path: root, branch: "main" }, { path: worktree, branch: "a-change" }] });
+
+    const code = await worktreeCommand(
+      { repositoryRoot: root, action: "remove", changeName: "a-change", format: "text" },
+      { ...out, createGit: () => git, rootSources: NO_SETTINGS },
+    );
+
+    expect(code).toBe(0);
+    expect(git.removed).toEqual([worktree]);
+    // The directory's .openspec-ui is gitignored and removal does not see
+    // ignored files, so without this the history goes with it (ADR 0027).
+    const kept = await readFile(path.join(root, ".openspec-ui", "audit.jsonl"), "utf8");
+    expect(kept).toContain("there-1");
+    expect(out.out.join("\n")).toContain("1 run record");
+  });
+
+  it("names what it is about to discard, before discarding it", async () => {
+    const root = await temporaryRoot();
+    await withActiveChange(root, "a-change");
+    const worktree = path.join(root, "w");
+    await mkdir(path.join(worktree, ".openspec-ui", "checkpoints", "one"), { recursive: true });
+    const out = collectingIo();
+    const git = fakeGit({ worktrees: [{ path: root, branch: "main" }, { path: worktree, branch: "a-change" }] });
+
+    await worktreeCommand(
+      { repositoryRoot: root, action: "remove", changeName: "a-change", format: "text" },
+      { ...out, createGit: () => git, rootSources: NO_SETTINGS },
+    );
+
+    const printed = out.out.join("\n");
+    // A destroyed thing that was announced is a decision; one that was
+    // not is a discovery, made later, by whoever needed it.
+    expect(printed).toContain("Discarding 1 checkpoint");
+    expect(printed.indexOf("Discarding")).toBeLessThan(printed.indexOf("Removed"));
   });
 });

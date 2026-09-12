@@ -10,6 +10,11 @@ import { parseWorktreePorcelain, type GitWorktree, type GitWrapper } from "./git
 // 2026-09-11 under 50ms for the slowest.
 vi.setConfig({ testTimeout: 15_000 });
 
+/** A home directory holding no settings file, so the default answers.
+ * Pointing at a real but empty place rather than at the tester's own
+ * home, whose settings would decide the result of somebody else's run. */
+const NO_SETTINGS = path.join(os.tmpdir(), "openspec-ui-no-settings-here");
+
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
@@ -89,7 +94,7 @@ describe("parseWorktreePorcelain", () => {
 });
 
 describe("defaultWorktreePath", () => {
-  it("is a sibling of the repository, not a path inside it", () => {
+  it("goes under one root, named by its repository, and never inside the repository", async () => {
     // Nested inside its own main working tree it would put a complete
     // second copy of the repository under a directory every recursive
     // tool in the repository walks.
@@ -97,9 +102,11 @@ describe("defaultWorktreePath", () => {
     // drive letter, and comparing a resolved path to an unresolved one
     // would fail for a reason that has nothing to do with the rule.
     const repository = path.resolve(path.join(path.sep, "home", "me", "repo"));
-    const target = defaultWorktreePath(repository, "a-change");
+    const target = await defaultWorktreePath(repository, "a-change", { env: {}, homeDirectory: NO_SETTINGS });
 
-    expect(target).toBe(path.join(path.dirname(repository), "repo.worktrees", "a-change"));
+    // One root for every repository (ADR 0027), with the repository as a
+    // segment inside it rather than a container beside it.
+    expect(target).toBe(path.join(path.dirname(repository), ".worktrees", "repo", "a-change"));
     expect(target.startsWith(repository + path.sep)).toBe(false);
   });
 });

@@ -217,6 +217,7 @@ function makeGitStageDeps(options: {
     // being cast — which is how a fake stops matching what it fakes.
     worktreeList: vi.fn(async () => []),
     worktreeAdd: vi.fn(async () => undefined),
+    worktreeMove: vi.fn(async () => undefined),
     worktreeRemove: vi.fn(async () => undefined),
     pathExistsInRef: vi.fn(async () => true),
     changedFilesBetween: vi.fn(async () => []),

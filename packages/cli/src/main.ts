@@ -35,6 +35,7 @@ Usage:
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
+  openspec-ui-cli worktree move <change> [--cwd <path>]
   openspec-ui-cli worktree remove <change> [--cwd <path>]
   openspec-ui-cli change-graph [--cwd <path>] [--change <id>] [--all]
   openspec-ui-cli release-manifest [--cwd <path>] [--repository <owner/name>]
@@ -48,8 +49,10 @@ Options:
                       output is one document made at the end; default
                       text for run and check, which are watched. For
                       run, json is one event per line, as it happens.
-  --path <dir>        Where a working directory goes (default: a sibling
-                      of the repository, <repo>.worktrees/<change>)
+  --path <dir>        Where a working directory goes (default: under one
+                      root, <root>/<repo>/<change>; the root comes from
+                      OPENSPEC_UI_WORKTREE_ROOT, then ~/.openspec-ui/
+                      settings.json, then <repo's parent>/.worktrees)
   --base <ref>        The ref a working directory is cut from
                       (default: main)
   --change <id>       Print one change's ancestry instead of the whole
@@ -315,7 +318,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
 
   if (command === "worktree") {
     const action = options.changeName;
-    if (action !== "add" && action !== "list" && action !== "remove") {
+    if (action !== "add" && action !== "list" && action !== "move" && action !== "remove") {
       stderr();
       stderr(USAGE);
       return 2;

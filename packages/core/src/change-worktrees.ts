@@ -18,6 +18,7 @@ import { access } from "node:fs/promises";
 import { isValidChangeName } from "./change-name.js";
 import type { GitWorktree, GitWrapper } from "./git.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
+import { resolveWorktreeRoot, worktreePathUnder, type WorktreeRootSources } from "./worktree-root.js";
 
 /** One working directory, said in this product's terms. */
 export interface ChangeWorktree extends GitWorktree {
@@ -31,6 +32,13 @@ export interface ChangeWorktree extends GitWorktree {
   changeIsActive?: boolean;
   /** Whether this is the repository's main working tree. */
   isMain: boolean;
+  /** Where it would go under today's root, present only when that is
+   * somewhere other than where it is.
+   *
+   * Reported and never acted on: somebody may have scripts pointing at
+   * the path it has, and a directory that moved on its own would break
+   * them for a reason nobody could see (ADR 0027). */
+  belongsUnderRoot?: string;
 }
 
 /** Why a working directory will not be created. `remedy` is the point of
@@ -45,15 +53,24 @@ export type ChangeWorktreePlan =
   | { ok: true; path: string; branch: string; base: string }
   | { ok: false; refusal: ChangeWorktreeRefusal };
 
-/** Where a working directory for `changeName` goes by default: a sibling
- * of the repository, not a path inside it.
+/** Where a working directory for `changeName` goes by default: under the
+ * one root, at `<root>/<repository>/<change>`, and never inside the
+ * repository itself.
  *
  * A worktree nested in its own main working tree does work, but it puts
  * a complete second copy of the repository under a directory that every
- * recursive tool in the repository will walk. */
-export function defaultWorktreePath(repositoryRoot: string, changeName: string): string {
-  const root = path.resolve(repositoryRoot);
-  return path.join(path.dirname(root), `${path.basename(root)}.worktrees`, changeName);
+ * recursive tool in the repository will walk.
+ *
+ * One root for every repository rather than one container beside each:
+ * see ADR 0027. The root itself is a setting of the machine, resolved by
+ * `resolveWorktreeRoot`. */
+export async function defaultWorktreePath(
+  repositoryRoot: string,
+  changeName: string,
+  sources?: WorktreeRootSources,
+): Promise<string> {
+  const { root } = await resolveWorktreeRoot(repositoryRoot, sources ?? {});
+  return worktreePathUnder(root, repositoryRoot, changeName);
 }
 
 /** The change directory's path inside the repository, as git spells it —
@@ -84,10 +101,15 @@ export async function planChangeWorktree(options: {
   path?: string;
   /** The ref the directory is cut from. Defaults to `main`. */
   base?: string;
+  /** Test seam for where the root is read from. Production passes
+   * nothing and gets the real environment and the real home directory. */
+  rootSources?: WorktreeRootSources;
 }): Promise<ChangeWorktreePlan> {
   const { git, repositoryRoot, changeName } = options;
   const base = options.base ?? "main";
-  const target = options.path ? path.resolve(options.path) : defaultWorktreePath(repositoryRoot, changeName);
+  const target = options.path
+    ? path.resolve(options.path)
+    : await defaultWorktreePath(repositoryRoot, changeName, options.rootSources);
 
   if (!isValidChangeName(changeName)) {
     return {
@@ -148,9 +170,12 @@ export async function planChangeWorktree(options: {
 export async function listChangeWorktrees(options: {
   git: GitWrapper;
   repositoryRoot: string;
+  /** Test seam for where the root is read from. */
+  rootSources?: WorktreeRootSources;
 }): Promise<ChangeWorktree[]> {
   const worktrees = await options.git.worktreeList();
   const mainPath = worktrees[0]?.path;
+  const { root } = await resolveWorktreeRoot(mainPath ?? options.repositoryRoot, options.rootSources ?? {});
 
   let activeChanges = new Set<string>();
   try {
@@ -168,11 +193,20 @@ export async function listChangeWorktrees(options: {
     const changeName = !isMain && worktree.branch && isValidChangeName(worktree.branch)
       ? worktree.branch
       : undefined;
+    // Only for a directory that belongs to a change: the main working
+    // tree is wherever the person put the repository, and has no place
+    // it ought to be instead.
+    const belongsUnder = changeName !== undefined && !isMain
+      ? worktreePathUnder(root, mainPath ?? options.repositoryRoot, changeName)
+      : undefined;
     return {
       ...worktree,
       isMain,
       ...(changeName !== undefined
         ? { changeName, changeIsActive: activeChanges.has(changeName) }
+        : {}),
+      ...(belongsUnder !== undefined && path.resolve(worktree.path) !== belongsUnder
+        ? { belongsUnderRoot: belongsUnder }
         : {}),
     };
   });

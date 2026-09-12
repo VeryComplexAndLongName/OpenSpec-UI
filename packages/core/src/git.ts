@@ -86,6 +86,10 @@ export interface GitWrapper {
    * from `base`. Explicit in all three, as `push` is: the command that
    * runs is the command that was decided on. */
   worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void>;
+  /** Relocates a working directory, keeping git's own record of it in
+   * step. Moving the folder by hand would leave that record pointing at
+   * nothing. */
+  worktreeMove(from: string, to: string): Promise<void>;
   worktreeRemove(path: string): Promise<void>;
   /** The git identity configured for this working directory —
    * `user.email`, falling back to `user.name` — or `undefined` where
@@ -154,6 +158,12 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
     },
     async worktreeAdd(options: { path: string; branch: string; base: string }): Promise<void> {
       await git.raw(["worktree", "add", "-b", options.branch, options.path, options.base]);
+    },
+    async worktreeMove(from: string, to: string): Promise<void> {
+      // No `--force` here either. Git refuses a move it cannot make
+      // cleanly, and a directory relocated over the top of something
+      // else would be a worse outcome than a refusal.
+      await git.raw(["worktree", "move", from, to]);
     },
     async worktreeRemove(worktreePath: string): Promise<void> {
       // No `--force`. Refusing a directory that still holds work is the
