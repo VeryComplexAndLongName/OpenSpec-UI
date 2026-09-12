@@ -7,38 +7,54 @@ screenshot again with a mask — all four work against the binary in
 
 ## 1. The fixture
 
-- [ ] 1.1 A fixture workspace with fixed contents: the changes,
+- [x] 1.1 A fixture workspace with fixed contents: the changes,
   archives, specs and templates the nine pictures show.
-- [ ] 1.2 Its directory name is fixed and carries no account name. The
+- [x] 1.2 Its directory name is fixed and carries no account name. The
   editor shows the workspace in its title bar and Explorer root, so this
   is cheaper than masking it afterwards.
-- [ ] 1.3 Not this repository, ever. A picture taken against live
+- [x] 1.3 Not this repository, ever. A picture taken against live
   contents changes when the work changes rather than when the screen
   does.
 
 ## 2. Taking them
 
-- [ ] 2.1 A spec that launches the downloaded VS Code through
+- [x] 2.1 A spec that launches the downloaded VS Code through
   `_electron.launch()`, with the extension installed and the fixture
   open.
-- [ ] 2.2 A window of a stated size, so two runs differ only where the
+- [x] 2.2 A window of a stated size, so two runs differ only where the
   product does.
-- [ ] 2.3 Waits on selectors, never on a duration.
+- [x] 2.3 Waits on selectors, never on a duration.
 - [ ] 2.4 Opens a view by running its command rather than by clicking a
   path through menus. The workbench DOM is not a public API; selecting
   as little as possible is the mitigation.
 - [ ] 2.5 The nine, at their existing paths, so `README.md` and the
   extension's README keep working untouched.
-- [ ] 2.6 Regions carrying the machine are masked with `mask` /
-  `maskColor`, not cropped — what was hidden should be visible as
-  hidden.
+  **Two of nine done**: `overview-expanded.png` and
+  `overview-compact.png`, which are the two the READMEs lead with. The
+  remaining seven need a view driven into a particular state — an open
+  context menu for `archive-actions` and `template-actions`, an expanded
+  task tree for `nested-tasks`, a spec open in the editor for
+  `specs-editor` — and a context menu is the part of this that a version
+  bump is most likely to move.
+  One blemish to settle before the rest: the title bar reads
+  `[Extension Development Host]`, which is true of how the picture is
+  taken and not of the product a reader installs.
+- [x] 2.6 ~~Regions carrying the machine are masked with `mask` /
+  `maskColor`, not cropped.~~ **Nothing needs masking, and the fixture
+  is why.** The standalone captures mask two path fields because their
+  fixture sits under a temporary path carrying the account name; a fixed
+  workspace name keeps the title bar and the Explorer root clean in the
+  first place. Tried and removed: a grey rectangle across the top of the
+  editor reads as a rendering fault, which is worse than what it hid.
+  Verified in the captured picture — the title bar reads
+  `openspec-workbench` and nothing else.
 
 ## 3. Where it runs
 
-- [ ] 3.1 Its own command, beside the standalone browser suite. It
+- [x] 3.1 Its own command, beside the standalone browser suite. It
   downloads and launches an editor, and `npm run test` has to stay
   something a person runs between edits.
-- [ ] 3.2 Windows only, and said so. A second platform is a second set
+- [x] 3.2 Windows only, and said so. A second platform is a second set
   of pictures that would drift apart.
 
 ## 4. The baseline
