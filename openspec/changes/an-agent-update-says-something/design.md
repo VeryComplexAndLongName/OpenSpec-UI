@@ -30,9 +30,9 @@ known in exactly one file, the one that already parses it.
 | Claude stream-json | ACP session update |
 |---|---|
 | `assistant`, content block `text` | `agent_message_chunk`, content `{ type: "text", text }` |
-| `assistant`, content block `thinking` | `agent_thought_chunk`, content `{ type: "text", text }` |
-| `assistant`, content block `tool_use` named `TodoWrite` | `plan`, one entry per todo |
-| `assistant`, any other `tool_use` block | `tool_call`: `toolCallId` from the block's `id`, `title`, `kind`, `status: "in_progress"`, `locations`, `rawInput` from the block's `input` |
+| `assistant`, content block `thinking` with text | `agent_thought_chunk`, content `{ type: "text", text }` |
+| `assistant`, content block `thinking` with no text | nothing |
+| `assistant`, content block `tool_use` | `tool_call`: `toolCallId` from the block's `id`, `title`, `kind`, `status: "in_progress"`, `locations`, `rawInput` from the block's `input` |
 | `user`, content block `tool_result` | `tool_call_update`: `toolCallId` from `tool_use_id`, `status` `failed` when `is_error` is true and `completed` otherwise, and the call's `title` again |
 | `system`, `result`, and any other line | unchanged: `sessionUpdate` is the line's `type`, and the line is spread in |
 
@@ -42,15 +42,30 @@ in the order of its blocks.
 The `result` line keeps doing everything it does today: it decides the
 run's terminal event and reports usage.
 
-A `TodoWrite` call becomes a plan rather than a tool call, so its result
-has no call to update. The adapter remembers which ids it turned into
-plans and drops their results.
+A line whose blocks were all recognised but say nothing — redacted
+thinking — sends nothing. A line with a block that was not recognised,
+and nothing translated, is forwarded exactly as today.
 
-A plan entry's `status` takes Claude's todo status directly; both use
-`pending`, `in_progress` and `completed`. ACP requires a `priority` and
-Claude reports none, so the adapter writes `medium`. Nothing in this
-product reads priority, and a schema-valid imitation is worth more than
-leaving a required field out.
+### What a real stream showed
+
+The mapping was checked against a stream captured from `claude` 2.1.237,
+run with the adapter's own flags, and kept as the adapter's test
+fixture. Three things in it changed this design from its first draft:
+
+- **There is no `TodoWrite`.** That version's tool list has none, and
+  asked to use it the agent searched for it and went on without. The
+  first draft turned `TodoWrite` into an ACP `plan`; with nothing to
+  verify it against, that is dropped. A todo tool that appears in a later
+  version is an ordinary tool call until somebody captures one.
+- **Thinking arrives redacted**: a `thinking` block with an empty text
+  beside its signature. An `agent_thought_chunk` is sent only for thinking
+  that has text.
+- **Each `assistant` line carried one block.** The translation does not
+  rely on it: a line with several blocks becomes several updates.
+
+Lines ACP has no counterpart for also turned up — `rate_limit_event`,
+`system` with `thinking_tokens`, `task_started` and `task_notification` —
+and are forwarded as they are.
 
 ## Decision: the adapter writes the title
 
@@ -63,13 +78,16 @@ writes it:
 |---|---|---|
 | `Read` | `Read <path>` | `read` |
 | `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `<tool> <path>` | `edit` |
-| `Bash` | `Bash: <first line of the command>` | `execute` |
+| `Bash`, `PowerShell` | `<tool>: <first line of the command>` | `execute` |
 | `Grep` | `Grep "<pattern>"`, plus ` in <path>` when one is given | `search` |
 | `Glob` | `Glob <pattern>` | `search` |
 | `WebFetch` | `WebFetch <url>` | `fetch` |
 | `WebSearch` | `WebSearch "<query>"` | `fetch` |
 | `Task`, `Agent` | `Agent: <description>` | `other` |
-| any other tool, or a known tool missing its field | the tool's name | `other` |
+| any other tool | the tool's name | `other` |
+
+A known tool whose input lacks the field its title needs is titled by its
+name and keeps its kind.
 
 A path in a title is relative to the run's working directory when it
 lies inside it, so a line reads `Edit packages/core/src/index.ts` rather
@@ -129,7 +147,12 @@ shape nobody here has seen is not guessed at.
 | VS Code output channel | the text itself | `[agent] <line>` | `[agent update] <kind>`, unchanged |
 | terminal, text | joined prose, unchanged | `· <line>` on a line of its own | nothing, unchanged |
 | terminal, JSON lines | the whole event, unchanged | the whole event, unchanged | the whole event, unchanged |
-| status record activity | the last line of text, unchanged | the line | nothing, unchanged |
+
+The status record of `an-agent-says-what-it-is-doing` is the fourth
+surface, and is not in this table on purpose. When this change was
+implemented that record existed only as uncommitted work, so this change
+provides the reader and that change's task 3.2 — "where an agent streams
+its own progress, the latest is carried" — takes its line from it.
 
 The output channel showed a text chunk as its kind; it now shows the
 text, as it already shows `stdout`.

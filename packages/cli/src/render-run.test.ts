@@ -70,19 +70,56 @@ describe("RunTextRenderer", () => {
     expect(output).toContain("attempt 2");
   });
 
-  it("shows nothing for an update it does not recognise as text", () => {
+  it("shows nothing for an update core reads nothing out of", () => {
     const renderer = new RunTextRenderer();
 
     const piece = renderer.render({
       kind: "agentUpdate",
       runId: "r",
       timestamp: at,
-      update: { sessionUpdate: "tool_call", title: "Read file" },
+      update: { sessionUpdate: "some_future_update", title: "Looks readable" },
     });
 
     // ACP is not ours and the payload is passed through verbatim —
     // guessing at an unfamiliar shape turns a protocol addition into
     // mangled output.
+    expect(piece).toBeUndefined();
+  });
+
+  // an-agent-update-says-something tasks.md 5.6.
+  it("prints a tool call's title, and a failure, each on a line of its own", () => {
+    const lineBreak = String.fromCharCode(10);
+    const output = render([
+      chunkEvent("Let me look.", "agent_message_chunk"),
+      {
+        kind: "agentUpdate",
+        runId: "r",
+        timestamp: at,
+        update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "Bash: npm test", kind: "execute" },
+      },
+      {
+        kind: "agentUpdate",
+        runId: "r",
+        timestamp: at,
+        update: { sessionUpdate: "tool_call_update", toolCallId: "t1", status: "failed", title: "Bash: npm test" },
+      },
+      chunkEvent("It failed.", "agent_message_chunk"),
+    ]);
+
+    const lines = output.split(lineBreak).filter((line) => line.length > 0);
+    expect(lines).toEqual(["Let me look.", "· Bash: npm test", "· failed: Bash: npm test", "It failed."]);
+  });
+
+  it("prints nothing for a tool call that simply completed", () => {
+    const renderer = new RunTextRenderer();
+
+    const piece = renderer.render({
+      kind: "agentUpdate",
+      runId: "r",
+      timestamp: at,
+      update: { sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", title: "Read a.ts" },
+    });
+
     expect(piece).toBeUndefined();
   });
 

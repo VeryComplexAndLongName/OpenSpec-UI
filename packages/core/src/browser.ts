@@ -175,6 +175,10 @@ export * from "./verified-agent-versions.js";
 // answer before they can show a streamed reply as prose rather than as
 // the slices it arrived in.
 export * from "./acp-streamed-text.js";
+// Reading the rest of an ACP update — a tool call, a failure, a plan — as
+// one line. The same kind of leaf, for the same reason: every surface that
+// shows a run asks the same question of the same payload.
+export * from "./acp-update-line.js";
 // The readiness report's shape, the words a collision is described in,
 // and where each change goes in the picture. Two leaf modules with only
 // type imports of the Node-side readers that fill the report in — the
