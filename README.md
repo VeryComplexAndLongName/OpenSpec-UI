@@ -320,6 +320,10 @@ accepts it, and where each is edited in both hosts) and
 [`LIMITS.md`](LIMITS.md) for what actually caps a run's spending — and
 what does not.
 
+For one specific thing rather than the whole reference,
+[`docs/how-to/`](docs/how-to/) has a page per common goal: the goal, the
+file it edits, and the two steps that reach it.
+
 ## CI CLI (merge gate)
 
 `packages/cli` (see `docs/adr/0007-ci-cli-third-delivery-target.md`) is a
