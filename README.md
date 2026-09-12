@@ -93,6 +93,10 @@ Active development. The repository contains a working standalone application,
 shared core and web UI packages, and a native VS Code OpenSpec Workbench. See
 `openspec/README.md` for the governed change workflow.
 
+What the current releases added, written for somebody using the tool rather
+than building it:
+[What you can run now: 0.44 → 0.50](docs/articles/2026-09-12-what-you-can-run-now-0-44-to-0-50.md).
+
 ## Why not just `openspec view`
 
 OpenSpec CLI already has `openspec view` — an interactive dashboard for
