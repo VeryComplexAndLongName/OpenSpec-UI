@@ -173,3 +173,18 @@ passed; core, server (with its browser specs) and webui typecheck.
   the tab, and the command's output. The unit tests drive the survey with
   directories a test made; only a real second agent shows that what it
   writes is what the survey reads.
+  2026-09-13, first attempt through `/api/delegated-item/run` — not a
+  close. claude-cli made a second working directory (label "proposals
+  (second agent)", branch `proposals-7-5`, fixture change
+  `hello-from-proposals` with 3 tasks) and started `openspec-ui-cli run`
+  there as `second-agent@example.com`. The survey read it as it was on
+  disk: label, branch, changes with their duplicates, the holder with
+  `authorDiffers: true`, and the run `hello-from-proposals (apply):
+  running apply` with a 1.4s heartbeat. Nothing else could be checked:
+  that run died about 15s in with `EPERM` from `AgentStatusWriter.write`,
+  so `openspec-ui-cli status` had no run to print when it was read, and
+  the tab was still reading its own report when it was captured. Blocked
+  by `a-status-write-never-stops-a-run`; the agent then ran into the
+  account's session limit. Earlier the same day the route had refused
+  this item for naming its agent in backticks, and a run had exited at
+  once on a `claude` too old for the API.
