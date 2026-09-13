@@ -4,6 +4,5 @@ follows:
   - changes-run-side-by-side
   - what-can-start-now
   - a-lease-says-who
-  - an-agent-says-what-it-is-doing
 blocked_by:
   - a-graph-of-what-is-running
