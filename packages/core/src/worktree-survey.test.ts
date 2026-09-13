@@ -301,6 +301,28 @@ describe("surveyWorktrees — what a directory's runs say", () => {
     expect(describeDirectoryRuns(survey.directories[0] as never)[0]).toContain("gone");
   });
 
+  // a-stale-status-is-swept 2.3
+  it("removes a lapsed record only when asked to sweep, keeps a live one, and asks git for nothing more", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const statusDirectory = agentStatusDirectory(worktreeRoot, main);
+    await writeStatus(statusDirectory, { instanceId: "run-lapsed", workingDirectory: main, activity: "Write hello.txt", ageMs: 60_000 });
+    await writeStatus(statusDirectory, { instanceId: "run-live", workingDirectory: main, activity: "Bash: npm test" });
+    const runIds = (survey: Awaited<ReturnType<typeof surveyWorktrees>>): string[] =>
+      (survey.directories[0]?.runs ?? []).map((run) => run.instanceId).sort();
+
+    const reading = await surveyWorktrees({ workspaceRoot: main, git: recordingGit([{ path: main, branch: "main" }]).git, rootSources });
+    expect(runIds(reading)).toEqual(["run-lapsed", "run-live"]);
+
+    const { git, calls } = recordingGit([{ path: main, branch: "main" }]);
+    const swept = await surveyWorktrees({ workspaceRoot: main, git, rootSources, sweepStatuses: true });
+    expect(runIds(swept)).toEqual(["run-live"]);
+    expect(calls).toEqual(["worktreeList", "configuredIdentity"]);
+
+    // Gone from disk, not only from that reading.
+    const afterwards = await surveyWorktrees({ workspaceRoot: main, git: recordingGit([{ path: main, branch: "main" }]).git, rootSources });
+    expect(runIds(afterwards)).toEqual(["run-live"]);
+  });
+
   // 6.11
   it("describes a directory no run reports from as such, and nowhere calls anything idle", async () => {
     const { main, worktreeRoot, rootSources } = await repository();

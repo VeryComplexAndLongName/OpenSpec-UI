@@ -9,7 +9,7 @@
 // has, extended with one more file per run rather than a second lease.
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
@@ -182,6 +182,10 @@ export class AgentStatusWriter {
   async start(initialActivity = "starting"): Promise<void> {
     this.activity = initialActivity;
     this.activityAt = this.now().toISOString();
+    // What runs that will never write again left behind goes before this
+    // run adds its own (a-stale-status-is-swept). A sweep that fails is no
+    // reason for this run to go unreported.
+    await sweepAgentStatuses(this.directory, { now: this.now }).catch(() => undefined);
     await this.enqueue();
     this.timer = setInterval(() => {
       // `writeQuietly` never rejects. A rejection left unhandled here is
@@ -342,10 +346,80 @@ function isMissingPath(error: unknown): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
+/** One record as every reader judges it: a run's report, a record that
+ * cannot be trusted, or a file that went away between being listed and
+ * being read. */
+type AgentStatusRecordReading =
+  | { kind: "report"; report: AgentStatusReport }
+  | { kind: "malformed"; reason: string }
+  | { kind: "missing" };
+
+async function readAgentStatusRecord(
+  directory: string,
+  fileName: string,
+  now: () => Date,
+  staleAfterMs: number,
+): Promise<AgentStatusRecordReading> {
+  const filePath = path.join(directory, fileName);
+  const expectedId = fileName.slice(0, -".json".length);
+  try {
+    const raw = await readFile(filePath, "utf8");
+    let document: Partial<AgentStatusDocument>;
+    try {
+      document = JSON.parse(raw) as Partial<AgentStatusDocument>;
+    } catch {
+      return { kind: "malformed", reason: "not valid JSON" };
+    }
+    if (
+      typeof document.instanceId !== "string" ||
+      typeof document.activity !== "string" ||
+      typeof document.workingDirectory !== "string" ||
+      typeof document.activityAt !== "string" ||
+      typeof document.heartbeatAt !== "string"
+    ) {
+      return { kind: "malformed", reason: "missing or invalid required fields" };
+    }
+    if (document.instanceId !== expectedId) {
+      return {
+        kind: "malformed",
+        reason: `record identity "${document.instanceId}" does not match file name "${expectedId}"`,
+      };
+    }
+    const activitySinceMs = now().getTime() - Date.parse(document.activityAt);
+    const heartbeatAgeMs = now().getTime() - Date.parse(document.heartbeatAt);
+    if (!Number.isFinite(activitySinceMs) || !Number.isFinite(heartbeatAgeMs)) {
+      return { kind: "malformed", reason: "activityAt or heartbeatAt is not a valid timestamp" };
+    }
+    return {
+      kind: "report",
+      report: {
+        instanceId: document.instanceId,
+        activity: document.activity,
+        stage: document.stage ?? null,
+        changeName: document.changeName ?? null,
+        workingDirectory: document.workingDirectory,
+        activitySinceMs,
+        heartbeatAgeMs,
+        gone: heartbeatAgeMs > staleAfterMs,
+      },
+    };
+  } catch (error) {
+    // A file `readdir` just listed can vanish before it is read: a writer
+    // on a filesystem that will not replace a name removes the destination
+    // before renaming onto it, and a sweep removes records. That is a race
+    // this design survives, not a malformed record — the same reasoning
+    // `readWorkspaceLeaseHolder` already applies to a lease that goes
+    // missing between being listed and being read.
+    if (isMissingPath(error)) return { kind: "missing" };
+    return { kind: "malformed", reason: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /** Every run's status in one repository, read as a pure function over
  * its directory: the same answer for the CLI, the standalone shell, and
  * anything else that asks. A repository with nothing running reads as
- * an empty list, not an error. */
+ * an empty list, not an error. Reading never removes anything; that is
+ * `sweepAgentStatuses`. */
 export async function readAgentStatuses(
   directory: string,
   options: { now?: () => Date; staleAfterMs?: number } = {},
@@ -365,64 +439,94 @@ export async function readAgentStatuses(
 
   for (const fileName of entries) {
     if (!fileName.endsWith(".json")) continue;
-    const filePath = path.join(directory, fileName);
-    const expectedId = fileName.slice(0, -".json".length);
-    try {
-      const raw = await readFile(filePath, "utf8");
-      let document: Partial<AgentStatusDocument>;
-      try {
-        document = JSON.parse(raw) as Partial<AgentStatusDocument>;
-      } catch {
-        malformed.push({ fileName, reason: "not valid JSON" });
-        continue;
-      }
-      if (
-        typeof document.instanceId !== "string" ||
-        typeof document.activity !== "string" ||
-        typeof document.workingDirectory !== "string" ||
-        typeof document.activityAt !== "string" ||
-        typeof document.heartbeatAt !== "string"
-      ) {
-        malformed.push({ fileName, reason: "missing or invalid required fields" });
-        continue;
-      }
-      if (document.instanceId !== expectedId) {
-        malformed.push({
-          fileName,
-          reason: `record identity "${document.instanceId}" does not match file name "${expectedId}"`,
-        });
-        continue;
-      }
-      const activitySinceMs = now().getTime() - Date.parse(document.activityAt);
-      const heartbeatAgeMs = now().getTime() - Date.parse(document.heartbeatAt);
-      if (!Number.isFinite(activitySinceMs) || !Number.isFinite(heartbeatAgeMs)) {
-        malformed.push({ fileName, reason: "activityAt or heartbeatAt is not a valid timestamp" });
-        continue;
-      }
-      reports.push({
-        instanceId: document.instanceId,
-        activity: document.activity,
-        stage: document.stage ?? null,
-        changeName: document.changeName ?? null,
-        workingDirectory: document.workingDirectory,
-        activitySinceMs,
-        heartbeatAgeMs,
-        gone: heartbeatAgeMs > staleAfterMs,
-      });
-    } catch (error) {
-      // A file `readdir` just listed can vanish before it is read: the
-      // writer's own write-then-rename briefly removes the destination
-      // when a rename lands on an existing name (Windows) before putting
-      // the new one in its place. That is the race this design exists to
-      // survive, not a malformed record — the same reasoning
-      // `readWorkspaceLeaseHolder` already applies to a lease that goes
-      // missing between being listed and being read.
-      if (isMissingPath(error)) continue;
-      malformed.push({ fileName, reason: error instanceof Error ? error.message : String(error) });
-    }
+    const reading = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+    if (reading.kind === "report") reports.push(reading.report);
+    else if (reading.kind === "malformed") malformed.push({ fileName, reason: reading.reason });
   }
 
   return { reports, malformed };
+}
+
+/** What a sweep removed, by file name, so a caller can say so. */
+export interface AgentStatusSweepResult {
+  /** Records whose writers are gone: past the staleness window, and still
+   * past it when read again immediately before removal. */
+  removedRecords: string[];
+  /** Temporary files a write that never finished left behind. */
+  removedTemporaryFiles: string[];
+}
+
+export interface AgentStatusSweepOptions {
+  now?: () => Date;
+  staleAfterMs?: number;
+  /** Test seam: runs between finding a record stale and reading it again,
+   * which is where a slow writer's renewal can land. */
+  beforeReread?: (fileName: string) => Promise<void>;
+}
+
+/** Removes what nobody will write again — a-stale-status-is-swept.
+ *
+ * A record is removed only when, read again immediately before removal,
+ * its heartbeat is still past the window: a writer that was slow, not
+ * dead, keeps its record. A temporary `<id>.json.<uuid>.tmp` goes once it
+ * is older than the same window. A malformed record is never removed — it
+ * is evidence, and the reader keeps reporting it. Nothing in a record is
+ * worth collecting first: a status record holds only the present, and a
+ * run's history is in the audit log already.
+ *
+ * Separate from `readAgentStatuses`, which stays a pure function. */
+export async function sweepAgentStatuses(
+  directory: string,
+  options: AgentStatusSweepOptions = {},
+): Promise<AgentStatusSweepResult> {
+  const now = options.now ?? (() => new Date());
+  const staleAfterMs = options.staleAfterMs ?? AGENT_STATUS_STALE_AFTER_MS;
+  const result: AgentStatusSweepResult = { removedRecords: [], removedTemporaryFiles: [] };
+
+  let entries: string[];
+  try {
+    entries = await readdir(directory);
+  } catch (error) {
+    if (isMissingPath(error)) return result;
+    throw error;
+  }
+
+  for (const fileName of entries) {
+    const filePath = path.join(directory, fileName);
+    if (fileName.endsWith(".json")) {
+      const first = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+      if (first.kind !== "report" || !first.report.gone) continue;
+      await options.beforeReread?.(fileName);
+      const again = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+      if (again.kind !== "report" || !again.report.gone) continue;
+      if (await removeIfStillThere(filePath)) result.removedRecords.push(fileName);
+    } else if (fileName.includes(".json.") && fileName.endsWith(".tmp")) {
+      let modifiedAtMs: number;
+      try {
+        modifiedAtMs = (await stat(filePath)).mtimeMs;
+      } catch {
+        continue;
+      }
+      if (now().getTime() - modifiedAtMs <= staleAfterMs) continue;
+      if (await removeIfStillThere(filePath)) result.removedTemporaryFiles.push(fileName);
+    }
+  }
+
+  return result;
+}
+
+/** Removes a file that another sweep, or its writer, may be touching at
+ * the same moment. Already gone is another sweep's work; in use for a
+ * moment is the next sweep's. Neither is an error. */
+async function removeIfStillThere(filePath: string): Promise<boolean> {
+  try {
+    await rm(filePath);
+    return true;
+  } catch (error) {
+    const code = errorCode(error);
+    if (code === "ENOENT" || (code !== undefined && IN_USE_CODES.has(code))) return false;
+    throw error;
+  }
 }
 
 /** Where a run's status belongs, resolved the same way every reader of a
