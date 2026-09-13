@@ -85,9 +85,44 @@ kept in memory. 2026-09-13: 6 passed, with the 24 of
 - [x] 5.3 A pending changeset exists. `check(changeset-present)`
   `.changeset/a-status-write-never-stops-a-run.md`, `@openspec-ui/core`
   patch; dependents follow through `updateInternalDependents`.
-- [ ] 5.4 **Delegated to claude-cli**: on this Windows machine, start a
+- [x] 5.4 **Delegated to claude-cli**: on this Windows machine, start a
   real `openspec-ui-cli run` of a small fixture change in a second working
   directory, and read `openspec-ui-cli status` every second until the run
   ends. Evidence: the run's exit code and log, and the status output
   across the run. The unit tests refuse a rename on purpose; only a real
   run shows that a run survives whatever Windows actually does.
+  2026-09-13, `run exit=0`. The CLI was `packages/cli/dist/cli.js` from
+  this branch (it contains `retryWhileInUse`). The fixture
+  `status-write-fixture` has three file-writing tasks, `autonomous` with
+  no checkpoints, and apply and verify on claude-cli-acp with
+  `claude-sonnet-5` at effort low. It was committed on a local branch in
+  the git worktree `C:/Prog/.worktrees/OpenSpec-UI/status-write-fixture`.
+  The run was `openspec-ui-cli run status-write-fixture --cwd <worktree>
+  --format text` with no terminal on standard input. Beside it, once a
+  second, `openspec-ui-cli status --cwd C:/Prog/OpenSpec-UI` started in
+  its own process, so reads overlapped the run's writes.
+  Run log: apply (two writes, a read-back, the tasks.md edit, $0.17), then
+  verify (one read-back, $0.06), then archive ("archived
+  status-write-fixture"). It ran from 14:16:00.759 to 14:16:45.340. The
+  log contains no `EPERM`, `EBUSY`, `EACCES`, `Error:` or unhandled
+  rejection.
+  Status: 47 reads about 1.08 s apart. Every read exited 0 and none
+  reported a malformed record. Read 1 (14:16:00.788, before the first
+  record) said "No runs are reporting themselves." Reads 2 to 41
+  (14:16:01.908 to 14:16:44.001) showed one record, `6bb39e20-...` on
+  "status-write-fixture" in the worktree. Its stage went from none to
+  apply at read 5, verify at read 29 and archive at read 39. "Last heard
+  from" was never above 5s, the renewal interval, and the record was
+  never marked gone. Reads 42 to 47 (from 14:16:45.083) said "No runs are
+  reporting themselves." `.agent-status` was empty afterwards.
+  What this does not show: whether any rename was refused and retried
+  during the run, because the writer reports no retries by design. It is
+  one 45 s run, past the 15 s mark at which the unfixed run died, with 40
+  status reads during the run.
+  Checked 2026-09-13 by a second agent against what the run left rather
+  than against this note: `run.log` and `run.exit` (`0`) in
+  `%TEMP%/openspec-5-4`; `drive.sh`, which starts each status read in its
+  own process once a second; all 47 reads — 40 with the run's record,
+  none malformed, none exiting non-zero, and no "last heard from" above
+  5s; and the fixture worktree's audit log, two stages started and both
+  completed. The fixture worktree and its branch were removed afterwards.
