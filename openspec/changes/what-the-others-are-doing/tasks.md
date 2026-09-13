@@ -164,7 +164,7 @@ passed; core, server (with its browser specs) and webui typecheck.
   passed (4.5m), exit 0.
 - [x] 7.4 A pending changeset exists. `check(changeset-present)`
   `.changeset/what-the-others-are-doing.md`.
-- [ ] 7.5 **Delegated to claude-cli**: with a second agent actually
+- [x] 7.5 **Delegated to claude-cli**: with a second agent actually
   working in a second working directory, open the tab and check that its
   label, branch and changes are the ones on disk there, that nothing
   offers to act on them, that a run held there names its git author, and
@@ -188,3 +188,54 @@ passed; core, server (with its browser specs) and webui typecheck.
   account's session limit. Earlier the same day the route had refused
   this item for naming its agent in backticks, and a run had exited at
   once on a `claude` too old for the API.
+  2026-09-13, second attempt through the same route, after #460, with
+  `packages/cli` and `packages/server` rebuilt from `main` at 58b622d —
+  closed. Both directories, from `git worktree list`: `C:/Prog/OpenSpec-UI`
+  on `main`, and `C:/Prog/.worktrees/OpenSpec-UI/proposals` on
+  `proposals-7-5`, labelled "proposals (second agent)" by its
+  `.openspec-ui/worker.json` and holding the fixture change
+  `hello-from-proposals` (3 tasks, one of which runs
+  `node fixture-7-5/hold.mjs`, a two-minute wait). The second agent:
+  `node packages/cli/dist/cli.js run hello-from-proposals --cwd
+  C:/Prog/.worktrees/OpenSpec-UI/proposals`, with `user.email` set to
+  `second-agent@example.com` for that process only; apply and verify on
+  claude-cli-acp, then archive, exit 0 at 11:40:31Z. A standalone server
+  on the primary checkout served the Pipeline tab to Playwright, and one
+  script read the tab, `POST /api/worktree-survey`, `openspec-ui-cli
+  status` and the disk within two seconds of each other — before the run,
+  twice during it, and after it: 32 checks, none failed. At 11:36:05Z the
+  tab said "proposals (second agent)", "branch proposals-7-5 —
+  C:/Prog/.worktrees/OpenSpec-UI/proposals", the four changes on disk
+  there ("hello-from-proposals 1 of 3 tasks done", disk 1 of 3; the three
+  inherited from `main` "also in OpenSpec-UI"), "Held by a run — git
+  author second-agent@example.com, a different git author from this
+  checkout's." (the lease's author; this checkout's is
+  VeryComplexAndLongName@gmail.com), and "hello-from-proposals (apply):
+  PowerShell: node fixture-7-5/hold.mjs — said 6s ago". At 11:36:05Z
+  `status` printed `d163120a-14bd-4822-9a36-293e6f7440f4 on
+  "hello-from-proposals" (apply)`, `in
+  C:\Prog\.worktrees\OpenSpec-UI\proposals`, `PowerShell: node
+  fixture-7-5/hold.mjs`, `said this 9s ago, last heard from 0s ago` — the
+  same change, stage and activity — and the endpoint carried that run.
+  The same again at 11:36:42Z (tab 36s ago, `status` 46s ago). That
+  directory's section held no button, link or focusable element; each
+  card was a `div`. Before and after the run the tab said "no run reports
+  here" with no holder, and `status` printed "No runs are reporting
+  themselves."; after it, the archived fixture had left the tab's cards
+  as it had left the disk. Evidence in `%TEMP%/openspec-7-5-rerun`:
+  `observe.mjs`, `observe.log`, `verdicts.json`, `run.log`, `server.log`,
+  `sample-{0-before,1-during,2-during,3-after}.json` and the matching
+  `tab-*.png`.
+  Checked 2026-09-13 by a second agent against those files rather than
+  this note: `verdicts.json` holds 32 verdicts, all passed (the note first
+  said 28) — 7 before, 1 while waiting, 9 and 9 during, 6 after;
+  `observe.mjs` computes each by comparing the tab's text with
+  `worker.json`, `git worktree list --porcelain`, the change directories,
+  the lease, `openspec-ui-cli status` and the survey endpoint;
+  `sample-1-during.json` has the tab at 11:36:05.094Z, `status` at
+  11:36:05.568Z and the endpoint at 11:36:06.890Z; `tab-1-during.png`
+  shows the section as described; `run.log` shows apply, verify and
+  archive. The fixture worktree and branch `proposals-7-5` were removed
+  afterwards. The same picture shows a local card clipping its detail
+  lines part-way through a line — names whole, full text in the card's
+  title — which is not this task's and is left for a change of its own.
