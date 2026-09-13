@@ -109,6 +109,66 @@ rather than a separate window.
 Before implementing any capability, check whether it has already appeared in
 upstream `openspec view` so we do not duplicate it.
 
+## How this differs from BMAD
+
+[BMAD](https://github.com/bmad-code-org/BMAD-METHOD), the BMad Method, sets
+out to "turn an idea or change request into working software without giving
+up the thinking". Its own pages, read on 2026-09-13, describe it as "a set
+of named commands, called skills", added "to AI coding tools such as Claude
+Code and Cursor". It works in a loop of *clarify → plan → build and verify →
+learn and adjust*, drawing on "product, architecture, UX, development, and
+testing expertise".
+
+**What the two share.**
+
+- **Written before it is built.** Work is written down before it is built:
+  BMAD's briefs, specifications and architecture; here, an OpenSpec change's
+  `proposal.md`, `design.md`, `tasks.md` and spec deltas.
+- **Steps taken in turn.** The work passes through steps that different
+  expertise, or different agents, take in turn.
+- **Checked before accepted.** Building is followed by checking, before
+  anything is accepted.
+
+**Where this repository differs.**
+
+- **It runs the agents itself.** BMAD's skills run inside whichever AI tool
+  you work in. Here, the Agentic Harness starts and supervises a CLI agent
+  (Claude, Copilot, Codex, Gemini or a local model) for each stage of a
+  change: `propose → review → apply → verify → archive → git`. It runs the
+  same way from the standalone app, the VS Code extension, or
+  `openspec-ui-cli run`. See [`HARNESS.md`](HARNESS.md).
+- **A specification outlives its change.** Archiving a change merges its
+  spec deltas into `openspec/specs/`. The next change is proposed against
+  what the system does now, not against a document written for an earlier
+  task. See [`openspec/README.md`](openspec/README.md).
+- **Where a person decides is configuration, and the runner enforces it.**
+  - an autonomy level;
+  - checkpoints between stages;
+  - a review gate that only a change's own settings can relax;
+  - tasks marked **Human-only** or **Delegated to** a named agent;
+  - a delegated item whose tick records nothing new has the tick reverted.
+
+  See [`HARNESS.md`](HARNESS.md).
+- **Spending is capped, and every run is recorded.** Each stage has its own
+  spending cap, in the unit its agent honours, and each chain has a ceiling.
+  Every run lands in an audit log, and the product states plainly which
+  limits do not exist. See [`LIMITS.md`](LIMITS.md).
+- **Several changes run at once, and you can see them.**
+  - Each change can have its own git worktree, guarded by a lease.
+  - A readiness report says which ready changes can start alongside which,
+    and why the others cannot.
+  - The Pipeline shows every working directory, and what each run says it
+    is doing.
+
+  See [`docs/adr/`](docs/adr/), 0025 to 0029.
+
+BMAD's pages were not found to describe spending limits, an audit log or
+parallel runs. That is not a claim that BMAD lacks them, only that this
+comparison could not find them.
+
+The two are not exclusive: planning done with BMAD can be written down as an
+OpenSpec change here and run through the harness.
+
 ## Architecture at a Glance
 
 Shared code (`packages/core`, `packages/webui`) is reused in two delivery
