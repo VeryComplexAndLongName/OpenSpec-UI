@@ -22,7 +22,7 @@ test.describe("standalone change charts", () => {
   let workspaceRoot: string;
 
   test.afterEach(async () => {
-    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   test("charts what the history says, and says what it rests on", async ({ page }) => {

@@ -23,7 +23,9 @@ import {
   describeCollision,
   describeDirectoryRuns,
   describeRun,
+  fitPipelineCardDetails,
   layoutChanges,
+  pipelineCardDetailLines,
   type ChangeLayout,
   type ChangeLayoutEdge,
   type ChangeLayoutNode,
@@ -101,30 +103,39 @@ export function PipelineView({ load, survey, isActive, onOpenChange }: PipelineV
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS);
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS);
 
-  if (local.error !== undefined) {
-    return <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>;
-  }
-  if (local.value === undefined) {
-    return <p className="openspec-shell-note" data-testid="pipeline-loading">Reading what is running…</p>;
-  }
-
   const report = local.value;
   const here = others.value?.directories.find((directory) => directory.isThis);
   const labels = new Map((others.value?.directories ?? []).map((directory) => [directory.path, directory.label]));
 
+  // Each reading is shown when it arrives (the-pipeline-shows-what-it-has-read).
+  // This directory's part says it is still being read, or why it could not
+  // be, in its own place; the other working directories are drawn whatever
+  // became of it. A reading that failed after one that arrived keeps the
+  // picture it had, under the error, and the read-at line says how old it is.
   return (
     <div data-testid="pipeline">
       {here ? <Reading directory={here} /> : null}
-      {report.changes.length === 0
-        // Names the branch it read where the survey says which: an empty
-        // queue and a reading taken on a stale checkout otherwise look
-        // identical.
-        ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-        : <LocalPicture report={report} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} />}
-      {/* From the report this already read: no second fetch, and no
-          suggestion computed here — `buildHints` derived them in core
-          before the payload was sent. */}
-      <HintList hints={report.hints} />
+      {local.error !== undefined
+        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
+        : null}
+      {report === undefined
+        ? (local.error === undefined
+          ? <p className="openspec-shell-note" data-testid="pipeline-loading">Reading what is running…</p>
+          : null)
+        : (
+          <>
+            {report.changes.length === 0
+              // Names the branch it read where the survey says which: an
+              // empty queue and a reading taken on a stale checkout
+              // otherwise look identical.
+              ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
+              : <LocalPicture report={report} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} />}
+            {/* From the report this already read: no second fetch, and no
+                suggestion computed here — `buildHints` derived them in core
+                before the payload was sent. */}
+            <HintList hints={report.hints} />
+          </>
+        )}
       {others.value ? <OtherDirectories survey={others.value} labels={labels} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
@@ -132,7 +143,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange }: PipelineV
       <p className="openspec-shell-note" data-testid="pipeline-read-at">
         {/* A reading, not a subscription: between two of them a run can
             start and finish, so this never presents itself as live. */}
-        Last read {local.readAt ? local.readAt.toLocaleTimeString() : "never"}
+        Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
         {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
       </p>
     </div>
@@ -300,13 +311,33 @@ function Node({ node, onOpenChange, alsoIn }: {
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
       <span className="openspec-pipeline-node-state">{stateWord(node)}</span>
-      {detail.map((line, index) => (
-        // Clipped by the card, present in full in the DOM: a fixed card
-        // must not be able to remove a fact the change is required to
-        // state.
-        <span className="openspec-pipeline-node-detail" key={index}>{line}</span>
-      ))}
+      <CardDetails lines={detail} budget={pipelineCardDetailLines(node.height, { hasState: true })} />
     </button>
+  );
+}
+
+/** A card's detail lines (the-pipeline-shows-what-it-has-read). As many
+ * as the card holds whole are drawn, each on one line; the rest stay in
+ * the DOM and in the card's accessible name, visually hidden — a fixed
+ * card must not be able to remove a fact the change is required to state
+ * — and the last drawn line counts them. The card's title has every
+ * line. */
+function CardDetails({ lines, budget }: { lines: string[]; budget: number }) {
+  const { drawn, beyond } = fitPipelineCardDetails(lines.length, budget);
+  const count = <span className="openspec-pipeline-node-more" aria-hidden="true">{`+${beyond}`}</span>;
+  return (
+    <>
+      {drawn === 0 && beyond > 0 ? count : null}
+      {lines.map((line, index) => (
+        <span
+          key={index}
+          className={index < drawn ? "openspec-pipeline-node-detail" : "openspec-pipeline-node-detail openspec-pipeline-node-detail--beyond"}
+        >
+          <span className="openspec-pipeline-node-detail-text">{line}</span>
+          {beyond > 0 && index === drawn - 1 ? count : null}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -479,7 +510,7 @@ function ForeignNode({ node, change, labels, testId }: {
       title={`${name} — ${lines.join(" ")}`}
     >
       <span className="openspec-pipeline-node-name">{name}</span>
-      {lines.map((line, index) => <span className="openspec-pipeline-node-detail" key={index}>{line}</span>)}
+      <CardDetails lines={lines} budget={pipelineCardDetailLines(node.height, { hasState: false })} />
     </div>
   );
 }

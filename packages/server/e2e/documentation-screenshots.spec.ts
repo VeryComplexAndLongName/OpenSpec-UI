@@ -46,7 +46,7 @@ test.describe("standalone documentation screenshots", () => {
   let workspaceRoot: string;
 
   test.afterEach(async () => {
-    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   test("captures the command runner, the summary, the diff, the editor, the templates and the processes", async ({ page }) => {

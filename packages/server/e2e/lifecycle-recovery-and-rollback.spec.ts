@@ -49,6 +49,6 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
       await server.close();
     }
   } finally {
-    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

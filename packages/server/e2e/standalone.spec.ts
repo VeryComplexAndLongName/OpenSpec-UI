@@ -36,7 +36,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await server?.close();
-  if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+  if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 test("loads, edits, and saves an accessible standalone change", async ({ page }) => {

@@ -27,7 +27,7 @@ test.describe("standalone harness screenshots", () => {
   let workspaceRoot: string;
 
   test.afterEach(async () => {
-    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   test("captures the global settings section, a per-change override, and a run paused at a checkpoint", async ({ page }) => {

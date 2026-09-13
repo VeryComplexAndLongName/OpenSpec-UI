@@ -52,7 +52,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await server?.close();
-  if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+  if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 /** Opens the page and waits for the workspace to be known.

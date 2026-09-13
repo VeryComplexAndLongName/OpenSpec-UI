@@ -12,7 +12,12 @@ test.describe("standalone lifecycle: execution", () => {
   let workspaceRoot: string;
 
   test.afterEach(async () => {
-    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true });
+    // Retried, as waiting-on-inbox.spec.ts's cleanup is: on Windows a
+    // server's handles can outlive its close by a few milliseconds, and a
+    // whole-suite run on 2026-09-13 failed this file with EBUSY on
+    // rmdir .openspec-ui while every assertion had passed; the file alone
+    // then passed. `maxRetries` is what fs.rm offers for exactly that.
+    if (workspaceRoot) await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   test("a mutating run's events render in the order they occurred", async ({ page }) => {
