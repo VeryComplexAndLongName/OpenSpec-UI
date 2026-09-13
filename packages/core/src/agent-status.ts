@@ -90,11 +90,55 @@ export interface AgentStatusWriterOptions {
   instanceId?: string;
   /** Test seam. */
   now?: () => Date;
+  /** Test seam: the file operations a write makes, so a test can refuse
+   * one on demand instead of hoping Windows will. */
+  files?: AgentStatusFileOperations;
+}
+
+/** The file operations a writer makes. */
+export interface AgentStatusFileOperations {
+  mkdir(directory: string, options: { recursive: true }): Promise<unknown>;
+  writeFile(filePath: string, data: string, encoding: "utf8"): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
+  rm(filePath: string, options: { force: true }): Promise<void>;
+}
+
+const NODE_FILE_OPERATIONS: AgentStatusFileOperations = { mkdir, writeFile, rename, rm };
+
+/** What Windows answers while a name is in use for a moment — by another
+ * handle, an indexer, a scanner — and what passes when asked again
+ * (a-status-write-never-stops-a-run). */
+const IN_USE_CODES: ReadonlySet<string> = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+/** Five tries, pausing 25, 50, 75 and 100 ms between them: a quarter of a
+ * second in all, a small part of a renewal interval. */
+const IN_USE_ATTEMPTS = 5;
+const IN_USE_PAUSE_STEP_MS = 25;
+
+function errorCode(error: unknown): string | undefined {
+  return error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+}
+
+/** Runs a file operation, asking again while its name is only in use. */
+async function retryWhileInUse(operation: () => Promise<void>): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await operation();
+      return;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === undefined || !IN_USE_CODES.has(code) || attempt >= IN_USE_ATTEMPTS) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, IN_USE_PAUSE_STEP_MS * attempt));
+    }
+  }
 }
 
 /** One run's handle on its own status file. Never touches another
  * run's file — there is exactly one file per instance, named by its own
- * `instanceId`. */
+ * `instanceId`.
+ *
+ * Reporting never stops the run it reports on: every write waits its
+ * turn, and only the first record's failure reaches a caller. */
 export class AgentStatusWriter {
   readonly instanceId: string;
   readonly filePath: string;
@@ -105,6 +149,7 @@ export class AgentStatusWriter {
   private activity = "";
   private activityAt: string;
   private readonly now: () => Date;
+  private readonly files: AgentStatusFileOperations;
   private timer: NodeJS.Timeout | undefined;
   private stopped = false;
   /** When the record was last written, and whether it holds everything
@@ -112,6 +157,9 @@ export class AgentStatusWriter {
    * instead of forcing one. */
   private lastWrittenAtMs = Number.NEGATIVE_INFINITY;
   private unwritten = false;
+  /** Every write, one after another, so two never rename onto the record
+   * at once. Never rejects: each write settles its own failure. */
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(options: AgentStatusWriterOptions) {
     this.instanceId = options.instanceId ?? randomUUID();
@@ -119,18 +167,26 @@ export class AgentStatusWriter {
     this.workingDirectory = path.resolve(options.workingDirectory);
     this.changeName = options.changeName ?? null;
     this.now = options.now ?? (() => new Date());
+    this.files = options.files ?? NODE_FILE_OPERATIONS;
     this.filePath = path.join(this.directory, `${this.instanceId}.json`);
     this.activityAt = this.now().toISOString();
   }
 
   /** Writes the first record and starts renewing it on the lease's own
-   * interval. */
+   * interval.
+   *
+   * The first record is the one write whose failure reaches the caller: a
+   * writer whose record never landed is not handed to a run
+   * (`startAgentStatusWriter`), which then goes unreported rather than
+   * half-reported. */
   async start(initialActivity = "starting"): Promise<void> {
     this.activity = initialActivity;
     this.activityAt = this.now().toISOString();
-    await this.write();
+    await this.enqueue();
     this.timer = setInterval(() => {
-      void this.write();
+      // `writeQuietly` never rejects. A rejection left unhandled here is
+      // what ended a run on Windows.
+      void this.writeQuietly();
     }, AGENT_STATUS_RENEW_INTERVAL_MS);
     // Never hold a process open on the heartbeat alone.
     this.timer.unref?.();
@@ -138,13 +194,14 @@ export class AgentStatusWriter {
 
   /** Records what the run is doing now. `activityAt` only moves when
    * the text actually changes, so silence under an unchanged activity is
-   * visible rather than hidden behind a heartbeat that keeps ticking. */
+   * visible rather than hidden behind a heartbeat that keeps ticking.
+   * Resolves once the write has landed or been dropped; never rejects. */
   async reportActivity(activity: string, stage?: string | null): Promise<void> {
     const changed = activity !== this.activity;
     this.activity = activity;
     if (stage !== undefined) this.stage = stage;
     if (changed) this.activityAt = this.now().toISOString();
-    await this.write();
+    await this.writeQuietly();
   }
 
   /** Records activity from a stream that may speak many times a second.
@@ -154,7 +211,7 @@ export class AgentStatusWriter {
    * reaches the disk with the next write — the next streamed line past
    * the interval, a stage change, or the heartbeat, whichever comes
    * first. `activityAt` is still the moment the activity changed, not the
-   * moment it was written. */
+   * moment it was written. Never rejects. */
   async noteStreamedActivity(activity: string): Promise<void> {
     if (activity !== this.activity) {
       this.activity = activity;
@@ -162,7 +219,7 @@ export class AgentStatusWriter {
       this.unwritten = true;
     }
     if (this.unwritten && this.now().getTime() - this.lastWrittenAtMs >= AGENT_STATUS_STREAM_WRITE_INTERVAL_MS) {
-      await this.write();
+      await this.writeQuietly();
     }
   }
 
@@ -171,14 +228,37 @@ export class AgentStatusWriter {
   }
 
   /** Removes the record. Called on a clean end; a crash removes
-   * nothing, which is what the staleness window is for. */
+   * nothing, which is what the staleness window is for.
+   *
+   * Waits for a write already under way, which would otherwise put the
+   * record back after it was removed; a write queued behind it writes
+   * nothing. A removal that still cannot be made is left to the staleness
+   * window rather than told to the run. */
   async stop(): Promise<void> {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
-    await rm(this.filePath, { force: true });
+    await this.queue;
+    await retryWhileInUse(() => this.files.rm(this.filePath, { force: true })).catch(() => undefined);
   }
 
-  private async write(): Promise<void> {
+  /** Queues one write behind whatever write is under way. The returned
+   * promise settles as this write does; the queue carries on either way. */
+  private enqueue(): Promise<void> {
+    const write = this.queue.then(() => this.writeNow());
+    this.queue = write.catch(() => undefined);
+    return write;
+  }
+
+  /** A write whose failure concerns nobody but the record: the previous
+   * record stands, and the next renewal tries again. */
+  private async writeQuietly(): Promise<void> {
+    await this.enqueue().catch(() => undefined);
+  }
+
+  /** Builds the document when the write runs, not when it was asked for,
+   * so a write that waited its turn never puts back what the one before
+   * it replaced. */
+  private async writeNow(): Promise<void> {
     if (this.stopped) return;
     const nowIso = this.now().toISOString();
     // Taken before the first await, so a write already under way counts
@@ -195,20 +275,31 @@ export class AgentStatusWriter {
       activityAt: this.activityAt,
       heartbeatAt: nowIso,
     };
-    await mkdir(this.directory, { recursive: true });
+    await this.files.mkdir(this.directory, { recursive: true });
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
-      try {
-        await rename(temporaryPath, this.filePath);
-      } catch (error) {
-        const code = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
-        if (code !== "EEXIST" && code !== "EPERM") throw error;
-        await rm(this.filePath, { force: true });
-        await rename(temporaryPath, this.filePath);
-      }
+      await this.files.writeFile(temporaryPath,`${JSON.stringify(document, null, 2)}\n`, "utf8");
+      await this.replaceRecord(temporaryPath);
     } finally {
-      await rm(temporaryPath, { force: true });
+      // Already gone after a rename that landed. One left by a write that
+      // could not land goes here, or to a-stale-status-is-swept.
+      await this.files.rm(temporaryPath, { force: true }).catch(() => undefined);
+    }
+  }
+
+  /** Renames the written temporary file onto the record. A replace refused
+   * as in use is asked again rather than made room for: removing the record
+   * first left a live run without one, and did not help while the name was
+   * in use. Only a filesystem that will not replace a name at all
+   * (`EEXIST`) gets remove-then-rename, since asking again cannot help
+   * there. */
+  private async replaceRecord(temporaryPath: string): Promise<void> {
+    try {
+      await retryWhileInUse(() => this.files.rename(temporaryPath, this.filePath));
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") throw error;
+      await this.files.rm(this.filePath, { force: true });
+      await this.files.rename(temporaryPath, this.filePath);
     }
   }
 }
