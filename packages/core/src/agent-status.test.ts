@@ -4,12 +4,14 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_STATUS_STALE_AFTER_MS,
+  AGENT_STATUS_STREAM_WRITE_INTERVAL_MS,
   AGENT_STATUS_VERSION,
   AgentStatusWriter,
   agentStatusDirectory,
   readAgentStatuses,
   reportEventsToAgentStatus,
   resolveAgentStatusDirectory,
+  withAgentStatus,
   type AgentStatusDocument,
 } from "./agent-status.js";
 import type { Event } from "./protocol.js";
@@ -35,8 +37,11 @@ afterEach(async () => {
 
 describe("agentStatusDirectory", () => {
   it("sits beside the repository's working directories, not inside one", () => {
-    const worktreeRoot = path.join("C:", "worktrees");
-    const repositoryRoot = path.join("C:", "projects", "openspec-ui");
+    // Resolved, not written as a drive letter: `C:` is an absolute root on
+    // Windows and a relative name everywhere else, which is how this test
+    // passed on the machine it was written on and failed in CI.
+    const worktreeRoot = path.resolve("worktrees");
+    const repositoryRoot = path.resolve("projects", "openspec-ui");
     const directory = agentStatusDirectory(worktreeRoot, repositoryRoot);
     expect(directory).toBe(path.join(worktreeRoot, "openspec-ui", ".agent-status"));
   });
@@ -116,6 +121,195 @@ describe("reportEventsToAgentStatus", () => {
     const { reports } = await readAgentStatuses(directory);
     expect(reports).toHaveLength(1);
     await writer.stop();
+  });
+
+  // The Harness's own verify stage found both of these: a chunk's last
+  // line became the activity even when the chunk ended mid-word, and every
+  // chunk rewrote the record.
+  it("takes the activity from a complete line, never from a chunk cut mid-word", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let clock = Date.parse("2026-01-01T00:00:00.000Z");
+    // Every reading of the clock is two seconds later, so no write is held
+    // back by the interval and the test sees each activity that is noted.
+    const writer = new AgentStatusWriter({ directory, workingDirectory: root, now: () => new Date((clock += 2_000)) });
+    await writer.start("starting");
+    const lineBreak = String.fromCharCode(10);
+
+    const events: Event[] = [
+      { kind: "stdout", runId: "r1", timestamp: "t", chunk: "Reading the fi" },
+      { kind: "stdout", runId: "r1", timestamp: "t", chunk: `le${lineBreak}Writing the ans` },
+    ];
+    for await (const _event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      // draining
+    }
+
+    const { reports } = await readAgentStatuses(directory, { now: () => new Date(clock) });
+    expect(reports[0]?.activity).toBe("Reading the file");
+    await writer.stop();
+  });
+
+  it("takes an unfinished reply as said once something else happens", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let clock = Date.parse("2026-01-01T00:00:00.000Z");
+    const writer = new AgentStatusWriter({ directory, workingDirectory: root, now: () => new Date((clock += 2_000)) });
+    await writer.start("starting");
+
+    const chunk = (text: string): Event => ({
+      kind: "agentUpdate",
+      runId: "r1",
+      timestamp: "t",
+      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text } },
+    });
+    const events: Event[] = [
+      chunk("All tasks "),
+      chunk("are done."),
+      { kind: "usageReported", runId: "r1", timestamp: "t", usage: { costUsd: 0.1 } },
+    ];
+    for await (const _event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      // draining
+    }
+
+    const { reports } = await readAgentStatuses(directory, { now: () => new Date(clock) });
+    expect(reports[0]?.activity).toBe("All tasks are done.");
+    await writer.stop();
+  });
+});
+
+describe("AgentStatusWriter — streamed activity", () => {
+  it("rewrites the record for streamed activity at most once per interval, and still moves activityAt at once", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const writer = new AgentStatusWriter({ directory, workingDirectory: root, now: () => now });
+    await writer.start("starting");
+
+    now = new Date(now.getTime() + 10);
+    await writer.noteStreamedActivity("line one");
+    const heldBack = JSON.parse(await readFile(writer.filePath, "utf8")) as AgentStatusDocument;
+    expect(heldBack.activity).toBe("starting");
+
+    now = new Date(now.getTime() + AGENT_STATUS_STREAM_WRITE_INTERVAL_MS);
+    await writer.noteStreamedActivity("line two");
+    const written = JSON.parse(await readFile(writer.filePath, "utf8")) as AgentStatusDocument;
+    expect(written.activity).toBe("line two");
+    expect(written.activityAt).toBe(now.toISOString());
+
+    await writer.stop();
+  });
+});
+
+describe("withAgentStatus", () => {
+  const lineBreak = String.fromCharCode(10);
+
+  it("keeps a record for a run, named by the change its command is for, and removes it on a clean end", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    const command = { kind: "chain" as const, cwd: root, context: { changeDir: path.join(root, "openspec", "changes", "a-change") } };
+    let finish: () => void = () => undefined;
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+
+    async function* source(): AsyncGenerator<Event> {
+      yield { kind: "stageStarted", runId: "r1", timestamp: "t", stage: "apply", agentId: "claude-cli-acp" };
+      yield { kind: "stdout", runId: "r1", timestamp: "t", chunk: `working${lineBreak}` };
+      await finished;
+      yield { kind: "completed", runId: "r1", timestamp: "t" };
+    }
+
+    const draining = (async () => {
+      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory })) {
+        // draining
+      }
+    })();
+
+    await vi.waitFor(async () => {
+      const { reports } = await readAgentStatuses(directory);
+      expect(reports[0]).toMatchObject({ changeName: "a-change", stage: "apply" });
+    });
+
+    finish();
+    await draining;
+    expect((await readAgentStatuses(directory)).reports).toHaveLength(0);
+  });
+
+  it("passes a command that is not a run straight through, starting no record", async () => {
+    const events: Event[] = [{ kind: "cancelled", runId: "r1", timestamp: "t" }];
+    async function* source(): AsyncGenerator<Event> {
+      yield* events;
+    }
+    let resolved = false;
+    const seen: Event[] = [];
+    for await (const event of withAgentStatus(
+      source(),
+      { kind: "cancel", cwd: "/repo", context: { changeDir: "/repo/openspec/changes/a-change" } },
+      {
+        resolveDirectory: async () => {
+          resolved = true;
+          return "/nowhere";
+        },
+      },
+    )) {
+      seen.push(event);
+    }
+
+    expect(seen).toEqual(events);
+    expect(resolved).toBe(false);
+  });
+
+  it("delivers the run's events without waiting for the status directory to be found", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let release: (directory: string) => void = () => undefined;
+    const found = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+
+    async function* source(): AsyncGenerator<Event> {
+      yield { kind: "started", runId: "r1", timestamp: "t", command: "implement", cwd: root };
+      yield { kind: "completed", runId: "r1", timestamp: "t" };
+    }
+
+    const iterator = withAgentStatus(
+      source(),
+      { kind: "implement", cwd: root, context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
+      { resolveDirectory: () => found },
+    );
+    // Both events arrive while the directory is still being looked for.
+    expect((await iterator.next()).value).toMatchObject({ kind: "started" });
+    expect((await iterator.next()).value).toMatchObject({ kind: "completed" });
+
+    release(directory);
+    expect((await iterator.next()).done).toBe(true);
+    // The run ended before its record was ready; the record it then
+    // started is removed by the terminal event it was told about.
+    expect((await readAgentStatuses(directory)).reports).toHaveLength(0);
+  });
+
+  it("lets the run go on unreported when no status directory can be found", async () => {
+    const events: Event[] = [
+      { kind: "stageStarted", runId: "r1", timestamp: "t", stage: "apply", agentId: "claude-cli" },
+      { kind: "completed", runId: "r1", timestamp: "t" },
+    ];
+    async function* source(): AsyncGenerator<Event> {
+      yield* events;
+    }
+    const seen: Event[] = [];
+    for await (const event of withAgentStatus(
+      source(),
+      { kind: "chain", cwd: "/repo", context: { changeDir: "/repo/openspec/changes/a-change" } },
+      {
+        resolveDirectory: async () => {
+          throw new Error("not a git repository");
+        },
+      },
+    )) {
+      seen.push(event);
+    }
+
+    expect(seen).toEqual(events);
   });
 });
 

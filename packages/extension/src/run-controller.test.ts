@@ -62,8 +62,10 @@ describe("RunController", () => {
     };
     const controller = new RunController();
     const runPromise = controller.run(runner, command);
-    await Promise.resolve();
-    await Promise.resolve();
+    // Waits for the runner to reach its pause, rather than for a counted
+    // number of microtask ticks: the run's events now pass through the
+    // status-record wrapper, one generator deeper than the count assumed.
+    await vi.waitFor(() => expect(resolveRun).toBeDefined());
 
     expect(controller.isRunning).toBe(true);
     resolveRun?.();
@@ -88,12 +90,11 @@ describe("RunController", () => {
     };
     const controller = new RunController();
     const runPromise = controller.run(runner, command);
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(resolveFirstRun).toBeDefined());
 
     const cancelled = controller.cancel();
     expect(cancelled).toBe(true);
-    expect(runCalls).toHaveLength(2);
+    await vi.waitFor(() => expect(runCalls).toHaveLength(2));
     expect(runCalls[1]).toEqual({ ...command, kind: "cancel" });
 
     resolveFirstRun?.();

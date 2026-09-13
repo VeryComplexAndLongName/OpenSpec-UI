@@ -13,8 +13,8 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
-import type { GitWrapper } from "./git.js";
-import type { Event } from "./protocol.js";
+import { createGitWrapper, type GitWrapper } from "./git.js";
+import type { Command, Event } from "./protocol.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
 import { WORKSPACE_LEASE_RENEW_INTERVAL_MS, WORKSPACE_LEASE_STALE_AFTER_MS } from "./workspace-lease.js";
 
@@ -24,6 +24,21 @@ export const AGENT_STATUS_VERSION = 1;
  * "gone" must mean one thing, not two that can disagree. */
 export const AGENT_STATUS_RENEW_INTERVAL_MS = WORKSPACE_LEASE_RENEW_INTERVAL_MS;
 export const AGENT_STATUS_STALE_AFTER_MS = WORKSPACE_LEASE_STALE_AFTER_MS;
+
+/** How often, at most, a run's streamed output rewrites its record.
+ *
+ * An agent can print many lines a second, and each rewrite is a
+ * directory creation, a write, a rename and a removal. What a person reads
+ * the record for — what a run last said, and how long ago — is not
+ * sharpened by writing it more often than once a second. */
+export const AGENT_STATUS_STREAM_WRITE_INTERVAL_MS = 1_000;
+
+const LINE_BREAK = String.fromCharCode(10);
+
+/** The most of an unfinished line a stream is allowed to hold. A stream
+ * that never breaks a line — one long JSON document, say — must not grow
+ * a buffer without end for the sake of a status line. */
+const OPEN_LINE_LIMIT = 4_096;
 
 /** Where every run of a repository writes its own status file: beside
  * every working directory of that repository, inside none of them, so
@@ -91,6 +106,11 @@ export class AgentStatusWriter {
   private readonly now: () => Date;
   private timer: NodeJS.Timeout | undefined;
   private stopped = false;
+  /** When the record was last written, and whether it holds everything
+   * reported since — so streamed activity can wait for the next write
+   * instead of forcing one. */
+  private lastWrittenAtMs = Number.NEGATIVE_INFINITY;
+  private unwritten = false;
 
   constructor(options: AgentStatusWriterOptions) {
     this.instanceId = options.instanceId ?? randomUUID();
@@ -126,6 +146,25 @@ export class AgentStatusWriter {
     await this.write();
   }
 
+  /** Records activity from a stream that may speak many times a second.
+   *
+   * The record is rewritten at most once per
+   * `AGENT_STATUS_STREAM_WRITE_INTERVAL_MS`; an activity noted in between
+   * reaches the disk with the next write — the next streamed line past
+   * the interval, a stage change, or the heartbeat, whichever comes
+   * first. `activityAt` is still the moment the activity changed, not the
+   * moment it was written. */
+  async noteStreamedActivity(activity: string): Promise<void> {
+    if (activity !== this.activity) {
+      this.activity = activity;
+      this.activityAt = this.now().toISOString();
+      this.unwritten = true;
+    }
+    if (this.unwritten && this.now().getTime() - this.lastWrittenAtMs >= AGENT_STATUS_STREAM_WRITE_INTERVAL_MS) {
+      await this.write();
+    }
+  }
+
   setChangeName(changeName: string | null): void {
     this.changeName = changeName;
   }
@@ -141,6 +180,10 @@ export class AgentStatusWriter {
   private async write(): Promise<void> {
     if (this.stopped) return;
     const nowIso = this.now().toISOString();
+    // Taken before the first await, so a write already under way counts
+    // for anything noted while it is in flight.
+    this.lastWrittenAtMs = this.now().getTime();
+    this.unwritten = false;
     const document: AgentStatusDocument = {
       version: AGENT_STATUS_VERSION,
       instanceId: this.instanceId,
@@ -319,13 +362,43 @@ function lastNonEmptyLine(text: string): string | undefined {
   return lines.at(-1);
 }
 
+/** What each stream has said since its last line break. A chunk is cut
+ * wherever its producer flushed — mid-line, often mid-word — so the last
+ * line of a chunk is a fragment until the break that ends it arrives. */
+interface OpenLines {
+  stdout: string;
+  text: string;
+}
+
+/** Adds a chunk to what its stream left open, and returns the last
+ * complete non-empty line if the chunk completed any. */
+function takeCompleteLine(open: OpenLines, stream: keyof OpenLines, chunk: string): string | undefined {
+  const text = open[stream] + chunk;
+  const lastBreak = text.lastIndexOf(LINE_BREAK);
+  if (lastBreak === -1) {
+    open[stream] = text.slice(-OPEN_LINE_LIMIT);
+    return undefined;
+  }
+  open[stream] = text.slice(lastBreak + 1).slice(-OPEN_LINE_LIMIT);
+  return lastNonEmptyLine(text.slice(0, lastBreak));
+}
+
+/** Whatever the streams left unfinished, taken as said once something
+ * else happens: a reply that ends without a line break is still what the
+ * run last said. Clears both. */
+function takeOpenLines(open: OpenLines): string | undefined {
+  const line = lastNonEmptyLine(open.text) ?? lastNonEmptyLine(open.stdout);
+  open.stdout = "";
+  open.text = "";
+  return line;
+}
+
 /** Taps a chain or agent run's own event stream into its status record,
  * yielding every event through unchanged. This is the one place that
  * turns "what a run reports about itself" into "what its record says it
- * is doing" — every host (CLI, standalone server, VS Code extension)
- * wraps its own `for await (const event of ...)` loop with this instead
- * of reimplementing the mapping, so the mapping is written once (see
- * `packages/core` owning all business logic, ADR 0001).
+ * is doing" (see `packages/core` owning all business logic, ADR 0001).
+ * Hosts do not call it directly: they wrap their run loop with
+ * `withAgentStatus`, which starts the record and calls this.
  *
  * The record is removed only when the run ends cleanly
  * (`completed`/`failed`/`cancelled` — the run said how it ended).
@@ -336,13 +409,29 @@ export async function* reportEventsToAgentStatus(
   events: AsyncIterable<Event>,
   writer: AgentStatusWriter,
 ): AsyncGenerator<Event> {
+  const open: OpenLines = { stdout: "", text: "" };
   for await (const event of events) {
-    await applyEventToAgentStatus(writer, event);
+    await applyEventToAgentStatus(writer, event, open);
     yield event;
   }
 }
 
-async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event): Promise<void> {
+async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, open: OpenLines): Promise<void> {
+  if (event.kind === "stdout") {
+    const line = takeCompleteLine(open, "stdout", event.chunk);
+    if (line !== undefined) await writer.noteStreamedActivity(line);
+    return;
+  }
+  const streamed = event.kind === "agentUpdate" ? readAcpStreamedText(event.update) : undefined;
+  if (streamed !== undefined) {
+    const line = takeCompleteLine(open, "text", streamed.text);
+    if (line !== undefined) await writer.noteStreamedActivity(line);
+    return;
+  }
+
+  const unfinished = takeOpenLines(open);
+  if (unfinished !== undefined) await writer.noteStreamedActivity(unfinished);
+
   switch (event.kind) {
     case "stageStarted":
       await writer.reportActivity(`running ${event.stage}`, event.stage);
@@ -350,19 +439,9 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event):
     case "stageCompleted":
       await writer.reportActivity(`running ${event.nextStage}`, event.nextStage);
       return;
-    case "stdout": {
-      const line = lastNonEmptyLine(event.chunk);
-      if (line !== undefined) await writer.reportActivity(line);
-      return;
-    }
     case "progress":
       await writer.reportActivity(event.message);
       return;
-    case "agentUpdate": {
-      const streamed = readAcpStreamedText(event.update);
-      if (streamed !== undefined) await writer.reportActivity(lastNonEmptyLine(streamed.text) ?? streamed.text);
-      return;
-    }
     case "completed":
     case "failed":
     case "cancelled":
@@ -371,4 +450,98 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event):
     default:
       return;
   }
+}
+
+/** Where a host's run reports, and what it is running. */
+export interface AgentStatusRunOptions {
+  /** The run's working directory. */
+  cwd: string;
+  changeName: string | null;
+  /** Test seam: resolves the shared status directory for `cwd`. */
+  resolveDirectory?: (cwd: string) => Promise<string>;
+}
+
+const statusDirectoryByWorkspace = new Map<string, Promise<string>>();
+
+/** The shared status directory for a working directory, resolved once
+ * per directory for the life of the process. A host serving many runs
+ * against one checkout would otherwise start a `git worktree list` for
+ * every run. A failed resolution is forgotten, so the next run tries
+ * again rather than inheriting the failure. */
+function cachedAgentStatusDirectory(cwd: string): Promise<string> {
+  const key = path.resolve(cwd);
+  let cached = statusDirectoryByWorkspace.get(key);
+  if (!cached) {
+    cached = (async () => await resolveAgentStatusDirectory(createGitWrapper({ cwd: key }), key))();
+    statusDirectoryByWorkspace.set(key, cached);
+    cached.catch(() => statusDirectoryByWorkspace.delete(key));
+  }
+  return cached;
+}
+
+/** Starts a run's status record, best-effort: reporting progress must
+ * never be why a run fails. `undefined` when no record could be started —
+ * a directory that is not a git repository, an unreadable settings file —
+ * and the run goes on exactly as it would have without one. */
+export async function startAgentStatusWriter(options: AgentStatusRunOptions): Promise<AgentStatusWriter | undefined> {
+  try {
+    const directory = await (options.resolveDirectory ?? cachedAgentStatusDirectory)(options.cwd);
+    const writer = new AgentStatusWriter({ directory, workingDirectory: options.cwd, changeName: options.changeName });
+    await writer.start(options.changeName ? `starting "${options.changeName}"` : "starting");
+    return writer;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The command kinds that are a run — an agent's or a chain's — and so
+ * keep a status record. The rest — reading a change, a cancel, the answer
+ * to a checkpoint — do no work of their own to report, and a record
+ * started for one would never be ended by a terminal event of its own. */
+const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["kind"]>([
+  "plan",
+  "implement",
+  "review",
+  "verify",
+  "chain",
+]);
+
+/** A command's events, with its status record kept alongside — the one
+ * wrapper every host (the CLI, the standalone server, the VS Code
+ * extension) puts around its own run loop, so none of them carries a copy
+ * of the fallback or the mapping. A command that is not a run passes
+ * through untouched.
+ *
+ * The record starts as the run starts, and neither the run nor its events
+ * ever wait for it: finding the directory can take a git subprocess, and a
+ * run is not held back for a diagnostic about itself. Each event is queued
+ * behind the record's start and told to it, in order, as soon as the
+ * record exists — not when the next event happens to arrive, since a run
+ * that goes quiet after its first events is exactly the run a person reads
+ * the record for. A run that ends first still removes the record it
+ * started: the wrapper finishes only after the queue has. */
+export async function* withAgentStatus(
+  events: AsyncIterable<Event>,
+  command: Pick<Command, "kind" | "cwd" | "context">,
+  seams: Pick<AgentStatusRunOptions, "resolveDirectory"> = {},
+): AsyncGenerator<Event> {
+  if (!REPORTED_COMMAND_KINDS.has(command.kind)) {
+    yield* events;
+    return;
+  }
+  const changeName = path.basename(command.context.changeDir) || null;
+  const open: OpenLines = { stdout: "", text: "" };
+  let reporting = startAgentStatusWriter({ cwd: command.cwd, changeName, ...seams });
+
+  for await (const event of events) {
+    reporting = reporting.then(async (writer) => {
+      // Best-effort, event by event: a record that cannot be written this
+      // time must not stop the next event from being told to it.
+      if (writer) await applyEventToAgentStatus(writer, event, open).catch(() => undefined);
+      return writer;
+    });
+    yield event;
+  }
+
+  await reporting;
 }

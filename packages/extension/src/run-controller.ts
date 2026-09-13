@@ -4,7 +4,7 @@
 // the same event stream and can cancel the same run.
 
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
-import { listChanges, showChange, statusChange, validateChange } from "@openspec-ui/core";
+import { listChanges, showChange, statusChange, validateChange, withAgentStatus } from "@openspec-ui/core";
 
 export type EventListener = (event: Event) => void;
 export type Unsubscribe = () => void;
@@ -136,7 +136,11 @@ export class RunController {
         return;
       }
 
-      for await (const event of runner.run(command)) {
+      // Every run the extension starts — a single stage from the panel or
+      // the palette, and a whole chain, which arrives here through
+      // `chainRunner.asAgentRunner()` — keeps a status record, the same
+      // way the CLI and the standalone server do.
+      for await (const event of withAgentStatus(runner.run(command), command)) {
         this.emit(event);
       }
     } finally {
