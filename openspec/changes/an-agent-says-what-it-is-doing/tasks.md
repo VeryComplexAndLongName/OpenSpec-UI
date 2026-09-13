@@ -132,10 +132,88 @@ them.
   (43). The first pass had failed this in CI, on the `C:` path test 5.13
   records.
 - [x] 6.3 A pending changeset exists. `check(changeset-present)`
-- [ ] 6.4 **Delegated to `claude-cli`**: with two real runs under way in
+- [x] 6.4 **Delegated to `claude-cli`** — *performed by the agent that
+  finished the code, and closed on the owner's instruction; recorded
+  rather than glossed, since the marking rule calls a self-close a rubber
+  stamp.* With two real runs under way in
   two working directories, read the records and check each names the
   right change, the right directory and a moving activity; then let one
   end and read again. Evidence: both records over time, and what the
   command printed. The unit tests drive the reader with records a test
   wrote; only real runs show that what a chain reports is what a reader
   sees.
+
+  2026-09-13, in a throwaway repository with two changes, each four
+  tasks: wait 15 seconds, write a file, wait again, write another. The
+  second working directory was made by the real `worktree add change-b`
+  under a worktree root set through `OPENSPEC_UI_WORKTREE_ROOT`. Both
+  chains ran at once through this branch's CLI sources, every stage
+  `claude-cli-acp` on `claude-haiku-4-5-20251001`, no mocks. The records
+  were read straight from `.agent-status` every two seconds, and
+  `openspec-ui-cli status` was run at 20 s, at 45 s, after each chain
+  ended and at the end. Paths are shortened; they named the account.
+
+  **Two records, each its own.** From the first snapshot there were two
+  files, `6db2dab4….json` naming `change-a` in `repo` and
+  `f72120ab….json` naming `change-b` in `wt-root/repo/change-b`, and no
+  other file in the directory at any snapshot — no temporary file left.
+
+  **A moving activity**, change-b's record over the run (time, stage,
+  activity):
+
+  ```
+  00:30:17  —       starting "change-b"
+  00:30:21  apply   running apply
+  00:30:29  apply   I should use the Write tool to create the files and Bash tool ...
+  00:30:33  apply   Bash: node -e "setTimeout(() => {}, 15000)"
+  00:31:13  apply   Write b1.txt
+  00:31:17  apply   Bash: node -e "setTimeout(() => {}, 15000)"
+  00:31:31  apply   Task 1.3 is done. Now I need to create b2.txt ...
+  00:31:33  apply   Write b2.txt
+  00:31:35  verify  running verify
+  00:31:53  verify  Glob openspec/changes/change-b/specs/*/spec.md
+  00:31:58  verify  Read b2.txt
+  ```
+
+  change-a's moved the same way on its own clock (`Read
+  openspec/changes/change-a/tasks.md`, `Write a2.txt`, `Edit
+  openspec/changes/change-a/tasks.md`). While a wait ran, `activityAt`
+  stayed put and `heartbeatAt` moved every five seconds.
+
+  **What the command printed while both ran**, at 45 s:
+
+  ```
+  6db2dab4-0611-45c9-9802-4d80610cf280 on "change-a" (apply)
+      in <scratch>/repo
+      Bash: node -e "setTimeout(() => {}, 15000)"
+      said this 30s ago, last heard from 5s ago
+  f72120ab-7da5-4699-9bf4-76d0e774d58f on "change-b" (apply)
+      in <scratch>/wt-root/repo/change-b
+      Bash: node -e "setTimeout(() => {}, 15000)"
+      said this 32s ago, last heard from 5s ago
+  ```
+
+  Half a minute of silence under an unchanged activity with a live
+  heartbeat, and no verdict — the case this change exists for.
+
+  **One ends, and is read again.** change-a ended first; its record was
+  gone from the next snapshot, and the command printed only change-b:
+
+  ```
+  f72120ab-7da5-4699-9bf4-76d0e774d58f on "change-b" (verify)
+      in <scratch>/wt-root/repo/change-b
+      Read b2.txt
+      said this 5s ago, last heard from 4s ago
+  ```
+
+  Four seconds later change-b ended too, and the command printed `No
+  runs are reporting themselves.`
+
+  **Both chains exited 1, and not because of this change.** Each ended
+  at `archive`: "cannot archive: 2 task(s) still unchecked" and "4
+  task(s)". The apply agents did the work and ticked nothing, and haiku's
+  verify stage would not tick a wait, which leaves no artifact to check.
+  That is a finding about the chain's prompts and the tasks written for
+  this check, recorded here and not fixed here. For this change it is
+  useful evidence: a run that ends `failed` is a clean end, and both
+  records were removed by it.
