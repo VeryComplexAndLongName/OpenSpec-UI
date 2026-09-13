@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AGENT_REGISTRY,
   DEFAULT_AGENT_ID,
+  describeAcpUpdate,
   normalizeStepAgent,
   readAcpStreamedText,
   withAcpStreamedText,
@@ -638,7 +639,9 @@ function describeEvent(event: Event): string {
     case "handedOff":
       return `handed off: ${event.stage} → VS Code chat`;
     case "agentUpdate":
-      return `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
+      // A tool call, a failure or a plan says what it is; only an update
+      // core reads nothing out of is named by its kind.
+      return describeAcpUpdate(event.update) ?? `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
     case "permissionRequest":
       return `permission requested: ${event.description}`;
   }
@@ -821,14 +824,13 @@ function renderStructuredText(raw: string, index: number): ReactNode {
   }
 }
 
-/** Best-effort plain text out of an ACP `session/update` (or, for
- * `claude-cli-acp`, its own translated stream-json line — see
- * claude-acp.ts) payload's `content.text` field, present on
- * `agent_message_chunk`/`agent_thought_chunk` updates and on that
- * adapter's own `"assistant"` message updates. `undefined` for every
- * other update kind (tool calls, plans, ...) — those fall back to
- * `describeEvent()`'s one-line summary rather than a guess at rendering
- * their own differently-shaped payload.
+/** Best-effort plain text out of an ACP `session/update` payload's
+ * `content.text` field, present on `agent_message_chunk`/
+ * `agent_thought_chunk` updates — `claude-cli-acp`'s included, since that
+ * adapter now sends ACP's own shapes. `undefined` for every other update
+ * kind (tool calls, plans, ...) — those fall back to `describeEvent()`,
+ * which shows the line core's `describeAcpUpdate` reads out of them, or
+ * the update's kind when it reads none.
  *
  * Deliberately laxer than core's `readAcpStreamedText`, which
  * `collapseStreamEvents` folds by: that one recognises only the two ACP
@@ -841,6 +843,25 @@ function extractAgentUpdateText(update: Record<string, unknown>): string | undef
   const content = update.content;
   if (isObjectRecord(content) && typeof content.text === "string") return content.text;
   return undefined;
+}
+
+/** Whether an event earns an entry in a run's log.
+ *
+ * Every event does except an agent update a person can read nothing in:
+ * no text, and no line core's `describeAcpUpdate` reads out of it —
+ * Claude's own `system` and `rate_limit_event` lines, a usage figure, a
+ * tool call that simply completed. Those stay in the stream, where the
+ * usage summary and the JSON output read them, and are left out of the
+ * log, as the terminal already leaves them out. Named only by their kind
+ * they filled the log in the live run for an-agent-update-says-something,
+ * which is the noise that change exists to remove.
+ *
+ * Applied where a log is drawn, never in `collapseStreamEvents`: what is
+ * hidden must still end a run of text around it, and still count for
+ * everything that reads the collapsed stream. */
+export function isShownInEventLog(event: Event): boolean {
+  if (event.kind !== "agentUpdate") return true;
+  return extractAgentUpdateText(event.update) !== undefined || describeAcpUpdate(event.update) !== undefined;
 }
 
 export function renderEventBody(event: Event, index: number): ReactNode {
@@ -1235,7 +1256,7 @@ export function AiPanel({
         </section>
       ) : null}
       <ul className="openspec-ai-panel-events" data-testid="event-log">
-        {collapsedEvents.map((event, index) => (
+        {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
           <li key={index} data-testid={`event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
             {renderEventBody(event, index)}
           </li>

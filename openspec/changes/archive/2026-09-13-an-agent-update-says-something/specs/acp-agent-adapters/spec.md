@@ -5,8 +5,7 @@
 The `claude-cli-acp` adapter SHALL translate Claude's stream into ACP
 session updates wherever ACP has a counterpart: text as
 `agent_message_chunk`, thinking as `agent_thought_chunk`, a tool use as
-`tool_call`, a tool result as `tool_call_update`, and the todo list as
-`plan`.
+`tool_call`, and a tool result as `tool_call_update`.
 
 A translated update SHALL be valid against ACP's own session update
 schema.
@@ -46,11 +45,14 @@ was before this requirement, and SHALL NOT change the run's outcome.
 ### Requirement: A tool call and a plan are shown as what they say
 
 Every surface that shows a run's progress — the AI panel, the VS Code
-output channel, the terminal's text output, and a run's status record —
-SHALL show a tool call by its title, a failed tool call as failed with
+output channel and the terminal's text output — SHALL show a tool call by its title, a failed tool call as failed with
 its title, and a plan by its progress and its current step.
 
 These SHALL NOT be shown only as the name of their update kind.
+
+An update from which nothing can be read — no text, and no tool call,
+failure or plan — SHALL NOT be shown on those surfaces, and SHALL still
+reach every consumer of the event stream.
 
 How an update is read SHALL depend only on ACP's shapes, and SHALL NOT
 depend on which agent produced it.
@@ -66,10 +68,12 @@ depend on which agent produced it.
 - **WHEN** a run started from the terminal emits a `tool_call`
 - **THEN** the terminal prints its title on a line of its own
 
-#### Scenario: What the status record says
+#### Scenario: Claude's own bookkeeping
 
-- **WHEN** a run emits a `tool_call` while it writes a status record
-- **THEN** the record's activity is that call's title
+- **WHEN** a `claude-cli-acp` run emits a `system` or `rate_limit_event`
+  update, or reports that a tool call completed
+- **THEN** no panel and no output channel shows an entry for it, and the
+  run's JSON-lines output still carries it
 
 #### Scenario: A native ACP agent
 

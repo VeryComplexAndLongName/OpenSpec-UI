@@ -3,6 +3,3 @@ created: 2026-09-13
 follows:
   - acp-agent-adapters
   - acp-text-reads-as-prose
-  - an-agent-says-what-it-is-doing
-blocked_by:
-  - an-agent-says-what-it-is-doing

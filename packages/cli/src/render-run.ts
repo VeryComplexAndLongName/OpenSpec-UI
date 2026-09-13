@@ -7,7 +7,7 @@
 // See openspec/changes/a-change-runs-from-the-terminal/design.md, "Text
 // for a person, one JSON object per line for a machine".
 
-import { readAcpStreamedText, type AcpTextChunkKind, type Event } from "@openspec-ui/core";
+import { describeAcpUpdate, readAcpStreamedText, type AcpTextChunkKind, type Event } from "@openspec-ui/core";
 
 /** What to write for one event. `text` is written verbatim: a renderer
  * that wants a line break asks for one, because the pieces of a streamed
@@ -47,8 +47,12 @@ export class RunTextRenderer {
         return this.streamed(event.chunk, "stdout");
       case "agentUpdate": {
         const text = readAcpStreamedText(event.update);
-        if (!text) return undefined;
-        return this.streamed(text.text, text.kind);
+        if (text) return this.streamed(text.text, text.kind);
+        // A tool call, a failure or a plan is a line of its own — what a
+        // person watching wants to know is which file and which command.
+        // Everything else an update can be stays unprinted, as before.
+        const line = describeAcpUpdate(event.update);
+        return line === undefined ? undefined : this.line(`· ${line}`);
       }
       case "stderr":
         return this.line(event.chunk.replace(/\r?\n$/, ""));

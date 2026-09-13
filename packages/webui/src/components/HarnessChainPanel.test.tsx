@@ -294,6 +294,36 @@ describe("HarnessChainPanel — usage while it runs (usage-visible-while-running
     expect(silent).not.toContain("$0.00");
   });
 
+  // an-agent-update-says-something tasks.md 4.6: the chain's log names what
+  // an agent does and leaves out what says nothing, while the usage summary
+  // still reads the update the log leaves out.
+  it("logs a tool call by its title and leaves out updates that say nothing, still reading their usage", () => {
+    const { emit } = startChain();
+
+    emit({ ...base, kind: "stageStarted", stage: "apply", agentId: "claude-cli-acp" } as Event);
+    emit({ ...base, kind: "agentUpdate", update: { sessionUpdate: "system", subtype: "init" } } as Event);
+    emit({
+      ...base,
+      kind: "agentUpdate",
+      update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "Bash: npm test", kind: "execute" },
+    } as Event);
+    emit({
+      ...base,
+      kind: "agentUpdate",
+      update: { sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", title: "Bash: npm test" },
+    } as Event);
+    emit({
+      ...base,
+      kind: "agentUpdate",
+      update: { sessionUpdate: "usage_update", used: 90000, size: 200000, cost: { amount: 0.44, currency: "USD" } },
+    } as Event);
+
+    const log = screen.getByTestId("chain-event-log");
+    expect(log).toHaveTextContent("Bash: npm test");
+    expect(log).not.toHaveTextContent("agent update");
+    expect(screen.getByTestId("usage-live-apply").textContent).toContain("$0.44 so far");
+  });
+
   it("shows a live usage_update as the agent's own running report, not as a total", () => {
     const { emit } = startChain();
 

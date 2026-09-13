@@ -236,19 +236,49 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.getByTestId("event-0")).toHaveTextContent("hello there");
     });
 
-    it("falls back to a one-line summary for an agentUpdate event with no text content (e.g. a tool_call)", () => {
+    // an-agent-update-says-something tasks.md 4.6: named only by its kind,
+    // an update is noise — the live run's log was full of them.
+    it("leaves out of the log an agentUpdate a person can read nothing in", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-au-2"} />);
         fireEvent.click(screen.getByTestId("run-button"));
 
+        for (const update of [
+            { sessionUpdate: "tool_call", toolCallId: "tool-1" },
+            { sessionUpdate: "system", subtype: "init" },
+            { sessionUpdate: "rate_limit_event" },
+            { sessionUpdate: "tool_call_update", toolCallId: "tool-1", status: "completed", title: "Read a.ts" },
+            { sessionUpdate: "usage_update", used: 1, size: 2 },
+        ]) {
+            emit({ kind: "agentUpdate", runId: "run-au-2", timestamp: "t", update });
+        }
+
+        expect(screen.getByTestId("event-log").querySelectorAll("li")).toHaveLength(0);
+        expect(screen.getByTestId("event-log")).not.toHaveTextContent("agent update");
+    });
+
+    // an-agent-update-says-something tasks.md 5.7.
+    it("shows a tool call by its title rather than by its kind", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-au-3"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+
         emit({
             kind: "agentUpdate",
-            runId: "run-au-2",
+            runId: "run-au-3",
             timestamp: "t",
-            update: { sessionUpdate: "tool_call", toolCallId: "tool-1" },
+            update: { sessionUpdate: "tool_call", toolCallId: "tool-1", title: "Edit packages/core/src/index.ts", kind: "edit" },
+        });
+        emit({
+            kind: "agentUpdate",
+            runId: "run-au-3",
+            timestamp: "t",
+            update: { sessionUpdate: "tool_call_update", toolCallId: "tool-1", status: "failed", title: "Edit packages/core/src/index.ts" },
         });
 
-        expect(screen.getByTestId("event-0")).toHaveTextContent("agent update: tool_call");
+        expect(screen.getByTestId("event-0")).toHaveTextContent("Edit packages/core/src/index.ts");
+        expect(screen.getByTestId("event-0")).not.toHaveTextContent("agent update");
+        expect(screen.getByTestId("event-1")).toHaveTextContent("failed: Edit packages/core/src/index.ts");
     });
 
     it("shows an Allow/Deny control for a permissionRequest, sends resolvePermission on click, and hides afterward", () => {
