@@ -153,9 +153,13 @@ ended (ADR 0029).
   survey's `nextOpenTask`, with source `guess`. When no run is live, there is
   no `task`.
 - [ ] 5.5 `describeChangeCard(card, now)` returns `{ stateWords, lines }`.
-  - `stateWords` is one of `Running`, `Waiting`, `Failed at <stage>`,
-    `Stopped at <stage>`, `Blocked`, `Ready` or `Done`. It is plain
-    `Failed` or `Stopped` when the run had no stage.
+  - `stateWords` is the word `describeChangeState` in
+    `packages/core/src/change-state.ts` gives for the card's facts; that
+    function comes with `a-change-says-where-it-stands`. The card passes
+    its readiness and last run into the same facts, and picks no word of
+    its own, so a card and the Changes list always say the same word (ADR
+    0029's amendment of 2026-09-13). It is plain `Failed` or `Stopped` when
+    the run had no stage.
   - `lines` come in this order, and each appears only when there is
     something to say:
     1. **the task:** `on task 2.3: <text>`, followed by `, by its own account`

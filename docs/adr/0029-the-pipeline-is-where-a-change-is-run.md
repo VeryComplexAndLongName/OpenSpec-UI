@@ -253,6 +253,53 @@ The decision is implemented in changes, in this order:
 4. Asking a run elsewhere to stop, after both the controls and
    signatures. Signatures depend on none of the changes before them.
 
+## Amendment, 2026-09-13: one word for a change, on every surface
+
+ADR-0026's amendment of the same day has every surface that lists changes
+say where a change stands across the repository. This ADR has a card say
+what its change is doing. Written separately, those would be two sets of
+words for one change: a card saying "Ready" beside a Changes tree saying
+"Archived on main". The owner stated the rule on 2026-09-13: changes look
+the same, and carry the same state, in the Changes view and on the card —
+everywhere, so that nothing misleads anyone.
+
+**A change has one state word, from one closed set, derived by one core
+function.** The Changes tree, the standalone Changes list, a Pipeline card
+and the terminal all show that word, and none of them derives its own. The
+set, in order of precedence:
+
+1. **What is happening now.**
+   - **Running**, or **Running in `label`** when the run is elsewhere.
+   - **Waiting for you**, where the answer can be given from here, or
+     **Waiting in `label`**.
+2. **What has been settled elsewhere.**
+   - **Archived on main**
+   - **Merged in #N**
+   - **Deleted on main**
+3. **Where the work is ahead elsewhere.** **Further along in `label`**, or
+   **on branch `name`**.
+4. **How the last run here ended.** **Failed at `stage`**, or **Stopped at
+   `stage`**.
+5. **What can happen next here.**
+   - **Done**: every task is ticked here.
+   - **Blocked**
+   - **Ready**
+
+The first that applies is the word. Whatever else applies is stated in the
+lines beneath it, each naming its source. For example, a change that is
+Ready here can also have a last run that failed, or be behind another copy.
+
+**Colour agrees with the word, on every surface alike.** Settled elsewhere
+is light green, ahead elsewhere is yellow, now is blue, failed or stopped
+is red, and deleted is grey. The word is always shown, so colour never
+carries the state alone.
+
+This replaces the list of words in "What a card says is derived in core,
+in words" above, and the list in ADR-0026's amendment. The rules those
+sections give for what a word may claim still hold. "Waiting for you" is
+said only where the answer can be given here. "Stopped" is never
+"Failed".
+
 ## Alternatives considered
 
 **Tree views in the editor instead of a webview.** Rejected. The picture

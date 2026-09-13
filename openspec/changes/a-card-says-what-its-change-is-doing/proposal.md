@@ -59,6 +59,11 @@ and nothing else.
   - the first open task an agent may do;
   - when the task list last changed.
 - `PipelineView` draws each local card from `describeChangeCards`.
+- A card's state word is the one `describeChangeState` gives, from the
+  closed set that `a-change-says-where-it-stands` adds for every surface,
+  so a card and the Changes list never disagree (ADR 0029's amendment of
+  2026-09-13). The card supplies its readiness and last run as facts, and
+  picks no word of its own.
 - The readers that total the audit log by agent leave out the chain's
   own ending entries.
 
