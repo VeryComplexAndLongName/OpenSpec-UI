@@ -175,6 +175,30 @@ describe("reportEventsToAgentStatus", () => {
     expect(reports[0]?.activity).toBe("All tasks are done.");
     await writer.stop();
   });
+
+  // Task 3.2, with an-agent-update-says-something's reader: what a run is
+  // doing between its sentences is the tool it is running.
+  it("takes a tool call's line as the activity, and leaves it when an update says nothing", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let clock = Date.parse("2026-01-01T00:00:00.000Z");
+    const writer = new AgentStatusWriter({ directory, workingDirectory: root, now: () => new Date((clock += 2_000)) });
+    await writer.start("starting");
+
+    const update = (payload: Record<string, unknown>): Event => ({ kind: "agentUpdate", runId: "r1", timestamp: "t", update: payload });
+    const events: Event[] = [
+      update({ sessionUpdate: "tool_call", toolCallId: "t1", title: "Bash: npm test", kind: "execute" }),
+      update({ sessionUpdate: "system", subtype: "init" }),
+      update({ sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", title: "Bash: npm test" }),
+    ];
+    for await (const _event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      // draining
+    }
+
+    const { reports } = await readAgentStatuses(directory, { now: () => new Date(clock) });
+    expect(reports[0]?.activity).toBe("Bash: npm test");
+    await writer.stop();
+  });
 });
 
 describe("AgentStatusWriter — streamed activity", () => {

@@ -13,6 +13,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
+import { describeAcpUpdate } from "./acp-update-line.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import type { Command, Event } from "./protocol.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
@@ -431,6 +432,17 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, 
 
   const unfinished = takeOpenLines(open);
   if (unfinished !== undefined) await writer.noteStreamedActivity(unfinished);
+
+  if (event.kind === "agentUpdate") {
+    // A tool call, a failed one, a plan: the line every surface shows for
+    // it, read by the same core reader, so the record says `Bash: npm test`
+    // exactly where the terminal does. An update that says nothing leaves
+    // the activity as it was. Noted like streamed output, because an agent
+    // can make several calls a second.
+    const line = describeAcpUpdate(event.update);
+    if (line !== undefined) await writer.noteStreamedActivity(line);
+    return;
+  }
 
   switch (event.kind) {
     case "stageStarted":

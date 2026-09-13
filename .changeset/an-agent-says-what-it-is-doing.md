@@ -2,6 +2,7 @@
 "@openspec-ui/core": minor
 "@openspec-ui/cli": minor
 "@openspec-ui/server": patch
+"openspec-ui-vscode": patch
 ---
 
 An agent says what it is doing.
@@ -22,7 +23,11 @@ reports how long it has been since a run last said what it was doing, and
 never whether that run is stuck, hung, or unhealthy: a long turn and a hang
 produce the same silence, and telling them apart stays a person's judgement.
 
-The chain's own stage transitions and streamed output now feed this record
-as they happen. `openspec-ui-cli status` prints every run of a repository —
-who, where, doing what, since when — and exits `0` whether or not anything
-is running, the same reasoning `ready` and `lease` already use.
+Every run keeps one — started from the terminal, the standalone app or VS
+Code, a single stage or a whole chain — and neither the run nor its events
+wait for it. What it says is the chain's stage, the last complete line an
+agent wrote, or the tool it is running (`Bash: npm test`); streamed output
+rewrites the file at most once a second. `openspec-ui-cli status` prints
+every run of a repository — who, where, doing what, since when — and exits
+`0` whether or not anything is running, the same reasoning `ready` and
+`lease` already use.
