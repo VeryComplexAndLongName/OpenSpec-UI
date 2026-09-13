@@ -242,6 +242,61 @@ This is implemented in two changes, in this order: agents saying what
 they are doing, and then the signed channel for asking one to stop. The
 first stands on its own — it is what makes a hung agent visible.
 
+## Amendment, 2026-09-13: a request has a reply, and both are kept
+
+On 2026-09-13 a delegated item was run: a person asked `claude-cli` to
+close one task. The run ended cleanly, and the item stayed open. The
+instruction had told the agent to say why when it could not finish, and it
+did say why. That answer went nowhere. Nothing kept it:
+
+- the delegated-item route returns the tail of stderr only when a run
+  fails;
+- the audit log recorded `started` and `completed`.
+
+The reason was found only in the CLI's own session transcript. The agent
+had moved its debugging into the background and ended its turn saying it
+would pick it up when that finished. A `claude -p` session ends with its
+turn, so there was no later.
+
+A request to an agent is a message with an answer, and the answer is part
+of what happened. So this amendment records both.
+
+**A request and its reply share one envelope:**
+
+- `id`: the message's own identifier;
+- `kind`: `request` or `reply`;
+- `inReplyTo`: the request's `id`, on a reply only;
+- `from` and `to`:
+  - a person, by git author, as a claim until this ADR's signatures make it
+    proven;
+  - an agent, by its registered id and its instance's identifier;
+- `at`: an ISO timestamp in UTC;
+- `body`: what was asked, or what was answered, in words;
+- `outcome`, on a reply only: what became of the request — closed, left
+  open, refused or failed.
+
+**A run that was asked to do something always leaves a reply.** When it
+ends, its last message and its outcome are recorded, whether or not the
+item was closed. An empty reply is recorded as empty, never as absent.
+
+**Replies are history, so they go where history goes.** A request and its
+reply are written to the audit log as they happen. The status record still
+describes only the present. The places a person already looks show the
+reply beside what was asked: the waiting-on inbox, and the change's card.
+Across processes, the envelope is this channel's message format, signed as
+every message here is.
+
+**The request says what an answer requires.** An agent asked to do one
+item works until it has an answer, in the turn it was given. It does not
+leave work running for later, because a non-interactive session has no
+later.
+
+**It is not a conversation.** One request has one reply. There are no
+threads, no follow-ups on the same identifier, and no replies to replies.
+A further question is a new request. A second channel for talking would
+be a place where answers go unread, which is the failure this amendment
+corrects.
+
 ## Alternatives considered
 
 **An HTTP, WebSocket or TCP control channel between agents.** Rejected:

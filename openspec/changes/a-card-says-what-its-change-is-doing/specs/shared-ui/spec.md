@@ -17,11 +17,28 @@ part of it itself.
 
 ### Requirement: A card states its change's state as one word from a closed set
 
-A card SHALL state its change's state as exactly one of: Running, Waiting,
-Failed at a stage, Stopped at a stage, Blocked, Ready, Done.
+A card SHALL state its change's state as the word the one closed set
+every surface uses gives for it:
 
-What is happening now SHALL outrank how the last run ended, and how the last
-run ended SHALL outrank what could happen next.
+- Running, or running in a named directory;
+- Waiting, or waiting in a named directory;
+- Archived on main;
+- Merged in a numbered pull request;
+- Deleted on main;
+- Further along elsewhere;
+- Failed at a stage;
+- Stopped at a stage;
+- Done;
+- Blocked;
+- Ready.
+
+A card SHALL take that word from the same core function the Changes views
+use, so a card and the Changes views never show a change differently.
+
+What is happening now SHALL outrank what has been settled elsewhere; that
+SHALL outrank where the work is ahead elsewhere; that SHALL outrank how the
+last run ended; and how the last run ended SHALL outrank what could happen
+next.
 
 A run's ending SHALL decide the state only while the change's task list is
 unchanged since that run ended.

@@ -175,6 +175,87 @@ starts a run against it, or ticks anything in it. A run's card offers the
 request only where a signature shows that the run belongs to the person
 asking.
 
+## Amendment, 2026-09-13: where a change stands, wherever it is
+
+The rules above show another directory's changes beneath this one's, in a
+picture of their own. They do not tell a person where **their** change
+stands. The Changes view of one checkout shows that checkout's copy of each
+change and nothing else. So a change can be:
+
+- archived on `main`,
+- further along in another working directory,
+- pushed on its own branch with a pull request merged, or
+- running somewhere else,
+
+while this view shows it untouched, and a person can start it again. That
+happened in this repository: the owner could not see which changes had
+already been done by an agent or by the Harness in another branch or
+directory.
+
+The goal the owner set on 2026-09-13: whoever works with a change sees, at
+all times and wherever the change is, as accurate a picture of it as can be
+read.
+
+**A change has one standing, read across the repository.** It is read from:
+
+- this checkout's copy;
+- every working directory's copy, which the survey already reads;
+- the repository's `main`, local and remote, and the branch ADR-0022 names
+  after the change, as this repository's own git objects hold them;
+- where `gh` is present and signed in, the pull request for that branch,
+  and whether it is open, merged or closed.
+
+**Git is still run only against this repository.** Every working
+directory's branches are refs of this one repository, so reading `main` or
+a change's branch means `git ls-tree` and `git show` here, never in a
+foreign directory. Reading pulls, checks out, merges and pushes nothing.
+
+**A reading says how fresh it is.** A remote's refs are only as current as
+the last fetch, and a stale `main` shown as current is exactly the failure
+this amendment exists to stop. So:
+
+- the reading fetches, without touching any working tree, on a slow
+  interval while a view that shows standings is open, and again when a run
+  is about to start;
+- it states when the remote's refs were last fetched;
+- it says so when a fetch failed, or when `gh` is absent and pull requests
+  were not read. Whatever could not be read is named, and never replaced by
+  a guess.
+
+**What a change's standing contributes is one state word, and the facts
+behind it.** The words come from the one closed set that ADR-0029's
+amendment of the same day defines for every surface: Running in a
+directory, Archived on main, Merged in a pull request, Deleted on main, and
+Further along elsewhere. Each fact beneath the word names its source.
+Examples:
+
+- "k of m tasks done in `label`, j of m here";
+- "only here";
+- "behind the copy in `label`".
+
+A colour agrees with the word and never carries it alone (WCAG AA, as
+above).
+
+Every surface that lists changes says the same word: the Changes tree, a
+Pipeline card, the terminal. It comes from one function in core, for the
+reason ADR-0025 gave: two derivations of one answer drift apart, and both
+look plausible.
+
+**Starting a run says the standing first.** Where a change is archived or
+deleted on `main`, merged, or running elsewhere, the run dialog says so, and
+the person confirms before anything starts. It is not refused: a condition
+is reported, not forbidden, as the rules above already hold.
+
+**Reading costs something, and is bounded:**
+
+- a `git ls-tree` of `main` and of each change's branch per reading, all
+  against this repository, until the refs move;
+- one fetch per interval;
+- one `gh` call per branch that has a pull request, where `gh` is present.
+
+The proposal that implements this measures that cost on this repository
+before it is accepted.
+
 ## Alternatives considered
 
 **A central registry or daemon agents report to.** Rejected: the
