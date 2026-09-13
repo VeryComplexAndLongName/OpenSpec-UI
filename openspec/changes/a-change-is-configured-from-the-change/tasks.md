@@ -267,16 +267,19 @@ recommendation from runs can be applied (owner review, 2026-09-13).
 - [x] 8.1 This change validates strictly. `check(validate-change)`
   Done: `openspec validate a-change-is-configured-from-the-change --strict`
   reports it valid, 2026-09-13.
-- [ ] 8.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 8.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count for each package.
-  Run 2026-09-13, exit code 1. Typecheck and every lint passed. Tests:
-  cli 134 passed; core 1237 passed, 1 failed; extension 339 passed; server
-  86 passed; webui 426 passed. The one failure is `keeps accepting this
-  repository's real openspec/agent-harness.json`, which reads the working
-  tree's file: an uncommitted local edit sets its `autonomyLevel` to
-  `semi-autonomous`, and the test expects the committed `assisted`. That
-  file is not part of this change. Left open until a run without that edit
-  passes.
+  Local run 2026-09-13, exit code 1. Typecheck and every lint passed.
+  Tests: cli 134 passed; core 1237 passed, 1 failed; extension 339 passed;
+  server 86 passed; webui 426 passed. The one failure is `keeps accepting
+  this repository's real openspec/agent-harness.json`, which reads the
+  working tree's file: an uncommitted local edit, not part of this change,
+  sets its `autonomyLevel` to `semi-autonomous`, and the test expects the
+  committed `assisted`.
+  Closed on the same checks run against the committed tree: CI job
+  "Typecheck, lint, test, and build" on commit c407955 succeeded,
+  [run 34773671669](https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34773671669/job/103767731431)
+  (owner's choice, 2026-09-13: commit now and close 8.2 on green CI).
 - [x] 8.3 A pending changeset exists: webui, extension and core minor,
   server patch. `check(changeset-present)`
   Done: `.changeset/a-change-is-configured-from-the-change.md`.
