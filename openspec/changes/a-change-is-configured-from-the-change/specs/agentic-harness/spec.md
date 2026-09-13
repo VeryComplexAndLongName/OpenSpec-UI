@@ -21,7 +21,7 @@ takes away a way of working; a view that names the file does not.
 A refused write SHALL be reported where the edit was made. A form that
 cannot say a save was refused is indistinguishable from one that saved.
 
-#### Scenario: Editing the global configuration in the editor host
+#### Scenario: Editing the configuration in the editor host
 
 - **WHEN** the harness configuration is opened for editing in VS Code
 - **THEN** the global view is shown, with the same pickers and diagnostics
