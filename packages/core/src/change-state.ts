@@ -11,6 +11,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+// The one state word every surface shows lives in a leaf the browser can
+// have; it is re-exported here so a Node importer finds it beside the rest
+// of a change's state (a-change-says-where-it-stands).
+export * from "./change-state-word.js";
+
 export type ChangeState = "draft" | "in-progress" | "implemented" | "archived";
 
 function isArchived(changeDir: string): boolean {

@@ -6,6 +6,7 @@ export * from "./protocol.js";
 export * from "./agent-runner.js";
 export * from "./security.js";
 export * from "./change-state.js";
+export * from "./change-standing.js";
 export * from "./change-graph.js";
 export * from "./successor-check.js";
 export * from "./spec-delta-check.js";

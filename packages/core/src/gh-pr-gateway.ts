@@ -1,6 +1,81 @@
 import { setTimeout as delay } from "node:timers/promises";
 import crossSpawn from "cross-spawn";
 
+/** A pull request's state as `gh` reports it. */
+export type BranchPullRequestState = "OPEN" | "CLOSED" | "MERGED";
+
+export interface BranchPullRequest {
+  number: number;
+  state: BranchPullRequestState;
+}
+
+/** Every pull request by its head branch, or why none could be read. */
+export type PullRequestsByBranch =
+  | { available: true; byBranch: Map<string, BranchPullRequest> }
+  | { available: false; reason: string };
+
+export interface ListPullRequestsOptions {
+  cwd: string;
+  ghBinary?: string;
+  /** Test seam: runs `gh`. */
+  exec?: (binary: string, args: string[], options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
+}
+
+/** One call for every pull request, rather than one per branch
+ * (a-change-says-where-it-stands). */
+export function buildGhPrListInvocation(): { executable: string; args: string[] } {
+  return {
+    executable: "gh",
+    args: ["pr", "list", "--state", "all", "--json", "number,state,headRefName", "--limit", "200"],
+  };
+}
+
+const PR_STATES: ReadonlySet<string> = new Set(["OPEN", "CLOSED", "MERGED"]);
+
+function whyGhFailed(error: unknown): string {
+  const code = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+  if (code === "ENOENT") return "gh is not installed";
+  const text = error instanceof Error ? error.message : String(error);
+  if (/auth login|not logged in/iu.test(text)) return "gh is not signed in";
+  const first = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? "no reason given";
+  return `gh failed: ${first.trim()}`;
+}
+
+/** Every pull request of the repository by its head branch.
+ *
+ * Where a branch has had more than one, an open or merged one is kept over a
+ * closed one, and the newest of those; `gh` lists newest first. Where `gh`
+ * is missing, not signed in or fails, says why and guesses nothing. */
+export async function listPullRequestsByBranch(options: ListPullRequestsOptions): Promise<PullRequestsByBranch> {
+  const invocation = buildGhPrListInvocation();
+  let stdout: string;
+  try {
+    ({ stdout } = await (options.exec ?? execFileAsync)(options.ghBinary ?? invocation.executable, invocation.args, { cwd: options.cwd }));
+  } catch (error) {
+    return { available: false, reason: whyGhFailed(error) };
+  }
+
+  let items: unknown;
+  try {
+    items = JSON.parse(stdout);
+  } catch {
+    return { available: false, reason: "gh printed something that is not JSON" };
+  }
+  if (!Array.isArray(items)) return { available: false, reason: "gh printed something that is not a list" };
+
+  const byBranch = new Map<string, BranchPullRequest>();
+  for (const item of items as Array<Record<string, unknown>>) {
+    if (typeof item !== "object" || item === null) continue;
+    const { number, state, headRefName } = item;
+    if (typeof number !== "number" || typeof headRefName !== "string" || typeof state !== "string" || !PR_STATES.has(state)) continue;
+    const seen = byBranch.get(headRefName);
+    if (seen === undefined || (seen.state === "CLOSED" && state !== "CLOSED")) {
+      byBranch.set(headRefName, { number, state: state as BranchPullRequestState });
+    }
+  }
+  return { available: true, byBranch };
+}
+
 export interface PullRequestRef {
   number: number;
   url: string;
