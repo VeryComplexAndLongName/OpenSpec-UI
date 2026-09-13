@@ -21,6 +21,7 @@ import {
   resolveHarnessConfig,
   resolveRunner,
   serializeEvent,
+  withAgentStatus,
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
 
@@ -155,7 +156,7 @@ async function streamChainEvents(
 ): Promise<string | undefined> {
   let summary: string | undefined;
   let failureReason: string | undefined;
-  for await (const event of chainRunner.run(command)) {
+  for await (const event of withAgentStatus(chainRunner.run(command), command)) {
     if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
     if (event.kind === "progress") report(event.message);
     if (event.kind === "stageCompleted" || event.kind === "checkpoint") report(`${event.stage} -> ${event.nextStage}`);
@@ -223,7 +224,7 @@ async function streamAgentEvents(
 ): Promise<string | undefined> {
   let summary: string | undefined;
   let failureReason: string | undefined;
-  for await (const event of runner.run(command)) {
+  for await (const event of withAgentStatus(runner.run(command), command)) {
     if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
     if (event.kind === "progress") report(event.message);
     if (event.kind === "completed") summary = event.summary;
@@ -240,7 +241,7 @@ async function streamRun(
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
 ): Promise<void> {
   if (command.kind !== "implement") {
-    for await (const event of runner.run(command)) {
+    for await (const event of withAgentStatus(runner.run(command), command)) {
       if (socket.readyState === socket.OPEN) {
         socket.send(serializeEvent(event));
       }

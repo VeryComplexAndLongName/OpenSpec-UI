@@ -23,6 +23,7 @@ import {
   describeWorkspaceLeaseReclamation,
   resolveChainStart,
   resolveRunner,
+  withAgentStatus,
   withWorkspaceLease,
   type AgentRunner,
   type Command,
@@ -180,7 +181,7 @@ async function driveChain(
 
   let outcome: "completed" | "failed" | "cancelled" | "unterminated" = "unterminated";
   try {
-    for await (const event of chain.run(command)) {
+    for await (const event of withAgentStatus(chain.run(command), command)) {
       write(event);
 
       if (event.kind === "checkpoint") {
