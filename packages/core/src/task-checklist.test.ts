@@ -409,6 +409,18 @@ describe("delegatedAgentFor", () => {
     expect(delegatedAgentFor("1.1 Add a unit test")).toBeUndefined();
     expect(delegatedAgentFor("2.3 **Note**: copilot-cli accepts --agent")).toBeUndefined();
   });
+
+  // a-delegated-run-says-what-happened 1.1, 1.2
+  it("reads an id in backticks as the same agent as the bare id", () => {
+    expect(delegatedAgentFor("5.4 **Delegated to `claude-cli`**: start a real run")).toBe("claude-cli");
+    expect(delegatedAgentFor("5.4 **Delegated to claude-cli**: start a real run")).toBe("claude-cli");
+  });
+
+  it("names nobody when the id is quoted on one side only", () => {
+    expect(delegatedAgentFor("5.4 **Delegated to `claude-cli**: a typo")).toBeUndefined();
+    expect(delegatedAgentFor("5.4 **Delegated to claude-cli`**: a typo")).toBeUndefined();
+    expect(delegatedAgentFor("5.4 **Delegated to ``**: nothing inside")).toBeUndefined();
+  });
 });
 
 describe("readTaskChecklist humanOnly field", () => {

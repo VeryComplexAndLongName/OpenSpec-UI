@@ -1336,6 +1336,23 @@ export const shellThemeCss = `
   .openspec-hint { margin-bottom: 12px; }
   .openspec-hint .openspec-shell-note { margin: 2px 0 6px; }
 
+  /* What a stopped delegated run's agent last said, beneath its outcome.
+     Pre-formatted as the agent wrote it, wrapped so a long line does not
+     widen the page, and scrolled inside its own box past a few lines. */
+  .openspec-delegated-stderr { margin: 4px 0 8px; }
+  .openspec-delegated-stderr summary { cursor: pointer; color: var(--muted); }
+  .openspec-delegated-stderr pre {
+    margin: 4px 0 0;
+    padding: 6px 8px;
+    max-height: 14em;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+
   /* A command is one long line, and the page must not scroll sideways
      at phone width — pipeline.spec.ts asserts exactly that, and is what
      caught this: a pre element keeps its line intact by default, so the

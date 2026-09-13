@@ -177,6 +177,130 @@ describe("runDelegatedItem — what reaches the agent and the log", () => {
   });
 });
 
+/** A runner whose agent says why it stopped on stderr and then fails,
+ * built like `runnerOver`, so the real runner carries its events. */
+function failingRunnerOver(auditLog: InMemoryAuditLog, workspaceRoot: string, stderr: string[]): AgentRunner {
+  const adapter: AgentAdapter = {
+    name: "copilot-cli",
+    buildInvocation: () => ({ kind: "process", executable: "copilot", args: ["-p"] }),
+    async *execute(_invocation, command): AsyncGenerator<Event> {
+      for (const chunk of stderr) yield { kind: "stderr", runId: command.runId, timestamp: "t", chunk };
+      yield { kind: "failed", runId: command.runId, timestamp: "t", reason: "copilot exited with code 1" };
+    },
+  };
+  return createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+}
+
+async function statusDirectory(): Promise<string> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "openspec-delegated-status-"));
+  roots.push(directory);
+  return directory;
+}
+
+const LF = String.fromCharCode(10);
+
+describe("runDelegatedItem — what a run says about itself (a-delegated-run-says-what-happened)", () => {
+  // 2.1, 2.2, 2.3, 3.2
+  it("quotes what the agent last said on stderr when the run fails, and carries the tail", async () => {
+    const { root } = await workspace("- [ ] 2.1 **Delegated to `copilot-cli`**: quote the audit line" + LF);
+    const auditLog = new InMemoryAuditLog();
+    const kinds: string[] = [];
+
+    const result = await runDelegatedItem({
+      workspaceRoot: root,
+      changeName: "demo",
+      lineNumber: 0,
+      resolveStatusDirectory: statusDirectory,
+      onEvent: (event) => kinds.push(event.kind),
+      resolveRunner: () => failingRunnerOver(auditLog, root, [
+        "starting up" + LF,
+        "API Error: 400 this version is too old." + LF + LF,
+      ]),
+    });
+
+    expect(result.status).toBe("ran");
+    if (result.status !== "ran") return;
+    expect(result.outcome).toBe("failed");
+    expect(result.lastStderr).toBe("starting up" + LF + "API Error: 400 this version is too old.");
+    expect(result.message).toContain(
+      "The run failed: copilot exited with code 1. It last said: API Error: 400 this version is too old.",
+    );
+    expect(kinds).toEqual(expect.arrayContaining(["stderr", "failed"]));
+  });
+
+  it("bounds the tail it carries, keeping the end", async () => {
+    const { root } = await workspace("- [ ] 2.1 **Delegated to copilot-cli**: quote the audit line" + LF);
+    const auditLog = new InMemoryAuditLog();
+    const many = Array.from({ length: 50 }, (_, index) => `line ${index + 1}` + LF);
+    const long = "x".repeat(5_000) + LF;
+
+    const byLines = await runDelegatedItem({
+      workspaceRoot: root,
+      changeName: "demo",
+      lineNumber: 0,
+      resolveStatusDirectory: statusDirectory,
+      resolveRunner: () => failingRunnerOver(auditLog, root, many),
+    });
+    const byLength = await runDelegatedItem({
+      workspaceRoot: root,
+      changeName: "demo",
+      lineNumber: 0,
+      resolveStatusDirectory: statusDirectory,
+      resolveRunner: () => failingRunnerOver(auditLog, root, [long]),
+    });
+
+    if (byLines.status !== "ran" || byLength.status !== "ran") throw new Error("expected both to run");
+    const lines = (byLines.lastStderr ?? "").split(LF);
+    expect(lines).toHaveLength(20);
+    expect(lines.at(-1)).toBe("line 50");
+    expect((byLength.lastStderr ?? "").length).toBeLessThanOrEqual(2_000);
+  });
+
+  it("carries no stderr on a run that finished", async () => {
+    const { root } = await workspace("- [ ] 2.1 **Delegated to copilot-cli**: quote the audit line" + LF);
+    const auditLog = new InMemoryAuditLog();
+
+    const result = await runDelegatedItem({
+      workspaceRoot: root,
+      changeName: "demo",
+      lineNumber: 0,
+      resolveStatusDirectory: statusDirectory,
+      resolveRunner: () => runnerOver(auditLog, root, () => undefined),
+    });
+
+    if (result.status !== "ran") throw new Error("expected a run");
+    expect(result.lastStderr).toBeUndefined();
+    expect(result.message).not.toContain("It last said");
+  });
+
+  // 3.1, 3.3
+  it("keeps a status record naming the change while the run is under way, and removes it after", async () => {
+    const { root } = await workspace("- [ ] 2.1 **Delegated to copilot-cli**: quote the audit line" + LF);
+    const auditLog = new InMemoryAuditLog();
+    const directory = await statusDirectory();
+    const { readAgentStatuses } = await import("./agent-status.js");
+    let during: Array<{ changeName: string | null }> = [];
+
+    const result = await runDelegatedItem({
+      workspaceRoot: root,
+      changeName: "demo",
+      lineNumber: 0,
+      resolveStatusDirectory: async () => directory,
+      resolveRunner: () => runnerOver(auditLog, root, async () => {
+        await vi.waitFor(async () => {
+          const { reports } = await readAgentStatuses(directory);
+          expect(reports).toHaveLength(1);
+          during = reports;
+        });
+      }),
+    });
+
+    expect(result.status).toBe("ran");
+    expect(during.map((report) => report.changeName)).toEqual(["demo"]);
+    expect((await readAgentStatuses(directory)).reports).toEqual([]);
+  });
+});
+
 describe("runDelegatedItem — the rubber-stamp gate", () => {
   const TASKS = [
     "## 2. The work",

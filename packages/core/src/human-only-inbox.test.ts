@@ -84,6 +84,17 @@ describe("collectHumanOnlyInbox", () => {
     expect(inbox.items[0]?.waitingOn).toEqual({ kind: "agent", agent: "copilot-cli", known: true, source: "task-text" });
   });
 
+  // a-delegated-run-says-what-happened 1.3
+  it("carries an item whose marker quotes its agent's id, as the same agent", async () => {
+    const root = await workspaceWith({
+      "change-a": "- [ ] 1.1 **Delegated to `copilot-cli`**: quote the audit line" + String.fromCharCode(10),
+    });
+
+    const inbox = await collectHumanOnlyInbox(root);
+
+    expect(inbox.items[0]?.waitingOn).toEqual({ kind: "agent", agent: "copilot-cli", known: true, source: "task-text" });
+  });
+
   it("reports an agent the registry does not carry, rather than trusting the name", async () => {
     // An item delegated to nobody looks assigned and is not.
     const root = await workspaceWith({

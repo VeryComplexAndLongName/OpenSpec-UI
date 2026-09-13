@@ -87,7 +87,26 @@ export function delegatedAgentFor(text: string): string | undefined {
   if (HUMAN_ONLY_ANYWHERE_RE.test(text)) return undefined;
   const match = text.match(HUMAN_ONLY_LEAD_RE);
   if (!match) return undefined;
-  return DELEGATED_LEAD_RE.exec((match[1] ?? "").trim())?.[1];
+  return DELEGATED_LEAD_RE.exec(unquoteAgentId((match[1] ?? "").trim()))?.[1];
+}
+
+const BACKTICK = "`";
+
+/** The lead with a backtick pair around its last word removed, so
+ * ``Delegated to `claude-cli` `` reads as `Delegated to claude-cli`
+ * (a-delegated-run-says-what-happened). Markdown authors put an id in
+ * backticks by habit, and every delegated item in this repository was
+ * written that way before the reader was ever asked to read one. A
+ * backtick on one side only is left in place, so the lead names nothing:
+ * a half-quoted id is a typo, and a typo must not quietly become a
+ * name. */
+function unquoteAgentId(lead: string): string {
+  const lastSpace = lead.lastIndexOf(" ");
+  const word = lead.slice(lastSpace + 1);
+  if (word.length > 2 && word.startsWith(BACKTICK) && word.endsWith(BACKTICK)) {
+    return lead.slice(0, lastSpace + 1) + word.slice(1, -1);
+  }
+  return lead;
 }
 
 /** The number a task line leads with, and nothing else: `1`, `1.1`,
