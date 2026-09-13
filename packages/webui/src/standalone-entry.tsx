@@ -16,6 +16,7 @@ import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { PipelineView } from "./components/PipelineView.js";
 import { loadChangeReadiness } from "./change-readiness-client.js";
+import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
@@ -325,6 +326,7 @@ function StandaloneApp() {
   // Stable across renders so the pipeline's polling effect is not torn
   // down and restarted on every one of them.
   const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
+  const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
 
   // `loadChangeEditor` is a hoisted declaration further down and reads
   // `cwd` itself, so `cwd` is the only thing this has to be rebuilt for.
@@ -1865,6 +1867,7 @@ function StandaloneApp() {
           ? (
             <PipelineView
               load={pipelineLoad}
+              survey={pipelineSurvey}
               isActive={activeTab === "pipeline"}
               onOpenChange={openChangeInEditor}
             />

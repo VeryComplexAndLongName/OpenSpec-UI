@@ -1262,7 +1262,11 @@ export const shellThemeCss = `
 
   .openspec-pipeline-node-name {
     font-weight: 600;
-    /* The part a reader scans for gets the room. */
+    /* The part a reader scans for gets the room. It also never shrinks:
+       its own overflow: hidden lets a fixed-height column squeeze it to
+       nothing first, so a card with one line too many lost its name and
+       kept its details. The card clips from the bottom instead. */
+    flex-shrink: 0;
     align-self: stretch;
     white-space: nowrap;
     overflow: hidden;
@@ -1291,6 +1295,40 @@ export const shellThemeCss = `
   }
 
   .openspec-pipeline-cycles ul { margin: 4px 0 0; padding-left: 20px; }
+
+  /* Which branch the picture was read from, and what this directory's
+     runs say. */
+  .openspec-pipeline-reading { margin: 8px 0; }
+  .openspec-pipeline-reading ul,
+  .openspec-pipeline-directory ul { margin: 2px 0 6px; padding-left: 20px; }
+
+  /* Every other working directory, beneath this one. Recessed, and the
+     recess only agrees with a fact the markup already states: those
+     cards are not controls and carry no handler. */
+  .openspec-pipeline-others {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-strong);
+  }
+  .openspec-pipeline-others-heading { margin: 0 0 4px; font-size: 14px; }
+  .openspec-pipeline-directory {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+  }
+  .openspec-pipeline-directory-label { margin: 0 0 2px; font-size: 13px; }
+  /* A div inherits the page's line height; a button, which is what a
+     local card is, does not. Matched here so both fit the same height
+     core gave. Line height only: a font-size of its own would move the
+     card once the unit is an em (see .openspec-pipeline-node). */
+  .openspec-pipeline-node--foreign { cursor: default; border-style: dashed; line-height: normal; }
+  .openspec-pipeline-node--foreign:hover { border-color: var(--line-strong); }
+  /* A different git author is said in words first; this agrees. */
+  .openspec-pipeline-directory-holder[data-author-differs="true"] {
+    border-left: 4px solid var(--warn);
+    padding-left: 6px;
+  }
 
   .openspec-hints { margin-top: 16px; }
   .openspec-hints h3 { margin: 0 0 8px; font-size: 14px; }

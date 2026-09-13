@@ -43,6 +43,7 @@ import {
   addScheduledRun,
   collectHumanOnlyInbox,
   readChangeReadiness,
+  surveyWorktrees,
   buildHints,
   WORKSPACE_LEASE_STALE_AFTER_MS,
   runDelegatedItem,
@@ -1116,6 +1117,37 @@ export async function handleChangeReadinessRequest(
       ? buildHints(report, { staleAfterMs: WORKSPACE_LEASE_STALE_AFTER_MS })
       : undefined;
     sendJson(res, 200, hints ? { ...report, hints } : report);
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** Every working directory of the workspace's repository, and what its
+ * runs say — what-the-others-are-doing. The survey is core's, in the
+ * shape core returns; this route carries it and adds nothing. No git is
+ * run against a directory this host does not own (ADR 0026): that rule
+ * lives in `surveyWorktrees`, not here. */
+export async function handleWorktreeSurveyRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }

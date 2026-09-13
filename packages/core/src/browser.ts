@@ -186,6 +186,11 @@ export * from "./acp-update-line.js";
 // does (ADR 0025). `change-readiness.ts` itself stays Node-only: it
 // walks the changes directory and shells out to git.
 export * from "./change-readiness-facts.js";
+// Every working directory of the repository and what its runs say, as
+// the shell draws it (ADR 0026). A leaf with type imports only;
+// `worktree-survey.ts`, which lists worktrees and reads each directory,
+// stays Node-only.
+export * from "./worktree-survey-facts.js";
 // Pure over that report, so the shell renders exactly the suggestions
 // the terminal prints rather than deriving its own —
 // a-hint-says-what-can-run-together.

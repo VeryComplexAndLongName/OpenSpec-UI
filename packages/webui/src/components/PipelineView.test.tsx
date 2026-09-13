@@ -1,7 +1,13 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChangeReadiness, ChangeReadinessReport } from "@openspec-ui/core/browser";
-import { PIPELINE_POLL_INTERVAL_MS, PipelineView } from "./PipelineView.js";
+import type {
+  ChangeReadiness,
+  ChangeReadinessReport,
+  SurveyedDirectory,
+  SurveyedRun,
+  WorktreeSurvey,
+} from "@openspec-ui/core/browser";
+import { PIPELINE_POLL_INTERVAL_MS, PipelineView, SURVEY_POLL_INTERVAL_MS } from "./PipelineView.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -32,6 +38,173 @@ function holder(author?: string) {
     ...(author !== undefined ? { author } : {}),
   };
 }
+
+// what-the-others-are-doing: every other working directory beneath this
+// one's picture, and what every directory's runs say.
+function run(overrides: Partial<SurveyedRun> = {}): SurveyedRun {
+  return {
+    instanceId: "run-1",
+    changeName: "their-change",
+    stage: "apply",
+    activity: "Bash: npm test",
+    activitySinceMs: 12_000,
+    heartbeatAgeMs: 2_000,
+    gone: false,
+    workingDirectory: "/wt/repo/theirs",
+    ...overrides,
+  };
+}
+
+function directory(overrides: Partial<Extract<SurveyedDirectory, { readable: true }>> = {}): SurveyedDirectory {
+  return {
+    path: "/repo",
+    label: "repo",
+    labelDeclared: false,
+    isMain: true,
+    isThis: true,
+    branch: "main",
+    runs: [],
+    readable: true,
+    changes: [],
+    authorDiffers: false,
+    ...overrides,
+  };
+}
+
+function survey(...directories: SurveyedDirectory[]): WorktreeSurvey {
+  return { directories, runsElsewhere: [] };
+}
+
+const theirs = (overrides: Partial<Extract<SurveyedDirectory, { readable: true }>> = {}) => directory({
+  path: "/wt/repo/theirs",
+  label: "theirs",
+  isMain: false,
+  isThis: false,
+  branch: "their-branch",
+  changes: [{ changeName: "their-change", tasksDone: 2, tasksTotal: 5, blockers: [], alsoIn: [] }],
+  ...overrides,
+});
+
+describe("PipelineView — other working directories", () => {
+  // 5.1
+  it("names the branch this picture was read from, even with nothing in the queue", async () => {
+    render(<PipelineView isActive load={async () => report()} survey={async () => survey(directory({ branch: "stale-branch" }))} />);
+
+    expect(await screen.findByTestId("pipeline-reading-branch")).toHaveTextContent("Read from branch stale-branch in repo.");
+    expect(await screen.findByTestId("pipeline-empty")).toHaveTextContent("No active changes on branch stale-branch.");
+  });
+
+  // 6.7
+  it("offers no action on another directory's change", async () => {
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={async () => survey(directory(), theirs())} />);
+
+    const section = await screen.findByTestId("pipeline-directory-0");
+    expect(within(section).queryAllByRole("button")).toHaveLength(0);
+    const card = within(section).getByTestId("pipeline-directory-0-node-their-change");
+    expect(card.tagName).toBe("DIV");
+    expect(card).toHaveTextContent("2 of 5 tasks done");
+  });
+
+  // 6.7
+  it("says in words that a directory is held by a different git author", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory(), theirs({ holder: holder("someone@else.invalid"), authorDiffers: true }))}
+      />,
+    );
+
+    const holderLine = await screen.findByTestId("pipeline-directory-0-holder");
+    expect(holderLine).toHaveTextContent("git author someone@else.invalid, a different git author from this checkout's");
+  });
+
+  // 6.8
+  it("draws a relation inside another directory's picture and none across directories", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta", { blockers: ["alpha"], run: { state: "blocked", blockedBy: ["alpha"] } }))}
+        survey={async () => survey(directory(), theirs({
+          changes: [
+            { changeName: "first", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [] },
+            { changeName: "second", tasksDone: 0, tasksTotal: 1, blockers: ["first"], alsoIn: [] },
+          ],
+        }))}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-directory-0-edge-first-to-second")).toBeInTheDocument();
+    expect(screen.getByTestId("pipeline-edge-alpha-to-beta")).toBeInTheDocument();
+    // Every edge on the page names two changes of one directory.
+    const edges = [...document.querySelectorAll("path[data-testid]")].map((path) => path.getAttribute("data-testid"));
+    expect(edges.sort()).toEqual(["pipeline-directory-0-edge-first-to-second", "pipeline-edge-alpha-to-beta"]);
+  });
+
+  // 6.13, 5.8
+  it("shows what another directory's run says and how long ago, and a gone run as gone", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(
+          directory(),
+          theirs({ runs: [run()] }),
+          theirs({ path: "/wt/repo/lapsed", label: "lapsed", runs: [run({ instanceId: "run-2", gone: true, heartbeatAgeMs: 90_000, workingDirectory: "/wt/repo/lapsed" })] }),
+        )}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-directory-0-runs")).toHaveTextContent("their-change (apply): Bash: npm test — said 12s ago");
+    expect(screen.getByTestId("pipeline-directory-1-runs")).toHaveTextContent("gone — last heard from 90s ago");
+    // This directory's own runs, where none report, are not called idle.
+    expect(screen.getByTestId("pipeline-reading-runs")).toHaveTextContent("no run reports here");
+  });
+
+  // 5.6
+  it("calls out a change that another directory holds too, on this directory's own card", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("shared"))}
+        survey={async () => survey(
+          directory({ changes: [{ changeName: "shared", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: ["/wt/repo/theirs"] }] }),
+          theirs({ changes: [{ changeName: "shared", tasksDone: 1, tasksTotal: 1, blockers: [], alsoIn: ["/repo"] }] }),
+        )}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-node-shared")).toHaveTextContent("also in theirs");
+    expect(await screen.findByTestId("pipeline-directory-0-node-shared")).toHaveTextContent("also in repo");
+  });
+
+  it("keeps this directory's picture when the other directories cannot be read", async () => {
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={async () => { throw new Error("git is gone"); }} />);
+
+    expect(await screen.findByTestId("pipeline-survey-error")).toHaveTextContent("git is gone");
+    expect(screen.getByTestId("pipeline-node-alpha")).toBeInTheDocument();
+  });
+
+  // 5.7
+  it("reads the other directories less often than this one, and not while the tab is hidden", async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => report(change("alpha")));
+    const read = vi.fn(async () => survey(directory()));
+    const { rerender } = render(<PipelineView isActive={false} load={load} survey={read} />);
+    expect(read).not.toHaveBeenCalled();
+
+    rerender(<PipelineView isActive load={load} survey={read} />);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(PIPELINE_POLL_INTERVAL_MS);
+    expect(load.mock.calls.length).toBeGreaterThan(1);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("PipelineView", () => {
   it("names the git author of a run that recorded one", async () => {
