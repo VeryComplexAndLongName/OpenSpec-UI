@@ -62,9 +62,16 @@ export async function readyCommand(options: ReadyOptions, deps: ReadyDeps): Prom
     for (const change of running) {
       if (change.run.state !== "running") continue;
       const { holder, worktreePath } = change.run;
-      const seconds = Math.round(holder.heartbeatAgeMs / 1000);
       deps.stdout(`  ${change.changeName}`);
-      deps.stdout(`      in ${worktreePath} (pid ${holder.pid}, last active ${seconds}s ago)`);
+      if (holder) {
+        const seconds = Math.round(holder.heartbeatAgeMs / 1000);
+        deps.stdout(`      in ${worktreePath} (pid ${holder.pid}, last active ${seconds}s ago)`);
+      } else {
+        // A record says a run is on it, and a record names no host, pid or
+        // author, so nothing is claimed about who
+        // (a-change-is-running-when-its-run-says-so).
+        deps.stdout(`      in ${worktreePath} (its run reports it)`);
+      }
     }
     deps.stdout("");
   }

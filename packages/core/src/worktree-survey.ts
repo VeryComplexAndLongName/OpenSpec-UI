@@ -14,7 +14,9 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { agentStatusDirectory, readAgentStatuses, sweepAgentStatuses, type AgentStatusReport } from "./agent-status.js";
 import { readChangeGraph } from "./change-graph.js";
+import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
+import { pathKey } from "./path-key.js";
 import { readTaskChecklist, type TaskChecklistItem } from "./task-checklist.js";
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
@@ -71,14 +73,6 @@ function message(error: unknown): string {
 
 function isMissing(error: unknown): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
-}
-
-/** A path as two paths are compared: resolved, and case-folded where the
- * filesystem folds case. git spells a Windows path with forward slashes
- * and a status record with backslashes, and both name one directory. */
-function pathKey(target: string): string {
-  const resolved = path.resolve(target);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 function taskListKey(directoryPath: string, changeName: string): string {
@@ -268,10 +262,19 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
   const thisKey = pathKey(workspaceRoot);
   const directories: SurveyedDirectory[] = [];
   const taskLists = new Map<string, TaskChecklistItem[]>();
+  /** The main working directory's active changes. A worktree belongs to a
+   * change only while that change is active there, which is the list every
+   * worktree was cut from (`listChangeWorktrees` reads it the same way). */
+  let mainActive = new Set<string>();
 
   for (const [index, worktree] of worktrees.entries()) {
     const key = pathKey(worktree.path);
     const declared = await readDeclaredLabel(worktree.path);
+    // The change this is the worktree of, by the one pairing rule, while
+    // that change is still active in the main directory. Its card is drawn
+    // above, from this directory (ADR 0029).
+    const ownChange = changeOfWorktree(worktree, index === 0);
+    const belongsTo = ownChange !== undefined && mainActive.has(ownChange) ? ownChange : undefined;
     const base = {
       path: worktree.path,
       label: declared ?? path.basename(path.resolve(worktree.path)),
@@ -280,6 +283,7 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
       isThis: key === thisKey,
       ...(worktree.branch ? { branch: worktree.branch } : {}),
       ...(worktree.head ? { head: worktree.head } : {}),
+      ...(belongsTo !== undefined ? { belongsTo } : {}),
       runs: [],
     };
 
@@ -297,6 +301,7 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
       continue;
     }
     for (const [changeName, items] of surveyed.taskLists) taskLists.set(taskListKey(worktree.path, changeName), items);
+    if (index === 0) mainActive = new Set(surveyed.changes.map((change) => change.changeName));
 
     const holder = await readWorkspaceLeaseHolder(worktree.path, leaseOptions);
     directories.push({

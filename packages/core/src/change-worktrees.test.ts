@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defaultWorktreePath, listChangeWorktrees, planChangeWorktree } from "./change-worktrees.js";
+import { changeOfWorktree, defaultWorktreePath, listChangeWorktrees, planChangeWorktree } from "./change-worktrees.js";
 import { parseWorktreePorcelain, type GitWorktree, type GitWrapper } from "./git.js";
 
 // every-varying-check-has-a-budget: no git process is spawned here — the
@@ -56,6 +56,24 @@ function fakeGit(options: {
       (options.inRef ?? (() => true))(ref, pathInRepo),
   } as unknown as GitWrapper & { added: unknown[]; removed: string[] };
 }
+
+describe("changeOfWorktree — the one pairing rule (a-change-is-running-when-its-run-says-so 4.3)", () => {
+  it("pairs nothing with the main directory, whatever its branch", () => {
+    expect(changeOfWorktree({ path: "/repo", branch: "alpha" }, true)).toBeUndefined();
+  });
+
+  it("pairs a worktree on a branch named after a change with that change", () => {
+    expect(changeOfWorktree({ path: "/wt/alpha", branch: "alpha" }, false)).toBe("alpha");
+  });
+
+  it("pairs nothing with a branch that is not a valid change name", () => {
+    expect(changeOfWorktree({ path: "/wt/x", branch: "feature/Some Thing" }, false)).toBeUndefined();
+  });
+
+  it("pairs nothing with a detached head", () => {
+    expect(changeOfWorktree({ path: "/wt/detached", head: "abc123" }, false)).toBeUndefined();
+  });
+});
 
 describe("parseWorktreePorcelain", () => {
   it("reads a path containing a space", () => {

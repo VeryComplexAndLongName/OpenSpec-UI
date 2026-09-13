@@ -99,6 +99,24 @@ describe("buildHints", () => {
     expect(stale[0]?.commands).toEqual(["openspec-ui-cli lease release --cwd /worktrees/alpha"]);
   });
 
+  // a-change-is-running-when-its-run-says-so 4.2
+  it("offers nothing to start or release for a change running on its run's record", () => {
+    const hints = buildHints(report(
+      {
+        changeName: "alpha",
+        run: { state: "running", worktreePath: "/repo", reportedBy: { instanceId: "run-1", workingDirectory: "/repo" } },
+        blockers: [],
+        capabilities: [],
+        canJoin: [],
+        blockedFrom: [],
+      } as ChangeReadiness,
+      ready("beta", []),
+    ), { staleAfterMs: 20_000 });
+
+    expect(hints.some((hint) => hint.subject.includes("alpha"))).toBe(false);
+    expect(hints.every((hint) => hint.commands.every((command) => !command.includes("alpha")))).toBe(true);
+  });
+
   it("says nothing about a live holder when no staleness window was given", () => {
     // Without a window this cannot tell a live holder from a gone one,
     // and guessing is what the lease exists to prevent.

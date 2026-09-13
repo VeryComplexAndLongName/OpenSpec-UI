@@ -216,6 +216,55 @@ describe("PipelineView — other working directories", () => {
     expect(await screen.findByTestId("pipeline-directory-0-node-shared")).toHaveTextContent("also in repo");
   });
 
+  // a-change-is-running-when-its-run-says-so 4.6
+  it("draws a change once: its own worktree says whose it is, and still draws its other changes", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(
+          directory({ changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: ["/wt/repo/alpha"] }] }),
+          theirs({
+            path: "/wt/repo/alpha",
+            label: "alpha",
+            branch: "alpha",
+            belongsTo: "alpha",
+            changes: [
+              { changeName: "alpha", tasksDone: 1, tasksTotal: 1, blockers: [], alsoIn: ["/repo"] },
+              { changeName: "passenger", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] },
+            ],
+          }),
+        )}
+      />,
+    );
+
+    const section = await screen.findByTestId("pipeline-directory-0");
+    expect(within(section).getByTestId("pipeline-directory-0-belongs-to")).toHaveTextContent("The worktree of alpha, which is drawn above.");
+    expect(within(section).queryByTestId("pipeline-directory-0-node-alpha")).toBeNull();
+    expect(within(section).getByTestId("pipeline-directory-0-node-passenger")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/-node-alpha$/u)).toHaveLength(1);
+  });
+
+  it("says a worktree holds no other change where its own is all it holds", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(
+          directory(),
+          theirs({
+            path: "/wt/repo/alpha",
+            branch: "alpha",
+            belongsTo: "alpha",
+            changes: [{ changeName: "alpha", tasksDone: 1, tasksTotal: 1, blockers: [], alsoIn: [] }],
+          }),
+        )}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-directory-0-empty")).toHaveTextContent("No other active changes on branch alpha.");
+  });
+
   it("keeps this directory's picture when the other directories cannot be read", async () => {
     render(<PipelineView isActive load={async () => report(change("alpha"))} survey={async () => { throw new Error("git is gone"); }} />);
 
@@ -356,6 +405,23 @@ describe("PipelineView", () => {
 
     const node = await screen.findByTestId("pipeline-node-live");
     expect(node).toHaveTextContent("Running");
+    expect(node.textContent).not.toContain("git author");
+  });
+
+  // a-change-is-running-when-its-run-says-so 4.6
+  it("claims no author for a change running on its run's record alone", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("live", {
+          run: { state: "running", worktreePath: "/repo", reportedBy: { instanceId: "run-1", workingDirectory: "/repo" } },
+        }))}
+      />,
+    );
+
+    const node = await screen.findByTestId("pipeline-node-live");
+    expect(node).toHaveTextContent("Running");
+    expect(node).toHaveTextContent("in /repo");
     expect(node.textContent).not.toContain("git author");
   });
 

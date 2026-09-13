@@ -76,6 +76,48 @@ describe("readyCommand", () => {
     expect(printed).toContain("2 ready, 1 running, 1 blocked.");
   });
 
+  // a-change-is-running-when-its-run-says-so 4.5
+  it("prints a change running on its run's record as running, with its directory and no author", async () => {
+    const io = collectingIo();
+    const report: ChangeReadinessReport = {
+      changes: [{
+        changeName: "reported-one",
+        blockers: [],
+        run: { state: "running", worktreePath: "/repo", reportedBy: { instanceId: "run-1", workingDirectory: "/repo" } },
+        capabilities: [],
+        canJoin: [],
+        blockedFrom: [],
+      }],
+    };
+
+    await readyCommand({ workspaceRoot: "/repo", format: "text" }, { ...io, read: () => Promise.resolve(report) });
+
+    const printed = io.out.join("\n");
+    expect(printed).toContain("Running");
+    expect(printed).toContain("reported-one");
+    expect(printed).toContain("in /repo");
+    expect(printed).not.toContain("author");
+    expect(printed).not.toContain("pid");
+  });
+
+  it("gives a machine the record's account exactly as core returns it", async () => {
+    const io = collectingIo();
+    const report: ChangeReadinessReport = {
+      changes: [{
+        changeName: "reported-one",
+        blockers: [],
+        run: { state: "running", worktreePath: "/repo", reportedBy: { instanceId: "run-1", workingDirectory: "/repo" } },
+        capabilities: [],
+        canJoin: [],
+        blockedFrom: [],
+      }],
+    };
+
+    await readyCommand({ workspaceRoot: "/repo", format: "json" }, { ...io, read: () => Promise.resolve(report) });
+
+    expect(JSON.parse(io.out.join("")).changes[0].run.reportedBy).toEqual({ instanceId: "run-1", workingDirectory: "/repo" });
+  });
+
   it("tells a ready change with nowhere of its own what to do", async () => {
     const io = collectingIo();
 

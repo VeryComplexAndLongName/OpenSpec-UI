@@ -79,6 +79,11 @@ interface SurveyedDirectoryBase {
   /** Absent for a detached head. */
   branch?: string;
   head?: string;
+  /** The change this directory is the worktree of (ADR 0022), while that
+   * change is active in the main working directory. That change is one card
+   * above, read from here, and is not drawn a second time among this
+   * directory's changes (ADR 0029). */
+  belongsTo?: string;
   /** What the runs reporting from this directory say. Empty means no run
    * this product started reports here — never that nobody is in it: a
    * person editing, or an agent started some other way, writes no record. */
