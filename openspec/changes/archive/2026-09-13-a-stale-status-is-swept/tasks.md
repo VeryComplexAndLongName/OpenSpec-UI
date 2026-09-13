@@ -93,9 +93,40 @@ lint.
 - [x] 5.3 A pending changeset exists. `check(changeset-present)`
   `.changeset/a-stale-status-is-swept.md`: core minor, cli and server
   patch.
-- [ ] 5.4 **Delegated to claude-cli**: start a real run, kill its
+- [x] 5.4 **Delegated to claude-cli**: start a real run, kill its
   process so it removes nothing, wait past the window, and run the status
   command. Evidence: the directory before and after, and what the command
   printed. Unit tests drive the sweep with files a test wrote; only a
   killed process shows that what a crash leaves is what the sweep
   removes.
+  2026-09-13, by claude-cli, in a scratch repository
+  (`%TEMP%\stale-sweep-live\repo`: one change `demo`, a per-change
+  `harness.json` with `claude-cli` on every stage, autonomous, no
+  checkpoints) with `OPENSPEC_UI_WORKTREE_ROOT` set to a scratch root, and
+  a `claude.cmd` first on `PATH` that only waits ten minutes — a real
+  chain and a real agent process, at no cost. Both CLI invocations ran
+  from source, `node node_modules/tsx/dist/cli.mjs
+  packages/cli/src/cli.ts`, since `packages/cli/dist` goes stale.
+  `run demo --format json` printed `started` (chain), `stageStarted`
+  apply `claude-cli`, `started` implement. With the stand-in running,
+  `.agent-status` held one file,
+  `edbfdf94-a071-48ff-b337-06dd0314d309.json`: activity `running apply`,
+  stage `apply`, change `demo`, heartbeat `12:17:08.804Z`.
+  `taskkill /T /F` on the run at 12:17:10Z ended six processes, the
+  stand-in among them. Right after the kill the directory still held that
+  one record, and it still did 30 s later, just before the status command:
+  a crash removed nothing. `status --cwd <repo>` then printed, exit 0:
+  `No runs are reporting themselves.` on stdout and
+  `openspec-ui-cli: removed edbfdf94-a071-48ff-b337-06dd0314d309.json: its
+  writer stopped reporting past the staleness window` on stderr. The
+  directory afterwards: 0 entries. No temporary file was left, so the
+  temporary-file half of the sweep is not shown by this run.
+  Checked 2026-09-13 by a second agent against the agent's own session
+  transcript, since the scratch repository was deleted afterwards. The
+  script's output there holds the listing while running, the six
+  terminations, the listing right after the kill and again at 12:17:41Z
+  — 32.5 s past the heartbeat, beyond the 20 s window — the status
+  command's two lines with exit code 0, and the empty listing after it.
+  Every claim above is in it. The script captured both of the command's
+  streams together, so which line went to stderr rests on
+  `status-command.test.ts`, not on this run.
