@@ -1151,6 +1151,35 @@ describe("server — REST /api/status", () => {
     expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
   });
 
+  // what-the-others-are-doing 4.1: the survey travels in the shape core
+  // returns. A temporary workspace is not a git repository, so the survey
+  // falls back to the one directory it was asked about.
+  it("reports the worktree survey for an authorized cwd", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/worktree-survey`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { directories: Array<{ isThis: boolean }>; runsElsewhere: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(body.directories).toHaveLength(1);
+    expect(body.directories[0]?.isThis).toBe(true);
+    expect(Array.isArray(body.runsElsewhere)).toBe(true);
+  });
+
+  it("rejects a worktree survey request that names no workspace", async () => {
+    const response = await fetch(`${baseUrl}/api/worktree-survey`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("reports change readiness for an authorized cwd", async () => {
     const cwd = await createTempWorkspace();
 
