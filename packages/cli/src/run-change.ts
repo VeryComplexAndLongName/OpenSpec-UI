@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
+  AgentStatusWriter,
   FileAuditLog,
   HarnessChainRunner,
   WorkspaceLeaseManager,
@@ -21,6 +22,8 @@ import {
   readRepositoryAuditEntries,
   describeWorkspaceLeaseConflict,
   describeWorkspaceLeaseReclamation,
+  reportEventsToAgentStatus,
+  resolveAgentStatusDirectory,
   resolveChainStart,
   resolveRunner,
   withWorkspaceLease,
@@ -153,6 +156,9 @@ async function driveChain(
     context: { changeDir: run.changeDir },
   };
 
+  const changeName = path.basename(run.changeDir);
+  const statusWriter = await startAgentStatusWriter(run.workspaceRoot, changeName);
+
   const renderer = new RunTextRenderer();
   const write = (event: Event): void => {
     if (run.format === "json") {
@@ -180,7 +186,8 @@ async function driveChain(
 
   let outcome: "completed" | "failed" | "cancelled" | "unterminated" = "unterminated";
   try {
-    for await (const event of chain.run(command)) {
+    const chainEvents = statusWriter ? reportEventsToAgentStatus(chain.run(command), statusWriter) : chain.run(command);
+    for await (const event of chainEvents) {
       write(event);
 
       if (event.kind === "checkpoint") {
@@ -218,6 +225,22 @@ async function driveChain(
     return 1;
   }
   return 1;
+}
+
+/** Best-effort: reporting progress must never be why a run fails. A
+ * workspace this cannot resolve a status directory for (no git, an
+ * unreadable settings file) still runs exactly as it did before this
+ * existed — `undefined` here means the chain's events are streamed
+ * unwrapped. */
+async function startAgentStatusWriter(workspaceRoot: string, changeName: string): Promise<AgentStatusWriter | undefined> {
+  try {
+    const directory = await resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot);
+    const writer = new AgentStatusWriter({ directory, workingDirectory: workspaceRoot, changeName });
+    await writer.start(`starting "${changeName}"`);
+    return writer;
+  } catch {
+    return undefined;
+  }
 }
 
 function defaultOnInterrupt(handler: () => void): () => void {

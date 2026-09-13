@@ -10,6 +10,7 @@
 import path from "node:path";
 import type { WebSocket } from "ws";
 import {
+  AgentStatusWriter,
   type AgentRunner,
   type Command,
   type HarnessChainRunner,
@@ -18,11 +19,50 @@ import {
   type WorkbenchRecoveryService,
   normalizeStepAgent,
   stepAgentFor,
+  createGitWrapper,
+  reportEventsToAgentStatus,
+  resolveAgentStatusDirectory,
   resolveHarnessConfig,
   resolveRunner,
   serializeEvent,
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
+
+/** One server process serves many commands against the same cwd, and
+ * the directory a repository's runs share does not change between them
+ * — resolving it again for every command would mean a `git worktree
+ * list` subprocess on every single dispatch. Cached by cwd instead,
+ * for the life of the process. */
+const statusDirectoryByWorkspace = new Map<string, Promise<string>>();
+
+function statusDirectoryFor(cwd: string): Promise<string> {
+  let cached = statusDirectoryByWorkspace.get(cwd);
+  if (!cached) {
+    cached = resolveAgentStatusDirectory(createGitWrapper({ cwd }), cwd);
+    statusDirectoryByWorkspace.set(cwd, cached);
+    // A failed resolution must not be cached — the next command gets a
+    // fresh attempt rather than being stuck with a rejected promise for
+    // the rest of the process's life.
+    cached.catch(() => statusDirectoryByWorkspace.delete(cwd));
+  }
+  return cached;
+}
+
+/** Best-effort: reporting progress must never be why a run fails.
+ * `undefined` means the command's events are streamed unwrapped, exactly
+ * as they were before this existed — see `run-change.ts`'s
+ * `startAgentStatusWriter`, the CLI's own copy of this same fallback. */
+async function agentStatusWriterFor(command: Command): Promise<AgentStatusWriter | undefined> {
+  try {
+    const changeName = path.basename(command.context.changeDir);
+    const directory = await statusDirectoryFor(command.cwd);
+    const writer = new AgentStatusWriter({ directory, workingDirectory: command.cwd, changeName });
+    await writer.start(`starting "${changeName}"`);
+    return writer;
+  } catch {
+    return undefined;
+  }
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -155,7 +195,15 @@ async function streamChainEvents(
 ): Promise<string | undefined> {
   let summary: string | undefined;
   let failureReason: string | undefined;
-  for await (const event of chainRunner.run(command)) {
+  // The run itself is started immediately, synchronously, exactly as it
+  // was before status reporting existed — resolving where the status
+  // record goes is a real filesystem/git lookup, and gating the run's
+  // own start on it would delay the run for a diagnostic that reports
+  // on it, not the other way round.
+  const rawEvents = chainRunner.run(command);
+  const statusWriter = await agentStatusWriterFor(command);
+  const events = statusWriter ? reportEventsToAgentStatus(rawEvents, statusWriter) : rawEvents;
+  for await (const event of events) {
     if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
     if (event.kind === "progress") report(event.message);
     if (event.kind === "stageCompleted" || event.kind === "checkpoint") report(`${event.stage} -> ${event.nextStage}`);
@@ -223,7 +271,10 @@ async function streamAgentEvents(
 ): Promise<string | undefined> {
   let summary: string | undefined;
   let failureReason: string | undefined;
-  for await (const event of runner.run(command)) {
+  const rawEvents = runner.run(command);
+  const statusWriter = await agentStatusWriterFor(command);
+  const events = statusWriter ? reportEventsToAgentStatus(rawEvents, statusWriter) : rawEvents;
+  for await (const event of events) {
     if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
     if (event.kind === "progress") report(event.message);
     if (event.kind === "completed") summary = event.summary;
@@ -240,7 +291,10 @@ async function streamRun(
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
 ): Promise<void> {
   if (command.kind !== "implement") {
-    for await (const event of runner.run(command)) {
+    const rawEvents = runner.run(command);
+    const statusWriter = await agentStatusWriterFor(command);
+    const events = statusWriter ? reportEventsToAgentStatus(rawEvents, statusWriter) : rawEvents;
+    for await (const event of events) {
       if (socket.readyState === socket.OPEN) {
         socket.send(serializeEvent(event));
       }

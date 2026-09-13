@@ -12,6 +12,7 @@ import { runChange, type CheckpointPrompt } from "./run-change.js";
 import { adviseCommand } from "./advise-command.js";
 import { doctorCommand } from "./doctor-command.js";
 import { readyCommand } from "./ready-command.js";
+import { statusCommand } from "./status-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -32,6 +33,7 @@ Usage:
   openspec-ui-cli advise [--cwd <path>] [--base <ref>] [--format text|json]
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
+  openspec-ui-cli status [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -96,6 +98,11 @@ exits 0 whether or not there is anything to suggest, and creates
 nothing: the commands are printed, not run. A workspace that set
 hints.enabled to false computes none.
 
+'status' prints what every run of this repository last said it was
+doing, and how long ago it said it — never whether a run is stuck or
+healthy, which is a person's judgement a silent agent and a hung one
+look identical to. It exits 0 whether or not anything is running.
+
 'doctor' exits 0 when nothing it found would stop a run, 1 when
 something would, and 2 when it could not look. A workspace held by a
 live run is reported and exits 0: being busy is not being broken.
@@ -146,6 +153,7 @@ export interface MainDeps {
   adviseCommand?: typeof adviseCommand;
   checkChange?: typeof checkChange;
   leaseCommand?: typeof leaseCommand;
+  statusCommand?: typeof statusCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
    * change configured to pause refuse to start rather than hang.
@@ -316,6 +324,16 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "status") {
+    return await (deps.statusCommand ?? statusCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "move" && action !== "remove") {
@@ -367,7 +385,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, advise, lease, status, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

@@ -73,10 +73,10 @@ so too. The missing signal is not liveness but progress.
 
 ## 6. Verification
 
-- [ ] 6.1 This change validates strictly. `check(validate-change)`
+- [x] 6.1 This change validates strictly. `check(validate-change)`
 - [ ] 6.2 `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and the per-package test counts.
-- [ ] 6.3 A pending changeset exists. `check(changeset-present)`
+- [x] 6.3 A pending changeset exists. `check(changeset-present)`
 - [ ] 6.4 **Delegated to `claude-cli`**: with two real runs under way in
   two working directories, read the records and check each names the
   right change, the right directory and a moving activity; then let one

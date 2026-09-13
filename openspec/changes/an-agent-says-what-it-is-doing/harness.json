@@ -1,0 +1,7 @@
+{
+  "stepAgents": {},
+  "autonomyLevel": "autonomous",
+  "reviewGate": {
+    "mode": "agent-sufficient"
+  }
+}
