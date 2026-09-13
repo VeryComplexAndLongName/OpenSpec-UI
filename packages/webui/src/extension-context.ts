@@ -15,7 +15,11 @@ export type RunChoiceMessage =
     /** The configuration's id, not its contents. The host has the list;
      * taking what to write from a message would let the webview decide
      * what lands in a file. */
-    | { type: typeof RUN_CHOICE_MESSAGE_TYPE; choice: "apply-template"; templateId: string };
+    | { type: typeof RUN_CHOICE_MESSAGE_TYPE; choice: "apply-template"; templateId: string }
+    /** An agent a run-statistics recommendation names, to put on every
+     * stage of the change. The id only; the host checks it against the
+     * registry. See a-change-is-configured-from-the-change. */
+    | { type: typeof RUN_CHOICE_MESSAGE_TYPE; choice: "use-agent"; agentId: string };
 
 export interface DashboardContext {
     cwd: string;
@@ -69,10 +73,13 @@ export interface DashboardContext {
      * the dialog, and absent when the plan no longer offers it.
      * See a-schedule-keeps-its-promise. */
     runPath?: RunPathId;
-    /** Mount the harness settings view. Like the plan it decides which
-     * component mounts, so it is read from the first render's HTML. See
-     * harness-settings-in-the-panel. */
-    showSettings?: boolean;
+    /** What the last apply of a named configuration wrote, and where. Shown
+     * beside the Apply button in the dialog. The settings view no longer
+     * lives in this panel: each file has a panel of its own. See
+     * a-change-is-configured-from-the-change. */
+    appliedNote?: string;
+    /** What putting one agent on every stage wrote, and where. */
+    useAgentNote?: string;
 }
 
 export interface DashboardContextMessage {
@@ -89,7 +96,6 @@ export function resolveInitialDashboardContext(
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
         startChain: container.dataset.startChain === "true",
         runChange: container.dataset.runChange === "true",
-        showSettings: container.dataset.showSettings === "true",
         ...readRunPlan(container),
     };
 }

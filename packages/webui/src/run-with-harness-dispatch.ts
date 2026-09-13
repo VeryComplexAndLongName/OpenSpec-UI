@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { agentForEveryStageToWrite, buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -124,4 +124,19 @@ export async function applyTemplateToChange(
   ]);
   const config = changeTemplateConfigToWrite(template, global, existing ?? undefined);
   await writeHarnessConfig(request, cwd, config, changeName);
+}
+
+/** Puts one agent on every stage of a change, keeping what the change's
+ * file says that the agent does not replace — the action a recommendation
+ * drawn from the workspace's runs offers. Written through
+ * `agentForEveryStageToWrite`, the function the extension writes it
+ * through too, for the reason `applyTemplateToChange` above gives. */
+export async function putAgentOnEveryStage(
+  request: ChangeEditorRequest,
+  cwd: string,
+  changeName: string,
+  agentId: string,
+): Promise<void> {
+  const existing = await readChangeHarnessOverride(request, cwd, changeName);
+  await writeHarnessConfig(request, cwd, agentForEveryStageToWrite(existing ?? undefined, agentId), changeName);
 }

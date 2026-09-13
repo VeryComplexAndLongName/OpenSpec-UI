@@ -1,7 +1,7 @@
 // Pure type + helper, deliberately its own leaf module with zero
 // non-type imports — same reasoning as harness-stage.ts/harness-
 // dispatch.ts. `normalizeStepAgent` must be importable from
-// `@openspec-ui/core/browser` (HarnessSettingsView.tsx renders a
+// `@openspec-ui/core/browser` (the harness settings views render a
 // `stepAgents` entry that may have come from a hand-edited config in
 // either form), but `harness-config.ts` itself has top-level
 // `node:fs/promises`/`node:path` imports for its other exports —

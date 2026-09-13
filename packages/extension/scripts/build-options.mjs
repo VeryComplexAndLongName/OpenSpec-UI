@@ -71,6 +71,22 @@ export function timelineWebviewBuildOptions() {
   };
 }
 
+/** The harness settings panels: one for the global file, one per change.
+ * See a-change-is-configured-from-the-change. */
+export function harnessSettingsWebviewBuildOptions() {
+  return {
+    entryPoints: [path.resolve(here, "../../webui/src/harness-settings-entry.tsx")],
+    outfile: path.resolve(here, "../dist/harness-settings.js"),
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    jsx: "automatic",
+    sourcemap: true,
+    logLevel: "info",
+  };
+}
+
 /** Integration test suite (tasks.md 4.1/4.2) — one output file per test
  * suite entry point (index.js + one per *.test.ts), not a single bundle:
  * `index.ts`'s `run()` finds test files via `glob("**\/*.test.js")` next

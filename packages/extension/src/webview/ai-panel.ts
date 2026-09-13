@@ -3,15 +3,9 @@
 // shell as standalone instead of using the bridge (see design.md, "Optional
 // local server reuses the same server package as standalone").
 
-import os from "node:os";
 import * as vscode from "vscode";
 import {
-  customAgentDirectories,
   detectAvailableAgents,
-  findCustomAgents,
-  readChangeHarnessConfig,
-  writeChangeHarnessConfig,
-  writeGlobalHarnessConfig,
   normalizeStepAgent,
   stepAgentFor,
   resolveHarnessConfig,
@@ -32,8 +26,6 @@ import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
 const RUN_CHOICE_MESSAGE_TYPE = "openspec-ui/run-choice";
-const REQUEST_MESSAGE_TYPE = "openspec-ui/request";
-const RESPONSE_MESSAGE_TYPE = "openspec-ui/response";
 const EVENT_MESSAGE_TYPE = "openspec-ui/event";
 const CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 
@@ -87,10 +79,14 @@ export interface AiPanelContext {
   /** The change the plan is about, so the dialog can name it without
    * re-deriving it from a path. */
   changeName?: string;
-  /** Mount the harness settings view. Like the plan it decides which
-   * component mounts, so it rides in the first render's HTML. See
-   * harness-settings-in-the-panel. */
-  showSettings?: boolean;
+  /** What the last apply of a named configuration wrote, and where — shown
+   * beside the Apply button in the dialog rather than as a notification
+   * out of its view. The settings view is no longer in this panel: each
+   * harness file has a panel of its own (`HarnessSettingsPanel`). See
+   * a-change-is-configured-from-the-change. */
+  appliedNote?: string;
+  /** What putting one agent on every stage wrote, and where. */
+  useAgentNote?: string;
   /** Why the dialog is open, when a schedule opened it rather than a
    * person — and how late it is. See a-run-can-be-scheduled. */
   runNote?: string;
@@ -106,43 +102,16 @@ export interface AiPanelContext {
   runPath?: RunPathId;
 }
 
-/** What the webview may ask this host for.
- *
- * Named operations rather than a path, a file or a function name: a
- * message must not be able to say what gets read or written. The `cwd`
- * is this host's own workspace root, never a field in the message. */
-type RequestOperation =
-  | "harness/resolve-global"
-  | "harness/write-global"
-  | "harness/read-change-override"
-  | "harness/write-change-override"
-  | "custom-agents/list";
-
-interface BridgeRequestMessage {
-  type: typeof REQUEST_MESSAGE_TYPE;
-  id: string;
-  op: RequestOperation;
-  args?: unknown;
-}
-
-function asBridgeRequest(data: unknown): BridgeRequestMessage | undefined {
-  if (typeof data !== "object" || data === null) return undefined;
-  const message = data as Record<string, unknown>;
-  if (message.type !== REQUEST_MESSAGE_TYPE || typeof message.id !== "string") return undefined;
-  // An unknown operation still reaches the handler, which refuses it by
-  // name — a request that vanishes is a promise that never settles.
-  return { type: REQUEST_MESSAGE_TYPE, id: message.id, op: message.op as RequestOperation, args: message.args };
-}
-
 /** What the webview posts back when someone answers the run dialog.
  *
- * Only the two answers this host alone can carry out travel: opening a
- * chat session, and writing a file. Choosing a chain or a single stage
- * only decides which component mounts, and both are already in that
- * bundle. */
+ * Only the answers this host alone can carry out travel: opening a chat
+ * session, and writing a file — a named configuration, or one agent put
+ * on every stage. Choosing a chain or a single stage only decides which
+ * component mounts, and both are already in that bundle. */
 export type RunChoice =
   | { kind: "vscode-agent" }
-  | { kind: "apply-template"; templateId: string };
+  | { kind: "apply-template"; templateId: string }
+  | { kind: "use-agent"; agentId: string };
 
 export interface RunChoiceContext {
   cwd: string;
@@ -154,6 +123,7 @@ interface RunChoiceMessage {
   type: typeof RUN_CHOICE_MESSAGE_TYPE;
   choice: string;
   templateId?: string;
+  agentId?: string;
 }
 
 function toRunChoice(data: unknown): RunChoice | undefined {
@@ -166,6 +136,11 @@ function toRunChoice(data: unknown): RunChoice | undefined {
   // guessed at.
   if (message.choice === "apply-template" && typeof message.templateId === "string" && message.templateId.length > 0) {
     return { kind: "apply-template", templateId: message.templateId };
+  }
+  // The same for an agent: its id only, which the handler checks against
+  // the registry before anything is written.
+  if (message.choice === "use-agent" && typeof message.agentId === "string" && message.agentId.length > 0) {
+    return { kind: "use-agent", agentId: message.agentId };
   }
   return undefined;
 }
@@ -239,7 +214,6 @@ export class AiPanel {
    * `panel.webview.postMessage()` regardless of whether any listener is
    * registered. */
   private readonly testEventListeners = new Set<(event: Event) => void>();
-  private readonly testResponseListeners = new Set<(response: unknown) => void>();
 
   constructor(private readonly deps: AiPanelDeps) { }
 
@@ -408,68 +382,6 @@ export class AiPanel {
     this.postEventMessage(panel, { kind: "handedOff", runId: command.runId, timestamp: new Date().toISOString(), stage });
   }
 
-  /** Answers one request from the webview.
-   *
-   * Every operation is a `core` call this host already makes, against
-   * its own workspace root. An operation it does not offer is refused by
-   * name rather than ignored: a request that vanishes leaves a promise
-   * that never settles, which is worse for the form than an error.
-   *
-   * A refusal from `core` — a configuration the validator rejects, a
-   * file that is not valid JSON — is carried back as the error rather
-   * than swallowed. A settings form that cannot say a save was refused
-   * is indistinguishable from one that saved. See
-   * harness-settings-in-the-panel. */
-  private async answerRequest(panel: vscode.WebviewPanel, request: BridgeRequestMessage): Promise<void> {
-    const cwd = this.panelContext?.cwd;
-    const reply = (body: { ok: boolean; value?: unknown; error?: string }): void => {
-      const response = { type: RESPONSE_MESSAGE_TYPE, id: request.id, ...body };
-      for (const listener of this.testResponseListeners) listener(response);
-      void panel.webview.postMessage(response);
-    };
-    if (!cwd) {
-      reply({ ok: false, error: "no workspace root is open" });
-      return;
-    }
-    const args = (request.args ?? {}) as { changeName?: string; config?: Record<string, unknown> };
-
-    try {
-      switch (request.op) {
-        case "harness/resolve-global":
-          reply({ ok: true, value: await resolveHarnessConfig(cwd) });
-          return;
-        case "harness/write-global":
-          await writeGlobalHarnessConfig(cwd, (args.config ?? {}) as never);
-          reply({ ok: true });
-          return;
-        case "harness/read-change-override":
-          if (!args.changeName) { reply({ ok: false, error: "no change was named" }); return; }
-          reply({ ok: true, value: (await readChangeHarnessConfig(cwd, args.changeName)) ?? null });
-          return;
-        case "harness/write-change-override":
-          if (!args.changeName) { reply({ ok: false, error: "no change was named" }); return; }
-          await writeChangeHarnessConfig(cwd, args.changeName, (args.config ?? {}) as never);
-          reply({ ok: true });
-          return;
-        case "custom-agents/list": {
-          const homeDir = os.homedir();
-          reply({
-            ok: true,
-            value: {
-              agents: await findCustomAgents(cwd, homeDir),
-              directories: customAgentDirectories(cwd, homeDir),
-            },
-          });
-          return;
-        }
-        default:
-          reply({ ok: false, error: `unknown operation "${String(request.op)}"` });
-      }
-    } catch (error) {
-      reply({ ok: false, error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-
   /** Registers the one handler for answers posted from the run dialog.
    * Set by `extension.ts` to a `commands.ts` function, so the host logic
    * lives where its neighbours and their tests already are. */
@@ -530,11 +442,6 @@ export class AiPanel {
    * code path — including `dispatchOrRun()`/`dispatchToChat()` — instead
    * of a test needing its own copy of this routing. */
   private handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown): void {
-    const request = asBridgeRequest(message);
-    if (request) {
-      void this.answerRequest(panel, request);
-      return;
-    }
     const runChoice = toRunChoice(message);
     if (runChoice) {
       // Handled by whoever registered for it — `commands.ts`, which has
@@ -626,17 +533,8 @@ export class AiPanel {
       type: RUN_CHOICE_MESSAGE_TYPE,
       choice: choice.kind,
       ...(choice.kind === "apply-template" ? { templateId: choice.templateId } : {}),
+      ...(choice.kind === "use-agent" ? { agentId: choice.agentId } : {}),
     });
-  }
-
-  deliverWebviewRequestForTesting(request: { id: string; op: string; args?: unknown }): void {
-    if (!this.panel) return;
-    this.handleWebviewMessage(this.panel, { type: REQUEST_MESSAGE_TYPE, ...request });
-  }
-
-  onWebviewResponseForTesting(listener: (response: unknown) => void): vscode.Disposable {
-    this.testResponseListeners.add(listener);
-    return { dispose: () => this.testResponseListeners.delete(listener) };
   }
 
   getWebviewHtmlForTesting(): string | undefined {
@@ -720,7 +618,6 @@ export class AiPanel {
     // The plan rides here for the same reason `startChain` does: it
     // decides which component mounts, and a follow-up message would show
     // the ordinary panel first and then replace it.
-    const showSettings = panelContext?.showSettings ? "true" : "false";
     const runPlan = panelContext?.runPlan
       ? escapeHtmlAttribute(JSON.stringify({
         plan: panelContext.runPlan,
@@ -737,7 +634,7 @@ export class AiPanel {
     <title>OpenSpec UI</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-run-plan="${runPlan}" data-show-settings="${showSettings}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-run-plan="${runPlan}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

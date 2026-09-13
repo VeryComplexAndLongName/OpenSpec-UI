@@ -86,4 +86,18 @@ describe("shell themes", () => {
         // so the check has to exclude the prefixed forms.
         expect(shellThemeCss).not.toMatch(/(?<![a-z-])width: var\(--w-name\)/);
     });
+
+    it("ends a settings section with a rule and more space than separates its fields", () => {
+        // a-change-is-configured-from-the-change. "Save Global config" sat
+        // directly above the heading of the next section, with nothing
+        // between them, so the save read as belonging to both.
+        const open = shellThemeCss.indexOf(".openspec-harness-section {");
+        expect(open).toBeGreaterThan(-1);
+        const rule = shellThemeCss.slice(open, shellThemeCss.indexOf("}", open));
+        expect(rule).toContain("border-bottom: 1px solid var(--line)");
+        const spacing = Number(/margin-bottom: (\d+)px/.exec(rule)?.[1]);
+        const fieldGap = Number(/\.openspec-harness-settings \.openspec-harness-stage-row \{\s*margin-top: (\d+)px/.exec(shellThemeCss)?.[1]);
+        expect(fieldGap).toBeGreaterThan(0);
+        expect(spacing).toBeGreaterThan(fieldGap);
+    });
 });

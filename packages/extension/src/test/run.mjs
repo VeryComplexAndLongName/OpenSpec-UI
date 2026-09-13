@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { runTests } from "@vscode/test-electron";
 import {
   extensionHostBuildOptions,
+  harnessSettingsWebviewBuildOptions,
   standaloneAssetsBuildOptions,
   testSuiteBuildOptions,
   timelineWebviewBuildOptions,
@@ -25,6 +26,7 @@ async function buildAll() {
   await build(extensionHostBuildOptions());
   await build(webviewBuildOptions());
   await build(timelineWebviewBuildOptions());
+  await build(harnessSettingsWebviewBuildOptions());
   await build(standaloneAssetsBuildOptions());
   await build(testSuiteBuildOptions());
   const standaloneDir = path.resolve(extensionRoot, "dist/standalone");
@@ -59,7 +61,12 @@ async function main() {
       launchArgs: [workspaceDir, "--disable-extensions"],
     });
   } finally {
-    await rm(workspaceDir, { recursive: true, force: true });
+    // `runTests` returns before Windows releases the editor's handles on
+    // the workspace, so a plain remove failed with EBUSY and reported 17
+    // passing tests as a failed run. Retried, and a directory left in the
+    // temporary folder costs disk, not correctness.
+    await rm(workspaceDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
+      .catch((error) => console.warn(`Could not remove ${workspaceDir}: ${error.message}`));
   }
 }
 

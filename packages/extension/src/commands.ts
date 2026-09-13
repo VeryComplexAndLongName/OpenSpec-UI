@@ -6,6 +6,7 @@ import path from "node:path";
 import * as vscode from "vscode";
 import {
   AGENT_REGISTRY,
+  agentForEveryStageToWrite,
   COPILOT_MIN_AI_CREDITS,
   DEFAULT_HARNESS_CONFIG,
   HARNESS_AGENT_CAPABILITIES,
@@ -118,6 +119,11 @@ export interface CommandsDeps {
   runController: RunController;
   outputChannel: vscode.OutputChannel;
   revealAiPanel: (context?: AiPanelContext) => void;
+  /** Opens the harness settings: the global file's panel with no change,
+   * or the named change's own panel. Each file has a panel of its own;
+   * the AI panel no longer hosts a settings form. See
+   * a-change-is-configured-from-the-change. */
+  showHarnessSettings: (changeName?: string) => void;
   refreshTrees: () => void;
   refreshTemplatesTree: () => void;
   scheduler: WorkbenchProcessScheduler;
@@ -566,6 +572,39 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
         return;
       }
 
+      /** Re-reads what the change's file now resolves to and shows it in
+       * the dialog, with what was written said beside the control that
+       * wrote it. A notification used to say it instead, out of the
+       * dialog's view (a-change-is-configured-from-the-change). */
+      const revealResolved = async (note: { appliedNote: string } | { useAgentNote: string }): Promise<void> => {
+        const applied = await resolveHarnessConfig(workspaceRoot, changeName);
+        deps.revealAiPanel({
+          ...dashboardContext(workspaceRoot, context.changeDir),
+          runPlan: buildRunPlan(applied, {
+            hasVsCodeAgent: true,
+            ...(await readRecommendationInput(deps, workspaceRoot, item)),
+          }),
+          changeName,
+          ...note,
+        });
+      };
+
+      if (choice.kind === "use-agent") {
+        // An id the registry does not have writes nothing. Said in the log:
+        // it means the two sides disagree about what exists.
+        if (!AGENT_REGISTRY.some((agent) => agent.id === choice.agentId)) {
+          deps.outputChannel.appendLine(`OpenSpec UI: ignoring unknown agent "${choice.agentId}".`);
+          return;
+        }
+        const existing = await readChangeHarnessConfig(workspaceRoot, changeName);
+        await writeChangeHarnessConfig(workspaceRoot, changeName, agentForEveryStageToWrite(existing, choice.agentId));
+        await revealResolved({
+          useAgentNote: `Put ${choice.agentId} on every stage in openspec/changes/${changeName}/harness.json. `
+            + "The dialog now shows what the change resolves to.",
+        });
+        return;
+      }
+
       const template = templatesForScope("change").find((entry) => entry.id === choice.templateId);
       if (!template) {
         // A message naming no configuration writes nothing. Said in the
@@ -594,16 +633,10 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
       // Re-read rather than re-render what was on screen: the dialog
       // should show what the file now resolves to, which is the same
       // thing the standalone shell does after applying one.
-      const applied = await resolveHarnessConfig(workspaceRoot, changeName);
-      deps.revealAiPanel({
-        ...dashboardContext(workspaceRoot, context.changeDir),
-        runPlan: buildRunPlan(applied, {
-          hasVsCodeAgent: true,
-          ...(await readRecommendationInput(deps, workspaceRoot, item)),
-        }),
-        changeName,
+      await revealResolved({
+        appliedNote: `Applied "${template.title}" to openspec/changes/${changeName}/harness.json. `
+          + "The dialog now shows what the change resolves to.",
       });
-      void vscode.window.showInformationMessage(`OpenSpec UI: applied "${template.title}" to ${changeName}.`);
     } catch (error) {
       await showCommandError("apply the named configuration", error);
     }
@@ -1110,8 +1143,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       // agents this workspace defines and which ceilings cannot act are
       // all absent from the file, and a person editing it is doing the
       // validator's work from memory. The file stays hand-editable and
-      // the view names it. See harness-settings-in-the-panel.
-      deps.revealAiPanel({ ...dashboardContext(workspaceRoot), showSettings: true });
+      // the view names it. See harness-settings-in-the-panel. Its own panel,
+      // and the global file only (a-change-is-configured-from-the-change).
+      deps.showHarnessSettings();
     }),
     vscode.commands.registerCommand("openspec-ui.configureHarnessForChange", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
@@ -1128,14 +1162,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // fields.
         await writeChangeHarnessConfig(workspaceRoot, item.changeName, {});
       }
-      // Carrying the change name, so the view opens on the override
-      // being edited: asking someone to type back the name they just
-      // right-clicked is asking them to repeat what the host knows.
-      deps.revealAiPanel({
-        ...dashboardContext(workspaceRoot, item.changeDir),
-        showSettings: true,
-        changeName: item.changeName,
-      });
+      // The change's own panel, which has the change's name on its first
+      // render. The view this replaces learned the name only after it had
+      // mounted, and loaded nothing — the person who right-clicked the
+      // change saw an empty field. See a-change-is-configured-from-the-change.
+      deps.showHarnessSettings(item.changeName);
     }),
     // Registered, but contributed by no menu and no palette entry — see
     // one-way-in-to-run tasks.md 3.2, which first said this command would

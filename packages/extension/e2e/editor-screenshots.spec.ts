@@ -345,7 +345,67 @@ test.describe("editor documentation screenshots", () => {
 
     await shoot("template-actions.png");
   });
+
+  test("the global harness settings, in a panel of their own", async () => {
+    await closeEditors();
+    await runCommand("OpenSpec UI: Configure Harness Settings");
+
+    // The panel's title is the editor's, the form is the webview's. A
+    // picture taken on the title alone shows a panel reading nothing, which
+    // is the defect a-change-is-configured-from-the-change fixed.
+    await expect(window.locator('.tabs-container .tab:has-text("OpenSpec UI: Harness Settings")')).toBeVisible();
+    const view = activeWebview();
+    await expect(view.getByTestId("global-harness-settings")).toBeVisible({ timeout: 60_000 });
+    await expect(view.getByLabel("Global autonomy level")).toBeVisible({ timeout: 30_000 });
+    await expect(view.getByTestId("global-harness-named-configuration-description")).toBeVisible();
+
+    await settle(window);
+    await shoot("harness-settings.png");
+  });
+
+  test("one change's harness settings, opened from the change", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+    await openContextMenu("a-change-in-progress");
+    // Hovered and chosen with Enter, not clicked: a click on the label
+    // left the menu open and ran nothing, where a hover focuses the item
+    // the way a person's pointer does.
+    const item = window.getByRole("menuitem", { name: "OpenSpec UI: Configure Harness for this Change" });
+    await item.hover();
+    await window.keyboard.press("Enter");
+
+    await expect(window.locator('.tabs-container .tab:has-text("Harness: a-change-in-progress")')).toBeVisible();
+    const view = activeWebview();
+    // Waited for on what the change's file loaded into, not on the panel:
+    // the name must already be in the page, with nothing typed.
+    await expect(view.getByTestId("change-harness-settings")).toBeVisible({ timeout: 60_000 });
+    await expect(view.getByLabel("Change autonomy level")).toBeVisible({ timeout: 30_000 });
+    await expect(view.getByLabel("change propose agent").locator("option").first()).toContainText("(inherit:");
+    await expect(view.getByTestId("change-harness-named-configuration-description")).toBeVisible();
+
+    await settle(window);
+    await shoot("harness-change.png");
+  });
 });
+
+/** Runs a command by its title through the command palette, the way a
+ * reader of the caption would. */
+async function runCommand(title: string): Promise<void> {
+  await window.keyboard.press("F1");
+  const input = window.locator(".quick-input-widget input");
+  await input.waitFor();
+  await input.fill(`>${title}`);
+  await window.locator(`.quick-input-list .monaco-list-row:has-text("${title}")`).first().waitFor();
+  await window.keyboard.press("Enter");
+  await expect(window.locator(".quick-input-widget")).toBeHidden();
+}
+
+/** The page inside the webview the editor is showing. VS Code puts a
+ * webview's page in a frame inside its own frame, and keeps a hidden one
+ * for every panel that is not in front. */
+function activeWebview() {
+  return window.frameLocator("iframe.webview.ready").last().frameLocator("#active-frame");
+}
 
 /** Right-clicks a tree row and waits for the menu to be drawn.
  *
@@ -384,9 +444,18 @@ async function closeEditors(): Promise<void> {
   // The editor's own "close all editors" chord, not a click on the tab's
   // close icon: that icon appears on hover, so clicking it is a race
   // that passes until it does not.
-  await window.keyboard.press("Control+K");
-  await window.keyboard.press("Control+W");
-  await expect(window.locator(".tabs-container .tab")).toHaveCount(0);
+  //
+  // The tab is clicked first. A webview panel keeps the keyboard inside
+  // its own frame, where the chord never reaches the editor, and the
+  // capture after a harness panel's timed out on a tab that stayed open.
+  // Retried as a whole, because the webview can take the focus back as
+  // the click activates it.
+  await expect(async () => {
+    await window.locator(".tabs-container .tab").first().click();
+    await window.keyboard.press("Control+K");
+    await window.keyboard.press("Control+W");
+    await expect(window.locator(".tabs-container .tab")).toHaveCount(0, { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 /** Leaves exactly one pane expanded, so a picture of one view is not

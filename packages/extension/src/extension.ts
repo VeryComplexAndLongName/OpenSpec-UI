@@ -41,6 +41,7 @@ import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
 import type { AiPanelContext, RunChoice } from "./webview/ai-panel.js";
+import { HarnessSettingsPanel, type ObservedHarnessRequest } from "./webview/harness-settings-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
@@ -83,8 +84,19 @@ export interface ExtensionTestApi {
    * No-op if the AI panel has never been revealed. */
   deliverWebviewCommand: (command: Command) => void;
   deliverWebviewRunChoice: (choice: RunChoice) => void;
-  deliverWebviewRequest: (request: { id: string; op: string; args?: unknown }) => void;
+  /** Delivers a request to a harness settings panel — the named change's,
+   * or the global one with no change — through the same handler a real
+   * webview message reaches. No-op when that panel is not open. */
+  deliverWebviewRequest: (request: { id: string; op: string; args?: unknown }, changeName?: string) => void;
   onWebviewResponse: (listener: (response: unknown) => void) => vscode.Disposable;
+  /** Observes every request a harness settings panel's webview sends,
+   * including the ones a real webview sends when it first renders — how a
+   * test can tell a change's panel loaded that change. */
+  onHarnessSettingsRequest: (listener: (request: ObservedHarnessRequest) => void) => vscode.Disposable;
+  /** The title of the named change's settings panel, or the global one's,
+   * or `undefined` when it is not open. */
+  getHarnessSettingsTitle: (changeName?: string) => string | undefined;
+  getHarnessSettingsHtml: (changeName?: string) => string | undefined;
   checkScheduledRunsOnce: () => Promise<string[]>;
   getWebviewHtml: () => string | undefined;
   /** The receiving half of `deliverWebviewCommand` above: observes every
@@ -374,12 +386,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     getLocalServerUrl: () => optionalServer?.launchUrl,
     scheduler,
   });
+  // The harness settings, one panel per file: the global one, and one per
+  // change. See a-change-is-configured-from-the-change.
+  const harnessSettingsPanel = new HarnessSettingsPanel({
+    extensionUri: context.extensionUri,
+    getWorkspaceRoot,
+  });
 
   const commandsDeps = {
     getWorkspaceRoot,
     runController,
     outputChannel,
     revealAiPanel: (panelContext: AiPanelContext | undefined) => aiPanel.reveal(panelContext),
+    showHarnessSettings: (changeName?: string) => {
+      if (changeName === undefined) harnessSettingsPanel.showGlobal();
+      else harnessSettingsPanel.showChange(changeName);
+    },
     refreshTrees: () => {
       changesTree?.refresh();
       archiveTree?.refresh();
@@ -442,8 +464,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     templatesTree,
     deliverWebviewCommand: (command) => aiPanel.deliverWebviewCommandForTesting(command),
     deliverWebviewRunChoice: (choice) => aiPanel.deliverWebviewRunChoiceForTesting(choice),
-    deliverWebviewRequest: (request) => aiPanel.deliverWebviewRequestForTesting(request),
-    onWebviewResponse: (listener) => aiPanel.onWebviewResponseForTesting(listener),
+    deliverWebviewRequest: (request, changeName) => harnessSettingsPanel.deliverRequestForTesting(request, changeName),
+    onWebviewResponse: (listener) => harnessSettingsPanel.onResponseForTesting(listener),
+    onHarnessSettingsRequest: (listener) => harnessSettingsPanel.onRequestForTesting(listener),
+    getHarnessSettingsTitle: (changeName) => harnessSettingsPanel.getTitleForTesting(changeName),
+    getHarnessSettingsHtml: (changeName) => harnessSettingsPanel.getHtmlForTesting(changeName),
     checkScheduledRunsOnce: async () => {
       const lines: string[] = [];
       await checkScheduleOnce({

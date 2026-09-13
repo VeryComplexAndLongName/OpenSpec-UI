@@ -25,9 +25,18 @@
 // cannot act would publish, in the product's own voice, the confusion
 // that diagnostic exists to report.
 
+import { customAgentFamilyFor } from "./custom-agent-family.js";
 import type { HarnessConfig } from "./harness-config.js";
 import { resolveEffortLevel, type HarnessEffortLevel } from "./harness-effort-level.js";
-import { mergeStepAgents, normalizeStepAgent, type HarnessStepAgent, type HarnessStepAgents, type HarnessStepAgentStage } from "./harness-step-agent.js";
+import {
+  HARNESS_AGENT_CAPABILITIES,
+  mergeStepAgents,
+  normalizeStepAgent,
+  STEP_AGENT_STAGE_NAMES,
+  type HarnessStepAgent,
+  type HarnessStepAgents,
+  type HarnessStepAgentStage,
+} from "./harness-step-agent.js";
 
 /** Where a template may be applied.
  *
@@ -256,6 +265,46 @@ export function changeTemplateConfigToWrite(
     mergeStepAgents(base.stepAgents, override?.stepAgents),
     override ?? {},
   );
+}
+
+/** The override to write when one agent is put on every stage of a
+ * change — what a recommendation drawn from the workspace's runs offers
+ * ("Use claude-cli-acp for every stage").
+ *
+ * Every configurable stage names the agent. What an entry carried that
+ * belongs to its agent goes with it only where the new agent accepts it:
+ * an effort the agent takes, a budget in the unit it honours, a custom
+ * agent from the same CLI family, and a model only where the agent did
+ * not change. Every other key of the change's file is kept, since the
+ * writer replaces the file. The same rule `mergeStepAgent` states for a
+ * change of agent. See a-change-is-configured-from-the-change. */
+export function agentForEveryStageToWrite(
+  override: Partial<HarnessConfig> | undefined,
+  agentId: string,
+): Partial<HarnessConfig> {
+  const kept = override ?? {};
+  const capabilities = HARNESS_AGENT_CAPABILITIES[agentId];
+  const family = customAgentFamilyFor(agentId);
+  const stepAgents: HarnessStepAgents = { ...(kept.stepAgents ?? {}) };
+  for (const stage of STEP_AGENT_STAGE_NAMES) {
+    const existing = stepAgents[stage];
+    const previous = existing === undefined ? undefined : normalizeStepAgent(existing);
+    const entry: Exclude<HarnessStepAgent, string> = { agent: agentId };
+    if (previous?.model !== undefined && previous.agent === agentId) entry.model = previous.model;
+    if (previous?.effort !== undefined && (capabilities?.effort ?? []).includes(previous.effort)) {
+      entry.effort = previous.effort;
+    }
+    const budgetField = capabilities?.budgetField;
+    const budgetValue = budgetField === undefined ? undefined : previous?.budget?.[budgetField];
+    if (budgetValue !== undefined) {
+      entry.budget = budgetField === "maxCostUsd" ? { maxCostUsd: budgetValue } : { maxAiCredits: budgetValue };
+    }
+    if (previous?.customAgent !== undefined && family !== undefined && customAgentFamilyFor(previous.agent) === family) {
+      entry.customAgent = previous.customAgent;
+    }
+    stepAgents[stage] = Object.keys(entry).length === 1 ? agentId : entry;
+  }
+  return { ...kept, stepAgents };
 }
 
 /** `normalizeStepAgent` fills every field, absent ones as `undefined`.

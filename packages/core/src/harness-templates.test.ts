@@ -4,7 +4,7 @@ import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js"
 import { HARNESS_AGENT_CAPABILITIES, normalizeStepAgent } from "./harness-step-agent.js";
 import { HARNESS_EFFORT_LEVELS, resolveEffortLevel } from "./harness-effort-level.js";
 import type { HarnessStepAgent, HarnessStepAgents } from "./harness-step-agent.js";
-import { changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
+import { agentForEveryStageToWrite, changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 
 // settings-templates:
 // pure over in-memory data — no files, no processes. Measured 2026-09-08
@@ -393,5 +393,69 @@ describe("changeTemplateConfigToWrite — one file, whichever surface applied it
     });
 
     expect(written.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["main"] });
+  });
+});
+
+describe("agentForEveryStageToWrite — a recommendation from runs, applied", () => {
+  // a-change-is-configured-from-the-change. "Fastest here" named an agent
+  // and nothing offered to use it. Putting it on every stage writes the
+  // change's file, so what the file already says has to survive.
+
+  it("sets every configurable stage to the agent", () => {
+    const written = agentForEveryStageToWrite(undefined, "claude-cli-acp");
+
+    expect(written.stepAgents).toEqual({
+      propose: "claude-cli-acp",
+      review: "claude-cli-acp",
+      apply: "claude-cli-acp",
+      verify: "claude-cli-acp",
+    });
+  });
+
+  it("keeps an effort the new agent accepts, and drops one it refuses", () => {
+    const written = agentForEveryStageToWrite({
+      stepAgents: {
+        propose: { agent: "claude-cli", effort: "high" },
+        // `none` is a value copilot accepts and claude does not.
+        apply: { agent: "copilot-cli", effort: "none" },
+      },
+    }, "claude-cli-acp");
+
+    expect(written.stepAgents?.propose).toEqual({ agent: "claude-cli-acp", effort: "high" });
+    expect(written.stepAgents?.apply).toBe("claude-cli-acp");
+  });
+
+  it("keeps a budget only in the unit the new agent honours, and a model only for the same agent", () => {
+    const written = agentForEveryStageToWrite({
+      stepAgents: {
+        propose: { agent: "claude-cli-acp", model: "claude-opus-5", budget: { maxCostUsd: 4 } },
+        apply: { agent: "copilot-cli", budget: { maxAiCredits: 40 } },
+        verify: { agent: "claude-cli", model: "claude-sonnet-5" },
+      },
+    }, "claude-cli-acp");
+
+    expect(written.stepAgents?.propose).toEqual({ agent: "claude-cli-acp", model: "claude-opus-5", budget: { maxCostUsd: 4 } });
+    expect(written.stepAgents?.apply).toBe("claude-cli-acp");
+    expect(written.stepAgents?.verify).toBe("claude-cli-acp");
+  });
+
+  it("keeps a custom agent from the same CLI family", () => {
+    const written = agentForEveryStageToWrite({
+      stepAgents: { review: { agent: "claude-cli", customAgent: "reviewer" } },
+    }, "claude-cli-acp");
+
+    expect(written.stepAgents?.review).toEqual({ agent: "claude-cli-acp", customAgent: "reviewer" });
+  });
+
+  it("keeps every other key of the change's file unchanged", () => {
+    const written = agentForEveryStageToWrite({
+      autonomyLevel: "autonomous",
+      gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
+      maxStageAttempts: 3,
+    }, "codex-cli");
+
+    expect(written.autonomyLevel).toBe("autonomous");
+    expect(written.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["main"] });
+    expect(written.maxStageAttempts).toBe(3);
   });
 });
