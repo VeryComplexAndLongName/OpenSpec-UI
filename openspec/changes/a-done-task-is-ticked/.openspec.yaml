@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-13
+follows:
+  - harness-chain-archive-gate
+  - harness-mechanical-checks
+  - verify-sends-work-back
+  - an-agent-says-what-it-is-doing
