@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-12T22:49:24.435Z",
+  "generated_at": "2026-09-13T04:41:25.148Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "b09a11b2660abf2a6f64d6ae2a67d76e6443ac7d",
+  "commit": "8eed2e8f2e49c65d7d5c40f4c70dc8bdfd198464",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.50.8",
-      "released_at": "2026-09-12T22:49:24.435Z",
-      "tag": "openspec-ui-vscode@0.50.8",
+      "version": "0.50.9",
+      "released_at": "2026-09-13T04:41:25.148Z",
+      "tag": "openspec-ui-vscode@0.50.9",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.50.8"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.50.9"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.50.8/openspec-ui-vscode-0.50.8.vsix",
-          "size_bytes": 4648045
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.50.9/openspec-ui-vscode-0.50.9.vsix",
+          "size_bytes": 4674092
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "The editor pictures now show what their captions say."
+          "summary": "An agent says what it is doing."
+        },
+        {
+          "kind": "patch",
+          "summary": "A running agent now says what it is doing: which file it reads or edits, which command it runs, and which call failed."
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.22.2",
-      "released_at": "2026-09-12T22:49:24.435Z",
+      "version": "1.22.3",
+      "released_at": "2026-09-13T04:41:25.148Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,15 +51,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "An agent says what it is doing."
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.76.1",
-      "released_at": "2026-09-12T22:49:24.435Z",
+      "version": "0.77.0",
+      "released_at": "2026-09-13T04:41:25.148Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -65,8 +74,12 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A suggestion naming a dozen changes is now readable."
+          "kind": "minor",
+          "summary": "An agent says what it is doing."
+        },
+        {
+          "kind": "minor",
+          "summary": "A running agent now says what it is doing: which file it reads or edits, which command it runs, and which call failed."
         }
       ]
     },
@@ -75,23 +88,28 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.40.2",
-      "released_at": "2026-09-12T22:49:24.435Z",
+      "version": "1.40.3",
+      "released_at": "2026-09-13T04:41:25.148Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "A running agent now says what it is doing: which file it reads or edits, which command it runs, and which call failed."
+        }
+      ]
     },
     {
       "id": "ci-cli",
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.10.0",
-      "released_at": "2026-09-12T22:49:24.435Z",
+      "version": "0.11.0",
+      "released_at": "2026-09-13T04:41:25.148Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -101,7 +119,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Working directories go under one root, and removal takes their run history first."
+          "summary": "An agent says what it is doing."
+        },
+        {
+          "kind": "patch",
+          "summary": "A running agent now says what it is doing: which file it reads or edits, which command it runs, and which call failed."
         }
       ]
     }
