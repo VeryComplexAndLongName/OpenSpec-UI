@@ -309,6 +309,9 @@ describe("readChangeReadiness — a run's record (a-change-is-running-when-its-r
       runId: "r1",
       task: null,
       waiting: null,
+      signature: "unverified",
+      machine: null,
+      gitAuthor: null,
       ...overrides,
     };
   }
