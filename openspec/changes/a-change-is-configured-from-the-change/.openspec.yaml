@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-13
+follows:
+  - harness-settings-in-the-panel
+  - run-dialog-actually-advises
+  - an-autonomy-level-says-what-it-does
