@@ -14,7 +14,9 @@ import {
   createGitWrapper,
   readAgentStatuses,
   resolveAgentStatusDirectory,
+  sweepAgentStatuses,
   type AgentStatusReadResult,
+  type AgentStatusSweepResult,
   type GitWrapper,
 } from "@openspec-ui/core";
 
@@ -32,6 +34,7 @@ export interface StatusDeps {
   createGit?: (cwd: string) => GitWrapper;
   resolveDirectory?: typeof resolveAgentStatusDirectory;
   read?: typeof readAgentStatuses;
+  sweep?: typeof sweepAgentStatuses;
 }
 
 /** Always `0`, whether or not anything is running — the same reasoning
@@ -40,9 +43,15 @@ export interface StatusDeps {
  * output rather than infer it from a failure code. */
 export async function statusCommand(options: StatusOptions, deps: StatusDeps): Promise<number> {
   let result: AgentStatusReadResult;
+  let swept: AgentStatusSweepResult | undefined;
   try {
     const git = (deps.createGit ?? ((cwd: string) => createGitWrapper({ cwd })))(options.workspaceRoot);
     const directory = await (deps.resolveDirectory ?? resolveAgentStatusDirectory)(git, options.workspaceRoot);
+    // Records of runs that will never write again go before reading, since
+    // this is where the directory is already being looked at
+    // (a-stale-status-is-swept). A sweep that fails is no reason not to
+    // answer the question that was asked.
+    swept = await (deps.sweep ?? sweepAgentStatuses)(directory).catch(() => undefined);
     result = await (deps.read ?? readAgentStatuses)(directory);
   } catch (error) {
     deps.stderr(`openspec-ui-cli: could not read agent status: ${message(error)}`);
@@ -52,6 +61,15 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
   if (options.format === "json") {
     deps.stdout(JSON.stringify(result, null, 2));
     return 0;
+  }
+
+  // Said on stderr, so what stdout says about runs reads the same whether
+  // or not anything was removed first.
+  for (const fileName of swept?.removedRecords ?? []) {
+    deps.stderr(`openspec-ui-cli: removed ${fileName}: its writer stopped reporting past the staleness window`);
+  }
+  for (const fileName of swept?.removedTemporaryFiles ?? []) {
+    deps.stderr(`openspec-ui-cli: removed ${fileName}: left by a write that never finished`);
   }
 
   if (result.reports.length === 0 && result.malformed.length === 0) {

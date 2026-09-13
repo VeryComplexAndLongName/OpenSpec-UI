@@ -620,3 +620,39 @@ describe("createAgentRunner — resolvePermission command", () => {
     expect(events).toEqual([]);
   });
 });
+
+describe("createAgentRunner — a run's history reaches the audit log as it happens (a-stale-status-is-swept)", () => {
+  it("records started while the run is still under way, so a crash after that point is already recorded", async () => {
+    // The status record keeps only the present, and a sweep removes it
+    // without collecting anything. That is safe only because what a run
+    // did is already in the audit log by the time it could crash.
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { adapter } = makeFakeAdapter(async function* (_invocation, command) {
+      yield { kind: "started", runId: command.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      await released;
+      yield { kind: "completed", runId: command.runId, timestamp: "t", summary: "diff" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+    const command: Command = {
+      kind: "implement",
+      cwd: workspaceRoot,
+      runId: "run-under-way",
+      context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
+    };
+
+    const events = runner.run(command)[Symbol.asyncIterator]();
+    const first = await events.next();
+
+    expect(first.value).toMatchObject({ kind: "started" });
+    expect(auditLog.entries.map((entry) => entry.outcome)).toEqual(["started"]);
+
+    release();
+    let next = await events.next();
+    while (!next.done) next = await events.next();
+    expect(auditLog.entries.map((entry) => entry.outcome)).toEqual(["started", "completed"]);
+  });
+});

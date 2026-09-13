@@ -14,6 +14,8 @@ function collectingIo() {
     // resolving the status directory, and a unit test must not require
     // an actual git checkout at "/repo" just to reach `read`.
     createGit: (() => ({}) as GitWrapper) as (cwd: string) => GitWrapper,
+    // Nothing to remove, and no filesystem touched, unless a test says so.
+    sweep: async () => ({ removedRecords: [], removedTemporaryFiles: [] }),
   };
 }
 
@@ -102,6 +104,52 @@ describe("statusCommand", () => {
 
     expect(code).toBe(0);
     expect(JSON.parse(io.out.join("\n"))).toEqual(result);
+  });
+
+  it("sweeps before it reads, says on stderr what it removed, and leaves stdout as the reading says", async () => {
+    const io = collectingIo();
+    const calls: string[] = [];
+
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      {
+        ...io,
+        resolveDirectory: async () => "/status",
+        sweep: async (directory) => {
+          calls.push(`sweep ${directory}`);
+          return { removedRecords: ["crashed.json"], removedTemporaryFiles: ["crashed.json.0b1f.tmp"] };
+        },
+        read: async (directory) => {
+          calls.push(`read ${directory}`);
+          return { reports: [], malformed: [] };
+        },
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(calls).toEqual(["sweep /status", "read /status"]);
+    expect(io.out).toEqual(["No runs are reporting themselves."]);
+    expect(io.err.join(" ")).toContain("removed crashed.json:");
+    expect(io.err.join(" ")).toContain("removed crashed.json.0b1f.tmp:");
+  });
+
+  it("still answers when the sweep fails", async () => {
+    const io = collectingIo();
+
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      {
+        ...io,
+        resolveDirectory: async () => "/status",
+        sweep: async () => {
+          throw new Error("EPERM: operation not permitted");
+        },
+        read: async () => ({ reports: [REPORT], malformed: [] }),
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(io.out.join(" ")).toContain("an-instance");
   });
 
   it("exits 2 when the status directory or file cannot be read", async () => {

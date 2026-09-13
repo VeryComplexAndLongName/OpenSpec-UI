@@ -12,7 +12,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { agentStatusDirectory, readAgentStatuses, type AgentStatusReport } from "./agent-status.js";
+import { agentStatusDirectory, readAgentStatuses, sweepAgentStatuses, type AgentStatusReport } from "./agent-status.js";
 import { readChangeGraph } from "./change-graph.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
 import { readTaskChecklist } from "./task-checklist.js";
@@ -51,6 +51,12 @@ export interface WorktreeSurveyOptions {
   staleAfterMs?: number;
   /** Test seam for the status records' clock. */
   now?: () => Date;
+  /** Removes records of runs that will never write again before reading
+   * the rest (a-stale-status-is-swept). Off unless asked for: a survey is
+   * a reading, and a caller that polls the directory anyway — the
+   * Pipeline tab — asks for it. The sweep is filesystem-only, so it adds
+   * no git invocation. */
+  sweepStatuses?: boolean;
 }
 
 function message(error: unknown): string {
@@ -186,10 +192,15 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
   let runsUnreadable: string | undefined;
   try {
     const { root } = await resolveWorktreeRoot(mainPath, options.rootSources ?? {});
-    const read = await readAgentStatuses(agentStatusDirectory(root, mainPath), {
+    const statusDirectory = agentStatusDirectory(root, mainPath);
+    const clock = {
       ...(options.now ? { now: options.now } : {}),
       ...(options.staleAfterMs !== undefined ? { staleAfterMs: options.staleAfterMs } : {}),
-    });
+    };
+    // Best-effort: a sweep that fails leaves the reading to report what is
+    // there.
+    if (options.sweepStatuses) await sweepAgentStatuses(statusDirectory, clock).catch(() => undefined);
+    const read = await readAgentStatuses(statusDirectory, clock);
     reports = read.reports;
   } catch (error) {
     runsUnreadable = message(error);

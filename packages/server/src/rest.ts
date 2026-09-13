@@ -1147,7 +1147,10 @@ export async function handleWorktreeSurveyRequest(
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd }));
+    // The tab's poll is where the directory is already being looked at, so
+    // it is where records of runs that will never write again are removed
+    // (a-stale-status-is-swept). No timer of its own.
+    sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
