@@ -24,6 +24,42 @@ SHALL NOT remove the others from the survey.
 - **THEN** it is reported as unreadable and the rest of the survey still
   appears
 
+### Requirement: A surveyed directory shows what its runs say they are doing
+
+For each working directory, the survey SHALL show what each run
+reporting there says it is doing — its change, its stage, its activity,
+and how long since it said so — read from the status records runs
+already write.
+
+A run whose record is past the staleness window SHALL be shown as gone.
+
+A directory where no run reports SHALL be described as such, and SHALL
+NOT be described as idle: a session this product did not start writes no
+record.
+
+No verdict about a run's health SHALL be stated.
+
+Reading the records SHALL NOT run git against any working directory
+beyond the one enumeration the survey already makes.
+
+#### Scenario: A run in another working directory
+
+- **WHEN** a run in another working directory reports an activity
+- **THEN** the survey shows that activity under that directory, with how
+  long ago it was said
+
+#### Scenario: A directory no run reports from
+
+- **WHEN** no status record names a working directory
+- **THEN** the survey says no run reports there, and does not call it
+  idle
+
+#### Scenario: A record for a directory that is gone
+
+- **WHEN** a status record names a path that is no longer a working
+  directory of the repository
+- **THEN** it is reported as belonging to none, not dropped
+
 ### Requirement: Another directory's changes cannot be acted on
 
 A change belonging to another working directory SHALL carry no action:

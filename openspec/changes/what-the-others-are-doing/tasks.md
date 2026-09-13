@@ -25,6 +25,21 @@ it had read.
   question the viewer cannot act on.
 - [ ] 1.7 A change present in more than one directory is reported as
   such. Not refused and not resolved — it comes from ordinary branching.
+- [ ] 1.8 The survey reads the repository's status records once —
+  `readAgentStatuses` over the status directory resolved from the `git
+  worktree list` output it already holds, passed in rather than listed
+  again — and attaches each record to the working directory whose path
+  it names.
+- [ ] 1.9 A record naming a path that is no longer a working directory is
+  reported as belonging to none, not dropped and not attached to a guess.
+- [ ] 1.10 Per run: its change, stage, activity, how long since it was
+  said, heartbeat age, and whether it is gone. No field says stuck, hung,
+  idle or healthy.
+- [ ] 1.11 A directory with no record is described as one where no run
+  reports, never as idle: a session this product did not start writes no
+  record.
+- [ ] 1.12 Reading never removes a record. Sweeping belongs to
+  `a-stale-status-is-swept`.
 
 ## 2. The label
 
@@ -76,6 +91,9 @@ it had read.
 - [ ] 5.6 A duplicate change is called out where it appears.
 - [ ] 5.7 Foreign directories are read less often than the local one, and
   only while the tab is being looked at.
+- [ ] 5.8 Each directory's picture — the local one included — shows what
+  its runs say they are doing and how long ago, a gone run as gone, and a
+  directory where no run reports as such, all in words.
 
 ## 6. Tests
 
@@ -98,6 +116,16 @@ it had read.
 - [ ] 6.9 Browser suite: the tab with a second working directory passes
   axe at WCAG AA, and its screenshot under `docs/images/standalone/` is
   regenerated.
+- [ ] 6.10 Core: a status record is attached to the directory it names,
+  and one naming a removed directory is reported as belonging to none.
+- [ ] 6.11 Core: a directory with no record is not described as idle —
+  asserted against the whole reported shape, because that word is the one
+  somebody will helpfully add later.
+- [ ] 6.12 Core: resolving the status directory adds no git invocation —
+  the recording wrapper of 6.6 sees the one `worktree list` and nothing
+  more.
+- [ ] 6.13 webui: a foreign directory's run shows its activity and its
+  age in words, and a gone run says gone.
 
 ## 7. Verification
 
@@ -109,7 +137,9 @@ it had read.
 - [ ] 7.5 **Delegated to `claude-cli`**: with a second agent actually
   working in a second working directory, open the tab and check that its
   label, branch and changes are the ones on disk there, that nothing
-  offers to act on them, and that a run held there names its git author.
-  Evidence: both directories, and the tab. The unit tests drive the
+  offers to act on them, that a run held there names its git author, and
+  that what the run says it is doing matches what `openspec-ui-cli
+  status` prints for it at the same moment. Evidence: both directories,
+  the tab, and the command's output. The unit tests drive the
   survey with directories a test made; only a real second agent shows
   that what it writes is what the survey reads.
