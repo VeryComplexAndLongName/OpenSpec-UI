@@ -16,6 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolveDelegatedItems, type DelegatedItem } from "./delegated-items.js";
+import { withAgentStatus } from "./agent-status.js";
 import { normalizeStepAgent } from "./harness-step-agent.js";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, Event } from "./protocol.js";
@@ -54,6 +55,11 @@ export type DelegatedItemRunResult =
     outcome: "completed" | "failed" | "cancelled";
     /** Why the run failed or was cancelled, where the agent said. */
     reason?: string;
+    /** On a run that failed or was cancelled, the end of what the agent
+     * wrote to stderr: its last lines, bounded, which is where a command
+     * line tool says why it stopped. Absent on a run that finished, or
+     * that wrote nothing there (a-delegated-run-says-what-happened). */
+    lastStderr?: string;
     gate: DelegatedItemGate;
     message: string;
   };
@@ -74,6 +80,10 @@ export interface DelegatedItemRunRequest {
   /** Every event the run emitted, as it emits them — so a host can show
    * progress. The result is what the surface reports at the end. */
   onEvent?: (event: Event) => void;
+  /** Test seam: where the run's status record is kept. Production
+   * resolves the repository's shared status directory, as every other
+   * run's record does. */
+  resolveStatusDirectory?: (cwd: string) => Promise<string>;
 }
 
 /** The prompt for one delegated item.
@@ -309,8 +319,18 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
 
   let outcome: "completed" | "failed" | "cancelled" = "completed";
   let reason: string | undefined;
-  for await (const event of runner.run(command)) {
+  const stderr = new StderrTail();
+  // The same status record every other run keeps, so a delegated run is
+  // seen by `openspec-ui-cli status`, the survey and the Pipeline tab,
+  // whichever host started it. Kept here rather than by each host: both
+  // would have to remember, and both had forgotten
+  // (a-delegated-run-says-what-happened).
+  const events = withAgentStatus(runner.run(command), command, {
+    ...(request.resolveStatusDirectory ? { resolveDirectory: request.resolveStatusDirectory } : {}),
+  });
+  for await (const event of events) {
     request.onEvent?.(event);
+    if (event.kind === "stderr") stderr.add(event.chunk);
     if (event.kind === "failed") {
       outcome = "failed";
       reason = event.reason;
@@ -322,6 +342,8 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
   }
 
   const gate = await checkRubberStamp(workspaceRoot, changeName, tasksPath, before, beforeText, item.taskNumber);
+  const lastStderr = outcome === "completed" ? undefined : stderr.text();
+  const told = lastStderr === undefined ? reason : withLastWords(reason, lastStderr);
 
   return {
     status: "ran",
@@ -330,9 +352,52 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
     ...(item.taskNumber !== undefined ? { taskNumber: item.taskNumber } : {}),
     outcome,
     ...(reason !== undefined ? { reason } : {}),
+    ...(lastStderr !== undefined ? { lastStderr } : {}),
     gate,
-    message: describeRun(item, outcome, reason, gate),
+    message: describeRun(item, outcome, told, gate),
   };
+}
+
+const LINE_BREAK = String.fromCharCode(10);
+const CARRIAGE_RETURN = String.fromCharCode(13);
+
+/** How much of a stopped run's stderr its result keeps: enough to hold
+ * a stack's head or an API error with its context, little enough for one
+ * row of a list and a notification. */
+const STDERR_TAIL_LINES = 20;
+const STDERR_TAIL_CHARACTERS = 2_000;
+
+/** The end of what a run wrote to stderr, bounded as it arrives, so a run
+ * that prints megabytes never holds them. */
+class StderrTail {
+  private buffer = "";
+
+  add(chunk: string): void {
+    this.buffer = (this.buffer + chunk).slice(-STDERR_TAIL_CHARACTERS * 4);
+  }
+
+  /** The last lines, trailing blank ones dropped, at most
+   * `STDERR_TAIL_LINES` of them and `STDERR_TAIL_CHARACTERS` in all.
+   * Undefined when nothing but blank lines was said. */
+  text(): string | undefined {
+    const lines = this.buffer
+      .split(LINE_BREAK)
+      .map((line) => (line.endsWith(CARRIAGE_RETURN) ? line.slice(0, -1) : line));
+    while (lines.length > 0 && (lines[lines.length - 1] ?? "").trim() === "") lines.pop();
+    if (lines.length === 0) return undefined;
+    const kept = lines.slice(-STDERR_TAIL_LINES).join(LINE_BREAK);
+    return kept.length > STDERR_TAIL_CHARACTERS ? kept.slice(-STDERR_TAIL_CHARACTERS) : kept;
+  }
+}
+
+/** The reason, followed by the last thing the agent said on stderr —
+ * "claude exited with code 1. It last said: API Error: 400 …" — without a
+ * doubled full stop where the agent ended its own sentence. */
+function withLastWords(reason: string | undefined, lastStderr: string): string {
+  const lines = lastStderr.split(LINE_BREAK);
+  const last = (lines[lines.length - 1] ?? "").trim();
+  const said = last.endsWith(".") ? last.slice(0, -1) : last;
+  return `${reason ?? "no reason was given"}. It last said: ${said}`;
 }
 
 async function checkRubberStamp(

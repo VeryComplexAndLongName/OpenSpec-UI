@@ -314,8 +314,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           );
           inboxTree?.reportOutcome(item, shortDelegatedItemOutcome(result));
           const refused = result.status === "refused" || result.gate.kind === "reverted";
-          const show = refused ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-          void show(`OpenSpec UI: ${result.message}`);
+          const stopped = result.status === "ran" && result.outcome !== "completed";
+          const show = refused || stopped ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
+          const lastStderr = result.status === "ran" ? result.lastStderr : undefined;
+          if (lastStderr === undefined) {
+            void show(`OpenSpec UI: ${result.message}`);
+          } else {
+            // What the agent last said is one click away rather than lost
+            // behind an exit code (a-delegated-run-says-what-happened).
+            void show(`OpenSpec UI: ${result.message}`, "Show output").then((choice) => {
+              if (choice !== "Show output") return;
+              outputChannel.appendLine(`${item.changeName} — ${item.text}: what the agent last said`);
+              outputChannel.appendLine(lastStderr);
+              outputChannel.show(true);
+            });
+          }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           inboxTree?.reportOutcome(item, "the run could not be started");

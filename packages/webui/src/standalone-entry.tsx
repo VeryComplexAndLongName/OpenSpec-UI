@@ -70,6 +70,13 @@ import {
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
+/** What a delegated item's last run reported, shown beside its row: the
+ * sentence and, for a run that stopped, what the agent last said. */
+interface DelegatedOutcome {
+  message: string;
+  lastStderr?: string;
+}
+
 interface OverviewChange {
   name: string;
   status: string;
@@ -575,7 +582,7 @@ function StandaloneApp() {
   /** What the last run of each delegated item reported, keyed the way
    * its row is. Shown beside the row it was started from: an outcome
    * that scrolled away somewhere else is an outcome nobody reads. */
-  const [delegatedOutcomes, setDelegatedOutcomes] = useState<Record<string, string>>({});
+  const [delegatedOutcomes, setDelegatedOutcomes] = useState<Record<string, DelegatedOutcome>>({});
   /** The row whose run is in flight, so its button says so and cannot
    * be pressed twice. One item per request is the rule. */
   const [runningDelegated, setRunningDelegated] = useState<string | null>(null);
@@ -589,7 +596,14 @@ function StandaloneApp() {
     setRunningDelegated(key);
     try {
       const result = await runDelegatedItemApi(apiFetch, cwd, item);
-      setDelegatedOutcomes((current) => ({ ...current, [key]: result.message }));
+      // What the agent last said travels with the message, so a failed run
+      // shows why it stopped beside the row rather than only an exit code
+      // (a-delegated-run-says-what-happened).
+      const lastStderr = result.status === "ran" ? result.lastStderr : undefined;
+      setDelegatedOutcomes((current) => ({
+        ...current,
+        [key]: { message: result.message, ...(lastStderr !== undefined ? { lastStderr } : {}) },
+      }));
       try {
         setHumanOnly({ status: "loaded", inbox: await loadHumanOnlyInbox(apiFetch, cwd) });
       } catch {
@@ -599,7 +613,7 @@ function StandaloneApp() {
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      setDelegatedOutcomes((current) => ({ ...current, [key]: `The run could not be started: ${reason}` }));
+      setDelegatedOutcomes((current) => ({ ...current, [key]: { message: `The run could not be started: ${reason}` } }));
     } finally {
       setRunningDelegated(null);
     }
@@ -1312,7 +1326,17 @@ function StandaloneApp() {
                         </>
                       ) : null}
                       {outcome ? (
-                        <div data-testid={`delegated-outcome-${key}`}>{outcome}</div>
+                        <div data-testid={`delegated-outcome-${key}`}>
+                          {outcome.message}
+                          {outcome.lastStderr ? (
+                            // The whole tail, one click away; the message
+                            // already quotes its last line.
+                            <details className="openspec-delegated-stderr" data-testid={`delegated-stderr-${key}`}>
+                              <summary>What the agent last said</summary>
+                              <pre>{outcome.lastStderr}</pre>
+                            </details>
+                          ) : null}
+                        </div>
                       ) : null}
                     </li>
                   );

@@ -45,6 +45,13 @@ test.beforeAll(async () => {
   await change("run-by-an-agent", "## Tasks\n\n- [ ] 2.1 **Delegated to copilot-cli**: quote the audit line\n");
   await change("nobody-at-all", "## Tasks\n\n- [ ] 3.1 **Delegated to copilto-cli**: a typo nothing will run\n");
 
+  // a-delegated-run-says-what-happened: the form every delegated item in
+  // this repository had been written in, with the id in backticks.
+  await change(
+    "run-by-a-quoted-agent",
+    "## Tasks" + String.fromCharCode(10, 10) + "- [ ] 4.1 **Delegated to `copilot-cli`**: quoted in the marker" + String.fromCharCode(10),
+  );
+
   server = createServer({ workspaceRoot, host: "127.0.0.1", port: 0 });
   const address = await server.listen();
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -81,9 +88,10 @@ test("says how much is waiting, and on whom, per row", async ({ page }) => {
   // One sentence carrying all three: what waits on a person, what waits
   // on an agent, and the id nothing recognises.
   const basis = page.getByTestId("human-only-inbox-basis");
-  await expect(basis).toContainText("3 items waiting, across 3 of 3 active changes");
+  await expect(basis).toContainText("4 items waiting, across 4 of 4 active changes");
   await expect(basis).toContainText("1 on a person");
-  await expect(basis).toContainText("1 on copilot-cli");
+  // The bare and the quoted marker name one agent, so they count as one.
+  await expect(basis).toContainText("2 on copilot-cli");
   await expect(basis).toContainText("1 on \"copilto-cli\", which is not a registered agent");
 
   // And each row says it too, so a reader scanning the list does not
@@ -115,6 +123,8 @@ test("offers a run only on the row whose item names an agent this build carries"
   // item), and the row is keyed by change and line.
   await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toBeVisible();
   await expect(page.getByTestId("run-delegated-run-by-an-agent:2")).toHaveText("Run copilot-cli");
+  // The id in backticks is offered the same run.
+  await expect(page.getByTestId("run-delegated-run-by-a-quoted-agent:2")).toHaveText("Run copilot-cli");
   await expect(page.getByTestId("run-delegated-judged-by-a-person:3")).toHaveCount(0);
   await expect(page.getByTestId("run-delegated-nobody-at-all:2")).toHaveCount(0);
 });
@@ -151,6 +161,47 @@ test("shows a refusal from the gate beside the row it was started from", async (
 
   await expect(page.getByTestId("delegated-outcome-run-by-an-agent:2"))
     .toContainText("came back ticked with nothing written");
+});
+
+test("shows what a stopped run's agent last said, beneath the outcome", async ({ page }) => {
+  // a-delegated-run-says-what-happened: the message quotes the agent's last
+  // line, and the whole tail is one click away. Stubbed at the network,
+  // like the refusal above, so nothing here spawns an agent.
+  test.setTimeout(60_000);
+  const LF = String.fromCharCode(10);
+
+  await page.route("**/api/delegated-item/run", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      status: "ran",
+      runId: "run-2",
+      agent: "copilot-cli",
+      taskNumber: "2.1",
+      outcome: "failed",
+      reason: "copilot exited with code 1",
+      lastStderr: "starting up" + LF + "API Error: 400 this version is too old.",
+      gate: { kind: "still-open" },
+      message: "The run failed: copilot exited with code 1. It last said: API Error: 400 this version is too old."
+        + " Task 2.1 is still open.",
+    }),
+  }));
+
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByLabel("Workspace root (cwd)").blur();
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+
+  await expect(page.getByTestId("human-only-inbox")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("run-delegated-run-by-an-agent:2").click();
+
+  await expect(page.getByTestId("delegated-outcome-run-by-an-agent:2"))
+    .toContainText("It last said: API Error: 400 this version is too old.");
+  const disclosure = page.getByTestId("delegated-stderr-run-by-an-agent:2");
+  await expect(disclosure.locator("pre")).toBeHidden();
+  await disclosure.getByText("What the agent last said").click();
+  await expect(disclosure.locator("pre")).toContainText("starting up");
+  await expect(disclosure.locator("pre")).toContainText("API Error: 400 this version is too old.");
 });
 
 test("says the inbox could not be read, rather than showing no block", async ({ page }) => {
