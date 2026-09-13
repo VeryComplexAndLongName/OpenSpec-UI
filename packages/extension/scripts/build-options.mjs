@@ -87,6 +87,23 @@ export function harnessSettingsWebviewBuildOptions() {
   };
 }
 
+/** The Pipeline panel — the-pipeline-opens-in-vs-code. A bundle of its own
+ * rather than `webview.js`, which carries the AI panel and its context
+ * message shape. */
+export function pipelineWebviewBuildOptions() {
+  return {
+    entryPoints: [path.resolve(here, "../../webui/src/pipeline-entry.tsx")],
+    outfile: path.resolve(here, "../dist/pipeline.js"),
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    jsx: "automatic",
+    sourcemap: true,
+    logLevel: "info",
+  };
+}
+
 /** Integration test suite (tasks.md 4.1/4.2) — one output file per test
  * suite entry point (index.js + one per *.test.ts), not a single bundle:
  * `index.ts`'s `run()` finds test files via `glob("**\/*.test.js")` next

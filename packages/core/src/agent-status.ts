@@ -323,6 +323,11 @@ export interface AgentStatusReport {
   activitySinceMs: number;
   /** Milliseconds since the last heartbeat. */
   heartbeatAgeMs: number;
+  /** The record's own timestamps, as written. The two ages above are
+   * measured at read time; a reader that shows a picture for longer than
+   * a moment counts from these instead (the-pipeline-opens-in-vs-code). */
+  activityAt: string;
+  heartbeatAt: string;
   /** The heartbeat is older than the staleness window: the writer is
    * gone, by the same rule the workspace lease already uses. */
   gone: boolean;
@@ -400,6 +405,8 @@ async function readAgentStatusRecord(
         workingDirectory: document.workingDirectory,
         activitySinceMs,
         heartbeatAgeMs,
+        activityAt: document.activityAt,
+        heartbeatAt: document.heartbeatAt,
         gone: heartbeatAgeMs > staleAfterMs,
       },
     };

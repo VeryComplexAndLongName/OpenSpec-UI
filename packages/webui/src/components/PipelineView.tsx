@@ -52,6 +52,21 @@ export const PIPELINE_POLL_INTERVAL_MS = 10_000;
  * (ADR 0026). */
 export const SURVEY_POLL_INTERVAL_MS = 30_000;
 
+/** How often a view that is told when to read reads anyway.
+ *
+ * A host that watches files signals what they change, but some things
+ * raise no file event it sees: git's list of working directories, and a
+ * record or a lease going stale by the clock alone. A minute bounds how
+ * late those appear. See the-pipeline-opens-in-vs-code. */
+export const PIPELINE_BACKSTOP_INTERVAL_MS = 60_000;
+
+/** How often the view draws itself again, reading nothing, so the ages it
+ * states keep counting between readings. */
+export const PIPELINE_CLOCK_INTERVAL_MS = 5_000;
+
+/** The two readings a host can say are out of date. */
+export type PipelineReading = "readiness" | "survey";
+
 export interface PipelineViewProps {
   /** Reads the report. Injected so a test never needs a server, and so
    * this component cannot quietly acquire a second way to get one. */
@@ -63,12 +78,24 @@ export interface PipelineViewProps {
    * tab is work nobody asked for against a picture nobody sees. */
   isActive: boolean;
   onOpenChange?: (changeName: string) => void;
+  /** A host that knows when a reading is out of date — the editor, which
+   * watches the files — says so here, and the view reads on its word and
+   * on `PIPELINE_BACKSTOP_INTERVAL_MS` instead of on its own clock.
+   * Returns the unsubscribe. Absent, the view polls as it always has.
+   * Must be stable across renders, or each render subscribes again. */
+  subscribe?: (listener: (reading: PipelineReading) => void) => () => void;
 }
 
-/** One reading, repeated while the tab is looked at. A reply that arrives
- * once the tab has been left, or after unmount, sets nothing — and is
- * never mistaken for a current reading. */
-function usePolledReading<T>(load: (() => Promise<T>) | undefined, isActive: boolean, intervalMs: number) {
+/** One reading, repeated while the tab is looked at: on a timer, or on a
+ * host's signal naming it and a slow backstop. A reply that arrives once
+ * the tab has been left, or after unmount, sets nothing — and is never
+ * mistaken for a current reading. */
+function usePolledReading<T>(
+  load: (() => Promise<T>) | undefined,
+  isActive: boolean,
+  intervalMs: number,
+  signal: { name: PipelineReading; subscribe: PipelineViewProps["subscribe"] },
+) {
   const [value, setValue] = useState<T | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [readAt, setReadAt] = useState<Date | undefined>(undefined);
@@ -89,19 +116,40 @@ function usePolledReading<T>(load: (() => Promise<T>) | undefined, isActive: boo
     }
   }, [load]);
 
+  const { name, subscribe } = signal;
   useEffect(() => {
     if (!isActive || !load) return;
     void read();
-    const timer = setInterval(() => void read(), intervalMs);
-    return () => clearInterval(timer);
-  }, [isActive, load, read, intervalMs]);
+    const timer = setInterval(() => void read(), subscribe ? PIPELINE_BACKSTOP_INTERVAL_MS : intervalMs);
+    const unsubscribe = subscribe?.((reading) => {
+      if (reading === name) void read();
+    });
+    return () => {
+      clearInterval(timer);
+      unsubscribe?.();
+    };
+  }, [isActive, load, read, intervalMs, name, subscribe]);
 
   return { value, error, readAt };
 }
 
-export function PipelineView({ load, survey, isActive, onOpenChange }: PipelineViewProps) {
-  const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS);
-  const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS);
+/** The time the view states ages against, moved on while it is looked at.
+ * Drawing again reads nothing. */
+function useClock(isActive: boolean): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!isActive) return;
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), PIPELINE_CLOCK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [isActive]);
+  return now;
+}
+
+export function PipelineView({ load, survey, isActive, onOpenChange, subscribe }: PipelineViewProps) {
+  const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
+  const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const now = useClock(isActive);
 
   const report = local.value;
   const here = others.value?.directories.find((directory) => directory.isThis);
@@ -114,7 +162,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange }: PipelineV
   // picture it had, under the error, and the read-at line says how old it is.
   return (
     <div data-testid="pipeline">
-      {here ? <Reading directory={here} /> : null}
+      {here ? <Reading directory={here} now={now} /> : null}
       {local.error !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
         : null}
@@ -136,7 +184,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange }: PipelineV
             <HintList hints={report.hints} />
           </>
         )}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -158,14 +206,14 @@ function branchPhrase(directory: SurveyedDirectory): string {
 
 /** Which branch this picture was read from, and what this directory's own
  * runs say they are doing. */
-function Reading({ directory }: { directory: SurveyedDirectory }) {
+function Reading({ directory, now }: { directory: SurveyedDirectory; now: Date }) {
   return (
     <div className="openspec-pipeline-reading" data-testid="pipeline-reading">
       <p className="openspec-shell-note" data-testid="pipeline-reading-branch">
         Read from {branchPhrase(directory)} in {directory.label}.
       </p>
       <ul className="openspec-shell-note" data-testid="pipeline-reading-runs">
-        {describeDirectoryRuns(directory).map((line, index) => <li key={index}>{line}</li>)}
+        {describeDirectoryRuns(directory, now).map((line, index) => <li key={index}>{line}</li>)}
       </ul>
     </div>
   );
@@ -383,7 +431,7 @@ function describeChange(node: ChangeLayoutNode): string[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels }: { survey: WorktreeSurvey; labels: Map<string, string> }) {
+function OtherDirectories({ survey, labels, now }: { survey: WorktreeSurvey; labels: Map<string, string>; now: Date }) {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
   return (
@@ -393,7 +441,7 @@ function OtherDirectories({ survey, labels }: { survey: WorktreeSurvey; labels: 
         Read here and never acted on: nothing below can be opened, run or changed from this checkout.
       </p>
       {others.map((directory, index) => (
-        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} />
+        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} />
       ))}
       {survey.runsElsewhere.length > 0 ? (
         <div data-testid="pipeline-runs-elsewhere">
@@ -401,7 +449,7 @@ function OtherDirectories({ survey, labels }: { survey: WorktreeSurvey; labels: 
             Runs reporting from a directory that is no longer a working directory of this repository:
           </p>
           <ul className="openspec-shell-note">
-            {survey.runsElsewhere.map((run) => <li key={run.instanceId}>{`${run.workingDirectory} — ${describeRun(run)}`}</li>)}
+            {survey.runsElsewhere.map((run) => <li key={run.instanceId}>{`${run.workingDirectory} — ${describeRun(run, now)}`}</li>)}
           </ul>
         </div>
       ) : null}
@@ -409,10 +457,11 @@ function OtherDirectories({ survey, labels }: { survey: WorktreeSurvey; labels: 
   );
 }
 
-function OtherDirectory({ directory, index, labels }: {
+function OtherDirectory({ directory, index, labels, now }: {
   directory: SurveyedDirectory;
   index: number;
   labels: Map<string, string>;
+  now: Date;
 }) {
   const testId = `pipeline-directory-${index}`;
   return (
@@ -432,7 +481,7 @@ function OtherDirectory({ directory, index, labels }: {
         </p>
       ) : null}
       <ul className="openspec-shell-note" data-testid={`${testId}-runs`}>
-        {describeDirectoryRuns(directory).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
+        {describeDirectoryRuns(directory, now).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
       {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} /> : null}
     </section>

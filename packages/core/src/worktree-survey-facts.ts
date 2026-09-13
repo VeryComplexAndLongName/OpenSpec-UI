@@ -40,10 +40,16 @@ export interface SurveyedRun {
   changeName: string | null;
   stage: string | null;
   activity: string;
-  /** Milliseconds since the activity last changed. */
+  /** Milliseconds since the activity last changed, measured when read. */
   activitySinceMs: number;
-  /** Milliseconds since the record was last renewed. */
+  /** Milliseconds since the record was last renewed, measured when read. */
   heartbeatAgeMs: number;
+  /** When the activity last changed, as the record says. */
+  activityAt: string;
+  /** When the record was last renewed, as the record says. A picture on
+   * screen for a minute counts its ages from these, not from the intervals
+   * it was read with. */
+  heartbeatAt: string;
   /** The heartbeat is past the staleness window: the writer is gone. */
   gone: boolean;
   workingDirectory: string;
@@ -99,25 +105,38 @@ function ago(ms: number): string {
   return `${Math.max(0, Math.round(ms / 1000))}s ago`;
 }
 
+/** An age to state: counted from the record's own timestamp when a clock
+ * is given, so a picture that stays on screen keeps counting; otherwise
+ * the interval measured when the record was read. A timestamp that does
+ * not parse falls back to that interval rather than to nonsense. */
+function ageOf(at: string, measuredMs: number, now: Date | undefined): number {
+  if (now === undefined) return measuredMs;
+  const stamp = Date.parse(at);
+  return Number.isFinite(stamp) ? now.getTime() - stamp : measuredMs;
+}
+
 /** One run in the words every surface uses. */
-export function describeRun(run: SurveyedRun): string {
+export function describeRun(run: SurveyedRun, now?: Date): string {
   const where = [run.changeName ?? undefined, run.stage ? `(${run.stage})` : undefined]
     .filter((part): part is string => part !== undefined)
     .join(" ");
   const prefix = where.length > 0 ? `${where}: ` : "";
   if (run.gone) {
-    return `${prefix}gone — last heard from ${ago(run.heartbeatAgeMs)}, last said "${run.activity}"`;
+    return `${prefix}gone — last heard from ${ago(ageOf(run.heartbeatAt, run.heartbeatAgeMs, now))}, last said "${run.activity}"`;
   }
-  return `${prefix}${run.activity} — said ${ago(run.activitySinceMs)}`;
+  return `${prefix}${run.activity} — said ${ago(ageOf(run.activityAt, run.activitySinceMs, now))}`;
 }
 
 /** What a directory's runs amount to, one line each.
  *
  * A directory where no run reports gets a sentence of its own, because
  * it is the state a reader is most tempted to read as "idle" — and a
- * session this product did not start writes no record at all. */
-export function describeDirectoryRuns(directory: SurveyedDirectory): string[] {
+ * session this product did not start writes no record at all.
+ *
+ * `now` counts each stated age from the record's timestamps. Without it,
+ * the ages are the ones measured when the survey was read. */
+export function describeDirectoryRuns(directory: SurveyedDirectory, now?: Date): string[] {
   const lines = directory.readable ? [] : [`could not be read: ${directory.reason}`];
   if (directory.runs.length === 0) return [...lines, "no run reports here"];
-  return [...lines, ...directory.runs.map(describeRun)];
+  return [...lines, ...directory.runs.map((run) => describeRun(run, now))];
 }

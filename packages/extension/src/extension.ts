@@ -28,7 +28,7 @@ import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./c
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
-import type { ChangeTreeItem } from "./tree/changes-tree.js";
+import { ChangeTreeItem } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
@@ -42,6 +42,7 @@ import { registerOpenSpecChatParticipant } from "./chat-participant.js";
 import { AiPanel } from "./webview/ai-panel.js";
 import type { AiPanelContext, RunChoice } from "./webview/ai-panel.js";
 import { HarnessSettingsPanel, type ObservedHarnessRequest } from "./webview/harness-settings-panel.js";
+import { PipelinePanel } from "./webview/pipeline-panel.js";
 import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
@@ -392,6 +393,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     extensionUri: context.extensionUri,
     getWorkspaceRoot,
   });
+  // The Pipeline, the same picture the standalone shell draws, in a panel
+  // of its own. See the-pipeline-opens-in-vs-code.
+  const pipelinePanel = new PipelinePanel({
+    extensionUri: context.extensionUri,
+    getWorkspaceRoot,
+    // As `openspec-ui.revealInChanges` reveals a row: an item built from
+    // the change the host found, never from the message.
+    revealChange: async (change) => {
+      await changesView?.reveal(
+        new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false),
+        { select: true, focus: true, expand: true },
+      );
+    },
+  });
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.openPipeline", () => pipelinePanel.show()),
+  );
 
   const commandsDeps = {
     getWorkspaceRoot,

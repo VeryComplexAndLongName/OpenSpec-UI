@@ -42,10 +42,8 @@ import {
   buildVerifyQuality,
   addScheduledRun,
   collectHumanOnlyInbox,
-  readChangeReadiness,
+  readPipelineReadiness,
   surveyWorktrees,
-  buildHints,
-  WORKSPACE_LEASE_STALE_AFTER_MS,
   runDelegatedItem,
   customAgentDirectories,
   findCustomAgents,
@@ -1108,15 +1106,9 @@ export async function handleChangeReadinessRequest(
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const report = await readChangeReadiness({ workspaceRoot: parsed.cwd });
-    // Off means not computed: `buildHints` is not called at all, and the
-    // payload carries no `hints` key. A suggestion computed and then
-    // hidden costs the same and is a different promise than the switch
-    // makes (a-hint-says-what-can-run-together).
-    const hints = (await hintsEnabled(parsed.cwd))
-      ? buildHints(report, { staleAfterMs: WORKSPACE_LEASE_STALE_AFTER_MS })
-      : undefined;
-    sendJson(res, 200, hints ? { ...report, hints } : report);
+    // Assembled in core, suggestions included, because the editor's
+    // Pipeline panel sends the same payload (the-pipeline-opens-in-vs-code).
+    sendJson(res, 200, await readPipelineReadiness(parsed.cwd));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
@@ -1153,20 +1145,6 @@ export async function handleWorktreeSurveyRequest(
     sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-/** Absent means enabled: every configuration written before this key
- * existed says nothing about it, and a workspace that has never heard of
- * suggestions still gets them. A configuration that cannot be read is
- * not this route's problem to report — the readiness report it was asked
- * for is still answerable, so it returns no suggestions rather than
- * failing. */
-async function hintsEnabled(workspaceRoot: string): Promise<boolean> {
-  try {
-    return (await resolveHarnessConfig(workspaceRoot)).hints?.enabled !== false;
-  } catch {
-    return false;
   }
 }
 

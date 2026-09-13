@@ -27,6 +27,8 @@ const REPORT: AgentStatusReport = {
   workingDirectory: "/repo/a-change",
   activitySinceMs: 5_000,
   heartbeatAgeMs: 1_000,
+  activityAt: "2026-09-13T12:00:00.000Z",
+  heartbeatAt: "2026-09-13T12:00:04.000Z",
   gone: false,
 };
 
