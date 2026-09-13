@@ -209,16 +209,18 @@ when files change (ADR 0029).
 - [x] 8.1 This change validates strictly. `check(validate-change)`
   Done: `openspec validate the-pipeline-opens-in-vs-code --strict` reports
   it valid, 2026-09-13.
-- [ ] 8.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 8.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count for each package.
   Local run 2026-09-13, exit code 1. Typecheck and every lint passed.
   Tests: cli 134 passed; core 1245 passed, 1 failed; extension 351 passed;
   server 86 passed; webui 430 passed. The one failure is `keeps accepting
   this repository's real openspec/agent-harness.json`, which reads the
   working tree's file: an uncommitted local edit, not part of this change,
-  sets its `autonomyLevel` to `semi-autonomous`. To be closed on CI's run
-  of the same checks against the committed tree, as
-  `a-change-is-configured-from-the-change` 8.2 was.
+  sets its `autonomyLevel` to `semi-autonomous`.
+  Closed on the same checks run against the committed tree: CI job
+  "Typecheck, lint, test, and build" on `fba96d2` (#478) succeeded,
+  [run 34776242009](https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34776242009/job/103774771025),
+  as `a-change-is-configured-from-the-change` 8.2 was.
 - [x] 8.3 A pending changeset exists: core, webui and the extension minor,
   server patch. `check(changeset-present)`
   Done: `.changeset/the-pipeline-opens-in-vs-code.md`.
@@ -227,7 +229,7 @@ when files change (ADR 0029).
   Done 2026-09-13: `npm run test:browser` in `packages/server`, 18 passed
   (6.3 min), `pipeline.spec.ts` unchanged. The pictures it retook of
   screens this change does not touch were left as they were.
-- [ ] 8.5 **Delegated to claude-cli**: check the panel in a real VS Code
+- [x] 8.5 **Delegated to claude-cli**: check the panel in a real VS Code
   host.
 
   Setup: an Extension Development Host built from this branch, opened on
@@ -252,3 +254,92 @@ when files change (ADR 0029).
 
   Unit tests cannot show whether VS Code's watcher fires for the status
   directory, which lies outside the workspace.
+
+  Done 2026-09-13, recorded in `evidence/8.5/`.
+
+  Setup:
+  - VS Code 1.136.1, the build `.vscode-test` holds, launched through
+    Playwright's Electron driver as `e2e/editor-screenshots.spec.ts`
+    launches it, with `--extensionDevelopmentPath` pointing at
+    `packages/extension`. The inherited `VSCODE_*` and `ELECTRON_*`
+    variables were removed from its environment.
+  - The bundles were rebuilt from this branch at `fba96d2` with
+    `npm run build`.
+  - The workspace was a scratch git repository made from
+    `create-picture-workspace.ts`, with two active changes, and one extra
+    worktree, `extra-work`. It was put under the gitignored `.vscode-test`
+    so no path on screen carries the account name, and
+    `OPENSPEC_UI_WORKTREE_ROOT` pointed at its own `.worktrees`.
+  - The run reporting in the worktree was core's own `AgentStatusWriter`,
+    writing to the resolved status directory. That directory did not exist
+    when the panel opened.
+
+  Numbers below are from the fourth run, whose full timeline is
+  `evidence/8.5/timeline.log`:
+  1. `OpenSpec UI: Open Pipeline` activated the extension
+     (`activationEvent: 'onCommand:openspec-ui.openPipeline'`) and opened
+     one tab, `OpenSpec UI: Pipeline`. The first full picture was drawn
+     2.6 s after the command.
+  2. Read-at before: `Last read 10:15:19 PM; other working directories
+     10:15:20 PM.`
+  3. `openspec/changes/a-third-change` was created at 22:15:24.486, 6.7 s
+     after the command, far from the 60 s backstop.
+  4. Read-at after: `Last read 10:15:26 PM; other working directories
+     10:15:20 PM.` It changed 2.5 s after the directory was created, and
+     the `a-third-change` card appeared after 2.6 s. The survey followed at
+     10:15:27.
+  5. The worktree run's first activity, `Reading the proposal`, appeared
+     after 6.3 s. The status directory had been created after watching
+     began. A rewritten activity then appeared after 1.5 s. After the panel
+     was closed and opened again, with the command run twice and still one
+     tab, a rewritten activity appeared after 1.5 s.
+     - Each 5 s heartbeat moved only the time for the other working
+       directories. `Last read` stayed at 10:15:50 PM for 30 s, so a record
+       event re-reads the survey alone.
+     - Between readings the stated age counted `said 0s ago`, then 5s, 10s,
+       15s, 20s.
+
+  Answer to the open question: VS Code's watcher does fire for the status
+  directory outside the workspace, both where the directory existed when
+  watching began and where it was created later.
+
+  Observation, not a failure: the first record in a status directory
+  created after watching began took 6.3 s to appear, against 1.2 to 1.5 s
+  for later records. That is consistent with the directory's first write
+  going unseen and the next heartbeat being caught.
+
+  The runs agree:
+  - Run 2: 1.2 s for the new change; 6.4 s and 1.3 s for the worktree run.
+  - Run 3: 1.3 s for the new change; 6.3 s, 1.2 s and 0.6 s for the
+    worktree run.
+
+  Runs 1 and 2 stopped at the reopen step. The check script's F1 went into
+  the webview's frame, a defect in the script and not in the extension.
+
+  Pictures, both looked at:
+  - `evidence/8.5/pipeline-panel.png`: three READY cards, including
+    `a-third-change`, and three hints.
+  - `evidence/8.5/pipeline-panel-other-directories.png`: `extra-work` on
+    branch `extra-work` with `a-change-not-started: Running the tests —
+    said 20s ago`, its two foreign cards, and the read-at line.
+
+  Log: `evidence/8.5/exthost.log`, 53 lines, with no error. Its warnings:
+  - two `vscode.git` configuration warnings;
+  - one `navigator` deprecation warning from the ACP SDK's zod schema,
+    raised while `dist/extension.js` loads.
+
+  The host exited with code 0. The `OpenSpec UI` output channel was empty.
+
+  Checked 2026-09-13 by a second agent against the evidence, not the run's
+  own account:
+  - Every number above for run 4 matches `evidence/8.5/timeline.log`
+    (read-at changed 2523 ms, card 2578 ms; activity 6318, 1512 and
+    1465 ms; one tab after the command ran twice; `Last read 10:15:50 PM`
+    unchanged through the heartbeats while the other directories' time
+    moved).
+  - Both pictures show what is described, and neither carries the account
+    name.
+  - `exthost.log` is 53 lines, with the activation event, the three
+    warnings and the exit code as stated.
+  - The figures quoted for runs 2 and 3 have no timeline of their own in
+    `evidence/8.5/`; only run 4 is evidenced.
