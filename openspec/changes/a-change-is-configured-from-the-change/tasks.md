@@ -297,7 +297,7 @@ recommendation from runs can be applied (owner review, 2026-09-13).
   editor's handles not yet released); `src/test/run.mjs` now retries that
   removal and warns instead of failing, and the second run is the one
   recorded.
-- [ ] 8.6 **Human-only**: check the new flow by hand, from three places:
+- [x] 8.6 **Human-only**: check the new flow by hand, from three places:
   - in VS Code, run `Configure Harness for this Change` on a change;
   - in the standalone shell, open the Change Editor's `Harness` tab;
   - open the run dialog.
@@ -305,3 +305,8 @@ recommendation from runs can be applied (owner review, 2026-09-13).
   In each place, set the change to `autonomous` where the place offers it,
   and apply a named configuration. Say whether it was obvious where to look
   and what to press.
+
+  Closed by the owner, 2026-09-13: everything displays correctly. Asked on the way why a change's effort and cost could
+  not be set, the owner found them once a stage names its agent, and decided
+  that this is how it should stay: no note under a stage that inherits its
+  agent.
