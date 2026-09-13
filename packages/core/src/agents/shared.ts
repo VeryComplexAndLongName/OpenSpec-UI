@@ -112,17 +112,32 @@ export function terminateProcessTree(pid: number): Promise<TerminationOutcome> {
 
 /** Instruction that depends ONLY on `command.kind` (a trusted value set by
  * the caller, not by change-file content) — safe to place before the
- * prompt obtained from prepareAgentContext. */
+ * prompt obtained from prepareAgentContext.
+ *
+ * The implementing and verifying instructions say who ticks a task. A
+ * chain archives only a change whose every task is ticked, so the product
+ * that enforces that gate states how it is met, rather than leaving it to
+ * whatever rules a project happened to configure — a repository made with
+ * `openspec init` has none. See openspec/changes/a-done-task-is-ticked. */
 export function commandInstruction(kind: CommandKind): string {
   switch (kind) {
     case "plan":
       return "Draft an implementation plan for the change described below, without changing code.";
     case "implement":
-      return "Implement the tasks from tasks.md for the change described below.";
+      return "Implement the tasks from tasks.md for the change described below."
+        + " Tick each task in tasks.md, turning its `- [ ]` into `- [x]`, as soon as that task's own verification has passed:"
+        + " one at a time as you go, never before the task is actually done."
+        + " Leave a task you could not do unticked, and say in your reply why.";
     case "review":
       return "Review the proposal (proposal.md/design.md/tasks.md) for the change described below, before any of it is implemented.";
     case "verify":
-      return "Review the current implementation of the change described below against its tasks.md and its specs/*/spec.md delta. Uncheck any task in tasks.md whose stated verification does not actually hold.";
+      return "Review the current implementation of the change described below against its tasks.md and its specs/*/spec.md delta."
+        + " Tick each unticked task in tasks.md whose verification you have confirmed yourself,"
+        + " and untick each ticked task whose stated verification does not actually hold."
+        + " A task whose effect is not a changed file, such as a command that must pass or a condition that must hold,"
+        + " is confirmed by checking that effect, for instance by running the command:"
+        + " leaving no changed file is not by itself a reason to leave a task unticked."
+        + " Never tick a task marked **Human-only** or **Delegated to** another agent; those are closed by their own rules.";
     case "status":
       return "Describe the current implementation status of the change described below.";
     case "list":

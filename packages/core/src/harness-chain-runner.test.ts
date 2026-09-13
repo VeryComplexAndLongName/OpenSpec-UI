@@ -978,6 +978,9 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     const reason = (events.at(-1) as { reason: string }).reason;
     expect(reason).toContain("demo");
     expect(reason).toContain("2 task(s) still unchecked");
+    // a-done-task-is-ticked 4.6: named, not only counted.
+    expect(reason).toContain('"2.1 not done"');
+    expect(reason).toContain('"2.2 not done"');
     expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
   });
 
@@ -1004,6 +1007,78 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     expect(events.at(-1)).toMatchObject({ kind: "failed" });
     expect((events.at(-1) as { reason: string }).reason).toContain("demo");
     expect(spawnMock.mock.calls.some((call) => (call[1] as string[])[0] === "archive")).toBe(false);
+  });
+});
+
+// a-done-task-is-ticked tasks.md 4.3-4.5. Seen on 2026-09-12: an
+// implementing run did its work, ticked nothing, and the chain's timeline
+// said nothing about it.
+describe("HarnessChainRunner — an implementing run that ticked nothing (a-done-task-is-ticked)", () => {
+  const TICKED_NOTHING = /"apply" changed \d+ file\(s\) and ticked no task in tasks\.md/;
+
+  async function runChain(root: string, onImplement: () => Promise<void>): Promise<{ events: Event[]; kinds: string[] }> {
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+
+    const kinds: string[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        kinds.push(command.kind);
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        if (command.kind === "implement") await onImplement();
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    return { events, kinds };
+  }
+
+  function tickedNothingReports(events: Event[]): Event[] {
+    return events.filter((event) => event.kind === "progress" && TICKED_NOTHING.test(event.message));
+  }
+
+  it("says so when the run changed a file and ticked no task, and still goes on to verification", async () => {
+    const root = await temporaryRoot();
+    await writeTasks(root, 2, 0);
+
+    const { events, kinds } = await runChain(root, async () => {
+      await mkdir(path.join(root, "src"), { recursive: true });
+      await writeFile(path.join(root, "src", "feature.ts"), "export const done = true;\n", "utf8");
+    });
+
+    expect(tickedNothingReports(events)).toHaveLength(1);
+    expect(kinds).toEqual(["implement", "verify"]);
+    // Reported before verification starts, as the implementing stage ends.
+    const reportIndex = events.findIndex((event) => event.kind === "progress" && TICKED_NOTHING.test(event.message));
+    const verifyIndex = events.findIndex((event) => event.kind === "stageStarted" && event.stage === "verify");
+    expect(reportIndex).toBeGreaterThanOrEqual(0);
+    expect(reportIndex).toBeLessThan(verifyIndex);
+  });
+
+  it("says nothing when the run changed no file", async () => {
+    const root = await temporaryRoot();
+    await writeTasks(root, 2, 0);
+
+    const { events } = await runChain(root, async () => undefined);
+
+    expect(tickedNothingReports(events)).toHaveLength(0);
+  });
+
+  it("says nothing when the run ticked a task", async () => {
+    const root = await temporaryRoot();
+    await writeTasks(root, 2, 0);
+
+    const { events } = await runChain(root, async () => {
+      await mkdir(path.join(root, "src"), { recursive: true });
+      await writeFile(path.join(root, "src", "feature.ts"), "export const done = true;\n", "utf8");
+      await writeTasks(root, 1, 1);
+    });
+
+    expect(tickedNothingReports(events)).toHaveLength(0);
   });
 });
 
