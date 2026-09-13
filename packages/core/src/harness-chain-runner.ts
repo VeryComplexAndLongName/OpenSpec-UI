@@ -287,6 +287,30 @@ async function countTasks(changeDir: string): Promise<TaskCounts | undefined> {
   return { unchecked, total };
 }
 
+/** A line for an implementing run that changed files and ticked no task,
+ * or `undefined` when it ticked one, changed nothing, or either count
+ * could not be read.
+ *
+ * Reported, never refused. The work may be fine and the ticks merely
+ * missing — which verification may now repair by ticking what it confirms
+ * — and refusing would stop exactly the chain that could finish. What
+ * this prevents is the silence: on 2026-09-12 an implementing run did its
+ * work, ended with nothing ticked, and nothing on the chain's timeline
+ * said so. See openspec/changes/a-done-task-is-ticked/design.md. */
+async function describeApplyThatTickedNothing(
+  before: TaskCounts | undefined,
+  changeDir: string,
+  delta: VerifiedDeltaEntry[] | undefined,
+): Promise<string | undefined> {
+  if (!before || !delta || delta.length === 0) return undefined;
+  const after = await countTasks(changeDir);
+  if (!after) return undefined;
+  const tickedBefore = before.total - before.unchecked;
+  const tickedAfter = after.total - after.unchecked;
+  if (tickedAfter > tickedBefore) return undefined;
+  return `"apply" changed ${delta.length} file(s) and ticked no task in tasks.md`;
+}
+
 type MechanicalCheckOutcomeEntry = DeclaredCheckOutcomeEntry;
 type MechanicalCheckRunOutcome = DeclaredCheckRunOutcome;
 
@@ -790,6 +814,9 @@ export class HarnessChainRunner {
       state.returnReason = undefined;
 
       const applyCheckpoint = stage === "apply" ? await this.captureApplyCheckpoint(cwd) : undefined;
+      // Counted beside the checkpoint, so "did the run tick anything" is
+      // asked of the same moment as "did the run change anything".
+      const tasksBeforeApply = stage === "apply" ? await countTasks(context.changeDir) : undefined;
 
       // Unlike the budget check above, this one can act on a stage that
       // is already running: elapsed time is known during a run where a
@@ -877,6 +904,10 @@ export class HarnessChainRunner {
 
       if (stage === "apply" && applyCheckpoint && outcome === "completed") {
         verifiedDelta = await this.finalizeApplyCheckpoint(applyCheckpoint);
+        const tickedNothing = await describeApplyThatTickedNothing(tasksBeforeApply, context.changeDir, verifiedDelta);
+        if (tickedNothing !== undefined) {
+          yield { kind: "progress", runId, timestamp: nowIso(), message: tickedNothing };
+        }
       }
 
       // A failing mechanical check at `verify` is the clearest statement
@@ -1139,10 +1170,14 @@ export class HarnessChainRunner {
       const tasks = await countTasks(context.changeDir);
       if (!tasks || tasks.unchecked > 0) {
         const changeName = changeNameFromDir(context.changeDir);
+        // Named, not only counted — the same reasoning, and the same
+        // function, as the return from verification: whoever reads this is
+        // about to take the work over. See a-done-task-is-ticked.
+        const unfinished = tasks ? await unfinishedTaskTexts(cwd, changeName) : "";
         yield failedEvent(
           runId,
           tasks
-            ? `cannot archive "${changeName}": ${tasks.unchecked} task(s) still unchecked; complete or verify them, then archive`
+            ? `cannot archive "${changeName}": ${tasks.unchecked} task(s) still unchecked (${unfinished}); complete or verify them, then archive`
             : `cannot archive "${changeName}": its tasks.md could not be read, so task completion is unknown; verify the change, then archive`,
         );
         return "failed";

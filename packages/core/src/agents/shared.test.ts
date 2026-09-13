@@ -7,7 +7,42 @@ vi.mock("cross-spawn", () => ({
 }));
 
 // Imported after vi.mock, so it uses the mocked cross-spawn.
-const { spawnAndStream } = await import("./shared.js");
+const { commandInstruction, spawnAndStream } = await import("./shared.js");
+
+// a-done-task-is-ticked tasks.md 4.1-4.2. The instruction wording is the
+// whole mechanism by which a chain's agents know who ticks a task, and
+// wording drifts; each rule is pinned by the phrase that carries it.
+describe("commandInstruction — who ticks a task", () => {
+  it("tells the implementing agent to tick each task as its own verification passes, and never early", () => {
+    const text = commandInstruction("implement");
+    expect(text).toContain("Tick each task in tasks.md");
+    expect(text).toContain("as soon as that task's own verification has passed");
+    expect(text).toContain("never before the task is actually done");
+    expect(text).toContain("Leave a task you could not do unticked");
+  });
+
+  it("tells the verifying agent to tick what it confirmed as well as untick what does not hold", () => {
+    const text = commandInstruction("verify");
+    expect(text).toContain("Tick each unticked task in tasks.md whose verification you have confirmed yourself");
+    expect(text).toContain("untick each ticked task whose stated verification does not actually hold");
+  });
+
+  it("tells the verifying agent that an effect which is not a file is checked, not held against the task", () => {
+    const text = commandInstruction("verify");
+    expect(text).toContain("is confirmed by checking that effect");
+    expect(text).toContain("leaving no changed file is not by itself a reason to leave a task unticked");
+  });
+
+  it("tells the verifying agent never to tick a human-only or delegated task", () => {
+    expect(commandInstruction("verify")).toContain("Never tick a task marked **Human-only** or **Delegated to** another agent");
+  });
+
+  it("tells no other stage to tick anything", () => {
+    for (const kind of ["plan", "review"] as const) {
+      expect(commandInstruction(kind)).not.toMatch(/tick/i);
+    }
+  });
+});
 
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
