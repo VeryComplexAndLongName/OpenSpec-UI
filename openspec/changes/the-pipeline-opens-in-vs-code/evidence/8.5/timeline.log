@@ -1,0 +1,153 @@
+[+1.2s 2026-09-13T19:14:44.249Z] scratch repository C:\Prog\OpenSpec-UI\.vscode-test\pipeline-check-1789326883031\openspec-workbench
+[+1.3s 2026-09-13T19:14:44.314Z] worktrees:
+C:/Prog/OpenSpec-UI/.vscode-test/pipeline-check-1789326883031/openspec-workbench                       6dcbd67 [main]
+C:/Prog/OpenSpec-UI/.vscode-test/pipeline-check-1789326883031/.worktrees/openspec-workbench/extra-work 6dcbd67 [extra-work]
+
+[+1.3s 2026-09-13T19:14:44.315Z] status directory (expected) C:\Prog\OpenSpec-UI\.vscode-test\pipeline-check-1789326883031\.worktrees\openspec-workbench\.agent-status, exists=false
+[+1.8s 2026-09-13T19:14:44.777Z] launched vscode-win32-x64-archive-1.136.1
+[+4.6s 2026-09-13T19:14:47.598Z] workbench ready
+[+35.3s 2026-09-13T19:15:18.290Z] ran OpenSpec UI: Open Pipeline
+[+36.2s 2026-09-13T19:15:19.190Z] tab count titled "OpenSpec UI: Pipeline": 1
+[+37.4s 2026-09-13T19:15:20.408Z] first full picture 2579 ms after the command
+[+37.4s 2026-09-13T19:15:20.466Z] read-at: "Last read 10:15:19 PM; other working directories 10:15:20 PM."
+[+37.4s 2026-09-13T19:15:20.469Z] STEP 2 read-at before: "Last read 10:15:19 PM; other working directories 10:15:20 PM."
+[+37.5s 2026-09-13T19:15:20.501Z] worktree runs: "no run reports here"
+[+41.5s 2026-09-13T19:15:24.486Z] STEP 3 created openspec/changes/a-third-change at 2026-09-13T19:15:24.486Z (6657 ms after the command)
+[+44.1s 2026-09-13T19:15:27.090Z] read-at: "Last read 10:15:26 PM; other working directories 10:15:20 PM."
+[+44.4s 2026-09-13T19:15:27.428Z] STEP 4 read-at after: "Last read 10:15:26 PM; other working directories 10:15:20 PM."; read-at changed after 2523 ms; card a-third-change appeared after 2578 ms
+[+45.0s 2026-09-13T19:15:27.988Z] read-at: "Last read 10:15:26 PM; other working directories 10:15:27 PM."
+[+48.7s 2026-09-13T19:15:31.734Z] STEP 5A status directory exists before the run: false
+[+48.7s 2026-09-13T19:15:31.750Z] STEP 5A run started reporting in the worktree at 2026-09-13T19:15:31.735Z
+[+55.0s 2026-09-13T19:15:38.018Z] read-at: "Last read 10:15:26 PM; other working directories 10:15:38 PM."
+[+55.0s 2026-09-13T19:15:38.053Z] STEP 5A (directory created after watching began): "Reading the proposal" appeared after 6318 ms (a-change-not-started: Reading the proposal — said 3s ago)
+[+55.0s 2026-09-13T19:15:38.066Z] worktree runs: "a-change-not-started: Reading the proposal — said 3s ago"
+[+56.9s 2026-09-13T19:15:39.974Z] worktree runs: "a-change-not-started: Reading the proposal — said 8s ago"
+[+60.1s 2026-09-13T19:15:43.115Z] read-at: "Last read 10:15:26 PM; other working directories 10:15:43 PM."
+[+62.0s 2026-09-13T19:15:44.981Z] worktree runs: "a-change-not-started: Reading the proposal — said 13s ago"
+[+63.1s 2026-09-13T19:15:46.088Z] STEP 5B activity rewritten at 2026-09-13T19:15:46.062Z
+[+64.5s 2026-09-13T19:15:47.574Z] STEP 5B (same panel, directory now exists): "Writing the design" appeared after 1512 ms (a-change-not-started: Writing the design — said 0s ago)
+[+64.6s 2026-09-13T19:15:47.652Z] read-at: "Last read 10:15:26 PM; other working directories 10:15:47 PM."
+[+64.7s 2026-09-13T19:15:47.728Z] worktree runs: "a-change-not-started: Writing the design — said 0s ago"
+[+65.8s 2026-09-13T19:15:48.820Z] picture taken after 5B; pipeline text:
+Read from branch main in openspec-workbench.
+
+no run reports here
+a-change-in-progress
+READY
+no working directory of its own — openspec-ui-cli worktree add a-change-in-progress
+also in extra-work
+a-change-not-started
+READY
+no working directory of its own — openspec-ui-cli worktree add a-change-not-started
+also in extra-work
+a-third-change
+READY
+no working directory of its own — openspec-ui-cli worktree add a-third-change
+Worth doing
+a-change-in-progress is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-change-in-progress
+a-change-not-started is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-change-not-started
+a-third-change is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-third-change
+Other working directories
+
+Read here and never acted on: nothing below can be opened, run or changed from this checkout.
+
+extra-work
+
+branch extra-work — C:/Prog/OpenSpec-UI/.vscode-test/pipeline-check-1789326883031/.worktrees/openspec-workbench/extra-work
+
+a-change-not-started: Writing the design — said 0s ago
+a-change-in-progress
+2 of 4 tasks done
+also in openspec-workbench
+a-change-not-started
+0 of 1 tasks done
+also in openspec-workbench
+
+Last read 10:15:26 PM; other working directories 10:15:47 PM.
+[+66.1s 2026-09-13T19:15:49.101Z] closed the panel; tabs left: 0
+[+67.0s 2026-09-13T19:15:50.039Z] read-at: "Last read not yet; other working directories not yet."
+[+67.9s 2026-09-13T19:15:50.954Z] read-at: "Last read 10:15:50 PM; other working directories not yet."
+[+68.5s 2026-09-13T19:15:51.566Z] worktree runs: "a-change-not-started: Writing the design — said 4s ago"
+[+68.6s 2026-09-13T19:15:51.637Z] reopened (command run twice); tabs titled "OpenSpec UI: Pipeline": 1
+[+68.7s 2026-09-13T19:15:51.691Z] STEP 5C reopened panel's first reading: "Writing the design" appeared after 54 ms (a-change-not-started: Writing the design — said 4s ago)
+[+68.8s 2026-09-13T19:15:51.841Z] read-at: "Last read 10:15:50 PM; other working directories 10:15:51 PM."
+[+70.3s 2026-09-13T19:15:53.294Z] read-at: "Last read 10:15:50 PM; other working directories 10:15:53 PM."
+[+71.9s 2026-09-13T19:15:54.961Z] worktree runs: "a-change-not-started: Writing the design — said 9s ago"
+[+75.2s 2026-09-13T19:15:58.231Z] read-at: "Last read 10:15:50 PM; other working directories 10:15:58 PM."
+[+76.7s 2026-09-13T19:15:59.707Z] STEP 5C activity rewritten at 2026-09-13T19:15:59.697Z
+[+77.1s 2026-09-13T19:16:00.150Z] worktree runs: "a-change-not-started: Writing the design — said 14s ago"
+[+78.0s 2026-09-13T19:16:01.006Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:00 PM."
+[+78.1s 2026-09-13T19:16:01.139Z] worktree runs: "a-change-not-started: Running the tests — said 0s ago"
+[+78.1s 2026-09-13T19:16:01.162Z] STEP 5C (reopened panel, directory existed): "Running the tests" appeared after 1465 ms (a-change-not-started: Running the tests — said 0s ago)
+[+78.1s 2026-09-13T19:16:01.162Z] observing 20 s of heartbeats with no new activity
+[+80.1s 2026-09-13T19:16:03.173Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:03 PM."
+[+82.0s 2026-09-13T19:16:04.990Z] worktree runs: "a-change-not-started: Running the tests — said 5s ago"
+[+85.3s 2026-09-13T19:16:08.321Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:08 PM."
+[+86.9s 2026-09-13T19:16:09.966Z] worktree runs: "a-change-not-started: Running the tests — said 10s ago"
+[+90.2s 2026-09-13T19:16:13.192Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:13 PM."
+[+92.1s 2026-09-13T19:16:15.078Z] worktree runs: "a-change-not-started: Running the tests — said 15s ago"
+[+95.2s 2026-09-13T19:16:18.221Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:18 PM."
+[+97.1s 2026-09-13T19:16:20.116Z] worktree runs: "a-change-not-started: Running the tests — said 20s ago"
+[+99.3s 2026-09-13T19:16:22.367Z] picture taken; pipeline text:
+Read from branch main in openspec-workbench.
+
+no run reports here
+a-change-in-progress
+READY
+no working directory of its own — openspec-ui-cli worktree add a-change-in-progress
+also in extra-work
+a-change-not-started
+READY
+no working directory of its own — openspec-ui-cli worktree add a-change-not-started
+also in extra-work
+a-third-change
+READY
+no working directory of its own — openspec-ui-cli worktree add a-third-change
+Worth doing
+a-change-in-progress is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-change-in-progress
+a-change-not-started is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-change-not-started
+a-third-change is ready and has nowhere to run
+
+One workspace permits one mutating run, so a change without a working directory of its own cannot be started beside anything.
+
+openspec-ui-cli worktree add a-third-change
+Other working directories
+
+Read here and never acted on: nothing below can be opened, run or changed from this checkout.
+
+extra-work
+
+branch extra-work — C:/Prog/OpenSpec-UI/.vscode-test/pipeline-check-1789326883031/.worktrees/openspec-workbench/extra-work
+
+a-change-not-started: Running the tests — said 20s ago
+a-change-in-progress
+2 of 4 tasks done
+also in openspec-workbench
+a-change-not-started
+0 of 1 tasks done
+also in openspec-workbench
+
+Last read 10:15:50 PM; other working directories 10:16:18 PM.
+[+100.3s 2026-09-13T19:16:23.366Z] read-at: "Last read 10:15:50 PM; other working directories 10:16:23 PM."
+[+100.8s 2026-09-13T19:16:23.792Z] picture of the other working directories taken; runs: "a-change-not-started: Running the tests — said 20s ago"
+[+100.8s 2026-09-13T19:16:23.792Z] SUMMARY read-at changed 2523 ms, card 2578 ms; run A 6318 ms, B 1512 ms, C 1465 ms
