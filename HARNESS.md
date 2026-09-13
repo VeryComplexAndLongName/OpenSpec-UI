@@ -356,10 +356,10 @@ settings screen that doesn't have the control:
 
 | Setting | Standalone (webui) | VS Code |
 | --- | --- | --- |
-| `stepAgents.<stage>.agent`, `.effort`, `.budget`, `.customAgent` | **Harness Settings** tab, both the "Global default" and "Per-change override" sections (`HarnessSettingsView.tsx`) — the effort, budget and custom-agent fields only appear once a stage's agent accepts them. | The same view, in the panel. **OpenSpec UI: Configure Harness Settings** opens it on the global file; **OpenSpec UI: Configure Harness for this Change** opens it on that change's override, already loaded. Both files stay hand-editable and the view names them. See harness-settings-in-the-panel. |
+| `stepAgents.<stage>.agent`, `.effort`, `.budget`, `.customAgent` | The global file in the **Harness Settings** tab (`GlobalHarnessSettingsView.tsx`). A change's own file in the Change Editor's **Harness** tab, for the loaded change (`ChangeHarnessSettingsView.tsx`), where each inherit option names the value it resolves to. The effort, budget and custom-agent fields only appear once a stage's agent accepts them. | **OpenSpec UI: Configure Harness Settings** opens the global file in a panel of its own, `OpenSpec UI: Harness Settings`. **OpenSpec UI: Configure Harness for this Change** opens that change's file in its own panel, `Harness: <change>`, already loaded; each change gets its own. Both files stay hand-editable and each view names its file. |
 | `stepAgents.<stage>.model` | **Not editable in either UI.** Hand-edit the JSON file's object-form entry directly. | Same — not editable in either UI. |
-| `autonomyLevel` | Both sections of the Harness Settings tab. | The same view, from either command above. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
-| `reviewGate.mode` | Per-change override section only (the global value is fixed at `"human-required"` and shown, not editable). | The same, in the panel's per-change section. |
+| `autonomyLevel` | Both views. `autonomous` is offered only in a change's view: a workspace-level file may not set it, and the global view says so beside the select. | Both panels, on the same rule. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
+| `reviewGate.mode` | A change's view only (the global value is fixed at `"human-required"` and shown, not editable). | A change's panel only. |
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
@@ -374,33 +374,52 @@ either image to open the original PNG at full resolution.
 
 [![Standalone Harness Settings tab: global default with per-stage agent, effort and budget controls, the mechanical archive row, and the autonomy level select](./docs/images/standalone/harness-settings.png)](./docs/images/standalone/harness-settings.png)
 
-*The global view shows the stage runner, effort, and per-invocation budget
-controls together with the workspace autonomy level. The footer records
-the package versions rendered by the capture.*
+*The global view: a named configuration chosen from one list, then the
+stage runner, effort, and per-invocation budget controls together with the
+workspace autonomy level. Nothing on it is about a single change; a
+change's own settings are in the Change Editor. The footer records the
+package versions rendered by the capture.*
 
-#### Per-change override
+#### One change's own settings
 
-[![Standalone Harness Settings tab: a loaded per-change override, showing inherited stages alongside explicit ones and the semi-autonomous autonomy level](./docs/images/standalone/harness-change-override.png)](./docs/images/standalone/harness-change-override.png)
+[![The Change Editor's Harness tab for a loaded change: a named configuration with its description, inherit options naming the global value, and the semi-autonomous autonomy level](./docs/images/standalone/harness-change-override.png)](./docs/images/standalone/harness-change-override.png)
 
-*Only this section is captured: inherited stages remain visible, while
-explicit values show exactly what the change overrides. Each autonomy
-level is named by what running under it does, and `autonomous` appears
-only here — a workspace-level file may not set it, so the workspace
-section does not offer it. See
-[Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer).*
+*The Change Editor's **Harness** tab, for the change loaded there. A field
+left to inherit says which value it inherits and from where, and explicit
+values show exactly what the change overrides. Each autonomy level is named
+by what running under it does, and `autonomous` appears only here — a
+workspace-level file may not set it, so the global view does not offer it.
+See [Where a chain starts](#where-a-chain-starts-and-what-a-user-can-steer).*
+
+**A named configuration** is chosen the same way in both views and in the
+run dialog: select it, read its description beneath the list, and press
+**Apply**. In a settings view applying fills the fields and nothing is
+written until you save. In the run dialog it writes the change's
+`harness.json`, and the dialog then shows what the change resolves to.
 
 Both are produced by `packages/server/e2e/harness-screenshots.spec.ts`,
-which also produces the checkpoint screenshot in "What a checkpoint
-offers" below. Regenerate all three with, from `packages/server`:
+which also produces the run dialog picture and the checkpoint screenshot in
+"What a checkpoint offers" below. Regenerate them with, from
+`packages/server`:
 
 ```
 npm run test:browser -- harness-screenshots.spec.ts
 ```
 
-There is no VS Code harness screenshot in this guide yet. The extension
-host cannot be captured by this Playwright workflow, so adding one remains
-the human-only task 3.4 in `agentic-harness-documentation`. This guide does
-not present a standalone screenshot as though it represented both hosts.
+### VS Code settings, in pictures
+
+Each file has a panel of its own. **OpenSpec UI: Configure Harness
+Settings** opens the global one:
+
+[![VS Code panel titled OpenSpec UI: Harness Settings, showing the global harness settings](./docs/images/extension/harness-settings.png)](./docs/images/extension/harness-settings.png)
+
+**OpenSpec UI: Configure Harness for this Change**, from a change's context
+menu, opens that change's own, titled with its name and already loaded:
+
+[![VS Code panel titled Harness: a-change-in-progress, showing one change's harness settings](./docs/images/extension/harness-change.png)](./docs/images/extension/harness-change.png)
+
+Both are produced by `packages/extension/e2e/editor-screenshots.spec.ts`.
+Regenerate them with `npm run test:pictures` from `packages/extension`.
 
 ## Mechanical checks
 

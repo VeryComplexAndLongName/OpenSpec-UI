@@ -14,8 +14,6 @@ import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-
 import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
-import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
-import { createBridgeRequester } from "./bridge-request.js";
 import type { RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
@@ -74,20 +72,14 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
    * and how late — but it does not wait for a choice that was made when
    * the run was scheduled. See a-schedule-keeps-its-promise. */
   const [runPath, setRunPath] = useState(initialContext.runPath);
-  const [showSettings, setShowSettings] = useState(initialContext.showSettings ?? false);
+  /** What the host says the last apply, or the last agent put on every
+   * stage, wrote and where. Shown beside the control in the dialog; the
+   * host used to show a notification instead, out of view of the dialog.
+   * See a-change-is-configured-from-the-change. */
+  const [appliedNote, setAppliedNote] = useState(initialContext.appliedNote);
+  const [useAgentNote, setUseAgentNote] = useState(initialContext.useAgentNote);
   const vscodeApi = useMemo(() => acquireVsCodeApi(), []);
   const transport = useMemo(() => new MessageBridgeTransport({ vscodeApi }), [vscodeApi]);
-  // The settings view reads as well as writes, which the command/event
-  // bridge cannot express. See harness-settings-in-the-panel.
-  const bridge = useMemo(() => createBridgeRequester(vscodeApi), [vscodeApi]);
-  useEffect(() => () => bridge.dispose(), [bridge]);
-  const harnessSettingsApi = useMemo<HarnessSettingsApi>(() => ({
-    listCustomAgents: () => bridge.request("custom-agents/list"),
-    resolveGlobal: () => bridge.request("harness/resolve-global"),
-    writeGlobal: (config) => bridge.request("harness/write-global", { config }),
-    readChangeOverride: (name) => bridge.request("harness/read-change-override", { changeName: name }),
-    writeChangeOverride: (name, config) => bridge.request("harness/write-change-override", { changeName: name, config }),
-  }), [bridge]);
 
   useEffect(() => {
     writeStoredValue(STORAGE_KEYS.cwd, cwd);
@@ -125,9 +117,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setRunNote(event.data.context.runNote);
       setRunPath(event.data.context.runPath);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
-      // Reset like the others: a later reveal that is not about settings
-      // must not leave the form on screen.
-      setShowSettings(event.data.context.showSettings ?? false);
+      // Reset like the plan: a note belongs to the reveal that carried it.
+      setAppliedNote(event.data.context.appliedNote);
+      setUseAgentNote(event.data.context.useAgentNote);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -190,9 +182,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           </label>
         </div>
       </section>
-      {showSettings ? (
-        <HarnessSettingsView api={harnessSettingsApi} {...(changeName ? { initialChangeName: changeName } : {})} />
-      ) : cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
+      {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
         runPlan ? (
           <RunDialog
             changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}
@@ -208,6 +198,13 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
                 templateId: template.id,
               });
             }}
+            appliedNote={appliedNote ?? null}
+            onUseAgent={(agentId) => {
+              // The id, not a configuration: the host checks it against the
+              // registry and writes the file.
+              vscodeApi.postMessage({ type: RUN_CHOICE_MESSAGE_TYPE, choice: "use-agent", agentId });
+            }}
+            useAgentNote={useAgentNote ?? null}
             onDismiss={() => setRunPlan(undefined)}
           />
         ) : startChain ? (

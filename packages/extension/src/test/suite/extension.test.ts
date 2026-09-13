@@ -190,7 +190,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     // JSON. The file is still written first — a view over a file that
     // does not exist would have to explain the difference between
     // "inherits everything" and "not configured".
-    assert.equal(api.getDashboardContext()?.showSettings, true, "expected the settings view to be revealed");
+    assert.equal(api.getHarnessSettingsTitle(), "OpenSpec UI: Harness Settings", "expected the global settings panel to be open");
     assert.ok(
       !vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
       "expected the raw JSON not to be opened as well — one surface for this, not two",
@@ -214,16 +214,32 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const change = roots.find((item) => item.label === "demo");
     assert.ok(change, `expected a "demo" change among root items, got: ${roots.map((r) => r.label).join(", ")}`);
 
-    await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", change);
+    // Listening before the command runs: the webview asks for the change's
+    // settings by itself as soon as it renders, and that request is the
+    // evidence it knew the change on its first render. The test this
+    // replaces checked only what the host posted, and passed while the
+    // form showed an empty name field (a-change-is-configured-from-the-change).
+    const requests: Array<{ changeName?: string; op: string; args?: unknown }> = [];
+    const subscription = api.onHarnessSettingsRequest((request) => requests.push(request));
+    try {
+      await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", change);
 
-    const bytes = await vscode.workspace.fs.readFile(uri);
-    const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
-    assert.deepEqual(written, {});
-    const context = api.getDashboardContext();
-    assert.equal(context?.showSettings, true, "expected the settings view to be revealed");
-    // Carrying the change, so the view opens on the override being
-    // edited rather than asking for a name that was just right-clicked.
-    assert.equal(context?.changeName, "demo");
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      assert.deepEqual(written, {});
+      assert.equal(api.getHarnessSettingsTitle("demo"), "Harness: demo");
+      assert.ok(
+        api.getHarnessSettingsHtml("demo")?.includes('data-change-name="demo"'),
+        "expected the change's name in the page the panel renders",
+      );
+      await waitFor(
+        () => requests.some((request) => request.op === "harness/read-change-override"
+          && (request.args as { changeName?: string } | undefined)?.changeName === "demo"),
+        10_000,
+      );
+    } finally {
+      subscription.dispose();
+    }
   });
 
   test("Harness Settings bridge reads and writes a per-change override unchanged", async () => {
@@ -238,7 +254,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const responses: Array<{ id?: string; ok?: boolean; value?: unknown }> = [];
     const subscription = api.onWebviewResponse((response) => responses.push(response as { id?: string; ok?: boolean; value?: unknown }));
     try {
-      api.deliverWebviewRequest({ id: "read-override", op: "harness/read-change-override", args: { changeName: "demo" } });
+      api.deliverWebviewRequest({ id: "read-override", op: "harness/read-change-override", args: { changeName: "demo" } }, "demo");
       await waitFor(() => responses.some((response) => response.id === "read-override"));
       assert.deepEqual(responses.find((response) => response.id === "read-override"), {
         type: "openspec-ui/response",
@@ -247,7 +263,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
         value: override,
       });
 
-      api.deliverWebviewRequest({ id: "write-override", op: "harness/write-change-override", args: { changeName: "demo", config: override } });
+      api.deliverWebviewRequest({ id: "write-override", op: "harness/write-change-override", args: { changeName: "demo", config: override } }, "demo");
       await waitFor(() => responses.some((response) => response.id === "write-override"));
       assert.equal(responses.find((response) => response.id === "write-override")?.ok, true);
       assert.deepEqual(JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8")), override);
@@ -448,8 +464,8 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   });
 });
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  const deadline = Date.now() + 5_000;
+async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
   assert.ok(predicate(), "timed out waiting for the webview bridge response");
 }

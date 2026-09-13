@@ -212,7 +212,10 @@ how this differs from the `@openspec` Chat Participant above.
 
 **OpenSpec UI: Configure Harness Settings** and **OpenSpec UI: Configure
 Harness for this Change** set the per-stage agent, autonomy level, and
-review gate the commands above (and a chain run) use by default;
+review gate the commands above (and a chain run) use by default. Each opens
+a panel of its own: the first for the workspace's global file, the second
+for the one change it was run on, titled `Harness: <change>`, already
+loaded;
 **OpenSpec UI: Run with Agentic Harness** starts a single-stage run or a
 chain depending on the resolved autonomy level. See the root repository's
 [`HARNESS.md`](../../HARNESS.md) for every setting these commands can and

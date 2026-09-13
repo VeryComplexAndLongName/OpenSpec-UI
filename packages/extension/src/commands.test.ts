@@ -6,6 +6,7 @@ import { createVscodeMock } from "./test-utils/vscode-mock.js";
 // a configuration is applied is the behaviour under test, and a stub
 // would assert the stub.
 import {
+  agentForEveryStageToWrite as agentForEveryStageToWriteReal,
   changeTemplateConfigToWrite as changeTemplateConfigToWriteReal,
   openTaskCount as openTaskCountReal,
   runTimestampsByChange as runTimestampsByChangeReal,
@@ -92,6 +93,10 @@ vi.mock("@openspec-ui/core", () => ({
   // behaviour these tests are about, and a stub would assert the mock.
   changeTemplateConfigToWrite: (...args: unknown[]) =>
     changeTemplateConfigToWriteReal(...(args as Parameters<typeof changeTemplateConfigToWriteReal>)),
+  // Real for the same reason: what putting one agent on every stage
+  // writes is the behaviour under test.
+  agentForEveryStageToWrite: (...args: unknown[]) =>
+    agentForEveryStageToWriteReal(...(args as Parameters<typeof agentForEveryStageToWriteReal>)),
   // Both real, reached through the browser entry: they are pure, and
   // a stub would assert the stub. `runTimestampsByChange` is how the
   // timeline command hands the audit log down.
@@ -211,6 +216,7 @@ function makeDeps(overrides: Partial<Parameters<typeof registerCommands>[1]> = {
     runController,
     outputChannel: outputChannel as unknown as import("vscode").OutputChannel,
     revealAiPanel: vi.fn(),
+    showHarnessSettings: vi.fn(),
     refreshTrees: vi.fn(),
     refreshTemplatesTree: vi.fn(),
     scheduler: scheduler as unknown as import("@openspec-ui/core").WorkbenchProcessScheduler,
@@ -1453,7 +1459,10 @@ describe("registerCommands", () => {
         "/workspace/repo",
         { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
       );
-      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
+      // The global file's own panel — not the AI panel, which no longer
+      // hosts a settings form (a-change-is-configured-from-the-change).
+      expect(deps.showHarnessSettings).toHaveBeenCalledWith();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
 
     it("opens the view on an existing file without overwriting it", async () => {
@@ -1464,7 +1473,7 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
 
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
-      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
+      expect(deps.showHarnessSettings).toHaveBeenCalledWith();
       // The raw file is no longer what opens: one surface for this, not
       // two that must agree.
       expect(vscodeMock.window.showTextDocument).not.toHaveBeenCalled();
@@ -1477,7 +1486,7 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarness")?.();
 
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
-      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+      expect(deps.showHarnessSettings).not.toHaveBeenCalled();
     });
   });
 
@@ -1491,10 +1500,9 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {});
-      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
-        showSettings: true,
-        changeName: "demo-change",
-      }));
+      // The change's own panel, named by the change that was right-clicked.
+      expect(deps.showHarnessSettings).toHaveBeenCalledWith("demo-change");
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
 
     it("opens the view on an existing override without overwriting it", async () => {
@@ -1505,7 +1513,7 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.configureHarnessForChange")?.(changeItem);
 
       expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
-      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({ showSettings: true }));
+      expect(deps.showHarnessSettings).toHaveBeenCalledWith("demo-change");
     });
 
     it("warns instead of silently doing nothing without a tree item (invoked outside the context menu)", async () => {
@@ -2646,7 +2654,11 @@ describe("createRunChoiceHandler", () => {
     expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
       runPlan: expect.objectContaining({ resolved: "single-stage" }),
       changeName: "demo-change",
+      // Said beside the Apply button, naming the file it wrote — not in a
+      // notification out of the dialog's view.
+      appliedNote: expect.stringContaining("openspec/changes/demo-change/harness.json"),
     }));
+    expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();
     expect(deps.implementationSessions.start).not.toHaveBeenCalled();
   });
 
@@ -2659,5 +2671,34 @@ describe("createRunChoiceHandler", () => {
 
     expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
     expect(deps.outputChannel.appendLine).toHaveBeenCalledWith(expect.stringContaining("not-a-configuration"));
+  });
+
+  it("puts a registered agent on every stage, keeping the rest of the change's file, and says so in the dialog", async () => {
+    // a-change-is-configured-from-the-change. A recommendation drawn from
+    // the workspace's runs named an agent and nothing offered to use it.
+    resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+    readChangeHarnessConfigMock.mockResolvedValue({ autonomyLevel: "autonomous" });
+    buildRunPlanMock.mockReturnValue({ resolved: "chain", because: "x", stageAgents: [], offered: [], findings: [] });
+    const deps = makeDeps();
+
+    await createRunChoiceHandler(deps)({ kind: "use-agent", agentId: "codex-cli" }, context);
+
+    expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", {
+      autonomyLevel: "autonomous",
+      stepAgents: { propose: "codex-cli", review: "codex-cli", apply: "codex-cli", verify: "codex-cli" },
+    });
+    expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
+      changeName: "demo-change",
+      useAgentNote: expect.stringContaining("codex-cli"),
+    }));
+  });
+
+  it("writes nothing for an agent the registry does not have", async () => {
+    const deps = makeDeps();
+
+    await createRunChoiceHandler(deps)({ kind: "use-agent", agentId: "not-an-agent" }, context);
+
+    expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
+    expect(deps.outputChannel.appendLine).toHaveBeenCalledWith(expect.stringContaining("not-an-agent"));
   });
 });

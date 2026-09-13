@@ -88,9 +88,11 @@ the chosen agent's own CLI accepts (see the table below) — passed straight
 through as that CLI's own flag for a single invocation. This is not a
 chain-wide ceiling; it bounds one stage's one agent run.
 
-The standalone **Harness Settings** view reveals the budget input only
-after an agent with a supported budget unit is selected. In this generated
-capture, `claude-cli` exposes **propose max cost (USD)**:
+Both harness settings views — the global one in the **Harness Settings**
+tab and a change's own in the Change Editor's **Harness** tab — reveal the
+budget input only after an agent with a supported budget unit is selected.
+In this generated capture of the global view, `claude-cli` exposes
+**propose max cost (USD)**:
 
 [![Standalone Harness Settings showing the Claude CLI effort and max-cost controls](./docs/images/standalone/harness-settings.png)](./docs/images/standalone/harness-settings.png)
 

@@ -45,7 +45,9 @@ import {
   resolveHarnessConfig as resolveHarnessConfigApi,
   writeHarnessConfig as writeHarnessConfigApi,
 } from "./harness-config-client.js";
-import { HarnessSettingsView, type HarnessSettingsApi } from "./components/HarnessSettingsView.js";
+import { GlobalHarnessSettingsView } from "./components/GlobalHarnessSettingsView.js";
+import { ChangeHarnessSettingsView } from "./components/ChangeHarnessSettingsView.js";
+import type { HarnessSettingsApi } from "./components/harness-settings-parts.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
@@ -58,6 +60,7 @@ import {
 } from "./scheduled-runs-client.js";
 import {
   applyTemplateToChange as applyTemplateToChangeApi,
+  putAgentOnEveryStage as putAgentOnEveryStageApi,
   resolveRunWithHarnessDispatch,
   type RunWithHarnessDispatch,
 } from "./run-with-harness-dispatch.js";
@@ -249,6 +252,10 @@ function StandaloneApp() {
   const [editorFiles, setEditorFiles] = useState<ChangeEditorFiles>(EMPTY_EDITOR_FILES);
   const [editorRevision, setEditorRevision] = useState("");
   const [editorTab, setEditorTab] = useState<EditorTab>("proposal");
+  /** The change's harness settings, shown in place of the markdown
+   * editor. A change is configured from the change, not from a page
+   * about the whole workspace. See a-change-is-configured-from-the-change. */
+  const [harnessPaneOpen, setHarnessPaneOpen] = useState(false);
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorSaving, setEditorSaving] = useState(false);
   const [editorCreating, setEditorCreating] = useState(false);
@@ -266,6 +273,10 @@ function StandaloneApp() {
   const [chainBudget, setChainBudget] = useState<HarnessBudget | undefined>(undefined);
   const [runHarnessLoading, setRunHarnessLoading] = useState(false);
   const [runHarnessMessage, setRunHarnessMessage] = useState<string | null>(null);
+  /** What the last apply in the run dialog wrote, and where — said beside
+   * the button that did it rather than above the dialog. */
+  const [runAppliedNote, setRunAppliedNote] = useState<string | null>(null);
+  const [runUseAgentNote, setRunUseAgentNote] = useState<string | null>(null);
   const [timelineSelection, setTimelineSelection] = useState("");
   const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -504,6 +515,8 @@ function StandaloneApp() {
     // used to survive, and reappeared here saying a run had been
     // scheduled that nobody had scheduled.
     setRunNote(null);
+    setRunAppliedNote(null);
+    setRunUseAgentNote(null);
     try {
       const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
       setRunDispatch(dispatch);
@@ -531,10 +544,37 @@ function StandaloneApp() {
     try {
       await applyTemplateToChangeApi(apiFetch, cwd, editorChangeName, template);
       setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
-      setRunHarnessMessage(`Applied "${template.title}" to ${editorChangeName}.`);
+      // Beside the Apply button, in the dialog. It used to be set above
+      // the dialog, where the person who pressed Apply could not see it
+      // (a-change-is-configured-from-the-change).
+      setRunAppliedNote(
+        `Applied "${template.title}" to openspec/changes/${editorChangeName}/harness.json. `
+        + "The dialog now shows what the change resolves to.",
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setRunHarnessMessage(`Applying "${template.title}" failed: ${message}`);
+      setRunAppliedNote(`Applying "${template.title}" failed: ${message}`);
+    } finally {
+      setRunHarnessLoading(false);
+    }
+  }
+
+  /** Puts the agent a run-statistics recommendation names on every stage
+   * of this change, then re-reads the plan. A recommendation that cannot
+   * be acted on is a remark. */
+  async function putAgentOnEveryStage(agentId: string) {
+    if (!runDispatch) return;
+    setRunHarnessLoading(true);
+    try {
+      await putAgentOnEveryStageApi(apiFetch, cwd, editorChangeName, agentId);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
+      setRunUseAgentNote(
+        `Put ${agentId} on every stage in openspec/changes/${editorChangeName}/harness.json. `
+        + "The dialog now shows what the change resolves to.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRunUseAgentNote(`Putting ${agentId} on every stage failed: ${message}`);
     } finally {
       setRunHarnessLoading(false);
     }
@@ -1475,9 +1515,12 @@ function StandaloneApp() {
             stats={runStats}
             onChoose={startChosenRun}
             onApplyTemplate={(template) => void applyTemplateToChange(template)}
+            appliedNote={runAppliedNote}
+            onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
+            useAgentNote={runUseAgentNote}
             onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
             {...(runNote ? { note: runNote } : {})}
-            onDismiss={() => { setRunDispatch(null); setRunNote(null); }}
+            onDismiss={() => { setRunDispatch(null); setRunNote(null); setRunAppliedNote(null); setRunUseAgentNote(null); }}
           />
         ) : null}
         {chainChangeDir ? (
@@ -1489,14 +1532,36 @@ function StandaloneApp() {
             <button
               key={tab}
               type="button"
-              className={tab === editorTab ? "is-active" : ""}
-              onClick={() => setEditorTab(tab)}
+              className={!harnessPaneOpen && tab === editorTab ? "is-active" : ""}
+              onClick={() => { setEditorTab(tab); setHarnessPaneOpen(false); }}
             >
               {tab}
             </button>
           ))}
+          <button
+            type="button"
+            data-testid="change-editor-tab-harness"
+            className={harnessPaneOpen ? "is-active" : ""}
+            onClick={() => setHarnessPaneOpen(true)}
+          >
+            Harness
+          </button>
         </div>
 
+        {harnessPaneOpen ? (
+          // The loaded change, not the one merely selected: choosing another
+          // change in the list clears the revision until it is loaded.
+          editorRevision.length > 0 && editorChangeName.trim().length > 0 ? (
+            <ChangeHarnessSettingsView
+              api={harnessSettingsApi}
+              changeName={editorChangeName}
+              onEditGlobal={() => setActiveTab("harness-settings")}
+            />
+          ) : (
+            <p className="openspec-shell-note" data-testid="change-editor-harness-empty">Load a change to configure it.</p>
+          )
+        ) : (
+        <>
         {editorTab === "tasks" ? (
           <div className="openspec-ai-panel-controls">
             <select
@@ -1563,6 +1628,8 @@ function StandaloneApp() {
             {editorSaving ? "Saving..." : "Save markdown"}
           </button>
         </div>
+        </>
+        )}
       </section>
       </TabPanel>
       )}
@@ -1906,10 +1973,16 @@ function StandaloneApp() {
       <section className="openspec-shell-panel">
         <h2>Harness Settings</h2>
         <p className="openspec-shell-note">
-          Recommends a CLI agent per OpenSpec-change stage in the Agent Selection picker above — a global default,
-          optionally overridden per change. See openspec/changes/agentic-harness/.
+          The global defaults every change starts from: which agent runs each stage, and how autonomously a chain
+          runs.
         </p>
-        {cwd.trim().length > 0 ? <HarnessSettingsView api={harnessSettingsApi} /> : <p>Enter workspace root to configure the harness.</p>}
+        {/* Said where a person used to find a change's settings, since
+            that is where they will look first. See
+            a-change-is-configured-from-the-change. */}
+        <p className="openspec-shell-note" data-testid="harness-settings-change-pointer">
+          A change's own settings are in the Change Editor, under Harness.
+        </p>
+        {cwd.trim().length > 0 ? <GlobalHarnessSettingsView api={harnessSettingsApi} /> : <p>Enter workspace root to configure the harness.</p>}
       </section>
       </TabPanel>
       )}

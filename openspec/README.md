@@ -168,10 +168,12 @@ preferred `agentId` from `packages/core/src/agents/registry.ts`),
 
 **Three ways to edit either file:**
 
-1. "Harness Settings" tab in the standalone webui, or the VS Code commands
-   `OpenSpec UI: Configure Harness Settings` (global) and
+1. In the standalone webui, the "Harness Settings" tab (global) and the
+   Change Editor's "Harness" tab (the loaded change). In VS Code, the
+   commands `OpenSpec UI: Configure Harness Settings` (global) and
    `OpenSpec UI: Configure Harness for this Change` (per-change, from the
-   Changes tree context menu).
+   Changes tree context menu), each of which opens a panel for its one
+   file.
 2. Hand-editing the JSON directly — it is validated on read/write either
    way, so a malformed edit fails with a clear error rather than being
    silently ignored.

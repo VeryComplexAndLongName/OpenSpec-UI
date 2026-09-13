@@ -329,7 +329,8 @@ export const shellThemeCss = `
      (detected)" — 435px — pushed the whole field 18px past its panel.
      The sweep across every tab found it on the Change Editor; nothing
      asserted it. */
-  [data-testid="harness-settings-view"] .openspec-shell-field {
+  .openspec-harness-settings .openspec-shell-field,
+  .openspec-named-configuration .openspec-shell-field {
     grid-template-columns: minmax(11rem, max-content) minmax(0, 1fr);
     gap: 4px 16px;
     align-items: baseline;
@@ -339,13 +340,53 @@ export const shellThemeCss = `
      together while the fields around them are spaced, because only
      the plain fields are siblings of each other — the stages are each
      wrapped in a row of their own. */
-  [data-testid="harness-settings-view"] .openspec-shell-field,
-  [data-testid="harness-settings-view"] .openspec-harness-stage-row {
+  .openspec-harness-settings .openspec-shell-field,
+  .openspec-harness-settings .openspec-harness-stage-row {
     margin-top: 10px;
   }
 
-  [data-testid="harness-settings-view"] .openspec-harness-stage-row .openspec-shell-field {
+  .openspec-harness-settings .openspec-harness-stage-row .openspec-shell-field {
     margin-top: 0;
+  }
+
+  /* A settings view is made of sections: the named configuration, then
+     the fields, each ending in the control that applies or saves it.
+     The end of a section is drawn and spaced by more than the gap
+     between two fields, so the next heading is not read as belonging
+     to the button above it. Found by the owner on 2026-09-13, when
+     Per-change override began directly under Save global config. */
+  .openspec-harness-section {
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-harness-section:last-child {
+    border-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  .openspec-named-configuration-description {
+    margin: 8px 0 4px;
+    padding-left: 12px;
+    border-left: 2px solid var(--line);
+  }
+
+  .openspec-named-configuration-description .openspec-shell-note + .openspec-shell-note {
+    margin-top: 4px;
+  }
+
+  /* An action inside a sentence: a real button, styled as the link it
+     reads as, so it is focusable and named without looking like a
+     second save control. */
+  .openspec-inline-action {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--primary);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .openspec-harness-stage-row .openspec-shell-note {
@@ -409,10 +450,21 @@ export const shellThemeCss = `
   /* In a settings section the separation is drawn as well as spaced:
      what you are editing ends, and the control that commits it
      begins. */
-  [data-testid="harness-settings-view"] .openspec-ai-panel-controls {
+  .openspec-harness-settings .openspec-ai-panel-controls,
+  .openspec-named-configuration .openspec-ai-panel-controls {
     margin-top: 20px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
+  }
+
+  /* Except Apply, which belongs to the description above it. Drawn
+     under a rule of its own, with the section's rule beneath, it read as
+     a section holding one button. */
+  .openspec-harness-settings .openspec-named-configuration .openspec-ai-panel-controls,
+  .openspec-named-configuration .openspec-ai-panel-controls {
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: 0;
   }
 
   .openspec-run-status {
@@ -1434,7 +1486,8 @@ export const shellThemeCss = `
      tab after the restyle and never checked before. */
   @media (max-width: 720px) {
     .openspec-shell-grid,
-    [data-testid="harness-settings-view"] .openspec-shell-field {
+    .openspec-harness-settings .openspec-shell-field,
+    .openspec-named-configuration .openspec-shell-field {
       grid-template-columns: 1fr;
     }
 
