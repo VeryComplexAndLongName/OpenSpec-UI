@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-09-13
+blocked_by:
+  - the-pipeline-opens-in-vs-code
+  - a-run-says-which-task-it-is-on
+  - a-change-is-running-when-its-run-says-so

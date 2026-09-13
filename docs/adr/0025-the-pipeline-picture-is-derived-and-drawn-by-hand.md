@@ -135,6 +135,21 @@ A very wide repository (many independent changes) makes a wide picture.
 It scrolls horizontally in its own container, which the shell already
 does for tables and code blocks.
 
+## Amendment, 2026-09-13: a card's size follows what it shows
+
+ADR-0029 lets a card open to show its tasks. An open card's height is
+derived the same way its position is: today's size when the card is
+closed, plus one row for each heading and task when it is open, from size
+tokens in core. A column stacks its cards by their heights, and an edge
+attaches at a card's head, which does not move when the card opens.
+
+Nothing is measured, so every reason given above still stands. The only
+statement that changes is "a node card has a fixed size", which now
+reads "a closed card has a fixed size".
+
+Zoom multiplies the unit by one unitless factor. A factor resolves the
+same on every element, so the reason `--u` is a `rem` still holds.
+
 ## Alternatives considered
 
 **A graph library.** Rejected above: it solves the part already solved

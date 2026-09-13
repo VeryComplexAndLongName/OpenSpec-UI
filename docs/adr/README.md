@@ -35,5 +35,6 @@ Alternatives / Consequences.
 | [0026](0026-other-working-directories-are-observed-never-touched.md) | Other working directories are observed, never touched | Accepted |
 | [0027](0027-a-working-directory-is-disposable.md) | A working directory is disposable, and nothing of value stays in it | Accepted |
 | [0028](0028-agents-coordinate-beside-the-repository.md) | Agents coordinate beside the repository, not inside it | Accepted |
+| [0029](0029-the-pipeline-is-where-a-change-is-run.md) | The Pipeline is where a change is run | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

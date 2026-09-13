@@ -150,6 +150,31 @@ removed or renewed. And a directory with no record is not called idle —
 a session this product did not start writes none, which is the same
 reason a directory with no lease is not called idle.
 
+## Amendment, 2026-09-13: asking a run to stop does not touch its directory
+
+ADR-0029 puts controls on the Pipeline's cards. Two of its decisions
+concern the rules above.
+
+**A change that has its own worktree is drawn as one card.** ADR-0022
+creates that worktree for the change, and the card's tasks and run are
+read from it. That is a filesystem read like every other read here. The
+card names the directory it read, so a change is still identified by the
+pair of a directory and a name.
+
+**A run elsewhere may be asked to stop, through ADR-0028's channel.**
+Asking does not touch the run's directory:
+
+- the request is a file the person asking writes into the channel, which
+  lies outside every working directory;
+- it is addressed to a run by that run's identifier, never to a change by
+  its name;
+- the run decides whether to stop, and when.
+
+The change in that directory still offers no action: nothing opens it,
+starts a run against it, or ticks anything in it. A run's card offers the
+request only where a signature shows that the run belongs to the person
+asking.
+
 ## Alternatives considered
 
 **A central registry or daemon agents report to.** Rejected: the
