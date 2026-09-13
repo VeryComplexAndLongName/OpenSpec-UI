@@ -196,8 +196,10 @@ function describeClaudeToolUse(
       return { title: `Grep "${pattern}"${where ? ` in ${displayPath(where, cwd)}` : ""}`, kind: "search" };
     }
     case "Glob": {
+      // A pattern can be an absolute path with wildcards in it — the live
+      // run for this change found one — and is shown the way a path is.
       const pattern = nonEmptyString(input.pattern);
-      return { title: pattern ? `Glob ${pattern}` : name, kind: "search" };
+      return { title: pattern ? `Glob ${displayPath(pattern, cwd)}` : name, kind: "search" };
     }
     case "WebFetch": {
       const url = nonEmptyString(input.url);

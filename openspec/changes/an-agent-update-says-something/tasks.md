@@ -60,6 +60,12 @@ under ACP's name, and no surface shows a tool call or a plan.
   text, tool calls and a plan in ACP's shapes. Written in "What changes
   when an `-acp` id is chosen", item 1, which is where the table's reader
   is sent for what an `-acp` id changes.
+- [x] 4.6 An update a person can read nothing in is left out of the AI
+  panel's log, the chain panel's log and the output channel, instead of
+  being named by its kind. Added after the live run in 6.4 showed the
+  panel full of `agent update: system` lines; see `design.md`, "What the
+  live run showed". The filter is `isShownInEventLog`, applied where a log
+  is drawn.
 
 ## 5. Tests
 
@@ -84,6 +90,10 @@ under ACP's name, and no surface shows a tool call or a plan.
   `agent update: tool_call`.
 - [x] 5.8 The output channel shows a tool call as `[agent] <title>` and a
   text chunk as its text.
+- [x] 5.9 The panel's log and the output channel show nothing for a tool
+  call with no title, a `system` line, a `rate_limit_event`, a completed
+  call and a usage figure; a `Glob` given an absolute pattern inside the
+  run's directory is titled relative to it.
 
 ## 6. Verification
 
@@ -96,10 +106,107 @@ under ACP's name, and no surface shows a tool call or a plan.
   server 84 (4), webui 395 (43). The first run failed the test-budget
   check — `claude-acp.test.ts` now reads a fixture and stated no budget —
   and passed once it stated one.
+  Run again after the two fixes 6.4 found, exit 0, every check above
+  passing: cli 126, core 1160, extension 327, server 84, webui 396 — the
+  one more is the chain panel's log test.
 - [x] 6.3 A pending changeset exists. `check(changeset-present)`
   `.changeset/an-agent-update-says-something.md`.
-- [ ] 6.4 **Delegated to `claude-cli`**: run a real change with
+- [x] 6.4 **Delegated to `claude-cli`** — *performed by the agent that
+  wrote the code, and closed on the owner's instruction. Recorded rather
+  than glossed: the marking rule calls a self-close a rubber stamp, and
+  the argument for closing it anyway is that this run found two real
+  defects and changed the code, which a stamp does not.*
+  Run a real change with
   `claude-cli-acp` from the terminal and from the standalone AI panel.
   Evidence: the terminal output and a picture of the panel. Unit tests
   replay a captured stream; only a live run shows what a person watching
   actually reads.
+
+  2026-09-13, in a throwaway repository (`git init`, `openspec init`, one
+  change `say-hello`: create `hello.txt`, read it back) so this
+  repository was never touched. Real `claude` 2.1.237, the worktree's own
+  CLI and server sources, no mocks. Paths below are shortened; they named
+  the account.
+
+  **Terminal**, `openspec-ui-cli run say-hello`, every agent stage on
+  `claude-cli-acp` with `claude-haiku-4-5-20251001`: exit 0, apply $0.03
+  and verify $0.04 in the audit log, the change archived, `hello.txt`
+  containing `hello`. What it printed, trimmed where haiku's thinking ran
+  on:
+
+  ```
+  ▶ apply — claude-cli-acp
+  The user wants me to implement the tasks from tasks.md ...
+  · Write hello.txt
+  · Read hello.txt
+  Done! Both tasks completed: ...
+  · reported $0.03, 693 tokens
+  ✓ apply → verify
+
+  ▶ verify — claude-cli-acp
+  · Read openspec/changes/say-hello/tasks.md
+  · Glob <repository>/openspec/changes/say-hello/specs/*/spec.md
+  · Read hello.txt
+  · Edit openspec/changes/say-hello/tasks.md
+  ✅ Both tasks verified and checked. ...
+  · reported $0.04, 1,491 tokens
+  ✓ verify → archive
+
+  ▶ archive
+  ✓ archived say-hello
+  ```
+
+  Haiku sends its thinking with text, unlike sonnet in the fixture, and
+  it is printed as prose, as ACP's `agent_thought_chunk` is.
+
+  **Defect 1, found here.** That `Glob` was given an absolute pattern and
+  printed it whole — the account name in a line meant to be read at a
+  glance. A pattern is now shown relative to the run's directory, as a
+  path already was; the titles test covers it.
+
+  **Standalone panel**, the real server over the same repository, driven
+  in Chromium: `review` with `claude-cli-acp`, default model, completed,
+  $0.20. The log read:
+
+  ```
+  started (review)
+  agent update: system
+  agent update: rate_limit_event
+  agent update: system
+  agent update: system
+  Bash: ls -la "<repository>/openspec/changes/say-hello" ...
+  agent update: system
+  agent update: tool_progress
+  agent update: system
+  agent update: tool_call_update
+  ...
+  ```
+
+  **Defect 2, found here.** Tool calls were finally named, and drowned:
+  Claude's own `system`, `rate_limit_event` and `tool_progress` lines
+  were named by their kind, and every completed call added
+  `agent update: tool_call_update` — noise this change had itself made,
+  since a completed call reads as nothing. Task 4.6 and 5.9 came from
+  this: an update a person can read nothing in is left out of both
+  panels' logs and the output channel.
+
+  Run again after the fix — and after rebuilding the server's client
+  bundle, without which the first re-run still served the old panel and
+  looked unfixed: `review` completed, $0.14, and the log read:
+
+  ```
+  started (review)
+  Bash: cd "<repository>" && ls -la && ... find openspec/changes/say-hello -type f
+  Bash: cd "<repository>" && find openspec -maxdepth 2 -type f
+  Bash: cd "<repository>" && for f in openspec/config.yaml ...; do ... cat "$f"; done
+  Bash: cd "<repository>" && find .openspec-ui -type f && ... ls hello.txt
+  failed: Bash: cd "<repository>" && find .openspec-ui -type f && ... ls hello.txt
+  Reviewed all artifacts in `openspec/changes/say-hello` ...
+  usage: 8 in, 2 199 out, 113 302 cached, $0.14
+  completed: Reviewed all artifacts ...
+  ```
+
+  No line named only by its kind. The failure is real: `hello.txt` did
+  not exist yet, which the review then says. The pictures of both panel
+  runs were looked at and are not committed: they show the scratch path,
+  which names the account.

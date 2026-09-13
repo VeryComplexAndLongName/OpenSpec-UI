@@ -6,7 +6,7 @@ const base = { runId: "r1", timestamp: "t" };
 
 describe("describeEvent", () => {
   it("formats every event variant", () => {
-    const cases: Array<[Event, string]> = [
+    const cases: Array<[Event, string | undefined]> = [
       [{ ...base, kind: "started", command: "plan", cwd: "/x" }, "[started] plan"],
       [{ ...base, kind: "stdout", chunk: "hello\n" }, "hello\n"],
       [{ ...base, kind: "stderr", chunk: "warn\n" }, "warn\n"],
@@ -15,13 +15,18 @@ describe("describeEvent", () => {
       [{ ...base, kind: "completed" }, "[completed]"],
       [{ ...base, kind: "failed", reason: "boom" }, "[failed] boom"],
       [{ ...base, kind: "cancelled" }, "[cancelled]"],
+      // Nothing a person can read: not shown at all, rather than named by
+      // its kind — an-agent-update-says-something tasks.md 4.6.
+      [{ ...base, kind: "agentUpdate", update: { sessionUpdate: "plan" } }, undefined],
+      [{ ...base, kind: "agentUpdate", update: { sessionUpdate: "usage_update", used: 1, size: 2 } }, undefined],
+      [{ ...base, kind: "agentUpdate", update: { sessionUpdate: "system", subtype: "init" } }, undefined],
       [
-        { ...base, kind: "agentUpdate", update: { sessionUpdate: "plan" } },
-        "[agent update] plan",
-      ],
-      [
-        { ...base, kind: "agentUpdate", update: { sessionUpdate: "usage_update", used: 1, size: 2 } },
-        "[agent update] usage_update",
+        {
+          ...base,
+          kind: "agentUpdate",
+          update: { sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", title: "Read a.ts" },
+        },
+        undefined,
       ],
       [
         {

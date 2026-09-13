@@ -50,6 +50,10 @@ its title, and a plan by its progress and its current step.
 
 These SHALL NOT be shown only as the name of their update kind.
 
+An update from which nothing can be read — no text, and no tool call,
+failure or plan — SHALL NOT be shown on those surfaces, and SHALL still
+reach every consumer of the event stream.
+
 How an update is read SHALL depend only on ACP's shapes, and SHALL NOT
 depend on which agent produced it.
 
@@ -63,6 +67,13 @@ depend on which agent produced it.
 
 - **WHEN** a run started from the terminal emits a `tool_call`
 - **THEN** the terminal prints its title on a line of its own
+
+#### Scenario: Claude's own bookkeeping
+
+- **WHEN** a `claude-cli-acp` run emits a `system` or `rate_limit_event`
+  update, or reports that a tool call completed
+- **THEN** no panel and no output channel shows an entry for it, and the
+  run's JSON-lines output still carries it
 
 #### Scenario: A native ACP agent
 

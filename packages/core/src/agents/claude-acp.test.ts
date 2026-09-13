@@ -499,6 +499,7 @@ describe("translateClaudeStream — titles and degradation", () => {
       await updatesFor([
         toolUse("PowerShell", { command: twoLineScript }, "a"),
         toolUse("Glob", { pattern: "**/*.md" }, "b"),
+        toolUse("Glob", { pattern: path.join(cwd, "openspec", "changes", "*", "tasks.md") }, "b2"),
         toolUse("Grep", { pattern: "TODO" }, "c"),
         toolUse("WebFetch", { url: "https://example.com/doc" }, "d"),
         toolUse("WebSearch", { query: "acp tool call" }, "e"),
@@ -511,6 +512,7 @@ describe("translateClaudeStream — titles and degradation", () => {
     expect(titles).toEqual([
       ["PowerShell: Get-ChildItem", "execute"],
       ["Glob **/*.md", "search"],
+      ["Glob openspec/changes/*/tasks.md", "search"],
       ['Grep "TODO"', "search"],
       ["WebFetch https://example.com/doc", "fetch"],
       ['WebSearch "acp tool call"', "fetch"],

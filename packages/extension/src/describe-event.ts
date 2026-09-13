@@ -1,6 +1,8 @@
 import { describeAcpUpdate, readAcpStreamedText, type Event } from "@openspec-ui/core";
 
-export function describeEvent(event: Event): string {
+/** One output-channel line for an event, or `undefined` for an event with
+ * nothing a person can read in it. */
+export function describeEvent(event: Event): string | undefined {
   switch (event.kind) {
     case "started":
       return `[started] ${event.command}`;
@@ -33,11 +35,14 @@ export function describeEvent(event: Event): string {
     case "agentUpdate": {
       // Streamed text is shown as the text, the way `stdout` already is; a
       // tool call, a failure or a plan as the line core reads out of it.
-      // Only an update neither recognises is still named by its kind.
+      // Anything else is not shown: the live run for
+      // an-agent-update-says-something filled the log with `system`,
+      // `rate_limit_event` and completed-call lines named only by their
+      // kind, which is the noise this change exists to remove.
       const streamed = readAcpStreamedText(event.update);
       if (streamed) return streamed.text;
       const line = describeAcpUpdate(event.update);
-      return line ? `[agent] ${line}` : `[agent update] ${String(event.update.sessionUpdate ?? "update")}`;
+      return line === undefined ? undefined : `[agent] ${line}`;
     }
     case "permissionRequest":
       return `[permission requested] ${event.description}`;

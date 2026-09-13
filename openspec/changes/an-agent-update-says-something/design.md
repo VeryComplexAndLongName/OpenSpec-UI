@@ -80,7 +80,7 @@ writes it:
 | `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `<tool> <path>` | `edit` |
 | `Bash`, `PowerShell` | `<tool>: <first line of the command>` | `execute` |
 | `Grep` | `Grep "<pattern>"`, plus ` in <path>` when one is given | `search` |
-| `Glob` | `Glob <pattern>` | `search` |
+| `Glob` | `Glob <pattern>`, an absolute pattern shown relative as a path is | `search` |
 | `WebFetch` | `WebFetch <url>` | `fetch` |
 | `WebSearch` | `WebSearch "<query>"` | `fetch` |
 | `Task`, `Agent` | `Agent: <description>` | `other` |
@@ -143,8 +143,8 @@ shape nobody here has seen is not guessed at.
 
 | surface | streamed text | tool call, failure, plan | anything else |
 |---|---|---|---|
-| AI panel | joined prose, unchanged | the line | `agent update: <kind>`, unchanged |
-| VS Code output channel | the text itself | `[agent] <line>` | `[agent update] <kind>`, unchanged |
+| AI panel, chain panel | joined prose, unchanged | the line | nothing |
+| VS Code output channel | the text itself | `[agent] <line>` | nothing |
 | terminal, text | joined prose, unchanged | `· <line>` on a line of its own | nothing, unchanged |
 | terminal, JSON lines | the whole event, unchanged | the whole event, unchanged | the whole event, unchanged |
 
@@ -156,6 +156,28 @@ its own progress, the latest is carried" — takes its line from it.
 
 The output channel showed a text chunk as its kind; it now shows the
 text, as it already shows `stdout`.
+
+### What the live run showed
+
+The first draft left "anything else" as it was: named by its kind in the
+panel and the output channel. A live `claude-cli-acp` run in the
+standalone panel showed what that means. Between the tool calls, the log
+read `agent update: system`, `agent update: rate_limit_event`,
+`agent update: tool_progress`, and — new noise this change had made —
+`agent update: tool_call_update` for every call that simply completed.
+Tool calls were finally named, and still drowned.
+
+So an update a person can read nothing in is not shown on any surface.
+The terminal already worked that way. Nothing leaves the event stream:
+the usage summary still reads `usage_update`, the JSON-lines output
+still carries every event, and the filter is applied where a log is
+drawn, never in `collapseStreamEvents`, so a hidden update still ends a
+run of text around it and still counts for everything that reads the
+collapsed stream.
+
+The same run found a `Glob` whose pattern was an absolute path, shown
+whole. A pattern is now shown relative to the run's directory, as a path
+is.
 
 ## Non-Goals
 

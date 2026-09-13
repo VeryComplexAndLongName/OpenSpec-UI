@@ -845,6 +845,25 @@ function extractAgentUpdateText(update: Record<string, unknown>): string | undef
   return undefined;
 }
 
+/** Whether an event earns an entry in a run's log.
+ *
+ * Every event does except an agent update a person can read nothing in:
+ * no text, and no line core's `describeAcpUpdate` reads out of it —
+ * Claude's own `system` and `rate_limit_event` lines, a usage figure, a
+ * tool call that simply completed. Those stay in the stream, where the
+ * usage summary and the JSON output read them, and are left out of the
+ * log, as the terminal already leaves them out. Named only by their kind
+ * they filled the log in the live run for an-agent-update-says-something,
+ * which is the noise that change exists to remove.
+ *
+ * Applied where a log is drawn, never in `collapseStreamEvents`: what is
+ * hidden must still end a run of text around it, and still count for
+ * everything that reads the collapsed stream. */
+export function isShownInEventLog(event: Event): boolean {
+  if (event.kind !== "agentUpdate") return true;
+  return extractAgentUpdateText(event.update) !== undefined || describeAcpUpdate(event.update) !== undefined;
+}
+
 export function renderEventBody(event: Event, index: number): ReactNode {
   switch (event.kind) {
     case "stdout":
@@ -1237,7 +1256,7 @@ export function AiPanel({
         </section>
       ) : null}
       <ul className="openspec-ai-panel-events" data-testid="event-log">
-        {collapsedEvents.map((event, index) => (
+        {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
           <li key={index} data-testid={`event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
             {renderEventBody(event, index)}
           </li>

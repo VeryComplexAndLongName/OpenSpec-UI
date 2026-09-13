@@ -1934,7 +1934,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         },
         async () => {
           const unsubscribe = deps.runController.onEvent((event) => {
-            deps.outputChannel.appendLine(describeEvent(event));
+            const line = describeEvent(event);
+            if (line !== undefined) deps.outputChannel.appendLine(line);
           });
           try {
             await deps.runController.run(undefined, command);
