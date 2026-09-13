@@ -165,6 +165,11 @@
         "icon": "$(play)"
       },
       {
+        "command": "openspec-ui.confirmEnrolment",
+        "title": "OpenSpec UI: It Was Me",
+        "icon": "$(pass)"
+      },
+      {
         "command": "openspec-ui.openspecView",
         "title": "OpenSpec UI: OpenSpec View (CLI)"
       },
@@ -461,6 +466,11 @@
         {
           "command": "openspec-ui.runDelegatedItem",
           "when": "viewItem == openspec-ui.humanOnlyInboxItem.agent",
+          "group": "inline"
+        },
+        {
+          "command": "openspec-ui.confirmEnrolment",
+          "when": "viewItem == openspec-ui.enrolmentRequest",
           "group": "inline"
         },
         {

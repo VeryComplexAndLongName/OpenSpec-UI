@@ -12,6 +12,7 @@
 
 import {
   createGitWrapper,
+  describeSignature,
   describeTaskInHand,
   describeWaiting,
   readAgentStatuses,
@@ -99,6 +100,13 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
   }
 
   for (const report of result.reports) {
+    // A record that does not check out is named by its file and nothing it
+    // says is printed (a-run-is-signed-by-its-person).
+    if (report.signature === "does-not-check-out") {
+      deps.stdout(report.instanceId);
+      deps.stdout(`    ${describeSignature(report.signature)}`);
+      continue;
+    }
     const activitySeconds = Math.round(report.activitySinceMs / 1000);
     const heartbeatSeconds = Math.round(report.heartbeatAgeMs / 1000);
     const change = report.changeName ? ` on "${report.changeName}"` : "";
@@ -115,6 +123,9 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
       `    said this ${activitySeconds}s ago, last heard from ${heartbeatSeconds}s ago` +
         (report.gone ? " — gone" : ""),
     );
+    // Whose the run is, as far as its signature shows, and no further: the
+    // run itself is still only what its record claims.
+    deps.stdout(`    ${describeSignature(report.signature, report.person)}`);
   }
 
   for (const bad of result.malformed) {

@@ -42,6 +42,8 @@ import {
   buildVerifyQuality,
   addScheduledRun,
   collectHumanOnlyInbox,
+  confirmEnrolmentFor,
+  EnrolmentRefusedError,
   readPipelineReadiness,
   surveyWorktrees,
   runDelegatedItem,
@@ -1077,6 +1079,47 @@ export async function handleHumanOnlyInboxRequest(req: IncomingMessage, res: Ser
     sendJson(res, 200, await collectHumanOnlyInbox(parsed.cwd));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface EnrolmentConfirmRequest {
+  cwd: string;
+  keyId: string;
+  label?: string;
+}
+
+function isEnrolmentConfirmRequest(value: unknown): value is EnrolmentConfirmRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0
+    && typeof record.keyId === "string" && /^[0-9a-f]{32}$/u.test(record.keyId)
+    && (record.label === undefined || typeof record.label === "string");
+}
+
+/** A person says a run was theirs: its key is enrolled
+ * (a-run-is-signed-by-its-person). Which request that is, and whether it may
+ * be enrolled, is core's; a refusal is answered as a conflict, with why. */
+export async function handleEnrolmentConfirmRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isEnrolmentConfirmRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd, a 32-character hex keyId and an optional label" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const entry = await confirmEnrolmentFor(parsed.cwd, parsed.keyId, parsed.label !== undefined ? { label: parsed.label } : {});
+    sendJson(res, 200, entry);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, error instanceof EnrolmentRefusedError ? 409 : 500, { error: message });
   }
 }
 

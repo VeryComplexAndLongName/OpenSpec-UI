@@ -13,6 +13,8 @@
 // a-live-check-names-who-performs-it for why an item says who it waits
 // on rather than being assumed to wait on a person.
 
+import type { EnrolmentRequest } from "./signature-facts.js";
+
 /** Who an open item waits on.
  *
  * `known` is whether the named agent is in the registry. An id nothing
@@ -83,6 +85,9 @@ export interface HumanOnlyInbox {
   /** Changes whose `harness.json` could not be read. Their items are
    * present, resolved from the task text alone. */
   unreadableTaskAgents?: UnreadableTaskAgentsConfig[];
+  /** Keys that sign a live run's record and are not enrolled, each waiting
+   * on a person to say "it was me" (a-run-is-signed-by-its-person). */
+  enrolments?: EnrolmentRequest[];
 }
 
 /** What a host has, once it has asked.
@@ -126,8 +131,10 @@ function changesRead(count: number): string {
  * joins them here: how much of what is waiting is a question for a
  * person, and how much is assigned to an agent that has not run yet. */
 export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
-  const stale = describeUnmatched(inbox.unmatchedTaskAgents) + describeUnreadable(inbox.unreadableTaskAgents);
-  if (inbox.changesRead === 0) return "No active change to look at.";
+  const stale = describeUnmatched(inbox.unmatchedTaskAgents)
+    + describeUnreadable(inbox.unreadableTaskAgents)
+    + describeEnrolments(inbox.enrolments);
+  if (inbox.changesRead === 0) return `No active change to look at.${describeEnrolments(inbox.enrolments)}`;
   if (inbox.items.length === 0) {
     return `Nothing is waiting — ${changesRead(inbox.changesRead)} read.${stale}`;
   }
@@ -174,6 +181,15 @@ function describeUnreadable(unreadable: readonly UnreadableTaskAgentsConfig[] | 
   const listed = unreadable.map((entry) => `${entry.changeName} (${entry.reason})`).join("; ");
   const count = unreadable.length === 1 ? "1 change's" : `${unreadable.length} changes'`;
   return ` ${count} harness.json could not be read, so their items are resolved from the task text alone: ${listed}.`;
+}
+
+/** Appended too: a key waiting to be enrolled waits on a person as surely as
+ * an item does, and it is not a task, so it is not in the count. */
+function describeEnrolments(enrolments: readonly EnrolmentRequest[] | undefined): string {
+  if (!enrolments || enrolments.length === 0) return "";
+  return enrolments.length === 1
+    ? " 1 key that signs a run waits to be enrolled."
+    : ` ${enrolments.length} keys that sign runs wait to be enrolled.`;
 }
 
 function describeUnmatched(unmatched: readonly UnmatchedTaskAgent[] | undefined): string {

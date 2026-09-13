@@ -52,7 +52,12 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
-import { loadHumanOnlyInbox, runDelegatedItem as runDelegatedItemApi } from "./human-only-inbox-client.js";
+import {
+  confirmEnrolment as confirmEnrolmentApi,
+  loadHumanOnlyInbox,
+  runDelegatedItem as runDelegatedItemApi,
+} from "./human-only-inbox-client.js";
+import { EnrolmentRequests } from "./components/EnrolmentRequests.js";
 import {
   addScheduledRun as addScheduledRunApi,
   loadScheduledRuns,
@@ -626,6 +631,30 @@ function StandaloneApp() {
   /** The row whose run is in flight, so its button says so and cannot
    * be pressed twice. One item per request is the rule. */
   const [runningDelegated, setRunningDelegated] = useState<string | null>(null);
+  /** The key whose enrolment is being confirmed, and what each
+   * confirmation reported (a-run-is-signed-by-its-person). */
+  const [confirmingEnrolment, setConfirmingEnrolment] = useState<string | null>(null);
+  const [enrolmentOutcomes, setEnrolmentOutcomes] = useState<Record<string, string>>({});
+
+  /** Enrols one key, then reads the inbox again: an enrolled key waits no
+   * more, and its runs read as signed from then on. */
+  async function confirmEnrolment(keyId: string): Promise<void> {
+    setConfirmingEnrolment(keyId);
+    try {
+      const person = await confirmEnrolmentApi(apiFetch, cwd, keyId);
+      setEnrolmentOutcomes((current) => ({ ...current, [keyId]: `Enrolled as ${person.label}.` }));
+      try {
+        setHumanOnly({ status: "loaded", inbox: await loadHumanOnlyInbox(apiFetch, cwd) });
+      } catch {
+        // The enrolment stands; a failed refresh does not undo it.
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setEnrolmentOutcomes((current) => ({ ...current, [keyId]: `Not enrolled: ${reason}` }));
+    } finally {
+      setConfirmingEnrolment(null);
+    }
+  }
 
   /** Runs the agent one open delegated item names, and reports the
    * outcome — including a refusal from the rubber-stamp gate — where
@@ -1382,6 +1411,14 @@ function StandaloneApp() {
                   );
                 })}
               </ul>
+            ) : null}
+            {humanOnly.status === "loaded" ? (
+              <EnrolmentRequests
+                requests={humanOnly.inbox.enrolments ?? []}
+                confirming={confirmingEnrolment}
+                outcomes={enrolmentOutcomes}
+                onConfirm={(keyId) => void confirmEnrolment(keyId)}
+              />
             ) : null}
           </div>
         ) : null}

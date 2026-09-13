@@ -307,7 +307,7 @@ describe("surveyWorktrees — what a directory's runs say", () => {
       { instanceId: "run-here", changeName: "change-b", stage: "apply", activity: "Bash: npm test", gone: false },
     ]);
     expect(survey.runsElsewhere.map((run) => run.instanceId)).toEqual(["run-orphan"]);
-    expect(describeDirectoryRuns(survey.directories[1] as never)[0]).toMatch(/^change-b \(apply\): Bash: npm test — said \d+s ago$/);
+    expect(describeDirectoryRuns(survey.directories[1] as never)[0]).toMatch(/^change-b \(apply\): Bash: npm test — said \d+s ago; not verified$/);
   });
 
   it("shows a run whose record has lapsed as gone", async () => {
@@ -442,16 +442,34 @@ describe("describeDirectoryRuns — ages that keep counting", () => {
       workingDirectory: "/repo",
       runId: null,
       waiting: null,
+      signature: "unverified",
     }],
   };
 
   it("states the interval measured at read time when given no clock", () => {
-    expect(describeDirectoryRuns(directory)).toEqual(["change-a (apply): Bash: npm test — said 12s ago"]);
+    expect(describeDirectoryRuns(directory)).toEqual(["change-a (apply): Bash: npm test — said 12s ago; not verified"]);
   });
 
   it("counts from the record's own timestamps when given a clock", () => {
     expect(describeDirectoryRuns(directory, new Date("2026-09-13T12:01:00.000Z")))
-      .toEqual(["change-a (apply): Bash: npm test — said 60s ago"]);
+      .toEqual(["change-a (apply): Bash: npm test — said 60s ago; not verified"]);
+  });
+
+  // a-run-is-signed-by-its-person 5.5
+  it("says a verified run is signed by its enrolled person, and claims nothing more", () => {
+    const signed: SurveyedDirectory = {
+      ...directory,
+      runs: [{ ...directory.runs[0]!, signature: "verified", person: { keyId: "k".repeat(32), label: "Ada" } }],
+    };
+    expect(describeDirectoryRuns(signed)).toEqual(["change-a (apply): Bash: npm test — said 12s ago; signed by Ada, verified"]);
+  });
+
+  it("says nothing from a record that does not check out but that it does not", () => {
+    const tampered: SurveyedDirectory = {
+      ...directory,
+      runs: [{ ...directory.runs[0]!, signature: "does-not-check-out" }],
+    };
+    expect(describeDirectoryRuns(tampered)).toEqual(["run-1: its signature does not check out"]);
   });
 
   it("counts a gone run's silence from its last heartbeat", () => {
@@ -465,7 +483,7 @@ describe("describeDirectoryRuns — ages that keep counting", () => {
       ...directory,
       runs: [{ ...directory.runs[0]!, waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } }],
     };
-    expect(describeDirectoryRuns(waiting)).toEqual(["change-a: waiting to continue to verify — said 12s ago"]);
+    expect(describeDirectoryRuns(waiting)).toEqual(["change-a: waiting to continue to verify — said 12s ago; not verified"]);
   });
 });
 

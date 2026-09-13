@@ -25,6 +25,7 @@ import {
   handleChangeTimelineRequest,
   handleChangeTimelinesRequest,
   handleDelegatedItemRunRequest,
+  handleEnrolmentConfirmRequest,
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
@@ -246,6 +247,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/human-only-inbox") {
       void handleHumanOnlyInboxRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/enrolment/confirm") {
+      void handleEnrolmentConfirmRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/delegated-item/run") {

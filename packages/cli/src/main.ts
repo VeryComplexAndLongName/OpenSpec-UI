@@ -11,6 +11,7 @@ import { leaseCommand } from "./lease-command.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
 import { adviseCommand } from "./advise-command.js";
 import { doctorCommand } from "./doctor-command.js";
+import { enrolCommand } from "./enrol-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
 import { worktreeCommand } from "./worktree-command.js";
@@ -34,6 +35,8 @@ Usage:
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli status [--cwd <path>] [--format text|json]
+  openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
+                        [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -60,6 +63,8 @@ Options:
   --change <id>       Print one change's ancestry instead of the whole
                       graph: what it follows, and what those follow
   --all               Include changes that state no relation
+  --label <text>      The name an enrolled key's person is known by
+                      (default: the run's git author)
   --repository        owner/name for the manifest's links
                       (default: VeryComplexAndLongName/OpenSpec-UI)
   --ref <ref>         Ref the manifest's links point at (default: main)
@@ -101,7 +106,14 @@ hints.enabled to false computes none.
 'status' prints what every run of this repository last said it was
 doing, and how long ago it said it — never whether a run is stuck or
 healthy, which is a person's judgement a silent agent and a hung one
-look identical to. It exits 0 whether or not anything is running.
+look identical to. It exits 0 whether or not anything is running. Each
+run says whose it is only as far as its signature shows: signed by an
+enrolled person, not verified, or a signature that does not check out.
+
+'enrol' lists the keys that sign a live run's record and are not
+enrolled, with where the run is, its machine and git author. 'enrol
+<keyId>' says a listed run was yours: its key is enrolled, and its runs
+read as signed by you. It exits 1 when the confirmation is refused.
 
 'doctor' exits 0 when nothing it found would stop a run, 1 when
 something would, and 2 when it could not look. A workspace held by a
@@ -136,6 +148,8 @@ export interface MainOptions {
   /** Where a working directory goes, and the ref it is cut from. */
   path?: string;
   base?: string;
+  /** `enrol`'s name for the person a key is enrolled for. */
+  label?: string;
 }
 
 export interface MainDeps {
@@ -154,6 +168,7 @@ export interface MainDeps {
   checkChange?: typeof checkChange;
   leaseCommand?: typeof leaseCommand;
   statusCommand?: typeof statusCommand;
+  enrolCommand?: typeof enrolCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
    * change configured to pause refuse to start rather than hang.
@@ -189,11 +204,12 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--from" ||
       arg === "--path" ||
       arg === "--base" ||
-      arg === "--change"
+      arg === "--change" ||
+      arg === "--label"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -334,6 +350,19 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "enrol") {
+    return await (deps.enrolCommand ?? enrolCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        // The key comes where `run <change>` puts its subject.
+        ...(options.changeName !== undefined ? { keyId: options.changeName } : {}),
+        ...(options.label !== undefined ? { label: options.label } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "move" && action !== "remove") {
@@ -385,7 +414,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, status, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

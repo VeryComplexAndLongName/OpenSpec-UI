@@ -25,6 +25,8 @@ import type {
 } from "./human-only-inbox-view.js";
 import type { HarnessTaskAgents } from "./harness-step-agent.js";
 import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-items.js";
+import { readEnrolmentRequests } from "./enrolment.js";
+import type { EnrolmentRequest } from "./signature-facts.js";
 import { readTaskChecklist } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
@@ -60,7 +62,13 @@ export {
  * so an archived change has nothing waiting by construction — and
  * reading 178 of them to confirm that would cost the caller a page load.
  */
-export async function collectHumanOnlyInbox(workspaceRoot: string): Promise<HumanOnlyInbox> {
+export interface HumanOnlyInboxOptions {
+  /** Test seam: the keys waiting to be enrolled. Production reads them
+   * beside the repository's status directory. */
+  readEnrolments?: (workspaceRoot: string) => Promise<EnrolmentRequest[]>;
+}
+
+export async function collectHumanOnlyInbox(workspaceRoot: string, options: HumanOnlyInboxOptions = {}): Promise<HumanOnlyInbox> {
   const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
   const items: HumanOnlyItem[] = [];
   const unmatchedTaskAgents: UnmatchedTaskAgent[] = [];
@@ -102,5 +110,12 @@ export async function collectHumanOnlyInbox(workspaceRoot: string): Promise<Huma
     }
   }
 
-  return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents };
+  // Best-effort, like the task agents above: a workspace that is not a git
+  // repository, or has no status directory, has nobody waiting to be
+  // enrolled, and the items still answer.
+  const readEnrolments = options.readEnrolments
+    ?? (async (root: string) => (await readEnrolmentRequests(root)).requests);
+  const enrolments = await readEnrolments(workspaceRoot).catch((): EnrolmentRequest[] => []);
+
+  return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents, enrolments };
 }

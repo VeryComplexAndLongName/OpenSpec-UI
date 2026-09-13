@@ -33,6 +33,9 @@ const REPORT: AgentStatusReport = {
   runId: null,
   task: null,
   waiting: null,
+  signature: "unverified",
+  machine: null,
+  gitAuthor: null,
 };
 
 describe("statusCommand", () => {
@@ -239,5 +242,45 @@ describe("statusCommand — the task in hand and the wait (a-run-says-which-task
       { ...io, resolveDirectory: async () => "/status", read: async () => ({ reports: [report], malformed: [] }) },
     );
     expect(JSON.parse(io.out.join("\n")).reports[0]).toMatchObject({ runId: "run-42", task: report.task, waiting: report.waiting });
+  });
+});
+
+describe("statusCommand — whose a run is (a-run-is-signed-by-its-person 5.6)", () => {
+  async function print(report: AgentStatusReport, format: "text" | "json" = "text") {
+    const io = collectingIo();
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format },
+      { ...io, resolveDirectory: async () => "/status", read: async () => ({ reports: [report], malformed: [] }) },
+    );
+    expect(code).toBe(0);
+    return io.out.join("\n");
+  }
+
+  it("says a run whose record is not verified is not verified", async () => {
+    expect(await print(REPORT)).toContain("    not verified");
+  });
+
+  it("names the enrolled person of a verified run", async () => {
+    const text = await print({ ...REPORT, signature: "verified", person: { keyId: "a".repeat(32), label: "Ada" } });
+    expect(text).toContain("    signed by Ada, verified");
+  });
+
+  it("prints nothing a record that does not check out says, only its name and that it does not", async () => {
+    const text = await print({
+      ...REPORT,
+      activity: "",
+      changeName: null,
+      stage: null,
+      workingDirectory: "",
+      signature: "does-not-check-out",
+      signatureProblem: "its signature does not verify over its payload",
+    });
+    expect(text).toBe("an-instance\n    its signature does not check out");
+  });
+
+  it("carries the signature and the person in its json", async () => {
+    const person = { keyId: "a".repeat(32), label: "Ada" };
+    const json = JSON.parse(await print({ ...REPORT, signature: "verified", person }, "json"));
+    expect(json.reports[0]).toMatchObject({ signature: "verified", person });
   });
 });

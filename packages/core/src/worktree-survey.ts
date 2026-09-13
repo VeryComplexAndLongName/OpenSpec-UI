@@ -167,6 +167,8 @@ function toRun(report: AgentStatusReport, tasks: readonly TaskChecklistItem[] | 
     runId: report.runId,
     waiting: report.waiting,
     ...(task ? { task } : {}),
+    signature: report.signature,
+    ...(report.person ? { person: report.person } : {}),
   };
 }
 
@@ -186,7 +188,8 @@ export function attachRunsToDirectories(
   const claimed = new Set<AgentStatusReport>();
   const attached = directories.map((directory) => {
     const key = pathKey(directory.path);
-    const runs = reports.filter((report) => pathKey(report.workingDirectory) === key);
+    // A record that does not check out names no directory anyone can trust.
+    const runs = reports.filter((report) => report.signature !== "does-not-check-out" && pathKey(report.workingDirectory) === key);
     for (const report of runs) claimed.add(report);
     return {
       ...directory,
