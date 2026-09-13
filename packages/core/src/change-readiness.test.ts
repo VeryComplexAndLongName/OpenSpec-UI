@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { AgentStatusReport } from "./agent-status.js";
 import { readChangeReadiness, describeCollision } from "./change-readiness.js";
 import type { GitWorktree, GitWrapper } from "./git.js";
 
@@ -289,6 +290,135 @@ describe("readChangeReadiness — somewhere to run", () => {
     // Every change is then one without a working directory, which is a
     // true statement and a more useful report than none.
     expect(report.changes[0]?.run).toEqual({ state: "ready" });
+  });
+});
+
+describe("readChangeReadiness — a run's record (a-change-is-running-when-its-run-says-so)", () => {
+  function record(overrides: Partial<AgentStatusReport> & { workingDirectory: string }): AgentStatusReport {
+    const at = new Date().toISOString();
+    return {
+      instanceId: "run-1",
+      activity: "Bash: npm test",
+      stage: "apply",
+      changeName: "alpha",
+      activitySinceMs: 1_000,
+      heartbeatAgeMs: 1_000,
+      activityAt: at,
+      heartbeatAt: at,
+      gone: false,
+      runId: "r1",
+      task: null,
+      waiting: null,
+      ...overrides,
+    };
+  }
+
+  // 4.1
+  it("calls a change running when a live record in this checkout names it, claiming no holder", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha");
+    await makeChange(root, "beta");
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: root, branch: "main" }] }),
+      statuses: [record({ workingDirectory: root })],
+    });
+
+    const alpha = report.changes.find((change) => change.changeName === "alpha");
+    expect(alpha?.run).toEqual({
+      state: "running",
+      worktreePath: root,
+      reportedBy: { instanceId: "run-1", workingDirectory: root },
+    });
+    expect(alpha?.needsWorktree).toBeUndefined();
+    expect(report.changes.find((change) => change.changeName === "beta")?.run).toEqual({ state: "ready" });
+  });
+
+  it("carries both the lease's holder and the record where the change's own worktree has both", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha");
+    const worktree = path.join(root, "wt", "alpha");
+    await writeLease(worktree, { pid: 777 });
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: root, branch: "main" }, { path: worktree, branch: "alpha" }] }),
+      statuses: [record({ workingDirectory: worktree })],
+    });
+
+    expect(report.changes[0]?.run).toMatchObject({
+      state: "running",
+      worktreePath: worktree,
+      holder: { pid: 777 },
+      reportedBy: { instanceId: "run-1", workingDirectory: worktree },
+    });
+  });
+
+  it("does not call a change running on a record that is gone", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha");
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: root, branch: "main" }] }),
+      statuses: [record({ workingDirectory: root, gone: true })],
+    });
+
+    expect(report.changes[0]?.run).toEqual({ state: "ready" });
+  });
+
+  it("does not call a change running on a record from an unrelated worktree that names it", async () => {
+    // A copy of the change in another directory is a different change
+    // (ADR 0026): a run there touches nothing here.
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha");
+    const unrelated = path.join(root, "wt", "proposals");
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: root, branch: "main" }, { path: unrelated, branch: "proposals" }] }),
+      statuses: [record({ workingDirectory: unrelated })],
+    });
+
+    expect(report.changes[0]?.run).toEqual({ state: "ready" });
+  });
+
+  it("gives the same report as no records where the status directory cannot be read", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha");
+    // No seam: the reading locates the directory from a main worktree path
+    // that does not exist, under a root that cannot be resolved there.
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: path.join(root, "no-such-main"), branch: "main" }] }),
+    });
+    const withNone = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: [{ path: path.join(root, "no-such-main"), branch: "main" }] }),
+      statuses: [],
+    });
+
+    expect(report).toEqual(withNone);
+  });
+
+  it("leaves a running change out of every other change's pairing", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha", { capabilities: ["ci-cli"] });
+    await makeChange(root, "beta", { capabilities: ["shared-ui"] });
+    const alphaTree = path.join(root, "wt", "alpha");
+    const betaTree = path.join(root, "wt", "beta");
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({
+        worktrees: [{ path: root, branch: "main" }, { path: alphaTree, branch: "alpha" }, { path: betaTree, branch: "beta" }],
+      }),
+      statuses: [record({ workingDirectory: alphaTree })],
+    });
+
+    expect(report.changes.find((change) => change.changeName === "beta")?.canJoin).toEqual([]);
+    expect(report.changes.find((change) => change.changeName === "beta")?.blockedFrom).toEqual([]);
   });
 });
 

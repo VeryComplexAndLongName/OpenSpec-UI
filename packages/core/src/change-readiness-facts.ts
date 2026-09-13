@@ -25,9 +25,20 @@ export type ChangeCollision =
   | { kind: "overlapping-files"; files: string[] };
 
 export type ChangeRunState =
-  /** A working directory of this repository is holding the workspace for
-   * this change right now. */
-  | { state: "running"; worktreePath: string; holder: WorkspaceLeaseConflict }
+  /** A run is working on this change right now: a lease holds the change's
+   * own worktree, or a live status record names the change from this
+   * checkout or from that worktree (ADR 0029).
+   *
+   * `holder` says who, and is present only where a lease was read.
+   * `reportedBy` says which run's record said so. A record carries no
+   * host, pid or author, so where only a record speaks nothing is claimed
+   * about who is running it (a-change-is-running-when-its-run-says-so). */
+  | {
+    state: "running";
+    worktreePath: string;
+    holder?: WorkspaceLeaseConflict;
+    reportedBy?: { instanceId: string; workingDirectory: string };
+  }
   /** Something this change declares is not satisfied yet. */
   | { state: "blocked"; blockedBy: string[] }
   | { state: "ready" };

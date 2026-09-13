@@ -12,11 +12,14 @@
 // because it is believed.
 
 import path from "node:path";
+import { agentStatusDirectory, readAgentStatuses, type AgentStatusReport } from "./agent-status.js";
 import { readChangeGraph, type ChangeGraph } from "./change-graph.js";
 import { listChangeWorktrees, type ChangeWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { pathKey } from "./path-key.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
+import { resolveWorktreeRoot } from "./worktree-root.js";
 import type { ChangeCollision, ChangeReadiness, ChangeReadinessReport, ChangeRunState } from "./change-readiness-facts.js";
 
 // The report's shape and the words it is described in live in a leaf the
@@ -104,6 +107,27 @@ export interface ChangeReadinessOptions {
   git?: GitWrapper;
   /** Test seam for the lease's staleness window. */
   staleAfterMs?: number;
+  /** Test seam: the runs' status records, in place of reading them. */
+  statuses?: AgentStatusReport[];
+}
+
+/** The runs' status records, read from the directory beside the
+ * repository's working directories, located from the main working
+ * directory `listChangeWorktrees` already listed — no git of its own.
+ *
+ * A diagnostic about runs must never make a readiness report fail: a
+ * directory that cannot be read gives no records, and the report is what
+ * it would have been without them. */
+async function readStatuses(worktrees: readonly ChangeWorktree[], seam: AgentStatusReport[] | undefined): Promise<AgentStatusReport[]> {
+  if (seam !== undefined) return seam;
+  const main = worktrees.find((worktree) => worktree.isMain);
+  if (main === undefined) return [];
+  try {
+    const { root } = await resolveWorktreeRoot(main.path, {});
+    return (await readAgentStatuses(agentStatusDirectory(root, main.path))).reports;
+  } catch {
+    return [];
+  }
 }
 
 /** Every active change, its state, and — for the ready ones — which
@@ -135,6 +159,19 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
   const worktreeByChange = new Map(
     worktrees.filter((worktree) => worktree.changeName !== undefined).map((w) => [w.changeName as string, w]),
   );
+  const statuses = await readStatuses(worktrees, options.statuses);
+  const workspaceKey = pathKey(workspaceRoot);
+
+  /** The live record that says a run is on `changeName`, from this
+   * checkout or from the change's own worktree. A copy of the change in
+   * any other directory is a different change (ADR 0026), so a record
+   * from there does not count, and the name alone is never enough. */
+  const reportFor = (changeName: string, worktree: ChangeWorktree | undefined): AgentStatusReport | undefined =>
+    statuses.find((report) => {
+      if (report.gone || report.changeName !== changeName) return false;
+      const key = pathKey(report.workingDirectory);
+      return key === workspaceKey || (worktree !== undefined && key === pathKey(worktree.path));
+    });
 
   const filesByChange = new Map<string, string[]>();
   const changes: ChangeReadiness[] = [];
@@ -156,12 +193,28 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
         ? { staleAfterMs: options.staleAfterMs }
         : {})
       : undefined;
+    const record = reportFor(changeName, worktree);
 
-    const run: ChangeRunState = holder && worktree
-      ? { state: "running", worktreePath: worktree.path, holder }
-      : unmet.length > 0
-        ? { state: "blocked", blockedBy: unmet }
-        : { state: "ready" };
+    let run: ChangeRunState;
+    if ((holder !== undefined && worktree !== undefined) || record !== undefined) {
+      // The lease says who holds the worktree; the record says a run is
+      // on this change (ADR 0028). Either makes the change running, and
+      // each is carried as what it is.
+      run = {
+        state: "running",
+        worktreePath: holder !== undefined && worktree !== undefined
+          ? worktree.path
+          : (record as AgentStatusReport).workingDirectory,
+        ...(holder !== undefined && worktree !== undefined ? { holder } : {}),
+        ...(record !== undefined
+          ? { reportedBy: { instanceId: record.instanceId, workingDirectory: record.workingDirectory } }
+          : {}),
+      };
+    } else if (unmet.length > 0) {
+      run = { state: "blocked", blockedBy: unmet };
+    } else {
+      run = { state: "ready" };
+    }
 
     changes.push({
       changeName,
@@ -192,4 +245,3 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
 
   return { changes };
 }
-

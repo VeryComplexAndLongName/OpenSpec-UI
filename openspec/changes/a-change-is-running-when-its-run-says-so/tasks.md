@@ -3,7 +3,7 @@ worktree is drawn once (ADR 0029).
 
 ## 1. Readiness reads the runs' records
 
-- [ ] 1.1 `readChangeReadiness` in `packages/core/src/change-readiness.ts`
+- [x] 1.1 `readChangeReadiness` in `packages/core/src/change-readiness.ts`
   reads the status records with `readAgentStatuses` from
   `agentStatusDirectory(root, mainPath)`.
   - `mainPath` is the `path` of the main entry in the
@@ -13,7 +13,7 @@ worktree is drawn once (ADR 0029).
   No other git runs for this. A `statuses?: AgentStatusReport[]` option
   replaces the reading in tests. When the directory cannot be read,
   readiness is computed exactly as it is today.
-- [ ] 1.2 A record makes a change running when all of these hold:
+- [x] 1.2 A record makes a change running when all of these hold:
   - the record is not `gone`;
   - its `changeName` equals the change's name;
   - its `workingDirectory`, compared with `pathKey`, is either the
@@ -23,26 +23,36 @@ worktree is drawn once (ADR 0029).
   `pathKey` moves out of `worktree-survey.ts` into a module both files
   import. A record that names the change from any other directory does
   not count; do not match on the change name alone.
-- [ ] 1.3 In `packages/core/src/change-readiness-facts.ts`, the running
+
+  Done: `packages/core/src/path-key.ts`, imported by both.
+- [x] 1.3 In `packages/core/src/change-readiness-facts.ts`, the running
   variant of `ChangeRunState` becomes
   `{ state: "running"; worktreePath: string; holder?: WorkspaceLeaseConflict; reportedBy?: { instanceId: string; workingDirectory: string } }`.
   - A lease holder sets `holder`, a record sets `reportedBy`, and both
     can be present.
   - Where only a record says the change is running, `worktreePath` is the
     record's `workingDirectory`.
-- [ ] 1.4 A running change is not ready:
+- [x] 1.4 A running change is not ready:
   - it takes no part in any other change's `canJoin` or `blockedFrom`;
   - it gets no `needsWorktree`;
   - `buildHints` suggests nothing that starts it.
-- [ ] 1.5 Every reader of `run.holder` handles a missing holder. Once the
+- [x] 1.5 Every reader of `run.holder` handles a missing holder. Once the
   field is optional, the type checker lists the readers. The local card
   detail in `packages/webui/src/components/PipelineView.tsx`, which writes
   the `git author` line, names no author when there is no holder. Record
   each reader that was fixed.
 
+  Readers fixed, as the type checker listed them:
+  - `packages/core/src/hints.ts`: the held-by-a-finished-run hint skips a
+    change with no holder, since there is no lease to release;
+  - `packages/cli/src/ready-command.ts`: pid and last active are printed
+    only with a holder, else `in <directory> (its run reports it)`;
+  - `packages/webui/src/components/PipelineView.tsx`: the card's
+    `git author` line reads `run.holder?.author`.
+
 ## 2. `ready` in the terminal
 
-- [ ] 2.1 `openspec-ui-cli ready`, in `packages/cli/src/ready-command.ts`,
+- [x] 2.1 `openspec-ui-cli ready`, in `packages/cli/src/ready-command.ts`,
   reports a change that is running on a record's account as running. It
   names the change's directory and prints no author line. Where `ready`
   prints JSON, the running state carries `reportedBy` exactly as core
@@ -50,17 +60,17 @@ worktree is drawn once (ADR 0029).
 
 ## 3. A change drawn once
 
-- [ ] 3.1 `packages/core/src/change-worktrees.ts` gets a pure function,
+- [x] 3.1 `packages/core/src/change-worktrees.ts` gets a pure function,
   `changeOfWorktree(worktree: GitWorktree, isMain: boolean): string | undefined`,
   that states the pairing rule `listChangeWorktrees` applies: the worktree
   is not the main working directory, and its branch is a valid change
   name. `listChangeWorktrees` calls it instead of applying the rule
   inline.
-- [ ] 3.2 `SurveyedDirectory` in `packages/core/src/worktree-survey-facts.ts`
+- [x] 3.2 `SurveyedDirectory` in `packages/core/src/worktree-survey-facts.ts`
   gains `belongsTo?: string`. `surveyWorktrees` sets it to the result of
   `changeOfWorktree` when that change is active in the main working
   directory's own queue.
-- [ ] 3.3 `OtherDirectories` in
+- [x] 3.3 `OtherDirectories` in
   `packages/webui/src/components/PipelineView.tsx` does not draw the change
   that `belongsTo` names inside that directory. Under the directory's
   heading, it says the directory is the worktree of that change, which is
@@ -69,7 +79,7 @@ worktree is drawn once (ADR 0029).
 
 ## 4. Tests
 
-- [ ] 4.1 core `change-readiness.test.ts`, using the `statuses` seam:
+- [x] 4.1 core `change-readiness.test.ts`, using the `statuses` seam:
   - a live record in the workspace root makes the change running, with
     `reportedBy` and no `holder`;
   - a live record in the change's own worktree, while that worktree's lease
@@ -79,39 +89,60 @@ worktree is drawn once (ADR 0029).
     not make it running;
   - a status directory that cannot be read gives the same report as
     reading with no records.
-- [ ] 4.2 core `hints.test.ts`: a change that is running on a record's
+- [x] 4.2 core `hints.test.ts`: a change that is running on a record's
   account gets no hint to start it, and appears in no other change's
   `canJoin`.
-- [ ] 4.3 core `change-worktrees.test.ts`: `changeOfWorktree` for the main
+
+  The `canJoin` half is asserted where `canJoin` is computed, in
+  `change-readiness.test.ts` ("leaves a running change out of every other
+  change's pairing").
+- [x] 4.3 core `change-worktrees.test.ts`: `changeOfWorktree` for the main
   directory, for a branch named after a change, for a branch that is not a
   valid change name, and for a detached head.
-- [ ] 4.4 core `worktree-survey.test.ts`:
+- [x] 4.4 core `worktree-survey.test.ts`:
   - `belongsTo` is set on a worktree whose branch is an active change;
   - it is absent for the main directory;
   - it is absent for a branch that is not a change;
   - it is absent for a change that has been archived in the main
     directory.
-- [ ] 4.5 cli `ready-command.test.ts`: a change that is running on a
+- [x] 4.5 cli `ready-command.test.ts`: a change that is running on a
   record's account prints as running, with its directory and no author.
-- [ ] 4.6 webui `PipelineView.test.tsx`:
+- [x] 4.6 webui `PipelineView.test.tsx`:
   - a running change with no holder shows no author line;
   - a worktree that belongs to a change is drawn without that change and
     says whose it is;
   - another change in that worktree is still drawn.
-- [ ] 4.7 Browser suite, `e2e/pipeline.spec.ts`: a change that has its own
+- [x] 4.7 Browser suite, `e2e/pipeline.spec.ts`: a change that has its own
   worktree is shown once, and the tab passes axe at WCAG AA. If the fixture
   has no such worktree, add one on a branch named after one of its
   changes.
+  Done: the fixture adds a worktree on branch `pipeline-unrelated`. Its
+  section says whose it is, draws no `pipeline-unrelated` card and still
+  draws `pipeline-first`. The other directories are found by their
+  accessible names, since git lists worktrees in an order of its own.
 
 ## 5. Verification
 
-- [ ] 5.1 This change validates strictly. `check(validate-change)`
+- [x] 5.1 This change validates strictly. `check(validate-change)`
 - [ ] 5.2 `npm run verify`, unpiped, after the last edit and with everything
   staged. Record the run and the test count for each package.
-- [ ] 5.3 A pending changeset exists: core minor, cli and webui patch.
+  Local run 2026-09-14, exit code 1. Typecheck and every lint passed.
+  Tests: cli 143 passed; core 1297 passed, 1 failed; extension 351 passed;
+  server 86 passed; webui 434 passed. The one failure is
+  `keeps accepting this repository's real openspec/agent-harness.json`,
+  which reads the working tree's file: an uncommitted local edit, not part
+  of this change, sets its `autonomyLevel` to `semi-autonomous`. To be
+  closed on CI's run of the same checks against the committed tree.
+- [x] 5.3 A pending changeset exists: core minor, cli and webui patch.
   `check(changeset-present)`
-- [ ] 5.4 Run the whole browser suite, not a selected spec. Regenerate
+- [x] 5.4 Run the whole browser suite, not a selected spec. Regenerate
   `docs/images/standalone/pipeline.png` and look at it.
+  Done 2026-09-13: `npm run test:browser` in `packages/server`, 18 passed
+  (3.6 min). In the retaken picture the `pipeline-unrelated` worktree reads
+  "The worktree of pipeline-unrelated, which is drawn above." and holds
+  only `pipeline-first` and `pipeline-second`; the change is one card, in
+  this directory's picture. The pictures it retook of screens this change
+  does not touch were left as they were.
 - [ ] 5.5 **Delegated to claude-cli**: check readiness against a real run.
 
   Setup: a scratch git repository outside this one, with two active

@@ -198,8 +198,12 @@ every surface that shows it (ADR 0029).
 - [x] 6.1 This change validates strictly. `check(validate-change)`
   Done: `openspec validate a-run-says-which-task-it-is-on --strict`
   reports it valid, 2026-09-13.
-- [ ] 6.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 6.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count for each package.
+  Closed on CI:
+  [run 34779902415](https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34779902415)
+  of the change's branch ran typecheck, lint, test and build against the committed tree and
+  succeeded, with the extension integration and standalone browser jobs.
   Local run 2026-09-13, rebased on `0bccf41`, exit code 1. Typecheck and
   every lint passed. Tests: cli 141 passed; core 1285 passed, 1 failed;
   extension 351 passed; server 86 passed; webui 431 passed. The one failure

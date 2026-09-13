@@ -412,7 +412,9 @@ function describeChange(node: ChangeLayoutNode): string[] {
     lines.push(`in ${change.run.worktreePath}`);
     // "git author", never "user": self-declared, and nothing is gated on
     // it (a-lease-says-who). A run that recorded none claims nothing.
-    if (change.run.holder.author) lines.push(`git author ${change.run.holder.author}`);
+    // Only a lease records an author; a run known only by its status
+    // record claims nobody (a-change-is-running-when-its-run-says-so).
+    if (change.run.holder?.author) lines.push(`git author ${change.run.holder.author}`);
   }
 
   if (change.run.state === "blocked") lines.push(`waiting on ${change.run.blockedBy.join(", ")}`);
@@ -468,6 +470,13 @@ function OtherDirectory({ directory, index, labels, now }: {
     <section className="openspec-pipeline-directory" data-testid={testId} aria-label={`Working directory ${directory.label}`}>
       <h4 className="openspec-pipeline-directory-label">{directory.label}</h4>
       <p className="openspec-shell-note" data-testid={`${testId}-where`}>{`${branchPhrase(directory)} — ${directory.path}`}</p>
+      {directory.belongsTo ? (
+        // A change is one card, wherever it is worked (ADR 0029): this
+        // directory's copy of it is the card above, not a second card here.
+        <p className="openspec-shell-note" data-testid={`${testId}-belongs-to`}>
+          {`The worktree of ${directory.belongsTo}, which is drawn above.`}
+        </p>
+      ) : null}
       {directory.readable && directory.holder ? (
         <p
           className="openspec-shell-note openspec-pipeline-directory-holder"
@@ -507,11 +516,17 @@ function ForeignChanges({ directory, testId, labels }: {
   testId: string;
   labels: Map<string, string>;
 }) {
-  if (directory.changes.length === 0) {
-    return <p className="openspec-shell-note" data-testid={`${testId}-empty`}>No active changes on {branchPhrase(directory)}.</p>;
+  // The change this directory is the worktree of is already a card above.
+  const changes = directory.changes.filter((change) => change.changeName !== directory.belongsTo);
+  if (changes.length === 0) {
+    return (
+      <p className="openspec-shell-note" data-testid={`${testId}-empty`}>
+        {`No ${directory.belongsTo ? "other " : ""}active changes on ${branchPhrase(directory)}.`}
+      </p>
+    );
   }
-  const layout = layoutChanges({ changes: directory.changes.map(asLayoutInput) });
-  const byName = new Map(directory.changes.map((change) => [change.changeName, change]));
+  const layout = layoutChanges({ changes: changes.map(asLayoutInput) });
+  const byName = new Map(changes.map((change) => [change.changeName, change]));
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}

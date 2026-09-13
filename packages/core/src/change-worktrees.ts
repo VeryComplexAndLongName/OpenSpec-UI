@@ -174,6 +174,17 @@ export async function planChangeWorktree(options: {
   return { ok: true, path: target, branch: changeName, base };
 }
 
+/** The change a working directory belongs to, or `undefined`.
+ *
+ * ADR 0022 names a change's branch after the change, so a working
+ * directory other than the main one, on a branch that is a valid change
+ * name, is that change's own worktree. The one statement of that rule:
+ * `listChangeWorktrees` and the survey both call it, so they cannot pair a
+ * directory with a change differently. */
+export function changeOfWorktree(worktree: GitWorktree, isMain: boolean): string | undefined {
+  return !isMain && worktree.branch !== undefined && isValidChangeName(worktree.branch) ? worktree.branch : undefined;
+}
+
 /** Every working directory of the repository, with the change each one
  * belongs to and whether that change is still active.
  *
@@ -204,9 +215,7 @@ export async function listChangeWorktrees(options: {
 
   return worktrees.map((worktree, index) => {
     const isMain = index === 0;
-    const changeName = !isMain && worktree.branch && isValidChangeName(worktree.branch)
-      ? worktree.branch
-      : undefined;
+    const changeName = changeOfWorktree(worktree, isMain);
     // Only for a directory that belongs to a change: the main working
     // tree is wherever the person put the repository, and has no place
     // it ought to be instead.

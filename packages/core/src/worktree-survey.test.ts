@@ -194,6 +194,31 @@ describe("surveyWorktrees — directories and their changes", () => {
     expect(other?.readable && other.changes[0]?.alsoIn).toEqual([main]);
   });
 
+  // a-change-is-running-when-its-run-says-so 4.4
+  it("says which change a worktree belongs to only while that change is active in the main directory", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const own = path.join(worktreeRoot, "repo", "still-going");
+    const archived = path.join(worktreeRoot, "repo", "long-archived");
+    const other = path.join(worktreeRoot, "repo", "proposals");
+    await makeChange(main, "still-going");
+    await makeChange(own, "still-going");
+    await makeChange(archived, "long-archived");
+    await makeChange(other, "still-going");
+    const { git } = recordingGit([
+      { path: main, branch: "still-going" },
+      { path: own, branch: "still-going" },
+      { path: archived, branch: "long-archived" },
+      { path: other, branch: "Some/Feature" },
+    ]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    // The main directory belongs to no change whatever its branch; a worktree
+    // whose change is no longer active in main, or whose branch names none,
+    // belongs to none either.
+    expect(survey.directories.map((d) => d.belongsTo)).toEqual([undefined, "still-going", undefined, undefined]);
+  });
+
   // 6.6, 6.12
   it("asks git for the worktree list and this checkout's identity, and nothing per directory", async () => {
     const { main, worktreeRoot, rootSources } = await repository();

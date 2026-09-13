@@ -168,6 +168,9 @@ export function buildHints(report: ChangeReadinessReport, options: HintOptions =
   for (const change of report.changes) {
     if (change.run.state !== "running") continue;
     const { holder, worktreePath } = change.run;
+    // Running on a record's account alone: no lease holds anything, so
+    // there is nothing to release (a-change-is-running-when-its-run-says-so).
+    if (holder === undefined) continue;
     const staleAfterMs = options.staleAfterMs;
     // Whether a holder is gone is core's decision, made in
     // `releaseWorkspaceLease`; this only reports what the report it was

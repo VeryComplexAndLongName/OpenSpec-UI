@@ -33,6 +33,8 @@ let baseUrl: string;
  * what-the-others-are-doing. */
 let worktreeRoot: string;
 let otherDirectory: string;
+/** The worktree of `pipeline-unrelated`. */
+let ownDirectory: string;
 const worktreeRootBefore = process.env.OPENSPEC_UI_WORKTREE_ROOT;
 
 const run = promisify(execFile);
@@ -114,6 +116,10 @@ test.beforeAll(async () => {
   otherDirectory = path.join(worktreeRoot, "proposals");
   await git(workspaceRoot, ["worktree", "add", "-q", "-b", "proposals", otherDirectory, "main"]);
   await writeChange("pipeline-elsewhere", undefined, otherDirectory);
+  // a-change-is-running-when-its-run-says-so: a change with a worktree of
+  // its own, on a branch named after it. The change is one card, above.
+  ownDirectory = path.join(worktreeRoot, "pipeline-unrelated");
+  await git(workspaceRoot, ["worktree", "add", "-q", "-b", "pipeline-unrelated", ownDirectory, "main"]);
 
   server = createServer({ workspaceRoot, host: "127.0.0.1", port: 0 });
   const address = await server.listen();
@@ -161,11 +167,21 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   // the other working directory beneath it — its own change as a card
   // that is not a control, and what its run says it is doing.
   await expect(page.getByTestId("pipeline-reading-branch")).toContainText("branch main", { timeout: 15000 });
-  const other = page.getByTestId("pipeline-directory-0");
-  await expect(other).toContainText("proposals", { timeout: 15000 });
-  await expect(other.getByTestId("pipeline-directory-0-node-pipeline-elsewhere")).toHaveJSProperty("tagName", "DIV");
+  // Found by name, not by position: git lists worktrees in an order of its
+  // own.
+  const other = page.getByRole("region", { name: "Working directory proposals" });
+  await expect(other).toBeVisible({ timeout: 15000 });
+  await expect(other.locator("[data-testid$='-node-pipeline-elsewhere']")).toHaveJSProperty("tagName", "DIV");
   await expect(other.getByRole("button")).toHaveCount(0);
   await expect(page.getByTestId("pipeline").getByText("Bash: npm test", { exact: false }).first()).toBeVisible();
+
+  // a-change-is-running-when-its-run-says-so 4.7: a change's own worktree
+  // says whose it is and does not draw that change a second time; the
+  // other changes it holds are still drawn.
+  const own = page.getByRole("region", { name: `Working directory ${path.basename(ownDirectory)}` });
+  await expect(own).toContainText("The worktree of pipeline-unrelated, which is drawn above.");
+  await expect(own.locator("[data-testid$='-node-pipeline-unrelated']")).toHaveCount(0);
+  await expect(own.locator("[data-testid$='-node-pipeline-first']")).toHaveCount(1);
 
   // Every card's name is whole, in this directory's picture and in the
   // other one's. A card has a fixed height, and the first capture of this
