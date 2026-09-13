@@ -164,7 +164,7 @@ passed; core, server (with its browser specs) and webui typecheck.
   passed (4.5m), exit 0.
 - [x] 7.4 A pending changeset exists. `check(changeset-present)`
   `.changeset/what-the-others-are-doing.md`.
-- [ ] 7.5 **Delegated to `claude-cli`**: with a second agent actually
+- [ ] 7.5 **Delegated to claude-cli**: with a second agent actually
   working in a second working directory, open the tab and check that its
   label, branch and changes are the ones on disk there, that nothing
   offers to act on them, that a run held there names its git author, and
