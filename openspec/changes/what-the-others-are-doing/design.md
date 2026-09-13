@@ -38,6 +38,43 @@ editing files holds none. Reporting that as "idle" would be the same
 mistake as calling a git author a user: a word the data does not
 support, believed because it was displayed.
 
+What a run says about itself is a different thing from an inference, and
+is reported as exactly that — see "what a directory's runs say", below.
+
+## Decision: what a directory's runs say, from the records they already write
+
+Added 2026-09-13, after `an-agent-says-what-it-is-doing` gave every run
+this product starts a status record (ADR 0028). Without it, a directory
+whose agent has been running a command for twenty minutes and a
+directory nobody is in look the same.
+
+The records live in one directory shared by every working directory of
+the repository. Reading them is one directory read per survey, not one
+per working directory, and that directory is resolved from the `git
+worktree list` output the survey already has — no second git invocation.
+`resolveAgentStatusDirectory` runs its own `worktreeList` today, so the
+survey passes the list it holds instead of calling it.
+
+Each record is attached to the working directory whose path it names. A
+record naming a path that is no longer a working directory — removed
+since the run started — is reported as belonging to none, rather than
+dropped or attached to a guess.
+
+What is shown is what the run said: its change, its stage, its activity,
+how long since it said so, and whether its heartbeat has lapsed past the
+window. No verdict, by the same rule `openspec-ui-cli status` follows: a
+long turn and a hang produce the same silence.
+
+A directory with no record is not idle. A record exists only for a run
+this product started. A person editing files, or an agent session
+started some other way — the session that wrote this amendment was one —
+writes none. The survey says no run reports there, and says nothing
+more.
+
+Reading is not sweeping. Removing records whose writer is gone belongs to
+`a-stale-status-is-swept`; the survey only reads, and shows a lapsed
+record as gone.
+
 ## Decision: the label, and why it lives in the directory
 
 Each directory has a short label, defaulting to the last segment of its

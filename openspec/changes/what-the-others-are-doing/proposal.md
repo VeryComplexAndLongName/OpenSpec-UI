@@ -26,6 +26,15 @@ running from the lease each one holds; `a-lease-says-who` made the lease
 say whose run it is; `a-graph-of-what-is-running` drew the result. Every
 one of them stops at the edge of the directory it was given.
 
+What a directory holds is half of what was missing; the other half is
+what is happening in it. Since `an-agent-says-what-it-is-doing`, every
+run this product starts writes a status record beside the repository's
+working directories — what it is doing, in which change and directory,
+and how long ago it said so — and `openspec-ui-cli status` prints them.
+This proposal was written before those records existed and read none of
+them, so a directory whose agent has been running a command for twenty
+minutes would look exactly like one nobody is in.
+
 Nothing about that edge is expensive to cross. A working directory is
 not a remote thing: `git worktree` shares one object store, and the
 sibling's `.git` is a file naming a subdirectory of this one. The survey
@@ -36,6 +45,12 @@ is a local read, with no daemon, no network and no registry.
 - A **survey** of every working directory of this repository: its label,
   the branch it has checked out, the changes in its own queue, how far
   each one's tasks have got, and who holds it where a run does.
+- **What each directory's runs say they are doing**, from the status
+  records runs already write: the change, the stage, the activity, and
+  how long ago it was said, with a run whose record has lapsed shown as
+  gone. A directory with no record is **not idle** — a session this
+  product did not start writes none — and is described as one where no
+  run reports.
 - The pipeline tab shows each directory's changes as their own picture —
   this one at full strength, the others recessed beneath it. Nothing
   foreign enters the local order, and no relation is drawn between
@@ -59,7 +74,8 @@ is a local read, with no daemon, no network and no registry.
 ## Impact
 
 - `packages/core` — a survey module beside `change-readiness`, reading
-  directories rather than deriving new facts about them.
+  directories rather than deriving new facts about them, and the status
+  records `agent-status.ts` already reads.
 - `packages/server` — one endpoint carrying the survey.
 - `packages/webui` — the foreign bands under the local picture, and the
   branch each reading names.

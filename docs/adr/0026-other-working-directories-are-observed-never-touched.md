@@ -135,6 +135,21 @@ same reasoning ADR-0025 used for the tab itself.
 The survey is a reading, never a subscription. A directory can change
 between two of them, and the view says when it last looked.
 
+## Amendment, 2026-09-13: what a directory's runs say
+
+ADR-0028 gave every run this product starts a status record, in one
+directory beside all of a repository's working directories. The survey
+reads those records too, and shows under each directory what its runs
+say they are doing and how long ago.
+
+This stays inside every rule above. The records are read once per
+survey from a directory the survey locates with the `git worktree list`
+it already ran, so no git is run against a foreign directory and no
+subprocess is added. Nothing is acted on: a record is read, never
+removed or renewed. And a directory with no record is not called idle —
+a session this product did not start writes none, which is the same
+reason a directory with no lease is not called idle.
+
 ## Alternatives considered
 
 **A central registry or daemon agents report to.** Rejected: the
