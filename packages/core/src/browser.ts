@@ -191,6 +191,9 @@ export * from "./change-readiness-facts.js";
 // `worktree-survey.ts`, which lists worktrees and reads each directory,
 // stays Node-only.
 export * from "./worktree-survey-facts.js";
+// How many lines a Pipeline card holds, from the same rem the stylesheet
+// uses — the-pipeline-shows-what-it-has-read. Arithmetic only.
+export * from "./pipeline-card.js";
 // Pure over that report, so the shell renders exactly the suggestions
 // the terminal prints rather than deriving its own —
 // a-hint-says-what-can-run-together.

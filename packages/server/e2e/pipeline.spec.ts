@@ -176,6 +176,22 @@ test("draws the declared order, and passes axe", async ({ page }) => {
       .map((name) => name.textContent));
   expect(clippedNames).toEqual([]);
 
+  // the-pipeline-shows-what-it-has-read 3.4: no card draws part of a line.
+  // Every drawn line — the name, the state, each detail not left beyond
+  // the card's budget — ends inside its card's padding box.
+  const cutLines = await page.getByTestId("pipeline").evaluate((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>(".openspec-pipeline-node")).flatMap((card) => {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      const inner = box.bottom - parseFloat(style.borderBottomWidth);
+      return Array.from(card.querySelectorAll<HTMLElement>(
+        ".openspec-pipeline-node-name, .openspec-pipeline-node-state, .openspec-pipeline-node-detail:not(.openspec-pipeline-node-detail--beyond)",
+      ))
+        .filter((line) => line.getBoundingClientRect().bottom > inner + 0.5)
+        .map((line) => `${card.dataset.testid ?? "a card"}: ${line.textContent ?? ""}`);
+    }));
+  expect(cutLines).toEqual([]);
+
   // A card is a real control, which is what keeps it focusable without
   // any of that having to be supplied by hand (ADR 0025). Asserted by
   // focusing it rather than by its accessible name — the name contains

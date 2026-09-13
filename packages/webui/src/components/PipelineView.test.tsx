@@ -359,6 +359,71 @@ describe("PipelineView", () => {
     expect(node).toHaveAttribute("title", expect.stringContaining("not with beta"));
   });
 
+  // the-pipeline-shows-what-it-has-read 2.4, 3.3
+  it("draws only the lines a card holds, keeps the rest on the card, and counts them on the last drawn line", async () => {
+    const collisions = [{ kind: "overlapping-files" as const, files: ["a.ts"] }];
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha", {
+          worktreePath: "/w/alpha",
+          blockedFrom: ["beta", "gamma", "delta", "epsilon"].map((changeName) => ({ changeName, collisions })),
+        }))}
+      />,
+    );
+
+    const node = await screen.findByTestId("pipeline-node-alpha");
+    const details = Array.from(node.querySelectorAll(".openspec-pipeline-node-detail"));
+    const drawn = details.filter((detail) => !detail.classList.contains("openspec-pipeline-node-detail--beyond"));
+    const beyond = details.filter((detail) => detail.classList.contains("openspec-pipeline-node-detail--beyond"));
+
+    expect(drawn).toHaveLength(2);
+    expect(beyond).toHaveLength(2);
+    expect(drawn[1]?.querySelector(".openspec-pipeline-node-more")).toHaveTextContent("+2");
+    // Every line is still on the card, and in its title.
+    for (const other of ["beta", "gamma", "delta", "epsilon"]) {
+      expect(node).toHaveTextContent(`not with ${other}`);
+      expect(node).toHaveAttribute("title", expect.stringContaining(`not with ${other}`));
+    }
+  });
+
+  it("counts nothing on a card whose lines all fit", async () => {
+    render(<PipelineView isActive load={async () => report(change("alpha", { worktreePath: "/w/alpha" }))} />);
+
+    const node = await screen.findByTestId("pipeline-node-alpha");
+    expect(node.querySelector(".openspec-pipeline-node-more")).toBeNull();
+    expect(node.querySelector(".openspec-pipeline-node-detail--beyond")).toBeNull();
+  });
+
+  // the-pipeline-shows-what-it-has-read 1.1, 1.2, 3.2
+  it("shows the other working directories while this one is still being read", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={() => new Promise(() => undefined)}
+        survey={async () => survey(directory(), theirs())}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-others")).toHaveTextContent("theirs");
+    expect(screen.getByTestId("pipeline-loading")).toHaveTextContent("Reading what is running");
+    expect(screen.getByTestId("pipeline-read-at")).toHaveTextContent("Last read not yet");
+  });
+
+  it("shows the other working directories when this one could not be read", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => { throw new Error("not a git repository"); }}
+        survey={async () => survey(directory(), theirs())}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-error")).toHaveTextContent("not a git repository");
+    expect(await screen.findByTestId("pipeline-others")).toHaveTextContent("theirs");
+    expect(screen.queryByTestId("pipeline-loading")).toBeNull();
+  });
+
   it("shows the suggestions the payload carried, and nothing where it carried none", async () => {
     const withHints = {
       ...report(change("alpha", { worktreePath: "/w/alpha" })),

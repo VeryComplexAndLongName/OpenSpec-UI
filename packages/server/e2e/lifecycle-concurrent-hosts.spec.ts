@@ -74,6 +74,6 @@ test("a second host's mutating run is blocked by an active workspace lease", asy
   } finally {
     await firstServer.close();
     await secondServer.close();
-    await rm(workspaceRoot, { recursive: true, force: true });
+    await rm(workspaceRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

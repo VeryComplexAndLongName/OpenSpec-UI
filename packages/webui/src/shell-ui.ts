@@ -1,3 +1,5 @@
+import { PIPELINE_CARD_REM } from "@openspec-ui/core/browser";
+
 export function buildDefaultChangeDir(cwd: string): string {
   const trimmed = cwd.trim();
   if (!trimmed) return "";
@@ -1225,19 +1227,25 @@ export const shellThemeCss = `
     height: calc(var(--u) * var(--h));
     /* Sets no font-size of its own, on purpose: --u is a token, and a
        card that changed its font-size would still be fine with rem but
-       would silently break the moment anybody made the unit an em. */
+       would silently break the moment anybody made the unit an em. Its
+       lines set their own sizes, in rem. */
+    font-family: inherit;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 1px;
     /* Fixed size, so text beyond it is clipped rather than allowed to
        move the card's neighbours away from the coordinates core gave.
-       The text stays in the DOM: a card must not be able to remove a
-       fact the change is required to state. */
+       What fits is decided before drawing: every vertical length on a
+       card is one core counts its lines by (PIPELINE_CARD_REM,
+       the-pipeline-shows-what-it-has-read), so a card draws whole lines
+       and never half of one. The text stays in the DOM: a card must not
+       be able to remove a fact the change is required to state. */
     overflow: hidden;
     text-align: left;
-    padding: 6px 8px;
+    padding: ${PIPELINE_CARD_REM.paddingBlock}rem 8px;
     border: 1px solid var(--line-strong);
+    border-top-width: ${PIPELINE_CARD_REM.borderBlock}rem;
+    border-bottom-width: ${PIPELINE_CARD_REM.borderBlock}rem;
     border-left-width: 4px;
     border-radius: var(--radius);
     background: var(--surface);
@@ -1261,11 +1269,10 @@ export const shellThemeCss = `
   }
 
   .openspec-pipeline-node-name {
+    font-size: 0.8125rem;
+    line-height: ${PIPELINE_CARD_REM.nameLine}rem;
     font-weight: 600;
-    /* The part a reader scans for gets the room. It also never shrinks:
-       its own overflow: hidden lets a fixed-height column squeeze it to
-       nothing first, so a card with one line too many lost its name and
-       kept its details. The card clips from the bottom instead. */
+    /* The part a reader scans for gets the room, and never shrinks. */
     flex-shrink: 0;
     align-self: stretch;
     white-space: nowrap;
@@ -1274,16 +1281,62 @@ export const shellThemeCss = `
   }
 
   .openspec-pipeline-node-state {
-    font-size: 0.85em;
+    font-size: 0.6875rem;
+    line-height: ${PIPELINE_CARD_REM.stateLine}rem;
+    flex-shrink: 0;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
   }
 
+  /* One line each, cut with an ellipsis at the card's width: a wrapped
+     line would make how many lines fit depend on the text and the font,
+     which nothing knows without measuring. Every line is whole in the
+     card's title. */
   .openspec-pipeline-node-detail {
-    font-size: 0.85em;
-    color: var(--muted);
+    font-size: 0.6875rem;
+    line-height: ${PIPELINE_CARD_REM.detailLine}rem;
+    flex-shrink: 0;
     align-self: stretch;
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-node-detail-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* How many more lines the card holds for its title and for assistive
+     technology, on the last line it draws. */
+  .openspec-pipeline-node-more {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* Past the card's budget: kept for assistive technology and the title,
+     not drawn. The usual visually-hidden treatment rather than
+     display: none, which would take the text out of the card's
+     accessible name as well. */
+  .openspec-pipeline-node-detail--beyond {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .openspec-pipeline-cycles {
@@ -1318,11 +1371,9 @@ export const shellThemeCss = `
     border-radius: var(--radius);
   }
   .openspec-pipeline-directory-label { margin: 0 0 2px; font-size: 13px; }
-  /* A div inherits the page's line height; a button, which is what a
-     local card is, does not. Matched here so both fit the same height
-     core gave. Line height only: a font-size of its own would move the
-     card once the unit is an em (see .openspec-pipeline-node). */
-  .openspec-pipeline-node--foreign { cursor: default; border-style: dashed; line-height: normal; }
+  /* A foreign card sizes its lines by the same rem as a local one, so a
+     div and a button hold the same lines in the same height. */
+  .openspec-pipeline-node--foreign { cursor: default; border-style: dashed; }
   .openspec-pipeline-node--foreign:hover { border-color: var(--line-strong); }
   /* A different git author is said in words first; this agrees. */
   .openspec-pipeline-directory-holder[data-author-differs="true"] {
@@ -1411,6 +1462,20 @@ export const shellThemeCss = `
     }
 
     .openspec-pipeline-node-name { white-space: normal; }
+
+    /* Room to run on: every line is drawn, wrapped, and none is left
+       beyond the card or counted. */
+    .openspec-pipeline-node-detail--beyond {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0;
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+    .openspec-pipeline-node-detail-text { white-space: normal; }
+    .openspec-pipeline-node-more { display: none; }
   }
 `;
 
