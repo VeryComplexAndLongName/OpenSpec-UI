@@ -7,6 +7,8 @@
 // made for the same reason. See ADR 0026 and
 // openspec/changes/what-the-others-are-doing.
 
+import type { AgentStatusWaiting } from "./agent-status.js";
+import type { TaskInHand } from "./task-marker.js";
 import type { WorkspaceLeaseConflict } from "./workspace-lease.js";
 
 /** One change in one working directory's own queue.
@@ -53,6 +55,15 @@ export interface SurveyedRun {
   /** The heartbeat is past the staleness window: the writer is gone. */
   gone: boolean;
   workingDirectory: string;
+  /** The run id a host uses to cancel or answer the run, where the record
+   * carries one. */
+  runId: string | null;
+  /** What the run is waiting on, where it is waiting rather than working. */
+  waiting: AgentStatusWaiting | null;
+  /** The task the run is on, paired with its change's own task list.
+   * Absent where the record names none, names a number the list does not
+   * have, or the survey did not read the run's change. */
+  task?: TaskInHand;
 }
 
 interface SurveyedDirectoryBase {
@@ -115,16 +126,35 @@ function ageOf(at: string, measuredMs: number, now: Date | undefined): number {
   return Number.isFinite(stamp) ? now.getTime() - stamp : measuredMs;
 }
 
+/** The task a run is on, in the words every surface uses. Says whose
+ * account it is: the agent's own marker, or the task the run was given.
+ * Neither is checked against what the agent actually does. */
+export function describeTaskInHand(task: TaskInHand): string {
+  const whose = task.source === "agent" ? "by its own account" : "the task it was given";
+  return `on task ${task.number}: ${task.text}, ${whose}`;
+}
+
+/** What a waiting run is waiting on. */
+export function describeWaiting(waiting: AgentStatusWaiting): string {
+  return waiting.kind === "checkpoint"
+    ? `waiting to continue to ${waiting.nextStage}`
+    : `waiting for a permission: ${waiting.description}`;
+}
+
 /** One run in the words every surface uses. */
 export function describeRun(run: SurveyedRun, now?: Date): string {
-  const where = [run.changeName ?? undefined, run.stage ? `(${run.stage})` : undefined]
+  // A waiting run says what it waits on in place of the stage it is in.
+  const stage = run.stage && run.waiting === null ? `(${run.stage})` : undefined;
+  const where = [run.changeName ?? undefined, stage]
     .filter((part): part is string => part !== undefined)
     .join(" ");
   const prefix = where.length > 0 ? `${where}: ` : "";
+  const task = run.task ? `; ${describeTaskInHand(run.task)}` : "";
   if (run.gone) {
-    return `${prefix}gone — last heard from ${ago(ageOf(run.heartbeatAt, run.heartbeatAgeMs, now))}, last said "${run.activity}"`;
+    return `${prefix}gone — last heard from ${ago(ageOf(run.heartbeatAt, run.heartbeatAgeMs, now))}, last said "${run.activity}"${task}`;
   }
-  return `${prefix}${run.activity} — said ${ago(ageOf(run.activityAt, run.activitySinceMs, now))}`;
+  const said = run.waiting ? describeWaiting(run.waiting) : run.activity;
+  return `${prefix}${said} — said ${ago(ageOf(run.activityAt, run.activitySinceMs, now))}${task}`;
 }
 
 /** What a directory's runs amount to, one line each.

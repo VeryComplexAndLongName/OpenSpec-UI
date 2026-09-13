@@ -125,6 +125,12 @@ export function commandInstruction(kind: CommandKind): string {
       return "Draft an implementation plan for the change described below, without changing code.";
     case "implement":
       return "Implement the tasks from tasks.md for the change described below."
+        // The marker is how a run says which task it is on
+        // (a-run-says-which-task-it-is-on). A plain sentence, on a line of
+        // its own, because a model reproduces that more reliably than a
+        // made-up token.
+        + " Before you start work on a task, print a line of its own reading `Starting task <number>`,"
+        + " with that task's number from tasks.md, for example `Starting task 2.3`."
         + " Tick each task in tasks.md, turning its `- [ ]` into `- [x]`, as soon as that task's own verification has passed:"
         + " one at a time as you go, never before the task is actually done."
         + " Leave a task you could not do unticked, and say in your reply why.";
