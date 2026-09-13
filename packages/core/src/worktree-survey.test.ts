@@ -415,6 +415,8 @@ describe("describeDirectoryRuns — ages that keep counting", () => {
       heartbeatAt: "2026-09-13T12:00:10.000Z",
       gone: false,
       workingDirectory: "/repo",
+      runId: null,
+      waiting: null,
     }],
   };
 
@@ -431,5 +433,79 @@ describe("describeDirectoryRuns — ages that keep counting", () => {
     const gone: SurveyedDirectory = { ...directory, runs: [{ ...directory.runs[0]!, gone: true }] };
     expect(describeDirectoryRuns(gone, new Date("2026-09-13T12:02:10.000Z"))[0])
       .toContain("last heard from 120s ago");
+  });
+
+  it("says what a waiting run waits on in place of its stage", () => {
+    const waiting: SurveyedDirectory = {
+      ...directory,
+      runs: [{ ...directory.runs[0]!, waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } }],
+    };
+    expect(describeDirectoryRuns(waiting)).toEqual(["change-a: waiting to continue to verify — said 12s ago"]);
+  });
+});
+
+describe("surveyWorktrees — the task a run is on (a-run-says-which-task-it-is-on)", () => {
+  // 5.5. The record carries the number; the survey pairs it with the
+  // change's own list, which it has already read.
+  async function writeRecordOnTask(statusDirectory: string, workingDirectory: string, changeName: string, number: string) {
+    await mkdir(statusDirectory, { recursive: true });
+    const at = new Date().toISOString();
+    await writeFile(path.join(statusDirectory, "run-on-task.json"), JSON.stringify({
+      version: 1,
+      instanceId: "run-on-task",
+      activity: "Edit a.ts",
+      stage: "apply",
+      changeName,
+      workingDirectory,
+      activityAt: at,
+      heartbeatAt: at,
+      runId: "run-1",
+      task: { number, source: "agent", since: at },
+      waiting: null,
+    }), "utf8");
+  }
+
+  it("surveys a run with the task its record names, its text and its source", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    await makeChange(main, "change-a", { ticks: [true, false] });
+    await writeRecordOnTask(agentStatusDirectory(worktreeRoot, main), main, "change-a", "1.2");
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    const run = survey.directories[0]?.runs[0];
+    expect(run?.task).toEqual({ number: "1.2", text: "Task 2", source: "agent" });
+    expect(run?.runId).toBe("run-1");
+    expect(describeDirectoryRuns(survey.directories[0] as never)[0]).toContain("on task 1.2: Task 2, by its own account");
+  });
+
+  it("surveys a run whose record names a number the list does not have with no task", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    await makeChange(main, "change-a", { ticks: [false, false] });
+    await writeRecordOnTask(agentStatusDirectory(worktreeRoot, main), main, "change-a", "9.9");
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    expect(survey.directories[0]?.runs[0]?.task).toBeUndefined();
+    expect(describeDirectoryRuns(survey.directories[0] as never)[0]).not.toContain("on task");
+  });
+
+  it("pairs the task again when the runs are read again without git", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    await makeChange(main, "change-a", { ticks: [false, false] });
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    await writeRecordOnTask(agentStatusDirectory(worktreeRoot, main), main, "change-a", "1.1");
+    const refreshed = await refreshSurveyRuns(survey, {
+      rootSources,
+      git: {
+        worktreeList: async () => { throw new Error("git was run"); },
+        configuredIdentity: async () => { throw new Error("git was run"); },
+      },
+    });
+
+    expect(refreshed.directories[0]?.runs[0]?.task).toEqual({ number: "1.1", text: "Task 1", source: "agent" });
   });
 });

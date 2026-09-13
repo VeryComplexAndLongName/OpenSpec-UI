@@ -64,6 +64,7 @@ export * from "./repository-audit.js";
 export * from "./change-readiness.js";
 export * from "./worktree-survey.js";
 export * from "./pipeline-readings.js";
+export * from "./task-marker.js";
 export * from "./pipeline-card.js";
 export * from "./hints.js";
 export * from "./change-layout.js";

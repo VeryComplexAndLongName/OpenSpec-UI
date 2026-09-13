@@ -15,7 +15,8 @@ import path from "node:path";
 import { agentStatusDirectory, readAgentStatuses, sweepAgentStatuses, type AgentStatusReport } from "./agent-status.js";
 import { readChangeGraph } from "./change-graph.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
-import { readTaskChecklist } from "./task-checklist.js";
+import { readTaskChecklist, type TaskChecklistItem } from "./task-checklist.js";
+import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
 import type { SurveyedChange, SurveyedDirectory, SurveyedRun, WorktreeSurvey } from "./worktree-survey-facts.js";
@@ -26,6 +27,8 @@ import type { SurveyedChange, SurveyedDirectory, SurveyedRun, WorktreeSurvey } f
 export {
   describeDirectoryRuns,
   describeRun,
+  describeTaskInHand,
+  describeWaiting,
   type SurveyedChange,
   type SurveyedDirectory,
   type SurveyedRun,
@@ -59,6 +62,9 @@ export interface WorktreeSurveyOptions {
   sweepStatuses?: boolean;
 }
 
+/** The task list of one change in one directory, as the survey read it. */
+type TaskListLookup = (directoryPath: string, changeName: string) => readonly TaskChecklistItem[] | undefined;
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -73,6 +79,10 @@ function isMissing(error: unknown): boolean {
 function pathKey(target: string): string {
   const resolved = path.resolve(target);
   return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function taskListKey(directoryPath: string, changeName: string): string {
+  return `${pathKey(directoryPath)}|${changeName}`;
 }
 
 async function whyUnreadable(directory: string): Promise<string | undefined> {
@@ -109,9 +119,12 @@ async function activeChangeNames(directory: string): Promise<string[]> {
   }
 }
 
-async function surveyChanges(directory: string): Promise<SurveyedChange[]> {
+/** A directory's changes, and the task list each was counted from — kept
+ * so the runs in that directory can be paired with the task in hand. */
+async function surveyChanges(directory: string): Promise<{ changes: SurveyedChange[]; taskLists: Map<string, TaskChecklistItem[]> }> {
+  const taskLists = new Map<string, TaskChecklistItem[]>();
   const names = await activeChangeNames(directory);
-  if (names.length === 0) return [];
+  if (names.length === 0) return { changes: [], taskLists };
   const active = new Set(names);
 
   let blockedBy = new Map<string, string[]>();
@@ -129,6 +142,7 @@ async function surveyChanges(directory: string): Promise<SurveyedChange[]> {
     const blockers = (blockedBy.get(changeName) ?? []).filter((name) => active.has(name) && name !== changeName);
     try {
       const items = await readTaskChecklist(directory, changeName, false);
+      taskLists.set(changeName, items);
       changes.push({
         changeName,
         tasksDone: items.filter((item) => item.done).length,
@@ -140,10 +154,11 @@ async function surveyChanges(directory: string): Promise<SurveyedChange[]> {
       changes.push({ changeName, tasksDone: 0, tasksTotal: 0, tasksUnreadable: message(error), blockers, alsoIn: [] });
     }
   }
-  return changes;
+  return { changes, taskLists };
 }
 
-function toRun(report: AgentStatusReport): SurveyedRun {
+function toRun(report: AgentStatusReport, tasks: readonly TaskChecklistItem[] | undefined): SurveyedRun {
+  const task = tasks === undefined ? undefined : taskInHand(report.task, tasks);
   return {
     instanceId: report.instanceId,
     changeName: report.changeName,
@@ -155,6 +170,9 @@ function toRun(report: AgentStatusReport): SurveyedRun {
     heartbeatAt: report.heartbeatAt,
     gone: report.gone,
     workingDirectory: report.workingDirectory,
+    runId: report.runId,
+    waiting: report.waiting,
+    ...(task ? { task } : {}),
   };
 }
 
@@ -164,21 +182,29 @@ function toRun(report: AgentStatusReport): SurveyedRun {
  * Pure: the matching the survey does, apart from reading anything, so the
  * records can be re-read and laid over a list of directories read earlier
  * (`refreshSurveyRuns`). A record is matched by path, never guessed onto
- * a directory it does not name. */
+ * a directory it does not name. Where `taskLists` has the run's change in
+ * the run's directory, the run carries the task in hand. */
 export function attachRunsToDirectories(
   directories: readonly SurveyedDirectory[],
   reports: readonly AgentStatusReport[],
+  taskLists: TaskListLookup = () => undefined,
 ): { directories: SurveyedDirectory[]; runsElsewhere: SurveyedRun[] } {
   const claimed = new Set<AgentStatusReport>();
   const attached = directories.map((directory) => {
     const key = pathKey(directory.path);
     const runs = reports.filter((report) => pathKey(report.workingDirectory) === key);
     for (const report of runs) claimed.add(report);
-    return { ...directory, runs: runs.map(toRun) };
+    return {
+      ...directory,
+      runs: runs.map((report) => toRun(
+        report,
+        report.changeName === null ? undefined : taskLists(directory.path, report.changeName),
+      )),
+    };
   });
   return {
     directories: attached,
-    runsElsewhere: reports.filter((report) => !claimed.has(report)).map(toRun),
+    runsElsewhere: reports.filter((report) => !claimed.has(report)).map((report) => toRun(report, undefined)),
   };
 }
 
@@ -241,6 +267,7 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
 
   const thisKey = pathKey(workspaceRoot);
   const directories: SurveyedDirectory[] = [];
+  const taskLists = new Map<string, TaskChecklistItem[]>();
 
   for (const [index, worktree] of worktrees.entries()) {
     const key = pathKey(worktree.path);
@@ -262,19 +289,20 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
       continue;
     }
 
-    let changes: SurveyedChange[];
+    let surveyed: Awaited<ReturnType<typeof surveyChanges>>;
     try {
-      changes = await surveyChanges(worktree.path);
+      surveyed = await surveyChanges(worktree.path);
     } catch (error) {
       directories.push({ ...base, readable: false, reason: message(error) });
       continue;
     }
+    for (const [changeName, items] of surveyed.taskLists) taskLists.set(taskListKey(worktree.path, changeName), items);
 
     const holder = await readWorkspaceLeaseHolder(worktree.path, leaseOptions);
     directories.push({
       ...base,
       readable: true,
-      changes,
+      changes: surveyed.changes,
       ...(holder ? { holder } : {}),
       authorDiffers: holder?.author !== undefined && thisAuthor !== undefined && holder.author !== thisAuthor,
     });
@@ -296,7 +324,11 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
     }
   }
 
-  const attached = attachRunsToDirectories(directories, reports);
+  const attached = attachRunsToDirectories(
+    directories,
+    reports,
+    (directoryPath, changeName) => taskLists.get(taskListKey(directoryPath, changeName)),
+  );
   return {
     directories: attached.directories,
     runsElsewhere: attached.runsElsewhere,
@@ -317,7 +349,9 @@ export type SurveyRunsRefreshOptions = Omit<WorktreeSurveyOptions, "workspaceRoo
  * and a full survey lists git worktrees each time. Re-reading only the
  * records answers "what are the runs saying now" without git; the list
  * of directories, their changes and their leases stay as the survey read
- * them, and a host re-surveys on its own slower schedule. */
+ * them, and a host re-surveys on its own slower schedule. The task list
+ * of a change a run names is read again, a file read, so the task in hand
+ * is paired with the list as it is now. */
 export async function refreshSurveyRuns(
   survey: WorktreeSurvey,
   options: SurveyRunsRefreshOptions = {},
@@ -326,7 +360,19 @@ export async function refreshSurveyRuns(
   if (main === undefined) return survey;
 
   const { reports, runsUnreadable } = await readStatusReports(main.path, options);
-  const attached = attachRunsToDirectories(survey.directories, reports);
+  const taskLists = new Map<string, TaskChecklistItem[]>();
+  for (const report of reports) {
+    if (report.task === null || report.changeName === null) continue;
+    const key = taskListKey(report.workingDirectory, report.changeName);
+    if (taskLists.has(key)) continue;
+    // Best-effort: a list that cannot be read pairs no task.
+    taskLists.set(key, await readTaskChecklist(report.workingDirectory, report.changeName, false).catch(() => []));
+  }
+  const attached = attachRunsToDirectories(
+    survey.directories,
+    reports,
+    (directoryPath, changeName) => taskLists.get(taskListKey(directoryPath, changeName)),
+  );
   // Why the records could not be read belongs to this reading, not to
   // the one the survey was taken with.
   return {

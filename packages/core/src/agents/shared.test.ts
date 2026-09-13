@@ -44,6 +44,23 @@ describe("commandInstruction — who ticks a task", () => {
   });
 });
 
+// a-run-says-which-task-it-is-on 1.1-1.2. The marker line is what lets a
+// run's record name the task in hand; only an implementing run is asked for
+// it.
+describe("commandInstruction — the task in hand", () => {
+  it("asks the implementing agent to print the marker line, with an example", () => {
+    const text = commandInstruction("implement");
+    expect(text).toContain("print a line of its own reading `Starting task <number>`");
+    expect(text).toContain("for example `Starting task 2.3`");
+  });
+
+  it("asks no other stage for it", () => {
+    for (const kind of ["plan", "review", "verify"] as const) {
+      expect(commandInstruction(kind)).not.toContain("Starting task");
+    }
+  });
+});
+
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
   stderr = new EventEmitter();

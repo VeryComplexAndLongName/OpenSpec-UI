@@ -30,6 +30,9 @@ const REPORT: AgentStatusReport = {
   activityAt: "2026-09-13T12:00:00.000Z",
   heartbeatAt: "2026-09-13T12:00:04.000Z",
   gone: false,
+  runId: null,
+  task: null,
+  waiting: null,
 };
 
 describe("statusCommand", () => {
@@ -169,5 +172,72 @@ describe("statusCommand", () => {
 
     expect(code).toBe(2);
     expect(io.err.join("\n")).toContain("boom");
+  });
+});
+
+describe("statusCommand — the task in hand and the wait (a-run-says-which-task-it-is-on)", () => {
+  // 5.6
+  const ITEMS = [
+    { lineNumber: 0, text: "1.1 Write the reader", done: true },
+    { lineNumber: 1, text: "1.2 Pair it with the list", done: false },
+  ];
+  const since = "2026-09-13T12:00:00.000Z";
+
+  async function print(report: typeof REPORT, readTasks = async () => ITEMS) {
+    const io = collectingIo();
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      { ...io, resolveDirectory: async () => "/status", read: async () => ({ reports: [report], malformed: [] }), readTasks },
+    );
+    expect(code).toBe(0);
+    return io.out.join("\n");
+  }
+
+  it("prints the task a run says it is on, from the change's own list", async () => {
+    const text = await print({ ...REPORT, task: { number: "1.2", source: "agent", since } });
+    expect(text).toContain("on task 1.2: Pair it with the list, by its own account");
+  });
+
+  it("prints the task a run was given as that", async () => {
+    const text = await print({ ...REPORT, task: { number: "1.1", source: "command", since } });
+    expect(text).toContain("on task 1.1: Write the reader, the task it was given");
+  });
+
+  it("prints no task line for a number the list does not have", async () => {
+    const text = await print({ ...REPORT, task: { number: "9.9", source: "agent", since } });
+    expect(text).not.toContain("on task");
+  });
+
+  it("prints no task line where the list cannot be read, and still reports the run", async () => {
+    const text = await print({ ...REPORT, task: { number: "1.2", source: "agent", since } }, async () => {
+      throw new Error("ENOENT");
+    });
+    expect(text).not.toContain("on task");
+    expect(text).toContain("an-instance");
+  });
+
+  it("prints what a run waiting at a checkpoint waits for", async () => {
+    const text = await print({ ...REPORT, waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } });
+    expect(text).toContain("waiting to continue to verify");
+  });
+
+  it("prints what a run waiting on a permission waits for", async () => {
+    const text = await print({ ...REPORT, waiting: { kind: "permission", description: "Write to src/a.ts" } });
+    expect(text).toContain("waiting for a permission: Write to src/a.ts");
+  });
+
+  it("carries the run id, the task and the wait in its json exactly as the record holds them", async () => {
+    const io = collectingIo();
+    const report = {
+      ...REPORT,
+      runId: "run-42",
+      task: { number: "1.2", source: "agent" as const, since },
+      waiting: { kind: "permission" as const, description: "Write to src/a.ts" },
+    };
+    await statusCommand(
+      { workspaceRoot: "/repo", format: "json" },
+      { ...io, resolveDirectory: async () => "/status", read: async () => ({ reports: [report], malformed: [] }) },
+    );
+    expect(JSON.parse(io.out.join("\n")).reports[0]).toMatchObject({ runId: "run-42", task: report.task, waiting: report.waiting });
   });
 });

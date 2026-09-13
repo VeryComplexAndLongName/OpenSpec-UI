@@ -64,6 +64,8 @@ function run(overrides: Partial<SurveyedRun> = {}): SurveyedRun {
     heartbeatAt: new Date(Date.now() - heartbeatAgeMs).toISOString(),
     gone: false,
     workingDirectory: "/wt/repo/theirs",
+    runId: null,
+    waiting: null,
     ...overrides,
   };
 }
@@ -172,6 +174,29 @@ describe("PipelineView — other working directories", () => {
     expect(screen.getByTestId("pipeline-directory-1-runs")).toHaveTextContent("gone — last heard from 90s ago");
     // This directory's own runs, where none report, are not called idle.
     expect(screen.getByTestId("pipeline-reading-runs")).toHaveTextContent("no run reports here");
+  });
+
+  // a-run-says-which-task-it-is-on 5.7
+  it("names the task a directory's run is on, and says a waiting run is waiting", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(
+          directory(),
+          theirs({ runs: [run({ task: { number: "1.2", text: "Pair it with the list", source: "agent" } })] }),
+          theirs({
+            path: "/wt/repo/paused",
+            label: "paused",
+            runs: [run({ instanceId: "run-2", workingDirectory: "/wt/repo/paused", waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } })],
+          }),
+        )}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-directory-0-runs"))
+      .toHaveTextContent("on task 1.2: Pair it with the list, by its own account");
+    expect(screen.getByTestId("pipeline-directory-1-runs")).toHaveTextContent("their-change: waiting to continue to verify");
   });
 
   // 5.6

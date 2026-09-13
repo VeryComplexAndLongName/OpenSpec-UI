@@ -12,12 +12,18 @@
 
 import {
   createGitWrapper,
+  describeTaskInHand,
+  describeWaiting,
   readAgentStatuses,
+  readTaskChecklist,
   resolveAgentStatusDirectory,
   sweepAgentStatuses,
+  taskInHand,
   type AgentStatusReadResult,
+  type AgentStatusReport,
   type AgentStatusSweepResult,
   type GitWrapper,
+  type TaskChecklistItem,
 } from "@openspec-ui/core";
 
 export interface StatusOptions {
@@ -35,6 +41,21 @@ export interface StatusDeps {
   resolveDirectory?: typeof resolveAgentStatusDirectory;
   read?: typeof readAgentStatuses;
   sweep?: typeof sweepAgentStatuses;
+  /** Test seam for reading a run's change's task list. */
+  readTasks?: (workingDirectory: string, changeName: string) => Promise<TaskChecklistItem[]>;
+}
+
+/** The task list of a run's own change in the run's own directory, or no
+ * items where it cannot be read: a run is still reported without the task
+ * line. */
+async function tasksOf(report: AgentStatusReport, deps: StatusDeps): Promise<TaskChecklistItem[]> {
+  if (report.task === null || report.changeName === null) return [];
+  try {
+    const read = deps.readTasks ?? ((workingDirectory: string, changeName: string) => readTaskChecklist(workingDirectory, changeName, false));
+    return await read(report.workingDirectory, report.changeName);
+  } catch {
+    return [];
+  }
 }
 
 /** Always `0`, whether or not anything is running — the same reasoning
@@ -85,6 +106,11 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
     deps.stdout(`${report.instanceId}${change}${stage}`);
     deps.stdout(`    in ${report.workingDirectory}`);
     deps.stdout(`    ${report.activity}`);
+    // The task in hand, paired with the change's own list: a number the
+    // list does not have names no task (a-run-says-which-task-it-is-on).
+    const task = taskInHand(report.task, await tasksOf(report, deps));
+    if (task) deps.stdout(`    ${describeTaskInHand(task)}`);
+    if (report.waiting) deps.stdout(`    ${describeWaiting(report.waiting)}`);
     deps.stdout(
       `    said this ${activitySeconds}s ago, last heard from ${heartbeatSeconds}s ago` +
         (report.gone ? " — gone" : ""),

@@ -15,7 +15,9 @@ import path from "node:path";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { describeAcpUpdate } from "./acp-update-line.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
 import type { Command, Event } from "./protocol.js";
+import { readTaskMarker, type RecordedTask } from "./task-marker.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
 import { WORKSPACE_LEASE_RENEW_INTERVAL_MS, WORKSPACE_LEASE_STALE_AFTER_MS } from "./workspace-lease.js";
 
@@ -54,6 +56,13 @@ export function agentStatusDirectory(worktreeRoot: string, repositoryRoot: strin
   return path.join(path.resolve(worktreeRoot), path.basename(path.resolve(repositoryRoot)), ".agent-status");
 }
 
+/** What a run is waiting on, where it is waiting rather than working. A
+ * field rather than a phrase, so no reader has to parse words to learn it
+ * (a-run-says-which-task-it-is-on). */
+export type AgentStatusWaiting =
+  | { kind: "checkpoint"; stage: string; nextStage: string }
+  | { kind: "permission"; description: string };
+
 export interface AgentStatusDocument {
   version: typeof AGENT_STATUS_VERSION;
   /** The run's own identifier, generated at startup and shared with
@@ -79,12 +88,26 @@ export interface AgentStatusDocument {
   /** Renewed on every write; a heartbeat older than the staleness
    * window means the writer is gone. */
   heartbeatAt: string;
+  /** The run id a host uses to cancel or answer this run. Not the
+   * `instanceId`, which the run generated for itself and shares with
+   * nobody. `null` in a record written before runs recorded it. */
+  runId: string | null;
+  /** The task the run is on: by the agent's own marker line, or, for a run
+   * started for one task, the task it was given. */
+  task: RecordedTask | null;
+  /** What the run is waiting on, where it is waiting. */
+  waiting: AgentStatusWaiting | null;
 }
 
 export interface AgentStatusWriterOptions {
   directory: string;
   workingDirectory: string;
   changeName?: string | null;
+  /** The run id of the command this record is for. */
+  runId?: string | null;
+  /** The task a run was started for (`Command.taskNumber`). Recorded from
+   * the first write, and never replaced by a marker. */
+  taskNumber?: string;
   /** Test seam: the writer's own identity would otherwise always be a
    * fresh random one. */
   instanceId?: string;
@@ -133,6 +156,10 @@ async function retryWhileInUse(operation: () => Promise<void>): Promise<void> {
   }
 }
 
+function sameWaiting(a: AgentStatusWaiting | null, b: AgentStatusWaiting | null): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 /** One run's handle on its own status file. Never touches another
  * run's file — there is exactly one file per instance, named by its own
  * `instanceId`.
@@ -145,9 +172,12 @@ export class AgentStatusWriter {
   private readonly directory: string;
   private readonly workingDirectory: string;
   private changeName: string | null;
+  private readonly runId: string | null;
   private stage: string | null = null;
   private activity = "";
   private activityAt: string;
+  private task: RecordedTask | null;
+  private waiting: AgentStatusWaiting | null = null;
   private readonly now: () => Date;
   private readonly files: AgentStatusFileOperations;
   private timer: NodeJS.Timeout | undefined;
@@ -166,10 +196,14 @@ export class AgentStatusWriter {
     this.directory = path.resolve(options.directory);
     this.workingDirectory = path.resolve(options.workingDirectory);
     this.changeName = options.changeName ?? null;
+    this.runId = options.runId ?? null;
     this.now = options.now ?? (() => new Date());
     this.files = options.files ?? NODE_FILE_OPERATIONS;
     this.filePath = path.join(this.directory, `${this.instanceId}.json`);
     this.activityAt = this.now().toISOString();
+    this.task = options.taskNumber !== undefined
+      ? { number: options.taskNumber, source: "command", since: this.activityAt }
+      : null;
   }
 
   /** Writes the first record and starts renewing it on the lease's own
@@ -201,10 +235,8 @@ export class AgentStatusWriter {
    * visible rather than hidden behind a heartbeat that keeps ticking.
    * Resolves once the write has landed or been dropped; never rejects. */
   async reportActivity(activity: string, stage?: string | null): Promise<void> {
-    const changed = activity !== this.activity;
-    this.activity = activity;
+    this.setActivity(activity);
     if (stage !== undefined) this.stage = stage;
-    if (changed) this.activityAt = this.now().toISOString();
     await this.writeQuietly();
   }
 
@@ -218,13 +250,39 @@ export class AgentStatusWriter {
    * moment it was written. Never rejects. */
   async noteStreamedActivity(activity: string): Promise<void> {
     if (activity !== this.activity) {
-      this.activity = activity;
-      this.activityAt = this.now().toISOString();
+      this.setActivity(activity);
       this.unwritten = true;
     }
     if (this.unwritten && this.now().getTime() - this.lastWrittenAtMs >= AGENT_STATUS_STREAM_WRITE_INTERVAL_MS) {
       await this.writeQuietly();
     }
+  }
+
+  /** Records the task the run says it is on, and writes at once: a marker
+   * is rare, and the once-a-second limit keeps only the newest text, so the
+   * line after a marker would take it with it.
+   *
+   * A run started for one task keeps that task. A marker naming another
+   * says the run has left the item it was given, and the record keeps
+   * saying what it was asked to do, as its audit entry does. Never
+   * rejects. */
+  async reportTask(number: string, source: RecordedTask["source"]): Promise<void> {
+    if (this.task?.source === "command" && source === "agent") return;
+    if (this.task?.number === number && this.task.source === source) return;
+    this.task = { number, source, since: this.now().toISOString() };
+    await this.writeQuietly();
+  }
+
+  /** Records what the run is waiting on, or that it is no longer waiting,
+   * and writes at once when that changed. `activity`, when given, is set in
+   * the same write. Never rejects. */
+  async reportWaiting(waiting: AgentStatusWaiting | null, activity?: string): Promise<void> {
+    const waitingChanged = !sameWaiting(this.waiting, waiting);
+    const activityChanged = activity !== undefined && activity !== this.activity;
+    if (!waitingChanged && !activityChanged) return;
+    this.waiting = waiting;
+    if (activity !== undefined) this.setActivity(activity);
+    await this.writeQuietly();
   }
 
   setChangeName(changeName: string | null): void {
@@ -243,6 +301,11 @@ export class AgentStatusWriter {
     if (this.timer) clearInterval(this.timer);
     await this.queue;
     await retryWhileInUse(() => this.files.rm(this.filePath, { force: true })).catch(() => undefined);
+  }
+
+  private setActivity(activity: string): void {
+    if (activity !== this.activity) this.activityAt = this.now().toISOString();
+    this.activity = activity;
   }
 
   /** Queues one write behind whatever write is under way. The returned
@@ -278,6 +341,9 @@ export class AgentStatusWriter {
       workingDirectory: this.workingDirectory,
       activityAt: this.activityAt,
       heartbeatAt: nowIso,
+      runId: this.runId,
+      task: this.task,
+      waiting: this.waiting,
     };
     await this.files.mkdir(this.directory, { recursive: true });
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
@@ -331,6 +397,11 @@ export interface AgentStatusReport {
   /** The heartbeat is older than the staleness window: the writer is
    * gone, by the same rule the workspace lease already uses. */
   gone: boolean;
+  /** As the record holds them; `null` where the record has none, or one
+   * that is not well-formed. */
+  runId: string | null;
+  task: RecordedTask | null;
+  waiting: AgentStatusWaiting | null;
 }
 
 /** A record that could not be trusted as-is: unreadable, not JSON,
@@ -351,6 +422,30 @@ function isMissingPath(error: unknown): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
+/** A task field as a record holds it, or `null`. A field a reader does not
+ * recognise is read as absent: a record from before the field existed, or
+ * one written wrongly, still says what else it says. */
+function readRecordedTask(value: unknown): RecordedTask | null {
+  if (typeof value !== "object" || value === null) return null;
+  const task = value as Record<string, unknown>;
+  if (typeof task.number !== "string" || !TASK_NUMBER_PATTERN.test(task.number)) return null;
+  if (task.source !== "agent" && task.source !== "command") return null;
+  if (typeof task.since !== "string") return null;
+  return { number: task.number, source: task.source, since: task.since };
+}
+
+function readWaiting(value: unknown): AgentStatusWaiting | null {
+  if (typeof value !== "object" || value === null) return null;
+  const waiting = value as Record<string, unknown>;
+  if (waiting.kind === "checkpoint" && typeof waiting.stage === "string" && typeof waiting.nextStage === "string") {
+    return { kind: "checkpoint", stage: waiting.stage, nextStage: waiting.nextStage };
+  }
+  if (waiting.kind === "permission" && typeof waiting.description === "string") {
+    return { kind: "permission", description: waiting.description };
+  }
+  return null;
+}
+
 /** One record as every reader judges it: a run's report, a record that
  * cannot be trusted, or a file that went away between being listed and
  * being read. */
@@ -369,9 +464,9 @@ async function readAgentStatusRecord(
   const expectedId = fileName.slice(0, -".json".length);
   try {
     const raw = await readFile(filePath, "utf8");
-    let document: Partial<AgentStatusDocument>;
+    let document: Partial<Record<keyof AgentStatusDocument, unknown>>;
     try {
-      document = JSON.parse(raw) as Partial<AgentStatusDocument>;
+      document = JSON.parse(raw) as Partial<Record<keyof AgentStatusDocument, unknown>>;
     } catch {
       return { kind: "malformed", reason: "not valid JSON" };
     }
@@ -400,14 +495,17 @@ async function readAgentStatusRecord(
       report: {
         instanceId: document.instanceId,
         activity: document.activity,
-        stage: document.stage ?? null,
-        changeName: document.changeName ?? null,
+        stage: typeof document.stage === "string" ? document.stage : null,
+        changeName: typeof document.changeName === "string" ? document.changeName : null,
         workingDirectory: document.workingDirectory,
         activitySinceMs,
         heartbeatAgeMs,
         activityAt: document.activityAt,
         heartbeatAt: document.heartbeatAt,
         gone: heartbeatAgeMs > staleAfterMs,
+        runId: typeof document.runId === "string" ? document.runId : null,
+        task: readRecordedTask(document.task),
+        waiting: readWaiting(document.waiting),
       },
     };
   } catch (error) {
@@ -554,46 +652,67 @@ export async function resolveAgentStatusDirectory(
   return agentStatusDirectory(root, mainPath);
 }
 
-/** The last non-empty line of a chunk of text — the line a person
- * actually reads when a stream of output is collapsed to one activity
- * string. */
-function lastNonEmptyLine(text: string): string | undefined {
-  const lines = text
+/** The completed non-empty lines of a piece of text, trimmed. */
+function nonEmptyLines(text: string): string[] {
+  return text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-  return lines.at(-1);
 }
 
 /** What each stream has said since its last line break. A chunk is cut
  * wherever its producer flushed — mid-line, often mid-word — so the last
- * line of a chunk is a fragment until the break that ends it arrives. */
+ * line of a chunk is a fragment until the break that ends it arrives.
+ *
+ * An agent's reply and its reasoning are kept apart: a reasoning chunk must
+ * never complete a line the reply began, since only the reply can name a
+ * task (a-run-says-which-task-it-is-on). */
 interface OpenLines {
   stdout: string;
-  text: string;
+  reply: string;
+  reasoning: string;
 }
 
-/** Adds a chunk to what its stream left open, and returns the last
- * complete non-empty line if the chunk completed any. */
-function takeCompleteLine(open: OpenLines, stream: keyof OpenLines, chunk: string): string | undefined {
+function openLines(): OpenLines {
+  return { stdout: "", reply: "", reasoning: "" };
+}
+
+/** Adds a chunk to what its stream left open, and returns every line the
+ * chunk completed. The activity is the last of them; each is read for a
+ * marker, because a message that arrives whole carries its marker ahead of
+ * the lines that follow it. */
+function takeCompleteLines(open: OpenLines, stream: keyof OpenLines, chunk: string): string[] {
   const text = open[stream] + chunk;
   const lastBreak = text.lastIndexOf(LINE_BREAK);
   if (lastBreak === -1) {
     open[stream] = text.slice(-OPEN_LINE_LIMIT);
-    return undefined;
+    return [];
   }
   open[stream] = text.slice(lastBreak + 1).slice(-OPEN_LINE_LIMIT);
-  return lastNonEmptyLine(text.slice(0, lastBreak));
+  return nonEmptyLines(text.slice(0, lastBreak));
 }
 
 /** Whatever the streams left unfinished, taken as said once something
  * else happens: a reply that ends without a line break is still what the
- * run last said. Clears both. */
-function takeOpenLines(open: OpenLines): string | undefined {
-  const line = lastNonEmptyLine(open.text) ?? lastNonEmptyLine(open.stdout);
-  open.stdout = "";
-  open.text = "";
-  return line;
+ * run last said. The reply first, then reasoning, then stdout. Clears all
+ * three. */
+function takeOpenLines(open: OpenLines): { line: string; stream: keyof OpenLines } | undefined {
+  let taken: { line: string; stream: keyof OpenLines } | undefined;
+  for (const stream of ["reply", "reasoning", "stdout"] as const) {
+    const line = nonEmptyLines(open[stream]).at(-1);
+    if (taken === undefined && line !== undefined) taken = { line, stream };
+    open[stream] = "";
+  }
+  return taken;
+}
+
+/** Tells the writer about every marker among `lines`, in order, so the
+ * latest one wins. */
+async function reportMarkers(writer: AgentStatusWriter, lines: readonly string[]): Promise<void> {
+  for (const line of lines) {
+    const number = readTaskMarker(line);
+    if (number !== undefined) await writer.reportTask(number, "agent");
+  }
 }
 
 /** Taps a chain or agent run's own event stream into its status record,
@@ -612,7 +731,7 @@ export async function* reportEventsToAgentStatus(
   events: AsyncIterable<Event>,
   writer: AgentStatusWriter,
 ): AsyncGenerator<Event> {
-  const open: OpenLines = { stdout: "", text: "" };
+  const open = openLines();
   for await (const event of events) {
     await applyEventToAgentStatus(writer, event, open);
     yield event;
@@ -620,27 +739,52 @@ export async function* reportEventsToAgentStatus(
 }
 
 async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, open: OpenLines): Promise<void> {
+  // Waiting ends with whatever the run does next.
+  if (event.kind === "checkpoint") {
+    await writer.reportWaiting(
+      { kind: "checkpoint", stage: event.stage, nextStage: event.nextStage },
+      `waiting to continue to ${event.nextStage}`,
+    );
+    return;
+  }
+  if (event.kind === "permissionRequest") {
+    await writer.reportWaiting({ kind: "permission", description: event.description });
+    return;
+  }
+  await writer.reportWaiting(null);
+
   if (event.kind === "stdout") {
-    const line = takeCompleteLine(open, "stdout", event.chunk);
-    if (line !== undefined) await writer.noteStreamedActivity(line);
+    const lines = takeCompleteLines(open, "stdout", event.chunk);
+    await reportMarkers(writer, lines);
+    const last = lines.at(-1);
+    if (last !== undefined) await writer.noteStreamedActivity(last);
     return;
   }
   const streamed = event.kind === "agentUpdate" ? readAcpStreamedText(event.update) : undefined;
   if (streamed !== undefined) {
-    const line = takeCompleteLine(open, "text", streamed.text);
-    if (line !== undefined) await writer.noteStreamedActivity(line);
+    // Reasoning says "I'll start task 2.3 after this" long before the
+    // agent starts it. Only the reply names a task.
+    const stream = streamed.kind === "agent_thought_chunk" ? "reasoning" : "reply";
+    const lines = takeCompleteLines(open, stream, streamed.text);
+    if (stream === "reply") await reportMarkers(writer, lines);
+    const last = lines.at(-1);
+    if (last !== undefined) await writer.noteStreamedActivity(last);
     return;
   }
 
   const unfinished = takeOpenLines(open);
-  if (unfinished !== undefined) await writer.noteStreamedActivity(unfinished);
+  if (unfinished !== undefined) {
+    if (unfinished.stream !== "reasoning") await reportMarkers(writer, [unfinished.line]);
+    await writer.noteStreamedActivity(unfinished.line);
+  }
 
   if (event.kind === "agentUpdate") {
     // A tool call, a failed one, a plan: the line every surface shows for
     // it, read by the same core reader, so the record says `Bash: npm test`
     // exactly where the terminal does. An update that says nothing leaves
     // the activity as it was. Noted like streamed output, because an agent
-    // can make several calls a second.
+    // can make several calls a second. Never read for a marker: a tool
+    // call's title is not the agent speaking.
     const line = describeAcpUpdate(event.update);
     if (line !== undefined) await writer.noteStreamedActivity(line);
     return;
@@ -671,6 +815,10 @@ export interface AgentStatusRunOptions {
   /** The run's working directory. */
   cwd: string;
   changeName: string | null;
+  /** The command's run id. */
+  runId?: string | null;
+  /** The task the command was started for. */
+  taskNumber?: string;
   /** Test seam: resolves the shared status directory for `cwd`. */
   resolveDirectory?: (cwd: string) => Promise<string>;
 }
@@ -700,7 +848,13 @@ function cachedAgentStatusDirectory(cwd: string): Promise<string> {
 export async function startAgentStatusWriter(options: AgentStatusRunOptions): Promise<AgentStatusWriter | undefined> {
   try {
     const directory = await (options.resolveDirectory ?? cachedAgentStatusDirectory)(options.cwd);
-    const writer = new AgentStatusWriter({ directory, workingDirectory: options.cwd, changeName: options.changeName });
+    const writer = new AgentStatusWriter({
+      directory,
+      workingDirectory: options.cwd,
+      changeName: options.changeName,
+      runId: options.runId ?? null,
+      ...(options.taskNumber !== undefined ? { taskNumber: options.taskNumber } : {}),
+    });
     await writer.start(options.changeName ? `starting "${options.changeName}"` : "starting");
     return writer;
   } catch {
@@ -733,10 +887,13 @@ const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["ki
  * record exists — not when the next event happens to arrive, since a run
  * that goes quiet after its first events is exactly the run a person reads
  * the record for. A run that ends first still removes the record it
- * started: the wrapper finishes only after the queue has. */
+ * started: the wrapper finishes only after the queue has.
+ *
+ * Every host passes the command it runs, so the record carries its run id
+ * and the task it was started for (a-run-says-which-task-it-is-on). */
 export async function* withAgentStatus(
   events: AsyncIterable<Event>,
-  command: Pick<Command, "kind" | "cwd" | "context">,
+  command: Pick<Command, "kind" | "cwd" | "context" | "runId" | "taskNumber">,
   seams: Pick<AgentStatusRunOptions, "resolveDirectory"> = {},
 ): AsyncGenerator<Event> {
   if (!REPORTED_COMMAND_KINDS.has(command.kind)) {
@@ -744,8 +901,14 @@ export async function* withAgentStatus(
     return;
   }
   const changeName = path.basename(command.context.changeDir) || null;
-  const open: OpenLines = { stdout: "", text: "" };
-  let reporting = startAgentStatusWriter({ cwd: command.cwd, changeName, ...seams });
+  const open = openLines();
+  let reporting = startAgentStatusWriter({
+    cwd: command.cwd,
+    changeName,
+    runId: command.runId,
+    ...(command.taskNumber !== undefined ? { taskNumber: command.taskNumber } : {}),
+    ...seams,
+  });
 
   for await (const event of events) {
     reporting = reporting.then(async (writer) => {

@@ -35,6 +35,10 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+/** The three fields a record written before a-run-says-which-task-it-is-on
+ * did not have, as a record that has none of them holds them. */
+const NOTHING_ABOUT_THE_TASK = { runId: null, task: null, waiting: null } as const;
+
 describe("agentStatusDirectory", () => {
   it("sits beside the repository's working directories, not inside one", () => {
     // Resolved, not written as a drive letter: `C:` is an absolute root on
@@ -63,11 +67,11 @@ describe("resolveAgentStatusDirectory", () => {
   });
 });
 
-describe("reportEventsToAgentStatus", () => {
-  async function* eventsOf(events: Event[]): AsyncGenerator<Event> {
-    for (const event of events) yield event;
-  }
+async function* eventsOf(events: Event[]): AsyncGenerator<Event> {
+  for (const event of events) yield event;
+}
 
+describe("reportEventsToAgentStatus", () => {
   it("carries stage transitions and the latest streamed line into the record, and yields events through unchanged", async () => {
     const root = await temporaryRoot();
     const directory = path.join(root, ".agent-status");
@@ -201,6 +205,236 @@ describe("reportEventsToAgentStatus", () => {
   });
 });
 
+describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
+  const lineBreak = String.fromCharCode(10);
+  const lines = (...parts: string[]) => parts.map((part) => `${part}${lineBreak}`).join("");
+
+  /** A writer whose clock moves two seconds per reading, so the streamed
+   * activity is never held back and each event reaches the disk. */
+  async function writerIn(root: string, options: { taskNumber?: string } = {}) {
+    const directory = path.join(root, ".agent-status");
+    let clock = Date.parse("2026-01-01T00:00:00.000Z");
+    const writer = new AgentStatusWriter({
+      directory,
+      workingDirectory: root,
+      changeName: "a-change",
+      now: () => new Date((clock += 2_000)),
+      ...options,
+    });
+    await writer.start("starting");
+    const read = async () => (await readAgentStatuses(directory, { now: () => new Date(clock) })).reports[0];
+    return { writer, read };
+  }
+
+  const reply = (text: string): Event => ({
+    kind: "agentUpdate",
+    runId: "r1",
+    timestamp: "t",
+    update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text } },
+  });
+  const reasoning = (text: string): Event => ({
+    kind: "agentUpdate",
+    runId: "r1",
+    timestamp: "t",
+    update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text } },
+  });
+
+  async function drain(events: Event[], writer: AgentStatusWriter): Promise<void> {
+    for await (const _event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      // draining
+    }
+  }
+
+  // 5.1
+  it("records the task a stdout marker names, by the agent's own account, and keeps the line after it as the activity", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([{ kind: "stdout", runId: "r1", timestamp: "t", chunk: lines("Starting task 1.2", "reading the file") }], writer);
+
+    const report = await read();
+    expect(report?.task).toMatchObject({ number: "1.2", source: "agent" });
+    expect(report?.activity).toBe("reading the file");
+    await writer.stop();
+  });
+
+  // 5.2
+  it("records the task from one reply message that holds the marker and two more lines", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([reply(lines("**Starting task 2.1:** the reader", "Reading the proposal", "Writing the design"))], writer);
+
+    const report = await read();
+    expect(report?.task).toMatchObject({ number: "2.1", source: "agent" });
+    expect(report?.activity).toBe("Writing the design");
+    await writer.stop();
+  });
+
+  it("records no task from reasoning that holds a marker", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([reasoning(lines("Starting task 3.1")), reply(lines("Looking around first"))], writer);
+
+    expect((await read())?.task).toBeNull();
+    await writer.stop();
+  });
+
+  it("never lets reasoning complete a line the reply began", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([reply("Starting task 4."), reasoning(lines("2 is next")), reply(lines("1"))], writer);
+
+    expect((await read())?.task).toMatchObject({ number: "4.1" });
+    await writer.stop();
+  });
+
+  it("lets the latest marker win", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([{ kind: "stdout", runId: "r1", timestamp: "t", chunk: lines("Starting task 1.1", "done", "Starting task 1.2") }], writer);
+
+    expect((await read())?.task).toMatchObject({ number: "1.2" });
+    await writer.stop();
+  });
+
+  it("keeps the task a run was started for when a marker names another", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot(), { taskNumber: "6.5" });
+
+    await drain([{ kind: "stdout", runId: "r1", timestamp: "t", chunk: lines("Starting task 1.1") }], writer);
+
+    expect((await read())?.task).toMatchObject({ number: "6.5", source: "command" });
+    await writer.stop();
+  });
+
+  it("does not read a tool call's title as a marker", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([
+      { kind: "agentUpdate", runId: "r1", timestamp: "t", update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "Starting task 1.1" } },
+    ], writer);
+
+    expect((await read())?.task).toBeNull();
+    await writer.stop();
+  });
+
+  // 5.3
+  it("says the run is waiting at a checkpoint, and no longer once the next stage starts, each on disk before the next event", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+    const events: Event[] = [
+      { kind: "checkpoint", runId: "r1", timestamp: "t", stage: "apply", nextStage: "verify", nextAgentId: "claude-cli" },
+      { kind: "stageStarted", runId: "r1", timestamp: "t", stage: "verify", agentId: "claude-cli" },
+    ];
+
+    for await (const event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      const report = await read();
+      if (event.kind === "checkpoint") {
+        expect(report?.waiting).toEqual({ kind: "checkpoint", stage: "apply", nextStage: "verify" });
+        expect(report?.activity).toBe("waiting to continue to verify");
+      } else {
+        expect(report?.waiting).toBeNull();
+      }
+    }
+    await writer.stop();
+  });
+
+  it("says the run is waiting on a permission, with its description, before the next event", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+    const events: Event[] = [
+      { kind: "permissionRequest", runId: "r1", timestamp: "t", requestId: "p1", description: "Write to src/a.ts" },
+      reply(lines("Writing it now")),
+    ];
+
+    for await (const event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      const report = await read();
+      if (event.kind === "permissionRequest") {
+        expect(report?.waiting).toEqual({ kind: "permission", description: "Write to src/a.ts" });
+      } else {
+        expect(report?.waiting).toBeNull();
+      }
+    }
+    await writer.stop();
+  });
+
+  // 5.4
+  it("carries the command's run id, and the task a run was started for from its first write", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let finish: () => void = () => undefined;
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    async function* source(): AsyncGenerator<Event> {
+      yield { kind: "started", runId: "run-42", timestamp: "t", command: "implement", cwd: root };
+      await finished;
+      yield { kind: "completed", runId: "run-42", timestamp: "t" };
+    }
+    const command = {
+      kind: "implement" as const,
+      cwd: root,
+      runId: "run-42",
+      taskNumber: "6.5",
+      context: { changeDir: path.join(root, "openspec", "changes", "a-change") },
+    };
+
+    const draining = (async () => {
+      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory })) {
+        // draining
+      }
+    })();
+
+    await vi.waitFor(async () => {
+      const { reports } = await readAgentStatuses(directory);
+      expect(reports[0]).toMatchObject({ runId: "run-42", task: { number: "6.5", source: "command" } });
+    });
+    finish();
+    await draining;
+  });
+
+  it("reads a record written without the three fields with all three null, and not as malformed", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    await mkdir(directory, { recursive: true });
+    const now = new Date().toISOString();
+    await writeFile(path.join(directory, "older-run.json"), JSON.stringify({
+      version: AGENT_STATUS_VERSION,
+      instanceId: "older-run",
+      activity: "doing something",
+      stage: null,
+      changeName: "a-change",
+      workingDirectory: root,
+      activityAt: now,
+      heartbeatAt: now,
+    }), "utf8");
+
+    const { reports, malformed } = await readAgentStatuses(directory);
+    expect(malformed).toEqual([]);
+    expect(reports[0]).toMatchObject(NOTHING_ABOUT_THE_TASK);
+  });
+
+  it("reads a task that is not a well-formed field as no task, and not as malformed", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    await mkdir(directory, { recursive: true });
+    const now = new Date().toISOString();
+    await writeFile(path.join(directory, "odd-run.json"), JSON.stringify({
+      version: AGENT_STATUS_VERSION,
+      instanceId: "odd-run",
+      activity: "doing something",
+      stage: null,
+      changeName: "a-change",
+      workingDirectory: root,
+      activityAt: now,
+      heartbeatAt: now,
+      runId: 7,
+      task: 5,
+      waiting: { kind: "somewhere" },
+    }), "utf8");
+
+    const { reports, malformed } = await readAgentStatuses(directory);
+    expect(malformed).toEqual([]);
+    expect(reports[0]).toMatchObject(NOTHING_ABOUT_THE_TASK);
+  });
+});
+
 describe("AgentStatusWriter — streamed activity", () => {
   it("rewrites the record for streamed activity at most once per interval, and still moves activityAt at once", async () => {
     const root = await temporaryRoot();
@@ -222,6 +456,26 @@ describe("AgentStatusWriter — streamed activity", () => {
 
     await writer.stop();
   });
+
+  it("writes a task at once, outside the once-a-second limit, and keeps it in later writes", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const writer = new AgentStatusWriter({ directory, workingDirectory: root, now: () => now });
+    await writer.start("starting");
+
+    now = new Date(now.getTime() + 10);
+    await writer.reportTask("2.3", "agent");
+    const afterTask = JSON.parse(await readFile(writer.filePath, "utf8")) as AgentStatusDocument;
+    expect(afterTask.task).toMatchObject({ number: "2.3", source: "agent" });
+
+    now = new Date(now.getTime() + 10);
+    await writer.reportActivity("running verify", "verify");
+    const later = JSON.parse(await readFile(writer.filePath, "utf8")) as AgentStatusDocument;
+    expect(later.task).toMatchObject({ number: "2.3" });
+
+    await writer.stop();
+  });
 });
 
 describe("withAgentStatus", () => {
@@ -230,7 +484,7 @@ describe("withAgentStatus", () => {
   it("keeps a record for a run, named by the change its command is for, and removes it on a clean end", async () => {
     const root = await temporaryRoot();
     const directory = path.join(root, ".agent-status");
-    const command = { kind: "chain" as const, cwd: root, context: { changeDir: path.join(root, "openspec", "changes", "a-change") } };
+    const command = { kind: "chain" as const, cwd: root, runId: "r1", context: { changeDir: path.join(root, "openspec", "changes", "a-change") } };
     let finish: () => void = () => undefined;
     const finished = new Promise<void>((resolve) => {
       finish = resolve;
@@ -268,7 +522,7 @@ describe("withAgentStatus", () => {
     const seen: Event[] = [];
     for await (const event of withAgentStatus(
       source(),
-      { kind: "cancel", cwd: "/repo", context: { changeDir: "/repo/openspec/changes/a-change" } },
+      { kind: "cancel", cwd: "/repo", runId: "r1", context: { changeDir: "/repo/openspec/changes/a-change" } },
       {
         resolveDirectory: async () => {
           resolved = true;
@@ -298,7 +552,7 @@ describe("withAgentStatus", () => {
 
     const iterator = withAgentStatus(
       source(),
-      { kind: "implement", cwd: root, context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
+      { kind: "implement", cwd: root, runId: "r1", context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
       { resolveDirectory: () => found },
     );
     // Both events arrive while the directory is still being looked for.
@@ -323,7 +577,7 @@ describe("withAgentStatus", () => {
     const seen: Event[] = [];
     for await (const event of withAgentStatus(
       source(),
-      { kind: "chain", cwd: "/repo", context: { changeDir: "/repo/openspec/changes/a-change" } },
+      { kind: "chain", cwd: "/repo", runId: "r1", context: { changeDir: "/repo/openspec/changes/a-change" } },
       {
         resolveDirectory: async () => {
           throw new Error("not a git repository");
@@ -353,6 +607,7 @@ describe("AgentStatusWriter", () => {
       activity: "planning",
       changeName: "some-change",
       workingDirectory,
+      ...NOTHING_ABOUT_THE_TASK,
     });
     await writer.stop();
   });
@@ -468,6 +723,7 @@ describe("readAgentStatuses", () => {
       workingDirectory: root,
       activityAt: staleHeartbeat,
       heartbeatAt: staleHeartbeat,
+      ...NOTHING_ABOUT_THE_TASK,
     };
     await writeFile(path.join(directory, "gone-run.json"), JSON.stringify(document), "utf8");
 
@@ -490,6 +746,7 @@ describe("readAgentStatuses", () => {
       workingDirectory: root,
       activityAt: now,
       heartbeatAt: now,
+      ...NOTHING_ABOUT_THE_TASK,
     };
     await writeFile(path.join(directory, "this-run-id.json"), JSON.stringify(document), "utf8");
 
@@ -515,6 +772,7 @@ describe("readAgentStatuses", () => {
       workingDirectory: root,
       activityAt: now,
       heartbeatAt: now,
+      ...NOTHING_ABOUT_THE_TASK,
     };
     await writeFile(path.join(directory, "good-run.json"), JSON.stringify(good), "utf8");
 
@@ -546,6 +804,7 @@ describe("readAgentStatuses", () => {
       workingDirectory: root,
       activityAt,
       heartbeatAt,
+      ...NOTHING_ABOUT_THE_TASK,
     };
     await writeFile(path.join(directory, "quiet-run.json"), JSON.stringify(document), "utf8");
 
