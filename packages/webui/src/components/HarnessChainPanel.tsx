@@ -15,6 +15,7 @@ import {
   collapseStreamEvents,
   findPendingPermissionRequest,
   isCancelling,
+  isShownInEventLog,
   isTerminal,
   PermissionRequestPrompt,
   renderEventBody,
@@ -167,7 +168,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
       ) : null}
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       <ul className="openspec-ai-panel-events" data-testid="chain-event-log">
-        {collapsedEvents.map((event, index) => (
+        {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
           <li key={index} data-testid={`chain-event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
             {renderEventBody(event, index)}
           </li>

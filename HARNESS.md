@@ -763,6 +763,12 @@ instead of the plain counterpart changes three things:
 1. **Structured progress instead of scraped text.** The adapter speaks
    the [Agent Client Protocol](https://agentclientprotocol.com)'s
    `session/update` notifications rather than parsing free-form stdout.
+   The AI panel, the VS Code output channel and the terminal show the
+   agent's words as prose, each tool call by what it acts on
+   (`Edit packages/core/src/index.ts`, `Bash: npm test`), a failed call
+   as failed, and a plan by its progress. `claude-cli-acp` has no ACP
+   mode of its own; its adapter translates Claude's stream into the same
+   updates, so it is shown exactly as a native ACP agent is.
 2. **A permission gate, where the agent offers one.** ACP defines
    `session/request_permission`; the UI can answer it when the agent
    actually sends it.

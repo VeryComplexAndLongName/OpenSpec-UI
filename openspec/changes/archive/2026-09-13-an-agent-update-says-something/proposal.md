@@ -35,23 +35,25 @@ runs most.
 - `claude-cli-acp` **completes its imitation of ACP**. It translates
   Claude's stream into the session updates a native ACP agent sends:
   text as `agent_message_chunk`, thinking as `agent_thought_chunk`, a tool
-  use as `tool_call` with a readable title, its result as
-  `tool_call_update`, and Claude's todo list as `plan`. What has no ACP
+  use as `tool_call` with a readable title, and its result as
+  `tool_call_update`. What has no ACP
   counterpart passes through as it does today. Knowledge of Claude's
   format stays in that one adapter.
 - **One reader in core** turns an ACP update into a line for a person: a
   tool call's title, a failed tool call, a plan's progress and current
   step. It knows ACP and no particular agent.
-- **Every surface uses it**: the AI panel, the VS Code output channel,
-  the terminal, and the status record's activity line.
+- **Every surface uses it**: the AI panel, the VS Code output channel and
+  the terminal. The status record's activity line takes it too, in
+  `an-agent-says-what-it-is-doing`: that record is not on `main` yet, so
+  it adopts the reader when it lands rather than this change reaching
+  into code that does not exist.
 - Streamed text is unchanged: it is still read by `readAcpStreamedText`
   and still joined into prose.
 
 ## Impact
 
 - `packages/core` — `agents/claude-acp.ts` translates into ACP shapes; a
-  new leaf module reads an update into a line; `agent-status.ts` uses it
-  for the activity line.
+  new leaf module reads an update into a line.
 - `packages/webui` — `AiPanel` describes an update with it.
 - `packages/extension` — `describe-event.ts` describes an update with it.
 - `packages/cli` — `render-run.ts` prints tool calls, failures and plan
@@ -60,6 +62,3 @@ runs most.
 - No change to the event protocol, the native ACP adapters, the ACP
   session driver, the raw-text adapters, or how a run ends and reports
   usage.
-
-Blocked by `an-agent-says-what-it-is-doing`, which is being implemented
-now and writes the activity line this change feeds.

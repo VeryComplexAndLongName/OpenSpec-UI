@@ -49,6 +49,7 @@ export * from "./sprint-report-pdf.js";
 export * from "./agent-usage.js";
 export * from "./verified-agent-versions.js";
 export * from "./acp-streamed-text.js";
+export * from "./acp-update-line.js";
 export * from "./usage-report.js";
 export * from "./change-cost-report.js";
 export * from "./harness-config-findings.js";

@@ -10,7 +10,12 @@
 // required for either flag to do anything — confirmed in `claude --help`)
 // and translates its structured message stream (each stdout line is one
 // JSON object: `type` `"system"`/`"assistant"`/`"user"`/`"result"`) into
-// `agentUpdate` events.
+// `agentUpdate` events. Where ACP has a counterpart — the agent's text,
+// its thinking, a tool call and its result — the update is that ACP
+// session update rather than Claude's own line, so every surface reads one
+// protocol and none of them knows Claude's format: the imitation is
+// completed here instead of being recognised downstream (see
+// openspec/changes/an-agent-update-says-something/design.md).
 //
 // `--dangerously-skip-permissions` is included for the same reason
 // claude.ts's raw-text adapter already includes it: this project's real
@@ -24,6 +29,8 @@
 // a permission request" — this file deliberately has no
 // `resolvePermission` method at all, not even a stub).
 
+import path from "node:path";
+import type { SessionUpdate, ToolKind } from "@agentclientprotocol/sdk";
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { AgentUsage, AgentUsageByModel } from "../agent-usage.js";
 import type { AgentUpdateEvent, Command, Event } from "../protocol.js";
@@ -110,9 +117,215 @@ function extractResult(parsed: Record<string, unknown>): ClaudeStreamResult | un
   return { isError, summary };
 }
 
+/** Where a translated update carries the Claude content block it came
+ * from. ACP reserves `_meta` for exactly this and says a receiver must
+ * assume nothing about it, so no surface reads it: it is there for a
+ * person reading a run's JSON lines. The block, not the whole line — a
+ * line with three blocks would otherwise carry itself three times. */
+export const CLAUDE_STREAM_JSON_META_KEY = "openspec-ui/claude-stream-json";
+
+const LINE_BREAK = String.fromCharCode(10);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+/** The first line of a text, trimmed. With the multiline flag `$` matches
+ * right before the first line break, so the split's first element is the
+ * text up to it. */
+function firstLine(text: string): string {
+  return text.split(/$/m)[0]?.trim() ?? "";
+}
+
+/** A path as a title shows it: relative to the run's working directory
+ * when it lies inside it, and with forward slashes on every platform, so a
+ * run reads the same in a Windows terminal as in a log from Linux. */
+function displayPath(filePath: string, cwd: string | undefined): string {
+  let shown = filePath;
+  if (cwd && path.isAbsolute(filePath)) {
+    const relative = path.relative(cwd, filePath);
+    const inside = relative.length > 0 && relative.split(path.sep)[0] !== ".." && !path.isAbsolute(relative);
+    if (inside) shown = relative;
+  }
+  return shown.split(path.sep).join("/");
+}
+
+interface ClaudeToolDescription {
+  title: string;
+  kind: ToolKind;
+  /** The file the tool acts on, as the tool was given it. */
+  filePath?: string;
+}
+
+/** A tool use's ACP title and kind.
+ *
+ * A native ACP agent writes its own title. Claude's stream carries only
+ * the tool's name and input, and this is the one place that knows which
+ * input field names what a tool acts on. A known tool whose input lacks
+ * that field is titled by its name and keeps its kind; a tool not listed
+ * is titled by its name. See design.md, "the adapter writes the title". */
+function describeClaudeToolUse(
+  name: string,
+  input: Record<string, unknown>,
+  cwd: string | undefined,
+): ClaudeToolDescription {
+  const filePath = nonEmptyString(input.file_path) ?? nonEmptyString(input.notebook_path);
+  const onFile = (kind: ToolKind): ClaudeToolDescription =>
+    filePath ? { title: `${name} ${displayPath(filePath, cwd)}`, kind, filePath } : { title: name, kind };
+  switch (name) {
+    case "Read":
+      return onFile("read");
+    case "Write":
+    case "Edit":
+    case "MultiEdit":
+    case "NotebookEdit":
+      return onFile("edit");
+    case "Bash":
+    case "PowerShell": {
+      const command = firstLine(nonEmptyString(input.command) ?? "");
+      return { title: command ? `${name}: ${command}` : name, kind: "execute" };
+    }
+    case "Grep": {
+      const pattern = nonEmptyString(input.pattern);
+      const where = nonEmptyString(input.path);
+      if (!pattern) return { title: name, kind: "search" };
+      return { title: `Grep "${pattern}"${where ? ` in ${displayPath(where, cwd)}` : ""}`, kind: "search" };
+    }
+    case "Glob": {
+      // A pattern can be an absolute path with wildcards in it — the live
+      // run for this change found one — and is shown the way a path is.
+      const pattern = nonEmptyString(input.pattern);
+      return { title: pattern ? `Glob ${displayPath(pattern, cwd)}` : name, kind: "search" };
+    }
+    case "WebFetch": {
+      const url = nonEmptyString(input.url);
+      return { title: url ? `WebFetch ${url}` : name, kind: "fetch" };
+    }
+    case "WebSearch": {
+      const query = nonEmptyString(input.query);
+      return { title: query ? `WebSearch "${query}"` : name, kind: "fetch" };
+    }
+    case "Task":
+    case "Agent": {
+      const description = nonEmptyString(input.description);
+      return { title: description ? `Agent: ${firstLine(description)}` : name, kind: "other" };
+    }
+    default:
+      return { title: name, kind: "other" };
+  }
+}
+
+/** What the stream has said so far that a later line needs: the run's
+ * working directory, and each tool call's title, so the update reporting
+ * its result can name it. */
+interface ClaudeTranslationState {
+  cwd: string | undefined;
+  titles: Map<string, string>;
+}
+
+/** One content block's translation: an ACP update; `null` for a block
+ * that was recognised and says nothing; `undefined` for a block this
+ * adapter does not recognise. */
+type BlockTranslation = SessionUpdate | null | undefined;
+
+/** A message arrives whole rather than in slices — the adapter does not
+ * ask for partial messages — so it ends its line: two messages in a row
+ * must not be joined into one sentence that was never written. */
+function endingItsLine(text: string): string {
+  return text.endsWith(LINE_BREAK) ? text : `${text}${LINE_BREAK}`;
+}
+
+function translateAssistantBlock(block: Record<string, unknown>, state: ClaudeTranslationState): BlockTranslation {
+  switch (block.type) {
+    case "text":
+      if (typeof block.text !== "string") return undefined;
+      if (block.text.length === 0) return null;
+      return { sessionUpdate: "agent_message_chunk", content: { type: "text", text: endingItsLine(block.text) } };
+    case "thinking":
+      // 2.1.237 sends thinking redacted: an empty text beside its
+      // signature. There is nothing to show, so nothing is sent.
+      if (typeof block.thinking !== "string") return undefined;
+      if (block.thinking.length === 0) return null;
+      return { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: endingItsLine(block.thinking) } };
+    case "tool_use": {
+      if (typeof block.id !== "string" || typeof block.name !== "string") return undefined;
+      const described = describeClaudeToolUse(block.name, isRecord(block.input) ? block.input : {}, state.cwd);
+      state.titles.set(block.id, described.title);
+      // ACP's locations are absolute; a relative path is resolved against
+      // the run's directory, and left out when there is none to resolve
+      // against.
+      const location =
+        described.filePath === undefined
+          ? undefined
+          : state.cwd
+            ? path.resolve(state.cwd, described.filePath)
+            : path.isAbsolute(described.filePath)
+              ? described.filePath
+              : undefined;
+      return {
+        sessionUpdate: "tool_call",
+        toolCallId: block.id,
+        title: described.title,
+        kind: described.kind,
+        status: "in_progress",
+        ...(location ? { locations: [{ path: location }] } : {}),
+        rawInput: block.input,
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+
+function translateUserBlock(block: Record<string, unknown>, state: ClaudeTranslationState): BlockTranslation {
+  if (block.type !== "tool_result" || typeof block.tool_use_id !== "string") return undefined;
+  const title = state.titles.get(block.tool_use_id);
+  return {
+    sessionUpdate: "tool_call_update",
+    toolCallId: block.tool_use_id,
+    status: block.is_error === true ? "failed" : "completed",
+    ...(title ? { title } : {}),
+  };
+}
+
+/** One Claude stream-json line as ACP session updates, in the order of its
+ * content blocks.
+ *
+ * `handled` is false when the line is left for the caller to forward as it
+ * always was: a line with no content blocks (`system`, `result`,
+ * `rate_limit_event`, ...), or one where nothing was translated and some
+ * block was not recognised. A line whose every block was recognised and
+ * said nothing — redacted thinking — is handled, with no updates. A block
+ * not recognised beside blocks that were is skipped: per ADR 0017, what
+ * parsed is kept and only what did not is dropped. */
+function translateClaudeLine(
+  parsed: Record<string, unknown>,
+  state: ClaudeTranslationState,
+): { handled: boolean; updates: Array<Record<string, unknown>> } {
+  const content = isRecord(parsed.message) ? parsed.message.content : undefined;
+  const translate =
+    parsed.type === "assistant" ? translateAssistantBlock : parsed.type === "user" ? translateUserBlock : undefined;
+  if (!translate || !Array.isArray(content) || content.length === 0) return { handled: false, updates: [] };
+
+  const updates: Array<Record<string, unknown>> = [];
+  let unrecognised = false;
+  for (const block of content) {
+    const translated = isRecord(block) ? translate(block, state) : undefined;
+    if (translated === undefined) unrecognised = true;
+    else if (translated !== null) updates.push({ ...translated, _meta: { [CLAUDE_STREAM_JSON_META_KEY]: block } });
+  }
+  return { handled: updates.length > 0 || !unrecognised, updates };
+}
+
 /** Translates `spawnAndStream`'s raw stdout stream — one JSON object per
  * line, per `claude`'s own `--output-format stream-json` — into
- * `agentUpdate` events, buffering across chunk boundaries (a single
+ * `agentUpdate` events, in ACP's own shapes wherever ACP has one (see
+ * `translateClaudeLine`; `cwd` is what titles are made relative to),
+ * buffering across chunk boundaries (a single
  * `stdout` event is not guaranteed to align with a line boundary). A line
  * that does not parse as JSON is passed through unchanged as `stdout` —
  * the same "conservative parsing" fallback shared.ts's own header
@@ -122,10 +335,15 @@ function extractResult(parsed: Record<string, unknown>): ClaudeStreamResult | un
  * own terminal event is `completed`/`failed` and its summary/reason —
  * more accurate than the underlying process's raw exit code alone, since
  * `claude -p` can exit 0 while `result.is_error` is true. */
-export async function* translateClaudeStream(source: AsyncGenerator<Event>, runId: string): AsyncGenerator<Event> {
+export async function* translateClaudeStream(
+  source: AsyncGenerator<Event>,
+  runId: string,
+  cwd?: string,
+): AsyncGenerator<Event> {
   let buffer = "";
   let lastResult: ClaudeStreamResult | undefined;
   let lastUsage: AgentUsage | undefined;
+  const state: ClaudeTranslationState = { cwd, titles: new Map() };
 
   for await (const event of source) {
     if (event.kind !== "stdout") {
@@ -159,6 +377,13 @@ export async function* translateClaudeStream(source: AsyncGenerator<Event>, runI
         // Kept only when this line actually carried numbers: a later
         // result line reporting none must not erase an earlier report.
         lastUsage = buildClaudeResultUsage(parsed) ?? lastUsage;
+      }
+      const translated = translateClaudeLine(parsed, state);
+      if (translated.handled) {
+        for (const update of translated.updates) {
+          yield { kind: "agentUpdate", runId, timestamp: nowIso(), update };
+        }
+        continue;
       }
       const update: AgentUpdateEvent = {
         kind: "agentUpdate",
@@ -211,6 +436,6 @@ export class ClaudeCliAcpAdapter implements AgentAdapter {
       stdin: `${userMessage}\n`,
       signal,
     });
-    yield* translateClaudeStream(rawStream, command.runId);
+    yield* translateClaudeStream(rawStream, command.runId, command.cwd);
   }
 }
