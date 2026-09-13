@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-13
+follows:
+  - an-agent-says-what-it-is-doing
+blocked_by:
+  - a-change-is-run-from-its-card
+  - a-run-is-signed-by-its-person
