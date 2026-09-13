@@ -88,7 +88,7 @@ specs typecheck; the touched files lint.
   `npm run test:browser` in `packages/server`: 18 passed (4.3m), exit 0.
   The four pictures it rewrote show no screen this change touches and
   were restored.
-- [ ] 6.5 **Delegated to `claude-cli`**: written with the quoted id on
+- [x] 6.5 **Delegated to `claude-cli`**: written with the quoted id on
   purpose. Through `/api/delegated-item/run`, run an open item in a
   scratch repository whose agent is a stand-in that prints a line to
   stderr and exits 1, and read `openspec-ui-cli status` while a second,
@@ -96,3 +96,48 @@ specs typecheck; the touched files lint.
   and `lastStderr`, and the status output naming the change. The unit
   tests use fake runners; only the route shows that both hosts' path
   carries all three.
+  2026-09-13, claude-cli. Setup: a scratch git repository
+  (`%TEMP%/dr-check/repo`, outside this one) with two changes,
+  `fail-on-stderr` and `wait-for-status`, each holding one open item
+  whose marker reads ``**Delegated to `claude-cli`**``. The stand-in was
+  a `claude.cmd` first on PATH, running a node script: for
+  `wait-for-status` it printed one stdout line, waited 30 s and exited 0;
+  otherwise it printed "stand-in: loading configuration" and an
+  "API Error: 400 …" line to stderr and exited 1. Server from source
+  (`tsx packages/server/src/cli.ts <repo> 47931`, since `npm run start`
+  died in the Volta npm shim before reaching the product), with
+  `OPENSPEC_UI_WORKTREE_ROOT=%TEMP%/dr-check/wt` for server and CLI
+  alike; the CLI also from source (`tsx packages/cli/src/cli.ts`), so a
+  stale `dist` could not mislead.
+  - The quoted marker was read: both POSTs (`lineNumber` 2) ran, with
+    `"agent":"claude-cli"`; neither was refused as naming no agent.
+  - `fail-on-stderr`, HTTP 200: `"outcome":"failed"`,
+    `"reason":"claude exited with code 1"`, `lastStderr` held both stderr
+    lines ("stand-in: loading configuration", then "API Error: 400
+    stand-in claude 0.0.1 does not support this model; version 9.9.9 or
+    newer is required."), and `message` read "The run failed: claude
+    exited with code 1. It last said: API Error: 400 stand-in claude
+    0.0.1 does not support this model; version 9.9.9 or newer is
+    required. Task 1.1 is still open." The stdout line was not in the
+    tail.
+  - `openspec-ui-cli status --cwd <repo>` at 17:00:03, while
+    `wait-for-status` ran, exit 0: `330e6000-… on "wait-for-status"`,
+    `in …\dr-check\repo`, activity "stand-in: waiting so a status record
+    can be read", "said this 12s ago, last heard from 4s ago"; the
+    record was `wt/repo/.agent-status/330e6000-….json`.
+  - `wait-for-status` then returned `"outcome":"completed"` with no
+    `lastStderr` and "The run finished. Task 1.1 is still open."; status
+    at 17:00:23 said "No runs are reporting themselves.", exit 0.
+  Only the standalone server's route was driven; the extension calls the
+  same `runDelegatedItem` and was not started.
+  Checked 2026-09-13 by a second agent against what the run left rather
+  than this note: the stand-in script (one stdout line, then the two
+  stderr lines and exit 1; the waiting branch 30 s and exit 0); the
+  scratch repository's audit log, where both runs started as
+  `claude-cli` on task 1.1 — so the quoted marker named its agent — and
+  one failed with "claude exited with code 1" while the other completed;
+  `wait-result.json`; and, in the agent's own session transcript, the
+  failed run's HTTP 200 body with both stderr lines in `lastStderr` and
+  the stdout line not in it, the status output at 17:00:03 naming
+  `wait-for-status` with its record under `wt/repo/.agent-status`, and
+  "No runs are reporting themselves." at 17:00:23.
