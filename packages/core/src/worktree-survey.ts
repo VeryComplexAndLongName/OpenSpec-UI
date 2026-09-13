@@ -151,9 +151,58 @@ function toRun(report: AgentStatusReport): SurveyedRun {
     activity: report.activity,
     activitySinceMs: report.activitySinceMs,
     heartbeatAgeMs: report.heartbeatAgeMs,
+    activityAt: report.activityAt,
+    heartbeatAt: report.heartbeatAt,
     gone: report.gone,
     workingDirectory: report.workingDirectory,
   };
+}
+
+/** Each directory with the runs whose records name it, and the records
+ * that name no directory of the list.
+ *
+ * Pure: the matching the survey does, apart from reading anything, so the
+ * records can be re-read and laid over a list of directories read earlier
+ * (`refreshSurveyRuns`). A record is matched by path, never guessed onto
+ * a directory it does not name. */
+export function attachRunsToDirectories(
+  directories: readonly SurveyedDirectory[],
+  reports: readonly AgentStatusReport[],
+): { directories: SurveyedDirectory[]; runsElsewhere: SurveyedRun[] } {
+  const claimed = new Set<AgentStatusReport>();
+  const attached = directories.map((directory) => {
+    const key = pathKey(directory.path);
+    const runs = reports.filter((report) => pathKey(report.workingDirectory) === key);
+    for (const report of runs) claimed.add(report);
+    return { ...directory, runs: runs.map(toRun) };
+  });
+  return {
+    directories: attached,
+    runsElsewhere: reports.filter((report) => !claimed.has(report)).map(toRun),
+  };
+}
+
+/** The status records of the repository whose main directory is
+ * `mainPath`, or why they could not be read. Filesystem only. */
+async function readStatusReports(
+  mainPath: string,
+  options: Pick<WorktreeSurveyOptions, "rootSources" | "staleAfterMs" | "now" | "sweepStatuses">,
+): Promise<{ reports: AgentStatusReport[]; runsUnreadable?: string }> {
+  try {
+    const { root } = await resolveWorktreeRoot(mainPath, options.rootSources ?? {});
+    const statusDirectory = agentStatusDirectory(root, mainPath);
+    const clock = {
+      ...(options.now ? { now: options.now } : {}),
+      ...(options.staleAfterMs !== undefined ? { staleAfterMs: options.staleAfterMs } : {}),
+    };
+    // Best-effort: a sweep that fails leaves the reading to report what is
+    // there.
+    if (options.sweepStatuses) await sweepAgentStatuses(statusDirectory, clock).catch(() => undefined);
+    const read = await readAgentStatuses(statusDirectory, clock);
+    return { reports: read.reports };
+  } catch (error) {
+    return { reports: [], runsUnreadable: message(error) };
+  }
 }
 
 /** Every working directory of the repository `workspaceRoot` belongs to:
@@ -188,32 +237,13 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
   // Located from the list already held rather than by
   // `resolveAgentStatusDirectory`, which would list the worktrees again.
   const mainPath = (worktrees[0] as GitWorktree).path;
-  let reports: AgentStatusReport[] = [];
-  let runsUnreadable: string | undefined;
-  try {
-    const { root } = await resolveWorktreeRoot(mainPath, options.rootSources ?? {});
-    const statusDirectory = agentStatusDirectory(root, mainPath);
-    const clock = {
-      ...(options.now ? { now: options.now } : {}),
-      ...(options.staleAfterMs !== undefined ? { staleAfterMs: options.staleAfterMs } : {}),
-    };
-    // Best-effort: a sweep that fails leaves the reading to report what is
-    // there.
-    if (options.sweepStatuses) await sweepAgentStatuses(statusDirectory, clock).catch(() => undefined);
-    const read = await readAgentStatuses(statusDirectory, clock);
-    reports = read.reports;
-  } catch (error) {
-    runsUnreadable = message(error);
-  }
+  const { reports, runsUnreadable } = await readStatusReports(mainPath, options);
 
   const thisKey = pathKey(workspaceRoot);
-  const claimed = new Set<AgentStatusReport>();
   const directories: SurveyedDirectory[] = [];
 
   for (const [index, worktree] of worktrees.entries()) {
     const key = pathKey(worktree.path);
-    const runs = reports.filter((report) => pathKey(report.workingDirectory) === key);
-    for (const report of runs) claimed.add(report);
     const declared = await readDeclaredLabel(worktree.path);
     const base = {
       path: worktree.path,
@@ -223,7 +253,7 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
       isThis: key === thisKey,
       ...(worktree.branch ? { branch: worktree.branch } : {}),
       ...(worktree.head ? { head: worktree.head } : {}),
-      runs: runs.map(toRun),
+      runs: [],
     };
 
     const unreadable = await whyUnreadable(worktree.path);
@@ -266,10 +296,43 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
     }
   }
 
+  const attached = attachRunsToDirectories(directories, reports);
   return {
-    directories,
-    runsElsewhere: reports.filter((report) => !claimed.has(report)).map(toRun),
+    directories: attached.directories,
+    runsElsewhere: attached.runsElsewhere,
     ...(runsUnreadable !== undefined ? { runsUnreadable } : {}),
     ...(thisAuthor !== undefined ? { thisAuthor } : {}),
+  };
+}
+
+/** Options for re-reading a survey's runs. `git` is accepted so a test can
+ * pass one that throws, and is never called: the point of this reading is
+ * that it runs no git. */
+export type SurveyRunsRefreshOptions = Omit<WorktreeSurveyOptions, "workspaceRoot">;
+
+/** `survey`, with its runs read again from the status records and laid
+ * over the directories it already lists — the-pipeline-opens-in-vs-code.
+ *
+ * A status record is rewritten every few seconds while a run is alive,
+ * and a full survey lists git worktrees each time. Re-reading only the
+ * records answers "what are the runs saying now" without git; the list
+ * of directories, their changes and their leases stay as the survey read
+ * them, and a host re-surveys on its own slower schedule. */
+export async function refreshSurveyRuns(
+  survey: WorktreeSurvey,
+  options: SurveyRunsRefreshOptions = {},
+): Promise<WorktreeSurvey> {
+  const main = survey.directories.find((directory) => directory.isMain) ?? survey.directories[0];
+  if (main === undefined) return survey;
+
+  const { reports, runsUnreadable } = await readStatusReports(main.path, options);
+  const attached = attachRunsToDirectories(survey.directories, reports);
+  // Why the records could not be read belongs to this reading, not to
+  // the one the survey was taken with.
+  return {
+    directories: attached.directories,
+    runsElsewhere: attached.runsElsewhere,
+    ...(runsUnreadable !== undefined ? { runsUnreadable } : {}),
+    ...(survey.thisAuthor !== undefined ? { thisAuthor: survey.thisAuthor } : {}),
   };
 }

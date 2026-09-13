@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ChangeReadiness,
@@ -7,7 +7,14 @@ import type {
   SurveyedRun,
   WorktreeSurvey,
 } from "@openspec-ui/core/browser";
-import { PIPELINE_POLL_INTERVAL_MS, PipelineView, SURVEY_POLL_INTERVAL_MS } from "./PipelineView.js";
+import {
+  PIPELINE_BACKSTOP_INTERVAL_MS,
+  PIPELINE_CLOCK_INTERVAL_MS,
+  PIPELINE_POLL_INTERVAL_MS,
+  PipelineView,
+  SURVEY_POLL_INTERVAL_MS,
+  type PipelineReading,
+} from "./PipelineView.js";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -42,13 +49,19 @@ function holder(author?: string) {
 // what-the-others-are-doing: every other working directory beneath this
 // one's picture, and what every directory's runs say.
 function run(overrides: Partial<SurveyedRun> = {}): SurveyedRun {
+  // The record's timestamps agree with the intervals it was read with,
+  // unless a test says otherwise: the view counts from the timestamps.
+  const activitySinceMs = overrides.activitySinceMs ?? 12_000;
+  const heartbeatAgeMs = overrides.heartbeatAgeMs ?? 2_000;
   return {
     instanceId: "run-1",
     changeName: "their-change",
     stage: "apply",
     activity: "Bash: npm test",
-    activitySinceMs: 12_000,
-    heartbeatAgeMs: 2_000,
+    activitySinceMs,
+    heartbeatAgeMs,
+    activityAt: new Date(Date.now() - activitySinceMs).toISOString(),
+    heartbeatAt: new Date(Date.now() - heartbeatAgeMs).toISOString(),
     gone: false,
     workingDirectory: "/wt/repo/theirs",
     ...overrides,
@@ -203,6 +216,86 @@ describe("PipelineView — other working directories", () => {
 
     await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
     expect(read).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("PipelineView — told when to read (the-pipeline-opens-in-vs-code)", () => {
+  /** A host that can say a reading is out of date, as the editor's panel
+   * does when a file it watches changes. */
+  function host() {
+    const listeners = new Set<(reading: PipelineReading) => void>();
+    return {
+      subscribe: (listener: (reading: PipelineReading) => void) => {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+      say: (reading: PipelineReading) => act(() => { for (const listener of listeners) listener(reading); }),
+      listening: () => listeners.size,
+    };
+  }
+
+  // 3.3
+  it("reads the survey alone when the host says the survey is out of date", async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => report(change("alpha")));
+    const read = vi.fn(async () => survey(directory()));
+    const signals = host();
+    render(<PipelineView isActive load={load} survey={read} subscribe={signals.subscribe} />);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    signals.say("survey");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads nothing between signals until the backstop, however long the polling intervals are past", async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => report(change("alpha")));
+    const read = vi.fn(async () => survey(directory()));
+    render(<PipelineView isActive load={load} survey={read} subscribe={host().subscribe} />);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(PIPELINE_BACKSTOP_INTERVAL_MS - 1);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops listening when it is no longer looked at", async () => {
+    vi.useFakeTimers();
+    const signals = host();
+    const load = vi.fn(async () => report(change("alpha")));
+    const { rerender } = render(<PipelineView isActive load={load} subscribe={signals.subscribe} />);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signals.listening()).toBe(1);
+
+    rerender(<PipelineView isActive={false} load={load} subscribe={signals.subscribe} />);
+
+    expect(signals.listening()).toBe(0);
+  });
+
+  it("keeps counting a stated age between readings, reading nothing to do it", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-13T12:00:12.000Z"));
+    const read = vi.fn(async () => survey(
+      directory(),
+      theirs({ runs: [run({ activityAt: "2026-09-13T12:00:00.000Z", activitySinceMs: 12_000 })] }),
+    ));
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={read} subscribe={host().subscribe} />);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByTestId("pipeline-directory-0-runs")).toHaveTextContent("said 12s ago");
+
+    await vi.advanceTimersByTimeAsync(PIPELINE_CLOCK_INTERVAL_MS * 2);
+
+    expect(screen.getByTestId("pipeline-directory-0-runs")).toHaveTextContent("said 22s ago");
+    expect(read).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -3,7 +3,7 @@ when files change (ADR 0029).
 
 ## 1. One readiness payload
 
-- [ ] 1.1 A new `packages/core/src/pipeline-readings.ts` exports
+- [x] 1.1 A new `packages/core/src/pipeline-readings.ts` exports
   `readPipelineReadiness(workspaceRoot: string): Promise<ChangeReadinessReport>`.
   It returns `readChangeReadiness({ workspaceRoot })`. The report carries
   `hints` from `buildHints(report, { staleAfterMs: WORKSPACE_LEASE_STALE_AFTER_MS })`
@@ -12,23 +12,24 @@ when files change (ADR 0029).
   the report has no `hints` key at all.
 
   Export `readPipelineReadiness` from `index.ts` only.
-- [ ] 1.2 `handleChangeReadinessRequest` in `packages/server/src/rest.ts`
+- [x] 1.2 `handleChangeReadinessRequest` in `packages/server/src/rest.ts`
   answers with `readPipelineReadiness(parsed.cwd)`, and the private
   `hintsEnabled` function is removed. The server's existing readiness and
   hints tests pass without being changed.
-- [ ] 1.3 core `pipeline-readings.test.ts` covers three configurations:
+  Done: server suite 86 passed with `server.test.ts` untouched, 2026-09-13.
+- [x] 1.3 core `pipeline-readings.test.ts` covers three configurations:
   - no `hints` setting: hints are present;
   - `hints.enabled: false`: no `hints` key;
   - a malformed configuration: no `hints` key.
 
 ## 2. Records re-read without git
 
-- [ ] 2.1 A pure function `attachRunsToDirectories(directories, reports)`
+- [x] 2.1 A pure function `attachRunsToDirectories(directories, reports)`
   in `packages/core/src/worktree-survey.ts` does the matching that
   `surveyWorktrees` does today by `pathKey(report.workingDirectory)`. That
   includes the runs it reports in `runsElsewhere`. `surveyWorktrees` calls
   the new function instead of matching inline.
-- [ ] 2.2 `refreshSurveyRuns(survey: WorktreeSurvey, options): Promise<WorktreeSurvey>`,
+- [x] 2.2 `refreshSurveyRuns(survey: WorktreeSurvey, options): Promise<WorktreeSurvey>`,
   in the same file:
   - resolves the status directory from the survey's main directory, with
     `resolveWorktreeRoot` and `agentStatusDirectory`, as `surveyWorktrees`
@@ -37,23 +38,31 @@ when files change (ADR 0029).
   - re-attaches them with `attachRunsToDirectories`.
 
   It runs no git. Its test passes a `git` seam that throws on any call.
-- [ ] 2.3 `SurveyedRun` in `packages/core/src/worktree-survey-facts.ts`
+  Done: both share one private `readStatusReports`; the refresh keeps the
+  survey's directories, changes and `thisAuthor`, and replaces
+  `runsUnreadable` with this reading's.
+- [x] 2.3 `SurveyedRun` in `packages/core/src/worktree-survey-facts.ts`
   gains `activityAt` and `heartbeatAt`, the record's own timestamps.
   `toRun` fills them.
-- [ ] 2.4 `describeDirectoryRuns(directory, now?: Date)` in
+  Done: `AgentStatusReport` carries the two timestamps too, which is where
+  `toRun` reads them from.
+- [x] 2.4 `describeDirectoryRuns(directory, now?: Date)` in
   `packages/core/src/worktree-survey-facts.ts` counts each age it states
   from `activityAt` and `heartbeatAt` when `now` is given. When `now` is
   not given, it uses the intervals measured at read time, as it does
   today.
-- [ ] 2.5 core `worktree-survey.test.ts`:
+  Done, and `describeRun(run, now?)` the same; a timestamp that does not
+  parse falls back to the measured interval.
+- [x] 2.5 core `worktree-survey.test.ts`:
   - `refreshSurveyRuns` moves a run to the directory its new record names;
   - it drops a record that is gone from disk;
   - it reports a record whose directory is not a working directory in
     `runsElsewhere`.
+  Done: 17 tests pass, 2026-09-13, with three more for 2.4.
 
 ## 3. PipelineView re-reads on a host's signal
 
-- [ ] 3.1 `PipelineViewProps` in
+- [x] 3.1 `PipelineViewProps` in
   `packages/webui/src/components/PipelineView.tsx` gains
   `subscribe?: (listener: (reading: "readiness" | "survey") => void) => () => void`.
   - **With it:** `usePolledReading` reads when the view becomes active, on
@@ -63,19 +72,24 @@ when files change (ADR 0029).
     `SURVEY_POLL_INTERVAL_MS`, as today.
 
   The unsubscribe function runs on deactivation and on unmount.
-- [ ] 3.2 While active, the view renders again every 5 seconds and passes
+- [x] 3.2 While active, the view renders again every 5 seconds and passes
   its clock to `describeDirectoryRuns`, so the ages it shows keep
   counting. These renders read nothing.
-- [ ] 3.3 webui `PipelineView.test.tsx`:
+  Done: `PIPELINE_CLOCK_INTERVAL_MS`; the clock also reaches `describeRun`
+  for runs reported from no working directory.
+- [x] 3.3 webui `PipelineView.test.tsx`:
   - with `subscribe`, a `survey` signal calls `survey` once and does not
     call `load`;
   - no reading happens between signals before the backstop interval;
   - without `subscribe`, the existing polling tests pass unchanged;
   - a stated age grows between two renders with no new reading.
+  Done: 27 tests pass, 2026-09-13. The shared `run()` fixture now derives
+  its timestamps from the intervals it is given, which a gone run's test
+  needed once the view counted from them.
 
 ## 4. The panel
 
-- [ ] 4.1 `packages/webui/src/pipeline-entry.tsx` renders `PipelineView`
+- [x] 4.1 `packages/webui/src/pipeline-entry.tsx` renders `PipelineView`
   inside `.openspec-extension-app`, after `shellThemeCss` and then
   `vscodeThemeCss`, as `timeline-entry.tsx` does.
   - `load` and `survey` are stable callbacks that send
@@ -83,17 +97,20 @@ when files change (ADR 0029).
     `createBridgeRequester`.
   - `subscribe` listens for `openspec-ui/pipeline-changed` messages.
   - `onOpenChange` posts `openspec-ui/open-change`.
-- [ ] 4.2 `BridgeOperation` in `packages/webui/src/bridge-request.ts` gains
+- [x] 4.2 `BridgeOperation` in `packages/webui/src/bridge-request.ts` gains
   `pipeline/readiness` and `pipeline/survey`. The pipeline panel's handler
   declares the same two operations. Do not add them to the AI panel's
   `RequestOperation`, which serves another panel.
-- [ ] 4.3 `pipelineWebviewBuildOptions` in
+- [x] 4.3 `pipelineWebviewBuildOptions` in
   `packages/extension/scripts/build-options.mjs` bundles
   `pipeline-entry.tsx` to `dist/pipeline.js`, and
   `packages/extension/scripts/build.mjs` builds it. Record the bundle's
   size. `.vscodeignore` already ships `dist/`; check that it still does,
   and do not change it.
-- [ ] 4.4 A new `PipelinePanel` in
+  Done 2026-09-13: `dist/pipeline.js` 1.1 MB, its map 1.8 MB.
+  `.vscodeignore` excludes `dist/test-suite/**` only, so the bundle ships.
+  `src/test/run.mjs` builds it too, for the integration suite.
+- [x] 4.4 A new `PipelinePanel` in
   `packages/extension/src/webview/pipeline-panel.ts` opens one
   `openspecUiPipeline` webview panel per window, and reveals it when it is
   already open. The panel:
@@ -103,7 +120,7 @@ when files change (ADR 0029).
   - does not set `retainContextWhenHidden`;
   - uses the content security policy
     `default-src 'none'; script-src <cspSource>; style-src <cspSource> 'unsafe-inline';`.
-- [ ] 4.5 The panel answers the two operations:
+- [x] 4.5 The panel answers the two operations:
   - `pipeline/readiness` with `readPipelineReadiness(workspaceRoot)`.
   - `pipeline/survey` with
     `surveyWorktrees({ workspaceRoot, sweepStatuses: true })`. When only
@@ -114,14 +131,14 @@ when files change (ADR 0029).
   The workspace root is the host's own, and no message names a path. An
   unknown operation is refused with an error reply, as `answerRequest` in
   `ai-panel.ts` refuses one.
-- [ ] 4.6 `openspec-ui.openPipeline`, titled `OpenSpec UI: Open Pipeline`,
+- [x] 4.6 `openspec-ui.openPipeline`, titled `OpenSpec UI: Open Pipeline`,
   is contributed in `packages/extension/package.json`, registered in
   `packages/extension/src/extension.ts`, and offered in the Changes view's
   title bar.
 
 ## 5. Re-reading on file events
 
-- [ ] 5.1 While the panel is visible, the host watches two things:
+- [x] 5.1 While the panel is visible, the host watches two things:
   - `openspec/changes/**` under the workspace root. A change posts
     `openspec-ui/pipeline-changed` naming both readings.
   - `*.json` in the directory `resolveAgentStatusDirectory` returns. A
@@ -130,18 +147,22 @@ when files change (ADR 0029).
 
   Events within 1 second of each other become one message. The watchers
   are disposed when the panel is hidden or closed.
-- [ ] 5.2 When the status directory cannot be resolved, the panel relies on
+  Done: the window opens at the first event and every event inside it
+  joins the one message, so a record rewritten once a second cannot hold
+  the message back indefinitely.
+- [x] 5.2 When the status directory cannot be resolved, the panel relies on
   the backstop interval alone. The survey's `runsUnreadable` says why, as
   it already does.
-- [ ] 5.3 extension `pipeline-panel.test.ts`:
+- [x] 5.3 extension `pipeline-panel.test.ts`:
   - two `openspec/changes` events within a second post one message naming
     both readings;
   - a status directory event posts one message naming the survey;
   - after the watchers are disposed, no message is posted.
+  Done: 12 tests pass, 2026-09-13.
 
 ## 6. Opening a change
 
-- [ ] 6.1 On `openspec-ui/open-change`, the panel does the following, in
+- [x] 6.1 On `openspec-ui/open-change`, the panel does the following, in
   order:
   1. Checks the name with `isValidChangeName`.
   2. Checks, with `discoverOpenSpecWorkspace`, that the name is an active
@@ -153,32 +174,59 @@ when files change (ADR 0029).
 
   For a name that fails either check, it shows an information message
   and opens nothing.
-- [ ] 6.2 extension `pipeline-panel.test.ts`:
+- [x] 6.2 extension `pipeline-panel.test.ts`:
   - an active change is revealed and opened;
   - an unknown name opens nothing and says so;
   - a name containing a path separator is refused before any lookup.
 
 ## 7. Tests and measurements
 
-- [ ] 7.1 The extension integration suite in
+- [x] 7.1 The extension integration suite in
   `packages/extension/src/test-suite/`: `openspec-ui.openPipeline` opens a
   webview panel titled `OpenSpec UI: Pipeline`, and running it twice
   leaves one panel.
-- [ ] 7.2 Measure `readPipelineReadiness` and `surveyWorktrees` over this
+  Done in `src/test/suite/extension.test.ts`, counted from the editor's own
+  tabs. Run 2026-09-13 with the inherited `VSCODE_*` and `ELECTRON_*`
+  variables stripped: 18 passing. The first run had 17 passing and one
+  failure in `Run with Harness renders the panel and applies a named
+  configuration`, which waited a fixed 250 ms for an asynchronous write and
+  read the old file while the browser suite loaded the machine; it now
+  waits for the file, and passed in the second run under the same load.
+- [x] 7.2 Measure `readPipelineReadiness` and `surveyWorktrees` over this
   repository: five runs each, after a warm-up. Record the times beside
   `BRIDGE_REQUEST_TIMEOUT_MS`. If either takes more than half that
   timeout, give the pipeline operations a timeout of their own, stated
   with the measurement.
+  Done 2026-09-13, this repository with 9 active changes, from the TS
+  sources through `tsx`: `readPipelineReadiness` 386, 421, 387, 393,
+  386 ms; `surveyWorktrees` (with `sweepStatuses`) 1098, 1670, 1945, 1884,
+  1809 ms. `BRIDGE_REQUEST_TIMEOUT_MS` is 10 000 ms; the slowest reading
+  is under a fifth of it, so the pipeline operations keep the shared
+  timeout.
 
 ## 8. Verification
 
-- [ ] 8.1 This change validates strictly. `check(validate-change)`
+- [x] 8.1 This change validates strictly. `check(validate-change)`
+  Done: `openspec validate the-pipeline-opens-in-vs-code --strict` reports
+  it valid, 2026-09-13.
 - [ ] 8.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count for each package.
-- [ ] 8.3 A pending changeset exists: core, webui and the extension minor,
+  Local run 2026-09-13, exit code 1. Typecheck and every lint passed.
+  Tests: cli 134 passed; core 1245 passed, 1 failed; extension 351 passed;
+  server 86 passed; webui 430 passed. The one failure is `keeps accepting
+  this repository's real openspec/agent-harness.json`, which reads the
+  working tree's file: an uncommitted local edit, not part of this change,
+  sets its `autonomyLevel` to `semi-autonomous`. To be closed on CI's run
+  of the same checks against the committed tree, as
+  `a-change-is-configured-from-the-change` 8.2 was.
+- [x] 8.3 A pending changeset exists: core, webui and the extension minor,
   server patch. `check(changeset-present)`
-- [ ] 8.4 Run the whole browser suite, not a selected spec. The standalone
+  Done: `.changeset/the-pipeline-opens-in-vs-code.md`.
+- [x] 8.4 Run the whole browser suite, not a selected spec. The standalone
   Pipeline's specs pass unchanged.
+  Done 2026-09-13: `npm run test:browser` in `packages/server`, 18 passed
+  (6.3 min), `pipeline.spec.ts` unchanged. The pictures it retook of
+  screens this change does not touch were left as they were.
 - [ ] 8.5 **Delegated to claude-cli**: check the panel in a real VS Code
   host.
 

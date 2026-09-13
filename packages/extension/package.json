@@ -115,6 +115,11 @@
         "icon": "$(list-tree)"
       },
       {
+        "command": "openspec-ui.openPipeline",
+        "title": "OpenSpec UI: Open Pipeline",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "openspec-ui.archiveChange",
         "title": "OpenSpec UI: Archive Change",
         "icon": "$(archive)"
@@ -324,6 +329,11 @@
         },
         {
           "command": "openspec-ui.openAiPanel",
+          "when": "view == openspecUiChanges",
+          "group": "navigation"
+        },
+        {
+          "command": "openspec-ui.openPipeline",
           "when": "view == openspecUiChanges",
           "group": "navigation"
         },

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   extensionHostBuildOptions,
   harnessSettingsWebviewBuildOptions,
+  pipelineWebviewBuildOptions,
   standaloneAssetsBuildOptions,
   timelineWebviewBuildOptions,
   webviewBuildOptions,
@@ -16,6 +17,7 @@ await build(extensionHostBuildOptions());
 await build(webviewBuildOptions());
 await build(timelineWebviewBuildOptions());
 await build(harnessSettingsWebviewBuildOptions());
+await build(pipelineWebviewBuildOptions());
 await build(standaloneAssetsBuildOptions());
 
 const standaloneDir = path.resolve(here, "../dist/standalone");

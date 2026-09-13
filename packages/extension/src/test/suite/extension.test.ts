@@ -273,6 +273,22 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     }
   });
 
+  // the-pipeline-opens-in-vs-code 7.1. Counted from the editor's own tabs,
+  // not from the extension's bookkeeping: a second panel the extension had
+  // lost track of would be exactly what this must catch.
+  test("Pipeline: the command opens one panel titled OpenSpec UI: Pipeline, and running it again opens no second one", async () => {
+    const pipelineTabs = () => vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .filter((tab) => tab.input instanceof vscode.TabInputWebview && tab.label === "OpenSpec UI: Pipeline");
+
+    await vscode.commands.executeCommand("openspec-ui.openPipeline");
+    await waitFor(() => pipelineTabs().length > 0);
+    await vscode.commands.executeCommand("openspec-ui.openPipeline");
+
+    assert.equal(pipelineTabs().length, 1);
+    assert.ok((pipelineTabs()[0]?.input as vscode.TabInputWebview).viewType.endsWith("openspecUiPipeline"));
+  });
+
   test("Changes tree keeps an implemented change as the parent of its tasks row after refresh", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
@@ -349,8 +365,23 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       assert.ok(html?.includes('<div id="root"'), "expected the real webview root element");
 
       api.deliverWebviewRunChoice({ kind: "apply-template", templateId: "economy" });
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      const written = JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(harnessUri)).toString("utf8")) as Record<string, unknown>;
+      // Waited for on the file, not for a duration. The write is
+      // asynchronous, and a fixed 250 ms read the file as it was before
+      // whenever the extension host was slow — seen 2026-09-13 with the
+      // browser suite running beside this one.
+      const readWritten = async (): Promise<Record<string, unknown>> => {
+        try {
+          return JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(harnessUri)).toString("utf8")) as Record<string, unknown>;
+        } catch {
+          // Caught between two writes: not written yet.
+          return {};
+        }
+      };
+      let written = await readWritten();
+      for (const deadline = Date.now() + 10_000; written.budget === undefined && Date.now() < deadline;) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        written = await readWritten();
+      }
       assert.deepEqual(written.budget, { maxCostUsd: 3, maxStageCostUsd: 2 });
       assert.equal(written.autonomyLevel, "semi-autonomous");
       assert.ok(api.getDashboardContext()?.runPlan, "expected the panel to refresh after applying the configuration");

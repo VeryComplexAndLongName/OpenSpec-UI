@@ -41,7 +41,11 @@ export type BridgeOperation =
     | "harness/write-global"
     | "harness/read-change-override"
     | "harness/write-change-override"
-    | "custom-agents/list";
+    | "custom-agents/list"
+    // The Pipeline panel's two readings (the-pipeline-opens-in-vs-code).
+    // Answered by that panel only; another panel refuses them by name.
+    | "pipeline/readiness"
+    | "pipeline/survey";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

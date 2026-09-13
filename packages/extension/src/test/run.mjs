@@ -13,6 +13,7 @@ import { runTests } from "@vscode/test-electron";
 import {
   extensionHostBuildOptions,
   harnessSettingsWebviewBuildOptions,
+  pipelineWebviewBuildOptions,
   standaloneAssetsBuildOptions,
   testSuiteBuildOptions,
   timelineWebviewBuildOptions,
@@ -27,6 +28,7 @@ async function buildAll() {
   await build(webviewBuildOptions());
   await build(timelineWebviewBuildOptions());
   await build(harnessSettingsWebviewBuildOptions());
+  await build(pipelineWebviewBuildOptions());
   await build(standaloneAssetsBuildOptions());
   await build(testSuiteBuildOptions());
   const standaloneDir = path.resolve(extensionRoot, "dist/standalone");

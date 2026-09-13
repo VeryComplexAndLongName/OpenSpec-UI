@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { agentStatusDirectory } from "./agent-status.js";
 import type { GitWorktree } from "./git.js";
-import { describeDirectoryRuns, surveyWorktrees } from "./worktree-survey.js";
+import { describeDirectoryRuns, refreshSurveyRuns, surveyWorktrees, type SurveyedDirectory } from "./worktree-survey.js";
 
 // every-varying-check-has-a-budget: no git process and no agent — the git
 // wrapper is a fake that records its calls, and every directory is a
@@ -337,5 +337,99 @@ describe("surveyWorktrees — what a directory's runs say", () => {
     // Against the whole shape, because that word is the one somebody will
     // helpfully add later.
     expect(JSON.stringify(survey)).not.toMatch(/idle|stuck|hung|healthy/i);
+  });
+});
+
+describe("refreshSurveyRuns — the runs read again, without git", () => {
+  // the-pipeline-opens-in-vs-code 2.2, 2.5. A status record is rewritten
+  // every few seconds while a run lives; re-reading the records must not
+  // mean listing the worktrees again each time.
+  const gitThatMustNotRun = {
+    worktreeList: async (): Promise<GitWorktree[]> => { throw new Error("git was run"); },
+    configuredIdentity: async (): Promise<string | undefined> => { throw new Error("git was run"); },
+  };
+
+  it("moves a run to the directory its new record names, drops a record gone from disk, and keeps the rest of the survey", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "change-b");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b", { ticks: [true, false] });
+    const statusDirectory = agentStatusDirectory(worktreeRoot, main);
+    await writeStatus(statusDirectory, { instanceId: "run-moving", workingDirectory: main, activity: "Read a.ts" });
+    await writeStatus(statusDirectory, { instanceId: "run-ending", workingDirectory: main, activity: "Bash: npm test" });
+    const { git } = recordingGit([{ path: main, branch: "main" }, { path: second, branch: "change-b" }], "Me <me@example.invalid>");
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+    expect(survey.directories[0]?.runs.map((run) => run.instanceId).sort()).toEqual(["run-ending", "run-moving"]);
+
+    await writeStatus(statusDirectory, { instanceId: "run-moving", workingDirectory: second, activity: "Edit b.ts" });
+    await rm(path.join(statusDirectory, "run-ending.json"));
+    const refreshed = await refreshSurveyRuns(survey, { git: gitThatMustNotRun, rootSources });
+
+    expect(refreshed.directories[0]?.runs).toEqual([]);
+    expect(refreshed.directories[1]?.runs).toMatchObject([{ instanceId: "run-moving", activity: "Edit b.ts" }]);
+    expect(refreshed.runsElsewhere).toEqual([]);
+    // Directories, changes and identity stay as the survey read them.
+    expect(refreshed.directories.map((d) => [d.label, d.branch])).toEqual([["repo", "main"], ["change-b", "change-b"]]);
+    const other = refreshed.directories[1];
+    expect(other?.readable && other.changes.map((c) => [c.changeName, c.tasksDone, c.tasksTotal])).toEqual([["change-b", 1, 2]]);
+    expect(refreshed.thisAuthor).toBe("Me <me@example.invalid>");
+  });
+
+  it("reports a record whose directory is not a working directory of the survey as belonging to none", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    await writeStatus(agentStatusDirectory(worktreeRoot, main), {
+      instanceId: "run-elsewhere",
+      workingDirectory: path.join(worktreeRoot, "repo", "not-listed"),
+      activity: "Edit c.ts",
+    });
+    const refreshed = await refreshSurveyRuns(survey, { git: gitThatMustNotRun, rootSources });
+
+    expect(refreshed.directories[0]?.runs).toEqual([]);
+    expect(refreshed.runsElsewhere.map((run) => run.instanceId)).toEqual(["run-elsewhere"]);
+  });
+});
+
+describe("describeDirectoryRuns — ages that keep counting", () => {
+  // the-pipeline-opens-in-vs-code 2.4. A picture read once and kept on
+  // screen for a minute must not keep saying "12s ago".
+  const directory: SurveyedDirectory = {
+    path: "/repo",
+    label: "repo",
+    labelDeclared: false,
+    isMain: true,
+    isThis: true,
+    readable: true,
+    changes: [],
+    authorDiffers: false,
+    runs: [{
+      instanceId: "run-1",
+      changeName: "change-a",
+      stage: "apply",
+      activity: "Bash: npm test",
+      activitySinceMs: 12_000,
+      heartbeatAgeMs: 2_000,
+      activityAt: "2026-09-13T12:00:00.000Z",
+      heartbeatAt: "2026-09-13T12:00:10.000Z",
+      gone: false,
+      workingDirectory: "/repo",
+    }],
+  };
+
+  it("states the interval measured at read time when given no clock", () => {
+    expect(describeDirectoryRuns(directory)).toEqual(["change-a (apply): Bash: npm test — said 12s ago"]);
+  });
+
+  it("counts from the record's own timestamps when given a clock", () => {
+    expect(describeDirectoryRuns(directory, new Date("2026-09-13T12:01:00.000Z")))
+      .toEqual(["change-a (apply): Bash: npm test — said 60s ago"]);
+  });
+
+  it("counts a gone run's silence from its last heartbeat", () => {
+    const gone: SurveyedDirectory = { ...directory, runs: [{ ...directory.runs[0]!, gone: true }] };
+    expect(describeDirectoryRuns(gone, new Date("2026-09-13T12:02:10.000Z"))[0])
+      .toContain("last heard from 120s ago");
   });
 });
