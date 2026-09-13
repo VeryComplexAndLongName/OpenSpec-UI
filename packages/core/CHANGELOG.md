@@ -1,5 +1,18 @@
 # @openspec-ui/core
 
+## 0.81.0
+
+### Minor Changes
+
+- 4128158: A delegated run says what happened.
+  
+  Handing a task to an agent through the delegated-item route could fail without saying why, and could not be seen while it ran. A marker that named its agent in backticks — ``**Delegated to `claude-cli`**``, the way every delegated item had been written — named no agent at all; it now names the same agent as the bare id, while a backtick on one side only still names nothing. A run that stopped reported only the agent's exit code; its result now carries the last lines the agent wrote to stderr, bounded, and its message quotes the last of them ("claude exited with code 1. It last said: …"). The standalone inbox shows the whole tail in a disclosure beneath the row's outcome, and VS Code shows a stopped run as a warning with a "Show output" action that writes the tail to the OpenSpec UI output channel. And a delegated run now keeps the same status record as any other run, so `openspec-ui-cli status`, the survey and the Pipeline tab see it, whichever host started it.
+- 43a3b82: The Pipeline shows what it has read.
+  
+  The tab used to show nothing but "Reading what is running…" until this directory's own report arrived, and nothing but an error when that report failed — hiding other working directories whose survey had already come back. Each reading is now shown when it arrives: this directory's part says it is still being read, or why it could not be, in its own place, a picture already drawn stays under a later error, and the other working directories are drawn whatever became of it.
+  
+  A card with more to say than room used to draw half a line at its bottom edge. A card now draws only whole lines. How many it holds is derived from its size, the way its position already is — core gains `PIPELINE_CARD_REM` and `pipelineCardDetailLines`, and the stylesheet is written from the same lengths. Each detail is one line with an ellipsis; lines past the budget stay on the card for assistive technology and in its title, and the last drawn line counts them ("+2").
+
 ## 0.80.0
 
 ### Minor Changes
