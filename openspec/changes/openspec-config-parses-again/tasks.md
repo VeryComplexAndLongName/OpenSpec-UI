@@ -74,7 +74,7 @@ The OpenSpec config parses, and the lint gate says so when it does not.
 
   Done: `openspec validate openspec-config-parses-again --strict` reports
   the change valid.
-- [ ] 3.2 Run `npm run verify` unpiped, with everything staged. Record each
+- [x] 3.2 Run `npm run verify` unpiped, with everything staged. Record each
   package's test count.
 
   Run on 2026-09-14 at 14:00, unpiped, with everything staged, on main
@@ -98,6 +98,13 @@ The OpenSpec config parses, and the lint gate says so when it does not.
   alone passed in this worktree, 3 of 3. The branch
   is rebased onto main after this run, so this stays open until CI passes
   the whole suite on the rebased branch.
+
+  Closed on CI. On PR #506 at `80ca81e`, rebased onto main `8764124`, run
+  34832363891 passed "Typecheck, lint, test, and build", with the new
+  check inside `lint` and its test inside `test`. "Standalone browser and
+  accessibility", "Extension integration and package", "OpenSpec change
+  validation (merge gate)", "Dependency audit" and "Dependency review" also
+  passed. The release jobs were skipped, as on every pull request.
 - [x] 3.3 No changeset: no published package changes.
 
   Done. The change touches `openspec/config.yaml`, `scripts/`, and the root
