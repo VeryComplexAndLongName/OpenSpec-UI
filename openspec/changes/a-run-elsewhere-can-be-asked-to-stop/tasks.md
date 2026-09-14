@@ -304,14 +304,56 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 
 ## 4. Verification
 
-- [ ] 4.1 This change validates strictly. `check(validate-change)`
+- [x] 4.1 This change validates strictly. `check(validate-change)`
+
+  Done: `openspec validate a-run-elsewhere-can-be-asked-to-stop --strict`
+  reports the change valid, run before section 3 was committed.
 - [ ] 4.2 Run `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and each package's test count.
-- [ ] 4.3 A pending changeset exists: core, cli, server, extension and webui,
+
+  Run on 2026-09-14 at 11:27, unpiped, with everything staged. Typecheck
+  and lint passed. The tests:
+  - cli: 161 in 16 files, all passed;
+  - core: 1447 in 105 files, with 1446 passed and 1 failed;
+  - extension: 375 in 28 files, all passed;
+  - server: 100 in 4 files, all passed;
+  - webui: 464 in 51 files, all passed.
+
+  The core failure is not this change's. In `git-refs.test.ts`, "reads a
+  directory and a file from a branch that is not checked out", Git's own
+  `sh.exe` died during the test's `git push`:
+  `fatal error - add_item ("\??\C:\Tools\Git", "/", ...) failed, errno 1`.
+  It is the same MSYS failure under load that `a-change-is-run-from-its-card`
+  7.2 recorded. The file alone passed, 3 of 3. Left open until CI passes the
+  whole suite in one run.
+- [x] 4.3 A pending changeset exists: core, cli, server, extension and webui,
   each at minor. `check(changeset-present)`
+
+  Done: `.changeset/a-run-elsewhere-can-be-asked-to-stop.md` names
+  `@openspec-ui/core`, `@openspec-ui/cli`, `@openspec-ui/server`,
+  `openspec-ui-vscode` (the extension) and `@openspec-ui/webui`, each minor.
 - [ ] 4.4 Run the whole browser suite, not a selected spec.
 - [ ] 4.5 **Delegated to claude-cli**: stop a run in another worktree through
   the channel.
+
+  Where and how:
+  - Work in this working directory, on the branch
+    `implement-a-run-elsewhere-can-be-asked-to-stop`. Do not touch
+    `C:\Prog\OpenSpec-UI` or any other checkout.
+  - Take every step in a foreground command. A command sent to the
+    background ends the run with nothing recorded.
+  - Port 4817 is taken by the server that started this run. Use another
+    port.
+  - Put the scratch repository, its worktrees and the stand-in under the
+    system's temp directory. Change no tracked file except this task list.
+  - B's chain must run in a host built from this branch, since only that
+    reads requests. Run `openspec-ui-cli run` from this branch's source,
+    for example `npx tsx packages/cli/src/main.ts run <change> --cwd <B>`.
+    The built `packages/cli/dist` can predate this branch. Run the CLI's
+    `status` and `stop` the same way.
+  - This machine's key is the one under the home directory. Enrol it in
+    the scratch repository's roster with `enrol`, and do not create or
+    replace a key anywhere else.
 
   Setup:
   - a scratch git repository with worktrees A and B, and this machine's key
