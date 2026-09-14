@@ -47,6 +47,14 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
   await expect(page.getByRole("heading", { name: "OpenSpec UI", level: 1 })).toBeVisible();
 
+  // The owl marks the page: decorative in the headline, and the tab's
+  // icon, both carried inline. See the-owl-marks-the-app.
+  const owl = page.locator(".openspec-shell-headline img.openspec-shell-logo");
+  await expect(owl).toBeVisible();
+  await expect(owl).toHaveAttribute("alt", "");
+  expect(await owl.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  expect(await page.locator('link[rel="icon"]').getAttribute("href")).toMatch(/^data:image\/png;base64,/);
+
   await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
 
   await page.getByRole("tab", { name: "OpenSpec view summary" }).click();

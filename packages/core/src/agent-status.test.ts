@@ -420,13 +420,15 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
       }
     })();
 
+    // Up to 10 s, not vi.waitFor's default of 1 s, which a full suite's
+    // load outran. See the-owl-marks-the-app, 4.2.
     await vi.waitFor(async () => {
       const { reports } = await readAgentStatuses(directory);
       expect(reports[0]).toMatchObject({ runId: "run-42", task: { number: "6.5", source: "command" } });
-    });
+    }, { timeout: 10_000 });
     finish();
     await draining;
-  });
+  }, 15_000);
 
   it("reads a record written without the three fields with all three null, and not as malformed", async () => {
     const root = await temporaryRoot();
@@ -543,15 +545,16 @@ describe("withAgentStatus", () => {
       }
     })();
 
+    // Up to 10 s, as above. See the-owl-marks-the-app, 4.2.
     await vi.waitFor(async () => {
       const { reports } = await readAgentStatuses(directory);
       expect(reports[0]).toMatchObject({ changeName: "a-change", stage: "apply" });
-    });
+    }, { timeout: 10_000 });
 
     finish();
     await draining;
     expect((await readAgentStatuses(directory)).reports).toHaveLength(0);
-  });
+  }, 15_000);
 
   it("passes a command that is not a run straight through, starting no record", async () => {
     const events: Event[] = [{ kind: "cancelled", runId: "r1", timestamp: "t" }];

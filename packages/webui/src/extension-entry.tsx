@@ -14,6 +14,7 @@ import { MessageBridgeTransport, type VsCodeApiLike } from "./transport/message-
 import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
+import { OwlLogo } from "./components/OwlLogo.js";
 import type { RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import {
@@ -161,8 +162,11 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
     <div className="openspec-extension-app">
       <style>{`${shellThemeCss}\n${vscodeThemeCss}`}</style>
       <header className="openspec-shell-headline">
-        <h1>OpenSpec UI</h1>
-        <p>VS Code webview runner for OpenSpec commands.</p>
+        <OwlLogo />
+        <div>
+          <h1>OpenSpec UI</h1>
+          <p>VS Code webview runner for OpenSpec commands.</p>
+        </div>
       </header>
       <section className="openspec-shell-panel">
         <div className="openspec-shell-grid">

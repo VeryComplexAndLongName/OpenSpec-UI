@@ -287,18 +287,21 @@ describe("runDelegatedItem — what a run says about itself (a-delegated-run-say
       lineNumber: 0,
       resolveStatusDirectory: async () => directory,
       resolveRunner: () => runnerOver(auditLog, root, async () => {
+        // vi.waitFor's default of 1 s was too short under a full suite's
+        // load: the record came later, and the test failed while its file
+        // passed alone. See the-owl-marks-the-app, 4.1.
         await vi.waitFor(async () => {
           const { reports } = await readAgentStatuses(directory);
           expect(reports).toHaveLength(1);
           during = reports;
-        });
+        }, { timeout: 10_000 });
       }),
     });
 
     expect(result.status).toBe("ran");
     expect(during.map((report) => report.changeName)).toEqual(["demo"]);
     expect((await readAgentStatuses(directory)).reports).toEqual([]);
-  });
+  }, 15_000);
 });
 
 describe("runDelegatedItem — the rubber-stamp gate", () => {
