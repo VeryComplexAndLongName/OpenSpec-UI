@@ -51,6 +51,20 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
     expect(read).toEqual({ available: false, reason: "gh is not signed in" });
   });
 
+  // a-gh-refusal-names-its-cause 1.2: gh's refusal as
+  // a-change-says-where-it-stands 10.6 recorded it, which also names
+  // `gh auth login`.
+  it("says no remote is on a GitHub host gh knows, not that gh is signed out", async () => {
+    const read = await listPullRequestsByBranch({
+      cwd: "/repo",
+      exec: async () => {
+        throw new Error("gh pr list exited with code 1: none of the git remotes configured for this repository point to a known GitHub host. To tell gh about a new GitHub host, please use `gh auth login`");
+      },
+    });
+
+    expect(read).toEqual({ available: false, reason: "no remote is on a GitHub host gh knows" });
+  });
+
   it("says so when gh prints something that is not a list of pull requests", async () => {
     const read = await listPullRequestsByBranch({ cwd: "/repo", exec: async () => ({ stdout: "oops", stderr: "" }) });
 
