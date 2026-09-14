@@ -218,16 +218,30 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
 
   Done: `openspec validate a-card-opens-to-its-tasks --strict` reports the
   change valid.
-- [ ] 6.2 Run `npm run verify` unpiped, after the last edit, with
+- [x] 6.2 Run `npm run verify` unpiped, after the last edit, with
   everything staged. Record the run and the per-package test counts.
+
+  Done on 2026-09-14 at 10:30, at `8cbb612` rebased on main `27694fb`,
+  after 6.5's record was staged. Typecheck, lint and tests all passed:
+  - cli: 155 tests in 15 files;
+  - core: 1434 in 103;
+  - extension: 373 in 28;
+  - server: 99 in 4;
+  - webui: 468 in 51.
 - [x] 6.3 A pending changeset exists: core and webui minor, extension
   patch. `check(changeset-present)`
 
   Done: `.changeset/a-card-opens-to-its-tasks.md` names
   `@openspec-ui/core` and `@openspec-ui/webui` minor, and
   `openspec-ui-vscode` patch.
-- [ ] 6.4 Run the whole browser suite, not a selected spec.
-- [ ] 6.5 **Delegated to claude-cli**: look at
+- [x] 6.4 Run the whole browser suite, not a selected spec.
+
+  Done on 2026-09-14: `npm run test:browser` in `packages/server`,
+  unpiped, with the client built from this branch. 20 passed in 5.2
+  minutes. The screenshots the suite takes were regenerated as captures
+  only and not committed. `pipeline.png` with a card open was committed
+  with 5.2.
+- [x] 6.5 **Delegated to claude-cli**: look at
   `docs/images/standalone/pipeline.png`, and at the tab at 150% zoom, and
   say whether three things read as intended: an open card, its rail and its
   in-hand row; the legend; and the columns once a card is open. Automated
@@ -334,3 +348,72 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
   not through it. `PipelineView.test.tsx` checks a rail within a section,
   one across a heading, and none on the last row.
   `pipeline-card-style.test.ts` pins the height across a heading.
+
+  Looked at again by claude-cli on 2026-09-14, after `8cbb612`. All three
+  read as intended.
+
+  What was looked at:
+  - `docs/images/standalone/pipeline.png` as committed. Its cards have one
+    task each, so it draws no rail, and the fix changes nothing in it. It
+    still shows one legend, the open `pipeline-first` and its row whole,
+    `pipeline-unrelated` moved down, and `pipeline-second` level with the
+    head of `pipeline-first`.
+  - The Pipeline tab at 100% and 150%, against a scratch repository under
+    the temp directory (`look-65-ocP8n7`).
+    - The client bundle was rebuilt first with
+      `node scripts/build-client.mjs` in `packages/server`, because
+      `dist/app.js` (10:15) predated `8cbb612` (10:22).
+    - The server was the branch's `createServer` on a free port (62920),
+      driven by one foreground Playwright script run with `tsx`. It exited
+      with code 0.
+  - The scratch repository:
+    - `scratch-open` has six tasks under `## 1. Sections and rows in core`
+      and `## 2. Pictures`: one done, one `**Human-only**`, one
+      `**Delegated to claude-cli**`. A fresh status record names task 1.2.
+    - `scratch-waits` is blocked by `scratch-open`, with tasks 1.1 and 1.2
+      under `## 1. Waiting` and 2.1 under `## 2. After`.
+    - `scratch-unrelated` has one task.
+  - Captured: `scratch-open` open alone, then Open all, at 100% and at
+    150%. The line check found no cut line at 100% with one card open, at
+    100% with all open, or at 150% (`[]` each time), and the page raised
+    no errors.
+
+  1. **An open card, its rail and its in-hand row read as intended.**
+     - The rows still read as number, word in italics, then text: `1.1
+       done`, `1.2 in hand`, `1.3 open`, `2.1 open`, `2.2 only a person
+       can close it` and `2.3 delegated to claude-cli`.
+     - The leads are left out of the text. Long rows end in an ellipsis,
+       and their `title` keeps the full text.
+     - `1.2 in hand` is the only bold row (weight 700 against 400).
+     - The rail is now one unbroken line from 1.1 to 2.3. It runs through
+       the `Pictures` heading, so 2.1 visibly follows 1.3, and the two
+       sections no longer read as separate tracks.
+       - Measured at 100%, every rail runs from its own row's middle to
+         the next row's middle: 103→119, 119→135, 135→171 across the
+         heading, 171→187 and 187→203. The last row, 2.3, has no rail.
+       - At 150% the joins still meet exactly: 155→179, 179→203, 203→257
+         across the heading, 257→281 and 281→305.
+     - The rail is at x 15 in the heading's gutter. Heading text starts at
+       x 22 at both zooms, so the rail runs beside the heading, not
+       through it.
+     - `scratch-waits` shows the same: a rail from 1.2 across `After` to
+       2.1 (`openspec-pipeline-task-rail--across`), and none on 2.1.
+     - Every rail is `aria-hidden`.
+     - Because the rail now crosses headings, it no longer reads as the
+       left guide of one indented group. Its grey (rgb(188, 195, 204)) is
+       still faint at 100%, and the legend is what says it means order.
+     - No run named a task on `scratch-waits` this time, so no row there
+       said `probably next`. The first look saw that word, and `8cbb612`
+       did not touch it.
+  2. **The legend reads as intended.** There is one legend for the tab
+     (`legendCount` 1), below the controls and above the pictures, with
+     the same three sentences and line samples. It keeps its size at 150%.
+  3. **The columns read as intended once a card is open.**
+     - At 100%, opening `scratch-open` made it 216px tall instead of 80.
+       `scratch-unrelated` moved from y 634.5 to 770.5, exactly the
+       136px of extra height.
+     - `scratch-waits`, in the next column, stayed at y 530.5.
+     - The edge meets both cards at the head, level with the state line,
+       with one card open, with all open, and at 150%.
+     - At 150%, `scratch-open` is 324px tall, and `scratch-waits` stays
+       level with its head.
