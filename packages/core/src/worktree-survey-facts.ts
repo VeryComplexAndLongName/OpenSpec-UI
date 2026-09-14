@@ -33,6 +33,19 @@ export interface SurveyedChange {
    * this name too. Reported, never resolved: it comes from ordinary
    * branching, and becomes a collision only when a copy is edited. */
   alsoIn: string[];
+  /** Open items only a person can close. Absent where the change has no
+   * task list (a-card-says-what-its-change-is-doing). */
+  tasksForPerson?: number;
+  /** Open items delegated to a named agent. Absent where there is no task
+   * list. */
+  tasksDelegated?: number;
+  /** The first open item that is neither Human-only nor delegated, with its
+   * number and its text without the number: what a run that names no task
+   * is probably on. */
+  nextOpenTask?: { number: string; text: string };
+  /** When the task list was last modified, as an ISO timestamp. A failure
+   * older than this no longer decides a card's state. */
+  tasksModifiedAt?: string;
 }
 
 /** What one run says it is doing, as its own status record says it.
@@ -180,9 +193,20 @@ export function describeRun(run: SurveyedRun, now?: Date): string {
  * session this product did not start writes no record at all.
  *
  * `now` counts each stated age from the record's timestamps. Without it,
- * the ages are the ones measured when the survey was read. */
-export function describeDirectoryRuns(directory: SurveyedDirectory, now?: Date): string[] {
+ * the ages are the ones measured when the survey was read.
+ *
+ * `shownOnCards` names the runs a change's card already shows, by instance
+ * id. They are not said a second time, and a directory whose every run is
+ * on a card says so rather than that none reports
+ * (a-card-says-what-its-change-is-doing). */
+export function describeDirectoryRuns(
+  directory: SurveyedDirectory,
+  now?: Date,
+  shownOnCards: ReadonlySet<string> = new Set(),
+): string[] {
   const lines = directory.readable ? [] : [`could not be read: ${directory.reason}`];
   if (directory.runs.length === 0) return [...lines, "no run reports here"];
-  return [...lines, ...directory.runs.map((run) => describeRun(run, now))];
+  const rest = directory.runs.filter((run) => !shownOnCards.has(run.instanceId));
+  if (rest.length === 0) return [...lines, "every run here is on its change's card"];
+  return [...lines, ...rest.map((run) => describeRun(run, now))];
 }

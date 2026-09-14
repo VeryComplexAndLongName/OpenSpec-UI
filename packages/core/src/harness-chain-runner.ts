@@ -47,7 +47,8 @@ import {
   isWaitingStep,
   runChainStep,
 } from "./chain-steps.js";
-import { VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { CHAIN_ENDING_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { isChainStepName, type ChainPart } from "./harness-stage.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
@@ -506,11 +507,44 @@ export class HarnessChainRunner {
 
     const state: ChainState = { cancelRequested: false, elapsedMs: 0, attemptsByStage: new Map() };
     this.active.set(command.runId, state);
+    // The stage the chain is in, and how it ended, as its own events say.
+    // Read here rather than at each place an ending is yielded, so no
+    // ending — a cancel at a checkpoint, a limit, a failure — goes
+    // unrecorded (a-card-says-what-its-change-is-doing).
+    let stage: ChainPart | undefined;
+    let ending: Extract<Event, { kind: "completed" | "failed" | "cancelled" }> | undefined;
     try {
-      yield* this.runChain(command, state);
+      for await (const event of this.runChain(command, state)) {
+        if (event.kind === "stageStarted") stage = event.stage;
+        if (event.kind === "completed" || event.kind === "failed" || event.kind === "cancelled") ending = event;
+        yield event;
+      }
     } finally {
       this.active.delete(command.runId);
+      if (ending !== undefined) this.recordEnding(command, ending, stage);
     }
+  }
+
+  /** The one entry a chain writes as it ends: how, at which stage, and why.
+   * It carries no usage — the stages' own entries do — and `isRunEntry`
+   * skips it, so no counter reads it as a run. */
+  private recordEnding(
+    command: Command,
+    ending: Extract<Event, { kind: "completed" | "failed" | "cancelled" }>,
+    stage: ChainPart | undefined,
+  ): void {
+    const reason = ending.kind === "completed" ? undefined : ending.reason;
+    this.deps.auditLog?.record({
+      runId: command.runId,
+      agent: CHAIN_ENDING_AGENT_NAME,
+      outcome: ending.kind,
+      cwd: command.cwd,
+      timestamp: Number.isFinite(Date.parse(ending.timestamp)) ? ending.timestamp : nowIso(),
+      changeDir: command.context.changeDir,
+      // A declared step is not a stage the audit log names.
+      ...(stage !== undefined && !isChainStepName(stage) ? { stage } : {}),
+      ...(reason !== undefined ? { reason } : {}),
+    });
   }
 
   /** Resumes a chain paused at a checkpoint. Returns `false` if no chain

@@ -240,6 +240,54 @@ describe("surveyWorktrees — directories and their changes", () => {
   });
 });
 
+describe("surveyWorktrees — what a card needs from a task list (a-card-says-what-its-change-is-doing 1.2)", () => {
+  it("counts what only a person and what a delegated agent can close, and finds the task a run is probably on", async () => {
+    const { main, rootSources } = await repository();
+    const dir = path.join(main, "openspec", "changes", "carded");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, ".openspec.yaml"), `schema: spec-driven${LF}`, "utf8");
+    await writeFile(path.join(dir, "tasks.md"), [
+      "- [x] 1.1 Done already",
+      "- [ ] 1.2 **Human-only**: look at it",
+      "- [ ] 1.3 **Delegated to claude-cli**: check it",
+      "- [ ] 1.4 Write the reader",
+      "- [ ] 1.5 Pair it with the list",
+    ].join(LF) + LF, "utf8");
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    const [directory] = survey.directories;
+    const change = directory?.readable ? directory.changes.find((candidate) => candidate.changeName === "carded") : undefined;
+    expect(change).toMatchObject({
+      tasksDone: 1,
+      tasksTotal: 5,
+      tasksForPerson: 1,
+      tasksDelegated: 1,
+      // The first open item that is neither Human-only nor delegated.
+      nextOpenTask: { number: "1.4", text: "Write the reader" },
+    });
+    expect(Number.isFinite(Date.parse(change?.tasksModifiedAt ?? ""))).toBe(true);
+  });
+
+  it("carries none of the four for a change with no task list", async () => {
+    const { main, rootSources } = await repository();
+    const dir = path.join(main, "openspec", "changes", "listless");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, ".openspec.yaml"), `schema: spec-driven${LF}`, "utf8");
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    const [directory] = survey.directories;
+    const change = directory?.readable ? directory.changes.find((candidate) => candidate.changeName === "listless") : undefined;
+    expect(change).toBeDefined();
+    for (const field of ["tasksForPerson", "tasksDelegated", "nextOpenTask", "tasksModifiedAt"]) {
+      expect(change).not.toHaveProperty(field);
+    }
+  });
+});
+
 describe("surveyWorktrees — who holds a directory", () => {
   // 6.2
   it("reports a directory with no lease as held by nobody", async () => {

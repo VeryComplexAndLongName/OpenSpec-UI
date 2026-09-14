@@ -17,7 +17,7 @@ import { readChangeGraph } from "./change-graph.js";
 import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
 import { pathKey } from "./path-key.js";
-import { readTaskChecklist, type TaskChecklistItem } from "./task-checklist.js";
+import { readTaskChecklist, taskNumberOf, tasksFilePath, type TaskChecklistItem } from "./task-checklist.js";
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
@@ -113,6 +113,28 @@ async function activeChangeNames(directory: string): Promise<string[]> {
   }
 }
 
+/** What a card needs from a task list beyond its counts: what only a person
+ * or a delegated agent can close, the task a run that names none is probably
+ * on, and when the list last changed. One `stat` per list
+ * (a-card-says-what-its-change-is-doing). */
+async function cardFactsOf(
+  items: readonly TaskChecklistItem[],
+  tasksPath: string,
+): Promise<Pick<SurveyedChange, "tasksForPerson" | "tasksDelegated" | "nextOpenTask" | "tasksModifiedAt">> {
+  const open = items.filter((item) => !item.done);
+  const next = open.find((item) => item.humanOnly === undefined && item.delegatedTo === undefined && taskNumberOf(item.text) !== undefined);
+  const number = next === undefined ? undefined : taskNumberOf(next.text);
+  const modifiedAt = await stat(tasksPath).then((info) => info.mtime.toISOString(), () => undefined);
+  return {
+    tasksForPerson: open.filter((item) => item.humanOnly === true).length,
+    tasksDelegated: open.filter((item) => item.delegatedTo !== undefined).length,
+    ...(next !== undefined && number !== undefined
+      ? { nextOpenTask: { number, text: next.text.trim().replace(/^\d+(?:\.\d+)*\.?\s*/u, "") } }
+      : {}),
+    ...(modifiedAt !== undefined ? { tasksModifiedAt: modifiedAt } : {}),
+  };
+}
+
 /** A directory's changes, and the task list each was counted from — kept
  * so the runs in that directory can be paired with the task in hand. */
 async function surveyChanges(directory: string): Promise<{ changes: SurveyedChange[]; taskLists: Map<string, TaskChecklistItem[]> }> {
@@ -137,12 +159,14 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
     try {
       const items = await readTaskChecklist(directory, changeName, false);
       taskLists.set(changeName, items);
+      const tasksPath = await tasksFilePath(directory, changeName, false);
       changes.push({
         changeName,
         tasksDone: items.filter((item) => item.done).length,
         tasksTotal: items.length,
         blockers,
         alsoIn: [],
+        ...(tasksPath !== undefined ? await cardFactsOf(items, tasksPath) : {}),
       });
     } catch (error) {
       changes.push({ changeName, tasksDone: 0, tasksTotal: 0, tasksUnreadable: message(error), blockers, alsoIn: [] });

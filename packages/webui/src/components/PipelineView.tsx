@@ -20,17 +20,23 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  describeChangeCard,
+  describeChangeCards,
   describeCollision,
   describeDirectoryRuns,
   describeRun,
   fitPipelineCardDetails,
   layoutChanges,
   pipelineCardDetailLines,
+  runsShownOnCards,
+  type ChangeCard,
   type ChangeLayout,
   type ChangeLayoutEdge,
   type ChangeLayoutNode,
   type ChangeReadiness,
   type ChangeReadinessReport,
+  type ChangeStandings,
+  type LastRunsReport,
   type SurveyedChange,
   type SurveyedDirectory,
   type WorktreeSurvey,
@@ -88,6 +94,16 @@ export interface PipelineViewProps {
    * and what failed. The view then reads everything again. Absent, no
    * Refresh is offered (a-change-says-where-it-stands). */
   refresh?: () => Promise<string>;
+  /** Reads how each change's last run ended. Read together with the
+   * survey — on its interval, or on its signal — because a run ending is
+   * what changes both (a-card-says-what-its-change-is-doing). */
+  lastRuns?: () => Promise<LastRunsReport>;
+  /** Reads where each change stands across the repository, with refs
+   * fetched only where they are older than the fetch interval. Read with
+   * the survey, so a card's word is the one the Changes list gives
+   * (ADR 0029's amendment of 2026-09-13). Absent, a card's word is asked
+   * about this checkout's copy alone. */
+  standings?: () => Promise<ChangeStandings>;
 }
 
 /** One reading, repeated while the tab is looked at: on a timer, or on a
@@ -150,9 +166,11 @@ function useClock(isActive: boolean): Date {
   return now;
 }
 
-export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh }: PipelineViewProps) {
+export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh, lastRuns, standings }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const stands = usePolledReading(standings, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const now = useClock(isActive);
   const [refreshing, setRefreshing] = useState(false);
   const [refs, setRefs] = useState<string | undefined>(undefined);
@@ -168,7 +186,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
     setRefreshError(undefined);
     try {
       setRefs(await refresh());
-      await Promise.all([local.read(), others.read()]);
+      await Promise.all([local.read(), others.read(), ended.read(), stands.read()]);
     } catch (cause) {
       setRefreshError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -180,6 +198,17 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
   const report = local.value;
   const here = others.value?.directories.find((directory) => directory.isThis);
   const labels = new Map((others.value?.directories ?? []).map((directory) => [directory.path, directory.label]));
+  // One card per change, derived in core from the three readings; this
+  // view draws what it returns (a-card-says-what-its-change-is-doing).
+  const cardList = report === undefined ? [] : describeChangeCards({
+    report,
+    ...(others.value !== undefined ? { survey: others.value } : {}),
+    ...(ended.value !== undefined ? { lastRuns: ended.value } : {}),
+    ...(stands.value !== undefined ? { standings: stands.value } : {}),
+    now,
+  });
+  const cards = new Map(cardList.map((card) => [card.changeName, card]));
+  const onCards = runsShownOnCards(cardList);
 
   // Each reading is shown when it arrives (the-pipeline-shows-what-it-has-read).
   // This directory's part says it is still being read, or why it could not
@@ -188,7 +217,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
   // picture it had, under the error, and the read-at line says how old it is.
   return (
     <div data-testid="pipeline">
-      {here ? <Reading directory={here} now={now} /> : null}
+      {here ? <Reading directory={here} now={now} onCards={onCards} /> : null}
       {local.error !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
         : null}
@@ -203,14 +232,14 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-              : <LocalPicture report={report} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} />}
+              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} />}
             {/* From the report this already read: no second fetch, and no
                 suggestion computed here — `buildHints` derived them in core
                 before the payload was sent. */}
             <HintList hints={report.hints} />
           </>
         )}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -242,15 +271,15 @@ function branchPhrase(directory: SurveyedDirectory): string {
 }
 
 /** Which branch this picture was read from, and what this directory's own
- * runs say they are doing. */
-function Reading({ directory, now }: { directory: SurveyedDirectory; now: Date }) {
+ * runs say they are doing — less the runs a card below already shows. */
+function Reading({ directory, now, onCards }: { directory: SurveyedDirectory; now: Date; onCards: ReadonlySet<string> }) {
   return (
     <div className="openspec-pipeline-reading" data-testid="pipeline-reading">
       <p className="openspec-shell-note" data-testid="pipeline-reading-branch">
         Read from {branchPhrase(directory)} in {directory.label}.
       </p>
       <ul className="openspec-shell-note" data-testid="pipeline-reading-runs">
-        {describeDirectoryRuns(directory, now).map((line, index) => <li key={index}>{line}</li>)}
+        {describeDirectoryRuns(directory, now, onCards).map((line, index) => <li key={index}>{line}</li>)}
       </ul>
     </div>
   );
@@ -267,8 +296,10 @@ function alsoInHere(here: SurveyedDirectory | undefined, labels: Map<string, str
   return result;
 }
 
-function LocalPicture({ report, onOpenChange, alsoIn }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn }: {
   report: ChangeReadinessReport;
+  cards: Map<string, ChangeCard>;
+  now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn: Map<string, string[]>;
 }) {
@@ -280,9 +311,13 @@ function LocalPicture({ report, onOpenChange, alsoIn }: {
         layout={layout}
         testIdPrefix="pipeline-"
         laneHeading="h3"
-        renderNode={(node) => (
-          <Node key={node.change.changeName} node={node} onOpenChange={onOpenChange} alsoIn={alsoIn.get(node.change.changeName)} />
-        )}
+        renderNode={(node) => {
+          // Every change of the report has a card: they are derived from it.
+          const card = cards.get(node.change.changeName);
+          return card === undefined ? null : (
+            <Node key={node.change.changeName} node={node} card={card} now={now} onOpenChange={onOpenChange} alsoIn={alsoIn.get(node.change.changeName)} />
+          );
+        }}
       />
     </>
   );
@@ -372,19 +407,28 @@ function Edges({ edges, width, height, testIdPrefix }: {
   );
 }
 
-function Node({ node, onOpenChange, alsoIn }: {
+function Node({ node, card, now, onOpenChange, alsoIn }: {
   node: ChangeLayoutNode;
+  card: ChangeCard;
+  now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn?: string[];
 }) {
   const { change } = node;
-  const detail = [...describeChange(node), ...(alsoIn && alsoIn.length > 0 ? [`also in ${alsoIn.join(", ")}`] : [])];
+  // The card's own lines first — what the change is doing — then what
+  // readiness says about starting it beside the others.
+  const described = describeChangeCard(card, now);
+  const detail = [
+    ...described.lines,
+    ...describeChange(node),
+    ...(alsoIn && alsoIn.length > 0 ? [`also in ${alsoIn.join(", ")}`] : []),
+  ];
   return (
     <button
       type="button"
       className="openspec-pipeline-node"
       data-testid={`pipeline-node-${change.changeName}`}
-      data-state={change.run.state}
+      data-state={card.state}
       // The coordinates core returned, in units the stylesheet turns into
       // `em`. In the narrow view the stylesheet ignores them.
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
@@ -395,7 +439,7 @@ function Node({ node, onOpenChange, alsoIn }: {
       <span className="openspec-pipeline-node-name">{change.changeName}</span>
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
-      <span className="openspec-pipeline-node-state">{stateWord(node)}</span>
+      <span className="openspec-pipeline-node-state">{described.stateWords}</span>
       <CardDetails lines={detail} budget={pipelineCardDetailLines(node.height, { hasState: true })} />
     </button>
   );
@@ -424,17 +468,6 @@ function CardDetails({ lines, budget }: { lines: string[]; budget: number }) {
       ))}
     </>
   );
-}
-
-function stateWord(node: ChangeLayoutNode): string {
-  switch (node.change.run.state) {
-    case "running":
-      return "Running";
-    case "blocked":
-      return "Blocked";
-    case "ready":
-      return "Ready";
-  }
 }
 
 /** What this change has to say for itself, in the order a reader wants
@@ -470,7 +503,12 @@ function describeChange(node: ChangeLayoutNode): string[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now }: { survey: WorktreeSurvey; labels: Map<string, string>; now: Date }) {
+function OtherDirectories({ survey, labels, now, onCards }: {
+  survey: WorktreeSurvey;
+  labels: Map<string, string>;
+  now: Date;
+  onCards: ReadonlySet<string>;
+}) {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
   return (
@@ -480,7 +518,7 @@ function OtherDirectories({ survey, labels, now }: { survey: WorktreeSurvey; lab
         Read here and never acted on: nothing below can be opened, run or changed from this checkout.
       </p>
       {others.map((directory, index) => (
-        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} />
+        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} />
       ))}
       {survey.runsElsewhere.length > 0 ? (
         <div data-testid="pipeline-runs-elsewhere">
@@ -496,11 +534,12 @@ function OtherDirectories({ survey, labels, now }: { survey: WorktreeSurvey; lab
   );
 }
 
-function OtherDirectory({ directory, index, labels, now }: {
+function OtherDirectory({ directory, index, labels, now, onCards }: {
   directory: SurveyedDirectory;
   index: number;
   labels: Map<string, string>;
   now: Date;
+  onCards: ReadonlySet<string>;
 }) {
   const testId = `pipeline-directory-${index}`;
   return (
@@ -527,7 +566,7 @@ function OtherDirectory({ directory, index, labels, now }: {
         </p>
       ) : null}
       <ul className="openspec-shell-note" data-testid={`${testId}-runs`}>
-        {describeDirectoryRuns(directory, now).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
+        {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
       {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} /> : null}
     </section>

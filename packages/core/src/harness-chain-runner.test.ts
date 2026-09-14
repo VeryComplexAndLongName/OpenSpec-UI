@@ -1814,6 +1814,152 @@ describe("HarnessChainRunner — autonomous permission requests", () => {
   });
 });
 
+describe("HarnessChainRunner — a chain writes its own ending (a-card-says-what-its-change-is-doing 2.4)", () => {
+  /** A stage that hangs until cancelled. */
+  function hangingRunner(): { runner: AgentRunner; release: () => void } {
+    let releaseStage: (() => void) | undefined;
+    let cancelSignalled = false;
+    const runner: AgentRunner = {
+      async *run(command) {
+        if (command.kind === "cancel") {
+          cancelSignalled = true;
+          releaseStage?.();
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        await new Promise<void>((resolve) => {
+          releaseStage = resolve;
+        });
+        yield cancelSignalled
+          ? { kind: "cancelled", runId: command.runId, timestamp: "t" }
+          : { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    return { runner, release: () => releaseStage?.() };
+  }
+
+  function endings(auditLog: InMemoryAuditLog): AuditEntry[] {
+    return auditLog.entries.filter((entry) => entry.agent === "chain");
+  }
+
+  it("records a completed chain once, at the stage it ended", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+
+    for await (const _event of chain.run(baseCommand(root))) { /* drained */ }
+
+    expect(endings(auditLog)).toEqual([expect.objectContaining({
+      runId: "chain-run-1",
+      outcome: "completed",
+      stage: "archive",
+      changeDir: path.join(root, "openspec", "changes", "demo"),
+    })]);
+    expect(endings(auditLog)[0]).not.toHaveProperty("usage");
+    expect(endings(auditLog)[0]).not.toHaveProperty("reason");
+  });
+
+  it("records a failed chain with the stage that failed and why", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 3, 0);
+    const auditLog = new InMemoryAuditLog();
+    const runner: AgentRunner = {
+      async *run(command) {
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "failed", runId: command.runId, timestamp: "t", reason: "the agent gave up" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+
+    for await (const _event of chain.run(baseCommand(root))) { /* drained */ }
+
+    const [ending] = endings(auditLog);
+    expect(endings(auditLog)).toHaveLength(1);
+    expect(ending).toMatchObject({ outcome: "failed", stage: "apply" });
+    expect(ending?.reason).toContain("the agent gave up");
+  });
+
+  it("records a chain a person cancelled while a stage ran, with no reason", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+    const auditLog = new InMemoryAuditLog();
+    const { runner, release } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(() => expect(events.some((e) => e.kind === "started" && e.timestamp === "t")).toBe(true), "the stage to start");
+    chain.cancel(command.runId);
+    release();
+    await pump;
+
+    expect(endings(auditLog)).toEqual([expect.objectContaining({ outcome: "cancelled", stage: "propose" })]);
+    expect(endings(auditLog)[0]).not.toHaveProperty("reason");
+  });
+
+  it("records a chain cancelled while it waited at a checkpoint", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+    const command = baseCommand(root);
+
+    await collectUntilThenAct(chain.run(command), (e) => e.kind === "checkpoint", () => {
+      chain.cancel(command.runId);
+    });
+
+    expect(endings(auditLog)).toEqual([expect.objectContaining({ outcome: "cancelled", stage: "propose" })]);
+  });
+
+  it("records a chain the run-time limit stopped, with the limit as its reason", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxRunSeconds: 1, maxStageSeconds: 1 } });
+    mockStatus(false);
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+
+    for await (const _event of chain.run(baseCommand(root))) { /* drained */ }
+
+    const [ending] = endings(auditLog);
+    expect(endings(auditLog)).toHaveLength(1);
+    expect(ending).toMatchObject({ outcome: "cancelled", stage: "propose" });
+    expect(ending?.reason).toContain("maxRunSeconds is 1s");
+  });
+
+  it("records a chain the attempt limit stopped, with the limit as its reason", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 }, maxStageAttempts: 2 });
+    mockStatus(false);
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = hangingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+
+    for await (const _event of chain.run(baseCommand(root))) { /* drained */ }
+
+    const [ending] = endings(auditLog);
+    expect(endings(auditLog)).toHaveLength(1);
+    expect(ending).toMatchObject({ outcome: "cancelled", stage: "propose" });
+    expect(ending?.reason).toContain("maxStageAttempts: 2");
+  });
+});
+
 describe("HarnessChainRunner — misuse", () => {
   it("fails immediately for a non-chain command", async () => {
     const chain = new HarnessChainRunner({ resolveRunner: () => undefined });

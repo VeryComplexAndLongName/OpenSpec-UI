@@ -17,6 +17,9 @@ export type { ChangeState } from "./change-state.js";
 // (a-change-says-where-it-stands).
 export * from "./change-standing-facts.js";
 export * from "./change-state-word.js";
+// One card per change, and its words — pure over readings a host took
+// (a-card-says-what-its-change-is-doing).
+export * from "./change-card.js";
 // A delegated run's request and reply, and the words for how a reply left
 // its item. A leaf with no imports.
 export * from "./audit-message.js";
@@ -58,7 +61,10 @@ export { openTaskCount } from "./task-checklist-counts.js";
 // host read, with only a type import from security.js. Already in this
 // bundle by way of workspace-run-stats.js, which reads `changeNameOf`
 // from here.
-export { changeNameOf, isRunEntry, runTimestampsByChange, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+export { CHAIN_ENDING_AGENT_NAME, changeNameOf, isRunEntry, runTimestampsByChange, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+// Pure shapes of how each change's last run ended; the reader opens the
+// audit logs and stays out.
+export * from "./last-runs-facts.js";
 // Pure: whether a schedule is due is a comparison, and the browser makes
 // it against the same function the hosts do. The file reader stays out —
 // it imports `node:fs`.

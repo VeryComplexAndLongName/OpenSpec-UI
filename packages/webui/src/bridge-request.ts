@@ -47,7 +47,12 @@ export type BridgeOperation =
     | "pipeline/readiness"
     | "pipeline/survey"
     // Fetching refs now, for the Pipeline's Refresh (a-change-says-where-it-stands).
-    | "pipeline/refresh";
+    | "pipeline/refresh"
+    // How each change's last run ended (a-card-says-what-its-change-is-doing).
+    | "pipeline/last-runs"
+    // Where each change stands, fetched only on the interval, so a card's
+    // word is the Changes tree's (a-card-says-what-its-change-is-doing).
+    | "pipeline/standings";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

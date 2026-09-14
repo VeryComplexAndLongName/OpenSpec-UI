@@ -31,6 +31,7 @@ import {
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
   handleChangeReadinessRequest,
+  handleChangeLastRunsRequest,
   handleWorktreeSurveyRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
@@ -240,6 +241,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-readiness") {
       void handleChangeReadinessRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-last-runs") {
+      void handleChangeLastRunsRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
