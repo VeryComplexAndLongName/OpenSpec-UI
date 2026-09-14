@@ -218,8 +218,16 @@ machine, read in three states, and the key is enrolled by one confirmation
 
   Done: `openspec validate a-run-is-signed-by-its-person --strict` reports
   it valid, 2026-09-14.
-- [ ] 6.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 6.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count of each package.
+
+  Closed on CI 2026-09-14: the "Typecheck, lint, test, and build" job of
+  #488 ran `npm run verify` against the committed tree and passed,
+  <https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34796896258/job/103831637332>.
+  Tests: cli 152, core 1322, extension 353, server 89, webui 437, all
+  passed. Core counts one more than the local run because the test that
+  failed locally, which reads the real `openspec/agent-harness.json`,
+  passed against the committed file.
 
   Local run 2026-09-14, exit code 1. Typecheck and every lint passed.
   Tests: cli 152 passed; core 1321 passed, 1 failed; extension 353 passed;
@@ -238,7 +246,7 @@ machine, read in three states, and the key is enrolled by one confirmation
   (4.2 min). The retaken `docs/images/standalone/pipeline.png` shows the
   fixture's unsigned run as `…said 2s ago; not verified`. The pictures it
   retook of screens this change does not touch were left as they were.
-- [ ] 6.5 **Delegated to claude-cli**: sign, enrol and tamper with real runs.
+- [x] 6.5 **Delegated to claude-cli**: sign, enrol and tamper with real runs.
 
   Setup: a scratch git repository with two worktrees, and a CLI built from
   this branch (`npm run build -w @openspec-ui/cli`).
@@ -263,7 +271,81 @@ machine, read in three states, and the key is enrolled by one confirmation
   setup; the scratch repository and the key are outside this one, with
   `HOME` and `USERPROFILE` pointed at a scratch directory so no real key is
   made.
-- [ ] 6.6 **Delegated to claude-cli**: read one enrolment request in the
+
+  Done 2026-09-14 (UTC), claude-cli, Node 22.11.0 (Volta pin), Windows 10.
+  `npm run build -w @openspec-ui/cli` exited 0 (`dist/cli.js 3.2mb`). One
+  foreground Node driver ran every step and exited 0 once both runs had
+  ended. Paths below are shortened to `<scratch>`, a directory in the
+  session's temp folder, outside this repository.
+  - Setup: `<scratch>/repo` is a git repository whose local git identity is
+    `ada@example.invalid`. Its changes are `alpha-change` and
+    `beta-change`, each with a `harness.json` that puts every stage on
+    `claude-cli`, `autonomous`, no checkpoints, `maxStageAttempts: 1`.
+    `git worktree add` made `<scratch>/worktrees/alpha` and
+    `<scratch>/worktrees/beta`. `HOME` and `USERPROFILE` were
+    `<scratch>/home`, where no identity directory existed before the runs.
+    `OPENSPEC_UI_WORKTREE_ROOT` was `<scratch>/wt-root`. A stand-in
+    `<scratch>/bin/claude.cmd` was first on `PATH` (`where claude` resolved
+    to it). It prints `stand-in claude: holding the stage for 90 seconds`,
+    waits 90 s and exits 1.
+  - Step 1, 01:59:25.9Z: `node packages/cli/dist/cli.js run alpha-change
+    --cwd <scratch>/worktrees/alpha` and the same for `beta-change` in
+    `beta`, as child processes. Within 5 s the status directory
+    `<scratch>/wt-root/repo/.agent-status` held two records, and
+    `<scratch>/home/.openspec-ui/identity` held `ed25519.pem` and
+    `ed25519.pub.pem`. Both runs signed with the one key
+    `cdcff18a36c1aaf61ddaef6540bedabe`: `signer` in the JSON of both
+    reports.
+  - Step 2, `status --cwd <scratch>/repo` at 01:59:30.966Z, exit 0:
+    `06ef9e0a-… on "beta-change"` / `in <scratch>/worktrees/beta` /
+    `starting "beta-change"` / `said this 5s ago, last heard from 5s ago` /
+    `not verified`, and the same for `e533c8de-… on "alpha-change"` in
+    `alpha`, also `not verified`. The JSON gives `"signature":"unverified"`,
+    `machine` `HPP-NTB63` and `gitAuthor` `ada@example.invalid` for both.
+  - Step 3, `enrol --cwd <scratch>/repo` at 01:59:33.916Z, exit 0: one
+    request, `cdcff18a36c1aaf61ddaef6540bedabe` /
+    `beta — <scratch>/worktrees/beta, on HPP-NTB63, git author
+    ada@example.invalid, last seen 2026-09-14T01:59:34.662Z`, then
+    `If a run was yours, confirm its key: openspec-ui-cli enrol <keyId>
+    [--label <text>]`. There was one request for the two runs, because they
+    share one key. It is built from the key's most recent record.
+    `enrol cdcff18a36c1aaf61ddaef6540bedabe --cwd <scratch>/repo` at
+    01:59:36.537Z, exit 0: `Enrolled cdcff18a36c1aaf61ddaef6540bedabe as
+    ada@example.invalid. Its runs now read as signed by
+    ada@example.invalid, verified.` The listing then read `No key is
+    waiting to be enrolled.`
+  - The roster file, `<scratch>/wt-root/repo/.agent-roster/cdcff18a36c1aaf61ddaef6540bedabe.json`,
+    the only file there: `{"keyId":"cdcff18a36c1aaf61ddaef6540bedabe",
+    "publicKey":"MCowBQYDK2VwAyEAOMNjOoEuC998ZF8m3+dubwKlAoYM/bvDE7lRD89kR00=",
+    "label":"ada@example.invalid","gitAuthor":"ada@example.invalid",
+    "machine":"HPP-NTB63","confirmedAt":"2026-09-14T01:59:37.933Z"}`.
+  - Step 4, `status --cwd <scratch>/repo` at 01:59:39.220Z, exit 0: both
+    runs `(apply)`, `running apply`, and
+    `signed by ada@example.invalid, verified`. The JSON gives
+    `"signature":"verified"` and `person`
+    `{keyId: cdcff18a…, label: ada@example.invalid, gitAuthor: ada@example.invalid}`
+    for both.
+  - Step 5: just after a heartbeat, one byte of the payload of
+    `e533c8de-fc5c-469d-b0a0-c1a6e24f67b9.json` (the `alpha-change` run,
+    envelope version 2) was changed by hand at 01:59:42.971Z. Byte 89 of
+    609 is the first byte of the activity value, and it went from `s` to
+    `S`. The payload was decoded, changed and re-encoded, and nothing else
+    in the file was touched. `status --cwd <scratch>/repo` at once, exit 0:
+    `06ef9e0a-… on "beta-change" (apply)` / … /
+    `signed by ada@example.invalid, verified`, then
+    `e533c8de-fc5c-469d-b0a0-c1a6e24f67b9` /
+    `its signature does not check out`, with no directory, activity or
+    time. Its JSON has an empty `workingDirectory` and `activity`, a null
+    `machine` and `gitAuthor`, `"signature":"does-not-check-out"`, and
+    `signatureProblem` `its signature does not verify over its payload`.
+    The edited file was still on disk after both readings, so the status
+    command's sweep kept it. The run's next heartbeat rewrote it.
+  - Both runs ended by themselves (`▶ apply — claude-cli`, the stand-in's
+    line, `✗ claude exited with code 1`, exit 1): alpha at 02:01:10.998Z,
+    beta at 02:01:12.095Z. The status directory was then empty, and
+    `status` read `No runs are reporting themselves.` Nothing was left
+    running.
+- [x] 6.6 **Delegated to claude-cli**: read one enrolment request in the
   standalone inbox and one in the editor, and say whether it lets a person
   decide "was this me" at a glance.
 
@@ -287,3 +369,73 @@ machine, read in three states, and the key is enrolled by one confirmation
   from.
 
   Take every step in foreground commands, as in 6.5.
+
+  Done 2026-09-14 (UTC), claude-cli, Node 22.11.0 (Volta pin), Windows 10,
+  on main at `604e575` (#488, this change merged). From Git Bash,
+  `npm run build -w @openspec-ui/cli` (`dist/cli.js 3.2mb`) and
+  `npm run build -w @openspec-ui/server` (`dist/app.js 1.8mb`) both exited
+  0. One foreground driver, `node --import tsx --import <register-vscode>
+  driver.mts`, ran every step and exited 0 once the run had ended. The
+  driver's first attempt took the picture but could not load the tree
+  module, because the extension package loads as CommonJS and the `vscode`
+  stub was hooked for ESM only. It was rerun whole with the stub hooked for
+  both, and everything below is from that rerun. `<scratch>` is a directory
+  in the session's temp folder, outside this repository.
+  - Setup, as in 6.5 but with one run: `<scratch>/repo` (git author
+    `ada@example.invalid`), change `alpha-change` with a `harness.json`
+    putting every stage on `claude-cli`, `autonomous`, no checkpoints,
+    `maxStageAttempts: 1`, and worktree `<scratch>/worktrees/alpha`.
+    `HOME`/`USERPROFILE` were `<scratch>/home`, `OPENSPEC_UI_WORKTREE_ROOT`
+    was `<scratch>/wt-root`, and a stand-in `<scratch>/bin/claude.cmd` came
+    first on `PATH`. It holds the stage for 75 s and exits 1.
+    `node packages/cli/dist/cli.js run alpha-change --cwd
+    <scratch>/worktrees/alpha` started at 02:22:37.733Z. By 02:22:38.568Z it
+    had written one record (`36b72f8a-….json`) and created the key
+    `ab8939b675639326fa5b9c1f6ba54ada`. No `.agent-roster` directory
+    existed.
+  - Step 1: the driver called `createServer({ workspaceRoot: <scratch>/repo
+    })` from `packages/server/src/server.ts`, which serves the bundle just
+    built. Playwright's Chromium (1280×900) then opened the shell with its
+    token, filled the workspace root and opened the "OpenSpec view summary"
+    tab. It waited for `enrolment-requests` and pictured the
+    `human-only-inbox` block at 02:22:44.907Z:
+    [`evidence/enrolment-request-standalone.png`](evidence/enrolment-request-standalone.png).
+    The picture shows the heading "Waiting on somebody" and the sentence
+    `Nothing is waiting — 1 active change read. 1 key that signs a run waits
+    to be enrolled.` Below it is `Runs signed by a key nobody has enrolled.
+    If a run was yours, say so, and its records read as signed by you from
+    then on.` Then comes one bullet: **alpha** — `<scratch>\worktrees\alpha`
+    (the full path wraps over two lines), `on HPP-NTB63, git author
+    ada@example.invalid, last seen 14.09.2026, 05:22:43`, with one button,
+    `It was me`. It is the only button in the requests.
+  - Step 2: `new HumanOnlyInboxTreeProvider(<scratch>/repo).getChildren()`
+    from `packages/extension/src/tree/human-only-inbox-tree.ts`, with
+    `vscode` stubbed to the few classes the module uses and core unmocked,
+    returned one row, an `EnrolmentRequestTreeItem`:
+    - label `Was this run yours? alpha`;
+    - description `alpha — <scratch>\worktrees\alpha, on HPP-NTB63, git
+      author ada@example.invalid, last seen 2026-09-14T02:22:48.388Z`;
+    - tooltip: the same text, then a new line and
+      `Key ab8939b675639326fa5b9c1f6ba54ada`;
+    - contextValue `openspec-ui.enrolmentRequest`, icon `key`;
+    - inline action, from `package.json`'s `view/item/context` for that
+      context: `openspec-ui.confirmEnrolment` "OpenSpec UI: It Was Me",
+      `$(pass)`.
+  - The run ended by itself at 02:23:59.561Z (`▶ apply — claude-cli`, the
+    stand-in's line, `✗ claude exited with code 1`, exit 1). The status
+    directory was then empty, and nothing was left running.
+  - Judgement: mostly yes. Both hosts give the directory, the machine, the
+    git author and a time, and one action says "it was me", with no
+    fingerprint to compare. A person could not decide from four things:
+    - Neither host names the change the run was working on, or what it was
+      doing. The only name is the worktree directory's (`alpha`), and that
+      is what a person remembers starting.
+    - The shell's sentence opens `Nothing is waiting` directly above a
+      request that is waiting on the reader.
+    - The editor's time is raw UTC ISO (`02:22:48Z`), and the shell's is
+      local time with no zone (`05:22:43`). Neither says how long ago, so
+      the two hosts show the same moment as different clock times.
+    - The long path leads the description, so in a narrow sidebar the
+      machine, author and time are likely cut off, and are whole only in
+      the tooltip. The label also repeats `alpha` at the start of the
+      description.
