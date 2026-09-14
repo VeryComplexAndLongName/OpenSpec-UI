@@ -15,6 +15,18 @@ describe("pipelineCardDetailLines", () => {
     expect(pipelineCardDetailLines(NODE_HEIGHT, { hasState: false })).toBe(3);
   });
 
+  // a-change-is-run-from-its-card 5.2–5.8
+  it("spends the row of controls on a card that carries them, and nothing on one that does not", () => {
+    const withoutControls = pipelineCardDetailLines(NODE_HEIGHT, { hasState: true });
+    const withControls = pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: true });
+    const roomWithoutControls = NODE_HEIGHT - CHROME_WITHOUT_STATE - PIPELINE_CARD_REM.stateLine;
+
+    expect(withControls).toBe(Math.floor((roomWithoutControls - PIPELINE_CARD_REM.controlsLine) / PIPELINE_CARD_REM.detailLine + 1e-9));
+    expect(withControls).toBeLessThan(withoutControls);
+    expect(withControls).toBeGreaterThanOrEqual(1);
+    expect(pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: false })).toBe(withoutControls);
+  });
+
   it("holds none when the chrome fills the card, and never a negative count", () => {
     expect(pipelineCardDetailLines(CHROME_WITHOUT_STATE, { hasState: false })).toBe(0);
     expect(pipelineCardDetailLines(1, { hasState: true })).toBe(0);

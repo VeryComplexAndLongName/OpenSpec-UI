@@ -70,6 +70,13 @@ describe("describeEvent", () => {
         { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to x" },
         "[permission requested] Write to x",
       ],
+      // a-change-is-run-from-its-card
+      [
+        { ...base, kind: "stopRequested", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
+        "[stop] asked to stop by ada@example.com: wrong branch",
+      ],
+      [{ ...base, kind: "stopRequested", reason: "wrong branch", outcome: "asked" }, "[stop] asked to stop: wrong branch"],
+      [{ ...base, kind: "stopRequested", reason: "wrong branch", outcome: "nothing-to-stop" }, "[stop] nothing was running: wrong branch"],
     ];
     for (const [event, expected] of cases) {
       expect(describeEvent(event)).toBe(expected);

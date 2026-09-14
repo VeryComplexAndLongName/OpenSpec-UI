@@ -3,12 +3,14 @@
 // network involved (see ADR 0001 item 2 and
 // openspec/changes/vscode-extension/design.md).
 
+import path from "node:path";
 import * as vscode from "vscode";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import {
   CHECK_SCRIPT_NAMES,
   FileAuditLog,
   HarnessChainRunner,
+  LiveRuns,
   WorkbenchProcessScheduler,
   WorkbenchRunJournal,
   WorkspaceLeaseManager,
@@ -126,7 +128,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const outputChannel = vscode.window.createOutputChannel("OpenSpec UI");
   context.subscriptions.push(outputChannel);
 
-  const runController = new RunController();
+  // Every run this extension host starts — from the palette, the AI panel,
+  // a chain, or a delegated item — is held here while it runs, and the
+  // Pipeline's cards offer controls only for these
+  // (a-change-is-run-from-its-card).
+  const liveRuns = new LiveRuns();
+  const runController = new RunController(liveRuns);
   const workspaceRoot = getWorkspaceRoot();
   let journal: WorkbenchRunJournal | undefined;
   let restoredRuns = { processes: [], checkpointSessions: [] } as Awaited<ReturnType<WorkbenchRunJournal["load"]>>;
@@ -346,7 +353,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
               workspaceRoot: inboxRoot,
               changeName: item.changeName,
               lineNumber: item.lineNumber,
-              resolveRunner: (agentId) => resolveAgentRunner(agents, agentId),
+              resolveRunner: (agentId) => {
+                const runner = resolveAgentRunner(agents, agentId);
+                return runner === undefined ? undefined : liveRuns.runner(runner);
+              },
               // The request and its reply go to the log the runners write to
               // (a-change-says-where-it-stands).
               ...(auditLog !== undefined ? { auditLog } : {}),
@@ -450,6 +460,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const pipelinePanel = new PipelinePanel({
     extensionUri: context.extensionUri,
     getWorkspaceRoot,
+    liveRuns,
+    // A card's Start opens the change's run dialog, the one way in to run
+    // (a-change-is-run-from-its-card).
+    runChange: async (changeName) => {
+      await vscode.commands.executeCommand("openspec-ui.runWithHarness", changeName);
+    },
+    // A card's answer or stop, for a run the panel has already checked this
+    // host holds: to the chain runner when it holds the run, otherwise to
+    // the runner the run was started on. The run's own stream reports what
+    // follows.
+    sendRunControl: (control) => {
+      const held = liveRuns.get(control.runId);
+      if (held === undefined) return;
+      const command: Command = {
+        kind: control.kind,
+        cwd: held.cwd,
+        runId: control.runId,
+        context: { changeDir: path.join(held.cwd, "openspec", "changes", control.changeName) },
+        ...(held.agentId !== undefined ? { agentId: held.agentId } : {}),
+        ...(control.reason !== undefined ? { reason: control.reason } : {}),
+        ...(control.permissionRequestId !== undefined ? { permissionRequestId: control.permissionRequestId } : {}),
+        ...(control.permissionOutcome !== undefined ? { permissionOutcome: control.permissionOutcome } : {}),
+      };
+      const runner = chainRunner.holds(control.runId)
+        ? chainRunner.asAgentRunner()
+        : (runners ? resolveAgentRunner(runners, held.agentId) : undefined);
+      if (runner === undefined) return;
+      void (async () => {
+        try {
+          for await (const _event of runner.run(command)) {
+            // Draining only: the run's own stream carries what follows.
+          }
+        } catch {
+          // A runner that throws on a control must not become an unhandled
+          // rejection.
+        }
+      })();
+    },
     // As `openspec-ui.revealInChanges` reveals a row: an item built from
     // the change the host found, never from the message.
     revealChange: async (change) => {

@@ -49,6 +49,7 @@ import {
 } from "./chain-steps.js";
 import { CHAIN_ENDING_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { isChainStepName, type ChainPart } from "./harness-stage.js";
+import { untilStopBoundary } from "./stop-boundary.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
@@ -106,7 +107,7 @@ export interface HarnessChainDeps {
   createPullRequestGateway?: (options: { cwd: string }) => PullRequestGateway;
 }
 
-type CheckpointOutcome = "confirmed" | "cancelled";
+type CheckpointOutcome = "confirmed" | "cancelled" | "stopped";
 
 interface ChainState {
   cancelRequested: boolean;
@@ -146,10 +147,31 @@ interface ChainState {
   pendingCheckpoint?: { resolve: (outcome: CheckpointOutcome) => void };
   currentRunner?: AgentRunner;
   currentCommand?: Command;
+  /** A stop a person asked for (a-change-is-run-from-its-card): the reason,
+   * who asked where known, and whether `stopRequested` has been yielded. */
+  stopRequest?: { reason: string; by?: string; announced: boolean };
+  /** Wakes the running stage's stop boundary, so a stop is acted on while
+   * the stage says nothing. */
+  stopWake?: () => void;
 }
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Runs a request about a run — a cancel, a permission's answer — to its
+ * end without waiting on it. A runner that throws on one must not become an
+ * unhandled rejection. */
+function drainInBackground(events: AsyncIterable<Event>): void {
+  void (async () => {
+    try {
+      for await (const _event of events) {
+        // Draining only: the stage's own open stream is what reports.
+      }
+    } catch {
+      // See above.
+    }
+  })();
 }
 
 function formatSeconds(totalMs: number): string {
@@ -521,19 +543,27 @@ export class HarnessChainRunner {
       }
     } finally {
       this.active.delete(command.runId);
-      if (ending !== undefined) this.recordEnding(command, ending, stage);
+      if (ending !== undefined) this.recordEnding(command, ending, stage, state.stopRequest);
     }
   }
 
   /** The one entry a chain writes as it ends: how, at which stage, and why.
    * It carries no usage — the stages' own entries do — and `isRunEntry`
-   * skips it, so no counter reads it as a run. */
+   * skips it, so no counter reads it as a run.
+   *
+   * A chain a person asked to stop carries that request as `stopRequest`,
+   * and no `reason`: a reason on a cancellation means a rule fired
+   * (a-change-is-run-from-its-card). */
   private recordEnding(
     command: Command,
     ending: Extract<Event, { kind: "completed" | "failed" | "cancelled" }>,
     stage: ChainPart | undefined,
+    stopRequest: ChainState["stopRequest"],
   ): void {
-    const reason = ending.kind === "completed" ? undefined : ending.reason;
+    const stopped = ending.kind === "cancelled" && stopRequest !== undefined
+      ? { reason: stopRequest.reason, ...(stopRequest.by !== undefined ? { by: stopRequest.by } : {}) }
+      : undefined;
+    const reason = ending.kind === "completed" || stopped !== undefined ? undefined : ending.reason;
     this.deps.auditLog?.record({
       runId: command.runId,
       agent: CHAIN_ENDING_AGENT_NAME,
@@ -544,6 +574,7 @@ export class HarnessChainRunner {
       // A declared step is not a stage the audit log names.
       ...(stage !== undefined && !isChainStepName(stage) ? { stage } : {}),
       ...(reason !== undefined ? { reason } : {}),
+      ...(stopped !== undefined ? { stopRequest: stopped } : {}),
     });
   }
 
@@ -639,6 +670,67 @@ export class HarnessChainRunner {
     return true;
   }
 
+  /** Whether this runner holds an active chain under `runId`, so a host can
+   * route a request about that run here rather than to a single-stage
+   * runner that never heard of it. */
+  holds(runId: string): boolean {
+    return this.active.has(runId);
+  }
+
+  /** Asks a chain to stop where its work is sound, rather than killing it as
+   * `cancel()` does (a-change-is-run-from-its-card, ADR 0028).
+   *
+   * - Waiting at a checkpoint, it ends at once.
+   * - Inside a stage, the stage ends at the first of: a marker naming a task
+   *   other than the last one named, the count of ticked tasks rising, or
+   *   the stage's own end. A stage waiting on a permission is answered
+   *   `deny` and ends at once.
+   * - Between stages, no further stage starts.
+   *
+   * Each way yields `stopRequested` with outcome `asked` on the chain's own
+   * stream, then ends `cancelled` with no reason. `by` is the host's
+   * configured git identity where the caller gives none. A second request
+   * while one is pending changes nothing. Returns `false` for a run this
+   * runner does not have. */
+  requestStop(runId: string, reason: string, by?: string): boolean {
+    const state = this.active.get(runId);
+    if (!state) return false;
+    if (state.stopRequest !== undefined) return true;
+    state.stopRequest = { reason, ...(by !== undefined ? { by } : {}), announced: false };
+    if (state.pendingCheckpoint) {
+      const { resolve } = state.pendingCheckpoint;
+      state.pendingCheckpoint = undefined;
+      resolve("stopped");
+      return true;
+    }
+    state.stopWake?.();
+    return true;
+  }
+
+  /** Yields the one `stopRequested` a requested stop produces, the first
+   * time it is asked to; after that, nothing. */
+  private async *announceStop(command: Command, state: ChainState): AsyncGenerator<Event> {
+    const stop = state.stopRequest;
+    if (stop === undefined || stop.announced) return;
+    stop.announced = true;
+    if (stop.by === undefined) {
+      try {
+        const identity = await (this.deps.createGitWrapper ?? createGitWrapper)({ cwd: command.cwd }).configuredIdentity();
+        if (identity) stop.by = identity;
+      } catch {
+        // No identity is attribution missing, not a reason to refuse a stop.
+      }
+    }
+    yield {
+      kind: "stopRequested",
+      runId: command.runId,
+      timestamp: nowIso(),
+      reason: stop.reason,
+      ...(stop.by !== undefined ? { by: stop.by } : {}),
+      outcome: "asked",
+    };
+  }
+
   /** Adapts this runner to the generic `AgentRunner` shape, for hosts that
    * dispatch through a single-runner-at-a-time abstraction already built
    * for single-stage commands (e.g. `packages/extension/src/run-
@@ -670,6 +762,18 @@ export class HarnessChainRunner {
               timestamp: nowIso(),
               attempted: known ? "termination-requested" : "nothing-to-cancel",
             };
+          })();
+        }
+        if (command.kind === "stop") {
+          // A run this runner has announces its stop on the chain's own
+          // stream, which the status record and the host that sent this
+          // already read; answering here as well would say it twice. Only a
+          // stop that finds no run is answered on this stream.
+          const reason = command.reason ?? "";
+          const known = this.requestStop(command.runId, reason);
+          const runId = command.runId;
+          return (async function* stopping(): AsyncGenerator<Event> {
+            if (!known) yield { kind: "stopRequested", runId, timestamp: nowIso(), reason, outcome: "nothing-to-stop" };
           })();
         }
         if (command.kind === "resolvePermission") {
@@ -927,6 +1031,15 @@ export class HarnessChainRunner {
         };
       }
 
+      // A stop asked for while the stage ran, which then ended on its own
+      // before a task boundary came: no further stage starts
+      // (a-change-is-run-from-its-card).
+      if (state.stopRequest !== undefined && (outcome === "checks-failed" || (outcome === "completed" && hasNextStage))) {
+        yield* this.announceStop(command, state);
+        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        return;
+      }
+
       // Checked after the stage, never during it: a run's cost is not
       // known until it ends, so this stops the chain rather than the
       // stage. The ceiling that stops a stage mid-run is `timeout`.
@@ -1079,8 +1192,20 @@ export class HarnessChainRunner {
           yield { kind: "cancelled", runId, timestamp: nowIso(), ...(state.cancelReason ? { reason: state.cancelReason } : {}) };
           return;
         }
+        if (checkpointOutcome === "stopped") {
+          yield* this.announceStop(command, state);
+          yield { kind: "cancelled", runId, timestamp: nowIso() };
+          return;
+        }
       } else {
         yield { kind: "stageCompleted", runId, timestamp: nowIso(), stage, nextStage };
+      }
+      // A stop asked for between stages — while a mechanical stage ran, or
+      // as a stage handed over — starts no further stage.
+      if (state.stopRequest !== undefined) {
+        yield* this.announceStop(command, state);
+        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        return;
       }
     }
 
@@ -1305,8 +1430,31 @@ export class HarnessChainRunner {
     // fails and the process is ended", step 4).
     let autonomousPermissionFailure = false;
     let outcome: "completed" | "failed" | "cancelled" = "completed";
+    // A stop asked for while this stage runs ends it at a sound point
+    // (a-change-is-run-from-its-card). Where is decided by
+    // `untilStopBoundary`, the same way for a chain's stage as for a
+    // single-stage run.
+    const events = untilStopBoundary({
+      events: runner.run(stageCommand),
+      changeDir: context.changeDir,
+      stopAsked: () => state.stopRequest !== undefined,
+      onWake: (wake) => {
+        state.stopWake = wake;
+      },
+      announce: () => this.announceStop(command, state),
+      denyPermission: (requestId) => drainInBackground(runner.run({
+        ...stageCommand,
+        kind: "resolvePermission",
+        permissionRequestId: requestId,
+        permissionOutcome: "deny",
+      })),
+      endRun: () => drainInBackground(runner.run({ ...stageCommand, kind: "cancel" })),
+      // Under `autonomous` a permission request fails the stage below, as it
+      // always has.
+      mayDenyPermissions: harnessConfig.autonomyLevel !== "autonomous",
+    });
     try {
-      for await (const event of runner.run(stageCommand)) {
+      for await (const event of events) {
         if (event.kind === "permissionRequest" && harnessConfig.autonomyLevel === "autonomous" && !autonomousPermissionFailure) {
           autonomousPermissionFailure = true;
           outcome = "failed";
@@ -1352,6 +1500,7 @@ export class HarnessChainRunner {
         yield event;
       }
     } finally {
+      state.stopWake = undefined;
       state.currentRunner = undefined;
       state.currentCommand = undefined;
     }

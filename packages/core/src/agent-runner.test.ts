@@ -11,6 +11,11 @@ import { type AdapterInvocation, type AgentAdapter, createAgentRunner } from "./
 import { type AllowlistConfig, InMemoryAuditLog } from "./security.js";
 import type { Command, Event } from "./protocol.js";
 
+// every-varying-check-has-a-budget: the stop tests write a task list to a
+// temporary directory; no process is spawned. Measured 2026-09-14 at 307ms
+// for all 24 tests in the file.
+vi.setConfig({ testTimeout: 15_000 });
+
 const workspaceRoot = "/workspace/repo";
 const allowlist: AllowlistConfig = {
   "fake-agent": [{ executable: "fake-cli", argsAllowed: (args) => args[0] === "-p" }],
@@ -110,6 +115,133 @@ describe("createAgentRunner — what the record says (stage-spend-is-bounded-and
     const terminal = auditLog.entries.filter((entry) => entry.outcome === "cancelled");
     expect(terminal).toHaveLength(1);
     expect(terminal[0]?.reason).toContain("maxStageSeconds");
+  });
+});
+
+describe("createAgentRunner — asked to stop (a-change-is-run-from-its-card 3.10)", () => {
+  /** An adapter a test feeds one event at a time. Aborting its signal ends
+   * it the way a real adapter does: `cancelled` once the process is gone. */
+  function steppedAdapter() {
+    const queue: Array<Record<string, unknown> | "end"> = [];
+    let wake: (() => void) | undefined;
+    const resolved: Array<[string, string, string]> = [];
+    const push = (...items: Array<Record<string, unknown> | "end">) => {
+      queue.push(...items);
+      wake?.();
+    };
+    const adapter: AgentAdapter = {
+      name: "fake-agent",
+      buildInvocation: () => ({ kind: "process", executable: "fake-cli", args: ["-p"] }),
+      async *execute(_invocation, command, _prompt, signal) {
+        signal.addEventListener("abort", () => push({ kind: "cancelled", timestamp: "t" }, "end"));
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        for (;;) {
+          while (queue.length === 0) {
+            await new Promise<void>((resolve) => {
+              wake = resolve;
+            });
+          }
+          const item = queue.shift();
+          if (item === undefined || item === "end") return;
+          yield { ...item, runId: command.runId } as unknown as Event;
+        }
+      },
+      resolvePermission: (runId, requestId, outcome) => {
+        resolved.push([runId, requestId, outcome]);
+        return true;
+      },
+    };
+    return { adapter, push, resolved };
+  }
+
+  async function changeDirWith(ticked: number, open: number): Promise<string> {
+    const { mkdtemp, writeFile } = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = await mkdtemp(path.join(os.tmpdir(), "agent-runner-stop-"));
+    const lines = [
+      "## 1. Tasks",
+      ...Array.from({ length: ticked }, (_, i) => `- [x] 1.${i + 1} done`),
+      ...Array.from({ length: open }, (_, i) => `- [ ] 2.${i + 1} open`),
+      "",
+    ];
+    await writeFile(path.join(dir, "tasks.md"), lines.join("\n"), "utf8");
+    return dir;
+  }
+
+  function start(kind: Command["kind"], changeDir: string) {
+    const stepped = steppedAdapter();
+    const runner = createAgentRunner(stepped.adapter, {
+      workspaceRoot,
+      allowlist,
+      auditLog: new InMemoryAuditLog(),
+      readIdentity: async () => "ada@example.com",
+    });
+    const command: Command = { kind, cwd: workspaceRoot, runId: `run-${kind}`, context: { changeDir } };
+    const events: Event[] = [];
+    const done = (async () => {
+      for await (const event of runner.run(command)) events.push(event);
+    })();
+    const stop = async (reason: string) => {
+      const answered: Event[] = [];
+      for await (const event of runner.run({ ...command, kind: "stop", reason })) answered.push(event);
+      return answered;
+    };
+    return { runner, command, events, done, stop, ...stepped };
+  }
+
+  it("stops a single implement run when a task is ticked, answering the stop on the run's own stream", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const { writeFile } = await import("node:fs/promises");
+      const path = await import("node:path");
+      const changeDir = await changeDirWith(0, 2);
+      const run = start("implement", changeDir);
+      await vi.waitFor(() => expect(run.events.some((event) => event.kind === "started")).toBe(true));
+
+      expect(await run.stop("wrong branch")).toEqual([]);
+      await vi.waitFor(() => expect(run.events.find((event) => event.kind === "stopRequested")).toMatchObject({
+        reason: "wrong branch",
+        by: "ada@example.com",
+        outcome: "asked",
+      }));
+
+      await writeFile(path.join(changeDir, "tasks.md"), "## 1. Tasks\n- [x] 2.1 done\n- [ ] 2.2 open\n", "utf8");
+      await vi.advanceTimersByTimeAsync(2_000);
+      await run.done;
+
+      expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+      expect(run.events.at(-1)).not.toHaveProperty("reason");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a review run hear a stop and end on its own", async () => {
+    const run = start("review", await changeDirWith(0, 2));
+    await vi.waitFor(() => expect(run.events.some((event) => event.kind === "started")).toBe(true));
+
+    await run.stop("not needed");
+    await vi.waitFor(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true));
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.2\n" }, { kind: "completed", timestamp: "t" }, "end");
+    await run.done;
+
+    expect(run.events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("answers a stop for a run it does not have with nothing-to-stop", async () => {
+    const { adapter } = steppedAdapter();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog: new InMemoryAuditLog() });
+    const events: Event[] = [];
+    for await (const event of runner.run({
+      kind: "stop",
+      cwd: workspaceRoot,
+      runId: "nobody",
+      reason: "r",
+      context: { changeDir: `${workspaceRoot}/openspec/changes/x` },
+    })) events.push(event);
+
+    expect(events).toEqual([expect.objectContaining({ kind: "stopRequested", runId: "nobody", reason: "r", outcome: "nothing-to-stop" })]);
   });
 });
 

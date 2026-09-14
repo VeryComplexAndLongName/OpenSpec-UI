@@ -1960,6 +1960,200 @@ describe("HarnessChainRunner — a chain writes its own ending (a-card-says-what
   });
 });
 
+describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.9)", () => {
+  /** A stage runner a test feeds one event at a time. A cancel ends it the
+   * way a real runner's does: its `cancelled` comes once the process is gone. */
+  function scriptedRunner() {
+    const queue: Array<Record<string, unknown> | "end"> = [];
+    let wake: (() => void) | undefined;
+    const calls: Command[] = [];
+    const push = (...items: Array<Record<string, unknown> | "end">) => {
+      queue.push(...items);
+      wake?.();
+    };
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") {
+          push({ kind: "cancelled", timestamp: "t" }, "end");
+          return;
+        }
+        if (command.kind === "resolvePermission") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        for (;;) {
+          while (queue.length === 0) {
+            await new Promise<void>((resolve) => {
+              wake = resolve;
+            });
+          }
+          const item = queue.shift();
+          if (item === undefined || item === "end") return;
+          yield { ...item, runId: command.runId } as unknown as Event;
+        }
+      },
+    };
+    return { runner, calls, push };
+  }
+
+  /** A chain resumed at `apply`, with its events collected as they come. */
+  async function applyChain(options: { autonomyLevel?: "autonomous" | "semi-autonomous"; noCheckpoints?: boolean } = {}) {
+    const root = await temporaryRoot();
+    // `autonomous` and checkpoints turned off are only valid in a change's
+    // own harness.json, never in the global file.
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", {
+      autonomyLevel: options.autonomyLevel ?? "autonomous",
+      ...(options.noCheckpoints ? { checkpoints: { requireConfirmationBetweenSteps: false } } : {}),
+    });
+    mockStatus(true);
+    await writeTasks(root, 2, 0);
+    const auditLog = new InMemoryAuditLog();
+    const scripted = scriptedRunner();
+    const git = { configuredIdentity: async () => "ada@example.com" } as unknown as GitWrapper;
+    const chain = new HarnessChainRunner({ resolveRunner: () => scripted.runner, auditLog, createGitWrapper: () => git });
+    const command = baseCommand(root);
+    const events: Event[] = [];
+    const pump = (async () => {
+      for await (const event of chain.run(command)) events.push(event);
+    })();
+    await waitForChain(
+      () => expect(events.some((event) => event.kind === "started" && event.command === "implement")).toBe(true),
+      "the apply stage to start",
+    );
+    return { root, auditLog, chain, command, events, pump, ...scripted };
+  }
+
+  it("ends a stage at the next marker naming another task, and starts no stage after it", async () => {
+    const run = await applyChain();
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.1\n" });
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stdout")).toBe(true), "the first marker");
+
+    expect(run.chain.requestStop(run.command.runId, "wrong branch", "ada@example.com")).toBe(true);
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the stop to be announced");
+    run.push({ kind: "stdout", timestamp: "t", chunk: "still on 2.1\n" });
+    await waitForChain(() => expect(run.events.filter((event) => event.kind === "stdout")).toHaveLength(2), "more output");
+    expect(run.calls.some((call) => call.kind === "cancel")).toBe(false);
+
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.2\n" });
+    await run.pump;
+
+    expect(run.calls.filter((call) => call.kind === "cancel")).toHaveLength(1);
+    const stopAt = run.events.findIndex((event) => event.kind === "stopRequested");
+    expect(run.events[stopAt]).toMatchObject({ reason: "wrong branch", by: "ada@example.com", outcome: "asked" });
+    expect(run.events.slice(stopAt).some((event) => event.kind === "stageStarted")).toBe(false);
+    expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+    expect(run.events.at(-1)).not.toHaveProperty("reason");
+    const endings = run.auditLog.entries.filter((entry) => entry.agent === "chain");
+    expect(endings).toEqual([expect.objectContaining({ outcome: "cancelled", stopRequest: { reason: "wrong branch", by: "ada@example.com" } })]);
+    expect(endings[0]).not.toHaveProperty("reason");
+  });
+
+  it("ends a stage when a task is ticked, read every two seconds while the stop is pending", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const run = await applyChain();
+      run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.1\n" });
+      await waitForChain(() => expect(run.events.some((event) => event.kind === "stdout")).toBe(true), "the marker");
+      run.chain.requestStop(run.command.runId, "done for today", "ada@example.com");
+      await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the stop to be announced");
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(run.calls.some((call) => call.kind === "cancel")).toBe(false);
+
+      await writeTasks(run.root, 1, 1);
+      await vi.advanceTimersByTimeAsync(2_000);
+      await waitForChain(() => expect(run.calls.some((call) => call.kind === "cancel")).toBe(true), "the tick to end the stage");
+      await run.pump;
+      expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends with the stage when neither a marker nor a tick comes", async () => {
+    const run = await applyChain();
+    run.chain.requestStop(run.command.runId, "wrong branch", "ada@example.com");
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the stop to be announced");
+
+    run.push({ kind: "completed", timestamp: "t" }, "end");
+    await run.pump;
+
+    expect(run.calls.some((call) => call.kind === "cancel")).toBe(false);
+    expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+    expect(run.events.some((event) => event.kind === "stageStarted" && event.stage === "verify")).toBe(false);
+  });
+
+  it("ends a chain waiting at a checkpoint at once", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    mockStatus(false);
+    const auditLog = new InMemoryAuditLog();
+    const { runner } = makeCompletingRunner();
+    const git = { configuredIdentity: async () => undefined } as unknown as GitWrapper;
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog, createGitWrapper: () => git });
+    const command = baseCommand(root);
+    const events: Event[] = [];
+
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") expect(chain.requestStop(command.runId, "not today")).toBe(true);
+    }
+
+    expect(events.slice(-2)).toEqual([
+      expect.objectContaining({ kind: "stopRequested", reason: "not today", outcome: "asked" }),
+      expect.objectContaining({ kind: "cancelled" }),
+    ]);
+    expect(events.at(-2)).not.toHaveProperty("by");
+    expect(events.filter((event) => event.kind === "stageStarted")).toHaveLength(1);
+    expect(auditLog.entries.filter((entry) => entry.agent === "chain")).toEqual([
+      expect.objectContaining({ outcome: "cancelled", stopRequest: { reason: "not today" } }),
+    ]);
+  });
+
+  it("answers a permission the stage waits on with deny, and ends the chain", async () => {
+    const run = await applyChain({ autonomyLevel: "semi-autonomous", noCheckpoints: true });
+    run.push({ kind: "permissionRequest", timestamp: "t", requestId: "perm-1", description: "Write to x" });
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "permissionRequest")).toBe(true), "the permission request");
+
+    run.chain.requestStop(run.command.runId, "wrong branch", "ada@example.com");
+    await run.pump;
+
+    expect(run.calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "resolvePermission", permissionRequestId: "perm-1", permissionOutcome: "deny" }),
+      expect.objectContaining({ kind: "cancel" }),
+    ]));
+    expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+  });
+
+  it("carries a stop sent through asAgentRunner on the chain's own stream, once", async () => {
+    const run = await applyChain();
+    const answered: Event[] = [];
+    for await (const event of run.chain.asAgentRunner().run({ ...run.command, kind: "stop", reason: "wrong branch" })) answered.push(event);
+
+    expect(answered).toEqual([]);
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the stop on the chain's stream");
+    expect(run.events.find((event) => event.kind === "stopRequested")).toMatchObject({ reason: "wrong branch", by: "ada@example.com" });
+    run.push({ kind: "completed", timestamp: "t" }, "end");
+    await run.pump;
+    expect(run.events.filter((event) => event.kind === "stopRequested")).toHaveLength(1);
+  });
+
+  it("answers a stop for a run it does not have with nothing-to-stop", async () => {
+    const chain = new HarnessChainRunner({ resolveRunner: () => undefined });
+    const events: Event[] = [];
+    for await (const event of chain.asAgentRunner().run({
+      kind: "stop",
+      cwd: "/repo",
+      runId: "nobody",
+      reason: "r",
+      context: { changeDir: "/repo/openspec/changes/demo" },
+    })) events.push(event);
+
+    expect(chain.requestStop("nobody", "r")).toBe(false);
+    expect(events).toEqual([expect.objectContaining({ kind: "stopRequested", runId: "nobody", reason: "r", outcome: "nothing-to-stop" })]);
+  });
+});
+
 describe("HarnessChainRunner — misuse", () => {
   it("fails immediately for a non-chain command", async () => {
     const chain = new HarnessChainRunner({ resolveRunner: () => undefined });

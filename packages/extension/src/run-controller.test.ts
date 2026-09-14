@@ -101,6 +101,30 @@ describe("RunController", () => {
     await runPromise;
   });
 
+  // a-change-is-run-from-its-card 2.4
+  it("holds a run in the registry it was given while the run goes on", async () => {
+    const { LiveRuns } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    const liveRuns = new LiveRuns();
+    let resolveRun: (() => void) | undefined;
+    const runner: AgentRunner = {
+      async *run(cmd: Command): AsyncIterable<Event> {
+        yield { kind: "started", runId: cmd.runId, timestamp: "t", command: cmd.kind, cwd: cmd.cwd };
+        await new Promise<void>((resolve) => {
+          resolveRun = resolve;
+        });
+        yield { kind: "completed", runId: cmd.runId, timestamp: "t" };
+      },
+    };
+    const controller = new RunController(liveRuns);
+    const runPromise = controller.run(runner, command);
+    await vi.waitFor(() => expect(resolveRun).toBeDefined());
+
+    expect(liveRuns.list()).toEqual([expect.objectContaining({ runId: "run-1", kind: "implement", changeName: "x", cwd: "/workspace/repo" })]);
+    resolveRun?.();
+    await runPromise;
+    expect(liveRuns.list()).toEqual([]);
+  });
+
   it("cancel() returns false when nothing is running", () => {
     const controller = new RunController();
     expect(controller.cancel()).toBe(false);

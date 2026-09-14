@@ -8,10 +8,10 @@
 
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo } from "react";
-import type { ChangeReadinessReport, ChangeStandings, LastRunsReport, WorktreeSurvey } from "@openspec-ui/core/browser";
+import type { ChangeReadinessReport, ChangeStandings, LastRunsReport, LiveRun, WorktreeSurvey } from "@openspec-ui/core/browser";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
-import { PipelineView, type PipelineReading } from "./components/PipelineView.js";
+import { PipelineView, type PipelineReading, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 
 /** Posted by the host when files a reading depends on have changed. */
@@ -20,6 +20,14 @@ export const PIPELINE_CHANGED_MESSAGE_TYPE = "openspec-ui/pipeline-changed";
 /** Posted by the view when a change's card is chosen. The host checks the
  * name against its own workspace before it opens anything. */
 export const OPEN_CHANGE_MESSAGE_TYPE = "openspec-ui/open-change";
+
+/** Posted by the view when a card's Start is pressed. The host checks the
+ * name and opens that change's run dialog (a-change-is-run-from-its-card). */
+export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
+
+/** Posted by the view when a card answers or stops a run. The host acts
+ * only on a run it holds. */
+export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
 
 declare function acquireVsCodeApi(): VsCodeApiLike;
 
@@ -56,6 +64,18 @@ function PipelineApp() {
     (changeName: string) => vscodeApi.postMessage({ type: OPEN_CHANGE_MESSAGE_TYPE, changeName }),
     [vscodeApi],
   );
+  // The runs this extension host holds, and the controls a card sends for
+  // them (a-change-is-run-from-its-card).
+  const liveRuns = useCallback(() => bridge.request<{ runs: LiveRun[] }>("pipeline/live-runs"), [bridge]);
+  const onRunControl = useCallback(
+    (control: RunControl) => vscodeApi.postMessage({ type: RUN_CONTROL_MESSAGE_TYPE, control }),
+    [vscodeApi],
+  );
+  const onStart = useCallback(
+    (changeName: string) => vscodeApi.postMessage({ type: RUN_CHANGE_MESSAGE_TYPE, changeName }),
+    [vscodeApi],
+  );
+  const copyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
 
   return (
     <div className="openspec-extension-app">
@@ -64,7 +84,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} />
       </section>
     </div>
   );

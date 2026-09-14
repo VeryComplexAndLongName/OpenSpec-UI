@@ -52,7 +52,10 @@ export type BridgeOperation =
     | "pipeline/last-runs"
     // Where each change stands, fetched only on the interval, so a card's
     // word is the Changes tree's (a-card-says-what-its-change-is-doing).
-    | "pipeline/standings";
+    | "pipeline/standings"
+    // The runs this host holds, whose cards get controls
+    // (a-change-is-run-from-its-card).
+    | "pipeline/live-runs";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

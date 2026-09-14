@@ -69,11 +69,13 @@ function cardOf(options: {
   run?: ChangeReadiness["run"];
   directories?: SurveyedDirectory[];
   last?: LastRun;
+  liveRunIds?: string[];
 } = {}): ChangeCard {
   const inputs: ChangeCardInputs = {
     report: { changes: [readiness(options.run)] },
     survey: { directories: options.directories ?? [directory()], runsElsewhere: [] },
     ...(options.last !== undefined ? { lastRuns: { byChange: { demo: options.last } } } : {}),
+    ...(options.liveRunIds !== undefined ? { liveRunIds: options.liveRunIds } : {}),
     now: NOW,
   };
   const [card] = describeChangeCards(inputs);
@@ -88,7 +90,24 @@ describe("describeChangeCards — the state, first match wins", () => {
       last: lastRun(),
     });
     expect(card.state).toBe("waiting");
-    expect(describeChangeCard(card, NOW).stateWords).toBe("Waiting for you");
+    // Held by no host showing this card: waiting, and where.
+    expect(card.run?.ownedHere).toBe(false);
+    expect(describeChangeCard(card, NOW).stateWords).toBe("Waiting in repo");
+  });
+
+  // a-change-is-run-from-its-card 5.1
+  it("says Waiting for you only for a waiting run this host holds", () => {
+    const waiting = directory({ runs: [run({ runId: "r1", waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } })] });
+
+    const held = cardOf({ directories: [waiting], liveRunIds: ["r1"] });
+    expect(held.run).toMatchObject({ runId: "r1", ownedHere: true });
+    expect(describeChangeCard(held, NOW)).toMatchObject({ stateWords: "Waiting for you" });
+    expect(describeChangeCard(held, NOW).lines).toContain("waiting to continue to verify, in repo");
+
+    const elsewhere = cardOf({ directories: [waiting], liveRunIds: ["another-run"] });
+    expect(elsewhere.run?.ownedHere).toBe(false);
+    expect(describeChangeCard(elsewhere, NOW).stateWords).toBe("Waiting in repo");
+    expect(describeChangeCard(elsewhere, NOW).lines).toContain("waiting to continue to verify, in repo — answered where it was started");
   });
 
   it("is running for any other live run", () => {
@@ -241,7 +260,7 @@ describe("describeChangeCard — the lines", () => {
 
   it("says what a waiting run waits on, and where", () => {
     const card = cardOf({ directories: [directory({ runs: [run({ waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } })] })] });
-    expect(describeChangeCard(card, NOW).lines).toContain("waiting to continue to verify, in repo");
+    expect(describeChangeCard(card, NOW).lines).toContain("waiting to continue to verify, in repo — answered where it was started");
   });
 
   it("gives a cost only where one was reported", () => {

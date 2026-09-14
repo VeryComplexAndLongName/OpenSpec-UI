@@ -167,7 +167,11 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
         />
       ) : null}
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
-      <ul className="openspec-ai-panel-events" data-testid="chain-event-log">
+      {/* Focusable and named: the log scrolls once a chain has said enough,
+          and a region that scrolls has to be reachable by keyboard (axe
+          scrollable-region-focusable, found once the chain was shown on the
+          Pipeline tab by a-change-is-run-from-its-card). */}
+      <ul className="openspec-ai-panel-events" data-testid="chain-event-log" tabIndex={0} aria-label="Chain events">
         {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
           <li key={index} data-testid={`chain-event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
             {renderEventBody(event, index)}

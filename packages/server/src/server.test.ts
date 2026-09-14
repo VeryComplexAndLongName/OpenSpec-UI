@@ -92,6 +92,8 @@ const ALL_EVENT_VARIANTS: Event[] = [
   // server-side special-casing, same as every kind above (ADR 0001).
   { kind: "agentUpdate", runId: "run-1", timestamp: "t4a", update: { sessionUpdate: "plan", entries: [] } },
   { kind: "permissionRequest", runId: "run-1", timestamp: "t4b", requestId: "perm-1", description: "Write to x" },
+  // a-change-is-run-from-its-card 1.3: non-terminal, carried like the rest.
+  { kind: "stopRequested", runId: "run-1", timestamp: "t4c", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
   { kind: "completed", runId: "run-1", timestamp: "t5", summary: "diff --git a/x b/x" },
   { kind: "failed", runId: "run-1", timestamp: "t6", reason: "boom" },
   { kind: "cancelled", runId: "run-1", timestamp: "t7" },
@@ -1717,6 +1719,97 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  // a-change-is-run-from-its-card 2.3
+  it("holds a run it started over the socket while it runs, for that workspace only", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gatedRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        yield { kind: "started", runId: command.runId, timestamp: "t1", command: command.kind, cwd: command.cwd };
+        await gate;
+        yield { kind: "completed", runId: command.runId, timestamp: "t2" };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["fake-agent", gatedRunner]]));
+    const liveRunsFor = async (cwd: string) => {
+      const response = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+      expect(response.status).toBe(200);
+      return ((await response.json()) as { runs: Array<{ runId: string; kind: string; changeName: string | null }> }).runs;
+    };
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    let onMessage: (() => void) | undefined;
+    client.on("message", (raw) => {
+      received.push(JSON.parse(raw.toString()) as Event);
+      onMessage?.();
+    });
+    const until = (kind: Event["kind"]) => new Promise<void>((resolve) => {
+      onMessage = () => {
+        if (received.some((event) => event.kind === kind)) resolve();
+      };
+      onMessage();
+    });
+
+    client.send(JSON.stringify({ ...wsImplementCommand, kind: "review" }));
+    await until("started");
+
+    expect(await liveRunsFor(wsImplementCommand.cwd)).toEqual([expect.objectContaining({ runId: "run-1", kind: "review", changeName: "x" })]);
+    expect(await liveRunsFor(await createTempWorkspace())).toEqual([]);
+
+    release?.();
+    await until("completed");
+    expect(await liveRunsFor(wsImplementCommand.cwd)).toEqual([]);
+    client.close();
+  });
+
+  it("refuses a live-runs request that names no workspace, or one outside it", async () => {
+    const noCwd = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({}) });
+    expect(noCwd.status).toBe(400);
+
+    await server.close();
+    server = createServer({ workspaceRoot: "/workspace/repo", host: "127.0.0.1", port: 0, accessToken: ACCESS_TOKEN });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+    const outside = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd: "/outside/repo" }) });
+    expect(outside.status).toBe(403);
+  });
+
+  // a-change-is-run-from-its-card 1.3
+  it("carries a stop command, reason included, through to the resolved AgentRunner", async () => {
+    const receivedCommands: Command[] = [];
+    const recordingRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        receivedCommands.push(command);
+        yield { kind: "stopRequested", runId: command.runId, timestamp: "t", reason: command.reason ?? "", outcome: "nothing-to-stop" };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["fake-agent", recordingRunner]]));
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    const done = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        received.push(JSON.parse(raw.toString()) as Event);
+        resolve();
+      });
+    });
+
+    const stopCommand: Command = { ...wsImplementCommand, kind: "stop", reason: "wrong branch" };
+    client.send(JSON.stringify(stopCommand));
+    await done;
+
+    expect(receivedCommands).toEqual([expect.objectContaining({ kind: "stop", reason: "wrong branch" })]);
+    expect(received).toEqual([expect.objectContaining({ kind: "stopRequested", reason: "wrong branch", outcome: "nothing-to-stop" })]);
+    client.close();
+  });
+
   it("rejects a stage configured with dispatch \"vscode-chat\" instead of running a CLI", async () => {
     const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
     await writeGlobalHarnessConfig(wsImplementCommand.cwd, {
@@ -1931,14 +2024,97 @@ describe("server — WebSocket /api/ws", () => {
       expect.objectContaining({ kind: "checkpoint", stage: "propose", nextStage: "review" }),
     ]);
 
+    const afterCancel: Event[] = [];
     const cancelled = new Promise<void>((resolve) => {
       client.on("message", (raw) => {
-        if ((JSON.parse(raw.toString()) as Event).kind === "cancelled") resolve();
+        const event = JSON.parse(raw.toString()) as Event;
+        afterCancel.push(event);
+        if (event.kind === "cancelled") resolve();
       });
     });
     client.send(JSON.stringify({ kind: "cancel", cwd: workspaceRoot, runId: "chain-1", context: chainCommand.context }));
     await cancelled;
 
+    // a-change-is-run-from-its-card 4.1: the cancel is answered on the
+    // socket that sent it.
+    expect(afterCancel).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "cancelling", runId: "chain-1", attempted: "termination-requested" }),
+    ]));
+    client.close();
+  });
+
+  // a-change-is-run-from-its-card 4.1
+  it("stops a chain at its checkpoint over the socket, answering with stopRequested before cancelled", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    await writeGlobalHarnessConfig(workspaceRoot, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli" },
+    });
+    mockCliJson({
+      changeName: "demo",
+      schemaName: "spec-driven",
+      progress: { total: 3, complete: 0, remaining: 3 },
+      artifacts: [
+        { id: "proposal", outputPath: "proposal.md", status: "pending", requires: [] },
+        { id: "design", outputPath: "design.md", status: "pending", requires: [] },
+        { id: "tasks", outputPath: "tasks.md", status: "pending", requires: [] },
+      ],
+      root: { path: workspaceRoot, source: "cwd" },
+    });
+
+    await server.close();
+    server = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map<string, AgentRunner>([
+        [
+          "claude-cli",
+          fakeRunner([
+            { kind: "started", runId: "chain-2", timestamp: "t1", command: "plan", cwd: workspaceRoot },
+            { kind: "completed", runId: "chain-2", timestamp: "t2" },
+          ]),
+        ],
+      ]),
+    });
+    const address = await server.listen();
+    wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    let settle: ((kind: Event["kind"]) => void) | undefined;
+    client.on("message", (raw) => {
+      const event = JSON.parse(raw.toString()) as Event;
+      received.push(event);
+      settle?.(event.kind);
+    });
+    const until = (kind: Event["kind"]) => new Promise<void>((resolve) => {
+      if (received.some((event) => event.kind === kind)) resolve();
+      settle = (seen) => {
+        if (seen === kind) resolve();
+      };
+    });
+
+    const chainCommand: Command = {
+      kind: "chain",
+      cwd: workspaceRoot,
+      runId: "chain-2",
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "demo") },
+    };
+    client.send(JSON.stringify(chainCommand));
+    await until("checkpoint");
+
+    client.send(JSON.stringify({ kind: "stop", cwd: workspaceRoot, runId: "chain-2", reason: "wrong branch", context: chainCommand.context }));
+    await until("cancelled");
+
+    const stopAt = received.findIndex((event) => event.kind === "stopRequested");
+    expect(received[stopAt]).toMatchObject({ runId: "chain-2", reason: "wrong branch", outcome: "asked" });
+    expect(received.findIndex((event) => event.kind === "cancelled")).toBeGreaterThan(stopAt);
+    expect(received.filter((event) => event.kind === "stopRequested")).toHaveLength(1);
     client.close();
   });
 

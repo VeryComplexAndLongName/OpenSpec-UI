@@ -644,6 +644,10 @@ function describeEvent(event: Event): string {
       return describeAcpUpdate(event.update) ?? `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
     case "permissionRequest":
       return `permission requested: ${event.description}`;
+    case "stopRequested":
+      return event.outcome === "nothing-to-stop"
+        ? `stop: nothing was running (${event.reason})`
+        : `asked to stop${event.by ? ` by ${event.by}` : ""}: ${event.reason}`;
   }
 }
 

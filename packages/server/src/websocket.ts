@@ -12,8 +12,10 @@ import type { WebSocket } from "ws";
 import {
   type AgentRunner,
   type Command,
+  type Event,
   type HarnessChainRunner,
   type HarnessStage,
+  type LiveRuns,
   VSCODE_CHAT_STEP_AGENT_ID,
   type WorkbenchRecoveryService,
   normalizeStepAgent,
@@ -78,6 +80,9 @@ export function handleSocketMessage(
   runners: Map<string, AgentRunner>,
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
   chainRunner: HarnessChainRunner,
+  /** The runs this server started and holds, so a card can offer controls
+   * only for those (a-change-is-run-from-its-card). One for the process. */
+  liveRuns: LiveRuns,
 ): void {
   let parsed: unknown;
   try {
@@ -98,7 +103,12 @@ export function handleSocketMessage(
     chainRunner.confirmCheckpoint(command.runId);
     return;
   }
-  if (command.kind === "cancel" && chainRunner.cancel(command.runId)) {
+  // A "cancel" or "stop" naming an active chain goes through the chain's own
+  // `asAgentRunner()`, so the socket that sent it hears back: `cancelling`
+  // for a cancel, and for a stop the chain's stream carries `stopRequested`
+  // (a-change-is-run-from-its-card).
+  if ((command.kind === "cancel" || command.kind === "stop") && chainRunner.holds(command.runId)) {
+    void streamToSocket(socket, chainRunner.asAgentRunner().run(command));
     return;
   }
   // Same reasoning as `cancel` above: a `"resolvePermission"` naming an
@@ -111,11 +121,22 @@ export function handleSocketMessage(
     return;
   }
   if (command.kind === "chain") {
-    void streamChainRun(socket, chainRunner, command, resolveRecoveryService);
+    void streamChainRun(socket, chainRunner, command, resolveRecoveryService, liveRuns);
     return;
   }
 
-  void dispatchSingleStage(socket, command, runners, resolveRecoveryService);
+  // A request about a single-stage run names no agent, and the default
+  // runner has never heard of a run started on another: it goes to the
+  // runner that holds the run.
+  const held = command.kind === "cancel" || command.kind === "stop" ? liveRuns.get(command.runId) : undefined;
+  const routed = held?.agentId !== undefined && command.agentId === undefined ? { ...command, agentId: held.agentId } : command;
+  void dispatchSingleStage(socket, routed, runners, resolveRecoveryService, liveRuns);
+}
+
+async function streamToSocket(socket: WebSocket, events: AsyncIterable<Event>): Promise<void> {
+  for await (const event of events) {
+    if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
+  }
 }
 
 async function dispatchSingleStage(
@@ -123,6 +144,7 @@ async function dispatchSingleStage(
   command: Command,
   runners: Map<string, AgentRunner>,
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
+  liveRuns: LiveRuns,
 ): Promise<void> {
   if (await rejectIfChatDispatch(socket, command)) return;
 
@@ -139,7 +161,9 @@ async function dispatchSingleStage(
     return;
   }
 
-  await streamRun(socket, runner, command, resolveRecoveryService);
+  // Every run started here passes through the one registry; a request about
+  // a run (cancel, a permission's answer) is passed through untracked.
+  await streamRun(socket, liveRuns.runner(runner), command, resolveRecoveryService);
 }
 
 /** Same shape as `streamAgentEvents`, over `chainRunner.run(command)`
@@ -153,10 +177,11 @@ async function streamChainEvents(
   chainRunner: HarnessChainRunner,
   command: Command,
   report: (message: string) => void,
+  liveRuns: LiveRuns,
 ): Promise<string | undefined> {
   let summary: string | undefined;
   let failureReason: string | undefined;
-  for await (const event of withAgentStatus(chainRunner.run(command), command)) {
+  for await (const event of withAgentStatus(liveRuns.track(command, chainRunner.run(command)), command)) {
     if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
     if (event.kind === "progress") report(event.message);
     if (event.kind === "stageCompleted" || event.kind === "checkpoint") report(`${event.stage} -> ${event.nextStage}`);
@@ -172,6 +197,7 @@ async function streamChainRun(
   chainRunner: HarnessChainRunner,
   command: Command,
   resolveRecoveryService: (cwd: string) => Promise<WorkbenchRecoveryService>,
+  liveRuns: LiveRuns,
 ): Promise<void> {
   const recovery = await resolveRecoveryService(command.cwd);
   const changeName = path.basename(command.context.changeDir);
@@ -181,7 +207,7 @@ async function streamChainRun(
       command.runId,
       command.kind,
       changeName,
-      (context) => streamChainEvents(socket, chainRunner, command, context.report),
+      (context) => streamChainEvents(socket, chainRunner, command, context.report, liveRuns),
       command.agentId,
     );
   } catch (error) {

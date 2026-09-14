@@ -110,6 +110,9 @@ function createPipelinePanel(overrides: {
   readers?: Record<string, unknown>;
   statusDirectory?: () => Promise<string>;
   now?: () => number;
+  liveRuns?: { list: () => unknown[]; get?: (runId: string) => unknown };
+  runChange?: (changeName: string) => Promise<void>;
+  sendRunControl?: (control: unknown) => void;
 } = {}) {
   const readers = {
     readiness: vi.fn(async () => ({ changes: [] })),
@@ -142,6 +145,9 @@ function createPipelinePanel(overrides: {
     revealChange,
     readers: readers as never,
     ...(overrides.now ? { now: overrides.now } : {}),
+    ...(overrides.liveRuns ? { liveRuns: overrides.liveRuns as never } : {}),
+    ...(overrides.runChange ? { runChange: overrides.runChange } : {}),
+    ...(overrides.sendRunControl ? { sendRunControl: overrides.sendRunControl } : {}),
   });
   return { pipeline, readers, revealChange };
 }
@@ -221,6 +227,77 @@ describe("PipelinePanel — answering the view", () => {
       ok: true,
       value: expect.objectContaining({ standings: [expect.objectContaining({ changeName: "alpha" })] }),
     }));
+  });
+
+  // a-change-is-run-from-its-card 2.4
+  it("answers the runs this host holds for its own root, and none without a registry", async () => {
+    const held = (runId: string, cwd: string) => ({ runId, cwd, changeName: "alpha", kind: "chain", startedAt: "t", waiting: false, stopRequested: null });
+    const { pipeline } = createPipelinePanel({ liveRuns: { list: () => [held("here", "/repo"), held("elsewhere", "/other")] } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "v:0", op: "pipeline/live-runs", args: { cwd: "/other" } });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "v:0",
+      ok: true,
+      value: { runs: [expect.objectContaining({ runId: "here" })] },
+    }));
+
+    const bare = createPipelinePanel();
+    bare.pipeline.show();
+    await bare.pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "v:1", op: "pipeline/live-runs" });
+    expect(created[1]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "v:1", ok: true, value: { runs: [] } }));
+  });
+
+  // a-change-is-run-from-its-card 5.2
+  it("opens the run dialog for a card's Start, only for an active change of its workspace", async () => {
+    const runChange = vi.fn(async () => undefined);
+    const { pipeline } = createPipelinePanel({ runChange });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "alpha" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "gone" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-change", changeName: "../etc" });
+
+    expect(runChange).toHaveBeenCalledTimes(1);
+    expect(runChange).toHaveBeenCalledWith("alpha");
+  });
+
+  // a-change-is-run-from-its-card 5.4–5.6
+  it("carries out a card's control only for a run this host holds, on the change the card names", async () => {
+    const held = { runId: "r1", cwd: "/repo", changeName: "alpha", kind: "chain", startedAt: "t", waiting: true, permissionRequestId: "p1", stopRequested: null };
+    const sendRunControl = vi.fn();
+    const { pipeline } = createPipelinePanel({
+      sendRunControl,
+      liveRuns: { list: () => [held], get: (runId: string) => (runId === "r1" ? held : undefined) },
+    });
+    pipeline.show();
+    const send = (control: Record<string, unknown>) => pipeline.deliverMessageForTesting({ type: "openspec-ui/run-control", control });
+
+    await send({ changeName: "alpha", runId: "r1", kind: "stop", reason: "wrong branch" });
+    await send({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
+    // Refused: a run this host does not hold, another change, a stop with no
+    // reason, and an answer with no outcome.
+    await send({ changeName: "alpha", runId: "r2", kind: "cancel" });
+    await send({ changeName: "beta", runId: "r1", kind: "cancel" });
+    await send({ changeName: "alpha", runId: "r1", kind: "stop", reason: "   " });
+    await send({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1" });
+
+    expect(sendRunControl.mock.calls).toEqual([
+      [{ changeName: "alpha", runId: "r1", kind: "stop", reason: "wrong branch" }],
+      [{ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" }],
+    ]);
+  });
+
+  it("ignores a control for a run this host holds in another workspace", async () => {
+    const held = { runId: "r1", cwd: "/elsewhere", changeName: "alpha", kind: "chain", startedAt: "t", waiting: false, permissionRequestId: null, stopRequested: null };
+    const sendRunControl = vi.fn();
+    const { pipeline } = createPipelinePanel({ sendRunControl, liveRuns: { list: () => [held], get: () => held } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/run-control", control: { changeName: "alpha", runId: "r1", kind: "cancel" } });
+
+    expect(sendRunControl).not.toHaveBeenCalled();
   });
 
   it("refuses an operation it does not offer, by name", async () => {

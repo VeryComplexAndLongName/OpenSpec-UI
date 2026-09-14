@@ -1,8 +1,9 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ChangeReadiness,
   ChangeReadinessReport,
+  LiveRun,
   SurveyedDirectory,
   SurveyedRun,
   WorktreeSurvey,
@@ -465,6 +466,126 @@ describe("PipelineView — a card says what its change is doing", () => {
     const above = screen.getByTestId("pipeline-reading-runs");
     expect(above).toHaveTextContent("every run here is on its change's card");
     expect(above.textContent).not.toContain("npm run verify");
+  });
+});
+
+describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)", () => {
+  const heldRun = (overrides: Partial<LiveRun> = {}): LiveRun => ({
+    runId: "r1",
+    cwd: "/repo",
+    changeName: "alpha",
+    kind: "chain",
+    startedAt: new Date().toISOString(),
+    waiting: false,
+    permissionRequestId: null,
+    stopRequested: null,
+    ...overrides,
+  });
+
+  function renderCard(options: { record?: Partial<SurveyedRun> | null; held?: LiveRun[]; liveRuns?: () => Promise<{ runs: LiveRun[] }> } = {}) {
+    const onRunControl = vi.fn();
+    const onStart = vi.fn();
+    const copyText = vi.fn(async () => undefined);
+    const runs = options.record === null
+      ? []
+      : [run({ changeName: "alpha", runId: "r1", workingDirectory: "/wt/repo/alpha", ...(options.record ?? {}) })];
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({
+          changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }],
+          runs,
+        }))}
+        liveRuns={options.liveRuns ?? (async () => ({ runs: options.held ?? [] }))}
+        onRunControl={onRunControl}
+        onStart={onStart}
+        copyText={copyText}
+      />,
+    );
+    return { onRunControl, onStart, copyText };
+  }
+
+  it("offers Continue and Stop at a checkpoint on a run this host holds, and sends each", async () => {
+    const { onRunControl } = renderCard({
+      record: { waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } },
+      held: [heldRun({ waiting: true })],
+    });
+
+    const continueButton = await screen.findByRole("button", { name: "Continue alpha to verify" });
+    fireEvent.click(continueButton);
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "confirmCheckpoint" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop alpha" }));
+    const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
+    fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
+    expect(within(form).getByRole("alert")).toHaveTextContent("A stop needs a reason.");
+    expect(onRunControl).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "stop" }));
+
+    fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "wrong branch" } });
+    fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "stop", reason: "wrong branch" });
+    expect(screen.queryByRole("dialog", { name: "Ask alpha to stop" })).toBeNull();
+  });
+
+  it("offers Allow and Deny on the permission a held run waits on, naming its request", async () => {
+    const { onRunControl } = renderCard({
+      record: { waiting: { kind: "permission", description: "Write to x" } },
+      held: [heldRun({ waiting: true, permissionRequestId: "p1" })],
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Allow alpha: Write to x" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deny alpha: Write to x" }));
+
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "allow" });
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
+  });
+
+  it("offers Stop on a running held run, and Stop now once a stop has been asked", async () => {
+    const { onRunControl } = renderCard({ held: [heldRun({ stopRequested: { reason: "wrong branch" } })] });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "cancel" });
+    expect(screen.queryByTestId("pipeline-stop-alpha")).toBeNull();
+  });
+
+  it("reads its runs again shortly after a control, so the card shows what the press did", async () => {
+    const liveRuns = vi.fn(async () => ({ runs: [heldRun({ stopRequested: { reason: "wrong branch" } })] }));
+    const { onRunControl } = renderCard({ liveRuns });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
+    expect(onRunControl).toHaveBeenCalledTimes(1);
+    const readsBefore = liveRuns.mock.calls.length;
+    await waitFor(() => expect(liveRuns.mock.calls.length).toBeGreaterThan(readsBefore), { timeout: 3000 });
+  });
+
+  it("offers Stop, not Stop now, while no stop has been asked", async () => {
+    renderCard({ held: [heldRun()] });
+
+    expect(await screen.findByRole("button", { name: "Stop alpha" })).toBeInTheDocument();
+    expect(screen.queryByTestId("pipeline-stop-now-alpha")).toBeNull();
+  });
+
+  it("offers no answer or stop for a run held elsewhere, and copies its folder", async () => {
+    const { copyText, onRunControl } = renderCard({
+      record: { waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } },
+      held: [],
+    });
+
+    const copy = await screen.findByRole("button", { name: "Copy folder path of alpha" });
+    expect(screen.queryByTestId("pipeline-continue-alpha")).toBeNull();
+    expect(screen.queryByTestId("pipeline-stop-alpha")).toBeNull();
+    fireEvent.click(copy);
+    expect(copyText).toHaveBeenCalledWith("/wt/repo/alpha");
+    expect(onRunControl).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("answered where it was started");
+  });
+
+  it("offers Start on a change that is ready, for its host to open the run dialog", async () => {
+    const { onStart } = renderCard({ record: null });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start alpha" }));
+    expect(onStart).toHaveBeenCalledWith("alpha");
   });
 });
 

@@ -1335,10 +1335,65 @@ export const shellThemeCss = `
     border-radius: var(--radius);
     background: var(--surface);
     color: var(--ink);
-    cursor: pointer;
   }
 
   .openspec-pipeline-node:hover { border-color: var(--primary-soft); }
+
+  /* The card's name is the control that opens the change. It reads as the
+     card's title, not as a button, and takes the name line core counts. */
+  .openspec-pipeline-node-open {
+    flex-shrink: 0;
+    align-self: stretch;
+    display: block;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  /* A card's controls, in the row core subtracts from its lines. */
+  .openspec-pipeline-node-controls {
+    display: flex;
+    flex-shrink: 0;
+    align-self: stretch;
+    gap: 4px;
+    height: ${PIPELINE_CARD_REM.controlsLine}rem;
+    line-height: ${PIPELINE_CARD_REM.controlsLine}rem;
+    margin-top: auto;
+    overflow: hidden;
+  }
+
+  .openspec-pipeline-node-controls button {
+    font-size: 0.6875rem;
+    line-height: 1;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
+
+  .openspec-pipeline-stop-form {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-pipeline-stop-form label { display: grid; gap: 4px; }
+
+  /* The run a card's Start opened: its dialog, then its chain, beneath the
+     picture where Start was pressed. */
+  .openspec-pipeline-run-layer {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
 
   /* State is carried by the word inside the card first; these only
      agree with it. A reader who cannot tell two hues apart has already
@@ -1606,6 +1661,8 @@ export const shellThemeCss = `
     }
     .openspec-pipeline-node-detail-text { white-space: normal; }
     .openspec-pipeline-node-more { display: none; }
+    /* Room to run on: controls wrap rather than being cut. */
+    .openspec-pipeline-node-controls { height: auto; flex-wrap: wrap; }
   }
 `;
 

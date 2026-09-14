@@ -39,6 +39,15 @@ export interface ChangeCardRun {
   /** The run's record, so a list of runs can leave out the one this card
    * already shows. */
   instanceId: string;
+  /** The run id a host answers or stops the run by, where its record
+   * carries one. */
+  runId: string | null;
+  /** The host showing this card started the run and holds it, so the card
+   * may offer to answer and stop it (a-change-is-run-from-its-card). */
+  ownedHere: boolean;
+  /** Where the run was started, as its record says: the folder a card for a
+   * run held elsewhere offers to copy, and never to open. */
+  workingDirectory: string;
   stage: string | null;
   activity: string;
   activityAt: string;
@@ -82,14 +91,18 @@ export interface ChangeCardInputs {
   /** Where each change stands across the repository, where the host read
    * it. Without it a card's word is the one this checkout's facts give. */
   standings?: ChangeStandings;
+  /** The run ids of the runs the host showing the cards started and holds
+   * (its live-runs list). A card offers controls only for these. */
+  liveRunIds?: readonly string[];
   now: Date;
 }
 
 const THIS_CHECKOUT: ChangeCardWhere = { label: "this checkout", path: "", ownWorktree: false };
 
 /** One card for each change of the report, in the report's order. */
-export function describeChangeCards({ report, survey, lastRuns, standings }: ChangeCardInputs): ChangeCard[] {
+export function describeChangeCards({ report, survey, lastRuns, standings, liveRunIds = [] }: ChangeCardInputs): ChangeCard[] {
   const here = survey?.directories.find((directory) => directory.isThis);
+  const held = new Set(liveRunIds);
   return report.changes.map((change) => {
     const name = change.changeName;
     // A change is one card, wherever it is worked (ADR 0029): where a
@@ -115,7 +128,8 @@ export function describeChangeCards({ report, survey, lastRuns, standings }: Cha
 
     const waitingRun = runs.find((run) => run.waiting !== null);
     const shownRun = waitingRun ?? runs[0];
-    const run = shownRun === undefined ? undefined : cardRun(shownRun, surveyed?.nextOpenTask);
+    const ownedHere = shownRun?.runId !== undefined && shownRun.runId !== null && held.has(shownRun.runId);
+    const run = shownRun === undefined ? undefined : cardRun(shownRun, surveyed?.nextOpenTask, ownedHere);
 
     const lastRun = lastRuns?.byChange[name];
     // A failure older than the task list no longer decides the card: the
@@ -139,6 +153,8 @@ export function describeChangeCards({ report, survey, lastRuns, standings }: Cha
       // works or waits; a lease saying "running" would otherwise outrank a
       // record saying it waits.
       ...(readiness === "running" && runs.length > 0 ? {} : { readiness }),
+      // "Waiting for you" only where this host can answer (ADR 0029).
+      ...(waitingRun !== undefined && ownedHere ? { answerableHere: true } : {}),
       ...(endedUnfinished
         ? { lastRun: { outcome: lastRun.outcome === "failed" ? "failed" as const : "stopped" as const, ...(lastRun.stage !== undefined ? { stage: lastRun.stage } : {}) } }
         : {}),
@@ -171,7 +187,7 @@ function olderThan(endedAt: string, modifiedAt: string | undefined): boolean {
   return Number.isFinite(ended) && Number.isFinite(modified) && ended < modified;
 }
 
-function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string } | undefined): ChangeCardRun {
+function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string } | undefined, ownedHere: boolean): ChangeCardRun {
   const task: ChangeCardTask | undefined = run.task !== undefined
     ? { number: run.task.number, text: run.task.text, source: run.task.source }
     // The guess: a record that names no task is probably on the first open
@@ -179,6 +195,9 @@ function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string 
     : nextOpenTask !== undefined ? { ...nextOpenTask, source: "guess" } : undefined;
   return {
     instanceId: run.instanceId,
+    runId: run.runId,
+    ownedHere,
+    workingDirectory: run.workingDirectory,
     stage: run.stage,
     activity: run.activity,
     activityAt: run.activityAt,
@@ -255,7 +274,9 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
 
   if (run !== undefined) {
     if (run.waiting !== null) {
-      lines.push(`${describeWaiting(run.waiting)}, in ${where.label}`);
+      // A run held elsewhere is answered where it was started, not here
+      // (a-change-is-run-from-its-card).
+      lines.push(`${describeWaiting(run.waiting)}, in ${where.label}${run.ownedHere ? "" : " — answered where it was started"}`);
     } else {
       const age = ageFrom(run.activityAt, now);
       lines.push(age !== undefined ? `${run.activity} — said ${age}` : run.activity);
