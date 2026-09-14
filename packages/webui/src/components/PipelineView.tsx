@@ -18,16 +18,19 @@
 // is drawn between directories — the repository declares no order
 // between them. See openspec/changes/what-the-others-are-doing.
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  NODE_HEIGHT,
   describeChangeCard,
   describeChangeCards,
   describeCollision,
   describeDirectoryRuns,
   describeRun,
+  describeTaskRows,
   fitPipelineCardDetails,
   layoutChanges,
   pipelineCardDetailLines,
+  pipelineOpenCardHeight,
   runsShownOnCards,
   type ChangeCard,
   type ChangeLayout,
@@ -40,6 +43,8 @@ import {
   type LiveRun,
   type SurveyedChange,
   type SurveyedDirectory,
+  type SurveyedTask,
+  type TaskRow,
   type WorktreeSurvey,
 } from "@openspec-ui/core/browser";
 import { HintList } from "./HintList.js";
@@ -118,6 +123,91 @@ export interface PipelineViewProps {
   onStart?: (changeName: string) => void;
   /** Copies text — a run's folder — for a host that allows it. */
   copyText?: (text: string) => Promise<void>;
+  /** Keeps the zoom and the open cards for this viewer, where the host can.
+   * A reader or writer that throws leaves the default zoom and every card
+   * closed (a-card-opens-to-its-tasks). */
+  viewState?: { read(): PipelineViewMemory | undefined; write(memory: PipelineViewMemory): void };
+}
+
+/** The zoom steps the picture offers, as factors of its unit. */
+export const PIPELINE_ZOOM_STEPS: readonly number[] = [0.75, 0.9, 1, 1.25, 1.5];
+const DEFAULT_ZOOM = 1;
+
+/** What a viewer left the picture as: its zoom, and the open cards, each by
+ * the directory it is drawn for and its change's name. */
+export interface PipelineViewMemory {
+  zoom: number;
+  open: Array<{ directory: string; changeName: string }>;
+}
+
+/** Which cards are open, by the directory a card is drawn for and its
+ * change's name: a change is the pair, never the name alone (ADR 0026). */
+interface OpenCards {
+  isOpen(directory: string, changeName: string): boolean;
+  toggle(directory: string, changeName: string): void;
+}
+
+function openKey(directory: string, changeName: string): string {
+  return JSON.stringify([directory, changeName]);
+}
+
+function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: number; open: string[] } {
+  try {
+    const memory = viewState?.read() as Partial<PipelineViewMemory> | undefined;
+    if (typeof memory !== "object" || memory === null) return { zoom: DEFAULT_ZOOM, open: [] };
+    const zoom = typeof memory.zoom === "number" && PIPELINE_ZOOM_STEPS.includes(memory.zoom) ? memory.zoom : DEFAULT_ZOOM;
+    const entries: unknown[] = Array.isArray(memory.open) ? memory.open : [];
+    const open = entries.flatMap((entry) => {
+      if (typeof entry !== "object" || entry === null) return [];
+      const { directory, changeName } = entry as { directory?: unknown; changeName?: unknown };
+      return typeof directory === "string" && typeof changeName === "string" ? [openKey(directory, changeName)] : [];
+    });
+    return { zoom, open };
+  } catch {
+    return { zoom: DEFAULT_ZOOM, open: [] };
+  }
+}
+
+function writeViewMemory(viewState: PipelineViewProps["viewState"], zoom: number, open: ReadonlySet<string>): void {
+  if (viewState === undefined) return;
+  try {
+    viewState.write({
+      zoom,
+      open: [...open].map((key) => {
+        const [directory, changeName] = JSON.parse(key) as [string, string];
+        return { directory, changeName };
+      }),
+    });
+  } catch {
+    // A host that cannot keep what the viewer left still draws the picture.
+  }
+}
+
+/** A task list's rows, grouped under the headings they are listed under,
+ * in order. Rows before any heading form a group with no heading. */
+function taskGroups<T extends SurveyedTask>(rows: readonly T[]): Array<{ section?: string; rows: T[] }> {
+  const groups: Array<{ section?: string; rows: T[] }> = [];
+  for (const row of rows) {
+    const last = groups[groups.length - 1];
+    if (last !== undefined && last.section === row.section) last.rows.push(row);
+    else groups.push({ ...(row.section !== undefined ? { section: row.section } : {}), rows: [row] });
+  }
+  return groups;
+}
+
+/** The height core derives for each open card with rows to list. */
+function openHeights(
+  names: readonly string[],
+  tasksOf: (name: string) => readonly SurveyedTask[] | undefined,
+  isOpen: (name: string) => boolean,
+): Map<string, number> {
+  const heights = new Map<string, number>();
+  for (const name of names) {
+    const tasks = tasksOf(name);
+    if (tasks === undefined || tasks.length === 0 || !isOpen(name)) continue;
+    heights.set(name, pipelineOpenCardHeight(tasks.length, taskGroups(tasks).filter((group) => group.section !== undefined).length));
+  }
+  return heights;
 }
 
 /** A control a card sends for a run this host holds. */
@@ -204,6 +294,7 @@ export function PipelineView({
   onRunControl,
   onStart,
   copyText,
+  viewState,
 }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -213,6 +304,24 @@ export function PipelineView({
   // only for these (a-change-is-run-from-its-card).
   const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const [stopFor, setStopFor] = useState<{ changeName: string; runId: string } | undefined>(undefined);
+  // What the viewer left: read once, and kept as it changes. A host that
+  // cannot give or keep it leaves the default zoom and every card closed
+  // (a-card-opens-to-its-tasks).
+  const [remembered] = useState(() => readViewMemory(viewState));
+  const [zoom, setZoom] = useState(remembered.zoom);
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(remembered.open));
+  useEffect(() => writeViewMemory(viewState, zoom, open), [viewState, zoom, open]);
+  const openCards = useMemo<OpenCards>(() => ({
+    isOpen: (directory, changeName) => open.has(openKey(directory, changeName)),
+    toggle: (directory, changeName) => setOpen((current) => {
+      const next = new Set(current);
+      const key = openKey(directory, changeName);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    }),
+  }), [open]);
+  const zoomIndex = PIPELINE_ZOOM_STEPS.indexOf(zoom);
   const now = useClock(isActive);
   const [refreshing, setRefreshing] = useState(false);
   const [refs, setRefs] = useState<string | undefined>(undefined);
@@ -267,6 +376,27 @@ export function PipelineView({
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
   };
+  // The cards Open all opens: every card with rows to list, here and in
+  // every other working directory.
+  const localDirectory = here?.path ?? "";
+  const openableKeys = (): string[] => [
+    ...(report?.changes ?? [])
+      .filter((change) => (cards.get(change.changeName)?.tasks?.length ?? 0) > 0)
+      .map((change) => openKey(localDirectory, change.changeName)),
+    ...(others.value?.directories ?? []).flatMap((directory) => directory.isThis || !directory.readable
+      ? []
+      : directory.changes
+        .filter((change) => change.changeName !== directory.belongsTo && (change.tasks?.length ?? 0) > 0)
+        .map((change) => openKey(directory.path, change.changeName))),
+  ];
+  // One legend for the tab, above every picture, where any of them draws a
+  // line: an edge between cards, or an open card's rail. Said once: the
+  // first capture put the same three lines above every directory.
+  const showLegend = open.size > 0
+    || (report !== undefined && drawsAnEdge(report.changes))
+    || (others.value?.directories ?? []).some((directory) => !directory.isThis
+      && directory.readable
+      && drawsAnEdge(directory.changes.filter((change) => change.changeName !== directory.belongsTo)));
 
   // Each reading is shown when it arrives (the-pipeline-shows-what-it-has-read).
   // This directory's part says it is still being read, or why it could not
@@ -274,8 +404,19 @@ export function PipelineView({
   // became of it. A reading that failed after one that arrived keeps the
   // picture it had, under the error, and the read-at line says how old it is.
   return (
-    <div data-testid="pipeline">
+    // The zoom is one factor on everything the picture draws, cards, text
+    // and lines alike; no layout unit changes with it.
+    <div data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
       {here ? <Reading directory={here} now={now} onCards={onCards} /> : null}
+      <div className="openspec-ai-panel-controls" data-testid="pipeline-view-controls">
+        <button type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>Open all</button>
+        <button type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>Close all</button>
+        <button type="button" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>Zoom out</button>
+        <span className="openspec-shell-note" data-testid="pipeline-zoom-level">{`Zoom ${Math.round(zoom * 100)}%`}</span>
+        <button type="button" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>Zoom in</button>
+        <button type="button" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>Reset zoom</button>
+      </div>
+      {showLegend ? <Legend testId="pipeline-legend" /> : null}
       {local.error !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
         : null}
@@ -290,14 +431,14 @@ export function PipelineView({
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} />}
+              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} />}
             {/* From the report this already read: no second fetch, and no
                 suggestion computed here — `buildHints` derived them in core
                 before the payload was sent. */}
             <HintList hints={report.hints} />
           </>
         )}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -364,15 +505,25 @@ function alsoInHere(here: SurveyedDirectory | undefined, labels: Map<string, str
   return result;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards }: {
   report: ChangeReadinessReport;
   cards: Map<string, ChangeCard>;
   now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn: Map<string, string[]>;
   controls: CardControlHandlers;
+  /** The path this picture is drawn for, which its open cards are kept by. */
+  directory: string;
+  openCards: OpenCards;
 }) {
-  const layout = layoutChanges(report);
+  // An open card is as tall as its rows, and only the cards below it in its
+  // column move; nothing is measured (a-card-opens-to-its-tasks).
+  const heights = openHeights(
+    report.changes.map((change) => change.changeName),
+    (name) => cards.get(name)?.tasks,
+    (name) => openCards.isOpen(directory, name),
+  );
+  const layout = layoutChanges(report, { heights });
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}
@@ -382,13 +533,103 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls }: {
         laneHeading="h3"
         renderNode={(node) => {
           // Every change of the report has a card: they are derived from it.
-          const card = cards.get(node.change.changeName);
+          const name = node.change.changeName;
+          const card = cards.get(name);
           return card === undefined ? null : (
-            <Node key={node.change.changeName} node={node} card={card} now={now} onOpenChange={onOpenChange} alsoIn={alsoIn.get(node.change.changeName)} controls={controls} />
+            <Node
+              key={name}
+              node={node}
+              card={card}
+              now={now}
+              onOpenChange={onOpenChange}
+              alsoIn={alsoIn.get(name)}
+              controls={controls}
+              open={openCards.isOpen(directory, name)}
+              onToggle={() => openCards.toggle(directory, name)}
+            />
           );
         }}
       />
     </>
+  );
+}
+
+/** Whether a picture of these changes draws a line between two cards: a
+ * blocker that is one of its own changes. */
+function drawsAnEdge(changes: ReadonlyArray<{ changeName: string; blockers: readonly string[] }>): boolean {
+  const names = new Set(changes.map((change) => change.changeName));
+  return changes.some((change) => change.blockers.some((blocker) => blocker !== change.changeName && names.has(blocker)));
+}
+
+/** What a picture's lines mean, said where there is a line to explain. */
+function Legend({ testId }: { testId: string }) {
+  return (
+    <ul className="openspec-shell-note openspec-pipeline-legend" data-testid={testId}>
+      <li><span className="openspec-pipeline-legend-edge" aria-hidden="true" />A solid line from one card to another means the second waits for the first.</li>
+      <li><span className="openspec-pipeline-legend-rail" aria-hidden="true" />A thin line inside a card means listed next in tasks.md.</li>
+      <li>A collision is written on the card, and never drawn.</li>
+    </ul>
+  );
+}
+
+/** Shows or hides a card's tasks. */
+function TasksToggle({ name, open, listId, testId, onToggle }: {
+  name: string;
+  open: boolean;
+  listId: string;
+  testId: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="openspec-pipeline-node-disclosure"
+      data-testid={testId}
+      aria-expanded={open}
+      aria-controls={listId}
+      aria-label={`${open ? "Hide" : "Show"} tasks of ${name}`}
+      onClick={onToggle}
+    >
+      {open ? "Hide tasks" : "Show tasks"}
+    </button>
+  );
+}
+
+/** A marker a row's word already says: `**Human-only**:` or
+ * `**Delegated to claude-cli**:` at the start of its text. */
+const MARKER_LEAD_RE = /^\*\*[^*]+\*\*:?\s*/u;
+
+/** An open card's tasks, in the task list's order, under their headings.
+ * Kept in the page while the card is closed, and hidden, so the control
+ * that shows it always names an element. */
+function TaskList({ id, rows, open, testId }: { id: string; rows: readonly TaskRow[]; open: boolean; testId: string }) {
+  return (
+    <div id={id} className="openspec-pipeline-node-tasks" data-testid={testId} hidden={!open}>
+      {taskGroups(rows).map((group, groupIndex) => (
+        <div key={groupIndex}>
+          {group.section !== undefined ? <p className="openspec-pipeline-task-section" title={group.section}>{group.section}</p> : null}
+          <ol className="openspec-pipeline-tasks">
+            {group.rows.map((row, index) => {
+              const text = row.closedBy === "agent" ? row.text : row.text.replace(MARKER_LEAD_RE, "");
+              const inHand = row.word === "in hand" || row.word === "probably next";
+              return (
+                <li
+                  key={index}
+                  className={inHand ? "openspec-pipeline-task openspec-pipeline-task--in-hand" : "openspec-pipeline-task"}
+                  data-word={row.word}
+                  title={`${row.number !== undefined ? `${row.number} ` : ""}${row.word}: ${text}`}
+                >
+                  {index < group.rows.length - 1 ? <span className="openspec-pipeline-task-rail" aria-hidden="true" /> : null}
+                  {row.number !== undefined ? <span className="openspec-pipeline-task-number">{row.number}</span> : null}
+                  <span className="openspec-pipeline-task-word">{row.word}</span>
+                  <span className="openspec-pipeline-task-text">{text}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -419,8 +660,9 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
   const Heading = laneHeading;
 
   return (
-    // Its own scroller, so a wide repository never makes the page body
-    // scroll sideways — the rule the shell's tables already follow.
+    <>
+    {/* Its own scroller, so a wide repository never makes the page body
+        scroll sideways — the rule the shell's tables already follow. */}
     <div className="openspec-pipeline-scroll">
       <div
         className="openspec-pipeline-picture"
@@ -440,6 +682,7 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
         ))}
       </div>
     </div>
+    </>
   );
 }
 
@@ -476,13 +719,15 @@ function Edges({ edges, width, height, testIdPrefix }: {
   );
 }
 
-function Node({ node, card, now, onOpenChange, alsoIn, controls }: {
+function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle }: {
   node: ChangeLayoutNode;
   card: ChangeCard;
   now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn?: string[];
   controls: CardControlHandlers;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const { change } = node;
   // The card's own lines first — what the change is doing — then what
@@ -494,6 +739,8 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls }: {
     ...(alsoIn && alsoIn.length > 0 ? [`also in ${alsoIn.join(", ")}`] : []),
   ];
   const buttons = cardControls(card, controls);
+  const rows = card.tasks ?? [];
+  const testId = `pipeline-node-${change.changeName}`;
   return (
     // A group, not one button: a card holds controls of its own, and a
     // button cannot hold a button (a-change-is-run-from-its-card). Its name
@@ -502,31 +749,40 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls }: {
       role="group"
       aria-label={change.changeName}
       className="openspec-pipeline-node"
-      data-testid={`pipeline-node-${change.changeName}`}
+      data-testid={testId}
       data-state={card.state}
+      data-open={open && rows.length > 0 ? "true" : "false"}
       // The coordinates core returned, in units the stylesheet turns into
       // `em`. In the narrow view the stylesheet ignores them.
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
       // The whole of the text, for a reader whose card clipped it.
       title={`${change.changeName} — ${detail.join(" ")}`}
     >
-      <button
-        type="button"
-        className="openspec-pipeline-node-open"
-        data-testid={`pipeline-node-${change.changeName}-open`}
-        onClick={() => onOpenChange?.(change.changeName)}
-      >
-        <span className="openspec-pipeline-node-name">{change.changeName}</span>
-      </button>
+      <div className="openspec-pipeline-node-head">
+        <button
+          type="button"
+          className="openspec-pipeline-node-open"
+          data-testid={`${testId}-open`}
+          onClick={() => onOpenChange?.(change.changeName)}
+        >
+          <span className="openspec-pipeline-node-name">{change.changeName}</span>
+        </button>
+        {rows.length > 0
+          ? <TasksToggle name={change.changeName} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
+          : null}
+      </div>
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
       <span className="openspec-pipeline-node-state">{described.stateWords}</span>
-      <CardDetails lines={detail} budget={pipelineCardDetailLines(node.height, { hasState: true, hasControls: buttons.length > 0 })} />
+      {/* The lines a closed card holds, open or not: opening a card adds its
+          rows and changes nothing it says. */}
+      <CardDetails lines={detail} budget={pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: buttons.length > 0 })} />
       {buttons.length > 0 ? (
-        <div className="openspec-pipeline-node-controls" data-testid={`pipeline-node-${change.changeName}-controls`}>
+        <div className="openspec-pipeline-node-controls" data-testid={`${testId}-controls`}>
           {buttons}
         </div>
       ) : null}
+      {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
     </div>
   );
 }
@@ -714,11 +970,12 @@ function describeChange(node: ChangeLayoutNode): string[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now, onCards }: {
+function OtherDirectories({ survey, labels, now, onCards, openCards }: {
   survey: WorktreeSurvey;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
+  openCards: OpenCards;
 }) {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
@@ -729,7 +986,7 @@ function OtherDirectories({ survey, labels, now, onCards }: {
         Read here and never acted on: nothing below can be opened, run or changed from this checkout.
       </p>
       {others.map((directory, index) => (
-        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} />
+        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} />
       ))}
       {survey.runsElsewhere.length > 0 ? (
         <div data-testid="pipeline-runs-elsewhere">
@@ -745,12 +1002,13 @@ function OtherDirectories({ survey, labels, now, onCards }: {
   );
 }
 
-function OtherDirectory({ directory, index, labels, now, onCards }: {
+function OtherDirectory({ directory, index, labels, now, onCards, openCards }: {
   directory: SurveyedDirectory;
   index: number;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
+  openCards: OpenCards;
 }) {
   const testId = `pipeline-directory-${index}`;
   return (
@@ -779,7 +1037,7 @@ function OtherDirectory({ directory, index, labels, now, onCards }: {
       <ul className="openspec-shell-note" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
-      {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} /> : null}
+      {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} /> : null}
     </section>
   );
 }
@@ -798,10 +1056,11 @@ function asLayoutInput(change: SurveyedChange): ChangeReadiness {
   };
 }
 
-function ForeignChanges({ directory, testId, labels }: {
+function ForeignChanges({ directory, testId, labels, openCards }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
   testId: string;
   labels: Map<string, string>;
+  openCards: OpenCards;
 }) {
   // The change this directory is the worktree of is already a card above.
   const changes = directory.changes.filter((change) => change.changeName !== directory.belongsTo);
@@ -812,8 +1071,13 @@ function ForeignChanges({ directory, testId, labels }: {
       </p>
     );
   }
-  const layout = layoutChanges({ changes: changes.map(asLayoutInput) });
   const byName = new Map(changes.map((change) => [change.changeName, change]));
+  const heights = openHeights(
+    changes.map((change) => change.changeName),
+    (name) => byName.get(name)?.tasks,
+    (name) => openCards.isOpen(directory.path, name),
+  );
+  const layout = layoutChanges({ changes: changes.map(asLayoutInput) }, { heights });
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}
@@ -828,6 +1092,8 @@ function ForeignChanges({ directory, testId, labels }: {
             change={byName.get(node.change.changeName)}
             labels={labels}
             testId={`${testId}-node-${node.change.changeName}`}
+            open={openCards.isOpen(directory.path, node.change.changeName)}
+            onToggle={() => openCards.toggle(directory.path, node.change.changeName)}
           />
         )}
       />
@@ -835,15 +1101,21 @@ function ForeignChanges({ directory, testId, labels }: {
   );
 }
 
-/** A card with no action. Not a button, not focusable, no handler: a
- * change is the pair (directory, name), and nothing here may reach the
- * change of the same name in this checkout (ADR 0026). */
-function ForeignNode({ node, change, labels, testId }: {
+/** A card with no action on its change. Not a button, and no handler that
+ * reaches a change: a change is the pair (directory, name), and nothing
+ * here may reach the change of the same name in this checkout (ADR 0026).
+ * Its one control shows or hides the tasks this reading already holds. */
+function ForeignNode({ node, change, labels, testId, open, onToggle }: {
   node: ChangeLayoutNode;
   change: SurveyedChange | undefined;
   labels: Map<string, string>;
   testId: string;
+  open: boolean;
+  onToggle: () => void;
 }) {
+  // No run in hand is paired with another directory's rows: a row's word
+  // there is what its list says.
+  const rows = change?.tasks !== undefined ? describeTaskRows(change.tasks, undefined) : [];
   const name = node.change.changeName;
   const lines = [
     change?.tasksUnreadable
@@ -857,11 +1129,18 @@ function ForeignNode({ node, change, labels, testId }: {
       className="openspec-pipeline-node openspec-pipeline-node--foreign"
       data-testid={testId}
       data-state="foreign"
+      data-open={open && rows.length > 0 ? "true" : "false"}
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
       title={`${name} — ${lines.join(" ")}`}
     >
-      <span className="openspec-pipeline-node-name">{name}</span>
-      <CardDetails lines={lines} budget={pipelineCardDetailLines(node.height, { hasState: false })} />
+      <div className="openspec-pipeline-node-head">
+        <span className="openspec-pipeline-node-name">{name}</span>
+        {rows.length > 0
+          ? <TasksToggle name={name} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
+          : null}
+      </div>
+      <CardDetails lines={lines} budget={pipelineCardDetailLines(NODE_HEIGHT, { hasState: false })} />
+      {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
     </div>
   );
 }

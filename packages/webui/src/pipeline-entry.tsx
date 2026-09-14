@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import type { ChangeReadinessReport, ChangeStandings, LastRunsReport, LiveRun, WorktreeSurvey } from "@openspec-ui/core/browser";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
-import { PipelineView, type PipelineReading, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, type PipelineReading, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 
 /** Posted by the host when files a reading depends on have changed. */
@@ -29,7 +29,9 @@ export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
  * only on a run it holds. */
 export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
 
-declare function acquireVsCodeApi(): VsCodeApiLike;
+/** The webview API, with the state the webview keeps while its panel is
+ * hidden and destroyed. */
+declare function acquireVsCodeApi(): VsCodeApiLike & { getState(): unknown; setState(state: unknown): void };
 
 function readingsOf(data: unknown): PipelineReading[] {
   if (typeof data !== "object" || data === null) return [];
@@ -76,6 +78,19 @@ function PipelineApp() {
     [vscodeApi],
   );
   const copyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
+  // The zoom and the open cards, in the webview's own state: the panel does
+  // not keep its page while hidden, so a view that kept them alone would
+  // reset every time (a-card-opens-to-its-tasks). The view guards both.
+  const viewState = useMemo(() => ({
+    read: () => {
+      const state = vscodeApi.getState();
+      return typeof state === "object" && state !== null ? (state as { pipelineView?: PipelineViewMemory }).pipelineView : undefined;
+    },
+    write: (memory: PipelineViewMemory) => {
+      const state = vscodeApi.getState();
+      vscodeApi.setState({ ...(typeof state === "object" && state !== null ? state : {}), pipelineView: memory });
+    },
+  }), [vscodeApi]);
 
   return (
     <div className="openspec-extension-app">
@@ -84,7 +99,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} viewState={viewState} />
       </section>
     </div>
   );

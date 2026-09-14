@@ -80,6 +80,10 @@ export interface ChangeCard {
   progress?: ChangeCardProgress;
   lastRun?: LastRun;
   where: ChangeCardWhere;
+  /** Every row of the change's task list with its word, read from where
+   * the card's facts are. Absent where there is no task list
+   * (a-card-opens-to-its-tasks). */
+  tasks?: TaskRow[];
   /** The state word and colour's inputs, kept so `describeChangeCard` asks
    * `describeChangeState` the same question the Changes list asks. */
   stateFacts: ChangeStateFacts;
@@ -168,6 +172,7 @@ export function describeChangeCards({ report, survey, lastRuns, standings, liveR
       ...(progress !== undefined ? { progress } : {}),
       ...(lastRun !== undefined ? { lastRun } : {}),
       where,
+      ...(surveyed?.tasks !== undefined ? { tasks: describeTaskRows(surveyed.tasks, run?.task) } : {}),
       stateFacts,
     };
   });

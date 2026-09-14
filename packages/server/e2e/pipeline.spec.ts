@@ -155,6 +155,34 @@ test.afterAll(async () => {
   else process.env.OPENSPEC_UI_WORKTREE_ROOT = worktreeRootBefore;
 });
 
+/** The lines a card draws only in part: every drawn line — the name, the
+ * state, each detail not left beyond the card's budget, and an open card's
+ * headings and rows — must end inside its card's padding box. A line of a
+ * closed card's hidden list has no box, and is not drawn. */
+async function cutLinesIn(page: Page): Promise<string[]> {
+  return page.getByTestId("pipeline").evaluate((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>(".openspec-pipeline-node")).flatMap((card) => {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      const inner = box.bottom - parseFloat(style.borderBottomWidth);
+      return Array.from(card.querySelectorAll<HTMLElement>(
+        ".openspec-pipeline-node-name, .openspec-pipeline-node-state, .openspec-pipeline-node-detail:not(.openspec-pipeline-node-detail--beyond), .openspec-pipeline-task-section, .openspec-pipeline-task",
+      ))
+        .filter((line) => line.getClientRects().length > 0 && line.getBoundingClientRect().bottom > inner + 0.5)
+        .map((line) => `${card.dataset.testid ?? "a card"}: ${line.textContent ?? ""}`);
+    }));
+}
+
+async function expectNoBlockingViolations(page: Page): Promise<void> {
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  const blockingViolations = accessibility.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
+}
+
 test("draws the declared order, and passes axe", async ({ page }) => {
   test.setTimeout(60000);
   const pageErrors: Error[] = [];
@@ -194,7 +222,9 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   const other = page.getByRole("region", { name: "Working directory proposals" });
   await expect(other).toBeVisible({ timeout: 15000 });
   await expect(other.locator("[data-testid$='-node-pipeline-elsewhere']")).toHaveJSProperty("tagName", "DIV");
-  await expect(other.getByRole("button")).toHaveCount(0);
+  // Its one control shows the tasks this reading holds; nothing reaches the
+  // change (a-card-opens-to-its-tasks).
+  await expect(other.locator("button:not(.openspec-pipeline-node-disclosure)")).toHaveCount(0);
   await expect(page.getByTestId("pipeline").getByText("Bash: npm test", { exact: false }).first()).toBeVisible();
 
   // a-change-is-running-when-its-run-says-so 4.7: a change's own worktree
@@ -215,20 +245,7 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   expect(clippedNames).toEqual([]);
 
   // the-pipeline-shows-what-it-has-read 3.4: no card draws part of a line.
-  // Every drawn line — the name, the state, each detail not left beyond
-  // the card's budget — ends inside its card's padding box.
-  const cutLines = await page.getByTestId("pipeline").evaluate((root) =>
-    Array.from(root.querySelectorAll<HTMLElement>(".openspec-pipeline-node")).flatMap((card) => {
-      const box = card.getBoundingClientRect();
-      const style = getComputedStyle(card);
-      const inner = box.bottom - parseFloat(style.borderBottomWidth);
-      return Array.from(card.querySelectorAll<HTMLElement>(
-        ".openspec-pipeline-node-name, .openspec-pipeline-node-state, .openspec-pipeline-node-detail:not(.openspec-pipeline-node-detail--beyond)",
-      ))
-        .filter((line) => line.getBoundingClientRect().bottom > inner + 0.5)
-        .map((line) => `${card.dataset.testid ?? "a card"}: ${line.textContent ?? ""}`);
-    }));
-  expect(cutLines).toEqual([]);
+  expect(await cutLinesIn(page)).toEqual([]);
 
   // A card is a group named by its change, and its name is a real control,
   // which is what keeps it focusable without any of that having to be
@@ -244,15 +261,53 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   await openFirst.focus();
   await expect(openFirst).toBeFocused();
 
-  await page.screenshot({ path: path.join(IMAGES_DIR, "pipeline.png"), fullPage: true });
+  await expectNoBlockingViolations(page);
+  expect(pageErrors).toEqual([]);
+});
 
-  const accessibility = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze();
-  const blockingViolations = accessibility.violations.filter(
-    (violation) => violation.impact === "serious" || violation.impact === "critical",
-  );
-  expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
+// a-card-opens-to-its-tasks 5.1 and 5.2: a card open to its tasks draws
+// every row whole, moves the card below it in its column, passes axe, and
+// still cuts no line at 150%. The picture in the documentation is taken
+// with that card open.
+test("opens a card to its tasks, and cuts no line at any zoom", async ({ page }) => {
+  test.setTimeout(60000);
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+
+  await writeRunInOtherDirectory();
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+
+  // pipeline-first and pipeline-unrelated wait on nothing, so they share
+  // the first column, in name order.
+  const toggle = page.getByTestId("pipeline-node-pipeline-first-tasks-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15000 });
+  const below = page.getByTestId("pipeline-node-pipeline-unrelated");
+  const blocked = page.getByTestId("pipeline-node-pipeline-second");
+  const belowBefore = await below.boundingBox();
+  const blockedBefore = await blocked.boundingBox();
+
+  await toggle.click();
+
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const tasks = page.getByTestId("pipeline-node-pipeline-first-tasks");
+  await expect(tasks).toBeVisible();
+  await expect(tasks).toContainText("Tasks");
+  await expect(tasks).toContainText("Fixture");
+  await expect(page.getByTestId("pipeline-legend")).toContainText("listed next in tasks.md");
+  await expect.poll(async () => (await below.boundingBox())?.y ?? 0).toBeGreaterThan(belowBefore?.y ?? 0);
+  // A card in another column does not move.
+  expect((await blocked.boundingBox())?.y).toBe(blockedBefore?.y);
+  expect(await cutLinesIn(page)).toEqual([]);
+
+  await page.screenshot({ path: path.join(IMAGES_DIR, "pipeline.png"), fullPage: true });
+  await expectNoBlockingViolations(page);
+
+  await page.getByTestId("pipeline-zoom-in").click();
+  await page.getByTestId("pipeline-zoom-in").click();
+  await expect(page.getByTestId("pipeline-zoom-level")).toHaveText("Zoom 150%");
+  expect(await cutLinesIn(page)).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
 
@@ -383,6 +438,12 @@ test("becomes headed lanes at phone width, with no lines", async ({ page }) => {
   // Scoped to this directory's picture: every other working directory's
   // picture has a first step of its own.
   await expect(page.getByTestId("pipeline-picture").getByRole("heading", { name: "Step 1" })).toBeVisible();
+
+  // a-card-opens-to-its-tasks 3.7: an open card lists its rows in its
+  // lane, with no fixed height, so none of them is cut.
+  await page.getByTestId("pipeline-node-pipeline-first-tasks-toggle").click();
+  await expect(page.getByTestId("pipeline-node-pipeline-first-tasks")).toBeVisible();
+  expect(await cutLinesIn(page)).toEqual([]);
 
   // The page body never scrolls sideways — the picture scrolls in its
   // own container instead.
