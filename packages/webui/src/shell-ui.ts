@@ -115,8 +115,19 @@ export const shellThemeCss = `
      else — ADR 0023 decision 2: where every block carries the same
      border, radius and shadow, none of them is emphasised. */
   .openspec-shell-headline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 0 0 14px;
     border-bottom: 1px solid var(--line);
+  }
+
+  /* The owl, in its own colours in every theme: the dark disc reads on
+     light and dark alike. See the-owl-marks-the-app. */
+  .openspec-shell-logo {
+    flex: none;
+    width: 40px;
+    height: 40px;
   }
 
   .openspec-shell-headline h1 {

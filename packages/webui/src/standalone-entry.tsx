@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
+import { OwlLogo } from "./components/OwlLogo.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
@@ -1370,8 +1371,11 @@ function StandaloneApp() {
       <style>{shellThemeCss}</style>
 
       <header className="openspec-shell-headline">
-        <h1>OpenSpec UI</h1>
-        <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
+        <OwlLogo />
+        <div>
+          <h1>OpenSpec UI</h1>
+          <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
+        </div>
       </header>
 
       {/* Outside the tabs, because a schedule moves a person between

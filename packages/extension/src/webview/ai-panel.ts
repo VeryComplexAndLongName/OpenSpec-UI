@@ -632,7 +632,9 @@ export class AiPanel {
 
   private getBridgeHtml(webview: vscode.Webview, panelContext?: AiPanelContext): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "webview.js"));
-    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
+    // `img-src data:` is for the headline's owl, which the bundle carries
+    // as a data URI. See the-owl-marks-the-app.
+    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src data:;`;
     const cwd = escapeHtmlAttribute(panelContext?.cwd ?? "");
     const changeDir = escapeHtmlAttribute(panelContext?.changeDir ?? "");
     // Unlike detectedAgents/stepAgents (delivered as a follow-up message

@@ -82,6 +82,19 @@ describe("AiPanel context", () => {
         expect(panel.webview.html).toContain('data-change-directory="C:\\repo\\openspec\\changes"');
     });
 
+    // the-owl-marks-the-app: the headline's owl is a data URI, so the
+    // policy allows data: images, and images from nowhere else.
+    it("allows data: images in the bridge webview, and no other image source", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel();
+
+        aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
+
+        expect(panel.webview.html).toContain("img-src data:;");
+        expect(panel.webview.html.match(/img-src/g)).toHaveLength(1);
+        expect(panel.webview.html).toContain("default-src 'none';");
+    });
+
     it("updates context when an existing panel is revealed", () => {
         const panel = createPanelFixture();
         const aiPanel = createAiPanel();
