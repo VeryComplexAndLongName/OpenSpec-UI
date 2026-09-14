@@ -312,7 +312,7 @@ changes, and the reply every request to an agent leaves (ADR 0026 and ADR
   state and failed on CI at `651e217`; it now expects the state word after
   that state. CI's "Extension integration and package" job passed at
   `5fca501`.
-- [ ] 10.6 **Delegated to claude-cli**: with a change archived on `main`,
+- [x] 10.6 **Delegated to claude-cli**: with a change archived on `main`,
   another ticked further in a worktree, and a third running there, open the
   Changes tree and the standalone Changes list, and try to run the archived
   one. Say whether each view told you where the change really was, and
@@ -346,3 +346,101 @@ changes, and the reply every request to an agent leaves (ADR 0026 and ADR
 
   Take every step in foreground commands. Nothing may be left running in
   the background when a command returns.
+
+  Done 2026-09-14 by claude-cli, at `f25c29a` on `main`, every step in the
+  foreground. The CLI and the browser bundle were built from that commit.
+
+  Setup, in `standing-check/` under the session's scratchpad
+  (`C:\Users\ivanov.a\AppData\Local\Temp\claude\C--Prog-OpenSpec-UI\2305ef4b-0d66-44db-b06c-33c76079ae91\scratchpad`):
+  - `remote.git`, a bare remote;
+  - `repo`, the checkout on branch `work`, cut while `main` had three
+    changes;
+  - `main` then archived `archived-one` and was pushed;
+  - `wt-root/repo/further-one`, a worktree on branch `further-one`, ticked
+    2 of 3 of `further-one` and pushed;
+  - an unsigned stand-in status record, `stand-in-run-1`, naming
+    `running-one` in that worktree. It was rewritten before each reading so
+    its heartbeat was fresh.
+
+  `OPENSPEC_UI_WORKTREE_ROOT` pointed at `wt-root`. `origin` is a local
+  path, so `gh` could not read pull requests.
+
+  The facts, from step 3:
+  - `git log --oneline --all`:
+    - `ac206a4 (origin/further-one, further-one) Tick further-one 1.1 and 1.2`
+    - `e51d732 (origin/main, main) Archive archived-one`
+    - `89499f3 (HEAD -> work, origin/work) Three changes`
+  - `origin/main` has `archive/2026-09-14-archived-one`, `further-one` and
+    `running-one`.
+  - The worktree's `further-one/tasks.md` has 1.1 and 1.2 ticked. The
+    checkout's has none.
+
+  Step 1, the standalone shell, driven by Playwright:
+  - The Changes list reads:
+    - `archived-one`: `Archived on main`, 0/2, `Ready`;
+    - `running-one`: `Running in further-one`, 0/2, `Ready`;
+    - `further-one`: `Further along in further-one`, 0/3,
+      `Ready · 2 of 3 done in further-one, 0 of 3 here`.
+  - Beneath the list: "Main read from origin/main. Refs last fetched
+    2026-09-14 03:15 UTC. Pull requests were not read: gh is not signed
+    in."
+  - After Refresh the same line said 03:16 UTC.
+  - `changes-list.png` shows the three rows with chips: green for archived,
+    blue for running, yellow for further along. The sources line is beneath
+    them. The summary's Load button still says "Loading..." in the picture.
+  - The run dialog for `archived-one` leads with `Archived on main`, then
+    "Ready (this checkout)", then an unchecked "Start it anyway".
+    `run-dialog-archived.png` shows it in the green standing block above the
+    plan.
+  - With the box unchecked, "Run the chain", "Run one stage (configured)",
+    "Schedule: Run the chain" and "Schedule: Run one stage" were disabled.
+    After checking it, all four were enabled. Nothing was clicked.
+    `run-dialog-archived-confirmed.png` shows that.
+  - "Apply" stayed enabled throughout. It writes the change's
+    `harness.json`, and starts nothing.
+
+  Step 2, the Changes tree. `ChangesTreeProvider` and
+  `ChangeStandingDecorations` ran against the scratch repository with real
+  core, under vitest and the extension's `vscode` mock, after
+  `refresh({ fetchNow: true })`. This was not inside VS Code. The test file
+  was temporary and was deleted after the run.
+  - `archived-one`:
+    - description `draft — Archived on main`;
+    - tooltip `Archived on main` / `Ready (this checkout)`;
+    - `resourceUri` `openspec-ui-change:/archived-one`;
+    - decoration `{"tooltip":"Archived on main","badge":"A","color":{"id":"charts.green"}}`.
+  - `further-one`:
+    - description `draft — Further along in further-one`;
+    - tooltip `Further along in further-one` / `Ready (this checkout)` /
+      `2 of 3 done in further-one, 0 of 3 here (the copy in further-one)`;
+    - decoration `{"tooltip":"Further along in further-one","badge":"F","color":{"id":"charts.yellow"}}`.
+  - `running-one`:
+    - description `draft — Running in further-one`;
+    - tooltip `Running in further-one` / `Ready (this checkout)`;
+    - decoration `{"tooltip":"Running in further-one","badge":"R","color":{"id":"charts.blue"}}`.
+
+  `node packages/cli/dist/cli.js ready --cwd <scratch>/repo`, exit 0:
+  - `archived-one`: "where it stands: Archived on main (Ready)";
+  - `further-one`: "where it stands: Further along in further-one (Ready ·
+    2 of 3 done in further-one, 0 of 3 here)";
+  - `running-one`: "where it stands: Running in further-one (Ready)";
+  - "3 ready, 0 running, 0 blocked."
+  - "Main read from origin/main. Refs last fetched 2026-09-14 03:17 UTC.
+    Pull requests were not read: gh is not signed in."
+
+  Judgement:
+  - Both views, and `ready`, told where each change really was: archived on
+    `main`, further along in the worktree with both counts, and running
+    there. All three give the same words and colour roles, and they agree
+    with `git log`, the worktree's `tasks.md` and the status record.
+  - Nothing shown was out of date. The fetch time moved on each fetch, and
+    the dialog asked about refs fetched when it opened.
+  - One thing shown was wrong. "gh is not signed in" is not true: `gh auth
+    status` reports the account logged in to github.com. `gh pr list` in the
+    scratch repository failed with "none of the git remotes configured for
+    this repository point to a known GitHub host. To tell gh about a new
+    GitHub host, please use `gh auth login`". `whyGhFailed` in
+    `packages/core/src/gh-pr-gateway.ts` matches `auth login` in that text,
+    and names the wrong cause. It leaves out every pull request fact, as it
+    should. The fault is only in the reason it gives. It is left for a
+    follow-up, not fixed here.
