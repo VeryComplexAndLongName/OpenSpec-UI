@@ -33,6 +33,7 @@ const REPORT: AgentStatusReport = {
   runId: null,
   task: null,
   waiting: null,
+  stopRequested: null,
   signature: "unverified",
   machine: null,
   gitAuthor: null,

@@ -42,7 +42,7 @@ afterEach(async () => {
 
 /** The three fields a record written before a-run-says-which-task-it-is-on
  * did not have, as a record that has none of them holds them. */
-const NOTHING_ABOUT_THE_TASK = { runId: null, task: null, waiting: null } as const;
+const NOTHING_ABOUT_THE_TASK = { runId: null, task: null, waiting: null, stopRequested: null } as const;
 
 /** A run with no key, so a test never makes one in the tester's own home
  * (a-run-is-signed-by-its-person). */
@@ -363,6 +363,35 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
     await writer.stop();
   });
 
+  // a-change-is-run-from-its-card 3.8
+  it("records a stop a person asked for at once, says so in the activity, and keeps it while the run goes on", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+    const events: Event[] = [
+      { kind: "stopRequested", runId: "r1", timestamp: "t", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
+      reply(lines("still on the task")),
+    ];
+
+    for await (const event of reportEventsToAgentStatus(eventsOf(events), writer)) {
+      const report = await read();
+      expect(report?.stopRequested).toEqual({ reason: "wrong branch", by: "ada@example.com", at: expect.any(String) });
+      if (event.kind === "stopRequested") expect(report?.activity).toBe("asked to stop by ada@example.com: wrong branch");
+    }
+    await writer.stop();
+  });
+
+  it("says who asked only where it is known, and changes nothing for a stop that found nothing to stop", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+
+    await drain([{ kind: "stopRequested", runId: "r1", timestamp: "t", reason: "r", outcome: "nothing-to-stop" }], writer);
+    expect(await read()).toMatchObject({ stopRequested: null, activity: "starting" });
+
+    await drain([{ kind: "stopRequested", runId: "r1", timestamp: "t", reason: "done for today", outcome: "asked" }], writer);
+    const report = await read();
+    expect(report?.stopRequested).toEqual({ reason: "done for today", at: expect.any(String) });
+    expect(report?.activity).toBe("asked to stop: done for today");
+    await writer.stop();
+  });
+
   // 5.4
   it("carries the command's run id, and the task a run was started for from its first write", async () => {
     const root = await temporaryRoot();
@@ -436,6 +465,7 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
       runId: 7,
       task: 5,
       waiting: { kind: "somewhere" },
+      stopRequested: { reason: 3 },
     }), "utf8");
 
     const { reports, malformed } = await readAgentStatuses(directory);

@@ -68,6 +68,15 @@ export type AgentStatusWaiting =
   | { kind: "checkpoint"; stage: string; nextStage: string }
   | { kind: "permission"; description: string };
 
+/** A stop a person asked for and the run has not reached yet
+ * (a-change-is-run-from-its-card): the reason given, who asked where known,
+ * and when the run heard it. */
+export interface AgentStatusStopRequest {
+  reason: string;
+  by?: string;
+  at: string;
+}
+
 export interface AgentStatusDocument {
   version: typeof AGENT_STATUS_VERSION;
   /** The run's own identifier, generated at startup and shared with
@@ -102,6 +111,9 @@ export interface AgentStatusDocument {
   task: RecordedTask | null;
   /** What the run is waiting on, where it is waiting. */
   waiting: AgentStatusWaiting | null;
+  /** The stop a person asked this run for, until the run ends. `null` where
+   * none was asked, and in a record written before the field existed. */
+  stopRequested: AgentStatusStopRequest | null;
   /** The machine the run is on, as it names itself. Claimed, like the git
    * author: a signature proves the key, not these (ADR 0028). */
   machine: string;
@@ -195,6 +207,7 @@ export class AgentStatusWriter {
   private activityAt: string;
   private task: RecordedTask | null;
   private waiting: AgentStatusWaiting | null = null;
+  private stopRequested: AgentStatusStopRequest | null = null;
   private readonly now: () => Date;
   private readonly files: AgentStatusFileOperations;
   private readonly key: MachineKey | undefined;
@@ -308,6 +321,16 @@ export class AgentStatusWriter {
     await this.writeQuietly();
   }
 
+  /** Records that a person asked this run to stop, and writes at once: the
+   * card states the request from the record while the run goes on to a
+   * sound point (a-change-is-run-from-its-card). The activity says so in
+   * words. Never rejects. */
+  async reportStopRequested(reason: string, by?: string): Promise<void> {
+    this.stopRequested = { reason, ...(by !== undefined ? { by } : {}), at: this.now().toISOString() };
+    this.setActivity(`asked to stop${by !== undefined ? ` by ${by}` : ""}: ${reason}`);
+    await this.writeQuietly();
+  }
+
   setChangeName(changeName: string | null): void {
     this.changeName = changeName;
   }
@@ -367,6 +390,7 @@ export class AgentStatusWriter {
       runId: this.runId,
       task: this.task,
       waiting: this.waiting,
+      stopRequested: this.stopRequested,
       machine: this.machine,
       ...(this.gitAuthor !== undefined ? { gitAuthor: this.gitAuthor } : {}),
     };
@@ -433,6 +457,9 @@ export interface AgentStatusReport {
   runId: string | null;
   task: RecordedTask | null;
   waiting: AgentStatusWaiting | null;
+  /** The stop a person asked the run for, as the record holds it; `null`
+   * where it holds none, or one that is not well-formed. */
+  stopRequested: AgentStatusStopRequest | null;
   /** How far the record's signature shows whose it is. An unsigned record,
    * or one whose key is not enrolled, is `unverified`. A record that does
    * not check out carries its file name as `instanceId` and nothing from its
@@ -492,6 +519,17 @@ function readWaiting(value: unknown): AgentStatusWaiting | null {
   return null;
 }
 
+/** A stop request as a record holds it, or `null` for one that is missing or
+ * not well-formed — read as absent, like a task, so the rest of the record
+ * still says what it says. */
+function readStopRequested(value: unknown): AgentStatusStopRequest | null {
+  if (typeof value !== "object" || value === null) return null;
+  const stop = value as Record<string, unknown>;
+  if (typeof stop.reason !== "string" || typeof stop.at !== "string") return null;
+  if (stop.by !== undefined && typeof stop.by !== "string") return null;
+  return { reason: stop.reason, ...(typeof stop.by === "string" ? { by: stop.by } : {}), at: stop.at };
+}
+
 /** One record as every reader judges it: a run's report, a record that
  * cannot be trusted, or a file that went away between being listed and
  * being read. */
@@ -517,6 +555,7 @@ function recordThatDoesNotCheckOut(instanceId: string, why: string): AgentStatus
     runId: null,
     task: null,
     waiting: null,
+    stopRequested: null,
     signature: "does-not-check-out",
     signatureProblem: why,
     machine: null,
@@ -611,6 +650,7 @@ async function readAgentStatusRecord(
         runId: typeof document.runId === "string" ? document.runId : null,
         task: readRecordedTask(document.task),
         waiting: readWaiting(document.waiting),
+        stopRequested: readStopRequested(document.stopRequested),
         signature,
         ...(person !== undefined ? { person } : {}),
         ...(signer !== undefined ? { signer } : {}),
@@ -862,6 +902,13 @@ export async function* reportEventsToAgentStatus(
 }
 
 async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, open: OpenLines): Promise<void> {
+  // A stop asked for is news about the run, not the run moving on: it leaves
+  // a wait standing (a-change-is-run-from-its-card). One that found nothing
+  // to stop changes nothing here.
+  if (event.kind === "stopRequested") {
+    if (event.outcome === "asked") await writer.reportStopRequested(event.reason, event.by);
+    return;
+  }
   // Waiting ends with whatever the run does next.
   if (event.kind === "checkpoint") {
     await writer.reportWaiting(

@@ -59,6 +59,7 @@ async function writeRecord(
     runId: null,
     task: null,
     waiting: null,
+    stopRequested: null,
     machine: "a-machine",
     ...overrides,
   };
@@ -196,6 +197,8 @@ describe("AgentStatusWriter and the sweep", () => {
     // the task it is on now, and what it waits on now. None of them keeps
     // anything the run has left behind (a-run-says-which-task-it-is-on).
     // `machine` is where the run is now (a-run-is-signed-by-its-person).
+    // `stopRequested` is a stop asked for and not yet reached, which the
+    // record drops with the run (a-change-is-run-from-its-card).
     expect(Object.keys(document).sort()).toEqual([
       "activity",
       "activityAt",
@@ -205,6 +208,7 @@ describe("AgentStatusWriter and the sweep", () => {
       "machine",
       "runId",
       "stage",
+      "stopRequested",
       "task",
       "version",
       "waiting",

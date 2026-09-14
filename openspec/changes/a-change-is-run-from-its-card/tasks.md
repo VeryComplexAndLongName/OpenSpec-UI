@@ -219,13 +219,39 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   `configuredIdentity()` for the command's `cwd` through the runner's own
   `createGitWrapper` seam. An identity that is absent or cannot be read
   leaves `by` off; the stop still goes ahead.
-- [ ] 3.8 The status record:
+- [x] 3.8 The status record:
   - `AgentStatusDocument` gains
     `stopRequested: { reason: string; by?: string; at: string } | null`.
   - `applyEventToAgentStatus` sets it on a `stopRequested` event with
     outcome `asked`, and writes at once. The activity becomes
     `asked to stop`, followed by `by <by>` where known and `: <reason>`.
   - `readAgentStatusRecord` reads a missing or malformed value as `null`.
+
+  Done:
+  - `AgentStatusStopRequest` is exported beside `AgentStatusWaiting`. The
+    document and `AgentStatusReport` both carry `stopRequested`, and a
+    record that does not check out carries `null`.
+  - `AgentStatusWriter.reportStopRequested` sets the field and the
+    activity, for example `asked to stop by ada@example.com: wrong branch`,
+    and writes at once.
+  - `applyEventToAgentStatus` handles the event before anything else, so a
+    stop leaves a wait standing. A `nothing-to-stop` changes nothing.
+  - `readStopRequested` reads a value that is missing or malformed as
+    `null`.
+
+  Tests in `agent-status.test.ts`:
+  - an asked stop is on disk before the next event, and stays through
+    later output;
+  - `by` is left off where no one is named;
+  - a `nothing-to-stop` leaves the record as it was;
+  - the reads of an older record and a malformed one now also check
+    `stopRequested: null`.
+
+  `agent-status-sweep.test.ts` pins the document's fields, and now names
+  `stopRequested` as present, not history. Three fixtures that build a
+  report or document gained the field. The core files pass, 71 tests; cli
+  `status-command` passes, 19. Core, cli, webui, extension and server
+  typecheck.
 - [x] 3.9 core `harness-chain-runner.test.ts`:
   - a stop at a checkpoint ends the chain at once;
   - a stop during a stage ends it at the next marker naming another task;
