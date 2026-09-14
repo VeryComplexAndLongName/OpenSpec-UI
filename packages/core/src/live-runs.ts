@@ -23,6 +23,9 @@ export interface LiveRun {
   /** The change's directory name, where the command names a change. */
   changeName: string | null;
   kind: CommandKind;
+  /** The agent the command named, where it named one: a request about the
+   * run has to reach the runner that holds it. */
+  agentId?: string;
   /** When its first `started` event said it started. */
   startedAt: string;
   /** At a checkpoint or on a permission, rather than working. */
@@ -64,6 +67,7 @@ export class LiveRuns {
             cwd: command.cwd,
             changeName: command.context.changeDir ? changeNameOf(command.context.changeDir) || null : null,
             kind: command.kind,
+            ...(command.agentId !== undefined ? { agentId: command.agentId } : {}),
             startedAt: event.timestamp,
             waiting: false,
             stopRequested: null,

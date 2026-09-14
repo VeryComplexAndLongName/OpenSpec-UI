@@ -329,10 +329,30 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 4. The same feedback in both hosts
 
-- [ ] 4.1 `websocket.ts` handles both a chain `cancel` and `stop` through
+- [x] 4.1 `websocket.ts` handles both a chain `cancel` and `stop` through
   `chainRunner.asAgentRunner()`, so the socket receives `cancelling` or
   `stopRequested`. Both events go to the socket that sent the command. Cover
   this in the server's websocket tests.
+
+  Done: `HarnessChainRunner.holds(runId)` says whether a chain is active.
+  - A `cancel` or `stop` naming one runs through `asAgentRunner()`, and its
+    events go to the socket that sent it: `cancelling` for a cancel. A
+    stop's `stopRequested` travels on the chain's own stream (see 3.4),
+    which is that same socket's.
+  - A `cancel` or `stop` for a single-stage run names no agent, so it now
+    goes to the runner that holds the run. `LiveRun` gained `agentId`;
+    without it, the default runner would answer "nothing to stop" for a
+    run on another agent.
+
+  `server.test.ts`:
+  - "routes a chain command to HarnessChainRunner and resolves cancel
+    against its checkpoint" now also expects `cancelling` with
+    `termination-requested` on the sending socket.
+  - A new test stops a chain at its checkpoint over the socket, and sees
+    one `stopRequested` with the reason, then `cancelled`.
+
+  Server typecheck and lint are clean. The selected server tests pass, 8;
+  core passes, `live-runs` 8 and `harness-chain-runner` 102.
 - [ ] 4.2 `trackHarnessProcess` in `packages/extension/src/webview/ai-panel.ts`
   gives a chain's scheduler entry the chain's `runId`. Cancelling that entry
   from the Processes tree calls `HarnessChainRunner.cancel` for the chain.

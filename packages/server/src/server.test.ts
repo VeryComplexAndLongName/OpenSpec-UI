@@ -2024,14 +2024,97 @@ describe("server — WebSocket /api/ws", () => {
       expect.objectContaining({ kind: "checkpoint", stage: "propose", nextStage: "review" }),
     ]);
 
+    const afterCancel: Event[] = [];
     const cancelled = new Promise<void>((resolve) => {
       client.on("message", (raw) => {
-        if ((JSON.parse(raw.toString()) as Event).kind === "cancelled") resolve();
+        const event = JSON.parse(raw.toString()) as Event;
+        afterCancel.push(event);
+        if (event.kind === "cancelled") resolve();
       });
     });
     client.send(JSON.stringify({ kind: "cancel", cwd: workspaceRoot, runId: "chain-1", context: chainCommand.context }));
     await cancelled;
 
+    // a-change-is-run-from-its-card 4.1: the cancel is answered on the
+    // socket that sent it.
+    expect(afterCancel).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "cancelling", runId: "chain-1", attempted: "termination-requested" }),
+    ]));
+    client.close();
+  });
+
+  // a-change-is-run-from-its-card 4.1
+  it("stops a chain at its checkpoint over the socket, answering with stopRequested before cancelled", async () => {
+    const workspaceRoot = await createTempWorkspace();
+    const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+    await writeGlobalHarnessConfig(workspaceRoot, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli" },
+    });
+    mockCliJson({
+      changeName: "demo",
+      schemaName: "spec-driven",
+      progress: { total: 3, complete: 0, remaining: 3 },
+      artifacts: [
+        { id: "proposal", outputPath: "proposal.md", status: "pending", requires: [] },
+        { id: "design", outputPath: "design.md", status: "pending", requires: [] },
+        { id: "tasks", outputPath: "tasks.md", status: "pending", requires: [] },
+      ],
+      root: { path: workspaceRoot, source: "cwd" },
+    });
+
+    await server.close();
+    server = createServer({
+      workspaceRoot,
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+      allowExternalCwd: true,
+      runners: new Map<string, AgentRunner>([
+        [
+          "claude-cli",
+          fakeRunner([
+            { kind: "started", runId: "chain-2", timestamp: "t1", command: "plan", cwd: workspaceRoot },
+            { kind: "completed", runId: "chain-2", timestamp: "t2" },
+          ]),
+        ],
+      ]),
+    });
+    const address = await server.listen();
+    wsUrl = `ws://127.0.0.1:${address.port}/api/ws`;
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    let settle: ((kind: Event["kind"]) => void) | undefined;
+    client.on("message", (raw) => {
+      const event = JSON.parse(raw.toString()) as Event;
+      received.push(event);
+      settle?.(event.kind);
+    });
+    const until = (kind: Event["kind"]) => new Promise<void>((resolve) => {
+      if (received.some((event) => event.kind === kind)) resolve();
+      settle = (seen) => {
+        if (seen === kind) resolve();
+      };
+    });
+
+    const chainCommand: Command = {
+      kind: "chain",
+      cwd: workspaceRoot,
+      runId: "chain-2",
+      context: { changeDir: path.join(workspaceRoot, "openspec", "changes", "demo") },
+    };
+    client.send(JSON.stringify(chainCommand));
+    await until("checkpoint");
+
+    client.send(JSON.stringify({ kind: "stop", cwd: workspaceRoot, runId: "chain-2", reason: "wrong branch", context: chainCommand.context }));
+    await until("cancelled");
+
+    const stopAt = received.findIndex((event) => event.kind === "stopRequested");
+    expect(received[stopAt]).toMatchObject({ runId: "chain-2", reason: "wrong branch", outcome: "asked" });
+    expect(received.findIndex((event) => event.kind === "cancelled")).toBeGreaterThan(stopAt);
+    expect(received.filter((event) => event.kind === "stopRequested")).toHaveLength(1);
     client.close();
   });
 

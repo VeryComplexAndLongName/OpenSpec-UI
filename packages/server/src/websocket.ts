@@ -12,6 +12,7 @@ import type { WebSocket } from "ws";
 import {
   type AgentRunner,
   type Command,
+  type Event,
   type HarnessChainRunner,
   type HarnessStage,
   type LiveRuns,
@@ -102,7 +103,12 @@ export function handleSocketMessage(
     chainRunner.confirmCheckpoint(command.runId);
     return;
   }
-  if (command.kind === "cancel" && chainRunner.cancel(command.runId)) {
+  // A "cancel" or "stop" naming an active chain goes through the chain's own
+  // `asAgentRunner()`, so the socket that sent it hears back: `cancelling`
+  // for a cancel, and for a stop the chain's stream carries `stopRequested`
+  // (a-change-is-run-from-its-card).
+  if ((command.kind === "cancel" || command.kind === "stop") && chainRunner.holds(command.runId)) {
+    void streamToSocket(socket, chainRunner.asAgentRunner().run(command));
     return;
   }
   // Same reasoning as `cancel` above: a `"resolvePermission"` naming an
@@ -119,7 +125,18 @@ export function handleSocketMessage(
     return;
   }
 
-  void dispatchSingleStage(socket, command, runners, resolveRecoveryService, liveRuns);
+  // A request about a single-stage run names no agent, and the default
+  // runner has never heard of a run started on another: it goes to the
+  // runner that holds the run.
+  const held = command.kind === "cancel" || command.kind === "stop" ? liveRuns.get(command.runId) : undefined;
+  const routed = held?.agentId !== undefined && command.agentId === undefined ? { ...command, agentId: held.agentId } : command;
+  void dispatchSingleStage(socket, routed, runners, resolveRecoveryService, liveRuns);
+}
+
+async function streamToSocket(socket: WebSocket, events: AsyncIterable<Event>): Promise<void> {
+  for await (const event of events) {
+    if (socket.readyState === socket.OPEN) socket.send(serializeEvent(event));
+  }
 }
 
 async function dispatchSingleStage(

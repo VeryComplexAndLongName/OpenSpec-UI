@@ -670,6 +670,13 @@ export class HarnessChainRunner {
     return true;
   }
 
+  /** Whether this runner holds an active chain under `runId`, so a host can
+   * route a request about that run here rather than to a single-stage
+   * runner that never heard of it. */
+  holds(runId: string): boolean {
+    return this.active.has(runId);
+  }
+
   /** Asks a chain to stop where its work is sound, rather than killing it as
    * `cancel()` does (a-change-is-run-from-its-card, ADR 0028).
    *
