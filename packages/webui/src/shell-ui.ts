@@ -1414,6 +1414,8 @@ export const shellThemeCss = `
 
   .openspec-pipeline-task-section {
     margin: 0;
+    /* The rows' gutter, which a rail runs in across the heading. */
+    padding-left: 10px;
     height: calc(${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
     line-height: calc(${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
     font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
@@ -1451,6 +1453,12 @@ export const shellThemeCss = `
     top: 50%;
     height: 100%;
     border-left: 1px solid var(--line-strong);
+  }
+
+  /* From a section's last row, through the next section's heading, to
+     that section's first row: the heading is one section row tall. */
+  .openspec-pipeline-task-rail--across {
+    height: calc(100% + ${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
   }
 
   .openspec-pipeline-task-number,

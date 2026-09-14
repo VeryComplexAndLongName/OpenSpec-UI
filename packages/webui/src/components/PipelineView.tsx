@@ -603,9 +603,10 @@ const MARKER_LEAD_RE = /^\*\*[^*]+\*\*:?\s*/u;
  * Kept in the page while the card is closed, and hidden, so the control
  * that shows it always names an element. */
 function TaskList({ id, rows, open, testId }: { id: string; rows: readonly TaskRow[]; open: boolean; testId: string }) {
+  const groups = taskGroups(rows);
   return (
     <div id={id} className="openspec-pipeline-node-tasks" data-testid={testId} hidden={!open}>
-      {taskGroups(rows).map((group, groupIndex) => (
+      {groups.map((group, groupIndex) => (
         <div key={groupIndex}>
           {group.section !== undefined ? <p className="openspec-pipeline-task-section" title={group.section}>{group.section}</p> : null}
           <ol className="openspec-pipeline-tasks">
@@ -619,7 +620,15 @@ function TaskList({ id, rows, open, testId }: { id: string; rows: readonly TaskR
                   data-word={row.word}
                   title={`${row.number !== undefined ? `${row.number} ` : ""}${row.word}: ${text}`}
                 >
-                  {index < group.rows.length - 1 ? <span className="openspec-pipeline-task-rail" aria-hidden="true" /> : null}
+                  {/* The rail runs to the row listed next, across the next
+                      section's heading when this row ends a section: a
+                      rail that stopped there read as two separate tracks
+                      (found by 6.5's look). */}
+                  {index < group.rows.length - 1
+                    ? <span className="openspec-pipeline-task-rail" aria-hidden="true" />
+                    : groupIndex < groups.length - 1
+                      ? <span className="openspec-pipeline-task-rail openspec-pipeline-task-rail--across" aria-hidden="true" />
+                      : null}
                   {row.number !== undefined ? <span className="openspec-pipeline-task-number">{row.number}</span> : null}
                   <span className="openspec-pipeline-task-word">{row.word}</span>
                   <span className="openspec-pipeline-task-text">{text}</span>

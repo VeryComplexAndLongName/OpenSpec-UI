@@ -137,6 +137,12 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
     expect(within(list).getAllByRole("listitem").map((row) => row.getAttribute("data-word"))).toEqual(["done", "open", "only a person can close it"]);
     expect(list).toHaveTextContent("Reading");
     expect(list).toHaveTextContent("Looking");
+    // A rail joins each row to the row listed next, across a heading too,
+    // and the last row has none (found by 6.5's look).
+    const listed = within(list).getAllByRole("listitem");
+    expect(listed[0]?.querySelector(".openspec-pipeline-task-rail:not(.openspec-pipeline-task-rail--across)")).not.toBeNull();
+    expect(listed[1]?.querySelector(".openspec-pipeline-task-rail--across")).not.toBeNull();
+    expect(listed[2]?.querySelector(".openspec-pipeline-task-rail")).toBeNull();
     // The marker the word already says is not said twice.
     expect(within(list).getAllByRole("listitem")[2]).toHaveTextContent("only a person can close itlook at it");
     expect(yOf("beta")).toBe(before + pipelineOpenCardHeight(3, 2) - NODE_HEIGHT);

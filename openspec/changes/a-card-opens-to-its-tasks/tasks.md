@@ -253,3 +253,84 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
   - Say what you looked at, and for each of the three things whether it
     reads as intended and why. Where one does not, say what a reader would
     misread, and leave the item open.
+
+  Looked at by claude-cli on 2026-09-14. Left open: the rail does not read
+  as intended across a section heading.
+
+  What was looked at:
+  - `docs/images/standalone/pipeline.png` as committed.
+  - The Pipeline tab at 100% and at 150%, against a scratch repository
+    under the temp directory. The client bundle was first rebuilt from
+    this branch with `node scripts/build-client.mjs` in `packages/server`,
+    because `dist/app.js` predated `a861fbd`. The server ran as
+    `tsx src/cli.ts <repo> 4827`, driven by Playwright in a foreground
+    script.
+  - The scratch repository had three changes:
+    - `scratch-open`, with six tasks under `## 1. Sections and rows in
+      core` and `## 2. Pictures`. One is done, one is `**Human-only**` and
+      one is `**Delegated to claude-cli**`. A fresh status record names
+      task 1.2.
+    - `scratch-waits`, blocked by `scratch-open`, with three tasks and a
+      record that names no task.
+    - `scratch-unrelated`, with one task.
+  - Captures: the first card open, then Open all, at 100% and at 150%.
+    At 150% the line check found no cut line (`[]`), and the page raised no
+    errors.
+
+  1. **An open card and its in-hand row read as intended. Its rail does
+     not, across sections.**
+     - The card lists `Sections and rows in core` and `Pictures` as
+       headings, with the rows under them in list order. Each row reads as
+       number, state word in italics, then text: `1.1 done`, `1.2 in hand`,
+       `1.3 open`, `2.1 open`, `2.2 only a person can close it` and
+       `2.3 delegated to claude-cli`. The `**Human-only**` and
+       `**Delegated to …**` leads are left out of the text. A long row ends
+       in an ellipsis, and its `title` keeps the full text.
+     - The row in hand is the only bold row and says `in hand` (weight 700
+       against 400), so it stands out without colour. On `scratch-waits`,
+       the guess reads `1.1 probably next`, also bold.
+     - Within a section, the rail reads as intended: a 1px grey line runs
+       without a break from each row to the next.
+     - The rail stops at a section's last row. Nothing joins 1.3 to 2.1, so
+       the measured rails of 1.3 and 2.3 are both empty. The legend says a
+       thin line means "listed next in tasks.md", and the spec says the
+       line joins each task to the one listed after it. A reader who takes
+       the legend at its word would read "1. Sections and rows in core"
+       and "2. Pictures" as separate tracks, with 2.1 not following 1.3.
+       That is an ordering claim tasks.md does not make.
+     - The rail also looks like the left guide of an indented list (grey
+       rgb(188, 195, 204) on the tinted card). Without the legend it reads
+       as grouping, not as "next". The legend is what makes it mean order,
+       which is one more reason the break at a heading misleads.
+  2. **The legend reads as intended.** One legend for the tab sits above
+     the pictures, below the controls, with a sample of each line: a short
+     grey rule next to "A solid line from one card to another means the
+     second waits for the first.", a short thin bar next to "A thin line
+     inside a card means listed next in tasks.md.", and "A collision is
+     written on the card, and never drawn." The samples match what is
+     drawn. The thin-bar sample is faint at 100%, but the sentence next to
+     it says what it is. The legend keeps its size at 150%, which suits a
+     key rather than a card.
+  3. **The columns read as intended once a card is open.**
+     - At 100%, opening `scratch-open` made it 216px tall instead of 80.
+       `scratch-unrelated`, below it in the same column, moved down from
+       y 634.5 to 771.5, which is the 136px of extra height. The whole
+       picture also shifted by 1px, which is not visible.
+     - `scratch-waits`, in the next column, did not move relative to it.
+     - The edge from `scratch-open` to `scratch-waits` still meets both
+       cards at the head, level with the state line, and stays there after
+       Open all. The empty space beside a tall card's tail does not
+       suggest a relation.
+     - The same holds at 150% (open card 324px, `scratch-unrelated` at
+       y 891.5) and in `pipeline.png`, where `pipeline-unrelated` sits
+       below the open `pipeline-first` and `pipeline-second` stays level
+       with its head.
+
+  The rail was fixed afterwards, to be looked at again. The last row of a
+  section that another section follows now carries a rail across that
+  section's heading, to its first row. The rail is one section row taller
+  than a rail within a section (`openspec-pipeline-task-rail--across`). A
+  heading now has the rows' left gutter, so the rail runs beside its text,
+  not through it. `PipelineView.test.tsx` checks a rail within a section,
+  one across a heading, and none on the last row.
+  `pipeline-card-style.test.ts` pins the height across a heading.

@@ -47,6 +47,11 @@ describe("the Pipeline card's stylesheet", () => {
     const section = rule(".openspec-pipeline-task-section");
     expect(section).toContain(`\n    height: ${zoomed(PIPELINE_CARD_REM.sectionRow)};`);
     expect(section).toContain(`line-height: ${zoomed(PIPELINE_CARD_REM.sectionRow)};`);
+    // A rail across a heading reaches the next row's middle by exactly
+    // that heading's height more than a rail within a section.
+    expect(rule(".openspec-pipeline-task-rail--across")).toContain(
+      `height: calc(100% + ${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));`,
+    );
   });
 
   // a-card-opens-to-its-tasks 4.1
