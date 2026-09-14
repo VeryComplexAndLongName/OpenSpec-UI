@@ -932,7 +932,6 @@ describe("a signed record (a-run-is-signed-by-its-person 3.4)", () => {
     }
 
     const seen: Event[] = [];
-    let written: Record<string, unknown> | undefined;
     for await (const event of withAgentStatus(
       source(),
       { kind: "chain", cwd: root, runId: "r1", context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
@@ -947,7 +946,7 @@ describe("a signed record (a-run-is-signed-by-its-person 3.4)", () => {
       seen.push(event);
     }
     const [fileName] = await readdir(directory);
-    written = JSON.parse(await readFile(path.join(directory, fileName as string), "utf8")) as Record<string, unknown>;
+    const written = JSON.parse(await readFile(path.join(directory, fileName as string), "utf8")) as Record<string, unknown>;
 
     expect(seen).toEqual(events);
     expect(written.version).toBe(AGENT_STATUS_VERSION);
