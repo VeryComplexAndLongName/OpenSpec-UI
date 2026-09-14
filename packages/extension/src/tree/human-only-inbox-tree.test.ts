@@ -10,6 +10,8 @@ vi.mock("vscode", () => vscodeMock);
 const collectHumanOnlyInboxMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   collectHumanOnlyInbox: (...args: unknown[]) => collectHumanOnlyInboxMock(...args),
+  describeEnrolmentRequest: (request: { label: string; workingDirectory: string; machine: string | null }) =>
+    `${request.label} — ${request.workingDirectory}, on ${request.machine}`,
   describeWaitingOn: (waitingOn: { kind: string; agent?: string; known?: boolean }) =>
     (waitingOn.kind === "person"
       ? "a person"
@@ -17,6 +19,8 @@ vi.mock("@openspec-ui/core", () => ({
 }));
 
 const {
+  ENROLMENT_REQUEST_CONTEXT,
+  EnrolmentRequestTreeItem,
   HumanOnlyInboxItemTreeItem,
   HumanOnlyInboxTreeProvider,
   RUNNABLE_INBOX_ITEM_CONTEXT,
@@ -194,5 +198,44 @@ describe("HumanOnlyInboxTreeProvider — which rows can be run", () => {
 
     expect(after?.description)
       .toBe("change-b — waiting on copilot-cli — refused: ticked with nothing written");
+  });
+});
+
+describe("HumanOnlyInboxTreeProvider — keys waiting to be enrolled (a-run-is-signed-by-its-person 5.3)", () => {
+  const request = {
+    keyId: "0123456789abcdef0123456789abcdef",
+    publicKey: "MCowBQYDK2VwAyEA",
+    label: "alpha",
+    workingDirectory: "/wt/repo/alpha",
+    machine: "ada-laptop",
+    gitAuthor: "ada@example.com",
+    seenAt: "2026-09-14T00:00:00.000Z",
+  };
+
+  it("lists each request as a row with its facts and the context its one action binds to", async () => {
+    collectHumanOnlyInboxMock.mockResolvedValue({ ...inbox([]), enrolments: [request] });
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items).toHaveLength(1);
+    const [row] = items;
+    expect(row).toBeInstanceOf(EnrolmentRequestTreeItem);
+    expect(row?.label).toBe("Was this run yours? alpha");
+    expect(row?.description).toBe("alpha — /wt/repo/alpha, on ada-laptop");
+    expect(row?.contextValue).toBe(ENROLMENT_REQUEST_CONTEXT);
+    expect((row as InstanceType<typeof EnrolmentRequestTreeItem>).keyId).toBe(request.keyId);
+    // Selecting it opens nothing: its only control is the action.
+    expect(row?.command).toBeUndefined();
+  });
+
+  it("lists requests after the items waiting in the task lists", async () => {
+    collectHumanOnlyInboxMock.mockResolvedValue({
+      ...inbox([{ changeName: "change-a", lineNumber: 3, text: "1.2 **Human-only**: judge it" }]),
+      enrolments: [request],
+    });
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items.map((item) => item.contextValue)).toEqual([WAITING_INBOX_ITEM_CONTEXT, ENROLMENT_REQUEST_CONTEXT]);
   });
 });

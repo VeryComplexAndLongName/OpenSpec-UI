@@ -66,6 +66,7 @@ function run(overrides: Partial<SurveyedRun> = {}): SurveyedRun {
     workingDirectory: "/wt/repo/theirs",
     runId: null,
     waiting: null,
+    signature: "unverified",
     ...overrides,
   };
 }

@@ -8,6 +8,8 @@
 // openspec/changes/what-the-others-are-doing.
 
 import type { AgentStatusWaiting } from "./agent-status.js";
+// A leaf with no imports of its own, so the browser can have its wording.
+import { describeSignature, type EnrolledPerson, type RecordSignature } from "./signature-facts.js";
 import type { TaskInHand } from "./task-marker.js";
 import type { WorkspaceLeaseConflict } from "./workspace-lease.js";
 
@@ -64,6 +66,11 @@ export interface SurveyedRun {
    * Absent where the record names none, names a number the list does not
    * have, or the survey did not read the run's change. */
   task?: TaskInHand;
+  /** How far the record's signature shows whose the run is. A run whose
+   * record does not check out carries nothing else from it. */
+  signature: RecordSignature;
+  /** The enrolled person, where the record is verified. */
+  person?: EnrolledPerson;
 }
 
 interface SurveyedDirectoryBase {
@@ -148,6 +155,10 @@ export function describeWaiting(waiting: AgentStatusWaiting): string {
 
 /** One run in the words every surface uses. */
 export function describeRun(run: SurveyedRun, now?: Date): string {
+  // Nothing a record that does not check out says is shown: not its change,
+  // its activity or its age (a-run-is-signed-by-its-person).
+  if (run.signature === "does-not-check-out") return `${run.instanceId}: ${describeSignature(run.signature)}`;
+  const signed = `; ${describeSignature(run.signature, run.person)}`;
   // A waiting run says what it waits on in place of the stage it is in.
   const stage = run.stage && run.waiting === null ? `(${run.stage})` : undefined;
   const where = [run.changeName ?? undefined, stage]
@@ -156,10 +167,10 @@ export function describeRun(run: SurveyedRun, now?: Date): string {
   const prefix = where.length > 0 ? `${where}: ` : "";
   const task = run.task ? `; ${describeTaskInHand(run.task)}` : "";
   if (run.gone) {
-    return `${prefix}gone — last heard from ${ago(ageOf(run.heartbeatAt, run.heartbeatAgeMs, now))}, last said "${run.activity}"${task}`;
+    return `${prefix}gone — last heard from ${ago(ageOf(run.heartbeatAt, run.heartbeatAgeMs, now))}, last said "${run.activity}"${task}${signed}`;
   }
   const said = run.waiting ? describeWaiting(run.waiting) : run.activity;
-  return `${prefix}${said} — said ${ago(ageOf(run.activityAt, run.activitySinceMs, now))}${task}`;
+  return `${prefix}${said} — said ${ago(ageOf(run.activityAt, run.activitySinceMs, now))}${task}${signed}`;
 }
 
 /** What a directory's runs amount to, one line each.

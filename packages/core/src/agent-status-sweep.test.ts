@@ -59,6 +59,7 @@ async function writeRecord(
     runId: null,
     task: null,
     waiting: null,
+    machine: "a-machine",
     ...overrides,
   };
   const fileName = `${instanceId}.json`;
@@ -194,12 +195,14 @@ describe("AgentStatusWriter and the sweep", () => {
     // `runId`, `task` and `waiting` are the present too: which run this is,
     // the task it is on now, and what it waits on now. None of them keeps
     // anything the run has left behind (a-run-says-which-task-it-is-on).
+    // `machine` is where the run is now (a-run-is-signed-by-its-person).
     expect(Object.keys(document).sort()).toEqual([
       "activity",
       "activityAt",
       "changeName",
       "heartbeatAt",
       "instanceId",
+      "machine",
       "runId",
       "stage",
       "task",

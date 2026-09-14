@@ -14,6 +14,7 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  confirmEnrolmentFor,
   readGitAuthor,
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
@@ -35,7 +36,11 @@ import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
 import type { GraphTreeNode } from "./tree/change-graph-tree.js";
-import { HumanOnlyInboxTreeProvider, type HumanOnlyInboxItemTreeItem } from "./tree/human-only-inbox-tree.js";
+import {
+  HumanOnlyInboxTreeProvider,
+  type EnrolmentRequestTreeItem,
+  type HumanOnlyInboxItemTreeItem,
+} from "./tree/human-only-inbox-tree.js";
 import { registerFollowSelection } from "./follow-selection.js";
 import { ImplementationSessionManager } from "./implementation-sessions.js";
 import { registerOpenSpecChatParticipant } from "./chat-participant.js";
@@ -346,6 +351,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           const reason = error instanceof Error ? error.message : String(error);
           inboxTree?.reportOutcome(item, "the run could not be started");
           void vscode.window.showErrorMessage(`OpenSpec UI: failed to run delegated item — ${reason}`);
+        }
+      }),
+      // A person says a run was theirs, from the row of the key that signed
+      // it. Which key that enrols, and whether it may, is core's
+      // (a-run-is-signed-by-its-person).
+      vscode.commands.registerCommand("openspec-ui.confirmEnrolment", async (row?: EnrolmentRequestTreeItem) => {
+        if (!row) {
+          void vscode.window.showWarningMessage(
+            "OpenSpec UI: confirm an enrolment from its own row in the Human-Only Inbox.",
+          );
+          return;
+        }
+        const label = await vscode.window.showInputBox({
+          title: `It was me: ${row.request.label}`,
+          prompt: "The name this key's runs will be signed by",
+          value: row.request.gitAuthor ?? row.request.label,
+        });
+        if (label === undefined) return;
+        try {
+          const entry = await confirmEnrolmentFor(inboxRoot, row.keyId, label.trim().length > 0 ? { label } : {});
+          inboxTree?.refresh();
+          void vscode.window.showInformationMessage(`OpenSpec UI: enrolled — its runs read as signed by ${entry.label}, verified.`);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          void vscode.window.showErrorMessage(`OpenSpec UI: not enrolled — ${reason}`);
         }
       }),
     );

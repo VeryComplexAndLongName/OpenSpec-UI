@@ -10,13 +10,18 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { describeAcpUpdate } from "./acp-update-line.js";
+import { readAgentRoster, rosterDirectoryBeside, rosterOf } from "./agent-roster.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
+import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
 import type { Command, Event } from "./protocol.js";
+import type { EnrolledPerson, RecordSignature } from "./signature-facts.js";
+import { isSignedEnvelope, openEnvelope, sealEnvelope, type EnvelopeSigner, type Roster } from "./signed-envelope.js";
 import { readTaskMarker, type RecordedTask } from "./task-marker.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
 import { WORKSPACE_LEASE_RENEW_INTERVAL_MS, WORKSPACE_LEASE_STALE_AFTER_MS } from "./workspace-lease.js";
@@ -97,6 +102,11 @@ export interface AgentStatusDocument {
   task: RecordedTask | null;
   /** What the run is waiting on, where it is waiting. */
   waiting: AgentStatusWaiting | null;
+  /** The machine the run is on, as it names itself. Claimed, like the git
+   * author: a signature proves the key, not these (ADR 0028). */
+  machine: string;
+  /** The run's configured git identity, where it has one. */
+  gitAuthor?: string;
 }
 
 export interface AgentStatusWriterOptions {
@@ -116,6 +126,13 @@ export interface AgentStatusWriterOptions {
   /** Test seam: the file operations a write makes, so a test can refuse
    * one on demand instead of hoping Windows will. */
   files?: AgentStatusFileOperations;
+  /** The person's key for this machine. Given, every record is sealed with
+   * it; absent, the record is written unsigned (a-run-is-signed-by-its-person). */
+  key?: MachineKey;
+  /** The configured git identity the record claims. */
+  gitAuthor?: string;
+  /** Test seam: the machine's name. */
+  machine?: string;
 }
 
 /** The file operations a writer makes. */
@@ -180,6 +197,9 @@ export class AgentStatusWriter {
   private waiting: AgentStatusWaiting | null = null;
   private readonly now: () => Date;
   private readonly files: AgentStatusFileOperations;
+  private readonly key: MachineKey | undefined;
+  private readonly gitAuthor: string | undefined;
+  private readonly machine: string;
   private timer: NodeJS.Timeout | undefined;
   private stopped = false;
   /** When the record was last written, and whether it holds everything
@@ -199,6 +219,9 @@ export class AgentStatusWriter {
     this.runId = options.runId ?? null;
     this.now = options.now ?? (() => new Date());
     this.files = options.files ?? NODE_FILE_OPERATIONS;
+    this.key = options.key;
+    this.gitAuthor = options.gitAuthor;
+    this.machine = options.machine ?? os.hostname();
     this.filePath = path.join(this.directory, `${this.instanceId}.json`);
     this.activityAt = this.now().toISOString();
     this.task = options.taskNumber !== undefined
@@ -344,11 +367,19 @@ export class AgentStatusWriter {
       runId: this.runId,
       task: this.task,
       waiting: this.waiting,
+      machine: this.machine,
+      ...(this.gitAuthor !== undefined ? { gitAuthor: this.gitAuthor } : {}),
     };
+    const text = `${JSON.stringify(document, null, 2)}\n`;
+    // The envelope carries the document's exact bytes, so what is verified is
+    // what is read (ADR 0028, "The bytes are what is signed").
+    const written = this.key === undefined
+      ? text
+      : `${JSON.stringify(sealEnvelope(Buffer.from(text, "utf8"), this.key), null, 2)}\n`;
     await this.files.mkdir(this.directory, { recursive: true });
     const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
     try {
-      await this.files.writeFile(temporaryPath,`${JSON.stringify(document, null, 2)}\n`, "utf8");
+      await this.files.writeFile(temporaryPath, written, "utf8");
       await this.replaceRecord(temporaryPath);
     } finally {
       // Already gone after a rename that landed. One left by a write that
@@ -402,6 +433,21 @@ export interface AgentStatusReport {
   runId: string | null;
   task: RecordedTask | null;
   waiting: AgentStatusWaiting | null;
+  /** How far the record's signature shows whose it is. An unsigned record,
+   * or one whose key is not enrolled, is `unverified`. A record that does
+   * not check out carries its file name as `instanceId` and nothing from its
+   * contents: every other field is empty. */
+  signature: RecordSignature;
+  /** The enrolled person, where the record is verified. The run itself is
+   * still only what the record claims. */
+  person?: EnrolledPerson;
+  /** The key that signed, where the signature verified. */
+  signer?: EnvelopeSigner;
+  /** Why a record does not check out. Not from its contents. */
+  signatureProblem?: string;
+  /** The machine and git author the record claims, where it names them. */
+  machine: string | null;
+  gitAuthor: string | null;
 }
 
 /** A record that could not be trusted as-is: unreadable, not JSON,
@@ -454,22 +500,81 @@ type AgentStatusRecordReading =
   | { kind: "malformed"; reason: string }
   | { kind: "missing" };
 
+/** A record whose signature does not check out: its file name, why, and
+ * nothing it says. A sweep keeps it, since it is never `gone`. */
+function recordThatDoesNotCheckOut(instanceId: string, why: string): AgentStatusReport {
+  return {
+    instanceId,
+    activity: "",
+    stage: null,
+    changeName: null,
+    workingDirectory: "",
+    activitySinceMs: 0,
+    heartbeatAgeMs: 0,
+    activityAt: "",
+    heartbeatAt: "",
+    gone: false,
+    runId: null,
+    task: null,
+    waiting: null,
+    signature: "does-not-check-out",
+    signatureProblem: why,
+    machine: null,
+    gitAuthor: null,
+  };
+}
+
+/** The enrolled keys beside a status directory. A roster that cannot be read
+ * enrols nobody: every signed record then reads as unverified, never as
+ * verified. */
+async function rosterBeside(statusDirectory: string): Promise<Roster> {
+  try {
+    return rosterOf((await readAgentRoster(rosterDirectoryBeside(statusDirectory))).entries);
+  } catch {
+    return new Map();
+  }
+}
+
 async function readAgentStatusRecord(
   directory: string,
   fileName: string,
   now: () => Date,
   staleAfterMs: number,
+  roster: Roster,
 ): Promise<AgentStatusRecordReading> {
   const filePath = path.join(directory, fileName);
   const expectedId = fileName.slice(0, -".json".length);
   try {
     const raw = await readFile(filePath, "utf8");
-    let document: Partial<Record<keyof AgentStatusDocument, unknown>>;
+    let parsed: unknown;
     try {
-      document = JSON.parse(raw) as Partial<Record<keyof AgentStatusDocument, unknown>>;
+      parsed = JSON.parse(raw);
     } catch {
       return { kind: "malformed", reason: "not valid JSON" };
     }
+    let signature: RecordSignature = "unverified";
+    let person: EnrolledPerson | undefined;
+    let signer: EnvelopeSigner | undefined;
+    if (isSignedEnvelope(parsed)) {
+      // The payload is parsed only once the signature over its bytes
+      // verifies (ADR 0028).
+      const opened = openEnvelope(raw, roster);
+      if (opened.state === "does-not-check-out") {
+        return { kind: "report", report: recordThatDoesNotCheckOut(expectedId, opened.why) };
+      }
+      signature = opened.state;
+      signer = opened.signer;
+      if (opened.state === "verified") person = opened.person;
+      try {
+        parsed = JSON.parse(Buffer.from(opened.bytes).toString("utf8"));
+      } catch {
+        return { kind: "malformed", reason: "its signed payload is not valid JSON" };
+      }
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      return { kind: "malformed", reason: "missing or invalid required fields" };
+    }
+    const document = parsed as Partial<Record<keyof AgentStatusDocument, unknown>>;
     if (
       typeof document.instanceId !== "string" ||
       typeof document.activity !== "string" ||
@@ -506,6 +611,11 @@ async function readAgentStatusRecord(
         runId: typeof document.runId === "string" ? document.runId : null,
         task: readRecordedTask(document.task),
         waiting: readWaiting(document.waiting),
+        signature,
+        ...(person !== undefined ? { person } : {}),
+        ...(signer !== undefined ? { signer } : {}),
+        machine: typeof document.machine === "string" ? document.machine : null,
+        gitAuthor: typeof document.gitAuthor === "string" ? document.gitAuthor : null,
       },
     };
   } catch (error) {
@@ -527,7 +637,13 @@ async function readAgentStatusRecord(
  * `sweepAgentStatuses`. */
 export async function readAgentStatuses(
   directory: string,
-  options: { now?: () => Date; staleAfterMs?: number } = {},
+  options: {
+    now?: () => Date;
+    staleAfterMs?: number;
+    /** The enrolled keys. Read from beside the status directory where not
+     * given. */
+    roster?: Roster;
+  } = {},
 ): Promise<AgentStatusReadResult> {
   const now = options.now ?? (() => new Date());
   const staleAfterMs = options.staleAfterMs ?? AGENT_STATUS_STALE_AFTER_MS;
@@ -541,10 +657,11 @@ export async function readAgentStatuses(
     if (isMissingPath(error)) return { reports, malformed };
     throw error;
   }
+  const roster = options.roster ?? await rosterBeside(directory);
 
   for (const fileName of entries) {
     if (!fileName.endsWith(".json")) continue;
-    const reading = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+    const reading = await readAgentStatusRecord(directory, fileName, now, staleAfterMs, roster);
     if (reading.kind === "report") reports.push(reading.report);
     else if (reading.kind === "malformed") malformed.push({ fileName, reason: reading.reason });
   }
@@ -567,6 +684,9 @@ export interface AgentStatusSweepOptions {
   /** Test seam: runs between finding a record stale and reading it again,
    * which is where a slow writer's renewal can land. */
   beforeReread?: (fileName: string) => Promise<void>;
+  /** The enrolled keys. Read from beside the status directory where not
+   * given. */
+  roster?: Roster;
 }
 
 /** Removes what nobody will write again — a-stale-status-is-swept.
@@ -595,14 +715,17 @@ export async function sweepAgentStatuses(
     if (isMissingPath(error)) return result;
     throw error;
   }
+  const roster = options.roster ?? await rosterBeside(directory);
 
   for (const fileName of entries) {
     const filePath = path.join(directory, fileName);
     if (fileName.endsWith(".json")) {
-      const first = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+      // A record that does not check out is never gone, so it is kept, as a
+      // malformed one is.
+      const first = await readAgentStatusRecord(directory, fileName, now, staleAfterMs, roster);
       if (first.kind !== "report" || !first.report.gone) continue;
       await options.beforeReread?.(fileName);
-      const again = await readAgentStatusRecord(directory, fileName, now, staleAfterMs);
+      const again = await readAgentStatusRecord(directory, fileName, now, staleAfterMs, roster);
       if (again.kind !== "report" || !again.report.gone) continue;
       if (await removeIfStillThere(filePath)) result.removedRecords.push(fileName);
     } else if (fileName.includes(".json.") && fileName.endsWith(".tmp")) {
@@ -821,6 +944,38 @@ export interface AgentStatusRunOptions {
   taskNumber?: string;
   /** Test seam: resolves the shared status directory for `cwd`. */
   resolveDirectory?: (cwd: string) => Promise<string>;
+  /** Test seam: the person's key for this machine, or `undefined` where none
+   * can be loaded. Production loads it once per process. */
+  loadKey?: () => Promise<MachineKey | undefined>;
+  /** Test seam: the git identity configured for `cwd`. */
+  readGitAuthor?: (cwd: string) => Promise<string | undefined>;
+}
+
+let machineKeyOnce: Promise<MachineKey | undefined> | undefined;
+
+/** The person's key, loaded once per process. A key that cannot be loaded is
+ * no key: the run writes unsigned and goes on (ADR 0028), and the next run
+ * tries again. */
+function cachedMachineKey(): Promise<MachineKey | undefined> {
+  if (machineKeyOnce === undefined) {
+    machineKeyOnce = loadOrCreateMachineKey().catch(() => {
+      machineKeyOnce = undefined;
+      return undefined;
+    });
+  }
+  return machineKeyOnce;
+}
+
+const gitAuthorByWorkspace = new Map<string, Promise<string | undefined>>();
+
+function cachedGitAuthor(cwd: string): Promise<string | undefined> {
+  const key = path.resolve(cwd);
+  let cached = gitAuthorByWorkspace.get(key);
+  if (!cached) {
+    cached = createGitWrapper({ cwd: key }).configuredIdentity().catch(() => undefined);
+    gitAuthorByWorkspace.set(key, cached);
+  }
+  return cached;
 }
 
 const statusDirectoryByWorkspace = new Map<string, Promise<string>>();
@@ -848,12 +1003,18 @@ function cachedAgentStatusDirectory(cwd: string): Promise<string> {
 export async function startAgentStatusWriter(options: AgentStatusRunOptions): Promise<AgentStatusWriter | undefined> {
   try {
     const directory = await (options.resolveDirectory ?? cachedAgentStatusDirectory)(options.cwd);
+    // Looked for only once there is somewhere to write: a run with no status
+    // directory makes no key.
+    const key = await (options.loadKey ?? cachedMachineKey)().catch(() => undefined);
+    const gitAuthor = await (options.readGitAuthor ?? cachedGitAuthor)(options.cwd).catch(() => undefined);
     const writer = new AgentStatusWriter({
       directory,
       workingDirectory: options.cwd,
       changeName: options.changeName,
       runId: options.runId ?? null,
       ...(options.taskNumber !== undefined ? { taskNumber: options.taskNumber } : {}),
+      ...(key !== undefined ? { key } : {}),
+      ...(gitAuthor !== undefined ? { gitAuthor } : {}),
     });
     await writer.start(options.changeName ? `starting "${options.changeName}"` : "starting");
     return writer;
@@ -894,7 +1055,7 @@ const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["ki
 export async function* withAgentStatus(
   events: AsyncIterable<Event>,
   command: Pick<Command, "kind" | "cwd" | "context" | "runId" | "taskNumber">,
-  seams: Pick<AgentStatusRunOptions, "resolveDirectory"> = {},
+  seams: Pick<AgentStatusRunOptions, "resolveDirectory" | "loadKey" | "readGitAuthor"> = {},
 ): AsyncGenerator<Event> {
   if (!REPORTED_COMMAND_KINDS.has(command.kind)) {
     yield* events;

@@ -3,7 +3,7 @@
 // The collector reads every active change's `tasks.md`, so the browser
 // cannot call it. See human-only-inbox-in-the-shell.
 
-import type { DelegatedItemRunResult, HumanOnlyInbox } from "@openspec-ui/core/browser";
+import type { DelegatedItemRunResult, EnrolledPerson, HumanOnlyInbox } from "@openspec-ui/core/browser";
 
 export type { DelegatedItemRunResult, HumanOnlyInbox };
 
@@ -46,4 +46,24 @@ export async function runDelegatedItem(
     throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<DelegatedItemRunResult>;
+}
+
+/** Enrols the key one request names: the person has said the run was
+ * theirs (a-run-is-signed-by-its-person). A refusal is an error here, with
+ * the server's reason. */
+export async function confirmEnrolment(
+  request: HumanOnlyInboxRequest,
+  cwd: string,
+  keyId: string,
+): Promise<EnrolledPerson> {
+  const response = await request("/api/enrolment/confirm", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cwd, keyId }),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<EnrolledPerson>;
 }

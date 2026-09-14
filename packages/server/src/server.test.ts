@@ -35,6 +35,7 @@ function mockCliJson(stdout: unknown): void {
   });
 }
 import {
+  EnrolmentRefusedError,
   FileAuditLog,
   auditLogPath,
   createAgentRunner,
@@ -58,6 +59,7 @@ const listChangesMock = vi.fn();
 const listSpecsMock = vi.fn();
 const initOpenSpecMock = vi.fn();
 const detectAvailableAgentsMock = vi.fn();
+const confirmEnrolmentForMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
@@ -65,6 +67,7 @@ vi.mock("@openspec-ui/core", async () => {
     statusChange: (...args: unknown[]) => statusChangeMock(...args),
     listChanges: (...args: unknown[]) => listChangesMock(...args),
     listSpecs: (...args: unknown[]) => listSpecsMock(...args),
+    confirmEnrolmentFor: (...args: unknown[]) => confirmEnrolmentForMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
     detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
   };
@@ -1178,6 +1181,56 @@ describe("server — REST /api/status", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  // a-run-is-signed-by-its-person 5.2: which key a confirmation enrols is
+  // core's; the route reads the body, checks the cwd, and answers.
+  describe("POST /api/enrolment/confirm", () => {
+    const KEY_ID = "0123456789abcdef0123456789abcdef";
+
+    it("enrols the key a request names and answers with the roster entry", async () => {
+      const cwd = await createTempWorkspace();
+      const entry = { keyId: KEY_ID, publicKey: "MCowBQYDK2VwAyEA", label: "Ada", machine: "ada-laptop", confirmedAt: "2026-09-14T00:00:00.000Z" };
+      confirmEnrolmentForMock.mockResolvedValueOnce(entry);
+
+      const response = await fetch(`${baseUrl}/api/enrolment/confirm`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd, keyId: KEY_ID, label: "Ada" }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(entry);
+      expect(confirmEnrolmentForMock).toHaveBeenLastCalledWith(cwd, KEY_ID, { label: "Ada" });
+    });
+
+    it("answers a refusal as a conflict, with core's reason", async () => {
+      const cwd = await createTempWorkspace();
+      confirmEnrolmentForMock.mockRejectedValueOnce(new EnrolmentRefusedError(`${KEY_ID} is already enrolled with a different key`));
+
+      const response = await fetch(`${baseUrl}/api/enrolment/confirm`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd, keyId: KEY_ID }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: string }).error).toContain("already enrolled with a different key");
+    });
+
+    it("rejects a key id that is not one, before asking core anything", async () => {
+      const cwd = await createTempWorkspace();
+      confirmEnrolmentForMock.mockClear();
+
+      const response = await fetch(`${baseUrl}/api/enrolment/confirm`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd, keyId: "../../etc/passwd" }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(confirmEnrolmentForMock).not.toHaveBeenCalled();
+    });
   });
 
   it("reports change readiness for an authorized cwd", async () => {

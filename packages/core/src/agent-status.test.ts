@@ -1,7 +1,9 @@
+import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { agentRosterDirectory, confirmEnrolment } from "./agent-roster.js";
 import {
   AGENT_STATUS_STALE_AFTER_MS,
   AGENT_STATUS_STREAM_WRITE_INTERVAL_MS,
@@ -11,10 +13,13 @@ import {
   readAgentStatuses,
   reportEventsToAgentStatus,
   resolveAgentStatusDirectory,
+  sweepAgentStatuses,
   withAgentStatus,
   type AgentStatusDocument,
 } from "./agent-status.js";
+import { keyIdOf, type MachineKey } from "./machine-key.js";
 import type { Event } from "./protocol.js";
+import type { SignedEnvelope } from "./signed-envelope.js";
 
 // every-varying-check-has-a-budget:
 // measured 2026-09-13 for this file alone at 0.2s idle; the concurrent
@@ -38,6 +43,10 @@ afterEach(async () => {
 /** The three fields a record written before a-run-says-which-task-it-is-on
  * did not have, as a record that has none of them holds them. */
 const NOTHING_ABOUT_THE_TASK = { runId: null, task: null, waiting: null } as const;
+
+/** A run with no key, so a test never makes one in the tester's own home
+ * (a-run-is-signed-by-its-person). */
+const NO_KEY = { loadKey: async () => undefined } as const;
 
 describe("agentStatusDirectory", () => {
   it("sits beside the repository's working directories, not inside one", () => {
@@ -376,7 +385,7 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
     };
 
     const draining = (async () => {
-      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory })) {
+      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory, ...NO_KEY })) {
         // draining
       }
     })();
@@ -498,7 +507,7 @@ describe("withAgentStatus", () => {
     }
 
     const draining = (async () => {
-      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory })) {
+      for await (const _event of withAgentStatus(source(), command, { resolveDirectory: async () => directory, ...NO_KEY })) {
         // draining
       }
     })();
@@ -553,7 +562,7 @@ describe("withAgentStatus", () => {
     const iterator = withAgentStatus(
       source(),
       { kind: "implement", cwd: root, runId: "r1", context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
-      { resolveDirectory: () => found },
+      { resolveDirectory: () => found, ...NO_KEY },
     );
     // Both events arrive while the directory is still being looked for.
     expect((await iterator.next()).value).toMatchObject({ kind: "started" });
@@ -717,6 +726,7 @@ describe("readAgentStatuses", () => {
     const document: AgentStatusDocument = {
       version: AGENT_STATUS_VERSION,
       instanceId: "gone-run",
+      machine: "a-machine",
       activity: "was doing something",
       stage: null,
       changeName: null,
@@ -740,6 +750,7 @@ describe("readAgentStatuses", () => {
     const document: AgentStatusDocument = {
       version: AGENT_STATUS_VERSION,
       instanceId: "someone-elses-id",
+      machine: "a-machine",
       activity: "doing something",
       stage: null,
       changeName: null,
@@ -766,6 +777,7 @@ describe("readAgentStatuses", () => {
     const good: AgentStatusDocument = {
       version: AGENT_STATUS_VERSION,
       instanceId: "good-run",
+      machine: "a-machine",
       activity: "doing something",
       stage: "apply",
       changeName: "a-change",
@@ -798,6 +810,7 @@ describe("readAgentStatuses", () => {
     const document: AgentStatusDocument = {
       version: AGENT_STATUS_VERSION,
       instanceId: "quiet-run",
+      machine: "a-machine",
       activity: "still thinking",
       stage: "apply",
       changeName: "a-change",
@@ -820,5 +833,123 @@ describe("readAgentStatuses", () => {
     expect(shape).not.toContain("hung");
     expect(shape).not.toContain("unhealthy");
     expect(shape).not.toContain("healthy");
+  });
+});
+
+describe("a signed record (a-run-is-signed-by-its-person 3.4)", () => {
+  function memoryKey(): MachineKey {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    return {
+      keyId: keyIdOf(publicKey),
+      publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
+      publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
+      sign: (bytes) => new Uint8Array(sign(null, bytes, privateKey)),
+    };
+  }
+
+  async function signedRecord() {
+    const root = await temporaryRoot();
+    const repository = path.join(root, "repo");
+    const worktreeRoot = path.join(root, "wt-root");
+    const directory = agentStatusDirectory(worktreeRoot, repository);
+    const rosterDirectory = agentRosterDirectory(worktreeRoot, repository);
+    const key = memoryKey();
+    const writer = new AgentStatusWriter({
+      directory,
+      workingDirectory: path.join(worktreeRoot, "repo", "alpha"),
+      changeName: "alpha",
+      key,
+      gitAuthor: "ada@example.com",
+      machine: "ada-laptop",
+    });
+    await writer.start("applying");
+    return { directory, rosterDirectory, key, writer };
+  }
+
+  it("reads a record signed by an enrolled key as verified, with its person", async () => {
+    const { directory, rosterDirectory, key, writer } = await signedRecord();
+    await confirmEnrolment({
+      rosterDirectory,
+      request: { keyId: key.keyId, publicKey: key.publicKey, label: "alpha", machine: "ada-laptop", gitAuthor: "ada@example.com" },
+      label: "Ada",
+    });
+
+    const { reports } = await readAgentStatuses(directory);
+
+    expect(reports[0]).toMatchObject({
+      signature: "verified",
+      person: { keyId: key.keyId, label: "Ada", gitAuthor: "ada@example.com" },
+      activity: "applying",
+      machine: "ada-laptop",
+      gitAuthor: "ada@example.com",
+    });
+    await writer.stop();
+  });
+
+  it("reads the same record before enrolment as unverified, naming the key that signed", async () => {
+    const { directory, key, writer } = await signedRecord();
+
+    const { reports } = await readAgentStatuses(directory);
+
+    expect(reports[0]).toMatchObject({ signature: "unverified", signer: { keyId: key.keyId }, activity: "applying" });
+    expect(reports[0]?.person).toBeUndefined();
+    await writer.stop();
+  });
+
+  it("reports a record with one changed byte by its file name only, and a sweep keeps it", async () => {
+    const { directory, writer } = await signedRecord();
+    const envelope = JSON.parse(await readFile(writer.filePath, "utf8")) as SignedEnvelope;
+    const payload = Buffer.from(envelope.payload, "base64");
+    payload[payload.length - 2] = (payload[payload.length - 2] as number) ^ 1;
+    await writeFile(writer.filePath, JSON.stringify({ ...envelope, payload: payload.toString("base64") }), "utf8");
+
+    const { reports } = await readAgentStatuses(directory);
+    const long = new Date(Date.now() + 10 * AGENT_STATUS_STALE_AFTER_MS);
+    const swept = await sweepAgentStatuses(directory, { now: () => long });
+
+    expect(reports).toEqual([
+      expect.objectContaining({
+        instanceId: writer.instanceId,
+        signature: "does-not-check-out",
+        activity: "",
+        changeName: null,
+        workingDirectory: "",
+      }),
+    ]);
+    expect(swept.removedRecords).toEqual([]);
+    expect(await readdir(directory)).toContain(`${writer.instanceId}.json`);
+  });
+
+  it("writes an unsigned version 1 record where no key can be loaded, and passes the run's events unchanged", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, ".agent-status");
+    const events: Event[] = [
+      { kind: "stageStarted", runId: "r1", timestamp: "t", stage: "apply", agentId: "claude-cli" },
+      { kind: "progress", runId: "r1", timestamp: "t", message: "halfway" },
+    ];
+    async function* source(): AsyncGenerator<Event> {
+      yield* events;
+    }
+
+    const seen: Event[] = [];
+    for await (const event of withAgentStatus(
+      source(),
+      { kind: "chain", cwd: root, runId: "r1", context: { changeDir: path.join(root, "openspec", "changes", "a-change") } },
+      {
+        resolveDirectory: async () => directory,
+        loadKey: async () => {
+          throw new Error("the key cannot be read");
+        },
+        readGitAuthor: async () => undefined,
+      },
+    )) {
+      seen.push(event);
+    }
+    const [fileName] = await readdir(directory);
+    const written = JSON.parse(await readFile(path.join(directory, fileName as string), "utf8")) as Record<string, unknown>;
+
+    expect(seen).toEqual(events);
+    expect(written.version).toBe(AGENT_STATUS_VERSION);
+    expect((await readAgentStatuses(directory)).reports[0]).toMatchObject({ signature: "unverified", activity: "halfway" });
   });
 });

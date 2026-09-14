@@ -1,6 +1,32 @@
 import * as vscode from "vscode";
-import { collectHumanOnlyInbox, describeWaitingOn, type WaitingOn } from "@openspec-ui/core";
+import {
+  collectHumanOnlyInbox,
+  describeEnrolmentRequest,
+  describeWaitingOn,
+  type EnrolmentRequest,
+  type WaitingOn,
+} from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
+
+/** The `contextValue` of a key waiting to be enrolled. `package.json` binds
+ * `openspec-ui.confirmEnrolment` to it, inline (a-run-is-signed-by-its-person). */
+export const ENROLMENT_REQUEST_CONTEXT = "openspec-ui.enrolmentRequest";
+
+/** A key that signs a live run's record and is not enrolled. Its one control
+ * says the run was the person's; it opens nothing when selected. */
+export class EnrolmentRequestTreeItem extends vscode.TreeItem {
+  readonly keyId: string;
+
+  constructor(public readonly request: EnrolmentRequest) {
+    super(`Was this run yours? ${request.label}`, vscode.TreeItemCollapsibleState.None);
+    this.keyId = request.keyId;
+    this.id = `enrolment:${request.keyId}`;
+    this.description = describeEnrolmentRequest(request);
+    this.tooltip = `${describeEnrolmentRequest(request)}\nKey ${request.keyId}`;
+    this.contextValue = ENROLMENT_REQUEST_CONTEXT;
+    this.iconPath = new vscode.ThemeIcon("key");
+  }
+}
 
 /** The `contextValue` of a row whose item names an agent this build
  * carries. `package.json`'s `view/item/context` binds
@@ -54,7 +80,7 @@ export class HumanOnlyInboxItemTreeItem extends vscode.TreeItem {
   }
 }
 
-export type HumanOnlyInboxTreeNode = HumanOnlyInboxItemTreeItem | EmptyTreeItem;
+export type HumanOnlyInboxTreeNode = HumanOnlyInboxItemTreeItem | EnrolmentRequestTreeItem | EmptyTreeItem;
 
 export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<HumanOnlyInboxTreeNode> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -98,9 +124,12 @@ export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<Human
         this.outcomes.get(`human-only-inbox:${item.changeName}:${item.lineNumber}`),
       ));
 
-    if (items.length === 0) {
+    // A key waiting to be enrolled waits on a person as an item does.
+    const enrolments = (inbox.enrolments ?? []).map((request) => new EnrolmentRequestTreeItem(request));
+
+    if (items.length === 0 && enrolments.length === 0) {
       return [new EmptyTreeItem("Nothing is waiting", "No open item waiting on a person or an agent in any active change")];
     }
-    return items;
+    return [...items, ...enrolments];
   }
 }

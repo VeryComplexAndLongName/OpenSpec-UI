@@ -191,6 +191,10 @@ export * from "./change-readiness-facts.js";
 // `worktree-survey.ts`, which lists worktrees and reads each directory,
 // stays Node-only.
 export * from "./worktree-survey-facts.js";
+// Whose a run is, as far as its signature shows, and an enrolment request,
+// in the words every surface uses. A leaf with no imports; the key, the
+// envelope and the roster stay Node-only.
+export * from "./signature-facts.js";
 // How many lines a Pipeline card holds, from the same rem the stylesheet
 // uses — the-pipeline-shows-what-it-has-read. Arithmetic only.
 export * from "./pipeline-card.js";
