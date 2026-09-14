@@ -228,15 +228,19 @@ test("draws the declared order, and passes axe", async ({ page }) => {
     }));
   expect(cutLines).toEqual([]);
 
-  // A card is a real control, which is what keeps it focusable without
-  // any of that having to be supplied by hand (ADR 0025). Asserted by
-  // focusing it rather than by its accessible name — the name contains
-  // everything the card says, so a change that names another one would
-  // match a locator looking for that other one.
+  // A card is a group named by its change, and its name is a real control,
+  // which is what keeps it focusable without any of that having to be
+  // supplied by hand (ADR 0025). A card holds controls of its own since
+  // a-change-is-run-from-its-card, and a button cannot hold a button.
+  // Asserted by focusing it rather than by its accessible name — the name
+  // contains everything the card says, so a change that names another one
+  // would match a locator looking for that other one.
   const first = page.getByTestId("pipeline-node-pipeline-first");
-  await expect(first).toHaveJSProperty("tagName", "BUTTON");
-  await first.focus();
-  await expect(first).toBeFocused();
+  await expect(first).toHaveAttribute("role", "group");
+  const openFirst = page.getByTestId("pipeline-node-pipeline-first-open");
+  await expect(openFirst).toHaveJSProperty("tagName", "BUTTON");
+  await openFirst.focus();
+  await expect(openFirst).toBeFocused();
 
   await page.screenshot({ path: path.join(IMAGES_DIR, "pipeline.png"), fullPage: true });
 

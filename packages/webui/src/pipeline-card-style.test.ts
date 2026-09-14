@@ -25,4 +25,11 @@ describe("the Pipeline card's stylesheet", () => {
     expect(rule(".openspec-pipeline-node-state")).toContain(`line-height: ${PIPELINE_CARD_REM.stateLine}rem;`);
     expect(rule(".openspec-pipeline-node-detail")).toContain(`line-height: ${PIPELINE_CARD_REM.detailLine}rem;`);
   });
+
+  // a-change-is-run-from-its-card 5.2–5.8
+  it("gives a card's row of controls the height core subtracts for it", () => {
+    const controls = rule(".openspec-pipeline-node-controls");
+    expect(controls).toContain(`height: ${PIPELINE_CARD_REM.controlsLine}rem;`);
+    expect(controls).toContain(`line-height: ${PIPELINE_CARD_REM.controlsLine}rem;`);
+  });
 });

@@ -37,6 +37,7 @@ import {
   type ChangeReadinessReport,
   type ChangeStandings,
   type LastRunsReport,
+  type LiveRun,
   type SurveyedChange,
   type SurveyedDirectory,
   type WorktreeSurvey,
@@ -104,6 +105,27 @@ export interface PipelineViewProps {
    * (ADR 0029's amendment of 2026-09-13). Absent, a card's word is asked
    * about this checkout's copy alone. */
   standings?: () => Promise<ChangeStandings>;
+  /** Reads the runs this host started and holds. A card offers to answer,
+   * stop or stop now only a run among these (a-change-is-run-from-its-card).
+   * Absent, no card offers any of them. */
+  liveRuns?: () => Promise<{ runs: LiveRun[] }>;
+  /** Sends a control for a held run: the host adds where it runs. */
+  onRunControl?: (control: RunControl) => void;
+  /** Starts a change: the host opens its run dialog. Absent, no Start. */
+  onStart?: (changeName: string) => void;
+  /** Copies text — a run's folder — for a host that allows it. */
+  copyText?: (text: string) => Promise<void>;
+}
+
+/** A control a card sends for a run this host holds. */
+export interface RunControl {
+  changeName: string;
+  runId: string;
+  kind: "confirmCheckpoint" | "stop" | "cancel" | "resolvePermission";
+  /** The reason a person gave, on a `stop`. */
+  reason?: string;
+  permissionRequestId?: string;
+  permissionOutcome?: "allow" | "deny";
 }
 
 /** One reading, repeated while the tab is looked at: on a timer, or on a
@@ -166,11 +188,28 @@ function useClock(isActive: boolean): Date {
   return now;
 }
 
-export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh, lastRuns, standings }: PipelineViewProps) {
+export function PipelineView({
+  load,
+  survey,
+  isActive,
+  onOpenChange,
+  subscribe,
+  refresh,
+  lastRuns,
+  standings,
+  liveRuns,
+  onRunControl,
+  onStart,
+  copyText,
+}: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const stands = usePolledReading(standings, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  // The runs this host holds, read with the survey: a card offers controls
+  // only for these (a-change-is-run-from-its-card).
+  const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const [stopFor, setStopFor] = useState<{ changeName: string; runId: string } | undefined>(undefined);
   const now = useClock(isActive);
   const [refreshing, setRefreshing] = useState(false);
   const [refs, setRefs] = useState<string | undefined>(undefined);
@@ -186,7 +225,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
     setRefreshError(undefined);
     try {
       setRefs(await refresh());
-      await Promise.all([local.read(), others.read(), ended.read(), stands.read()]);
+      await Promise.all([local.read(), others.read(), ended.read(), stands.read(), held.read()]);
     } catch (cause) {
       setRefreshError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -205,10 +244,19 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
     ...(others.value !== undefined ? { survey: others.value } : {}),
     ...(ended.value !== undefined ? { lastRuns: ended.value } : {}),
     ...(stands.value !== undefined ? { standings: stands.value } : {}),
+    ...(held.value !== undefined ? { liveRunIds: held.value.runs.map((run) => run.runId) } : {}),
     now,
   });
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
   const onCards = runsShownOnCards(cardList);
+  const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
+  const controls: CardControlHandlers = {
+    heldRuns,
+    ...(onRunControl !== undefined ? { onRunControl } : {}),
+    ...(onStart !== undefined ? { onStart } : {}),
+    ...(copyText !== undefined ? { copyText } : {}),
+    onAskStop: setStopFor,
+  };
 
   // Each reading is shown when it arrives (the-pipeline-shows-what-it-has-read).
   // This directory's part says it is still being read, or why it could not
@@ -232,7 +280,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} />}
+              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} />}
             {/* From the report this already read: no second fetch, and no
                 suggestion computed here — `buildHints` derived them in core
                 before the payload was sent. */}
@@ -260,6 +308,16 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
       {refreshError !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
+      {stopFor !== undefined && onRunControl !== undefined ? (
+        <StopReasonForm
+          changeName={stopFor.changeName}
+          onAsk={(reason) => {
+            onRunControl({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
+            setStopFor(undefined);
+          }}
+          onCancel={() => setStopFor(undefined)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -296,12 +354,13 @@ function alsoInHere(here: SurveyedDirectory | undefined, labels: Map<string, str
   return result;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls }: {
   report: ChangeReadinessReport;
   cards: Map<string, ChangeCard>;
   now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn: Map<string, string[]>;
+  controls: CardControlHandlers;
 }) {
   const layout = layoutChanges(report);
   return (
@@ -315,7 +374,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn }: {
           // Every change of the report has a card: they are derived from it.
           const card = cards.get(node.change.changeName);
           return card === undefined ? null : (
-            <Node key={node.change.changeName} node={node} card={card} now={now} onOpenChange={onOpenChange} alsoIn={alsoIn.get(node.change.changeName)} />
+            <Node key={node.change.changeName} node={node} card={card} now={now} onOpenChange={onOpenChange} alsoIn={alsoIn.get(node.change.changeName)} controls={controls} />
           );
         }}
       />
@@ -407,12 +466,13 @@ function Edges({ edges, width, height, testIdPrefix }: {
   );
 }
 
-function Node({ node, card, now, onOpenChange, alsoIn }: {
+function Node({ node, card, now, onOpenChange, alsoIn, controls }: {
   node: ChangeLayoutNode;
   card: ChangeCard;
   now: Date;
   onOpenChange?: (name: string) => void;
   alsoIn?: string[];
+  controls: CardControlHandlers;
 }) {
   const { change } = node;
   // The card's own lines first — what the change is doing — then what
@@ -423,9 +483,14 @@ function Node({ node, card, now, onOpenChange, alsoIn }: {
     ...describeChange(node),
     ...(alsoIn && alsoIn.length > 0 ? [`also in ${alsoIn.join(", ")}`] : []),
   ];
+  const buttons = cardControls(card, controls);
   return (
-    <button
-      type="button"
+    // A group, not one button: a card holds controls of its own, and a
+    // button cannot hold a button (a-change-is-run-from-its-card). Its name
+    // is the control that opens the change.
+    <div
+      role="group"
+      aria-label={change.changeName}
       className="openspec-pipeline-node"
       data-testid={`pipeline-node-${change.changeName}`}
       data-state={card.state}
@@ -434,14 +499,150 @@ function Node({ node, card, now, onOpenChange, alsoIn }: {
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
       // The whole of the text, for a reader whose card clipped it.
       title={`${change.changeName} — ${detail.join(" ")}`}
-      onClick={() => onOpenChange?.(change.changeName)}
     >
-      <span className="openspec-pipeline-node-name">{change.changeName}</span>
+      <button
+        type="button"
+        className="openspec-pipeline-node-open"
+        data-testid={`pipeline-node-${change.changeName}-open`}
+        onClick={() => onOpenChange?.(change.changeName)}
+      >
+        <span className="openspec-pipeline-node-name">{change.changeName}</span>
+      </button>
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
       <span className="openspec-pipeline-node-state">{described.stateWords}</span>
-      <CardDetails lines={detail} budget={pipelineCardDetailLines(node.height, { hasState: true })} />
-    </button>
+      <CardDetails lines={detail} budget={pipelineCardDetailLines(node.height, { hasState: true, hasControls: buttons.length > 0 })} />
+      {buttons.length > 0 ? (
+        <div className="openspec-pipeline-node-controls" data-testid={`pipeline-node-${change.changeName}-controls`}>
+          {buttons}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** What a card's controls need from the view: the runs this host holds,
+ * and where each control goes. */
+interface CardControlHandlers {
+  heldRuns: Map<string, LiveRun>;
+  onRunControl?: (control: RunControl) => void;
+  onStart?: (changeName: string) => void;
+  copyText?: (text: string) => Promise<void>;
+  onAskStop: (target: { changeName: string; runId: string }) => void;
+}
+
+/** The buttons a card offers, from its facts alone. Answer, Stop and Stop
+ * now only for a run this host holds; for a run held elsewhere, only its
+ * folder to copy (a-change-is-run-from-its-card 5.2–5.8). Every button's
+ * accessible name includes the change's name. */
+function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode[] {
+  const name = card.changeName;
+  const buttons: ReactNode[] = [];
+  const run = card.run;
+
+  if (run === undefined) {
+    if (handlers.onStart !== undefined && (card.state === "ready" || card.state === "failed" || card.state === "stopped")) {
+      const start = handlers.onStart;
+      buttons.push(
+        <button key="start" type="button" data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}>Start</button>,
+      );
+    }
+    return buttons;
+  }
+
+  const held = run.ownedHere && run.runId !== null ? handlers.heldRuns.get(run.runId) : undefined;
+  if (held === undefined || handlers.onRunControl === undefined) {
+    // Answered where it was started: the card names the folder, and offers
+    // to copy it, never to open it.
+    if (!run.ownedHere && handlers.copyText !== undefined && run.workingDirectory !== "") {
+      const copy = handlers.copyText;
+      buttons.push(
+        <button key="copy" type="button" data-testid={`pipeline-copy-path-${name}`} aria-label={`Copy folder path of ${name}`} onClick={() => void copy(run.workingDirectory)}>Copy folder path</button>,
+      );
+    }
+    return buttons;
+  }
+
+  const send = handlers.onRunControl;
+  const runId = held.runId;
+  if (held.stopRequested !== null) {
+    buttons.push(
+      <button key="stop-now" type="button" data-testid={`pipeline-stop-now-${name}`} aria-label={`Stop ${name} now`} onClick={() => send({ changeName: name, runId, kind: "cancel" })}>Stop now</button>,
+    );
+    return buttons;
+  }
+  if (run.waiting?.kind === "checkpoint") {
+    const next = run.waiting.nextStage;
+    buttons.push(
+      <button key="continue" type="button" data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}>{`Continue to ${next}`}</button>,
+    );
+  }
+  if (run.waiting?.kind === "permission" && held.permissionRequestId !== null) {
+    const requestId = held.permissionRequestId;
+    buttons.push(
+      <button key="allow" type="button" data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}>Allow</button>,
+      <button key="deny" type="button" data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}>Deny</button>,
+    );
+  }
+  buttons.push(
+    <button key="stop" type="button" data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}>Stop</button>,
+  );
+  return buttons;
+}
+
+/** Asks a held run to stop, with the reason a person gives. A reason is
+ * required: a stop is recorded with it (a-change-is-run-from-its-card). */
+function StopReasonForm({ changeName, onAsk, onCancel }: {
+  changeName: string;
+  onAsk: (reason: string) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [refused, setRefused] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    field.current?.focus();
+  }, []);
+  return (
+    <form
+      role="dialog"
+      aria-label={`Ask ${changeName} to stop`}
+      className="openspec-pipeline-stop-form"
+      data-testid="pipeline-stop-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const given = reason.trim();
+        if (given.length === 0) {
+          setRefused(true);
+          return;
+        }
+        onAsk(given);
+      }}
+    >
+      <label>
+        {`Why should ${changeName} stop?`}
+        <input
+          ref={field}
+          type="text"
+          // Refused by the form's own check, not the browser's: a native
+          // `required` stops the submit before it, so its message never
+          // shows, and it lets a reason of only spaces through.
+          aria-required="true"
+          value={reason}
+          data-testid="pipeline-stop-reason"
+          aria-invalid={refused}
+          onChange={(event) => {
+            setReason(event.target.value);
+            setRefused(false);
+          }}
+        />
+      </label>
+      {refused ? <p className="openspec-shell-error" role="alert">A stop needs a reason.</p> : null}
+      <div className="openspec-ai-panel-controls">
+        <button type="submit" data-testid="pipeline-ask-to-stop">Ask to stop</button>
+        <button type="button" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
