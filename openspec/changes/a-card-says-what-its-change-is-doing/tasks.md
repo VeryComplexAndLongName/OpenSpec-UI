@@ -375,14 +375,45 @@ ended (ADR 0029).
 
   Done: `openspec validate a-card-says-what-its-change-is-doing --strict`
   reports it valid, 2026-09-14.
-- [ ] 7.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 7.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and each package's test count.
+
+  Local run 2026-09-14 at `86bfead`, exit code 1. Typecheck and every lint
+  passed. Tests: cli 155 passed; core 1390 passed, 1 failed; extension 358
+  passed; server 95 passed; webui 450 passed. The one failure is
+  `keeps accepting this repository's real openspec/agent-harness.json`,
+  which reads the working tree's file: an uncommitted local edit, not part
+  of this change, sets its `autonomyLevel` to `semi-autonomous`. Closed on
+  CI: the "Typecheck, lint, test, and build" job of #492 ran
+  `npm run verify` at the same commit against the committed tree and
+  passed,
+  <https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34802009128/job/103846374816>.
 - [x] 7.3 A pending changeset exists, with core, webui, server and the
   extension each at minor. `check(changeset-present)`
 
   Done: `.changeset/a-card-says-what-its-change-is-doing.md`.
-- [ ] 7.4 Run the whole browser suite, not a selected spec. Regenerate
+- [x] 7.4 Run the whole browser suite, not a selected spec. Regenerate
   `docs/images/standalone/pipeline.png` and look at it.
+
+  Done 2026-09-14 at `86bfead`: `npm run test:browser -w @openspec-ui/server`
+  exited 0, 18 passed (4.5 min). CI's "Standalone browser and
+  accessibility" job passed at the same commit. The retaken `pipeline.png`
+  was looked at:
+  - `pipeline-first`, whose fixture chain failed at verify, reads
+    `FAILED AT VERIFY` on a red card with a red edge, then
+    `0 of 1 tasks done` and `last run failed at verify 2s ago, $0.42`. A
+    `+2` counts its readiness lines past the budget.
+  - `pipeline-second` reads `BLOCKED`, `0 of 1 tasks done` and
+    `waiting on pipeline-first`.
+  - `pipeline-unrelated` reads `READY`, `0 of 1 tasks done` and
+    `in pipeline-unrelated, on branch pipeline…`: its own worktree, named
+    on the card.
+  - No line is cut, and the run line above the picture still says no run
+    reports here.
+
+  `diff-preview.png`, `harness-settings.png`, `processes.png` and
+  `view-summary.png` were also retaken. They show screens this change does
+  not touch, and were restored.
 - [ ] 7.5 **Delegated to claude-cli**: check a card against a real chain.
 
   Setup:
@@ -410,3 +441,9 @@ ended (ADR 0029).
   Expected: `Waiting`; then `Running` with `on task 1.1`, by its own
   account, and `1 of 3 tasks done`; then `Failed at` the stage, with a
   last-run line.
+
+  Take every step in foreground commands: start the server and the
+  browser as child processes of one driver, take the readings while they
+  run, and return only once the chain has ended and both have been
+  stopped. Nothing may be left running in the background when a command
+  returns.
