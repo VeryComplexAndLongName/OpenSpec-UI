@@ -674,7 +674,7 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
     stand-in's 60 seconds ran out;
   - the chain ending entry, with `stopRequest`;
   - the card's text while the stop was pending.
-- [ ] 7.6 **Delegated to claude-cli**: the same stop in the editor.
+- [x] 7.6 **Delegated to claude-cli**: the same stop in the editor.
 
   In an Extension Development Host built from this branch:
   1. Ask for the stop from the pipeline panel.
@@ -683,11 +683,12 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   Evidence: the extension host's log lines for `stopRequested` and
   `cancelled`, and the audit entries of both runs.
 
-  Not closed. Step 1 works in the editor. Step 2 cannot be taken as
-  written: the Processes tree offers no Cancel Process on a chain's row.
-  The run also found that the card's Continue answers nothing in the
-  editor. Both defects are described at the end, and neither is fixed
-  here, since this run may change only this task list.
+  The first run below did not close this task. Step 1 worked in the
+  editor. Step 2 could not be taken as written: the Processes tree offered
+  no Cancel Process on a chain's row. The run also found that the card's
+  Continue answered nothing in the editor. Both defects are described
+  after that run, and were fixed afterwards. The closing run, at the end,
+  takes both steps as written.
 
   Run on 2026-09-14 by one foreground Node driver, kept outside the
   repository. It:
@@ -864,3 +865,134 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   from the tree's own Cancel Process, and a Continue on the card at a
   checkpoint before the stop, both in an Extension Development Host built
   from this branch.
+
+  **The closing run**, on 2026-09-14 at `0d92308`, with the same driver,
+  helper extension, VS Code 1.137.0 and stand-in as the first run. Two
+  things changed in the driver: it gives up rather than fall back, when
+  the card's Continue does not advance the chain within 5 seconds or the
+  chain's row offers no inline Cancel; and run A starts with no
+  `tasks.md`.
+  - `packages/extension/dist` was rebuilt first, since it predated both
+    fixes. The source map of `dist/extension.js` lists 128 core sources,
+    none from the main checkout, `live-runs.ts` and `stop-boundary.ts`
+    among them. The bundle holds `openspec-ui.cancellableProcess` in
+    `ProcessTreeItem` and `deps.chainRunner.confirmCheckpoint(control.runId)`
+    in `sendPipelineRunControl`.
+  - The scratch repository is `%TEMP%/openspec-ui-editor-stop-5GX0aS/repo`,
+    shortened to `<repo>` below, with git identity
+    `live-check@example.com`. The driver exited 0.
+
+  **Run A: Continue and Stop on the card** (chain
+  `896862fb-0c08-4299-b860-498f01c4e3c5`, times UTC). With no `tasks.md`,
+  the chain started at `propose`.
+  1. After `OpenSpec UI: Open Pipeline`, `Start live-stop` was pressed on
+     the card at 07:01:21.801. In the run dialog, in the AI panel,
+     `Run the chain (configured)` and then `Start chain` were pressed, the
+     latter at 07:01:26.261.
+  2. The checkpoints were answered on the card, and only there:
+     - `checkpoint` after `propose`, next `review`, at 07:01:32.017. The
+       card's `Continue live-stop to review` was pressed at 07:01:33.956,
+       and `stageStarted` `review` came at 07:01:34.074.
+     - `checkpoint` after `review`, next `apply`, at 07:01:34.736. The
+       card's Continue was pressed at 07:01:34.787, and `stageStarted`
+       `apply` came at 07:01:34.908. The button still read
+       `Continue live-stop to review` when pressed, 51 ms after the new
+       checkpoint, because the card had not read the run again yet. It
+       answered the pending checkpoint: nothing else was pressed.
+  3. The stand-in printed `Starting task 1.1` at 07:01:39.883.
+  4. On the card: `Stop live-stop`, the reason `live check` in the
+     `Ask live-stop to stop` form, and `Ask to stop` at 07:01:40.094.
+
+  The extension host's log lines from `stopRequested` through `cancelled`
+  (the time the helper wrote the line, then the event):
+  - `07:01:40.315Z event stopRequested {"kind":"stopRequested","runId":"896862fb-0c08-4299-b860-498f01c4e3c5","timestamp":"2026-09-14T07:01:40.314Z","reason":"live check","by":"live-check@example.com","outcome":"asked"}`
+  - `07:01:54.998Z event stdout`, timestamp `2026-09-14T07:01:54.901Z`,
+    chunk `Starting task 1.2` and its newline;
+  - `07:01:55.691Z event cancelled {"kind":"cancelled","runId":"896862fb-0c08-4299-b860-498f01c4e3c5","timestamp":"2026-09-14T07:01:55.691Z"}`,
+    with no `reason`.
+
+  The AI panel's webview received the same three events at 07:01:40.316,
+  07:01:55.000 and 07:01:55.693.
+
+  How it ended:
+  - `cancelled` came 0.79 s after `Starting task 1.2`, 15.6 s after the
+    stop was asked, and 59.2 s before the stand-in's 60 seconds would have
+    run out.
+  - The stand-in ticked 1.1 at 07:01:54.896 and printed the marker 1 ms
+    later, so, as before, the run does not show which boundary fired.
+  - `tasks.md` was left with 1.1 ticked and 1.2 open, and no stand-in
+    process was alive.
+
+  The card's text:
+  - 07:01:39.972, before Stop: `live-stop RUNNING probably task 1.1: First
+    task running apply — said 5s ago 0 of 2 tasks done last run completed
+    at review 5s ago in <repo> Stop`.
+  - From 07:01:41.191 until the end, with only the age changing:
+    `live-stop RUNNING on task 1.1: First task, by its own account asked to
+    stop by live-check@example.com: live check — said 0s ago 0 of 2 tasks
+    done in <repo> Stop now`. The first of those reads still carried
+    `last run completed at review 5s ago`.
+  - 07:02:00.584, after the end: `live-stop STOPPED AT APPLY 1 of 2 tasks
+    done last run stopped at apply 4s ago no working directory of its own
+    — openspec-ui-cli worktree add live-stop Start`.
+
+  Run A's audit entries, with `cwd`, `changeDir` and `invocation` omitted:
+  - `propose`: `started` 07:01:31.749, `completed` 07:01:32.017;
+  - `review`: `started` 07:01:34.085, `completed` 07:01:34.736;
+  - `{"runId":"896862fb-0c08-4299-b860-498f01c4e3c5","agent":"claude-cli","outcome":"started","timestamp":"2026-09-14T07:01:39.682Z","stage":"apply"}`
+  - `{"runId":"896862fb-0c08-4299-b860-498f01c4e3c5","agent":"claude-cli","outcome":"cancelled","timestamp":"2026-09-14T07:01:55.694Z","stage":"apply"}`
+  - `{"runId":"896862fb-0c08-4299-b860-498f01c4e3c5","agent":"chain","outcome":"cancelled","timestamp":"2026-09-14T07:01:55.691Z","stage":"apply","stopRequest":{"reason":"live check","by":"live-check@example.com"}}`,
+    with no `reason`.
+
+  **Run B: the tree's own Cancel Process** (chain
+  `67844fe4-eb13-46b0-967f-d212084ba1c6`). After `View: Close All Editors`
+  and a fresh `tasks.md` with 1.1 and 1.2 open, the chain was started from
+  the card the same way, and began at `apply`. The stand-in printed
+  `Starting task 1.1` at 07:02:14.439.
+  - The Processes view showed the chain's row as
+    `chain live-stop · 0% · running, has actions` (its accessible name).
+    Hovered, it offered one inline action,
+    `OpenSpec UI: Cancel Implementation Session`, which is
+    `openspec-ui.cancelProcess`'s title. The context menu stays empty, as
+    `package.json` contributes the command only inline.
+  - That inline action was clicked at 07:02:16.893. Nothing else was
+    used: the helper's command was not run.
+
+  The extension host's log lines:
+  - `07:02:14.440Z event stdout`, chunk `Starting task 1.1` and its
+    newline;
+  - `07:02:17.381Z event cancelled {"kind":"cancelled","runId":"67844fe4-eb13-46b0-967f-d212084ba1c6","timestamp":"2026-09-14T07:02:17.381Z"}`,
+    with no `reason`.
+
+  Cancel Process terminates, so no `stopRequested` belongs here.
+  - The chain ended 0.49 s after the click, before 1.1 was ticked.
+  - The stand-in logged nothing after its marker, and no stand-in process
+    was alive afterwards.
+  - The row then read `chain live-stop · 0% · cancelled`.
+
+  Run B's audit entries:
+  - `{"runId":"67844fe4-eb13-46b0-967f-d212084ba1c6","agent":"claude-cli","outcome":"started","timestamp":"2026-09-14T07:02:14.286Z","stage":"apply"}`
+  - `{"runId":"67844fe4-eb13-46b0-967f-d212084ba1c6","agent":"claude-cli","outcome":"cancelled","timestamp":"2026-09-14T07:02:17.383Z","stage":"apply"}`
+  - `{"runId":"67844fe4-eb13-46b0-967f-d212084ba1c6","agent":"chain","outcome":"cancelled","timestamp":"2026-09-14T07:02:17.381Z","stage":"apply"}`,
+    with no `stopRequest` and no `reason`.
+
+  So both steps hold in the editor. The card's Continue answers a
+  checkpoint and its Stop waits for a sound point. The Processes tree's
+  own Cancel Process on a running chain cancels the chain, and its
+  agent's process ends.
+
+  Two things seen, and not fixed here, since this run may change only
+  this task list:
+  - A Continue pressed within a second of a new checkpoint still names the
+    stage of the checkpoint before. It answers whichever checkpoint is
+    pending, so its name can lag what it answers.
+  - On a chain's row, Cancel Process is titled
+    `Cancel Implementation Session`.
+
+  Afterwards, on the follow-up branch:
+  - The title is fixed. `openspec-ui.cancelProcess` is now titled
+    `OpenSpec UI: Cancel Process`, which is what it does on every row that
+    offers it.
+  - The Continue label is left as it is. It answers the checkpoint that is
+    pending, which is the one the person sees, and the card reads the run
+    again a second after any control, so the label catches up at once.
