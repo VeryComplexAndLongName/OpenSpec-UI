@@ -18,6 +18,27 @@ function entry(partial: Partial<AuditEntry> & Pick<AuditEntry, "runId" | "outcom
   } as AuditEntry;
 }
 
+describe("buildChangeCostReport — a chain's ending (a-card-says-what-its-change-is-doing)", () => {
+  it("gives the same rows and totals with a chain ending in the log as without it", () => {
+    const runs = [
+      entry({ runId: "r1", outcome: "started", timestamp: "2026-09-08T10:00:00.000Z", stage: "apply" }),
+      entry({ runId: "r1", outcome: "completed", timestamp: "2026-09-08T10:02:00.000Z", stage: "apply", usage: { costUsd: 1.25 } }),
+      entry({ runId: "r1", outcome: "started", timestamp: "2026-09-08T10:02:01.000Z", stage: "verify" }),
+      entry({ runId: "r1", outcome: "cancelled", timestamp: "2026-09-08T10:03:00.000Z", stage: "verify", reason: "maxRunSeconds is 1s" }),
+    ];
+    const ending = entry({
+      runId: "r1",
+      agent: "chain",
+      outcome: "cancelled",
+      timestamp: "2026-09-08T10:03:00.100Z",
+      stage: "verify",
+      reason: "maxRunSeconds is 1s",
+    });
+
+    expect(buildChangeCostReport([...runs, ending], CHANGE)).toEqual(buildChangeCostReport(runs, CHANGE));
+  });
+});
+
 describe("buildChangeCostReport", () => {
   it("produces a row per stage, with agent, effort, spend and duration", () => {
     const report = buildChangeCostReport([

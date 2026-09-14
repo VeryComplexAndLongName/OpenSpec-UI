@@ -29,16 +29,26 @@ import type { AuditEntry } from "./security.js";
  * string. */
 export const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
 
+/** The `agent` of the one entry `HarnessChainRunner` writes as a chain ends:
+ * how it ended, at which stage, and why. Like the checks entry it is a fact
+ * about runs rather than a run — one terminal entry with no `started`
+ * partner — so a counter that paired it would read it as a run refused
+ * before it started (a-card-says-what-its-change-is-doing). */
+export const CHAIN_ENDING_AGENT_NAME = "chain";
+
 /** Whether this entry records a run, as opposed to a fact about one.
  *
- * Only the checks pseudo-agent is excluded. The `git-stage` entries are
- * deliberately left in: they are mechanical too, but each is written as
- * a `started` and a terminal pair, so they were already counted as the
- * discrete actions they are rather than inflating a total by accident. */
+ * The checks pseudo-agent and a chain's ending are excluded. The
+ * `git-stage` entries are deliberately left in: they are mechanical too,
+ * but each is written as a `started` and a terminal pair, so they were
+ * already counted as the discrete actions they are rather than inflating a
+ * total by accident. */
 export function isRunEntry(entry: Pick<AuditEntry, "agent"> & { outcome?: AuditEntry["outcome"] }): boolean {
   // A request or its reply is a message about a run, not a run
   // (a-change-says-where-it-stands).
-  return entry.agent !== VERIFY_CHECKS_AGENT_NAME && entry.outcome !== "message";
+  return entry.agent !== VERIFY_CHECKS_AGENT_NAME
+    && entry.agent !== CHAIN_ENDING_AGENT_NAME
+    && entry.outcome !== "message";
 }
 
 /** The directory name at the end of a recorded `changeDir`, in either

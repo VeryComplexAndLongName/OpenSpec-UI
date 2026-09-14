@@ -4,7 +4,7 @@ ended (ADR 0029).
 
 ## 1. What the survey carries for a card
 
-- [ ] 1.1 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
+- [x] 1.1 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
   gains four fields:
   - `tasksForPerson`: the number of open Human-only items;
   - `tasksDelegated`: the number of open delegated items;
@@ -14,19 +14,30 @@ ended (ADR 0029).
 
   `surveyChanges` in `worktree-survey.ts` fills them from the items it
   already reads, plus one `stat` per list.
-- [ ] 1.2 core `worktree-survey.test.ts`:
+
+  Done: `cardFactsOf` in `worktree-survey.ts` counts from the parsed items
+  and takes the first open plain item's number and text, with the leading
+  number stripped. The mtime comes from one `stat`. It is spread in only
+  when the change has a task list.
+- [x] 1.2 core `worktree-survey.test.ts`:
   - the two counts;
   - the first open task skips a Human-only item and a delegated item;
   - a change with no task list carries none of the four fields.
 
+  Done: the describe "what the survey carries for a card" has two tests.
+  One covers the counts and the skip; the other a change with no task
+  list. The file passes, 26 tests.
+
 ## 2. A chain writes its own ending
 
-- [ ] 2.1 In `packages/core/src/audit-runs.ts`, add
+- [x] 2.1 In `packages/core/src/audit-runs.ts`, add
   `CHAIN_ENDING_AGENT_NAME = "chain"` beside `VERIFY_CHECKS_AGENT_NAME`,
   and make `isRunEntry` return `false` for it as well. Its comment says why:
   like the checks entry, it has one terminal entry and no `started`
   partner.
-- [ ] 2.2 `HarnessChainRunner` in `packages/core/src/harness-chain-runner.ts`
+
+  Done: both the constant's comment and `isRunEntry`'s say so.
+- [x] 2.2 `HarnessChainRunner` in `packages/core/src/harness-chain-runner.ts`
   writes exactly one audit entry for each chain run, as the chain ends. The
   entry has:
   - `agent: CHAIN_ENDING_AGENT_NAME`;
@@ -44,7 +55,14 @@ ended (ADR 0029).
   - cancelled while waiting at a checkpoint;
   - stopped by the run-time limit;
   - stopped by the attempt limit.
-- [ ] 2.3 Check each reader that totals the log, and record the check:
+
+  Done: `run()` reads the chain's own events as they pass: the last
+  `stageStarted` and the terminal `completed`, `failed` or `cancelled`.
+  In its `finally` block it records one entry through `recordEnding`, so
+  every place that yields an ending is covered without being touched. A
+  declared step's name is not an audit stage and is left out. The entry
+  has `reason` only when the ending carried one, and never `usage`.
+- [x] 2.3 Check each reader that totals the log, and record the check:
   - `buildChangeCostReport` and `buildWorkspaceRunStats` skip the entry
     through `isRunEntry`;
   - `runTimestampsByChange` counts no run for it;
@@ -52,12 +70,35 @@ ended (ADR 0029).
     for it.
 
   Do not add a second filter beside `isRunEntry`.
-- [ ] 2.4 core tests:
+
+  Checked 2026-09-14:
+  - `buildChangeCostReport` and `buildWorkspaceRunStats` drop the entry at
+    their existing `isRunEntry` call. No second filter was added.
+  - `runTimestampsByChange` counts no runs. It collects dates of work, and
+    it keeps every entry with a `changeDir`, the checks entry included. The
+    ending adds its timestamp, the moment the chain's last stage ended, so
+    it adds no day the chain's own stage entries did not already give.
+  - `verify-quality.ts` groups only entries with `checksRan`, and the
+    ending has none, so it adds no run and no spend.
+- [x] 2.4 core tests:
   - `harness-chain-runner.test.ts`: one ending entry for each of the six
     endings, with its stage and reason;
   - `change-cost-report.test.ts` and `workspace-run-stats.test.ts`: a log
     containing a chain ending gives the same rows and totals as the same
     log without it.
+
+  Done:
+  - `harness-chain-runner.test.ts`: "a chain writes its own ending", six
+    tests. Completed at archive with no reason; failed at apply with the
+    agent's reason; cancelled mid-stage at propose with no reason;
+    cancelled at a checkpoint; the run-time limit, whose reason names
+    `maxRunSeconds is 1s`; the attempt limit, whose reason names
+    `maxStageAttempts: 2`. The file passes, 95 tests.
+  - `change-cost-report.test.ts`: the report with and without the ending is
+    deeply equal.
+  - `workspace-run-stats.test.ts`: every figure is equal except
+    `entriesRead`, which counts entries before any exclusion by definition
+    and grows by one.
 
 ## 3. How the last run ended
 

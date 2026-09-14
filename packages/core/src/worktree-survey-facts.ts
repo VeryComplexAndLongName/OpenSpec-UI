@@ -33,6 +33,19 @@ export interface SurveyedChange {
    * this name too. Reported, never resolved: it comes from ordinary
    * branching, and becomes a collision only when a copy is edited. */
   alsoIn: string[];
+  /** Open items only a person can close. Absent where the change has no
+   * task list (a-card-says-what-its-change-is-doing). */
+  tasksForPerson?: number;
+  /** Open items delegated to a named agent. Absent where there is no task
+   * list. */
+  tasksDelegated?: number;
+  /** The first open item that is neither Human-only nor delegated, with its
+   * number and its text without the number: what a run that names no task
+   * is probably on. */
+  nextOpenTask?: { number: string; text: string };
+  /** When the task list was last modified, as an ISO timestamp. A failure
+   * older than this no longer decides a card's state. */
+  tasksModifiedAt?: string;
 }
 
 /** What one run says it is doing, as its own status record says it.

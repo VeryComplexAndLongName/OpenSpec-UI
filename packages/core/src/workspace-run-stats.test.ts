@@ -46,6 +46,35 @@ function run(
 
 const known = { active: ["live-change"], archived: ["done-change"] };
 
+describe("buildWorkspaceRunStats — a chain's ending (a-card-says-what-its-change-is-doing)", () => {
+  it("gives the same totals with a chain ending in the log as without it", () => {
+    const runs = [
+      ...run({ change: "live-change", runId: "chain-1", stage: "apply", costUsd: 0.5 }),
+      ...run({ change: "live-change", runId: "chain-1", stage: "verify", outcome: "failed", costUsd: 0.25 }),
+    ];
+    const ending = {
+      agent: "chain",
+      changeDir: "/repo/openspec/changes/live-change",
+      cwd: "/repo",
+      runId: "chain-1",
+      stage: "verify",
+      outcome: "failed",
+      reason: "the agent gave up",
+      timestamp: at(),
+    } as AuditEntry;
+
+    const without = buildWorkspaceRunStats(runs, known);
+    const withEnding = buildWorkspaceRunStats([...runs, ending], known);
+
+    // `entriesRead` counts every entry before any exclusion, by definition,
+    // so it is the one figure that grows; everything computed from runs is
+    // unchanged.
+    expect(withEnding.entriesRead).toBe(without.entriesRead + 1);
+    expect({ ...withEnding, entriesRead: 0 }).toEqual({ ...without, entriesRead: 0 });
+    expect(withEnding.runs).toBe(2);
+  });
+});
+
 describe("buildWorkspaceRunStats", () => {
   it("excludes runs against a change that no longer exists", () => {
     // A finished change is in the archive and a live one is in changes/.
