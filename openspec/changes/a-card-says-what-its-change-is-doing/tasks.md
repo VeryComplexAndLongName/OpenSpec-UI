@@ -414,7 +414,7 @@ ended (ADR 0029).
   `diff-preview.png`, `harness-settings.png`, `processes.png` and
   `view-summary.png` were also retaken. They show screens this change does
   not touch, and were restored.
-- [ ] 7.5 **Delegated to claude-cli**: check a card against a real chain.
+- [x] 7.5 **Delegated to claude-cli**: check a card against a real chain.
 
   Setup:
   - a scratch git repository outside this one, with one change of three
@@ -447,3 +447,92 @@ ended (ADR 0029).
   run, and return only once the chain has ended and both have been
   stopped. Nothing may be left running in the background when a command
   returns.
+
+  Done 2026-09-14 (UTC) at `966642e`, Node 22.11.0, Windows 10. One
+  foreground Node driver in the session's scratchpad exited 0. It built
+  the repository, started the server and a headless Chromium as its own
+  children, took the readings, and stopped both before returning.
+  `git status` of this repository showed no new files afterwards.
+
+  Setup, and one deviation from it:
+  - `npm run build -w @openspec-ui/server` exited 0 first, so the page
+    served this branch's webui.
+  - `<repo>` is a fresh git repository on `main`, outside this one, with
+    one active change, `card-change`, holding tasks 1.1, 1.2 and 1.3.
+    `OPENSPEC_UI_WORKTREE_ROOT` pointed at a scratch directory.
+  - The change's `harness.json` sets `autonomyLevel: "semi-autonomous"`,
+    `stepAgents` apply and verify on `claude-cli`, and
+    `maxStageAttempts: 2`.
+  - A stand-in `bin\claude.cmd` came first on the server's `PATH`
+    (`where claude` resolved to it).
+  - Deviation: a change with open tasks starts its chain at `apply`
+    (`determineStartStage`), and a checkpoint comes only after a stage;
+    a declared step reaches none. So a stage that ticks and fails at once
+    never lets the chain wait. The stand-in's first implementing stage
+    therefore does nothing and exits 0. Verify then ticks nothing and
+    exits 0, and with 3 tasks open and 2 attempts allowed the chain returns
+    to `apply` with no further checkpoint. The second implementing stage
+    does what this item says: it prints `Starting task 1.1`, ticks 1.1,
+    waits 20 seconds and exits 1.
+  - The server ran `node --import tsx packages/server/src/cli.ts <repo> 0`
+    on 127.0.0.1:53179.
+
+  Steps: one page chose `card-change` in the Change Editor, pressed Run
+  with Agentic Harness (the dialog said `autonomyLevel is
+  "semi-autonomous", so a chain runs rather than one stage.`), chose the
+  chain and pressed Start chain at 03:47:58.002Z. A second page read the
+  card on the Pipeline tab, pressing Refresh before each reading, since
+  the survey otherwise polls every 30 seconds.
+
+  The card as the page rendered it (`innerText`; `+N` counts lines past
+  the budget, each still in the card's text):
+  1. At the checkpoint, 03:48:03.847Z, after the editor showed
+     `Continue to verify with claude-cli?` at 03:48:02.864Z:
+     `data-state="waiting"`, `WAITING FOR YOU`,
+     `probably task 1.1: Write the first file`,
+     `waiting to continue to verify, in card-repo`, `+3`,
+     `0 of 3 tasks done`, `last run completed at apply 0s ago`,
+     `in <repo>`.
+  2. The checkpoint was confirmed at 03:48:03.989Z. At 03:48:05.125Z
+     verify had ended and the second apply had not yet said which task it
+     was on: `RUNNING`, `probably task 1.1: Write the first file`,
+     `running apply — said 0s ago`, `0 of 3 tasks done`. While the stage
+     that ticks ran, at 03:48:07.160Z: `data-state="running"`, `RUNNING`,
+     `on task 1.1: Write the first file, by its own account`,
+     `running apply — said 0s ago`, `+2`, `1 of 3 tasks done`, `in <repo>`.
+  3. After the failure, at 03:48:28.590Z (the editor said
+     `Failed: claude exited with code 1`): `data-state="failed"`,
+     `FAILED AT APPLY`, `1 of 3 tasks done`,
+     `last run failed at apply 1s ago`, `+1`,
+     `no working directory of its own — openspec-ui-cli worktree add card-change`.
+     There is no cost: the stand-in reported no usage.
+
+  The audit log's chain ending entry, from `<repo>\.openspec-ui\audit.jsonl`:
+  `{"runId":"2214442e-d8e5-4a3f-aa77-6a51c80fd50e","agent":"chain","outcome":"failed","cwd":"<repo>","timestamp":"2026-09-14T03:48:26.585Z","changeDir":"<repo>\\openspec\\changes\\card-change","stage":"apply","reason":"claude exited with code 1"}`.
+  It is the only `chain` entry. The run's six stage entries under the same
+  run id are apply started and completed, verify started and completed,
+  and apply started and then failed at 03:48:26.586Z with the same reason,
+  and none carries `usage`. `tasks.md` still had 1.1 ticked at the end.
+
+  Pictures, looked at:
+  - After the failure: `card-change`, `FAILED AT APPLY` in red on a red
+    card with a red edge, `1 of 3 tasks done`,
+    `last run failed at apply 1s ago`, and `+1`.
+  - At the checkpoint: `WAITING FOR YOU` with a dashed edge.
+  - While running: `RUNNING`, with the task line shortened to
+    `on task 1.1: Write the first file, by its own acco…` by the card's
+    width. Its full text is in the card's text and title.
+
+  Against the expectation:
+  - `Running`, `on task 1.1`, by its own account, and `1 of 3 tasks done`
+    hold.
+  - `Failed at apply`, with a last-run line, holds.
+  - The waiting word reads `Waiting for you`, not `Waiting`. That is the
+    word `describeChangeState` gives for a waiting record here
+    (`packages/core/src/change-state-word.ts:134`), so the card and the
+    Changes list agree. It is still the waiting state
+    (`data-state="waiting"`), and the card names what the run waits for and
+    the directory it waits in.
+
+  `<repo>` stands for
+  `C:\Users\ivanov.a\AppData\Local\Temp\claude\C--Prog-OpenSpec-UI\9b105c30-b64d-439b-8ca5-b2db3b82c906\scratchpad\card-check\card-repo`.
