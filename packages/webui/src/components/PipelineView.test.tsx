@@ -8,6 +8,7 @@ import type {
   SurveyedRun,
   WorktreeSurvey,
 } from "@openspec-ui/core/browser";
+import { NODE_HEIGHT, pipelineOpenCardHeight } from "@openspec-ui/core/browser";
 import {
   PIPELINE_BACKSTOP_INTERVAL_MS,
   PIPELINE_CLOCK_INTERVAL_MS,
@@ -15,6 +16,7 @@ import {
   PipelineView,
   SURVEY_POLL_INTERVAL_MS,
   type PipelineReading,
+  type PipelineViewMemory,
 } from "./PipelineView.js";
 
 afterEach(() => {
@@ -100,6 +102,110 @@ const theirs = (overrides: Partial<Extract<SurveyedDirectory, { readable: true }
   branch: "their-branch",
   changes: [{ changeName: "their-change", tasksDone: 2, tasksTotal: 5, blockers: [], alsoIn: [] }],
   ...overrides,
+});
+
+describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 4.3)", () => {
+  const rows = [
+    { number: "1.1", text: "Read the list", section: "Reading", done: true, closedBy: "agent" as const },
+    { number: "1.2", text: "Write the rows", section: "Reading", done: false, closedBy: "agent" as const },
+    { number: "2.1", text: "**Human-only**: look at it", section: "Looking", done: false, closedBy: "person" as const },
+  ];
+  const load = async () => report(change("alpha"), change("beta"));
+  const surveyed = async () => survey(directory({
+    changes: [
+      { changeName: "alpha", tasksDone: 1, tasksTotal: 3, blockers: [], alsoIn: [], tasks: rows },
+      { changeName: "beta", tasksDone: 0, tasksTotal: 0, blockers: [], alsoIn: [] },
+    ],
+  }));
+  const yOf = (name: string) => Number(screen.getByTestId(`pipeline-node-${name}`).style.getPropertyValue("--y"));
+
+  it("lists an open card's rows under their sections, moves the card below by its extra height, and explains the rail", async () => {
+    render(<PipelineView isActive load={load} survey={surveyed} />);
+
+    const toggle = await screen.findByRole("button", { name: "Show tasks of alpha" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("pipeline-node-alpha-tasks")).not.toBeVisible();
+    expect(screen.queryByTestId("pipeline-legend")).toBeNull();
+    const before = yOf("beta");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAccessibleName("Hide tasks of alpha");
+    const list = screen.getByTestId("pipeline-node-alpha-tasks");
+    expect(list).toBeVisible();
+    expect(within(list).getAllByRole("listitem").map((row) => row.getAttribute("data-word"))).toEqual(["done", "open", "only a person can close it"]);
+    expect(list).toHaveTextContent("Reading");
+    expect(list).toHaveTextContent("Looking");
+    // A rail joins each row to the row listed next, across a heading too,
+    // and the last row has none (found by 6.5's look).
+    const listed = within(list).getAllByRole("listitem");
+    expect(listed[0]?.querySelector(".openspec-pipeline-task-rail:not(.openspec-pipeline-task-rail--across)")).not.toBeNull();
+    expect(listed[1]?.querySelector(".openspec-pipeline-task-rail--across")).not.toBeNull();
+    expect(listed[2]?.querySelector(".openspec-pipeline-task-rail")).toBeNull();
+    // The marker the word already says is not said twice.
+    expect(within(list).getAllByRole("listitem")[2]).toHaveTextContent("only a person can close itlook at it");
+    expect(yOf("beta")).toBe(before + pipelineOpenCardHeight(3, 2) - NODE_HEIGHT);
+    expect(screen.getByTestId("pipeline-legend")).toHaveTextContent("A thin line inside a card means listed next in tasks.md.");
+  });
+
+  it("zooms by one factor on the picture, and moves no layout unit", async () => {
+    render(<PipelineView isActive load={load} survey={surveyed} />);
+    await screen.findByRole("button", { name: "Show tasks of alpha" });
+    const before = yOf("beta");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(screen.getByTestId("pipeline").style.getPropertyValue("--pipeline-zoom")).toBe("1.25");
+    expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 125%");
+    expect(yOf("beta")).toBe(before);
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 100%");
+  });
+
+  it("opens every card with tasks at Open all, and closes them at Close all", async () => {
+    render(<PipelineView isActive load={load} survey={surveyed} />);
+    await screen.findByRole("button", { name: "Show tasks of alpha" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open all" }));
+    expect(screen.getByRole("button", { name: "Hide tasks of alpha" })).toHaveAttribute("aria-expanded", "true");
+    // A card with no tasks has nothing to open.
+    expect(screen.queryByRole("button", { name: /tasks of beta/u })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close all" }));
+    expect(screen.getByRole("button", { name: "Show tasks of alpha" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens a card remembered as open after a remount, at the remembered zoom", async () => {
+    let memory: PipelineViewMemory | undefined;
+    const viewState = { read: () => memory, write: (next: PipelineViewMemory) => { memory = next; } };
+    const first = render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Show tasks of alpha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    first.unmount();
+
+    render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+
+    expect(await screen.findByRole("button", { name: "Hide tasks of alpha" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 90%");
+    expect(memory).toEqual({ zoom: 0.9, open: [{ directory: "/repo", changeName: "alpha" }] });
+  });
+
+  it("keeps working with a viewState that throws, at the default zoom and with every card closed", async () => {
+    const viewState = {
+      read: (): PipelineViewMemory | undefined => { throw new Error("storage refused"); },
+      write: () => { throw new Error("storage refused"); },
+    };
+    render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+
+    const toggle = await screen.findByRole("button", { name: "Show tasks of alpha" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 100%");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 125%");
+  });
 });
 
 describe("PipelineView — other working directories", () => {

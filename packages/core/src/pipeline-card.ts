@@ -9,6 +9,8 @@
 //
 // Browser-safe: no Node imports.
 
+import { NODE_HEIGHT } from "./change-layout.js";
+
 /** Every vertical length on a card, in `rem`. */
 export const PIPELINE_CARD_REM = {
   /** Padding above and below the text. */
@@ -24,7 +26,22 @@ export const PIPELINE_CARD_REM = {
   /** The row of controls on a card whose run this host can answer or stop,
    * or that can be started (a-change-is-run-from-its-card). */
   controlsLine: 1.25,
+  /** One task row on an open card: its number, state word and text on one
+   * line (a-card-opens-to-its-tasks). */
+  taskRow: 1,
+  /** One section heading on an open card. */
+  sectionRow: 1.25,
 } as const;
+
+/** How tall a card is while it lists its tasks, in layout units: the closed
+ * height plus one row per task and one per section heading. Derived, never
+ * measured (ADR 0025), so the column below it moves by exactly this much
+ * more than a closed card would take. */
+export function pipelineOpenCardHeight(taskCount: number, sectionCount: number): number {
+  return NODE_HEIGHT
+    + Math.max(0, taskCount) * PIPELINE_CARD_REM.taskRow
+    + Math.max(0, sectionCount) * PIPELINE_CARD_REM.sectionRow;
+}
 
 /** How many detail lines a card of `height` layout units holds whole,
  * where one unit is one `rem` (ADR 0025's `--u`). A card that carries a

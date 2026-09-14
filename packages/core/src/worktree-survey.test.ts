@@ -270,6 +270,35 @@ describe("surveyWorktrees — what a card needs from a task list (a-card-says-wh
     expect(Number.isFinite(Date.parse(change?.tasksModifiedAt ?? ""))).toBe(true);
   });
 
+  // a-card-opens-to-its-tasks 1.2: every item travels with the survey, with
+  // its section and who may close it.
+  it("carries every task row, with its number, section and who may close it", async () => {
+    const { main, rootSources } = await repository();
+    const dir = path.join(main, "openspec", "changes", "rowed");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, ".openspec.yaml"), `schema: spec-driven${LF}`, "utf8");
+    await writeFile(path.join(dir, "tasks.md"), [
+      "- [ ] An item before any heading",
+      "## 1. Reading",
+      "- [x] 1.1 Done already",
+      "- [ ] 1.2 **Human-only**: look at it",
+      "## Checking",
+      "- [ ] 2.1 **Delegated to claude-cli**: check it",
+    ].join(LF) + LF, "utf8");
+    const { git } = recordingGit([{ path: main, branch: "main" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    const [directory] = survey.directories;
+    const change = directory?.readable ? directory.changes.find((candidate) => candidate.changeName === "rowed") : undefined;
+    expect(change?.tasks).toEqual([
+      { text: "An item before any heading", done: false, closedBy: "agent" },
+      { number: "1.1", text: "Done already", section: "Reading", done: true, closedBy: "agent" },
+      { number: "1.2", text: "**Human-only**: look at it", section: "Reading", done: false, closedBy: "person" },
+      { number: "2.1", text: "**Delegated to claude-cli**: check it", section: "Checking", done: false, closedBy: "named-agent", agent: "claude-cli" },
+    ]);
+  });
+
   it("carries none of the four for a change with no task list", async () => {
     const { main, rootSources } = await repository();
     const dir = path.join(main, "openspec", "changes", "listless");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NODE_HEIGHT } from "./change-layout.js";
-import { PIPELINE_CARD_REM, fitPipelineCardDetails, pipelineCardDetailLines } from "./pipeline-card.js";
+import { PIPELINE_CARD_REM, fitPipelineCardDetails, pipelineCardDetailLines, pipelineOpenCardHeight } from "./pipeline-card.js";
 
 // the-pipeline-shows-what-it-has-read 2.1, 3.1: a card's lines are derived
 // from its size, never measured.
@@ -36,6 +36,18 @@ describe("pipelineCardDetailLines", () => {
     const height = CHROME_WITHOUT_STATE + 4 * PIPELINE_CARD_REM.detailLine;
     expect(pipelineCardDetailLines(height, { hasState: false })).toBe(4);
     expect(pipelineCardDetailLines(height - 0.01, { hasState: false })).toBe(3);
+  });
+});
+
+// a-card-opens-to-its-tasks 2.5: an open card's height is derived from its
+// rows.
+describe("pipelineOpenCardHeight", () => {
+  it("is the closed height for a card with no tasks", () => {
+    expect(pipelineOpenCardHeight(0, 0)).toBe(NODE_HEIGHT);
+  });
+
+  it("adds exactly one row per task and one per section", () => {
+    expect(pipelineOpenCardHeight(3, 1)).toBe(NODE_HEIGHT + 3 * PIPELINE_CARD_REM.taskRow + PIPELINE_CARD_REM.sectionRow);
   });
 });
 

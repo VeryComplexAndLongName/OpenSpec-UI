@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeChangeCard, describeChangeCards, runsShownOnCards, type ChangeCard, type ChangeCardInputs } from "./change-card.js";
+import { describeChangeCard, describeChangeCards, describeTaskRows, runsShownOnCards, type ChangeCard, type ChangeCardInputs } from "./change-card.js";
 import type { ChangeReadiness } from "./change-readiness-facts.js";
 import type { LastRun } from "./last-runs-facts.js";
 import { describeDirectoryRuns, type SurveyedChange, type SurveyedDirectory, type SurveyedRun } from "./worktree-survey-facts.js";
@@ -208,6 +208,40 @@ describe("describeChangeCards — what a card is read from", () => {
     const card = cardOf({ directories: [directory({ runs: [run({ changeName: "other" })] })] });
     expect(card.run).toBeUndefined();
     expect(card.state).toBe("ready");
+  });
+});
+
+// a-card-opens-to-its-tasks 1.3: each row's word, from a closed set, and
+// one row in hand at most.
+describe("describeTaskRows", () => {
+  const rows = [
+    { number: "1.1", text: "Read", done: true, closedBy: "agent" as const },
+    { number: "1.2", text: "Write", done: false, closedBy: "agent" as const },
+    { number: "1.3", text: "Look", done: false, closedBy: "person" as const },
+    { number: "1.4", text: "Check", done: false, closedBy: "named-agent" as const, agent: "claude-cli" },
+    { number: "1.5", text: "Ship", done: false, closedBy: "agent" as const },
+  ];
+
+  it("says each word: done, in hand, a person's, delegated, and open", () => {
+    expect(describeTaskRows(rows, { number: "1.2", text: "Write", source: "agent" }).map((row) => row.word)).toEqual([
+      "done",
+      "in hand",
+      "only a person can close it",
+      "delegated to claude-cli",
+      "open",
+    ]);
+  });
+
+  it("says probably next for a guess, and neither for a card with no task in hand", () => {
+    expect(describeTaskRows(rows, { number: "1.2", text: "Write", source: "guess" })[1]?.word).toBe("probably next");
+    expect(describeTaskRows(rows, undefined).map((row) => row.word)).not.toContain("in hand");
+  });
+
+  it("puts one row in hand even where a number repeats, and none on a done row", () => {
+    const repeated = [...rows, { number: "1.2", text: "Write again", done: false, closedBy: "agent" as const }];
+    const words = describeTaskRows(repeated, { number: "1.2", text: "Write", source: "command" }).map((row) => row.word);
+    expect(words.filter((word) => word === "in hand")).toHaveLength(1);
+    expect(describeTaskRows(rows, { number: "1.1", text: "Read", source: "agent" }).map((row) => row.word)).not.toContain("in hand");
   });
 });
 

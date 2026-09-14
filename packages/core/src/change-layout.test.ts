@@ -235,6 +235,42 @@ describe("layoutChanges", () => {
     expect(layout.edges).toEqual([]);
   });
 
+  // a-card-opens-to-its-tasks 2.4: a column stacks by height, and an edge
+  // meets a card at its head.
+  it("moves only the cards below an open card in its column, by exactly its extra height", () => {
+    const changes = report(
+      change("alpha"),
+      change("beta"),
+      change("gamma"),
+      change("next", { blockers: ["alpha"] }),
+      change("next-two", { blockers: ["alpha"] }),
+    );
+    const extra = 4;
+
+    const closed = layoutChanges(changes);
+    const open = layoutChanges(changes, { heights: new Map([["alpha", NODE_HEIGHT + extra]]) });
+
+    const node = (layout: ReturnType<typeof layoutChanges>, name: string) => layout.nodes.find((candidate) => candidate.change.changeName === name);
+    expect(node(open, "alpha")).toMatchObject({ y: 0, height: NODE_HEIGHT + extra });
+    expect(node(open, "beta")?.y).toBe((node(closed, "beta")?.y ?? Number.NaN) + extra);
+    expect(node(open, "gamma")?.y).toBe((node(closed, "gamma")?.y ?? Number.NaN) + extra);
+    expect(node(open, "next")?.y).toBe(node(closed, "next")?.y);
+    expect(node(open, "next-two")?.y).toBe(node(closed, "next-two")?.y);
+    expect(open.height).toBe(closed.height + extra);
+  });
+
+  it("attaches an edge into an open card at the card's head", () => {
+    const layout = layoutChanges(
+      report(change("first"), change("second", { blockers: ["first"] })),
+      { heights: new Map([["first", NODE_HEIGHT + 3], ["second", NODE_HEIGHT + 6]]) },
+    );
+
+    expect(layout.edges[0]?.points).toEqual([
+      { x: NODE_WIDTH, y: NODE_HEIGHT / 2 },
+      { x: NODE_WIDTH + COLUMN_GAP, y: NODE_HEIGHT / 2 },
+    ]);
+  });
+
   it("has nothing to lay out for an empty report", () => {
     expect(layoutChanges(report())).toEqual({
       columns: [],

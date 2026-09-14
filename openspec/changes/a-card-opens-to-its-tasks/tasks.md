@@ -3,91 +3,177 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
 
 ## 1. Sections and task rows in core
 
-- [ ] 1.1 `parseChecklist` in `packages/core/src/task-checklist.ts` records
+- [x] 1.1 `parseChecklist` in `packages/core/src/task-checklist.ts` records
   a `section` on each item: the text of the nearest `## ` heading above the
   item, with any leading number such as `1.` removed. An item before any
   heading gets no section. Existing callers see the new field and nothing
   else changes for them.
-- [ ] 1.2 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
+
+  Done. A `## ` line starts a section, and a `### ` line does not.
+  Two existing tests compared whole items under a `## 1. Verification`
+  heading and now expect that section too. Nothing else changed for a
+  caller: the extension's `changes-tree` test (14) and the cli's
+  `status-command` test (19) pass unchanged.
+- [x] 1.2 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
   gains
   `tasks: { number?: string; text: string; section?: string; done: boolean; closedBy: "agent" | "person" | "named-agent"; agent?: string }[]`.
   `surveyChanges` in `worktree-survey.ts` fills it from the items it
   already reads. `closedBy` is `person` for a Human-only item and
   `named-agent` (with `agent`) for a delegated item.
-- [ ] 1.3 A pure `describeTaskRows(tasks, inHand)` in
+
+  Done, as the exported `SurveyedTask`. The field is optional, as the
+  other task-list facts beside it are: it is absent where a change has no
+  task list, or the list could not be read. A row's text is the item's
+  text without its number.
+- [x] 1.3 A pure `describeTaskRows(tasks, inHand)` in
   `packages/core/src/change-card.ts` returns each row's state word from a
   closed set: `done`, `in hand`, `probably next`, `open`,
   `only a person can close it`, `delegated to <agent>`. At most one row is
   `in hand` or `probably next`, and it is the row the card's task in hand
   or guess names.
-- [ ] 1.4 core tests: `task-checklist.test.ts` for sections (numbered
+
+  Done: `TaskRowWord` is the closed set. The first open row numbered as
+  the card's task says `in hand`, or `probably next` for a guess. A done
+  row says done even where a record still names it. A row in hand says so
+  even when only a person or a named agent may close it, since the run is
+  on it.
+- [x] 1.4 core tests: `task-checklist.test.ts` for sections (numbered
   heading, unnumbered heading, items before any heading);
   `worktree-survey.test.ts` for the rows and `closedBy`;
   `change-card.test.ts` for each row word and the single in-hand row.
 
+  Done:
+  - `task-checklist` passes, 31 tests, with a numbered heading, an
+    unnumbered heading, a third-level heading and an item before any
+    heading;
+  - `worktree-survey` passes, 27, with every row, its section and each
+    `closedBy`;
+  - `change-card` passes, 27. Its `describeTaskRows` tests cover every
+    word, the guess, a repeated number and a done row.
+
 ## 2. Heights and layout
 
-- [ ] 2.1 `PIPELINE_CARD_REM` in `packages/core/src/pipeline-card.ts` gains
+- [x] 2.1 `PIPELINE_CARD_REM` in `packages/core/src/pipeline-card.ts` gains
   `taskRow` and `sectionRow`. A new
   `pipelineOpenCardHeight(taskCount: number, sectionCount: number): number`
   returns `NODE_HEIGHT` plus those rows, in layout units.
-- [ ] 2.2 `layoutChanges(report, options?: { heights?: ReadonlyMap<string, number> })`
+
+  Done: `taskRow` is 1 rem and `sectionRow` 1.25 rem.
+- [x] 2.2 `layoutChanges(report, options?: { heights?: ReadonlyMap<string, number> })`
   in `packages/core/src/change-layout.ts`:
   - gives each node its own `height`, defaulting to `NODE_HEIGHT`;
   - places each column's nodes by the running sum of heights and
     `ROW_GAP`, in the existing name order;
   - computes the picture's height from those nodes.
-- [ ] 2.3 Every edge attaches at `node.y + NODE_HEIGHT / 2` at both ends,
+
+  Done. The options type is exported as `ChangeLayoutOptions`. A height
+  below `NODE_HEIGHT` is taken as `NODE_HEIGHT`.
+- [x] 2.3 Every edge attaches at `node.y + NODE_HEIGHT / 2` at both ends,
   for neighbouring columns and for lane detours alike.
-- [ ] 2.4 core `change-layout.test.ts`:
+
+  Done: both routes take their ends from one `headOf`.
+- [x] 2.4 core `change-layout.test.ts`:
   - with no heights given, the existing grid tests pass unchanged;
   - with one open card, the cards below it in its column move down by
     exactly its extra height, and no card in another column moves;
   - an edge into an open card attaches at the card's head.
-- [ ] 2.5 core `pipeline-card.test.ts`: the open height for 0 tasks is
+
+  Done: the file passes, 19 tests, and the 17 that were there are
+  unchanged.
+- [x] 2.5 core `pipeline-card.test.ts`: the open height for 0 tasks is
   `NODE_HEIGHT`; the open height for 3 tasks under 1 section is
   `NODE_HEIGHT` plus exactly three task rows and one section row.
 
+  Done: the file passes, 9 tests. Core typechecks.
+
 ## 3. The open card
 
-- [ ] 3.1 In `packages/webui/src/components/PipelineView.tsx`, local and
+- [x] 3.1 In `packages/webui/src/components/PipelineView.tsx`, local and
   foreign cards are no longer a single `<button>`. Each card is
   `role="group"`, labelled by its name. The name is a button that opens the
   change where the host allows it. A disclosure button, `Show tasks` or
   `Hide tasks`, carries `aria-expanded` and `aria-controls`. Do not nest one
   button inside another.
-- [ ] 3.2 Opening a card passes `pipelineOpenCardHeight` for it into
+
+  Done. A local card was already a group with its name as a button, since
+  a-change-is-run-from-its-card. Its first line now holds the name and,
+  where the change has tasks, the disclosure button. The button's name is
+  `Show tasks of <change>` or `Hide tasks of <change>`, and
+  `aria-controls` names the list, which stays in the page while it is
+  hidden.
+  - A foreign card stays a `div` whose name is text, since no host may open
+    another directory's change (ADR 0026). Its one control is the same
+    disclosure.
+  - The browser spec's check that a foreign directory offers no button now
+    leaves that control out.
+- [x] 3.2 Opening a card passes `pipelineOpenCardHeight` for it into
   `layoutChanges`. The open card lists its tasks in `tasks.md` order, under
   their sections, as an `<ol>`. Each row shows its number, its state word
   and its text on one line, ends with an ellipsis if too long, and keeps the
   full text in `title`.
-- [ ] 3.3 A thin rail joins each row to the next row inside the card. The
+
+  Done. Each section is a heading line and an `<ol>` of its rows, and rows
+  before any heading form a list with no heading. A row's text leaves out
+  a `**Human-only**` or `**Delegated to <agent>**` lead, which its word
+  already says. The card's closed part keeps the detail budget of a closed
+  card, so opening it changes nothing it says. `ChangeCard` gained `tasks`,
+  the rows with their words, from core.
+- [x] 3.3 A thin rail joins each row to the next row inside the card. The
   rail is `aria-hidden`. The `in hand` or `probably next` row stands out in
   words and in weight, not by colour alone.
-- [ ] 3.4 When the picture has an edge or an open card, a legend above it
+
+  Done: the rail is an `aria-hidden` span on every row but a section's
+  last. The row in hand is bold and says `in hand` or `probably next`.
+- [x] 3.4 When the picture has an edge or an open card, a legend above it
   says three things: a solid line means waits for; a thin line inside a card
   means listed next in tasks.md; a collision is written on the card.
-- [ ] 3.5 `Open all` and `Close all` buttons above the picture.
-- [ ] 3.6 `packages/webui/src/shell-ui.ts` writes the row sizes from
+
+  Done: one legend for the tab, above every picture, when any picture has
+  an edge or any card is open. The first capture had one above each
+  directory's picture, and three identical legends in a row read as noise
+  (5.2).
+- [x] 3.5 `Open all` and `Close all` buttons above the picture.
+
+  Done: Open all opens every card with tasks, here and in every other
+  working directory. Close all is disabled while nothing is open.
+- [x] 3.6 `packages/webui/src/shell-ui.ts` writes the row sizes from
   `PIPELINE_CARD_REM`, and `pipeline-card-style.test.ts` pins `taskRow` and
   `sectionRow`.
-- [ ] 3.7 At phone width, an open card lists its rows in its lane, with no
+
+  Done: the file passes, 5 tests. It also pins the head line and the zoom
+  on the picture's unit.
+- [x] 3.7 At phone width, an open card lists its rows in its lane, with no
   fixed height.
+
+  Done: below 720px the head line, each heading and each row lose their
+  fixed height and wrap. The browser spec's phone-width test opens a card
+  and finds no line of any card cut, and the page still does not scroll
+  sideways.
 
 ## 4. Zoom and memory
 
-- [ ] 4.1 The picture's container sets `--pipeline-zoom`. `--u` and every
+- [x] 4.1 The picture's container sets `--pipeline-zoom`. `--u` and every
   card type size in `shell-ui.ts` multiply by it. `Zoom out`, `Zoom in` and
   `Reset zoom` step through 0.75, 0.9, 1, 1.25 and 1.5, and the current
   factor is stated as a percentage.
-- [ ] 4.2 `PipelineViewProps.viewState?: { read(): PipelineViewMemory | undefined; write(memory: PipelineViewMemory): void }`
+
+  Done. The view's root sets the factor, so every picture on the tab zooms
+  together. Every vertical length core counts on a card is multiplied by
+  it as well as every type size: padding, border, each line and row, and
+  the controls. A zoom therefore keeps a card's whole lines whole.
+- [x] 4.2 `PipelineViewProps.viewState?: { read(): PipelineViewMemory | undefined; write(memory: PipelineViewMemory): void }`
   holds the zoom and the open cards, keyed by directory path and change
   name.
   - `packages/webui/src/standalone-entry.tsx` passes an implementation over
     `localStorage`, with every read and write in `try`/`catch`.
   - `packages/webui/src/pipeline-entry.tsx` passes one over the webview
     API's `getState` and `setState`.
-- [ ] 4.3 webui `PipelineView.test.tsx`:
+
+  Done. The view also guards both calls, and reads a stored value field by
+  field. A zoom that is not one of the steps, or an entry that is not a
+  directory and a name, is ignored. The editor keeps the memory under
+  `pipelineView` beside whatever else its webview state holds.
+- [x] 4.3 webui `PipelineView.test.tsx`:
   - opening a card moves the cards below it by its extra height;
   - the legend appears once a card is open;
   - zoom changes `--pipeline-zoom` and no layout unit;
@@ -95,27 +181,239 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
   - a `viewState` that throws leaves the view working, with default zoom
     and no open card.
 
+  Done: "a card opens to its tasks" has five tests, these and Open all
+  with Close all. The first also checks the rows' words, both headings, a
+  marker left out of a row's text, and the toggle's name and state. The
+  file passes, 47 tests; webui typechecks and lint is clean.
+
 ## 5. Browser suite and pictures
 
-- [ ] 5.1 `e2e/pipeline.spec.ts` opens a card and checks:
+- [x] 5.1 `e2e/pipeline.spec.ts` opens a card and checks:
   - every task row ends inside the card's inner edge (the existing
     `cutLines` check, extended to rows);
   - the cards below the open card moved;
   - the tab passes axe at WCAG AA with the card open;
   - at 150% zoom, no drawn line of any card is cut.
-- [ ] 5.2 Regenerate `docs/images/standalone/pipeline.png` with one card
+
+  Done: "opens a card to its tasks, and cuts no line at any zoom" checks
+  each of these, and also that a card in another column did not move.
+  `cutLinesIn` is now one helper for every test, and counts headings and
+  rows. The file passes, 4 tests, against a client built from this branch.
+- [x] 5.2 Regenerate `docs/images/standalone/pipeline.png` with one card
   open, and look at it.
+
+  Done: the picture is taken by 5.1's test with `pipeline-first` open.
+  Looked at twice.
+  - The first capture showed the same legend above each of three pictures,
+    so the legend became one for the tab (3.4).
+  - The second shows one legend. The open card draws its `Tasks` heading
+    and its row whole, below its Start. The card beneath it in its column
+    moved down, and `pipeline-second`, in the next column, did not.
+  - A row with nothing listed after it draws no rail. The rail is visible
+    only on a card with two rows or more, which this fixture has none of.
 
 ## 6. Verification
 
-- [ ] 6.1 This change validates strictly. `check(validate-change)`
-- [ ] 6.2 Run `npm run verify` unpiped, after the last edit, with
+- [x] 6.1 This change validates strictly. `check(validate-change)`
+
+  Done: `openspec validate a-card-opens-to-its-tasks --strict` reports the
+  change valid.
+- [x] 6.2 Run `npm run verify` unpiped, after the last edit, with
   everything staged. Record the run and the per-package test counts.
-- [ ] 6.3 A pending changeset exists: core and webui minor, extension
+
+  Done on 2026-09-14 at 10:30, at `8cbb612` rebased on main `27694fb`,
+  after 6.5's record was staged. Typecheck, lint and tests all passed:
+  - cli: 155 tests in 15 files;
+  - core: 1434 in 103;
+  - extension: 373 in 28;
+  - server: 99 in 4;
+  - webui: 468 in 51.
+- [x] 6.3 A pending changeset exists: core and webui minor, extension
   patch. `check(changeset-present)`
-- [ ] 6.4 Run the whole browser suite, not a selected spec.
-- [ ] 6.5 **Human-only**: look at `docs/images/standalone/pipeline.png`,
-  and at the tab at 150% zoom, and say whether three things read as
-  intended: an open card, its rail and its in-hand row; the legend; and the
-  columns once a card is open. Automated checks prove lines are whole and
-  accessible, not that the picture is legible at a glance.
+
+  Done: `.changeset/a-card-opens-to-its-tasks.md` names
+  `@openspec-ui/core` and `@openspec-ui/webui` minor, and
+  `openspec-ui-vscode` patch.
+- [x] 6.4 Run the whole browser suite, not a selected spec.
+
+  Done on 2026-09-14: `npm run test:browser` in `packages/server`,
+  unpiped, with the client built from this branch. 20 passed in 5.2
+  minutes. The screenshots the suite takes were regenerated as captures
+  only and not committed. `pipeline.png` with a card open was committed
+  with 5.2.
+- [x] 6.5 **Delegated to claude-cli**: look at
+  `docs/images/standalone/pipeline.png`, and at the tab at 150% zoom, and
+  say whether three things read as intended: an open card, its rail and its
+  in-hand row; the legend; and the columns once a card is open. Automated
+  checks prove lines are whole and accessible, not that the picture is
+  legible at a glance.
+
+  The owner delegated this item to claude-cli on 2026-09-14; it was
+  written for a person.
+
+  Where and how:
+  - Work in this working directory, on the branch
+    `implement-a-card-opens-to-its-tasks`. Do not touch
+    `C:\Prog\OpenSpec-UI` or any other checkout.
+  - Take every step in a foreground command. A command sent to the
+    background ends the run with nothing recorded.
+  - Port 4817 is taken by the server that started this run. Use another
+    port.
+  - The fixture in the picture has one task per card, so it shows no rail
+    and no row in hand. Also look at a scratch repository under the
+    system's temp directory, with a change of several tasks under two
+    headings and a run record that names one of them. Change no tracked
+    file except this task list.
+  - Say what you looked at, and for each of the three things whether it
+    reads as intended and why. Where one does not, say what a reader would
+    misread, and leave the item open.
+
+  Looked at by claude-cli on 2026-09-14. Left open: the rail does not read
+  as intended across a section heading.
+
+  What was looked at:
+  - `docs/images/standalone/pipeline.png` as committed.
+  - The Pipeline tab at 100% and at 150%, against a scratch repository
+    under the temp directory. The client bundle was first rebuilt from
+    this branch with `node scripts/build-client.mjs` in `packages/server`,
+    because `dist/app.js` predated `a861fbd`. The server ran as
+    `tsx src/cli.ts <repo> 4827`, driven by Playwright in a foreground
+    script.
+  - The scratch repository had three changes:
+    - `scratch-open`, with six tasks under `## 1. Sections and rows in
+      core` and `## 2. Pictures`. One is done, one is `**Human-only**` and
+      one is `**Delegated to claude-cli**`. A fresh status record names
+      task 1.2.
+    - `scratch-waits`, blocked by `scratch-open`, with three tasks and a
+      record that names no task.
+    - `scratch-unrelated`, with one task.
+  - Captures: the first card open, then Open all, at 100% and at 150%.
+    At 150% the line check found no cut line (`[]`), and the page raised no
+    errors.
+
+  1. **An open card and its in-hand row read as intended. Its rail does
+     not, across sections.**
+     - The card lists `Sections and rows in core` and `Pictures` as
+       headings, with the rows under them in list order. Each row reads as
+       number, state word in italics, then text: `1.1 done`, `1.2 in hand`,
+       `1.3 open`, `2.1 open`, `2.2 only a person can close it` and
+       `2.3 delegated to claude-cli`. The `**Human-only**` and
+       `**Delegated to …**` leads are left out of the text. A long row ends
+       in an ellipsis, and its `title` keeps the full text.
+     - The row in hand is the only bold row and says `in hand` (weight 700
+       against 400), so it stands out without colour. On `scratch-waits`,
+       the guess reads `1.1 probably next`, also bold.
+     - Within a section, the rail reads as intended: a 1px grey line runs
+       without a break from each row to the next.
+     - The rail stops at a section's last row. Nothing joins 1.3 to 2.1, so
+       the measured rails of 1.3 and 2.3 are both empty. The legend says a
+       thin line means "listed next in tasks.md", and the spec says the
+       line joins each task to the one listed after it. A reader who takes
+       the legend at its word would read "1. Sections and rows in core"
+       and "2. Pictures" as separate tracks, with 2.1 not following 1.3.
+       That is an ordering claim tasks.md does not make.
+     - The rail also looks like the left guide of an indented list (grey
+       rgb(188, 195, 204) on the tinted card). Without the legend it reads
+       as grouping, not as "next". The legend is what makes it mean order,
+       which is one more reason the break at a heading misleads.
+  2. **The legend reads as intended.** One legend for the tab sits above
+     the pictures, below the controls, with a sample of each line: a short
+     grey rule next to "A solid line from one card to another means the
+     second waits for the first.", a short thin bar next to "A thin line
+     inside a card means listed next in tasks.md.", and "A collision is
+     written on the card, and never drawn." The samples match what is
+     drawn. The thin-bar sample is faint at 100%, but the sentence next to
+     it says what it is. The legend keeps its size at 150%, which suits a
+     key rather than a card.
+  3. **The columns read as intended once a card is open.**
+     - At 100%, opening `scratch-open` made it 216px tall instead of 80.
+       `scratch-unrelated`, below it in the same column, moved down from
+       y 634.5 to 771.5, which is the 136px of extra height. The whole
+       picture also shifted by 1px, which is not visible.
+     - `scratch-waits`, in the next column, did not move relative to it.
+     - The edge from `scratch-open` to `scratch-waits` still meets both
+       cards at the head, level with the state line, and stays there after
+       Open all. The empty space beside a tall card's tail does not
+       suggest a relation.
+     - The same holds at 150% (open card 324px, `scratch-unrelated` at
+       y 891.5) and in `pipeline.png`, where `pipeline-unrelated` sits
+       below the open `pipeline-first` and `pipeline-second` stays level
+       with its head.
+
+  The rail was fixed afterwards, to be looked at again. The last row of a
+  section that another section follows now carries a rail across that
+  section's heading, to its first row. The rail is one section row taller
+  than a rail within a section (`openspec-pipeline-task-rail--across`). A
+  heading now has the rows' left gutter, so the rail runs beside its text,
+  not through it. `PipelineView.test.tsx` checks a rail within a section,
+  one across a heading, and none on the last row.
+  `pipeline-card-style.test.ts` pins the height across a heading.
+
+  Looked at again by claude-cli on 2026-09-14, after `8cbb612`. All three
+  read as intended.
+
+  What was looked at:
+  - `docs/images/standalone/pipeline.png` as committed. Its cards have one
+    task each, so it draws no rail, and the fix changes nothing in it. It
+    still shows one legend, the open `pipeline-first` and its row whole,
+    `pipeline-unrelated` moved down, and `pipeline-second` level with the
+    head of `pipeline-first`.
+  - The Pipeline tab at 100% and 150%, against a scratch repository under
+    the temp directory (`look-65-ocP8n7`).
+    - The client bundle was rebuilt first with
+      `node scripts/build-client.mjs` in `packages/server`, because
+      `dist/app.js` (10:15) predated `8cbb612` (10:22).
+    - The server was the branch's `createServer` on a free port (62920),
+      driven by one foreground Playwright script run with `tsx`. It exited
+      with code 0.
+  - The scratch repository:
+    - `scratch-open` has six tasks under `## 1. Sections and rows in core`
+      and `## 2. Pictures`: one done, one `**Human-only**`, one
+      `**Delegated to claude-cli**`. A fresh status record names task 1.2.
+    - `scratch-waits` is blocked by `scratch-open`, with tasks 1.1 and 1.2
+      under `## 1. Waiting` and 2.1 under `## 2. After`.
+    - `scratch-unrelated` has one task.
+  - Captured: `scratch-open` open alone, then Open all, at 100% and at
+    150%. The line check found no cut line at 100% with one card open, at
+    100% with all open, or at 150% (`[]` each time), and the page raised
+    no errors.
+
+  1. **An open card, its rail and its in-hand row read as intended.**
+     - The rows still read as number, word in italics, then text: `1.1
+       done`, `1.2 in hand`, `1.3 open`, `2.1 open`, `2.2 only a person
+       can close it` and `2.3 delegated to claude-cli`.
+     - The leads are left out of the text. Long rows end in an ellipsis,
+       and their `title` keeps the full text.
+     - `1.2 in hand` is the only bold row (weight 700 against 400).
+     - The rail is now one unbroken line from 1.1 to 2.3. It runs through
+       the `Pictures` heading, so 2.1 visibly follows 1.3, and the two
+       sections no longer read as separate tracks.
+       - Measured at 100%, every rail runs from its own row's middle to
+         the next row's middle: 103→119, 119→135, 135→171 across the
+         heading, 171→187 and 187→203. The last row, 2.3, has no rail.
+       - At 150% the joins still meet exactly: 155→179, 179→203, 203→257
+         across the heading, 257→281 and 281→305.
+     - The rail is at x 15 in the heading's gutter. Heading text starts at
+       x 22 at both zooms, so the rail runs beside the heading, not
+       through it.
+     - `scratch-waits` shows the same: a rail from 1.2 across `After` to
+       2.1 (`openspec-pipeline-task-rail--across`), and none on 2.1.
+     - Every rail is `aria-hidden`.
+     - Because the rail now crosses headings, it no longer reads as the
+       left guide of one indented group. Its grey (rgb(188, 195, 204)) is
+       still faint at 100%, and the legend is what says it means order.
+     - No run named a task on `scratch-waits` this time, so no row there
+       said `probably next`. The first look saw that word, and `8cbb612`
+       did not touch it.
+  2. **The legend reads as intended.** There is one legend for the tab
+     (`legendCount` 1), below the controls and above the pictures, with
+     the same three sentences and line samples. It keeps its size at 150%.
+  3. **The columns read as intended once a card is open.**
+     - At 100%, opening `scratch-open` made it 216px tall instead of 80.
+       `scratch-unrelated` moved from y 634.5 to 770.5, exactly the
+       136px of extra height.
+     - `scratch-waits`, in the next column, stayed at y 530.5.
+     - The edge meets both cards at the head, level with the state line,
+       with one card open, with all open, and at 150%.
+     - At 150%, `scratch-open` is 324px tall, and `scratch-waits` stays
+       level with its head.

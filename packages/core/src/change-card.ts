@@ -20,6 +20,7 @@ import {
   describeWaiting,
   type SurveyedDirectory,
   type SurveyedRun,
+  type SurveyedTask,
   type WorktreeSurvey,
 } from "./worktree-survey-facts.js";
 
@@ -79,6 +80,10 @@ export interface ChangeCard {
   progress?: ChangeCardProgress;
   lastRun?: LastRun;
   where: ChangeCardWhere;
+  /** Every row of the change's task list with its word, read from where
+   * the card's facts are. Absent where there is no task list
+   * (a-card-opens-to-its-tasks). */
+  tasks?: TaskRow[];
   /** The state word and colour's inputs, kept so `describeChangeCard` asks
    * `describeChangeState` the same question the Changes list asks. */
   stateFacts: ChangeStateFacts;
@@ -167,8 +172,42 @@ export function describeChangeCards({ report, survey, lastRuns, standings, liveR
       ...(progress !== undefined ? { progress } : {}),
       ...(lastRun !== undefined ? { lastRun } : {}),
       where,
+      ...(surveyed?.tasks !== undefined ? { tasks: describeTaskRows(surveyed.tasks, run?.task) } : {}),
       stateFacts,
     };
+  });
+}
+
+/** What a task row on an open card says it is, from a closed set
+ * (a-card-opens-to-its-tasks). */
+export type TaskRowWord =
+  | "done"
+  | "in hand"
+  | "probably next"
+  | "open"
+  | "only a person can close it"
+  | `delegated to ${string}`;
+
+export interface TaskRow extends SurveyedTask {
+  word: TaskRowWord;
+}
+
+/** The rows an open card lists, in the task list's order, each with its
+ * word. At most one row is `in hand` or `probably next`: the first open row
+ * whose number is the card's task in hand, or its guess. A done row says
+ * done even where a record still names it. */
+export function describeTaskRows(tasks: readonly SurveyedTask[], inHand: ChangeCardTask | undefined): TaskRow[] {
+  let named = false;
+  return tasks.map((task) => {
+    let word: TaskRowWord;
+    if (task.done) word = "done";
+    else if (!named && inHand !== undefined && task.number !== undefined && task.number === inHand.number) {
+      named = true;
+      word = inHand.source === "guess" ? "probably next" : "in hand";
+    } else if (task.closedBy === "person") word = "only a person can close it";
+    else if (task.closedBy === "named-agent" && task.agent !== undefined) word = `delegated to ${task.agent}`;
+    else word = "open";
+    return { ...task, word };
   });
 }
 

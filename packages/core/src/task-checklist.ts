@@ -43,7 +43,16 @@ export interface TaskChecklistItem {
    * cannot make it" are different facts, and only the first is a
    * question for a person. See a-live-check-names-who-performs-it. */
   delegatedTo?: string;
+  /** The nearest `## ` heading above the task, with a leading number such
+   * as `1.` removed. Absent for a task before any heading
+   * (a-card-opens-to-its-tasks). */
+  section?: string;
 }
+
+/** A second-level heading, which is where `tasks.md` starts a section. */
+const SECTION_HEADING_RE = /^##[ \t]+(.*?)[ \t]*$/;
+/** The number a section heading leads with: `1.`, `2.3` or `4`. */
+const SECTION_NUMBER_RE = /^\d+(?:\.\d+)*\.?[ \t]+/;
 
 /** A task is human-only when its first bold (`**...**`) span begins with
  * "Human-only", case-insensitive — see
@@ -240,13 +249,21 @@ export async function tasksFilePath(
 
 function parseChecklist(content: string): TaskChecklistItem[] {
   const items: TaskChecklistItem[] = [];
+  let section: string | undefined;
   content.split(/\r?\n/).forEach((line, lineNumber) => {
+    const heading = SECTION_HEADING_RE.exec(line);
+    if (heading) {
+      const title = (heading[1] ?? "").replace(SECTION_NUMBER_RE, "").trim();
+      section = title.length > 0 ? title : undefined;
+      return;
+    }
     const match = line.match(TASK_CHECKBOX_LINE_RE);
     if (!match) return;
     const text = (match[2] ?? "").trim();
     const done = (match[1] ?? "").toLowerCase() === "x";
     const check = parseTaskCheckDeclaration(text);
     const item: TaskChecklistItem = { lineNumber, text, done };
+    if (section !== undefined) item.section = section;
     if (check) item.check = check;
     if (isHumanOnlyTask(text)) item.humanOnly = true;
     else {

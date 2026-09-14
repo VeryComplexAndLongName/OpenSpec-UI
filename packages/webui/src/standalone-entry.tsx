@@ -14,7 +14,10 @@ import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
-import { PipelineView, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+
+/** Where the standalone shell keeps what a viewer left the Pipeline as. */
+const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
 import { loadChangeReadiness } from "./change-readiness-client.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
 import { loadLiveRuns } from "./live-runs-client.js";
@@ -395,6 +398,26 @@ function StandaloneApp() {
   const pipelineStart = useCallback((changeName: string) => {
     void handleRunWithHarness(changeName, "pipeline");
   }, [cwd]);
+  // The zoom and the open cards, for this browser. Storage a browser
+  // refuses leaves the default zoom and every card closed
+  // (a-card-opens-to-its-tasks).
+  const pipelineViewState = useMemo(() => ({
+    read: (): PipelineViewMemory | undefined => {
+      try {
+        const saved = window.localStorage.getItem(PIPELINE_VIEW_STORAGE_KEY);
+        return saved === null ? undefined : JSON.parse(saved) as PipelineViewMemory;
+      } catch {
+        return undefined;
+      }
+    },
+    write: (memory: PipelineViewMemory) => {
+      try {
+        window.localStorage.setItem(PIPELINE_VIEW_STORAGE_KEY, JSON.stringify(memory));
+      } catch {
+        // Not kept; the picture is drawn all the same.
+      }
+    },
+  }), []);
   // Fetches refs now and says how fresh they are; the Pipeline then reads
   // again (a-change-says-where-it-stands).
   const pipelineRefresh = useCallback(
@@ -2135,6 +2158,7 @@ function StandaloneApp() {
                 onRunControl={pipelineRunControl}
                 onStart={pipelineStart}
                 copyText={pipelineCopyText}
+                viewState={pipelineViewState}
               />
               {runOpenedFrom === "pipeline" && runHarnessMessage
                 ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>

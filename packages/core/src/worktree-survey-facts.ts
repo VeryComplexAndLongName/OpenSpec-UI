@@ -13,6 +13,23 @@ import { describeSignature, type EnrolledPerson, type RecordSignature } from "./
 import type { TaskInHand } from "./task-marker.js";
 import type { WorkspaceLeaseConflict } from "./workspace-lease.js";
 
+/** One item of a change's task list, as an open card lists it
+ * (a-card-opens-to-its-tasks). */
+export interface SurveyedTask {
+  /** The number the item leads with, where it has one. */
+  number?: string;
+  /** The item's text, without its number. */
+  text: string;
+  /** The `## ` heading it is listed under, without the heading's number. */
+  section?: string;
+  done: boolean;
+  /** Who may close it: the run's agent, only a person, or the named agent
+   * it is delegated to. */
+  closedBy: "agent" | "person" | "named-agent";
+  /** The agent a `named-agent` item is delegated to. */
+  agent?: string;
+}
+
 /** One change in one working directory's own queue.
  *
  * A change is the pair (directory, name), never the name alone: two
@@ -46,6 +63,9 @@ export interface SurveyedChange {
   /** When the task list was last modified, as an ISO timestamp. A failure
    * older than this no longer decides a card's state. */
   tasksModifiedAt?: string;
+  /** Every item of the task list, in its order. Absent where there is no
+   * task list, or it could not be read. */
+  tasks?: SurveyedTask[];
 }
 
 /** What one run says it is doing, as its own status record says it.
