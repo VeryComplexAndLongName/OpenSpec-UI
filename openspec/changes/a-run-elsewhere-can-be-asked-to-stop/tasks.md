@@ -311,13 +311,14 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 - [ ] 4.2 Run `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and each package's test count.
 
-  Run on 2026-09-14 at 11:27, unpiped, with everything staged. Typecheck
-  and lint passed. The tests:
+  Run on 2026-09-14 at 11:52, unpiped, with everything committed, after
+  rebasing onto main at `3cd6e50` (with `a-card-opens-to-its-tasks`).
+  Typecheck and lint passed. The tests:
   - cli: 161 in 16 files, all passed;
-  - core: 1447 in 105 files, with 1446 passed and 1 failed;
+  - core: 1456 in 105 files, with 1455 passed and 1 failed;
   - extension: 375 in 28 files, all passed;
   - server: 100 in 4 files, all passed;
-  - webui: 464 in 51 files, all passed.
+  - webui: 471 in 51 files, all passed.
 
   The core failure is not this change's. In `git-refs.test.ts`, "reads a
   directory and a file from a branch that is not checked out", Git's own
@@ -332,7 +333,12 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   Done: `.changeset/a-run-elsewhere-can-be-asked-to-stop.md` names
   `@openspec-ui/core`, `@openspec-ui/cli`, `@openspec-ui/server`,
   `openspec-ui-vscode` (the extension) and `@openspec-ui/webui`, each minor.
-- [ ] 4.4 Run the whole browser suite, not a selected spec.
+- [x] 4.4 Run the whole browser suite, not a selected spec.
+
+  Done: `npm run test:browser -w @openspec-ui/server` on 2026-09-14 at
+  11:55, after rebasing onto main at `3cd6e50`. 20 of 20 passed in 6.8
+  minutes, including the four `pipeline.spec.ts` specs. The screenshots it
+  drew again were discarded.
 - [ ] 4.5 **Delegated to claude-cli**: stop a run in another worktree through
   the channel.
 
