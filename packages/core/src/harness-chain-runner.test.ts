@@ -2048,6 +2048,25 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
     expect(endings[0]).not.toHaveProperty("reason");
   });
 
+  // a-run-elsewhere-can-be-asked-to-stop 2.4: a stop acted on from a signed
+  // request carries the request's message id on the chain's ending entry.
+  it("carries a request's message id on the ending entry of a chain it stopped", async () => {
+    const run = await applyChain();
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.1\n" });
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stdout")).toBe(true), "the first marker");
+
+    expect(run.chain.requestStop(run.command.runId, "live check", "Ada", "message-1")).toBe(true);
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the stop to be announced");
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.2\n" });
+    await run.pump;
+
+    const stopAt = run.events.findIndex((event) => event.kind === "stopRequested");
+    expect(run.events[stopAt]).toMatchObject({ reason: "live check", by: "Ada", outcome: "asked" });
+    expect(run.auditLog.entries.filter((entry) => entry.agent === "chain")).toEqual([
+      expect.objectContaining({ outcome: "cancelled", stopRequest: { reason: "live check", by: "Ada", messageId: "message-1" } }),
+    ]);
+  });
+
   it("ends a stage when a task is ticked, read every two seconds while the stop is pending", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     try {

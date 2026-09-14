@@ -1,8 +1,9 @@
 import { generateKeyPairSync, sign } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { askRunToStop, messageDirectoryBeside, STOP_MESSAGE_STALE_AFTER_MS } from "./agent-messages.js";
 import { agentRosterDirectory, confirmEnrolment } from "./agent-roster.js";
 import {
   AGENT_STATUS_STALE_AFTER_MS,
@@ -863,6 +864,102 @@ describe("readAgentStatuses", () => {
     expect(shape).not.toContain("hung");
     expect(shape).not.toContain("unhealthy");
     expect(shape).not.toContain("healthy");
+  });
+});
+
+describe("a request to stop this run (a-run-elsewhere-can-be-asked-to-stop 2.6)", () => {
+  function memoryKey(): MachineKey {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    return {
+      keyId: keyIdOf(publicKey),
+      publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
+      publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
+      sign: (bytes) => new Uint8Array(sign(null, bytes, privateKey)),
+    };
+  }
+
+  /** A run's writer, beside a roster where the key that asks is enrolled as
+   * Ada. */
+  async function listeningWriter(handlers: {
+    onStopRequested: (request: { reason: string; by: string; messageId: string }) => void;
+    onStopRequestRefused?: (refusal: { messageId: string; why: string; reason: string }) => void;
+  }) {
+    const root = await temporaryRoot();
+    const repository = path.join(root, "repo");
+    const worktreeRoot = path.join(root, "wt-root");
+    const directory = agentStatusDirectory(worktreeRoot, repository);
+    const asker = memoryKey();
+    await confirmEnrolment({
+      rosterDirectory: agentRosterDirectory(worktreeRoot, repository),
+      request: { keyId: asker.keyId, publicKey: asker.publicKey, label: "ada", machine: "ada-laptop", gitAuthor: "ada@example.com" },
+      label: "Ada",
+    });
+    const writer = new AgentStatusWriter({
+      directory,
+      workingDirectory: path.join(worktreeRoot, "repo", "alpha"),
+      changeName: "alpha",
+      onStopRequested: handlers.onStopRequested,
+      ...(handlers.onStopRequestRefused !== undefined ? { onStopRequestRefused: handlers.onStopRequestRefused } : {}),
+    });
+    await writer.start("applying");
+    return { directory, messages: messageDirectoryBeside(directory), asker, writer };
+  }
+
+  it("acts on a verified request exactly once across two renewals, naming the enrolled person", async () => {
+    const onStopRequested = vi.fn();
+    const { messages, asker, writer } = await listeningWriter({ onStopRequested });
+    const messageId = await askRunToStop({ directory: messages, to: writer.instanceId, reason: "live check", key: asker, machine: "ada-laptop" });
+
+    await writer.checkStopRequests();
+    await writer.checkStopRequests();
+
+    expect(onStopRequested).toHaveBeenCalledTimes(1);
+    expect(onStopRequested).toHaveBeenCalledWith({ reason: "live check", by: "Ada", messageId });
+    await writer.stop();
+  });
+
+  it("never acts on an unverified request, and says so in the activity once", async () => {
+    const onStopRequested = vi.fn();
+    const onStopRequestRefused = vi.fn();
+    const { directory, messages, writer } = await listeningWriter({ onStopRequested, onStopRequestRefused });
+    const messageId = await askRunToStop({ directory: messages, to: writer.instanceId, reason: "live check", key: memoryKey(), machine: "elsewhere" });
+
+    await writer.checkStopRequests();
+    const refused = await readAgentStatuses(directory);
+    await writer.reportActivity("applying");
+    await writer.checkStopRequests();
+    const later = await readAgentStatuses(directory);
+
+    expect(onStopRequested).not.toHaveBeenCalled();
+    expect(onStopRequestRefused).toHaveBeenCalledTimes(1);
+    expect(onStopRequestRefused).toHaveBeenCalledWith({ messageId, why: "unverified", reason: "live check" });
+    expect(refused.reports[0]?.activity).toBe("a request to stop arrived, not verified; not acted on");
+    expect(later.reports[0]?.activity).toBe("applying");
+    await writer.stop();
+  });
+
+  it("reads no requests once it has stopped", async () => {
+    const onStopRequested = vi.fn();
+    const { messages, asker, writer } = await listeningWriter({ onStopRequested });
+    await askRunToStop({ directory: messages, to: writer.instanceId, reason: "live check", key: asker, machine: "ada-laptop" });
+
+    await writer.stop();
+    await writer.checkStopRequests();
+
+    expect(onStopRequested).not.toHaveBeenCalled();
+  });
+
+  it("sweeps a request whose window is long over, and keeps one still within it", async () => {
+    const { directory, messages, asker, writer } = await listeningWriter({ onStopRequested: vi.fn() });
+    const old = await askRunToStop({ directory: messages, to: "gone-run", reason: "long ago", key: asker, machine: "ada-laptop" });
+    const fresh = await askRunToStop({ directory: messages, to: "gone-run", reason: "just now", key: asker, machine: "ada-laptop" });
+    const longAgo = new Date(Date.now() - STOP_MESSAGE_STALE_AFTER_MS - AGENT_STATUS_STALE_AFTER_MS - 60_000);
+    await utimes(path.join(messages, `${old}.json`), longAgo, longAgo);
+
+    await sweepAgentStatuses(directory);
+
+    expect((await readdir(messages)).sort()).toEqual([`${fresh}.json`]);
+    await writer.stop();
   });
 });
 

@@ -149,7 +149,7 @@ interface ChainState {
   currentCommand?: Command;
   /** A stop a person asked for (a-change-is-run-from-its-card): the reason,
    * who asked where known, and whether `stopRequested` has been yielded. */
-  stopRequest?: { reason: string; by?: string; announced: boolean };
+  stopRequest?: { reason: string; by?: string; messageId?: string; announced: boolean };
   /** Wakes the running stage's stop boundary, so a stop is acted on while
    * the stage says nothing. */
   stopWake?: () => void;
@@ -561,7 +561,12 @@ export class HarnessChainRunner {
     stopRequest: ChainState["stopRequest"],
   ): void {
     const stopped = ending.kind === "cancelled" && stopRequest !== undefined
-      ? { reason: stopRequest.reason, ...(stopRequest.by !== undefined ? { by: stopRequest.by } : {}) }
+      ? {
+        reason: stopRequest.reason,
+        ...(stopRequest.by !== undefined ? { by: stopRequest.by } : {}),
+        // The request a run elsewhere acted on (a-run-elsewhere-can-be-asked-to-stop).
+        ...(stopRequest.messageId !== undefined ? { messageId: stopRequest.messageId } : {}),
+      }
       : undefined;
     const reason = ending.kind === "completed" || stopped !== undefined ? undefined : ending.reason;
     this.deps.auditLog?.record({
@@ -691,12 +696,21 @@ export class HarnessChainRunner {
    * stream, then ends `cancelled` with no reason. `by` is the host's
    * configured git identity where the caller gives none. A second request
    * while one is pending changes nothing. Returns `false` for a run this
-   * runner does not have. */
-  requestStop(runId: string, reason: string, by?: string): boolean {
+   * runner does not have.
+   *
+   * `messageId` is the signed request's, where the stop was asked through
+   * the channel from another worktree; the chain's ending entry carries it
+   * (a-run-elsewhere-can-be-asked-to-stop). */
+  requestStop(runId: string, reason: string, by?: string, messageId?: string): boolean {
     const state = this.active.get(runId);
     if (!state) return false;
     if (state.stopRequest !== undefined) return true;
-    state.stopRequest = { reason, ...(by !== undefined ? { by } : {}), announced: false };
+    state.stopRequest = {
+      reason,
+      ...(by !== undefined ? { by } : {}),
+      ...(messageId !== undefined ? { messageId } : {}),
+      announced: false,
+    };
     if (state.pendingCheckpoint) {
       const { resolve } = state.pendingCheckpoint;
       state.pendingCheckpoint = undefined;

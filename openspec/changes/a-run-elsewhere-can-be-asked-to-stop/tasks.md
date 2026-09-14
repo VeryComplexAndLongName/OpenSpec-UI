@@ -75,17 +75,38 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 
 ## 2. The run reads its requests
 
-- [ ] 2.1 `withAgentStatus` in `packages/core/src/agent-status.ts` gains a
+- [x] 2.1 `withAgentStatus` in `packages/core/src/agent-status.ts` gains a
   seam, `onStopRequested?: (request: { reason: string; by: string; messageId: string }) => void`.
   At each renewal, the writer calls `readStopRequests` for its instance and
   adds every returned `messageId` to its seen set. For each `act` message,
   it calls `onStopRequested` with the reason, the enrolled person's label,
   and the message id.
-- [ ] 2.2 For each `refused` message, the writer sets the activity, once per
+
+  Done. The seam reaches `AgentStatusWriter` through `startAgentStatusWriter`.
+  - The writer's new `checkStopRequests()` is called on each renewal before
+    the record is written, so the renewal carries what a request made the
+    run say.
+  - A writer given no `onStopRequested` reads no requests: a host that
+    cannot stop its run is not asked to.
+  - The roster and the message directory are read from beside the status
+    directory, with test seams for both.
+  - `AgentStatusStopRequestMessage` is the exported shape of a request.
+- [x] 2.2 For each `refused` message, the writer sets the activity, once per
   message, to `a request to stop arrived, <why>; not acted on`. It also
   writes an audit entry with the run's `runId`, the message id and the
   reason for refusal.
-- [ ] 2.3 Each host passes an `onStopRequested` that calls `requestStop` on
+
+  Done.
+  - `<why>` is `not verified`, `stale` or `already read`, and the new
+    activity is written at once.
+  - The writer cannot reach an audit log, so it tells the host through a
+    second seam, `onStopRequestRefused`. The host records an entry with
+    outcome `message`, which no run counter reads. The entry carries the
+    run's `runId`, its `changeDir`, and
+    `stopRequestRefused { messageId, why }`, a new `AuditEntry` field.
+  - The request's own reason is not copied into that entry: it was not
+    verified to be anybody's words.
+- [x] 2.3 Each host passes an `onStopRequested` that calls `requestStop` on
   the run it holds, with the request's reason and `by`. Record each junction
   as checked:
   - `packages/server/src/websocket.ts`;
@@ -93,17 +114,69 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   - `packages/cli/src/run-change.ts`;
   - `packages/extension/src/run-controller.ts`;
   - the chain start in `packages/extension/src/webview/ai-panel.ts`.
-- [ ] 2.4 After a stop acted on from a request, the chain's ending entry
+
+  Done, with one place in core that every host calls:
+  `packages/core/src/stop-request-handlers.ts`.
+  - `chainStopRequestHandlers` calls `requestStop` with the reason, the
+    enrolled label as `by`, and the message id.
+  - `agentStopRequestHandlers` sends a single-stage run's own runner a
+    `stop` command with the reason. A `stop` command carries no `by`, so
+    that runner reads its host's git identity, as a card's Stop already
+    does. No command changes, as the design says.
+  - Both record a refusal as in 2.2.
+
+  Each junction, checked in the code, with typecheck passing:
+  - **Server, `websocket.ts`.** A chain in `streamChainEvents`, a mutating
+    single stage in `streamAgentEvents`, and any other single stage in
+    `streamRun`. `server.ts` now passes its audit log to
+    `handleSocketMessage`.
+  - **The delegated item route.** It runs through `runDelegatedItem` in
+    core, which now passes the agent handlers. The extension's inbox run
+    goes through the same function.
+  - **CLI, `run-change.ts`.** The chain handlers, with the run's audit log.
+    `RunChangeDeps.createChainRunner` now requires `requestStop`, and the
+    test's scripted chain has one.
+  - **Extension, `RunController`.** It takes a `stopHandlers` factory.
+    `extension.ts` passes one that picks the chain handlers for a `chain`
+    command and the agent handlers otherwise.
+  - **The chain start in `ai-panel.ts`.** It starts through
+    `runController.run(chainRunner.asAgentRunner(), command)`, so its
+    command's kind is `chain` and it gets the chain handlers.
+
+  `stop-request-handlers.test.ts` has 4 tests: a chain's stop with `by`
+  and message id, a chain's refusal entry without the unverified reason, a
+  single stage's `stop` command, and its refusal under the run's agent.
+  Core, cli, server and extension typecheck, and lint is clean. The
+  touched suites pass: server 86, the extension's `run-controller` 8, the
+  cli's `run-change` 12.
+- [x] 2.4 After a stop acted on from a request, the chain's ending entry
   carries `stopRequest { reason, by }` and the request's `messageId`.
-- [ ] 2.5 `sweepAgentStatuses` also removes message files whose modification
+
+  Done. `requestStop` takes an optional `messageId`, the chain keeps it
+  with the stop, and `recordEnding` writes it into `stopRequest`.
+  `AuditEntry.stopRequest` gained the field. `harness-chain-runner.test.ts`
+  has "carries a request's message id on the ending entry of a chain it
+  stopped". The file passes, 103 tests.
+- [x] 2.5 `sweepAgentStatuses` also removes message files whose modification
   time is older than `STOP_MESSAGE_STALE_AFTER_MS` plus the staleness
   window. Before removing a file, it checks the file's age again, as it does
   for records.
-- [ ] 2.6 core `agent-status.test.ts`:
+
+  Done. A file is removed only when its modification time is past the
+  window, and still past it when read again just before removal. Whatever
+  the sweep cannot read or remove is left. The sweep's result keeps its
+  shape, so no caller changed.
+- [x] 2.6 core `agent-status.test.ts`:
   - a verified request calls `onStopRequested` exactly once across two
     renewals;
   - an unverified request never calls it, and sets the activity line once;
   - a writer that has been stopped reads no requests.
+
+  Done: "a request to stop this run" has these three tests, and a fourth in
+  which a sweep removes a request past its window and keeps a fresh one.
+  The unverified test also checks that `onStopRequestRefused` is called
+  once, and that a later activity replaces the line. The file passes, 47
+  tests.
 
 ## 3. Asking
 

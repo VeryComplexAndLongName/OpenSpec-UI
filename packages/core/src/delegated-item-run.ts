@@ -19,6 +19,7 @@ import { readAcpStreamedText } from "./acp-streamed-text.js";
 import type { ItemReply, MessageOutcome } from "./audit-message.js";
 import { resolveDelegatedItems, type DelegatedItem } from "./delegated-items.js";
 import { withAgentStatus } from "./agent-status.js";
+import { agentStopRequestHandlers } from "./stop-request-handlers.js";
 import { readGitAuthor } from "./git.js";
 import type { AuditLog } from "./security.js";
 import { normalizeStepAgent } from "./harness-step-agent.js";
@@ -372,6 +373,9 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
   // (a-delegated-run-says-what-happened).
   const events = withAgentStatus(runner.run(command), command, {
     ...(request.resolveStatusDirectory ? { resolveDirectory: request.resolveStatusDirectory } : {}),
+    // A request to stop this run, from another worktree, is a stop command
+    // to the runner that holds it (a-run-elsewhere-can-be-asked-to-stop).
+    ...agentStopRequestHandlers(runner, command, request.auditLog),
   });
   for await (const event of events) {
     request.onEvent?.(event);

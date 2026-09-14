@@ -3,7 +3,7 @@
 // Command Palette commands and the AI panel (Webview), so both paths see
 // the same event stream and can cancel the same run.
 
-import type { AgentRunner, Command, Event, LiveRuns } from "@openspec-ui/core";
+import type { AgentRunner, AgentStatusRunOptions, Command, Event, LiveRuns } from "@openspec-ui/core";
 import { listChanges, showChange, statusChange, validateChange, withAgentStatus } from "@openspec-ui/core";
 
 export type EventListener = (event: Event) => void;
@@ -17,7 +17,16 @@ export class RunController {
   /** `liveRuns` holds every run started here while it runs, so a Pipeline
    * card offers controls only for runs this host holds
    * (a-change-is-run-from-its-card). One for the extension host. */
-  constructor(private readonly liveRuns?: LiveRuns) {}
+  constructor(
+    private readonly liveRuns?: LiveRuns,
+    /** How a run started here stops when it reads a request to stop it from
+     * another worktree, and how a request it refuses is recorded
+     * (a-run-elsewhere-can-be-asked-to-stop). Absent, runs read no requests. */
+    private readonly stopHandlers?: (
+      runner: AgentRunner,
+      command: Command,
+    ) => Pick<AgentStatusRunOptions, "onStopRequested" | "onStopRequestRefused">,
+  ) {}
 
   onEvent(listener: EventListener): Unsubscribe {
     this.listeners.add(listener);
@@ -146,7 +155,7 @@ export class RunController {
       // `chainRunner.asAgentRunner()` — keeps a status record, the same
       // way the CLI and the standalone server do.
       const events = this.liveRuns ? this.liveRuns.track(command, runner.run(command)) : runner.run(command);
-      for await (const event of withAgentStatus(events, command)) {
+      for await (const event of withAgentStatus(events, command, this.stopHandlers?.(runner, command) ?? {})) {
         this.emit(event);
       }
     } finally {

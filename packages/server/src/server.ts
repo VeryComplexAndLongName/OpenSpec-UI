@@ -354,7 +354,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       socket.close();
     });
     socket.on("message", (raw) => {
-      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns);
+      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns, options.auditLog);
     });
   });
 
