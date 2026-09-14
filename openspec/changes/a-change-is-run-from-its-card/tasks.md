@@ -46,7 +46,7 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 2. The registry
 
-- [ ] 2.1 A new `packages/core/src/live-runs.ts` exports `LiveRuns`, which
+- [x] 2.1 A new `packages/core/src/live-runs.ts` exports `LiveRuns`, which
   does no IO:
   - `track(command: Command, events: AsyncIterable<Event>): AsyncIterable<Event>`
     yields every event unchanged. From those events it holds
@@ -54,7 +54,19 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
     terminal event removes the run.
   - `get(runId)`
   - `list()`
-- [ ] 2.2 core `live-runs.test.ts` follows one run through its events:
+
+  Done: `LiveRun` holds `changeName` (the change directory's name, or
+  `null`), `waiting: boolean` and `stopRequested` (`null` until asked).
+  - Only commands that start work are tracked: `plan`, `implement`,
+    `review`, `verify` and `chain`. A `cancel`, `confirmCheckpoint`,
+    `resolvePermission` or `stop` passes through untracked.
+  - A chain forwards a stage's `failed` or `cancelled` that another
+    attempt follows. A terminal event therefore removes the run, a later
+    event holds it again with its first start time, and the end of its
+    events releases it for good.
+  - `get` and `list` return copies.
+  - `browser.ts` exports the `LiveRun` type; `index.ts` exports the class.
+- [x] 2.2 core `live-runs.test.ts` follows one run through its events:
   - it appears when it starts;
   - it is waiting after `checkpoint`, and no longer waiting after the next
     `stageStarted`;
@@ -62,6 +74,18 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   - it is gone after `cancelled`.
 
   Events pass through unchanged and in order.
+
+  Done: the first test walks exactly that sequence, and checks every
+  event passed through unchanged and in order. Six more tests cover:
+  - a stage that failed and was attempted again, held again with its
+    first start time;
+  - a stop that found nothing to stop, which holds no stop;
+  - a wait on a permission, which a usage report does not clear;
+  - a control command, which is not tracked;
+  - an abandoned iteration, which releases the run;
+  - `list()`, which returns copies.
+
+  The file passes, 7 tests, and core typechecks.
 - [ ] 2.3 Server:
   - `packages/server/src/websocket.ts` tracks every chain and agent run it
     starts through a single `LiveRuns` for the server process.
