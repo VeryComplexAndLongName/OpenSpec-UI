@@ -34,7 +34,7 @@ export interface ChangeStandingOptions {
   /** The remote whose refs are read. Defaults to `origin`. */
   remote?: string;
   /** Test seams. */
-  git?: Pick<GitWrapper, "listTreeNames" | "showFile" | "listRefs" | "fetch" | "lastFetchedAt" | "mergeBase" | "remoteUrl">;
+  git?: Pick<GitWrapper, "listTreeNames" | "showFile" | "listRefs" | "resolveCommit" | "fetch" | "lastFetchedAt" | "mergeBase" | "remoteUrl">;
   listPullRequests?: (cwd: string) => Promise<PullRequestsByBranch>;
   survey?: (workspaceRoot: string) => Promise<WorktreeSurvey>;
   now?: () => Date;
@@ -54,6 +54,20 @@ const lastFetchAttempt = new Map<string, number>();
 /** The last pull request reading of each repository, read again only when
  * this reading fetched or none is held. */
 const pullRequestReadings = new Map<string, PullRequestsByBranch>();
+
+/** What a commit holds never changes, so a tree, a file or a merge base read
+ * from commits is kept by their ids. A reading after the first then runs git
+ * only to list refs and name HEAD, until a ref moves (task 9.1). */
+const readFromCommits = new Map<string, unknown>();
+const READ_FROM_COMMITS_LIMIT = 5_000;
+
+async function fromCommits<T>(key: string, read: () => Promise<T>): Promise<T> {
+  if (readFromCommits.has(key)) return readFromCommits.get(key) as T;
+  const value = await read();
+  if (readFromCommits.size >= READ_FROM_COMMITS_LIMIT) readFromCommits.clear();
+  readFromCommits.set(key, value);
+  return value;
+}
 
 function copyOf(directory: SurveyedDirectory, changeName: string): StandingCopy | undefined {
   if (!directory.readable) return undefined;
@@ -124,28 +138,37 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
     if (directory.readable) for (const change of directory.changes) names.add(change.changeName);
   }
 
-  let refs = new Set<string>();
+  let commits = new Map<string, string>();
   let mainRef: string | undefined;
+  let mainCommit: string | undefined;
   let activeOnMain = new Set<string>();
   const archivedOnMain = new Map<string, string>();
   let atMergeBase = new Set<string>();
   try {
-    refs = new Set(await git.listRefs(["refs/heads", `refs/remotes/${remote}`]));
-    mainRef = refs.has(`refs/remotes/${remote}/main`) ? `${remote}/main` : refs.has("refs/heads/main") ? "main" : undefined;
-    if (mainRef !== undefined) {
+    commits = new Map((await git.listRefs(["refs/heads", `refs/remotes/${remote}`])).map((ref) => [ref.name, ref.commit]));
+    const mainName = commits.has(`refs/remotes/${remote}/main`) ? `refs/remotes/${remote}/main` : commits.has("refs/heads/main") ? "refs/heads/main" : undefined;
+    if (mainName !== undefined) {
+      mainRef = mainName === "refs/heads/main" ? "main" : `${remote}/main`;
+      mainCommit = commits.get(mainName) as string;
       sources.mainRef = mainRef;
-      activeOnMain = new Set((await git.listTreeNames(mainRef, CHANGES)).filter((name) => name !== "archive"));
-      for (const archived of await git.listTreeNames(mainRef, `${CHANGES}/archive`)) {
+      const main = mainCommit;
+      activeOnMain = new Set((await fromCommits(`${main}:${CHANGES}`, () => git.listTreeNames(main, CHANGES))).filter((name) => name !== "archive"));
+      for (const archived of await fromCommits(`${main}:${CHANGES}/archive`, () => git.listTreeNames(main, `${CHANGES}/archive`))) {
         const match = ARCHIVE_NAME.exec(archived);
         if (match?.[1] !== undefined) archivedOnMain.set(match[1], archived);
       }
-      const base = await git.mergeBase(mainRef, "HEAD");
-      if (base !== undefined) atMergeBase = new Set(await git.listTreeNames(base, CHANGES));
+      const head = await git.resolveCommit("HEAD");
+      const base = head === undefined ? undefined : await fromCommits(`base:${main}:${head}`, () => git.mergeBase(main, head));
+      if (base !== undefined) atMergeBase = new Set(await fromCommits(`${base}:${CHANGES}`, () => git.listTreeNames(base, CHANGES)));
     }
   } catch (error) {
     sources.refsUnreadable = message(error);
     mainRef = undefined;
+    mainCommit = undefined;
   }
+
+  const tasksAt = (commit: string, changeName: string) =>
+    fromCommits(`${commit}:${CHANGES}/${changeName}/tasks.md`, () => git.showFile(commit, `${CHANGES}/${changeName}/tasks.md`));
 
   const standings: ChangeStanding[] = [];
   for (const changeName of [...names].sort()) {
@@ -156,9 +179,9 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
       .filter((copy): copy is StandingCopy => copy !== undefined);
 
     let main: StandingOnMain | undefined;
-    if (mainRef !== undefined && sources.refsUnreadable === undefined) {
+    if (mainCommit !== undefined && sources.refsUnreadable === undefined) {
       if (activeOnMain.has(changeName)) {
-        const text = await git.showFile(mainRef, `${CHANGES}/${changeName}/tasks.md`);
+        const text = await tasksAt(mainCommit, changeName);
         main = { kind: "active", ...(text !== undefined ? { counts: countTaskCheckboxes(text) } : {}) };
       } else if (archivedOnMain.has(changeName)) {
         main = { kind: "archived", archiveName: archivedOnMain.get(changeName) as string };
@@ -169,15 +192,16 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
       }
     }
 
-    const local = refs.has(`refs/heads/${changeName}`);
-    const remoteBranch = refs.has(`refs/remotes/${remote}/${changeName}`);
+    const localCommit = commits.get(`refs/heads/${changeName}`);
+    const remoteCommit = commits.get(`refs/remotes/${remote}/${changeName}`);
     let branch: ChangeStanding["branch"];
-    if (local || remoteBranch) {
-      const text = await git.showFile(remoteBranch ? `${remote}/${changeName}` : changeName, `${CHANGES}/${changeName}/tasks.md`);
+    const branchCommit = remoteCommit ?? localCommit;
+    if (branchCommit !== undefined) {
+      const text = await tasksAt(branchCommit, changeName);
       branch = {
         name: changeName,
-        local,
-        remote: remoteBranch,
+        local: localCommit !== undefined,
+        remote: remoteCommit !== undefined,
         ...(text !== undefined ? { counts: countTaskCheckboxes(text) } : {}),
       };
     }

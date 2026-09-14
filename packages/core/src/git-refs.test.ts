@@ -90,9 +90,13 @@ describe("GitWrapper — reading refs (a-change-says-where-it-stands 1.2)", () =
     const fetched = await wrapper.lastFetchedAt();
 
     expect(fetched).toBeInstanceOf(Date);
-    expect(await wrapper.listRefs(["refs/heads", "refs/remotes/origin"])).toEqual(
+    const mainCommit = await git(work, ["rev-parse", "main"]);
+    expect((await wrapper.listRefs(["refs/heads", "refs/remotes/origin"])).map((ref) => ref.name)).toEqual(
       expect.arrayContaining(["refs/heads/main", "refs/heads/beta", "refs/remotes/origin/main", "refs/remotes/origin/beta"]),
     );
+    expect(await wrapper.listRefs(["refs/heads/main"])).toEqual([{ name: "refs/heads/main", commit: mainCommit }]);
+    expect(await wrapper.resolveCommit("HEAD")).toBe(mainCommit);
+    expect(await wrapper.resolveCommit("no-such-branch")).toBeUndefined();
     expect(await wrapper.mergeBase("main", "beta")).toBe(await git(work, ["rev-parse", "main"]));
   });
 });

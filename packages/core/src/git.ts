@@ -135,8 +135,11 @@ export interface GitWrapper {
   showFile(ref: string, pathInRepo: string): Promise<string | undefined>;
   /** Whether `ref` names a commit. */
   refExists(ref: string): Promise<boolean>;
-  /** Every ref under the given prefixes, by full name, in one call. */
-  listRefs(prefixes: readonly string[]): Promise<string[]>;
+  /** Every ref under the given prefixes, by full name with the commit it
+   * points at, in one call. */
+  listRefs(prefixes: readonly string[]): Promise<Array<{ name: string; commit: string }>>;
+  /** The commit `ref` names, or `undefined` where it names none. */
+  resolveCommit(ref: string): Promise<string | undefined>;
   /** Fetches `remote`. Touches refs only, never a working tree. */
   fetch(remote: string): Promise<void>;
   /** When refs were last fetched: the modification time of `FETCH_HEAD` in
@@ -281,9 +284,24 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         return false;
       }
     },
-    async listRefs(prefixes: readonly string[]): Promise<string[]> {
-      const out = await git.raw(["for-each-ref", "--format=%(refname)", ...prefixes]);
-      return out.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+    async listRefs(prefixes: readonly string[]): Promise<Array<{ name: string; commit: string }>> {
+      const out = await git.raw(["for-each-ref", "--format=%(objectname) %(refname)", ...prefixes]);
+      return out
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const separator = line.indexOf(" ");
+          return { commit: line.slice(0, separator), name: line.slice(separator + 1) };
+        });
+    },
+    async resolveCommit(ref: string): Promise<string | undefined> {
+      try {
+        const out = (await git.raw(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])).trim();
+        return out.length > 0 ? out : undefined;
+      } catch {
+        return undefined;
+      }
     },
     async fetch(remote: string): Promise<void> {
       await git.raw(["fetch", "--quiet", remote]);

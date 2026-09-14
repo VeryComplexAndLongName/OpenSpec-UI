@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { describeChangeState } from "./change-state-word.js";
 import { describeStandingSources, readChangeStandings } from "./change-standing.js";
 import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { createGitWrapper } from "./git.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 import { surveyWorktrees } from "./worktree-survey.js";
 
@@ -137,6 +138,27 @@ describe("readChangeStandings (a-change-says-where-it-stands 3.5)", () => {
     expect(reading.sources.fetch.attempted && reading.sources.fetch.failed).toBeTruthy();
     expect(reading.standings.find((standing) => standing.changeName === "alpha")?.main).toEqual({ kind: "archived", archiveName: "2026-09-14-alpha" });
     expect(describeStandingSources(reading.sources)).toContain("failed");
+  });
+
+  // 9.1: what a commit holds never changes, so a second reading reads no
+  // tree and no file from a commit it has already read.
+  it("reads nothing from a commit a second time while no ref has moved", async () => {
+    const { work, worktreeRoot } = await repository();
+    const real = createGitWrapper({ cwd: work });
+    const calls = { showFile: 0, listTreeNames: 0 };
+    const git = {
+      ...real,
+      showFile: (ref: string, file: string) => { calls.showFile += 1; return real.showFile(ref, file); },
+      listTreeNames: (ref: string, tree: string) => { calls.listTreeNames += 1; return real.listTreeNames(ref, tree); },
+    };
+
+    const first = await readChangeStandings(work, options(worktreeRoot, { git }));
+    const afterFirst = { ...calls };
+    const second = await readChangeStandings(work, options(worktreeRoot, { git }));
+
+    expect(afterFirst.showFile + afterFirst.listTreeNames).toBeGreaterThan(0);
+    expect(calls).toEqual(afterFirst);
+    expect(second.standings).toEqual(first.standings);
   });
 
   it("leaves out every pull request fact where gh is unavailable, and says why", async () => {

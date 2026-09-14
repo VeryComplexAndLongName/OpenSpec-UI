@@ -229,6 +229,7 @@ function makeGitStageDeps(options: {
     fetch: vi.fn(async () => undefined),
     lastFetchedAt: vi.fn(async () => undefined),
     mergeBase: vi.fn(async () => undefined),
+    resolveCommit: vi.fn(async () => undefined),
     remoteUrl: vi.fn(async () => undefined),
     configuredIdentity: vi.fn(async () => undefined),
   };
