@@ -7,6 +7,10 @@ import { FileAuditLog, auditLogPath, type AuditEntry } from "./security.js";
 
 // a-card-says-what-its-change-is-doing: pure over entries except the two
 // reads that open a temporary log.
+// every-varying-check-has-a-budget: file writes and reads only, no git
+// process and no agent. Measured 2026-09-14 at 30ms and 56ms for the
+// whole file of seven tests, in two runs.
+vi.setConfig({ testTimeout: 15_000 });
 
 const CHANGE = "/repo/openspec/changes/demo";
 
