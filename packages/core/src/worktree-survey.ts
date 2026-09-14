@@ -21,7 +21,7 @@ import { readTaskChecklist, taskNumberOf, tasksFilePath, type TaskChecklistItem 
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
-import type { SurveyedChange, SurveyedDirectory, SurveyedRun, WorktreeSurvey } from "./worktree-survey-facts.js";
+import type { SurveyedChange, SurveyedDirectory, SurveyedRun, SurveyedTask, WorktreeSurvey } from "./worktree-survey-facts.js";
 
 // The shape and the wording live in a leaf the browser can import; this
 // file reads a repository to fill them in. Re-exported so an importer of
@@ -120,7 +120,7 @@ async function activeChangeNames(directory: string): Promise<string[]> {
 async function cardFactsOf(
   items: readonly TaskChecklistItem[],
   tasksPath: string,
-): Promise<Pick<SurveyedChange, "tasksForPerson" | "tasksDelegated" | "nextOpenTask" | "tasksModifiedAt">> {
+): Promise<Pick<SurveyedChange, "tasksForPerson" | "tasksDelegated" | "nextOpenTask" | "tasksModifiedAt" | "tasks">> {
   const open = items.filter((item) => !item.done);
   const next = open.find((item) => item.humanOnly === undefined && item.delegatedTo === undefined && taskNumberOf(item.text) !== undefined);
   const number = next === undefined ? undefined : taskNumberOf(next.text);
@@ -132,6 +132,25 @@ async function cardFactsOf(
       ? { nextOpenTask: { number, text: next.text.trim().replace(/^\d+(?:\.\d+)*\.?\s*/u, "") } }
       : {}),
     ...(modifiedAt !== undefined ? { tasksModifiedAt: modifiedAt } : {}),
+    tasks: items.map(surveyedTask),
+  };
+}
+
+/** One row of an open card, from the item it was read from
+ * (a-card-opens-to-its-tasks). */
+function surveyedTask(item: TaskChecklistItem): SurveyedTask {
+  const number = taskNumberOf(item.text);
+  const text = number === undefined ? item.text.trim() : item.text.trim().replace(/^\d+(?:\.\d+)*\.?\s*/u, "");
+  return {
+    ...(number !== undefined ? { number } : {}),
+    text,
+    ...(item.section !== undefined ? { section: item.section } : {}),
+    done: item.done,
+    ...(item.humanOnly === true
+      ? { closedBy: "person" as const }
+      : item.delegatedTo !== undefined
+        ? { closedBy: "named-agent" as const, agent: item.delegatedTo }
+        : { closedBy: "agent" as const }),
   };
 }
 

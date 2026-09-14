@@ -51,9 +51,46 @@ describe("readTaskChecklist", () => {
     const items = await readTaskChecklist(root, "active-change", false);
 
     expect(items).toEqual([
-      { lineNumber: 2, text: "1.1 First task", done: true },
-      { lineNumber: 3, text: "1.2 Second task", done: false },
+      { lineNumber: 2, text: "1.1 First task", done: true, section: "Setup" },
+      { lineNumber: 3, text: "1.2 Second task", done: false, section: "Setup" },
     ]);
+  });
+
+  // a-card-opens-to-its-tasks 1.1: an item is listed under the nearest
+  // `## ` heading above it, without the heading's number.
+  it("records the section each item is listed under, numbered or not, and none before any heading", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "sectioned");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      [
+        "Intro line.",
+        "",
+        "- [ ] Before any heading",
+        "",
+        "## 2.3 Numbered section",
+        "",
+        "- [x] Under the numbered one",
+        "### A third-level heading is not a section",
+        "- [ ] Still under the numbered one",
+        "",
+        "## Unnumbered section",
+        "",
+        "- [ ] Under the unnumbered one",
+        "",
+      ].join("\n"),
+    );
+
+    const items = await readTaskChecklist(root, "sectioned", false);
+
+    expect(items.map((item) => [item.text, item.section])).toEqual([
+      ["Before any heading", undefined],
+      ["Under the numbered one", "Numbered section"],
+      ["Still under the numbered one", "Numbered section"],
+      ["Under the unnumbered one", "Unnumbered section"],
+    ]);
+    expect(items[0]).not.toHaveProperty("section");
   });
 
   it("reads archived changes from openspec/changes/archive/<name>/", async () => {
@@ -435,8 +472,8 @@ describe("readTaskChecklist humanOnly field", () => {
 
     const items = await readTaskChecklist(root, "with-human-only", false);
     expect(items).toEqual([
-      { lineNumber: 2, text: "1.1 Run tests", done: false },
-      { lineNumber: 3, text: "1.2 **Human-only**: confirm the UI by hand", done: false, humanOnly: true },
+      { lineNumber: 2, text: "1.1 Run tests", done: false, section: "Verification" },
+      { lineNumber: 3, text: "1.2 **Human-only**: confirm the UI by hand", done: false, humanOnly: true, section: "Verification" },
     ]);
   });
 });
@@ -455,9 +492,9 @@ describe("readTaskChecklist delegatedTo field", () => {
 
     const items = await readTaskChecklist(root, "with-delegated", false);
     expect(items).toEqual([
-      { lineNumber: 2, text: "1.1 Run tests", done: false },
-      { lineNumber: 3, text: "1.2 **Delegated to copilot-cli**: quote the audit line", done: false, delegatedTo: "copilot-cli" },
-      { lineNumber: 4, text: "1.3 **Human-only**: judge whether it reads well", done: false, humanOnly: true },
+      { lineNumber: 2, text: "1.1 Run tests", done: false, section: "Verification" },
+      { lineNumber: 3, text: "1.2 **Delegated to copilot-cli**: quote the audit line", done: false, delegatedTo: "copilot-cli", section: "Verification" },
+      { lineNumber: 4, text: "1.3 **Human-only**: judge whether it reads well", done: false, humanOnly: true, section: "Verification" },
     ]);
   });
 });

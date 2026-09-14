@@ -79,7 +79,14 @@ export interface ChangeLayout {
   height: number;
 }
 
-export function layoutChanges(report: ChangeReadinessReport): ChangeLayout {
+export interface ChangeLayoutOptions {
+  /** A height, in units, for a card drawn taller than `NODE_HEIGHT`: an
+   * open card listing its tasks (a-card-opens-to-its-tasks). A change not
+   * named here is `NODE_HEIGHT` tall. */
+  heights?: ReadonlyMap<string, number>;
+}
+
+export function layoutChanges(report: ChangeReadinessReport, options: ChangeLayoutOptions = {}): ChangeLayout {
   const byName = new Map(report.changes.map((change) => [change.changeName, change]));
   // Kept to changes that are present: a blocker naming something this
   // report does not contain is not a node, so it is not a relation.
@@ -111,16 +118,21 @@ export function layoutChanges(report: ChangeReadinessReport): ChangeLayout {
   const nodes: ChangeLayoutNode[] = [];
   const placed = new Map<string, ChangeLayoutNode>();
   columns.forEach((names, column) => {
+    // Each card starts below the one above it, however tall that one is,
+    // so opening a card moves only the cards beneath it in its column.
+    let y = 0;
     names.forEach((name, row) => {
+      const height = Math.max(NODE_HEIGHT, options.heights?.get(name) ?? NODE_HEIGHT);
       const node: ChangeLayoutNode = {
         change: byName.get(name) as ChangeReadiness,
         column,
         row,
         x: column * (NODE_WIDTH + COLUMN_GAP),
-        y: row * (NODE_HEIGHT + ROW_GAP),
+        y,
         width: NODE_WIDTH,
-        height: NODE_HEIGHT,
+        height,
       };
+      y += height + ROW_GAP;
       nodes.push(node);
       placed.set(name, node);
     });
@@ -170,8 +182,8 @@ export function layoutChanges(report: ChangeReadinessReport): ChangeLayout {
 /** Out of the blocker's right edge, one turn in the gap, into the
  * blocked change's left edge. */
 function straightAcross(from: ChangeLayoutNode, to: ChangeLayoutNode): Array<{ x: number; y: number }> {
-  const startY = from.y + from.height / 2;
-  const endY = to.y + to.height / 2;
+  const startY = headOf(from);
+  const endY = headOf(to);
   const turn = from.x + from.width + COLUMN_GAP / 2;
   return withoutRepeats([
     { x: from.x + from.width, y: startY },
@@ -187,8 +199,8 @@ function aroundTheOutside(
   to: ChangeLayoutNode,
   laneY: number,
 ): Array<{ x: number; y: number }> {
-  const startY = from.y + from.height / 2;
-  const endY = to.y + to.height / 2;
+  const startY = headOf(from);
+  const endY = headOf(to);
   const leaves = from.x + from.width + COLUMN_GAP / 2;
   const returns = to.x - COLUMN_GAP / 2;
   return withoutRepeats([
@@ -199,6 +211,14 @@ function aroundTheOutside(
     { x: returns, y: endY },
     { x: to.x, y: endY },
   ]);
+}
+
+/** Where an edge meets a card: the middle of a closed card's height, which
+ * on an open card is its head, where its name is. An edge that met the
+ * middle of an open card would point at one of its tasks, and no relation
+ * is between tasks (a-card-opens-to-its-tasks). */
+function headOf(node: ChangeLayoutNode): number {
+  return node.y + NODE_HEIGHT / 2;
 }
 
 /** Keeps only the places the line actually turns.

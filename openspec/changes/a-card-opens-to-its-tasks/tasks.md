@@ -3,50 +3,88 @@ derived rather than measured (ADR 0029, ADR 0025 amendment).
 
 ## 1. Sections and task rows in core
 
-- [ ] 1.1 `parseChecklist` in `packages/core/src/task-checklist.ts` records
+- [x] 1.1 `parseChecklist` in `packages/core/src/task-checklist.ts` records
   a `section` on each item: the text of the nearest `## ` heading above the
   item, with any leading number such as `1.` removed. An item before any
   heading gets no section. Existing callers see the new field and nothing
   else changes for them.
-- [ ] 1.2 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
+
+  Done. A `## ` line starts a section, and a `### ` line does not.
+  Two existing tests compared whole items under a `## 1. Verification`
+  heading and now expect that section too. Nothing else changed for a
+  caller: the extension's `changes-tree` test (14) and the cli's
+  `status-command` test (19) pass unchanged.
+- [x] 1.2 `SurveyedChange` in `packages/core/src/worktree-survey-facts.ts`
   gains
   `tasks: { number?: string; text: string; section?: string; done: boolean; closedBy: "agent" | "person" | "named-agent"; agent?: string }[]`.
   `surveyChanges` in `worktree-survey.ts` fills it from the items it
   already reads. `closedBy` is `person` for a Human-only item and
   `named-agent` (with `agent`) for a delegated item.
-- [ ] 1.3 A pure `describeTaskRows(tasks, inHand)` in
+
+  Done, as the exported `SurveyedTask`. The field is optional, as the
+  other task-list facts beside it are: it is absent where a change has no
+  task list, or the list could not be read. A row's text is the item's
+  text without its number.
+- [x] 1.3 A pure `describeTaskRows(tasks, inHand)` in
   `packages/core/src/change-card.ts` returns each row's state word from a
   closed set: `done`, `in hand`, `probably next`, `open`,
   `only a person can close it`, `delegated to <agent>`. At most one row is
   `in hand` or `probably next`, and it is the row the card's task in hand
   or guess names.
-- [ ] 1.4 core tests: `task-checklist.test.ts` for sections (numbered
+
+  Done: `TaskRowWord` is the closed set. The first open row numbered as
+  the card's task says `in hand`, or `probably next` for a guess. A done
+  row says done even where a record still names it. A row in hand says so
+  even when only a person or a named agent may close it, since the run is
+  on it.
+- [x] 1.4 core tests: `task-checklist.test.ts` for sections (numbered
   heading, unnumbered heading, items before any heading);
   `worktree-survey.test.ts` for the rows and `closedBy`;
   `change-card.test.ts` for each row word and the single in-hand row.
 
+  Done:
+  - `task-checklist` passes, 31 tests, with a numbered heading, an
+    unnumbered heading, a third-level heading and an item before any
+    heading;
+  - `worktree-survey` passes, 27, with every row, its section and each
+    `closedBy`;
+  - `change-card` passes, 27. Its `describeTaskRows` tests cover every
+    word, the guess, a repeated number and a done row.
+
 ## 2. Heights and layout
 
-- [ ] 2.1 `PIPELINE_CARD_REM` in `packages/core/src/pipeline-card.ts` gains
+- [x] 2.1 `PIPELINE_CARD_REM` in `packages/core/src/pipeline-card.ts` gains
   `taskRow` and `sectionRow`. A new
   `pipelineOpenCardHeight(taskCount: number, sectionCount: number): number`
   returns `NODE_HEIGHT` plus those rows, in layout units.
-- [ ] 2.2 `layoutChanges(report, options?: { heights?: ReadonlyMap<string, number> })`
+
+  Done: `taskRow` is 1 rem and `sectionRow` 1.25 rem.
+- [x] 2.2 `layoutChanges(report, options?: { heights?: ReadonlyMap<string, number> })`
   in `packages/core/src/change-layout.ts`:
   - gives each node its own `height`, defaulting to `NODE_HEIGHT`;
   - places each column's nodes by the running sum of heights and
     `ROW_GAP`, in the existing name order;
   - computes the picture's height from those nodes.
-- [ ] 2.3 Every edge attaches at `node.y + NODE_HEIGHT / 2` at both ends,
+
+  Done. The options type is exported as `ChangeLayoutOptions`. A height
+  below `NODE_HEIGHT` is taken as `NODE_HEIGHT`.
+- [x] 2.3 Every edge attaches at `node.y + NODE_HEIGHT / 2` at both ends,
   for neighbouring columns and for lane detours alike.
-- [ ] 2.4 core `change-layout.test.ts`:
+
+  Done: both routes take their ends from one `headOf`.
+- [x] 2.4 core `change-layout.test.ts`:
   - with no heights given, the existing grid tests pass unchanged;
   - with one open card, the cards below it in its column move down by
     exactly its extra height, and no card in another column moves;
   - an edge into an open card attaches at the card's head.
-- [ ] 2.5 core `pipeline-card.test.ts`: the open height for 0 tasks is
+
+  Done: the file passes, 19 tests, and the 17 that were there are
+  unchanged.
+- [x] 2.5 core `pipeline-card.test.ts`: the open height for 0 tasks is
   `NODE_HEIGHT`; the open height for 3 tasks under 1 section is
   `NODE_HEIGHT` plus exactly three task rows and one section row.
+
+  Done: the file passes, 9 tests. Core typechecks.
 
 ## 3. The open card
 
