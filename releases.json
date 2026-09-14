@@ -1,40 +1,53 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-13T21:37:02.998Z",
+  "generated_at": "2026-09-14T06:02:59.224Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "b0037aff7af5d3cec30258c9b1aaf766710f6f24",
+  "commit": "bec0c3f58590aa4ed3977e5158346c44de74cb71",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.52.2",
-      "released_at": "2026-09-13T21:37:02.998Z",
-      "tag": "openspec-ui-vscode@0.52.2",
+      "version": "0.53.0",
+      "released_at": "2026-09-14T06:02:59.224Z",
+      "tag": "openspec-ui-vscode@0.53.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.52.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.53.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.52.2/openspec-ui-vscode-0.52.2.vsix",
-          "size_bytes": 5949481
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.53.0/openspec-ui-vscode-0.53.0.vsix",
+          "size_bytes": 6042797
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "A Pipeline card says what its change is doing. Core derives one card per change from readings the hosts already take (`describeChangeCards`, `describeChangeCard`), with facts from the change's own worktree where it has one. Each card gives:"
+        },
+        {
+          "kind": "minor",
+          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
+        },
+        {
+          "kind": "minor",
+          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.23.7",
-      "released_at": "2026-09-13T21:37:02.998Z",
+      "version": "1.24.0",
+      "released_at": "2026-09-14T06:02:59.224Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -42,15 +55,28 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "A Pipeline card says what its change is doing. Core derives one card per change from readings the hosts already take (`describeChangeCards`, `describeChangeCard`), with facts from the change's own worktree where it has one. Each card gives:"
+        },
+        {
+          "kind": "minor",
+          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
+        },
+        {
+          "kind": "patch",
+          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.85.0",
-      "released_at": "2026-09-13T21:37:02.998Z",
+      "version": "0.86.0",
+      "released_at": "2026-09-14T06:02:59.224Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -61,7 +87,15 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change is running when its run's status record says so: readiness reads the records beside the leases, and a record-only run carries `reportedBy` with no holder. `ready` names the directory and no author for such a run. A worktree on a branch named after an active change says whose it is (`belongsTo`), and the Pipeline tab draws that change once."
+          "summary": "A Pipeline card says what its change is doing. Core derives one card per change from readings the hosts already take (`describeChangeCards`, `describeChangeCard`), with facts from the change's own worktree where it has one. Each card gives:"
+        },
+        {
+          "kind": "minor",
+          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
+        },
+        {
+          "kind": "minor",
+          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
         }
       ]
     },
@@ -70,8 +104,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.44.2",
-      "released_at": "2026-09-13T21:37:02.998Z",
+      "version": "1.45.0",
+      "released_at": "2026-09-14T06:02:59.224Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -80,8 +114,16 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A change is running when its run's status record says so: readiness reads the records beside the leases, and a record-only run carries `reportedBy` with no holder. `ready` names the directory and no author for such a run. A worktree on a branch named after an active change says whose it is (`belongsTo`), and the Pipeline tab draws that change once."
+          "kind": "minor",
+          "summary": "A Pipeline card says what its change is doing. Core derives one card per change from readings the hosts already take (`describeChangeCards`, `describeChangeCard`), with facts from the change's own worktree where it has one. Each card gives:"
+        },
+        {
+          "kind": "minor",
+          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
+        },
+        {
+          "kind": "minor",
+          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
         }
       ]
     },
@@ -90,8 +132,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.12.1",
-      "released_at": "2026-09-13T21:37:02.998Z",
+      "version": "0.13.0",
+      "released_at": "2026-09-14T06:02:59.224Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -100,8 +142,12 @@
       "artifacts": [],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
+        },
+        {
           "kind": "patch",
-          "summary": "A change is running when its run's status record says so: readiness reads the records beside the leases, and a record-only run carries `reportedBy` with no holder. `ready` names the directory and no author for such a run. A worktree on a branch named after an active change says whose it is (`belongsTo`), and the Pipeline tab draws that change once."
+          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
         }
       ]
     }
