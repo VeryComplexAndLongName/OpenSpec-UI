@@ -57,7 +57,9 @@ import {
   loadHumanOnlyInbox,
   runDelegatedItem as runDelegatedItemApi,
 } from "./human-only-inbox-client.js";
+import { loadChangeStandings } from "./change-standings-client.js";
 import { EnrolmentRequests } from "./components/EnrolmentRequests.js";
+import { DelegatedReply } from "./components/DelegatedReply.js";
 import {
   addScheduledRun as addScheduledRunApi,
   loadScheduledRuns,
@@ -72,8 +74,12 @@ import {
 import { fireDueSchedule, type ScheduleFiringHost } from "./scheduled-run-firing.js";
 import {
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
+  describeChangeState,
   describeHumanOnlyInboxState,
+  describeStandingSources,
   describeWaitingOn,
+  type ChangeStandings,
+  type DescribedChangeState,
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
@@ -350,6 +356,12 @@ function StandaloneApp() {
   // down and restarted on every one of them.
   const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
+  // Fetches refs now and says how fresh they are; the Pipeline then reads
+  // again (a-change-says-where-it-stands).
+  const pipelineRefresh = useCallback(
+    async () => describeStandingSources((await loadChangeStandings(apiFetch, cwd, "now")).sources),
+    [cwd],
+  );
 
   // `loadChangeEditor` is a hoisted declaration further down and reads
   // `cwd` itself, so `cwd` is the only thing this has to be rebuilt for.
@@ -435,11 +447,28 @@ function StandaloneApp() {
     await loadOverviewFor(cwd);
   }
 
+  /** Reads the files again and fetches refs now, whatever the fetch
+   * interval. A second press while one is under way starts nothing
+   * (a-change-says-where-it-stands). */
+  async function refreshStandings() {
+    if (standingsRefreshing || cwd.trim().length === 0) return;
+    setStandingsRefreshing(true);
+    setStandingsError(undefined);
+    try {
+      setStandings(await loadChangeStandings(apiFetch, cwd, "now"));
+      await loadOverviewFor(cwd, { standings: false });
+    } catch (error) {
+      setStandingsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setStandingsRefreshing(false);
+    }
+  }
+
   /** Reads the workspace, for a root that is not necessarily in state
    * yet — the open path has just learned it from the server and React
    * has not re-rendered. The blur and the "Load summary" button call the
    * same thing, as reloads. */
-  async function loadOverviewFor(root: string) {
+  async function loadOverviewFor(root: string, options: { standings?: boolean } = {}) {
     overviewRoot.current = root;
     setOverviewLoading(true);
     setOverviewError(null);
@@ -458,6 +487,18 @@ function StandaloneApp() {
 
       const payload = (await response.json()) as OpenSpecOverview;
       setOverview(payload);
+      // Where each change stands, read beside the summary and fetching only
+      // where refs are older than the interval. A reading that fails is said
+      // beside the list and costs the summary nothing. A refresh has just
+      // read it with a fetch, and does not read it twice.
+      if (options.standings !== false) {
+        void loadChangeStandings(apiFetch, root)
+          .then((reading) => {
+            setStandings(reading);
+            setStandingsError(undefined);
+          })
+          .catch((error: unknown) => setStandingsError(error instanceof Error ? error.message : String(error)));
+      }
       // Read beside the summary, and its failure is its own: a workspace
       // whose task files cannot be read still has a summary worth
       // showing, and losing that to this would be a worse trade.
@@ -524,6 +565,11 @@ function StandaloneApp() {
     setRunUseAgentNote(null);
     try {
       const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
+      // Where the change stands, with refs fetched now, so the dialog asks
+      // about fresh refs. A reading that fails leaves the dialog as it was.
+      const reading = await loadChangeStandings(apiFetch, cwd, "now").catch(() => undefined);
+      const standing = reading?.standings.find((candidate) => candidate.changeName === editorChangeName);
+      setRunStanding(standing ? describeChangeState({ standing }) : undefined);
       setRunDispatch(dispatch);
       // Absent rather than zeroed if it cannot be read. Zeroes would be a
       // claim about this workspace; absence is the truth about the read.
@@ -624,6 +670,13 @@ function StandaloneApp() {
    * human-only item is indistinguishable, in that list, from one nobody
    * has started. See human-only-inbox-in-the-shell. */
   const [humanOnly, setHumanOnly] = useState<HumanOnlyInboxState | null>(null);
+  /** Where each change stands across the repository, whether a refresh is
+   * under way, and what the run dialog leads with
+   * (a-change-says-where-it-stands). */
+  const [standings, setStandings] = useState<ChangeStandings | null>(null);
+  const [standingsRefreshing, setStandingsRefreshing] = useState(false);
+  const [standingsError, setStandingsError] = useState<string | undefined>(undefined);
+  const [runStanding, setRunStanding] = useState<DescribedChangeState | undefined>(undefined);
   /** What the last run of each delegated item reported, keyed the way
    * its row is. Shown beside the row it was started from: an outcome
    * that scrolled away somewhere else is an outcome nobody reads. */
@@ -1394,6 +1447,7 @@ function StandaloneApp() {
                           </button>
                         </>
                       ) : null}
+                      {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
                       {outcome ? (
                         <div data-testid={`delegated-outcome-${key}`}>
                           {outcome.message}
@@ -1436,6 +1490,15 @@ function StandaloneApp() {
                 <h3>Changes</h3>
                 <ChangesList
                   changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                  {...(standings
+                    ? {
+                      states: new Map(standings.standings.map((standing) => [standing.changeName, describeChangeState({ standing })])),
+                      sources: describeStandingSources(standings.sources),
+                    }
+                    : {})}
+                  onRefresh={() => void refreshStandings()}
+                  refreshing={standingsRefreshing}
+                  {...(standingsError ? { refreshError: standingsError } : {})}
                 />
               </div>
             ) : null}
@@ -1549,6 +1612,7 @@ function StandaloneApp() {
           <RunDialog
             changeName={editorChangeName}
             plan={runDispatch.plan}
+            {...(runStanding ? { standing: runStanding } : {})}
             stats={runStats}
             onChoose={startChosenRun}
             onApplyTemplate={(template) => void applyTemplateToChange(template)}
@@ -1996,6 +2060,7 @@ function StandaloneApp() {
             <PipelineView
               load={pipelineLoad}
               survey={pipelineSurvey}
+              refresh={pipelineRefresh}
               isActive={activeTab === "pipeline"}
               onOpenChange={openChangeInEditor}
             />

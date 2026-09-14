@@ -37,6 +37,9 @@ function PipelineApp() {
 
   const load = useCallback(() => bridge.request<ChangeReadinessReport>("pipeline/readiness"), [bridge]);
   const survey = useCallback(() => bridge.request<WorktreeSurvey>("pipeline/survey"), [bridge]);
+  // The host fetches refs now and says how fresh they are
+  // (a-change-says-where-it-stands).
+  const refresh = useCallback(() => bridge.request<string>("pipeline/refresh"), [bridge]);
   const subscribe = useCallback((listener: (reading: PipelineReading) => void) => {
     const handler = (event: MessageEvent<unknown>) => {
       for (const reading of readingsOf(event.data)) listener(reading);
@@ -56,7 +59,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} />
       </section>
     </div>
   );

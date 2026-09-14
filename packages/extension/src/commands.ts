@@ -23,6 +23,9 @@ import {
   readTaskChecklist,
   readChangeHarnessConfig,
   buildRunPlan,
+  describeChangeState,
+  readChangeStandings,
+  type DescribedChangeState,
   changeTemplateConfigToWrite,
   templatesForScope,
   type RecommendationInput,
@@ -1225,10 +1228,23 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // Nothing starts here. A path chosen in the dialog mounts what it
         // chose, and the two answers this host must carry out come back
         // as messages, to `handleRunChoice` below.
+        // Where the change stands, read with refs fetched now, so the dialog
+        // asks about fresh refs before a change settled elsewhere starts
+        // again. Best-effort: a reading that fails leaves the dialog as it
+        // was (a-change-says-where-it-stands).
+        let runStanding: DescribedChangeState | undefined;
+        try {
+          const reading = await readChangeStandings(workspaceRoot, { fetch: "now" });
+          const standing = reading.standings.find((candidate) => candidate.changeName === item.changeName);
+          if (standing !== undefined) runStanding = describeChangeState({ standing });
+        } catch {
+          runStanding = undefined;
+        }
         deps.revealAiPanel({
           ...dashboardContext(workspaceRoot, item.changeDir),
           runPlan: plan,
           changeName: item.changeName,
+          ...(runStanding !== undefined ? { runStanding } : {}),
         });
       } catch (error) {
         await showCommandError("resolve Agentic Harness config", error);

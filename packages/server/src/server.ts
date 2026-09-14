@@ -26,6 +26,7 @@ import {
   handleChangeTimelinesRequest,
   handleDelegatedItemRunRequest,
   handleEnrolmentConfirmRequest,
+  handleChangeStandingsRequest,
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
@@ -249,12 +250,16 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       void handleHumanOnlyInboxRequest(req, res, requestPolicy);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/change-standings") {
+      void handleChangeStandingsRequest(req, res, requestPolicy);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/enrolment/confirm") {
       void handleEnrolmentConfirmRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/delegated-item/run") {
-      void handleDelegatedItemRunRequest(req, res, runners, requestPolicy);
+      void handleDelegatedItemRunRequest(req, res, runners, requestPolicy, options.auditLog);
       return;
     }
     if (req.method === "POST" && req.url === "/api/scheduled-runs") {

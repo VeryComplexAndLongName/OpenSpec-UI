@@ -67,6 +67,9 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [runPlan, setRunPlan] = useState(initialContext.runPlan);
   const [changeName, setChangeName] = useState(initialContext.changeName);
   const [runNote, setRunNote] = useState(initialContext.runNote);
+  /** Where the change stands, as the host read it before opening the
+   * dialog (a-change-says-where-it-stands). */
+  const [runStanding, setRunStanding] = useState(initialContext.runStanding);
   /** The path a schedule already chose, taken as soon as the dialog is
    * on screen. The dialog is still rendered — its note says who asked
    * and how late — but it does not wait for a choice that was made when
@@ -115,6 +118,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setRunPlan(event.data.context.runPlan);
       setChangeName(event.data.context.changeName);
       setRunNote(event.data.context.runNote);
+      setRunStanding(event.data.context.runStanding);
       setRunPath(event.data.context.runPath);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
       // Reset like the plan: a note belongs to the reveal that carried it.
@@ -187,6 +191,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           <RunDialog
             changeName={changeName ?? changeDir.split(/[\\/]+/).filter((part) => part.length > 0).pop() ?? ""}
             plan={runPlan}
+            {...(runStanding ? { standing: runStanding } : {})}
             {...(runNote ? { note: runNote } : {})}
             onChoose={choosePath}
             onApplyTemplate={(template) => {

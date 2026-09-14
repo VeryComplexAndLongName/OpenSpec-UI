@@ -17,6 +17,9 @@ export type { ChangeState } from "./change-state.js";
 // (a-change-says-where-it-stands).
 export * from "./change-standing-facts.js";
 export * from "./change-state-word.js";
+// A delegated run's request and reply, and the words for how a reply left
+// its item. A leaf with no imports.
+export * from "./audit-message.js";
 export type {
   CatalogTemplate,
   TemplateArtifacts,

@@ -2,8 +2,10 @@ import * as vscode from "vscode";
 import {
   collectHumanOnlyInbox,
   describeEnrolmentRequest,
+  describeMessageOutcome,
   describeWaitingOn,
   type EnrolmentRequest,
+  type ItemReply,
   type WaitingOn,
 } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
@@ -63,8 +65,14 @@ export class HumanOnlyInboxItemTreeItem extends vscode.TreeItem {
      * notification that has been dismissed is an outcome nobody can go
      * back and read. */
     outcome?: string,
+    /** The latest reply a delegated run of this item left, kept in the
+     * audit log whatever the outcome (a-change-says-where-it-stands). */
+    reply?: ItemReply,
   ) {
     super(text, vscode.TreeItemCollapsibleState.None);
+    if (reply !== undefined) {
+      this.tooltip = `${text}\n\nThe agent's last reply: it ${describeMessageOutcome(reply.outcome)} (${reply.at})\n${reply.body}`;
+    }
     this.id = `human-only-inbox:${changeName}:${lineNumber}`;
     // Who it waits on, not only which change it belongs to: an item
     // assigned to an agent that has not run and an item nobody can
@@ -122,6 +130,7 @@ export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<Human
         item.text,
         item.waitingOn,
         this.outcomes.get(`human-only-inbox:${item.changeName}:${item.lineNumber}`),
+        item.reply,
       ));
 
     // A key waiting to be enrolled waits on a person as an item does.

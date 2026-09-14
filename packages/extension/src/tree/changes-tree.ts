@@ -1,14 +1,19 @@
 import * as vscode from "vscode";
 import {
   applicableRepoSetupActionIds,
+  describeChangeState,
   discoverOpenSpecWorkspace,
+  readChangeStandings,
   readTaskChecklist,
+  STANDING_FETCH_INTERVAL_MS,
   type ChangeState,
+  type DescribedChangeState,
   type RepoSetupActionId,
   type RepoSetupFacts,
   type WorkbenchArtifact,
 } from "@openspec-ui/core";
 import { readRepoSetupFacts } from "../repo-setup-facts.js";
+import { changeUri, type ChangeStandingDecorations } from "./change-standing-decorations.js";
 
 // Every TreeItem subclass here sets an explicit, stable `.id`. Without one,
 // VS Code falls back to a label-derived identity; since every getChildren()
@@ -37,10 +42,17 @@ export class ChangeTreeItem extends vscode.TreeItem {
     public readonly state: ChangeState,
     public readonly artifacts: WorkbenchArtifact[] = [],
     public readonly archived = false,
+    /** Where the change stands across the repository, where it has been
+     * read (a-change-says-where-it-stands). */
+    public readonly standing?: DescribedChangeState,
   ) {
     super(changeName, vscode.TreeItemCollapsibleState.Collapsed);
     this.id = `change:${archived ? "archived" : "active"}:${changeName}`;
-    this.description = state;
+    this.description = standing ? `${state} — ${standing.word}` : state;
+    if (!archived) this.resourceUri = changeUri(changeName);
+    if (standing) {
+      this.tooltip = [standing.word, ...standing.lines.map((line) => `${line.text} (${line.source})`)].join("\n");
+    }
     this.contextValue = archived ? "openspec-ui.archivedChange" : "openspec-ui.activeChange";
     this.iconPath = new vscode.ThemeIcon(iconForState(state));
   }
@@ -313,14 +325,68 @@ export function getWorkbenchParent(element: WorkbenchTreeItem): WorkbenchTreeIte
   return undefined;
 }
 
+/** How a reading of standings fetches refs: now, or only where they are
+ * older than the fetch interval. */
+export type StandingFetchMode = "now" | "interval";
+
+export interface ChangesTreeOptions {
+  /** Where each change stands, as its state word. Test seam; production reads
+   * core's standings. */
+  readStates?: (workspaceRoot: string, fetch: StandingFetchMode) => Promise<ReadonlyMap<string, DescribedChangeState>>;
+  /** Given each reading, so the rows' colours agree with their words. */
+  decorations?: Pick<ChangeStandingDecorations, "update">;
+}
+
+async function readStatesFromCore(workspaceRoot: string, fetch: StandingFetchMode): Promise<ReadonlyMap<string, DescribedChangeState>> {
+  const reading = await readChangeStandings(workspaceRoot, {
+    fetch: fetch === "now" ? "now" : { ifOlderThan: STANDING_FETCH_INTERVAL_MS },
+  });
+  return new Map(reading.standings.map((standing) => [standing.changeName, describeChangeState({ standing })]));
+}
+
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
+  /** The words last read. The tree draws with these at once, and draws again
+   * when a new reading lands, so a fetch never holds the tree back. */
+  private states: ReadonlyMap<string, DescribedChangeState> | undefined;
+  private stale = true;
+  private fetchNext: StandingFetchMode = "interval";
+  private reading: Promise<void> | undefined;
+  private queued: StandingFetchMode | undefined;
 
-  constructor(private readonly workspaceRoot: string) { }
+  constructor(private readonly workspaceRoot: string, private readonly options: ChangesTreeOptions = {}) { }
 
-  refresh(): void {
+  /** Draws the tree again and reads standings again. `fetchNow` fetches refs
+   * at once, whatever the interval: the view's Refresh. */
+  refresh(options: { fetchNow?: boolean } = {}): void {
+    this.stale = true;
+    if (options.fetchNow) this.fetchNext = "now";
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  /** One reading at a time. A reading asked for while one is under way runs
+   * after it, and a fetch asked for is never dropped. */
+  private readStates(fetch: StandingFetchMode): void {
+    if (this.reading !== undefined) {
+      this.queued = this.queued === "now" || fetch === "now" ? "now" : "interval";
+      return;
+    }
+    this.reading = (this.options.readStates ?? readStatesFromCore)(this.workspaceRoot, fetch)
+      .then((states) => {
+        this.states = states;
+        this.options.decorations?.update(states);
+        this.onDidChangeTreeDataEmitter.fire();
+      })
+      // Best-effort: a tree whose standings cannot be read lists every change
+      // as it always has.
+      .catch(() => undefined)
+      .finally(() => {
+        this.reading = undefined;
+        const next = this.queued;
+        this.queued = undefined;
+        if (next !== undefined) this.readStates(next);
+      });
   }
 
   getTreeItem(element: WorkbenchTreeItem): vscode.TreeItem {
@@ -347,6 +413,12 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     }
 
     if (element) return [];
+    if (this.stale) {
+      this.stale = false;
+      const fetch = this.fetchNext;
+      this.fetchNext = "interval";
+      this.readStates(fetch);
+    }
     const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
     const items: WorkbenchTreeItem[] = [];
     items.push(
@@ -360,7 +432,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     items.push(new RepoBootstrapRootTreeItem());
     items.push(new HarnessSettingsRootTreeItem());
     for (const change of workspace.changes) {
-      items.push(new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false));
+      items.push(new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false, this.states?.get(change.name)));
     }
     if (workspace.changes.length === 0) {
       items.push(workspace.initialized

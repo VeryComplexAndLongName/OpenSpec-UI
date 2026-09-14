@@ -898,6 +898,39 @@ export const shellThemeCss = `
     text-align: left;
   }
 
+  /* Where a change stands (a-change-says-where-it-stands). The word is
+     always written; the colour is a border and a light tint that agree
+     with it, and the text keeps the theme's own colour. */
+  .openspec-change-standing {
+    padding: 1px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .openspec-change-standing-lines {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .openspec-change-standing-block {
+    border: 0 solid var(--line);
+    border-left-width: 4px;
+    padding-left: 10px;
+    margin: 8px 0;
+  }
+
+  .openspec-change-standing--settled { border-color: #3f9a5a; background: rgba(63, 154, 90, 0.12); }
+  .openspec-change-standing--ahead { border-color: #b98900; background: rgba(214, 170, 40, 0.16); }
+  .openspec-change-standing--now { border-color: #2f6fd0; background: rgba(47, 111, 208, 0.12); }
+  .openspec-change-standing--failed { border-color: #c2413b; background: rgba(194, 65, 59, 0.12); }
+  .openspec-change-standing--deleted { border-color: #7a7a7a; background: rgba(122, 122, 122, 0.14); }
+
   .openspec-overview-table {
     width: 100%;
     border-collapse: collapse;

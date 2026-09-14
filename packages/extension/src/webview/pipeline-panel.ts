@@ -10,12 +10,15 @@ import path from "node:path";
 import * as vscode from "vscode";
 import {
   createGitWrapper,
+  describeStandingSources,
   discoverOpenSpecWorkspace,
   isValidChangeName,
+  readChangeStandings,
   readPipelineReadiness,
   refreshSurveyRuns,
   resolveAgentStatusDirectory,
   surveyWorktrees,
+  type ChangeStandings,
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
@@ -50,9 +53,13 @@ export interface PipelineReaders {
   refreshRuns: (survey: WorktreeSurvey) => Promise<WorktreeSurvey>;
   statusDirectory: (workspaceRoot: string) => Promise<string>;
   findActiveChange: (workspaceRoot: string, changeName: string) => Promise<ActiveChange | undefined>;
+  /** Where every change stands, with the refs fetched now
+   * (a-change-says-where-it-stands). */
+  standingsNow: (workspaceRoot: string) => Promise<ChangeStandings>;
 }
 
 const DEFAULT_READERS: PipelineReaders = {
+  standingsNow: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: "now" }),
   readiness: (workspaceRoot) => readPipelineReadiness(workspaceRoot),
   survey: (workspaceRoot) => surveyWorktrees({ workspaceRoot, sweepStatuses: true }),
   refreshRuns: (survey) => refreshSurveyRuns(survey, { sweepStatuses: true }),
@@ -214,6 +221,14 @@ export class PipelinePanel {
         case "pipeline/survey":
           reply({ ok: true, value: await this.surveyFor(workspaceRoot) });
           return;
+        case "pipeline/refresh": {
+          // Fetches now, whatever the interval, and forgets the survey held,
+          // so the readings the view asks for next are taken afresh.
+          const standings = await this.readers.standingsNow(workspaceRoot);
+          this.lastSurvey = undefined;
+          reply({ ok: true, value: describeStandingSources(standings.sources) });
+          return;
+        }
         default:
           // Refused by name: a request that vanishes is a promise that
           // never settles.

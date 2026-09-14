@@ -45,6 +45,10 @@ export class ThemeIcon {
   constructor(public readonly id: string) { }
 }
 
+export class ThemeColor {
+  constructor(public readonly id: string) { }
+}
+
 export class TreeItem {
   label?: string;
   description?: string;
@@ -57,15 +61,18 @@ export class TreeItem {
 }
 
 export class Uri {
-  private constructor(public readonly fsPath: string) { }
+  private constructor(public readonly fsPath: string, public readonly scheme = "file", public readonly path = fsPath) { }
   static file(fsPath: string): Uri {
     return new Uri(fsPath);
   }
   static joinPath(base: Uri, ...segments: string[]): Uri {
     return new Uri([base.fsPath, ...segments].join("/"));
   }
+  static from(components: { scheme: string; path: string }): Uri {
+    return new Uri(components.path, components.scheme, components.path);
+  }
   toString(): string {
-    return `file://${this.fsPath}`;
+    return `${this.scheme}://${this.fsPath}`;
   }
 }
 
@@ -93,6 +100,7 @@ export function createVscodeMock() {
     Selection,
     EventEmitter,
     ThemeIcon,
+    ThemeColor,
     TreeItem,
     Uri,
     WorkspaceEdit,

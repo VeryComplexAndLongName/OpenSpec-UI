@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   checkScheduleTime,
   resolveEffortLevel,
+  type ChangeStateKey,
+  type DescribedChangeState,
   type HarnessEffortLevel,
   type HarnessTemplate,
   type RunPathId,
@@ -52,10 +54,26 @@ export function effortNote(
     + (none.length === 0 ? "" : `; ${none.join(", ")} takes no effort setting`);
 }
 
+/** The words that make the dialog ask before any path can start: the change
+ * is being worked on now, or is settled somewhere else. It asks rather than
+ * refuses, since ADR 0026 forbids nothing (a-change-says-where-it-stands). */
+const ASKS_FIRST: ReadonlySet<ChangeStateKey> = new Set<ChangeStateKey>([
+  "running",
+  "running-elsewhere",
+  "waiting",
+  "waiting-elsewhere",
+  "archived-on-main",
+  "merged",
+  "deleted-on-main",
+]);
+
 export function RunDialog(
-  { changeName, plan, stats, note, onChoose, onApplyTemplate, appliedNote, onUseAgent, useAgentNote, onSchedule, onDismiss }: {
+  { changeName, plan, standing, stats, note, onChoose, onApplyTemplate, appliedNote, onUseAgent, useAgentNote, onSchedule, onDismiss }: {
     changeName: string;
     plan: RunPlan;
+    /** Where the change stands across the repository, read after a fresh
+     * fetch. Shown first. Absent where it could not be read. */
+    standing?: DescribedChangeState;
     /** What the workspace's recorded runs have cost. Absent where it
      * could not be read — shown as nothing rather than as zeroes, which
      * would be a claim. */
@@ -87,7 +105,10 @@ export function RunDialog(
   const advice = plan.advice;
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleProblem, setScheduleProblem] = useState<string | undefined>(undefined);
+  const [startAnyway, setStartAnyway] = useState(false);
   const container = useRef<HTMLElement | null>(null);
+  const asksFirst = standing !== undefined && ASKS_FIRST.has(standing.key);
+  const held = asksFirst && !startAnyway;
 
   // A dialog that opened by itself takes focus, so a screen reader says
   // a run dialog appeared without anyone asking for it just now. Only
@@ -123,6 +144,30 @@ export function RunDialog(
           different event from a person opening it, and which one it was
           has to be legible. */}
       {note ? <p className="openspec-shell-note" data-testid="run-dialog-note"><strong>{note}</strong></p> : null}
+      {standing ? (
+        <div
+          className={`openspec-change-standing-block openspec-change-standing--${standing.colour}`}
+          data-testid="run-dialog-standing"
+        >
+          <p className="openspec-shell-note"><strong>{standing.word}</strong></p>
+          {standing.lines.length > 0 ? (
+            <ul className="openspec-shell-note">
+              {standing.lines.map((line) => <li key={`${line.text}-${line.source}`}>{`${line.text} (${line.source})`}</li>)}
+            </ul>
+          ) : null}
+          {asksFirst ? (
+            <label className="openspec-shell-note">
+              <input
+                type="checkbox"
+                data-testid="run-dialog-start-anyway"
+                checked={startAnyway}
+                onChange={(e) => setStartAnyway(e.target.checked)}
+              />
+              {" Start it anyway"}
+            </label>
+          ) : null}
+        </div>
+      ) : null}
       <p className="openspec-shell-note" data-testid="run-dialog-because">{plan.because}.</p>
 
       {/* Headed, because the two lists below are both bullets and read as
@@ -200,6 +245,7 @@ export function RunDialog(
             type="button"
             data-testid={`run-dialog-path-${path.id}`}
             title={path.describes}
+            disabled={held}
             onClick={() => onChoose(path.id)}
           >
             {path.id === plan.resolved ? `${path.title} (configured)` : path.title}
@@ -226,6 +272,7 @@ export function RunDialog(
                 key={`schedule-${path.id}`}
                 type="button"
                 data-testid={`run-dialog-schedule-${path.id}`}
+                disabled={held}
                 onClick={() => schedule(path.id)}
               >
                 {`Schedule: ${path.title}`}

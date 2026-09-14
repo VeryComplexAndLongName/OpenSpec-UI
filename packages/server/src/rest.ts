@@ -44,6 +44,8 @@ import {
   collectHumanOnlyInbox,
   confirmEnrolmentFor,
   EnrolmentRefusedError,
+  readChangeStandings,
+  STANDING_FETCH_INTERVAL_MS,
   readPipelineReadiness,
   surveyWorktrees,
   runDelegatedItem,
@@ -65,6 +67,7 @@ import {
   writeChangeHarnessConfig,
   writeGlobalHarnessConfig,
   type AgentRunner,
+  type AuditLog,
   type CatalogTemplate,
   type ChangeTimelineRequestEntry,
   type Command,
@@ -1123,6 +1126,46 @@ export async function handleEnrolmentConfirmRequest(req: IncomingMessage, res: S
   }
 }
 
+interface ChangeStandingsRequest {
+  cwd: string;
+  fetch?: "now" | "interval";
+}
+
+function isChangeStandingsRequest(value: unknown): value is ChangeStandingsRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.cwd === "string" && record.cwd.trim().length > 0
+    && (record.fetch === undefined || record.fetch === "now" || record.fetch === "interval");
+}
+
+/** Where every change stands across the repository
+ * (a-change-says-where-it-stands). The reading is core's, in the shape core
+ * returns, and each surface asks core for the word. `now` fetches refs at
+ * once, for a Refresh or a run dialog; anything else fetches only where they
+ * are older than the interval. */
+export async function handleChangeStandingsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isChangeStandingsRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd and an optional fetch of \"now\" or \"interval\"" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const fetch = parsed.fetch === "now" ? "now" as const : { ifOlderThan: STANDING_FETCH_INTERVAL_MS };
+    sendJson(res, 200, await readChangeStandings(parsed.cwd, { fetch }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /** Every active change, its state, and what it can run alongside.
  *
  * The report travels whole and is not summarised here. The shell draws
@@ -1220,6 +1263,9 @@ export async function handleDelegatedItemRunRequest(
   res: ServerResponse,
   runners: Map<string, AgentRunner>,
   policy: RestRequestPolicy,
+  /** Where the request and its reply are recorded: the log the runners
+   * write to (a-change-says-where-it-stands). */
+  auditLog?: AuditLog,
 ): Promise<void> {
   let parsed: unknown;
   try {
@@ -1241,6 +1287,7 @@ export async function handleDelegatedItemRunRequest(
       changeName: parsed.changeName,
       lineNumber: parsed.lineNumber,
       resolveRunner: (agentId) => resolveRunner(runners, agentId),
+      ...(auditLog !== undefined ? { auditLog } : {}),
     });
     // A refusal is an answer, not a transport failure: the caller asked
     // a legitimate question and is being told why nothing ran.

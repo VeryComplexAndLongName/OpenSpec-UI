@@ -24,10 +24,13 @@ import type {
   WaitingOn,
 } from "./human-only-inbox-view.js";
 import type { HarnessTaskAgents } from "./harness-step-agent.js";
+import type { ItemReply } from "./audit-message.js";
+import { changeNameOf } from "./audit-runs.js";
 import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-items.js";
 import { readEnrolmentRequests } from "./enrolment.js";
+import { auditLogPath, FileAuditLog, type AuditEntry } from "./security.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
-import { readTaskChecklist } from "./task-checklist.js";
+import { readTaskChecklist, taskNumberOf } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 // The shape and the sentence live in `human-only-inbox-view.ts`, a leaf
@@ -66,6 +69,25 @@ export interface HumanOnlyInboxOptions {
   /** Test seam: the keys waiting to be enrolled. Production reads them
    * beside the repository's status directory. */
   readEnrolments?: (workspaceRoot: string) => Promise<EnrolmentRequest[]>;
+  /** Test seam: the workspace's audit entries, where a delegated run's
+   * reply is kept. Production reads the workspace's audit log. */
+  readAuditEntries?: (workspaceRoot: string) => Promise<AuditEntry[]>;
+}
+
+/** The latest reply to each change's task, by `<change>|<task number>`. */
+function latestReplies(entries: readonly AuditEntry[]): Map<string, ItemReply> {
+  const latest = new Map<string, ItemReply>();
+  for (const entry of entries) {
+    const message = entry.message;
+    if (message?.kind !== "reply" || message.outcome === undefined) continue;
+    if (entry.changeDir === undefined || entry.taskNumber === undefined) continue;
+    const key = `${changeNameOf(entry.changeDir)}|${entry.taskNumber}`;
+    const seen = latest.get(key);
+    if (seen === undefined || message.at >= seen.at) {
+      latest.set(key, { at: message.at, body: message.body, outcome: message.outcome });
+    }
+  }
+  return latest;
 }
 
 export async function collectHumanOnlyInbox(workspaceRoot: string, options: HumanOnlyInboxOptions = {}): Promise<HumanOnlyInbox> {
@@ -116,6 +138,16 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
   const readEnrolments = options.readEnrolments
     ?? (async (root: string) => (await readEnrolmentRequests(root)).requests);
   const enrolments = await readEnrolments(workspaceRoot).catch((): EnrolmentRequest[] => []);
+
+  // The latest reply beneath each item a delegated run answered. An audit log
+  // that cannot be read shows no replies, and the items still answer.
+  const readEntries = options.readAuditEntries ?? ((root: string) => new FileAuditLog(auditLogPath(root)).readEntries());
+  const replies = latestReplies(await readEntries(workspaceRoot).catch((): AuditEntry[] => []));
+  for (const item of items) {
+    const number = taskNumberOf(item.text);
+    const reply = number === undefined ? undefined : replies.get(`${item.changeName}|${number}`);
+    if (reply !== undefined) item.reply = reply;
+  }
 
   return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents, enrolments };
 }

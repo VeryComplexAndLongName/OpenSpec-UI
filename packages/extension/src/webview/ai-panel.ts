@@ -18,6 +18,7 @@ import {
   type HarnessBudget,
   type HarnessStepAgents,
   type RunPathId,
+  type DescribedChangeState,
   type RunPlan,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
@@ -79,6 +80,9 @@ export interface AiPanelContext {
   /** The change the plan is about, so the dialog can name it without
    * re-deriving it from a path. */
   changeName?: string;
+  /** Where the change stands, read with refs fetched just now, for the
+   * dialog to lead with (a-change-says-where-it-stands). */
+  runStanding?: DescribedChangeState;
   /** What the last apply of a named configuration wrote, and where — shown
    * beside the Apply button in the dialog rather than as a notification
    * out of its view. The settings view is no longer in this panel: each
@@ -624,6 +628,7 @@ export class AiPanel {
         changeName: panelContext.changeName,
         ...(panelContext.runNote ? { note: panelContext.runNote } : {}),
         ...(panelContext.runPath ? { path: panelContext.runPath } : {}),
+        ...(panelContext.runStanding ? { standing: panelContext.runStanding } : {}),
       }))
       : "";
     return `<!doctype html>

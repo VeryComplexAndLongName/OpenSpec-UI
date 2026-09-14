@@ -15,8 +15,12 @@
 
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { readAcpStreamedText } from "./acp-streamed-text.js";
+import type { ItemReply, MessageOutcome } from "./audit-message.js";
 import { resolveDelegatedItems, type DelegatedItem } from "./delegated-items.js";
 import { withAgentStatus } from "./agent-status.js";
+import { readGitAuthor } from "./git.js";
+import type { AuditLog } from "./security.js";
 import { normalizeStepAgent } from "./harness-step-agent.js";
 import type { AgentRunner } from "./agent-runner.js";
 import type { Command, Event } from "./protocol.js";
@@ -62,6 +66,9 @@ export type DelegatedItemRunResult =
     lastStderr?: string;
     gate: DelegatedItemGate;
     message: string;
+    /** The agent's reply: the end of what it last said, and how it left the
+     * item. Kept whatever the outcome (a-change-says-where-it-stands). */
+    reply: ItemReply;
   };
 
 export interface DelegatedItemRunRequest {
@@ -84,7 +91,18 @@ export interface DelegatedItemRunRequest {
    * resolves the repository's shared status directory, as every other
    * run's record does. */
   resolveStatusDirectory?: (cwd: string) => Promise<string>;
+  /** Where the request and its reply are recorded, as audit entries sharing
+   * ADR 0028's envelope. The hosts pass the log their runners write to.
+   * Absent, neither is recorded, and the result still carries the reply. */
+  auditLog?: AuditLog;
+  /** The person asking, by git author. Read from the workspace where
+   * absent. */
+  from?: string;
 }
+
+/** How much of an agent's reply its reply keeps: the end, where an agent
+ * says what it did and why it stopped. */
+const REPLY_CHARACTERS = 4_000;
 
 /** The prompt for one delegated item.
  *
@@ -123,6 +141,13 @@ export function buildDelegatedItemPrompt(item: {
     "reported as refused. If you could not do the work, or could not produce",
     "the evidence, leave the box unticked and write what you found instead.",
     "That is a useful answer; a tick that stands for nothing is not.",
+    "",
+    "## How to answer",
+    "",
+    "Wait for every command you start, in this turn. Do not leave anything",
+    "running in the background: this session ends with your turn, a command",
+    "left behind is never seen again, and work handed to later has no later.",
+    "End your turn with what you did and, if the task is not closed, why.",
   ].join("\n");
 }
 
@@ -317,9 +342,29 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
     ...(entry.budget !== undefined ? { budget: entry.budget } : {}),
   };
 
+  // The request, recorded before the agent starts, so a run that never
+  // answers still shows what it was asked (ADR 0028's amendment).
+  const requestId = randomUUID();
+  const asker = { person: request.from ?? (await readGitAuthor(workspaceRoot).catch(() => undefined)) ?? "an unnamed person" };
+  const itemFacts = {
+    agent: item.agent,
+    cwd: workspaceRoot,
+    changeDir: item.changeDir,
+    ...(item.taskNumber !== undefined ? { taskNumber: item.taskNumber } : {}),
+  };
+  const askedAt = new Date().toISOString();
+  request.auditLog?.record({
+    runId,
+    outcome: "message",
+    timestamp: askedAt,
+    ...itemFacts,
+    message: { id: requestId, kind: "request", from: asker, to: { agent: item.agent }, at: askedAt, body: item.text },
+  });
+
   let outcome: "completed" | "failed" | "cancelled" = "completed";
   let reason: string | undefined;
   const stderr = new StderrTail();
+  let said = "";
   // The same status record every other run keeps, so a delegated run is
   // seen by `openspec-ui-cli status`, the survey and the Pipeline tab,
   // whichever host started it. Kept here rather than by each host: both
@@ -331,6 +376,13 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
   for await (const event of events) {
     request.onEvent?.(event);
     if (event.kind === "stderr") stderr.add(event.chunk);
+    // What the agent says to whoever asked: a raw adapter's stdout, or an
+    // ACP agent's reply text. Never its reasoning.
+    if (event.kind === "stdout") said = (said + event.chunk).slice(-REPLY_CHARACTERS);
+    if (event.kind === "agentUpdate") {
+      const streamed = readAcpStreamedText(event.update);
+      if (streamed?.kind === "agent_message_chunk") said = (said + streamed.text).slice(-REPLY_CHARACTERS);
+    }
     if (event.kind === "failed") {
       outcome = "failed";
       reason = event.reason;
@@ -345,6 +397,34 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
   const lastStderr = outcome === "completed" ? undefined : stderr.text();
   const told = lastStderr === undefined ? reason : withLastWords(reason, lastStderr);
 
+  // The reply, recorded whatever the outcome: a run that leaves the item open
+  // is exactly the one whose last words someone needs to read.
+  const replyOutcome: MessageOutcome = outcome !== "completed"
+    ? "failed"
+    : gate.kind === "recorded" ? "closed" : gate.kind === "reverted" ? "refused" : "left-open";
+  const repliedAt = new Date().toISOString();
+  const reply: ItemReply = {
+    at: repliedAt,
+    body: said.trim().length > 0 ? said.trim() : (lastStderr ?? reason ?? ""),
+    outcome: replyOutcome,
+  };
+  request.auditLog?.record({
+    runId,
+    outcome: "message",
+    timestamp: repliedAt,
+    ...itemFacts,
+    message: {
+      id: randomUUID(),
+      kind: "reply",
+      inReplyTo: requestId,
+      from: { agent: item.agent },
+      to: asker,
+      at: repliedAt,
+      body: reply.body,
+      outcome: replyOutcome,
+    },
+  });
+
   return {
     status: "ran",
     runId,
@@ -355,6 +435,7 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
     ...(lastStderr !== undefined ? { lastStderr } : {}),
     gate,
     message: describeRun(item, outcome, told, gate),
+    reply,
   };
 }
 
