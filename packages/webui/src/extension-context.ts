@@ -1,4 +1,4 @@
-import type { RunPathId, RunPlan } from "@openspec-ui/core/browser";
+import type { DescribedChangeState, RunPathId, RunPlan } from "@openspec-ui/core/browser";
 
 export const DASHBOARD_CONTEXT_MESSAGE_TYPE = "openspec-ui/context";
 
@@ -80,6 +80,9 @@ export interface DashboardContext {
     appliedNote?: string;
     /** What putting one agent on every stage wrote, and where. */
     useAgentNote?: string;
+    /** Where the change stands, read by the host after a fresh fetch, for
+     * the dialog to lead with (a-change-says-where-it-stands). */
+    runStanding?: DescribedChangeState;
 }
 
 export interface DashboardContextMessage {
@@ -106,7 +109,7 @@ export function resolveInitialDashboardContext(
  * a malformed attribute should cost the dialog, not the whole webview. */
 function readRunPlan(
     container: HTMLElement,
-): { runPlan?: RunPlan; changeName?: string; runNote?: string; runPath?: RunPathId } {
+): { runPlan?: RunPlan; changeName?: string; runNote?: string; runPath?: RunPathId; runStanding?: DescribedChangeState } {
     const raw = container.dataset.runPlan;
     if (!raw) return {};
     try {
@@ -115,6 +118,7 @@ function readRunPlan(
             changeName?: string;
             note?: string;
             path?: RunPathId;
+            standing?: DescribedChangeState;
         };
         if (!parsed.plan) return {};
         return {
@@ -122,6 +126,7 @@ function readRunPlan(
           ...(parsed.changeName ? { changeName: parsed.changeName } : {}),
           ...(parsed.note ? { runNote: parsed.note } : {}),
           ...(parsed.path ? { runPath: parsed.path } : {}),
+          ...(parsed.standing ? { runStanding: parsed.standing } : {}),
         };
     } catch {
         return {};

@@ -117,6 +117,16 @@ function createPipelinePanel(overrides: {
     refreshRuns: vi.fn(async (survey: unknown) => survey),
     statusDirectory: vi.fn(overrides.statusDirectory ?? (async () => "/wt/repo/.agent-status")),
     findActiveChange: vi.fn(async (_root: string, name: string) => (name === "alpha" ? ACTIVE_CHANGE : undefined)),
+    standingsNow: vi.fn(async () => ({
+      readAt: "2026-09-14T00:00:00.000Z",
+      standings: [],
+      sources: {
+        mainRef: "origin/main",
+        lastFetchedAt: "2026-09-14T00:00:00.000Z",
+        fetch: { attempted: true, at: "2026-09-14T00:00:00.000Z" },
+        pullRequests: { read: true },
+      },
+    })),
     ...overrides.readers,
   };
   const revealChange = vi.fn(async () => undefined);
@@ -209,6 +219,30 @@ describe("PipelinePanel — answering the view", () => {
     watchers.find((watcher) => watcher.pattern.pattern === "openspec/changes/**")!.fire();
     await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "s:2", op: "pipeline/survey" });
     expect(readers.survey).toHaveBeenCalledTimes(2);
+  });
+
+  // a-change-says-where-it-stands 4.5
+  it("fetches refs now on Refresh, says how fresh they are, and takes the next survey afresh", async () => {
+    let clock = 0;
+    const { pipeline, readers } = createPipelinePanel({ now: () => clock });
+    pipeline.show();
+    await settled();
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "s:0", op: "pipeline/survey" });
+
+    // Only records changed, which would otherwise reuse the survey held.
+    watchers.find((watcher) => watcher.pattern.pattern === "*.json")!.fire();
+    clock = 10_000;
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "f:1", op: "pipeline/refresh" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "s:2", op: "pipeline/survey" });
+
+    expect(readers.standingsNow).toHaveBeenCalledWith("/repo");
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "f:1",
+      ok: true,
+      value: expect.stringContaining("Main read from origin/main."),
+    }));
+    expect(readers.survey).toHaveBeenCalledTimes(2);
+    expect(readers.refreshRuns).not.toHaveBeenCalled();
   });
 });
 

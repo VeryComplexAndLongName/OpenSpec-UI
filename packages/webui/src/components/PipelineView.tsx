@@ -84,6 +84,10 @@ export interface PipelineViewProps {
    * Returns the unsubscribe. Absent, the view polls as it always has.
    * Must be stable across renders, or each render subscribes again. */
   subscribe?: (listener: (reading: PipelineReading) => void) => () => void;
+  /** Fetches the repository's refs now, and says when they were last fetched
+   * and what failed. The view then reads everything again. Absent, no
+   * Refresh is offered (a-change-says-where-it-stands). */
+  refresh?: () => Promise<string>;
 }
 
 /** One reading, repeated while the tab is looked at: on a timer, or on a
@@ -130,7 +134,7 @@ function usePolledReading<T>(
     };
   }, [isActive, load, read, intervalMs, name, subscribe]);
 
-  return { value, error, readAt };
+  return { value, error, readAt, read };
 }
 
 /** The time the view states ages against, moved on while it is looked at.
@@ -146,10 +150,32 @@ function useClock(isActive: boolean): Date {
   return now;
 }
 
-export function PipelineView({ load, survey, isActive, onOpenChange, subscribe }: PipelineViewProps) {
+export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const now = useClock(isActive);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refs, setRefs] = useState<string | undefined>(undefined);
+  const [refreshError, setRefreshError] = useState<string | undefined>(undefined);
+  /** Held in a ref as well as state, so a second press in the same tick
+   * starts nothing. */
+  const refreshInFlight = useRef(false);
+
+  async function refreshNow(): Promise<void> {
+    if (!refresh || refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    setRefreshing(true);
+    setRefreshError(undefined);
+    try {
+      setRefs(await refresh());
+      await Promise.all([local.read(), others.read()]);
+    } catch (cause) {
+      setRefreshError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      refreshInFlight.current = false;
+      setRefreshing(false);
+    }
+  }
 
   const report = local.value;
   const here = others.value?.directories.find((directory) => directory.isThis);
@@ -194,6 +220,17 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe }
         Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
         {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
       </p>
+      {refresh ? (
+        <div className="openspec-ai-panel-controls">
+          <button type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+          {refs ? <span className="openspec-shell-note" data-testid="pipeline-refs">{refs}</span> : null}
+        </div>
+      ) : null}
+      {refreshError !== undefined
+        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
+        : null}
     </div>
   );
 }

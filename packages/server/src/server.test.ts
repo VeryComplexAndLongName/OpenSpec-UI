@@ -60,6 +60,7 @@ const listSpecsMock = vi.fn();
 const initOpenSpecMock = vi.fn();
 const detectAvailableAgentsMock = vi.fn();
 const confirmEnrolmentForMock = vi.fn();
+const readChangeStandingsMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
@@ -68,6 +69,7 @@ vi.mock("@openspec-ui/core", async () => {
     listChanges: (...args: unknown[]) => listChangesMock(...args),
     listSpecs: (...args: unknown[]) => listSpecsMock(...args),
     confirmEnrolmentFor: (...args: unknown[]) => confirmEnrolmentForMock(...args),
+    readChangeStandings: (...args: unknown[]) => readChangeStandingsMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
     detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
   };
@@ -1181,6 +1183,72 @@ describe("server — REST /api/status", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  // a-change-says-where-it-stands 8.5: a delegated run's reply, kept in the
+  // workspace's audit log, travels with its item.
+  it("carries a delegated item's latest reply in the inbox", async () => {
+    const cwd = await createTempWorkspace();
+    const changeDir = path.join(cwd, "openspec", "changes", "demo");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(cwd, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+    await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nBecause.\n", "utf8");
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] 2.1 **Delegated to copilot-cli**: check the server\n", "utf8");
+    await mkdir(path.join(cwd, ".openspec-ui"), { recursive: true });
+    const at = "2026-09-14T00:05:00.000Z";
+    const entry = {
+      runId: "run-1",
+      agent: "copilot-cli",
+      outcome: "message",
+      cwd,
+      timestamp: at,
+      changeDir,
+      taskNumber: "2.1",
+      message: { id: "m-2", kind: "reply", inReplyTo: "m-1", from: { agent: "copilot-cli" }, to: { person: "ada@example.com" }, at, body: "It stays open: the server was down.", outcome: "left-open" },
+    };
+    await writeFile(path.join(cwd, ".openspec-ui", "audit.jsonl"), `${JSON.stringify(entry)}\n`, "utf8");
+
+    const response = await fetch(`${baseUrl}/api/human-only-inbox`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+    const body = (await response.json()) as { items: Array<{ reply?: unknown }> };
+
+    expect(response.status).toBe(200);
+    expect(body.items[0]?.reply).toEqual({ at, body: "It stays open: the server was down.", outcome: "left-open" });
+  });
+
+  // a-change-says-where-it-stands 4.1: the reading is core's, in the shape
+  // core returns; the route decides only how fresh the refs must be.
+  describe("POST /api/change-standings", () => {
+    const READING = { readAt: "2026-09-14T00:00:00.000Z", standings: [], sources: { fetch: { attempted: false }, pullRequests: { read: true } } };
+
+    it("reads standings fetching only past the interval, and fetches now when asked", async () => {
+      const cwd = await createTempWorkspace();
+      readChangeStandingsMock.mockResolvedValue(READING);
+
+      const interval = await fetch(`${baseUrl}/api/change-standings`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+      const now = await fetch(`${baseUrl}/api/change-standings`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, fetch: "now" }) });
+
+      expect(interval.status).toBe(200);
+      expect(await interval.json()).toEqual(READING);
+      expect(now.status).toBe(200);
+      expect(readChangeStandingsMock.mock.calls.map((call) => call[1])).toEqual([
+        { fetch: { ifOlderThan: 5 * 60_000 } },
+        { fetch: "now" },
+      ]);
+    });
+
+    it("rejects a fetch it does not know, before reading anything", async () => {
+      const cwd = await createTempWorkspace();
+      readChangeStandingsMock.mockClear();
+
+      const response = await fetch(`${baseUrl}/api/change-standings`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd, fetch: "always" }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(readChangeStandingsMock).not.toHaveBeenCalled();
+    });
   });
 
   // a-run-is-signed-by-its-person 5.2: which key a confirmation enrols is

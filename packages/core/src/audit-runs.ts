@@ -35,8 +35,10 @@ export const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
  * deliberately left in: they are mechanical too, but each is written as
  * a `started` and a terminal pair, so they were already counted as the
  * discrete actions they are rather than inflating a total by accident. */
-export function isRunEntry(entry: Pick<AuditEntry, "agent">): boolean {
-  return entry.agent !== VERIFY_CHECKS_AGENT_NAME;
+export function isRunEntry(entry: Pick<AuditEntry, "agent"> & { outcome?: AuditEntry["outcome"] }): boolean {
+  // A request or its reply is a message about a run, not a run
+  // (a-change-says-where-it-stands).
+  return entry.agent !== VERIFY_CHECKS_AGENT_NAME && entry.outcome !== "message";
 }
 
 /** The directory name at the end of a recorded `changeDir`, in either

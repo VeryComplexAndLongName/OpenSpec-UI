@@ -19,6 +19,7 @@ import {
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
   runDelegatedItem,
+  STANDING_FETCH_INTERVAL_MS,
   shortDelegatedItemOutcome,
 } from "@openspec-ui/core";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
@@ -29,6 +30,7 @@ import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./c
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
+import { ChangeStandingDecorations } from "./tree/change-standing-decorations.js";
 import { ChangeTreeItem } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
@@ -216,7 +218,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   let templatesView: TreeSelectionView | undefined;
   let changeGraphView: RevealableTreeView<GraphTreeNode> | undefined;
   if (workspaceRoot) {
-    changesTree = new ChangesTreeProvider(workspaceRoot);
+    // Each change's state word colours its row through a file decoration
+    // (a-change-says-where-it-stands).
+    const standingDecorations = new ChangeStandingDecorations();
+    context.subscriptions.push(vscode.window.registerFileDecorationProvider(standingDecorations));
+    changesTree = new ChangesTreeProvider(workspaceRoot, { decorations: standingDecorations });
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
     specsTree = new SpecsTreeProvider(workspaceRoot);
     templatesTree = new TemplatesTreeProvider(workspaceRoot);
@@ -255,7 +261,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         changeGraphView: changeGraphTreeView,
       }),
       vscode.commands.registerCommand("openspec-ui.refresh", () => {
-        changesTree?.refresh();
+        // A person asked, so refs are fetched now, whatever the interval.
+        changesTree?.refresh({ fetchNow: true });
         archiveTree?.refresh();
         specsTree?.refresh();
         templatesTree?.refresh();
@@ -279,6 +286,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       watcher.onDidCreate(refreshTrees),
       watcher.onDidChange(refreshTrees),
       watcher.onDidDelete(refreshTrees),
+    );
+    // While the Changes view is visible, standings are read again once per
+    // fetch interval, which fetches refs when they have grown that old.
+    let standingTimer: ReturnType<typeof setInterval> | undefined;
+    const followChangesVisibility = (visible: boolean) => {
+      if (standingTimer !== undefined) clearInterval(standingTimer);
+      standingTimer = visible ? setInterval(() => changesTree?.refresh(), STANDING_FETCH_INTERVAL_MS) : undefined;
+    };
+    followChangesVisibility(changesTreeView.visible);
+    context.subscriptions.push(
+      changesTreeView.onDidChangeVisibility((event) => followChangesVisibility(event.visible)),
+      { dispose: () => followChangesVisibility(false) },
     );
 
     optionalServer = new OptionalServerManager(
@@ -328,6 +347,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
               changeName: item.changeName,
               lineNumber: item.lineNumber,
               resolveRunner: (agentId) => resolveAgentRunner(agents, agentId),
+              // The request and its reply go to the log the runners write to
+              // (a-change-says-where-it-stands).
+              ...(auditLog !== undefined ? { auditLog } : {}),
             }),
           );
           inboxTree?.reportOutcome(item, shortDelegatedItemOutcome(result));

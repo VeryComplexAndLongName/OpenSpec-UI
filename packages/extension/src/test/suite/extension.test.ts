@@ -297,7 +297,11 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     try {
       await vscode.commands.executeCommand("openspec-ui.refresh");
       const change = (await api.changesTree!.getChildren()).find((item) => item.label === "demo");
-      assert.equal(change?.description, "implemented");
+      // The description leads with the artifact state; since
+      // a-change-says-where-it-stands the state word follows it
+      // (`implemented — Ready`), and which word depends on the checkout.
+      const leadsWithImplemented = /^implemented(?: — |$)/u;
+      assert.match(String(change?.description), leadsWithImplemented);
       const tasks = (await api.changesTree!.getChildren(change!)).find((item) => item.label === "Tasks");
       // The row VS Code draws when it restores the tree's selection
       // after a window reload is whatever `getParent` returns. It used
@@ -308,7 +312,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       // restarts the extension host this test runs in.
       const parent = await api.changesTree!.getParent(tasks!);
       assert.equal(parent, change);
-      assert.equal(parent?.description, "implemented");
+      assert.match(String(parent?.description), leadsWithImplemented);
     } finally {
       await vscode.workspace.fs.writeFile(tasksUri, Buffer.from("## 1. Fixture\n\n- [ ] 1.1 Placeholder task.\n", "utf8"));
     }

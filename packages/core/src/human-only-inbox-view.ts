@@ -13,6 +13,7 @@
 // a-live-check-names-who-performs-it for why an item says who it waits
 // on rather than being assumed to wait on a person.
 
+import type { ItemReply } from "./audit-message.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
 
 /** Who an open item waits on.
@@ -71,6 +72,9 @@ export interface HumanOnlyItem {
   lineNumber: number;
   text: string;
   waitingOn: WaitingOn;
+  /** The latest reply a delegated run of this item left, where one was
+   * recorded (a-change-says-where-it-stands). */
+  reply?: ItemReply;
 }
 
 export interface HumanOnlyInbox {

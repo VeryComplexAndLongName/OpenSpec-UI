@@ -1,6 +1,8 @@
 // Thin git wrapper — only what the UI actually needs (status, diff, commit,
 // branch), not the full git API (see tasks.md 5.2). Built on top of `simple-git`.
 
+import { stat } from "node:fs/promises";
+import path from "node:path";
 import simpleGit, { type SimpleGit } from "simple-git";
 
 export interface GitWrapperOptions {
@@ -124,6 +126,28 @@ export interface GitWrapper {
    * is not in that commit would produce a directory without the change it
    * was created for. */
   pathExistsInRef(ref: string, pathInRepo: string): Promise<boolean>;
+  /** The names directly under `pathInRepo` at `ref`, files and directories
+   * alike. A path the ref does not have lists as empty; a ref that does not
+   * exist rejects (a-change-says-where-it-stands). */
+  listTreeNames(ref: string, pathInRepo: string): Promise<string[]>;
+  /** A file's text at `ref`, or `undefined` where the ref or the path is not
+   * there. */
+  showFile(ref: string, pathInRepo: string): Promise<string | undefined>;
+  /** Whether `ref` names a commit. */
+  refExists(ref: string): Promise<boolean>;
+  /** Every ref under the given prefixes, by full name with the commit it
+   * points at, in one call. */
+  listRefs(prefixes: readonly string[]): Promise<Array<{ name: string; commit: string }>>;
+  /** The commit `ref` names, or `undefined` where it names none. */
+  resolveCommit(ref: string): Promise<string | undefined>;
+  /** Fetches `remote`. Touches refs only, never a working tree. */
+  fetch(remote: string): Promise<void>;
+  /** When refs were last fetched: the modification time of `FETCH_HEAD` in
+   * the repository's common git directory, or `undefined` where there has
+   * been no fetch. */
+  lastFetchedAt(): Promise<Date | undefined>;
+  /** The merge base of two refs, or `undefined` where they share none. */
+  mergeBase(left: string, right: string): Promise<string | undefined>;
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
@@ -231,6 +255,72 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         return true;
       } catch {
         return false;
+      }
+    },
+    async listTreeNames(ref: string, pathInRepo: string): Promise<string[]> {
+      const tree = pathInRepo.replace(/\/+$/u, "");
+      try {
+        const out = await git.raw(["ls-tree", "--name-only", `${ref}:${tree}`]);
+        return out.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+      } catch (error) {
+        // `<ref>:<path>` fails alike for a missing ref and a missing path.
+        // Only the second is an answer.
+        if (await this.refExists(ref)) return [];
+        throw error;
+      }
+    },
+    async showFile(ref: string, pathInRepo: string): Promise<string | undefined> {
+      try {
+        return await git.raw(["show", `${ref}:${pathInRepo}`]);
+      } catch {
+        return undefined;
+      }
+    },
+    async refExists(ref: string): Promise<boolean> {
+      try {
+        const out = await git.raw(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+        return out.trim().length > 0;
+      } catch {
+        return false;
+      }
+    },
+    async listRefs(prefixes: readonly string[]): Promise<Array<{ name: string; commit: string }>> {
+      const out = await git.raw(["for-each-ref", "--format=%(objectname) %(refname)", ...prefixes]);
+      return out
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const separator = line.indexOf(" ");
+          return { commit: line.slice(0, separator), name: line.slice(separator + 1) };
+        });
+    },
+    async resolveCommit(ref: string): Promise<string | undefined> {
+      try {
+        const out = (await git.raw(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])).trim();
+        return out.length > 0 ? out : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    async fetch(remote: string): Promise<void> {
+      await git.raw(["fetch", "--quiet", remote]);
+    },
+    async lastFetchedAt(): Promise<Date | undefined> {
+      try {
+        const common = (await git.raw(["rev-parse", "--git-common-dir"])).trim();
+        const info = await stat(path.join(path.resolve(options.cwd, common), "FETCH_HEAD"));
+        return info.mtime;
+      } catch {
+        return undefined;
+      }
+    },
+    async mergeBase(left: string, right: string): Promise<string | undefined> {
+      try {
+        const out = (await git.raw(["merge-base", left, right])).trim();
+        return out.length > 0 ? out : undefined;
+      } catch {
+        return undefined;
       }
     },
   };

@@ -45,7 +45,9 @@ export type BridgeOperation =
     // The Pipeline panel's two readings (the-pipeline-opens-in-vs-code).
     // Answered by that panel only; another panel refuses them by name.
     | "pipeline/readiness"
-    | "pipeline/survey";
+    | "pipeline/survey"
+    // Fetching refs now, for the Pipeline's Refresh (a-change-says-where-it-stands).
+    | "pipeline/refresh";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

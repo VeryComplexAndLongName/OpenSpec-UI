@@ -11,6 +11,7 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
+import type { AuditMessage } from "./audit-message.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { instructionsForArtifact } from "./openspec.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
@@ -327,7 +328,10 @@ export async function prepareAgentContext(
   };
 }
 
-export type AuditOutcome = "blocked" | "started" | "completed" | "failed" | "cancelled";
+/** `message` marks an entry that carries a request or its reply rather than
+ * a run's start or end; a reader counting runs skips it
+ * (a-change-says-where-it-stands). */
+export type AuditOutcome = "blocked" | "started" | "completed" | "failed" | "cancelled" | "message";
 
 export interface AuditEntry {
   runId: string;
@@ -404,6 +408,10 @@ export interface AuditEntry {
    * stage on the same agent at `high` and at `medium` are different runs,
    * and a recommendation averaging them would be averaging two things. */
   effort?: HarnessEffort;
+  /** A request to an agent or its reply, on an entry whose outcome is
+   * `message` (ADR 0028's amendment of 2026-09-13). Optional, so entries
+   * written before it stay valid. */
+  message?: AuditMessage;
 }
 
 export interface AuditLog {
