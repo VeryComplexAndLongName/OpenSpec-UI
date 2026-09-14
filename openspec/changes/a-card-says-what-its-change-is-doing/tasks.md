@@ -363,11 +363,21 @@ ended (ADR 0029).
     `every run here is on its change's card`.
 
   The 31 earlier tests pass unchanged; the file has 35.
-- [ ] 6.4 browser `e2e/pipeline.spec.ts`:
+- [x] 6.4 browser `e2e/pipeline.spec.ts`:
   - a fixture change whose audit log shows its latest chain failing at
     verify shows `Failed at verify`;
   - no drawn line is cut;
   - the tab passes axe at WCAG AA.
+
+  Done: after writing the task lists, `beforeAll` writes the workspace's
+  `.openspec-ui/audit.jsonl`. It holds a chain on `pipeline-first` whose
+  verify stage failed, with a cost of $0.42, and its `chain` ending entry.
+  "draws the declared order, and passes axe" expects that card to read
+  `Failed at verify`, to carry `data-state="failed"`, and to show
+  `last run failed at verify`. In the same test, the existing check finds
+  no drawn line past its card's inner edge, and axe finds no serious or
+  critical WCAG 2.1 AA violation. The whole browser suite passed with it
+  at `86bfead`, 18 tests (7.4), and so did CI's browser job.
 
 ## 7. Verification
 
