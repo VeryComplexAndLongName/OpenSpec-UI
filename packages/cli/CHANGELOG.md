@@ -1,5 +1,25 @@
 # @openspec-ui/cli
 
+## 0.13.0
+
+### Minor Changes
+
+- 604e575: A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it.
+  
+  A key that signs a live run and is not enrolled waits in the Human-Only Inbox of both hosts with "It was me". It is also listed by `openspec-ui-cli enrol`. `status` and the Pipeline's run lines say whose a run is, as far as its signature shows.
+
+### Patch Changes
+
+- f25c29a: A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word.
+  
+  Where the word shows:
+  
+  - The VS Code Changes tree and the standalone Changes list show it, and `openspec-ui-cli ready` prints it.
+  - The run dialog in both hosts leads with it, and asks before starting a change that is running, settled on `main` or merged.
+  - The Changes list and the Pipeline gain a Refresh that fetches refs now.
+  
+  A delegated run now records its request and its reply in the audit log, and the waiting-on inbox shows the latest reply beneath its item. The delegated prompt asks the agent to answer within its turn.
+
 ## 0.12.1
 
 ### Patch Changes

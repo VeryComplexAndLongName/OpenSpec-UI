@@ -1,5 +1,40 @@
 # @openspec-ui/webui
 
+## 1.45.0
+
+### Minor Changes
+
+- 107524d: A Pipeline card says what its change is doing. Core derives one card per change from readings the hosts already take (`describeChangeCards`, `describeChangeCard`), with facts from the change's own worktree where it has one. Each card gives:
+  
+  - its state: waiting, running, failed or stopped at a stage, blocked, done or ready;
+  - the task a live run is on, in the agent's own words, the task it was given, or a marked guess;
+  - what the run is doing or waiting on, and how long ago it said so;
+  - how many tasks are done, and how many only a person can close or are delegated;
+  - how the last run ended, what it cost where that was reported, and why a stopped run stopped.
+  
+  Its word is `describeChangeState`'s, read against the same standings as the Changes list, so the two never disagree. Runs a card shows are no longer repeated in the run lines above the picture.
+  
+  A chain now writes one audit entry as it ends, saying how, at which stage and why, and every counter of runs skips it. `readLastRuns` reads each change's last ended run from every worktree's audit log, and parses a log again only when it changes. The server answers `/api/change-last-runs`, and the editor's Pipeline panel answers `pipeline/last-runs` and `pipeline/standings`.
+- f25c29a: A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word.
+  
+  Where the word shows:
+  
+  - The VS Code Changes tree and the standalone Changes list show it, and `openspec-ui-cli ready` prints it.
+  - The run dialog in both hosts leads with it, and asks before starting a change that is running, settled on `main` or merged.
+  - The Changes list and the Pipeline gain a Refresh that fetches refs now.
+  
+  A delegated run now records its request and its reply in the audit log, and the waiting-on inbox shows the latest reply beneath its item. The delegated prompt asks the agent to answer within its turn.
+- 604e575: A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it.
+  
+  A key that signs a live run and is not enrolled waits in the Human-Only Inbox of both hosts with "It was me". It is also listed by `openspec-ui-cli enrol`. `status` and the Pipeline's run lines say whose a run is, as far as its signature shows.
+
+### Patch Changes
+
+- Updated dependencies [107524d]
+- Updated dependencies [f25c29a]
+- Updated dependencies [604e575]
+  - @openspec-ui/core@0.86.0
+
 ## 1.44.2
 
 ### Patch Changes
