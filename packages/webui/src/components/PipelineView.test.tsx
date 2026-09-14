@@ -482,7 +482,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     ...overrides,
   });
 
-  function renderCard(options: { record?: Partial<SurveyedRun> | null; held?: LiveRun[] } = {}) {
+  function renderCard(options: { record?: Partial<SurveyedRun> | null; held?: LiveRun[]; liveRuns?: () => Promise<{ runs: LiveRun[] }> } = {}) {
     const onRunControl = vi.fn();
     const onStart = vi.fn();
     const copyText = vi.fn(async () => undefined);
@@ -497,7 +497,7 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
           changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }],
           runs,
         }))}
-        liveRuns={async () => ({ runs: options.held ?? [] })}
+        liveRuns={options.liveRuns ?? (async () => ({ runs: options.held ?? [] }))}
         onRunControl={onRunControl}
         onStart={onStart}
         copyText={copyText}
@@ -547,6 +547,16 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "cancel" });
     expect(screen.queryByTestId("pipeline-stop-alpha")).toBeNull();
+  });
+
+  it("reads its runs again shortly after a control, so the card shows what the press did", async () => {
+    const liveRuns = vi.fn(async () => ({ runs: [heldRun({ stopRequested: { reason: "wrong branch" } })] }));
+    const { onRunControl } = renderCard({ liveRuns });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha now" }));
+    expect(onRunControl).toHaveBeenCalledTimes(1);
+    const readsBefore = liveRuns.mock.calls.length;
+    await waitFor(() => expect(liveRuns.mock.calls.length).toBeGreaterThan(readsBefore), { timeout: 3000 });
   });
 
   it("offers Stop, not Stop now, while no stop has been asked", async () => {

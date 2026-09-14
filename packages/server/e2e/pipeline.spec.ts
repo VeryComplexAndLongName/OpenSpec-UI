@@ -12,7 +12,7 @@
 // harness-screenshots.spec.ts).
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -22,6 +22,8 @@ import { promisify } from "node:util";
 import { agentStatusDirectory } from "@openspec-ui/core";
 import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
+import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const IMAGES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "images", "standalone");
 
@@ -252,6 +254,119 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   );
   expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
   expect(pageErrors).toEqual([]);
+});
+
+/** Leaves the Pipeline tab and comes back, which reads every reading
+ * again, instead of waiting out the survey's thirty seconds. */
+async function readPipelineAgain(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "Change Editor" }).click();
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+}
+
+// a-change-is-run-from-its-card 6.1: a chain started from its card, its
+// checkpoint answered on the card, and a stop asked for there with a
+// reason. The stand-in holds the verify stage open, so the stop is asked
+// while a stage runs and stays pending for the card to state.
+test("starts a chain from its card, answers it there, and asks it to stop", async ({ page }) => {
+  test.setTimeout(150000);
+  const changeName = "pipeline-run";
+  const runRoot = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-pipeline-run-"));
+  await mkdir(path.join(runRoot, "openspec", "specs"), { recursive: true });
+  await writeFile(path.join(runRoot, "openspec", "config.yaml"), "schema: spec-driven\n", "utf8");
+  await writeChange(changeName, undefined, runRoot);
+  // Semi-autonomous, so the run dialog offers the chain and the chain
+  // stops at a checkpoint between stages.
+  await writeFile(
+    path.join(runRoot, "openspec", "changes", changeName, "harness.json"),
+    `${JSON.stringify({ autonomyLevel: "semi-autonomous", stepAgents: { apply: "claude-cli", verify: "claude-cli" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await git(runRoot, ["init", "-q", "-b", "main"]);
+  await git(runRoot, ["add", "."]);
+  await git(runRoot, ["commit", "-q", "-m", "workspace"]);
+
+  let releaseVerify: () => void = () => undefined;
+  const verifyGate = new Promise<void>((resolve) => { releaseVerify = resolve; });
+  const runServer = createServer({
+    workspaceRoot: runRoot,
+    host: "127.0.0.1",
+    port: 0,
+    runners: new Map([["claude-cli", createFakeAgentRunner({ changeName, verifyGate })]]),
+  });
+  const address = await runServer.listen();
+  // The chain keeps the page's WebSocket open, and `close()` waits for
+  // every client: see fixtures/intercept-websocket.ts.
+  const socket = await interceptWebSocket(page);
+  try {
+    const pageErrors: Error[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error));
+    await page.goto(`http://127.0.0.1:${address.port}/#token=${encodeURIComponent(runServer.accessToken)}`);
+    await page.getByLabel("Workspace root (cwd)").fill(runRoot);
+    await page.getByRole("tab", { name: "Pipeline" }).click();
+
+    // 1. Start, on the card: the run dialog opens beneath the picture with
+    // focus in it, and the chain it starts is shown there too.
+    const start = page.getByTestId(`pipeline-start-${changeName}`);
+    await expect(async () => {
+      await readPipelineAgain(page);
+      await expect(start).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 45000 });
+    await start.click();
+    const layer = page.getByTestId("pipeline-run-layer");
+    const dialog = layer.getByTestId("run-dialog");
+    await expect(dialog).toBeVisible({ timeout: 15000 });
+    await expect(dialog).toBeFocused();
+    await dialog.getByTestId("run-dialog-path-chain").click();
+    const chain = layer.getByTestId("pipeline-run-chain");
+    await expect(chain).toBeFocused();
+    await chain.getByTestId("start-chain-button").click();
+    await expect(chain.getByTestId("checkpoint-confirmation")).toBeVisible({ timeout: 15000 });
+
+    // 2. Continue, on the card, at every checkpoint until a stage runs.
+    // What stages come before verify is the harness's own default; the
+    // stand-in holds verify, where the card then offers Stop and no
+    // Continue.
+    const continueOnCard = page.getByTestId(`pipeline-continue-${changeName}`);
+    const stopOnCard = page.getByTestId(`pipeline-stop-${changeName}`);
+    await expect(async () => {
+      await readPipelineAgain(page);
+      await expect(continueOnCard).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 45000 });
+    await continueOnCard.click();
+    await expect(async () => {
+      await readPipelineAgain(page);
+      if (await continueOnCard.isVisible()) await continueOnCard.click();
+      await expect(continueOnCard).toBeHidden({ timeout: 3000 });
+      await expect(stopOnCard).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 60000 });
+
+    // 3. Stop, with a reason, through a form that passes axe while open.
+    await stopOnCard.click();
+    const form = page.getByRole("dialog", { name: `Ask ${changeName} to stop` });
+    await expect(form).toBeVisible();
+    const accessibility = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    const blockingViolations = accessibility.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
+    await form.getByTestId("pipeline-stop-reason").fill("wrong branch");
+    await form.getByTestId("pipeline-ask-to-stop").click();
+    await expect(form).toBeHidden();
+
+    // 4. The card states the request, from the run's record, while the
+    // stage it waits on is still open.
+    const card = page.getByTestId(`pipeline-node-${changeName}`);
+    await expect(card).toContainText("asked to stop", { timeout: 15000 });
+    await expect(card).toContainText("wrong branch");
+    expect(pageErrors).toEqual([]);
+  } finally {
+    releaseVerify();
+    await socket.current?.close();
+    await runServer.close();
+    await rm(runRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => undefined);
+  }
 });
 
 test("becomes headed lanes at phone width, with no lines", async ({ page }) => {

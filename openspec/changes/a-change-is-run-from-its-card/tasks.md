@@ -40,9 +40,13 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   Webui, extension and server typecheck. The touched tests pass: server
   3 selected, webui bridge and AiPanel 66, extension `describe-event`.
-- [ ] 1.4 `AuditEntry` in `packages/core/src/security.ts` gains
+- [x] 1.4 `AuditEntry` in `packages/core/src/security.ts` gains
   `stopRequest?: { reason: string; by?: string }`. It is written only on a
   chain ending entry, after a requested stop.
+
+  Done: the field is declared with a comment on why it is not `reason`.
+  `recordEnding` in `harness-chain-runner.ts` is the only writer (3.6), and
+  the "asked to stop" tests check it on the ending entry (3.9).
 
 ## 2. The registry
 
@@ -403,7 +407,7 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   Core passes, 63 tests across the word, card and survey files. Core,
   webui, extension, cli and server typecheck.
-- [ ] 5.2 Start is offered when the card's state is `ready`, `failed` or
+- [x] 5.2 Start is offered when the card's state is `ready`, `failed` or
   `stopped`.
   - Standalone: it opens `RunDialog` for that change in a
     `role="dialog"` layer over the Pipeline tab. Focus moves into the
@@ -412,27 +416,65 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   - Editor: it posts `openspec-ui/run-change`. The pipeline panel checks the
     name as it does for `openspec-ui/open-change`, then runs
     `openspec-ui.runWithHarness` for that change.
-- [ ] 5.3 `openspec-ui.runWithHarness` in `packages/extension/src/commands.ts`
+
+  Done. The view offers Start only on a card with no run and one of those
+  three states.
+  - Standalone (`standalone-entry.tsx`): the run dialog's state now carries
+    the change it is for and where it was opened. Apply, use-agent and
+    schedule act on that name, not on the Change Editor's selected change,
+    which a card's Start never set. A card's Start opens the dialog in a
+    layer beneath the picture and focuses it; choosing the chain shows
+    `HarnessChainPanel` in a `role="dialog"` section in that layer, which
+    takes focus in turn. Closing either returns focus to the card's Start.
+    A dialog opened from the Change Editor behaves as before.
+  - Editor: `pipeline-entry.tsx` posts `openspec-ui/run-change`.
+    `PipelinePanel` checks the name as it does for opening a change and
+    runs the command. `pipeline-panel.test.ts` covers an accepted and a
+    refused name.
+- [x] 5.3 `openspec-ui.runWithHarness` in `packages/extension/src/commands.ts`
   accepts a change name as well as a tree item. It refuses a name that is
   not an active change of the workspace, and says so.
-- [ ] 5.4 Answer, on a card whose run is `ownedHere`:
+
+  Done: a name is looked up among the workspace's active changes and run
+  as that change's tree item. An unknown name gets the warning
+  `OpenSpec UI: <name> is not an active change of this workspace, so it
+  cannot be run.` and nothing runs. Two tests in `commands.test.ts`; the
+  file passes, 140 tests.
+- [x] 5.4 Answer, on a card whose run is `ownedHere`:
   - at a checkpoint, `Continue to <nextStage>` sends `confirmCheckpoint`,
     and `Stop` opens the reason form and sends `stop`;
   - on a permission, `Allow` and `Deny` send the existing permission answer,
     beside the permission's description.
-- [ ] 5.5 Stop, on a card whose run is `ownedHere` and has no stop asked: the
+
+  Done. Standalone sends each control over the page's WebSocket, with the
+  run's id and change directory. The editor posts
+  `openspec-ui/run-control`; `PipelinePanel` carries it out only for a run
+  this host holds, on the same change, in its own workspace, and the
+  extension sends it to the chain runner or the run's own runner.
+- [x] 5.5 Stop, on a card whose run is `ownedHere` and has no stop asked: the
   `Stop` button opens a form with one required reason field and an
   `Ask to stop` button, which sends `stop`. The card then states the
   request from the record: `asked to stop: <reason>`.
-- [ ] 5.6 Stop now, on a card whose run is `ownedHere` and has a stop asked:
+
+  Done. After any control, the view reads the runs, the survey and the
+  standings again one second later (`RUN_CONTROL_REREAD_MS`), so the card
+  states the record without waiting for the next survey 30 seconds later.
+  A test covers that read.
+- [x] 5.6 Stop now, on a card whose run is `ownedHere` and has a stop asked:
   the `Stop now` button sends `cancel`.
-- [ ] 5.7 A card whose run is not `ownedHere` offers no Answer, Stop or Stop
+- [x] 5.7 A card whose run is not `ownedHere` offers no Answer, Stop or Stop
   now. A waiting run's line says it is answered where it was started. The
   card shows the run's working directory with a `Copy folder path` button,
   and offers nothing that opens the folder.
-- [ ] 5.8 Every control is a button, and its accessible name includes the
+- [x] 5.8 Every control is a button, and its accessible name includes the
   change's name.
-- [ ] 5.9 webui `PipelineView.test.tsx`:
+
+  Done, for 5.6 to 5.8: `Start <name>`, `Continue <name> to <stage>`,
+  `Allow <name>: <description>`, `Deny <name>: <description>`,
+  `Stop <name>`, `Stop <name> now` and `Copy folder path of <name>`. The
+  reason form is a dialog named `Ask <name> to stop`. The card itself is a
+  group whose name is a button, since a button cannot hold buttons.
+- [x] 5.9 webui `PipelineView.test.tsx`:
   - for a run that is `ownedHere`, the right controls appear and send the
     right command: at a checkpoint, on a permission, and while running both
     with and without a stop asked;
@@ -441,15 +483,35 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   - Start opens the dialog for its change;
   - the reason form refuses an empty reason.
 
+  Done: "a card's controls" has seven tests, the six above and the read
+  after a control. The empty reason is refused in the checkpoint test.
+  Start is checked to ask its host for that change's dialog; opening the
+  dialog is the host's, and 6.1 covers it in a browser. The file passes,
+  42 tests.
+
 ## 6. Browser suite
 
-- [ ] 6.1 browser `e2e/pipeline.spec.ts`, with a stand-in agent:
+- [x] 6.1 browser `e2e/pipeline.spec.ts`, with a stand-in agent:
   1. start a chain from a card;
   2. answer its checkpoint on the card;
   3. ask it to stop, with a reason;
   4. confirm the card says the run was asked to stop.
 
   The tab passes axe at WCAG AA while the reason form is open.
+
+  Done: "starts a chain from its card, answers it there, and asks it to
+  stop" passes against a server with the stand-in runner. That runner now
+  takes a `verifyGate`, which holds the verify stage open. The test
+  checks:
+  - focus is in the run dialog, and then in the chain's section;
+  - the card's Continue is pressed at each checkpoint until the card
+    offers Stop and no Continue;
+  - axe is clean while the reason form is open;
+  - the card says `asked to stop` and `wrong branch`.
+
+  The first run found a real defect: the chain's event log scrolls, and
+  could not be reached by keyboard (axe `scrollable-region-focusable`).
+  It is now focusable and named `Chain events`. The file passes, 3 tests.
 
 ## 7. Verification
 

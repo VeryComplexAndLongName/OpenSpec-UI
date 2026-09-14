@@ -1385,6 +1385,16 @@ export const shellThemeCss = `
 
   .openspec-pipeline-stop-form label { display: grid; gap: 4px; }
 
+  /* The run a card's Start opened: its dialog, then its chain, beneath the
+     picture where Start was pressed. */
+  .openspec-pipeline-run-layer {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
   /* State is carried by the word inside the card first; these only
      agree with it. A reader who cannot tell two hues apart has already
      been told which state this is. */

@@ -19,13 +19,26 @@ export interface FakeAgentRunnerOptions {
    * killed server, a dropped connection) before the run finishes.
    * Defaults to an already-resolved promise (run completes immediately). */
   implementGate?: Promise<void>;
+  /** Resolves when a `verify` run should complete. Without it, `verify`
+   * answers as `list` does. With it, the run says it started and waits, so
+   * a chain can be asked to stop while a stage is running
+   * (a-change-is-run-from-its-card). */
+  verifyGate?: Promise<void>;
 }
 
 export function createFakeAgentRunner(options: FakeAgentRunnerOptions): AgentRunner {
-  const { changeName, implementGate = Promise.resolve() } = options;
+  const { changeName, implementGate = Promise.resolve(), verifyGate } = options;
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
+      if (command.kind === "verify" && verifyGate !== undefined) {
+        yield { kind: "started", runId: command.runId, timestamp: nowIso(), command: command.kind, cwd: command.cwd };
+        yield { kind: "stdout", runId: command.runId, timestamp: nowIso(), chunk: "checking the change\n" };
+        await verifyGate;
+        yield { kind: "completed", runId: command.runId, timestamp: nowIso() };
+        return;
+      }
+
       if (command.kind === "implement") {
         yield { kind: "started", runId: command.runId, timestamp: nowIso(), command: command.kind, cwd: command.cwd };
         yield { kind: "progress", runId: command.runId, timestamp: nowIso(), message: "applying changes" };

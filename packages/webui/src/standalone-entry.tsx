@@ -14,9 +14,10 @@ import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
-import { PipelineView } from "./components/PipelineView.js";
+import { PipelineView, type RunControl } from "./components/PipelineView.js";
 import { loadChangeReadiness } from "./change-readiness-client.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
+import { loadLiveRuns } from "./live-runs-client.js";
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -289,6 +290,21 @@ function StandaloneApp() {
    * the button that did it rather than above the dialog. */
   const [runAppliedNote, setRunAppliedNote] = useState<string | null>(null);
   const [runUseAgentNote, setRunUseAgentNote] = useState<string | null>(null);
+  // Which change the open run dialog is for, and where it was opened: the
+  // Change Editor, or a Pipeline card's Start (a-change-is-run-from-its-card).
+  // Every action in the dialog acts on this name, never on whichever change
+  // the editor happens to show.
+  const [runChangeName, setRunChangeName] = useState("");
+  const [runOpenedFrom, setRunOpenedFrom] = useState<"editor" | "pipeline">("editor");
+  const [pipelineChain, setPipelineChain] = useState<{ changeDir: string; budget: HarnessBudget | undefined } | null>(null);
+  const pipelineRunLayer = useRef<HTMLDivElement | null>(null);
+  const pipelineRunShown = runOpenedFrom === "pipeline" && runDispatch !== null ? "dialog" : pipelineChain ? "chain" : "none";
+  // A person pressed Start on a card, and what it opened is not beside the
+  // card: focus moves into it, so the keyboard and a screen reader follow.
+  useEffect(() => {
+    if (pipelineRunShown === "none") return;
+    pipelineRunLayer.current?.querySelector<HTMLElement>('[role="dialog"]')?.focus();
+  }, [pipelineRunShown]);
   const [timelineSelection, setTimelineSelection] = useState("");
   const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -359,6 +375,26 @@ function StandaloneApp() {
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
   const pipelineLastRuns = useCallback(() => loadChangeLastRuns(apiFetch, cwd), [cwd]);
   const pipelineStandings = useCallback(() => loadChangeStandings(apiFetch, cwd), [cwd]);
+  // The runs this server holds, and what a card sends for them over the
+  // socket every run here already uses (a-change-is-run-from-its-card).
+  const pipelineLiveRuns = useCallback(() => loadLiveRuns(apiFetch, cwd), [cwd]);
+  const pipelineRunControl = useCallback((control: RunControl) => {
+    transport.send({
+      kind: control.kind,
+      cwd,
+      runId: control.runId,
+      context: { changeDir: `${cwd.replace(/[\\/]+$/u, "")}/openspec/changes/${control.changeName}` },
+      ...(control.reason !== undefined ? { reason: control.reason } : {}),
+      ...(control.permissionRequestId !== undefined ? { permissionRequestId: control.permissionRequestId } : {}),
+      ...(control.permissionOutcome !== undefined ? { permissionOutcome: control.permissionOutcome } : {}),
+    });
+  }, [cwd, transport]);
+  const pipelineCopyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
+  // `handleRunWithHarness` is a hoisted declaration further down and reads
+  // `cwd` itself, as `loadChangeEditor` does for `openChangeInEditor` below.
+  const pipelineStart = useCallback((changeName: string) => {
+    void handleRunWithHarness(changeName, "pipeline");
+  }, [cwd]);
   // Fetches refs now and says how fresh they are; the Pipeline then reads
   // again (a-change-says-where-it-stands).
   const pipelineRefresh = useCallback(
@@ -556,8 +592,10 @@ function StandaloneApp() {
    * Command" tab, anything else revealed the chain panel. Both were
    * correct and neither said so, which is why the button looked like it
    * only changed tabs. */
-  async function handleRunWithHarness() {
-    if (cwd.trim().length === 0 || editorChangeName.trim().length === 0) return;
+  async function handleRunWithHarness(changeName: string = editorChangeName, from: "editor" | "pipeline" = "editor") {
+    if (cwd.trim().length === 0 || changeName.trim().length === 0) return;
+    // Set first, so a failure is said where the person pressed the button.
+    setRunOpenedFrom(from);
     setRunHarnessLoading(true);
     setRunHarnessMessage(null);
     // A person opened this one, so no schedule explains it. The note
@@ -567,12 +605,13 @@ function StandaloneApp() {
     setRunAppliedNote(null);
     setRunUseAgentNote(null);
     try {
-      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName);
+      const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, changeName);
       // Where the change stands, with refs fetched now, so the dialog asks
       // about fresh refs. A reading that fails leaves the dialog as it was.
       const reading = await loadChangeStandings(apiFetch, cwd, "now").catch(() => undefined);
-      const standing = reading?.standings.find((candidate) => candidate.changeName === editorChangeName);
+      const standing = reading?.standings.find((candidate) => candidate.changeName === changeName);
       setRunStanding(standing ? describeChangeState({ standing }) : undefined);
+      setRunChangeName(changeName);
       setRunDispatch(dispatch);
       // Absent rather than zeroed if it cannot be read. Zeroes would be a
       // claim about this workspace; absence is the truth about the read.
@@ -596,13 +635,13 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      await applyTemplateToChangeApi(apiFetch, cwd, editorChangeName, template);
-      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
+      await applyTemplateToChangeApi(apiFetch, cwd, runChangeName, template);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, runChangeName));
       // Beside the Apply button, in the dialog. It used to be set above
       // the dialog, where the person who pressed Apply could not see it
       // (a-change-is-configured-from-the-change).
       setRunAppliedNote(
-        `Applied "${template.title}" to openspec/changes/${editorChangeName}/harness.json. `
+        `Applied "${template.title}" to openspec/changes/${runChangeName}/harness.json. `
         + "The dialog now shows what the change resolves to.",
       );
     } catch (error) {
@@ -620,10 +659,10 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      await putAgentOnEveryStageApi(apiFetch, cwd, editorChangeName, agentId);
-      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, editorChangeName));
+      await putAgentOnEveryStageApi(apiFetch, cwd, runChangeName, agentId);
+      setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, runChangeName));
       setRunUseAgentNote(
-        `Put ${agentId} on every stage in openspec/changes/${editorChangeName}/harness.json. `
+        `Put ${agentId} on every stage in openspec/changes/${runChangeName}/harness.json. `
         + "The dialog now shows what the change resolves to.",
       );
     } catch (error) {
@@ -749,7 +788,7 @@ function StandaloneApp() {
    * suggest otherwise. */
   async function scheduleRun(path: RunPathId, startAt: string) {
     if (!runDispatch) return;
-    const name = editorChangeName;
+    const name = runChangeName;
     setRunDispatch(null);
     setRunNote(null);
     try {
@@ -772,11 +811,21 @@ function StandaloneApp() {
   function startChosenRun(path: RunPathId, dispatch: RunWithHarnessDispatch | null = runDispatch) {
     if (!dispatch) return;
     const { changeDir: targetChangeDir, budget } = dispatch;
+    // Chosen in the dialog a Pipeline card's Start opened, and not by a
+    // schedule, which passes a dispatch of its own
+    // (a-change-is-run-from-its-card).
+    const fromPipeline = runOpenedFrom === "pipeline" && dispatch === runDispatch;
     setRunDispatch(null);
     // A lateness note belongs to the run it explained. Left standing, it
     // reappeared over the next dialog a person opened themselves, which
     // said a schedule had started something that nobody scheduled.
     setRunNote(null);
+    if (path === "chain" && fromPipeline) {
+      // The chain runs in the Pipeline's layer, where Start was pressed.
+      setPipelineChain({ changeDir: targetChangeDir, budget });
+      return;
+    }
+    setRunOpenedFrom("editor");
     if (path === "chain") {
       setChainChangeDir(targetChangeDir);
       setChainBudget(budget);
@@ -786,6 +835,19 @@ function StandaloneApp() {
     setChainChangeDir(null);
     setChangeDir(targetChangeDir);
     setActiveTab("run-a-command");
+  }
+
+  /** Closes the run a Pipeline card opened, and gives focus back to that
+   * card's Start, where the person was (a-change-is-run-from-its-card). */
+  function closePipelineRun() {
+    const name = runChangeName;
+    setRunDispatch(null);
+    setRunNote(null);
+    setPipelineChain(null);
+    setRunOpenedFrom("editor");
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>(`[data-testid="pipeline-start-${CSS.escape(name)}"]`)?.focus();
+    }, 0);
   }
 
   /** Acts on a schedule that has come due.
@@ -1611,9 +1673,9 @@ function StandaloneApp() {
 
         {editorMessage ? <p className="openspec-shell-note">{editorMessage}</p> : null}
         {runHarnessMessage ? <p className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</p> : null}
-        {runDispatch ? (
+        {runDispatch && runOpenedFrom === "editor" ? (
           <RunDialog
-            changeName={editorChangeName}
+            changeName={runChangeName}
             plan={runDispatch.plan}
             {...(runStanding ? { standing: runStanding } : {})}
             stats={runStats}
@@ -2060,15 +2122,59 @@ function StandaloneApp() {
         </p>
         {cwd.trim().length > 0
           ? (
-            <PipelineView
-              load={pipelineLoad}
-              survey={pipelineSurvey}
-              lastRuns={pipelineLastRuns}
-              standings={pipelineStandings}
-              refresh={pipelineRefresh}
-              isActive={activeTab === "pipeline"}
-              onOpenChange={openChangeInEditor}
-            />
+            <>
+              <PipelineView
+                load={pipelineLoad}
+                survey={pipelineSurvey}
+                lastRuns={pipelineLastRuns}
+                standings={pipelineStandings}
+                liveRuns={pipelineLiveRuns}
+                refresh={pipelineRefresh}
+                isActive={activeTab === "pipeline"}
+                onOpenChange={openChangeInEditor}
+                onRunControl={pipelineRunControl}
+                onStart={pipelineStart}
+                copyText={pipelineCopyText}
+              />
+              {runOpenedFrom === "pipeline" && runHarnessMessage
+                ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
+                : null}
+              {/* The run a card's Start opened, over the Pipeline where it
+                  was pressed: its dialog, and then the chain it started
+                  (a-change-is-run-from-its-card). */}
+              {(runDispatch && runOpenedFrom === "pipeline") || pipelineChain ? (
+                <div className="openspec-pipeline-run-layer" ref={pipelineRunLayer} data-testid="pipeline-run-layer">
+                  {runDispatch && runOpenedFrom === "pipeline" ? (
+                    <RunDialog
+                      changeName={runChangeName}
+                      plan={runDispatch.plan}
+                      {...(runStanding ? { standing: runStanding } : {})}
+                      stats={runStats}
+                      onChoose={startChosenRun}
+                      onApplyTemplate={(template) => void applyTemplateToChange(template)}
+                      appliedNote={runAppliedNote}
+                      onUseAgent={(agentId) => void putAgentOnEveryStage(agentId)}
+                      useAgentNote={runUseAgentNote}
+                      onSchedule={(path, startAt) => void scheduleRun(path, startAt)}
+                      onDismiss={closePipelineRun}
+                    />
+                  ) : null}
+                  {pipelineChain ? (
+                    <section
+                      className="openspec-shell-panel"
+                      data-testid="pipeline-run-chain"
+                      role="dialog"
+                      aria-label={`Run ${runChangeName}`}
+                      tabIndex={-1}
+                    >
+                      <h3>{`Run ${runChangeName}`}</h3>
+                      <HarnessChainPanel transport={transport} cwd={cwd} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
+                      <button type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
+                    </section>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           )
           : <p>Enter workspace root to see the pipeline.</p>}
       </section>

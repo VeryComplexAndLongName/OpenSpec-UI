@@ -70,6 +70,9 @@ export const PIPELINE_BACKSTOP_INTERVAL_MS = 60_000;
 /** How often the view draws itself again, reading nothing, so the ages it
  * states keep counting between readings. */
 export const PIPELINE_CLOCK_INTERVAL_MS = 5_000;
+/** How long after a card's control the card reads its run again: long
+ * enough for the run's record to have been written. */
+export const RUN_CONTROL_REREAD_MS = 1_000;
 
 /** The two readings a host can say are out of date. */
 export type PipelineReading = "readiness" | "survey";
@@ -250,9 +253,16 @@ export function PipelineView({
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
   const onCards = runsShownOnCards(cardList);
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
+  // A control changes what the run's record says within moments. The card
+  // reads it again then, rather than on the next survey half a minute
+  // later, so the person sees what their press did.
+  const sendRunControl = onRunControl === undefined ? undefined : (control: RunControl) => {
+    onRunControl(control);
+    setTimeout(() => void Promise.all([others.read(), ended.read(), stands.read(), held.read()]), RUN_CONTROL_REREAD_MS);
+  };
   const controls: CardControlHandlers = {
     heldRuns,
-    ...(onRunControl !== undefined ? { onRunControl } : {}),
+    ...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {}),
     ...(onStart !== undefined ? { onStart } : {}),
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
@@ -308,11 +318,11 @@ export function PipelineView({
       {refreshError !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
-      {stopFor !== undefined && onRunControl !== undefined ? (
+      {stopFor !== undefined && sendRunControl !== undefined ? (
         <StopReasonForm
           changeName={stopFor.changeName}
           onAsk={(reason) => {
-            onRunControl({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
+            sendRunControl({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
             setStopFor(undefined);
           }}
           onCancel={() => setStopFor(undefined)}
