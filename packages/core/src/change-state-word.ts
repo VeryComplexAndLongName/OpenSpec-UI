@@ -36,7 +36,7 @@ export interface ChangeStateFacts {
   /** How the last run here ended, where it ended without finishing. Filled
    * in by a-card-says-what-its-change-is-doing; a fact not yet read takes no
    * part. */
-  lastRun?: { outcome: "failed" | "stopped"; stage: string };
+  lastRun?: { outcome: "failed" | "stopped"; stage?: string };
 }
 
 export interface ChangeStateLine {
@@ -152,9 +152,12 @@ function candidates(facts: ChangeStateFacts): Candidate[] {
   }
 
   if (facts.lastRun !== undefined) {
+    // A run whose log names no stage is plainly Failed or Stopped, rather
+    // than "at" something invented.
+    const at = facts.lastRun.stage !== undefined ? ` at ${facts.lastRun.stage}` : "";
     found.push(facts.lastRun.outcome === "failed"
-      ? { key: "failed", word: `Failed at ${facts.lastRun.stage}`, source: "the last run here" }
-      : { key: "stopped", word: `Stopped at ${facts.lastRun.stage}`, source: "the last run here" });
+      ? { key: "failed", word: `Failed${at}`, source: "the last run here" }
+      : { key: "stopped", word: `Stopped${at}`, source: "the last run here" });
   }
 
   const counts = standing.here?.counts;
