@@ -934,6 +934,10 @@ The list SHALL state which ref was read as the main branch, when the
 repository's refs were last fetched, and whether the last fetch or the
 pull request reading failed.
 
+Where the pull request reading failed, the reason SHALL name the cause
+that `gh` gave. A refusal because no remote is on a GitHub host `gh` knows
+SHALL NOT be stated as `gh` being signed out.
+
 #### Scenario: A change archived on main
 
 - **WHEN** a change is active in this checkout and archived on the main
@@ -952,6 +956,13 @@ pull request reading failed.
 - **WHEN** the last fetch failed
 - **THEN** the list says so and when refs were last fetched, and still shows
   every standing it could read
+
+#### Scenario: A remote that is not on GitHub
+
+- **WHEN** `gh` refuses to list pull requests because no remote of the
+  repository is on a GitHub host it knows, and `gh` is signed in
+- **THEN** the list says pull requests were not read because no remote is on
+  a GitHub host `gh` knows, and does not say `gh` is not signed in
 
 ### Requirement: Every surface shows a change the same way
 
