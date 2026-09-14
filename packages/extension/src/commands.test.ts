@@ -1855,6 +1855,40 @@ describe("registerCommands", () => {
       expect(vscodeMock.window.showErrorMessage).toHaveBeenCalled();
       expect(deps.revealAiPanel).not.toHaveBeenCalled();
     });
+
+    // a-change-is-run-from-its-card 5.3
+    it("runs a change a Pipeline card names, as it runs a row of the Changes tree", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({
+        changes: [{ name: "demo-change", path: "/workspace/repo/openspec/changes/demo-change", state: "draft", artifacts: [] }],
+        archivedChanges: [],
+      });
+      resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "semi-autonomous", reviewGate: { mode: "human-required" } });
+      buildRunPlanMock.mockReturnValue(planFor("chain"));
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.("demo-change");
+
+      expect(resolveHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change");
+      expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
+        changeDir: "/workspace/repo/openspec/changes/demo-change",
+        changeName: "demo-change",
+      }));
+    });
+
+    it("refuses a name that is not an active change of the workspace, and says so", async () => {
+      discoverOpenSpecWorkspaceMock.mockResolvedValue({ changes: [], archivedChanges: [] });
+      const deps = makeDeps();
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+      await vscodeMock._registeredCommands.get("openspec-ui.runWithHarness")?.("gone-change");
+
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+        "OpenSpec UI: gone-change is not an active change of this workspace, so it cannot be run.",
+      );
+      expect(resolveHarnessConfigMock).not.toHaveBeenCalled();
+      expect(deps.revealAiPanel).not.toHaveBeenCalled();
+    });
   });
 
   describe("a setup action that does not apply", () => {

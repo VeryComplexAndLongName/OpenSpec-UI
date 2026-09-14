@@ -35,6 +35,46 @@ export const PIPELINE_CHANGED_MESSAGE_TYPE = "openspec-ui/pipeline-changed";
 /** Webview to host: a change's card was chosen. */
 export const OPEN_CHANGE_MESSAGE_TYPE = "openspec-ui/open-change";
 
+/** Webview to host: a card's Start was pressed (a-change-is-run-from-its-card). */
+export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
+
+/** Webview to host: a card answered or stopped a run. */
+export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
+
+/** A control a card sends, as the host accepts it. */
+export interface PipelineRunControl {
+  changeName: string;
+  runId: string;
+  kind: "confirmCheckpoint" | "stop" | "cancel" | "resolvePermission";
+  reason?: string;
+  permissionRequestId?: string;
+  permissionOutcome?: "allow" | "deny";
+}
+
+const RUN_CONTROL_KINDS: ReadonlySet<string> = new Set(["confirmCheckpoint", "stop", "cancel", "resolvePermission"]);
+
+/** A control from a message, or `undefined` for anything that is not one. A
+ * stop needs its reason, and a permission's answer its request and outcome. */
+function asRunControl(value: unknown): PipelineRunControl | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const control = value as Record<string, unknown>;
+  if (typeof control.changeName !== "string" || typeof control.runId !== "string" || typeof control.kind !== "string") return undefined;
+  if (!RUN_CONTROL_KINDS.has(control.kind)) return undefined;
+  const kind = control.kind as PipelineRunControl["kind"];
+  if (kind === "stop" && (typeof control.reason !== "string" || control.reason.trim().length === 0)) return undefined;
+  if (kind === "resolvePermission" && (typeof control.permissionRequestId !== "string"
+    || (control.permissionOutcome !== "allow" && control.permissionOutcome !== "deny"))) return undefined;
+  return {
+    changeName: control.changeName,
+    runId: control.runId,
+    kind,
+    ...(kind === "stop" ? { reason: String(control.reason) } : {}),
+    ...(kind === "resolvePermission"
+      ? { permissionRequestId: String(control.permissionRequestId), permissionOutcome: control.permissionOutcome as "allow" | "deny" }
+      : {}),
+  };
+}
+
 /** File events this close together become one message. A running change
  * rewrites its status record every few seconds and can write to its change
  * directory many times a second; the view needs to hear once. */
@@ -89,6 +129,10 @@ export interface PipelinePanelDeps {
    * controls only for these (a-change-is-run-from-its-card); without a
    * registry, it offers none. */
   liveRuns?: LiveRuns;
+  /** Opens a change's run dialog, for a card's Start. */
+  runChange?: (changeName: string) => Promise<void>;
+  /** Carries out a control for a run this host holds. */
+  sendRunControl?: (control: PipelineRunControl) => void;
   readers?: Partial<PipelineReaders>;
   /** Test seam for the survey's age. */
   now?: () => number;
@@ -216,6 +260,14 @@ export class PipelinePanel {
       await this.openChange((message as { changeName?: unknown }).changeName);
       return;
     }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CHANGE_MESSAGE_TYPE) {
+      await this.runChange((message as { changeName?: unknown }).changeName);
+      return;
+    }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CONTROL_MESSAGE_TYPE) {
+      this.runControl((message as { control?: unknown }).control);
+      return;
+    }
     const request = asRequest(message);
     if (!request) return;
     const reply = (body: { ok: boolean; value?: unknown; error?: string }) => {
@@ -296,6 +348,38 @@ export class PipelinePanel {
   /** Opens a change the view named, after checking the name is one this
    * workspace can have and is one of its active changes. A message never
    * says what gets opened: the path comes from this host's own lookup. */
+  /** A card's Start: checked as opening a change is, then the change's run
+   * dialog (a-change-is-run-from-its-card). */
+  private async runChange(changeName: unknown): Promise<void> {
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    if (!workspaceRoot || this.deps.runChange === undefined) return;
+    if (!isValidChangeName(changeName)) {
+      void vscode.window.showInformationMessage(`OpenSpec UI: "${String(changeName)}" is not a change name this workspace can have.`);
+      return;
+    }
+    const change = await this.readers.findActiveChange(workspaceRoot, changeName);
+    if (!change) {
+      void vscode.window.showInformationMessage(
+        `OpenSpec UI: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
+      );
+      return;
+    }
+    await this.deps.runChange(changeName);
+  }
+
+  /** A card's answer or stop, carried out only for a run this host holds,
+   * in its own workspace, on the change the card names. A message naming
+   * anything else changes nothing. */
+  private runControl(message: unknown): void {
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    const control = asRunControl(message);
+    if (!workspaceRoot || control === undefined || this.deps.sendRunControl === undefined) return;
+    const held = this.deps.liveRuns?.get(control.runId);
+    if (held === undefined || held.changeName !== control.changeName) return;
+    if (path.resolve(held.cwd) !== path.resolve(workspaceRoot)) return;
+    this.deps.sendRunControl(control);
+  }
+
   private async openChange(changeName: unknown): Promise<void> {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot) return;

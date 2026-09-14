@@ -1199,10 +1199,25 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // `assisted` change this looked like it only changed tabs. Keeping
     // the command id so existing keybindings and menus survive; see
     // one-way-in-to-run.
-    vscode.commands.registerCommand("openspec-ui.runWithHarness", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.runWithHarness", async (invokedItem?: ChangeTreeItem | string) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
-      const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      let item: ChangeTreeItem | undefined;
+      if (typeof invokedItem === "string") {
+        // A Pipeline card's Start names its change rather than a tree row
+        // (a-change-is-run-from-its-card). Only an active change of this
+        // workspace runs; anything else is refused, and said.
+        const change = (await discoverOpenSpecWorkspace(workspaceRoot)).changes.find((candidate) => candidate.name === invokedItem);
+        if (!change) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${invokedItem} is not an active change of this workspace, so it cannot be run.`,
+          );
+          return;
+        }
+        item = new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false);
+      } else {
+        item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
+      }
       if (!item) { warnNoTreeSelection("change"); return; }
       if (item.archived) return;
       try {
