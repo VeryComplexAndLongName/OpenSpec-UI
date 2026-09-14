@@ -30,12 +30,28 @@ import { defineWorkspace } from "vitest/config";
 // See also packages/core/src/git.push.test.ts's own comment, and
 // openspec/changes/core-test-worker-contention/tasks.md section 1 for the
 // full investigation record.
+//
+// a-fixture-survives-a-shell-that-fails-to-start: a single fork of its own
+// was not enough. The two projects run at the same time, so this project's
+// shell still starts under the `core` project's whole parallel load. It died
+// there on 2026-09-14 (`add_item ... errno 1`). A push, fetch or clone
+// against a local path is what starts that shell: Git for Windows runs
+// `git-receive-pack` or `git-upload-pack` through its MSYS `sh.exe`.
+//
+// So the files whose result depends on such a shell starting are listed
+// once here, and `npm test` runs this project after `core` has finished,
+// never beside it (see the `test` script in ./package.json). Traced over
+// the whole package, with `GIT_TRACE`, they are the only tests that start a
+// shell whose success they need. `change-standing.test.ts` also starts one,
+// for a fetch it expects to fail, so it stays in the parallel project.
+const SHELL_STARTING_TESTS = ["src/git.push.test.ts", "src/git-refs.test.ts"];
+
 export default defineWorkspace([
   {
     extends: "./vitest.config.ts",
     test: {
       name: "core",
-      exclude: ["**/node_modules/**", "dist/**", "src/git.push.test.ts"],
+      exclude: ["**/node_modules/**", "dist/**", ...SHELL_STARTING_TESTS],
       // load-variance-not-per-file-cost: bound the pool rather than widen
       // the budgets. Measured 2026-09-06 on this 8-core machine, running
       // this package under a deliberate 8-worker CPU co-load:
@@ -70,7 +86,7 @@ export default defineWorkspace([
     extends: "./vitest.config.ts",
     test: {
       name: "core-git-subprocess",
-      include: ["src/git.push.test.ts"],
+      include: [...SHELL_STARTING_TESTS],
       pool: "forks",
       poolOptions: {
         forks: {

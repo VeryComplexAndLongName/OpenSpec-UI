@@ -37,27 +37,43 @@ async function writeTasks(root: string, changeName: string, text: string): Promi
   await writeFile(path.join(directory, "tasks.md"), text, "utf8");
 }
 
-/** A repository whose `main` has one change and whose branch `beta`, pushed
- * and not checked out, has a second. */
+/** A repository whose `main` has one change and whose branch `beta`, on the
+ * remote and not checked out, has a second.
+ *
+ * Built without a push (a-fixture-survives-a-shell-that-fails-to-start).
+ * Git for Windows runs `git-receive-pack` for a push to a local path through
+ * its MSYS `sh.exe`. Under a full suite's load that shell sometimes dies
+ * starting up (`add_item … errno 1`), and the test failed for a reason that
+ * is not the code under test. So the remote borrows the work repository's
+ * objects through `objects/info/alternates`, and every ref is written with
+ * `update-ref`, which starts no shell. The one fetch left is the wrapper's
+ * own, in the test that checks it. */
 async function repositoryWithRemote(): Promise<{ work: string }> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-git-refs-"));
   roots.push(root);
   const remote = path.join(root, "remote.git");
   const work = path.join(root, "work");
   await mkdir(work);
-  await git(root, ["init", "-q", "--bare", "-b", "main", remote]);
   await git(work, ["init", "-q", "-b", "main"]);
   await writeTasks(work, "alpha", "- [ ] 1.1 One\n");
   await git(work, ["add", "."]);
   await git(work, ["commit", "-q", "-m", "alpha"]);
-  await git(work, ["remote", "add", "origin", remote]);
-  await git(work, ["push", "-q", "origin", "main"]);
   await git(work, ["checkout", "-q", "-b", "beta"]);
   await writeTasks(work, "beta", "- [x] 1.1 One\n- [ ] 1.2 Two\n");
   await git(work, ["add", "."]);
   await git(work, ["commit", "-q", "-m", "beta"]);
-  await git(work, ["push", "-q", "origin", "beta"]);
   await git(work, ["checkout", "-q", "main"]);
+
+  await git(root, ["init", "-q", "--bare", "-b", "main", remote]);
+  const objects = path.join(work, ".git", "objects").replaceAll("\\", "/");
+  await writeFile(path.join(remote, "objects", "info", "alternates"), `${objects}\n`, "utf8");
+  await git(work, ["remote", "add", "origin", remote]);
+  for (const branch of ["main", "beta"]) {
+    const commit = await git(work, ["rev-parse", branch]);
+    await git(root, ["--git-dir", remote, "update-ref", `refs/heads/${branch}`, commit]);
+    // What a push records on this side.
+    await git(work, ["update-ref", `refs/remotes/origin/${branch}`, commit]);
+  }
   return { work };
 }
 
