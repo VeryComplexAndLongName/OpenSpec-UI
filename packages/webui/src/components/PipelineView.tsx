@@ -32,6 +32,7 @@ import {
   pipelineCardDetailLines,
   pipelineOpenCardHeight,
   runsShownOnCards,
+  STOP_REQUEST_READ_WITHIN_MS,
   type ChangeCard,
   type ChangeLayout,
   type ChangeLayoutEdge,
@@ -492,12 +493,20 @@ export function PipelineView({
               sendRunControl?.({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
             } else {
               // Through the signed channel to a run held elsewhere. The card
-              // says it is waiting until the run's record shows the stop, and
-              // reads the runs again soon, as a control on a held run does.
+              // says it is waiting until the run's record shows the stop. It
+              // reads the runs again soon, and at each clock tick until the
+              // window a run has to read the request is past, so "has not
+              // read" rests on a reading taken after that window, never on
+              // one from before the run's renewal (found by 4.5's live stop).
               const { changeName, instanceId } = stopFor;
               onAskToStop?.({ changeName, instanceId, reason });
               setStopsAsked((current) => new Map(current).set(instanceId, new Date().toISOString()));
-              setTimeout(() => void Promise.all([others.read(), held.read()]), RUN_CONTROL_REREAD_MS);
+              const rereadUntil = Date.now() + STOP_REQUEST_READ_WITHIN_MS;
+              const reread = () => {
+                void Promise.all([others.read(), held.read()]);
+                if (Date.now() <= rereadUntil) setTimeout(reread, PIPELINE_CLOCK_INTERVAL_MS);
+              };
+              setTimeout(reread, RUN_CONTROL_REREAD_MS);
             }
             setStopFor(undefined);
           }}

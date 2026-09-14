@@ -339,7 +339,7 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   11:55, after rebasing onto main at `3cd6e50`. 20 of 20 passed in 6.8
   minutes, including the four `pipeline.spec.ts` specs. The screenshots it
   drew again were discarded.
-- [ ] 4.5 **Delegated to claude-cli**: stop a run in another worktree through
+- [x] 4.5 **Delegated to claude-cli**: stop a run in another worktree through
   the channel.
 
   Where and how:
@@ -387,3 +387,168 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
     exit;
   - a listing of B's working directory before and after the card's request,
     showing that A wrote nothing inside B (ADR 0026 amendment).
+
+  Done on 2026-09-14 (UTC), by one foreground Node driver kept outside the
+  repository, which exited 0 with no child process left (a process listing
+  afterwards found none). `<scratch>` is `%TEMP%/openspec-ui-ask-to-stop`.
+
+  How this branch was run:
+  - `npx tsx packages/cli/src/main.ts` would not have run this branch.
+    `node_modules/@openspec-ui/*` in this worktree are junctions to
+    `C:/Prog/OpenSpec-UI/packages`, whose core has no `agent-messages.ts`.
+  - So every CLI command and the server ran as
+    `node --import tsx --import <scratch>/tools/register-alias.mjs <this worktree>/packages/cli/src/cli.ts ...`,
+    and `packages/server/src/cli.ts <A> 4833` for the server. The hook
+    resolves `@openspec-ui/core`, `core/browser`, `server` and `webui` to
+    this worktree's `src`. `import.meta.resolve("@openspec-ui/core")` gave
+    `file:///C:/Prog/.worktrees/OpenSpec-UI/stop/packages/core/src/index.ts`.
+  - The client was rebuilt into the gitignored `packages/server/dist/app.js`
+    with `client-build-options.mjs` plus the same mapping as an esbuild
+    plugin. Its metafile held no input from the main checkout.
+  - `OPENSPEC_UI_WORKTREE_ROOT` was `<scratch>/wt-root`, a stand-in
+    `<scratch>/bin/claude.cmd` came first on `PATH`, and inherited
+    `VSCODE_*`/`ELECTRON_*` variables were removed.
+  - The page was driven in headless Chromium through Playwright.
+
+  Setup:
+  - **The repository.** `<scratch>/repo`, git identity
+    `live-check@example.com`, with the changes `live-stop` (tasks 1.1 and
+    1.2) and `warm-up`. Each has a `harness.json` that is `autonomous`,
+    with `requireConfirmationBetweenSteps: false`, `maxStageAttempts: 1`
+    and `claude-cli` on every stage. A is `<scratch>/worktrees/a` on branch
+    `a`. B is `<scratch>/worktrees/b` on branch `live-stop`.
+  - **Why B's branch is named after the change.** A card takes its runs
+    from the change's own worktree (`changeOfWorktree`). A first attempt
+    with B on branch `b` never put B's run on A's card. That attempt also
+    had a stand-in that did not recognise its change, so its chain ended
+    at once; it is not evidence.
+  - **The stand-in.** For `live-stop` it prints `Starting task 1.1`, waits
+    20 s, ticks 1.1, prints `Starting task 1.2` and waits 60 s. For
+    `warm-up` it holds 12 s and exits 1.
+  - **Enrolment.** It needs a live record signed by the key, so
+    `run warm-up --cwd <scratch>/repo` ran first.
+    - `enrol --cwd <scratch>/repo` (exit 0) listed
+      `6e6cd3d5b6f3ab78b809bbb3123a92fa`,
+      `repo — <scratch>/repo, on HPP-NTB63, git author live-check@example.com`.
+    - `enrol 6e6cd3d5b6f3ab78b809bbb3123a92fa` (exit 0) said
+      `Enrolled 6e6cd3d5b6f3ab78b809bbb3123a92fa as live-check@example.com.`
+    - That is the key under the home directory, which
+      `loadOrCreateMachineKey` loaded, since it existed from 2026-09-14
+      00:07. No key was created.
+    - The roster file `wt-root/repo/.agent-roster/6e6cd3d5b6f3ab78b809bbb3123a92fa.json`
+      has the label `live-check@example.com`, machine `HPP-NTB63`, and was
+      confirmed at 09:16:03.224Z. The warm-up then failed by design, with
+      exit 1.
+  - **A's Pipeline.** The server from A listened on port 4833. The
+    Pipeline tab, with the workspace root A, drew the `live-stop` card
+    `in b, on branch live-stop`.
+  - **B's chain.** `run live-stop --cwd <B> --format json` started at
+    09:16:26.394Z. Its record `413cbe33-bfaf-487e-853a-e402ef035624` (run
+    `d24e4656-67f9-43b2-8e2b-b89f9447202e`) read as verified, person
+    `live-check@example.com`. The stand-in printed `Starting task 1.1` at
+    09:16:38.162Z.
+
+  Step 1, the altered request:
+  - `askRunToStop` wrote a request for `413cbe33-…` with the reason
+    `altered by hand`, into a staging directory outside the channel. In
+    its payload, byte 152 of 278 (the first letter of the reason) was then
+    changed by hand from `a` to `A` and re-encoded. Nothing else in the
+    file changed.
+  - The file was moved to `wt-root/repo/.agent-messages/ed7a1d97-6757-4ae0-9bd4-ac30cb4b6c47.json`
+    at 09:16:30.463Z.
+  - B renewed at 09:16:33.895Z with its activity still `running apply` and
+    no `stopRequested`.
+  - `status --cwd <scratch>/repo` (exit 0) printed the run (`running apply`,
+    `signed by live-check@example.com, verified`), then
+    `a request to stop that does not check out: ed7a1d97-6757-4ae0-9bd4-ac30cb4b6c47.json`.
+  - At 09:16:37.122Z B's record was not gone, its activity was
+    `running apply`, and the chain was still running. The run's activity
+    never mentioned the request.
+
+  Step 2, Stop on the card:
+  - Before it, the card read `Running in b on task 1.1: First task, by its
+    own account … Starting task 1.1 — said 13s ago 0 of 2 tasks done in b,
+    on branch live-stop … Stop Copy folder path`.
+  - `Stop` (`pipeline-ask-stop-live-stop`), the reason `live check` and
+    `Ask to stop` were pressed at 09:16:52.347Z.
+  - At once the card read `stop requested 0s ago; waiting for the run to
+    read it`, with no Stop.
+  - The message file appeared at 09:16:52.625Z as
+    `wt-root/repo/.agent-messages/dc85fa97-ae48-4817-aff6-029fc9fd09e0.json`:
+    envelope version 2, `keyId` `6e6cd3d5b6f3ab78b809bbb3123a92fa`, and the
+    payload
+    `{"version":1,"messageId":"dc85fa97-ae48-4817-aff6-029fc9fd09e0","kind":"stop","to":"413cbe33-bfaf-487e-853a-e402ef035624","reason":"live check","sentAt":"2026-09-14T09:16:52.593Z","machine":"HPP-NTB63","gitAuthor":"live-check@example.com"}`.
+  - **B's working directory.** It was listed recursively, with each file's
+    size and modification time, just before `Ask to stop` and again once
+    the message file had appeared. Both listings have 24 entries, and they
+    do not differ:
+    - `.git`, `.gitignore`;
+    - `.openspec-ui/audit.jsonl` and `workspace.lease.json`;
+    - `openspec/config.yaml`;
+    - the files of both changes.
+
+    The request went only to `wt-root/repo/.agent-messages`.
+  - **B's status record** read at 09:16:55.732Z:
+    `stopRequested {"reason":"live check","by":"live-check@example.com","at":"2026-09-14T09:16:55.464Z"}`,
+    activity `asked to stop by live-check@example.com: live check`,
+    signature verified.
+
+  B's chain, from its JSON events:
+  - `stopRequested` at 09:16:55.464Z, with `reason` `live check`, `by`
+    `live-check@example.com` and `outcome` `asked`;
+  - the stand-in ticked 1.1 at 09:16:58.179Z;
+  - `stdout` `Starting task 1.2` at 09:16:58.181Z;
+  - `cancelled` at 09:16:58.623Z. The CLI exited 1.
+
+  From asking to `cancelled` took 6.28 s: 3.12 s for the run to read the
+  request at its renewal, then until its next sound point. `cancelled` came
+  0.44 s after the tick and 59.6 s before the stand-in's 60 seconds would
+  have run out. `tasks.md` in B was left with 1.1 ticked and 1.2 open. The
+  stand-in logged nothing after its marker, and no stand-in process was
+  alive.
+
+  The chain ending entry in B's `.openspec-ui/audit.jsonl`, with `cwd` and
+  `changeDir` (B and its `live-stop` directory) omitted here:
+  `{"runId":"d24e4656-67f9-43b2-8e2b-b89f9447202e","agent":"chain","outcome":"cancelled","timestamp":"2026-09-14T09:16:58.623Z","stage":"apply","stopRequest":{"reason":"live check","by":"live-check@example.com","messageId":"dc85fa97-ae48-4817-aff6-029fc9fd09e0"}}`.
+  The apply stage's own entry is `cancelled` at 09:16:58.624Z.
+
+  Step 3, after the end:
+  - `stop 413cbe33-bfaf-487e-853a-e402ef035624 --reason "after the end" --cwd <scratch>/repo`
+    exited 1, with nothing on stdout. Its stderr was
+    `openspec-ui-cli: no live run reports itself as 413cbe33-bfaf-487e-853a-e402ef035624, so there is nothing to ask. 'openspec-ui status' lists the runs that do.`
+  - The message directory held the same two files before and after.
+  - `status` then printed `No runs are reporting themselves.` and
+    `a request to stop that does not check out: ed7a1d97-6757-4ae0-9bd4-ac30cb4b6c47.json`.
+
+  One thing seen that no evidence item asks for. The card did not show that
+  the run had heard the stop. From 09:16:52.654Z until 09:17:01.357Z, 2.7 s
+  after `cancelled`, it still read `Running in b … stop requested 4s ago;
+  waiting for the run to read it`. It had not read the runs again since the
+  re-read a second after asking. It never said the run refused, and never
+  said `the run has not read the request`. The server was stopped at
+  09:17:05.650Z, so the card's later text was not observed.
+- [x] 4.6 The card reads its runs again until the window to read a request
+  is past. Found by 4.5.
+
+  The defect behind 4.5's observation:
+  - After asking, the view read the runs once, a second later.
+  - In the standalone shell the next survey comes 30 seconds after that.
+  - So a run that read the request at its renewal 3 seconds in stayed
+    `waiting for the run to read it`.
+  - Past `STOP_REQUEST_READ_WITHIN_MS`, the card would have said
+    `the run has not read the request` from a reading taken before the run
+    read it.
+
+  Fixed in `PipelineView.tsx`:
+  - The view reads the survey and the held runs `RUN_CONTROL_REREAD_MS`
+    after asking.
+  - It reads them again at each `PIPELINE_CLOCK_INTERVAL_MS` until one
+    reading falls after `STOP_REQUEST_READ_WITHIN_MS`.
+  - After that, the survey's own interval applies.
+
+  A new `PipelineView.test.tsx` test pins the re-reads:
+  - one re-read soon after the press, more up to the window, and none past
+    it before the survey's interval;
+  - it fails with the fix taken out.
+
+  The file passes, 51 tests. Webui typecheck and lint are clean.

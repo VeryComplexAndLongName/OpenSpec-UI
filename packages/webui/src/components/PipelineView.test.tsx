@@ -8,12 +8,13 @@ import type {
   SurveyedRun,
   WorktreeSurvey,
 } from "@openspec-ui/core/browser";
-import { NODE_HEIGHT, pipelineOpenCardHeight } from "@openspec-ui/core/browser";
+import { NODE_HEIGHT, pipelineOpenCardHeight, STOP_REQUEST_READ_WITHIN_MS } from "@openspec-ui/core/browser";
 import {
   PIPELINE_BACKSTOP_INTERVAL_MS,
   PIPELINE_CLOCK_INTERVAL_MS,
   PIPELINE_POLL_INTERVAL_MS,
   PipelineView,
+  RUN_CONTROL_REREAD_MS,
   SURVEY_POLL_INTERVAL_MS,
   type PipelineReading,
   type PipelineViewMemory,
@@ -242,6 +243,44 @@ describe("PipelineView — asking a run elsewhere to stop", () => {
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("waiting for the run to read it"));
     // Not offered again while the request waits to be read.
     expect(screen.queryByTestId("pipeline-ask-stop-alpha")).toBeNull();
+  });
+
+  it("reads the runs again until the window to read the request is past, so the card never judges from a stale reading", async () => {
+    const read = vi.fn(async () => survey(directory({
+      changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }],
+      runs: [run({ changeName: "alpha", instanceId: "run-b", runId: "chain-b", workingDirectory: "/wt/repo/b", signature: "verified", person: { keyId: "key-1", label: "Ada" } })],
+    })));
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={read}
+        liveRuns={async () => ({ runs: [], myLabel: "Ada" })}
+        onAskToStop={vi.fn()}
+      />,
+    );
+    // Loaded on real timers; the time after the press is the test's own.
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    vi.useFakeTimers();
+    const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
+    fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
+    fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
+    const before = read.mock.calls.length;
+
+    // Soon after asking, then at each clock tick until a reading falls
+    // after the window, and no more until the survey's own interval.
+    await vi.advanceTimersByTimeAsync(RUN_CONTROL_REREAD_MS);
+    expect(read).toHaveBeenCalledTimes(before + 1);
+    let elapsed = RUN_CONTROL_REREAD_MS;
+    while (elapsed <= STOP_REQUEST_READ_WITHIN_MS) {
+      await vi.advanceTimersByTimeAsync(PIPELINE_CLOCK_INTERVAL_MS);
+      elapsed += PIPELINE_CLOCK_INTERVAL_MS;
+    }
+    const afterWindow = read.mock.calls.length;
+    expect(afterWindow).toBeGreaterThan(before + 1);
+    await vi.advanceTimersByTimeAsync(PIPELINE_CLOCK_INTERVAL_MS);
+    expect(elapsed + PIPELINE_CLOCK_INTERVAL_MS).toBeLessThan(SURVEY_POLL_INTERVAL_MS);
+    expect(read).toHaveBeenCalledTimes(afterWindow);
   });
 
   it("offers no Stop on somebody else's run, and says whose it is", async () => {
