@@ -373,10 +373,36 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 5. The card's controls
 
-- [ ] 5.1 `describeChangeCards` in `packages/core/src/change-card.ts` takes
+- [x] 5.1 `describeChangeCards` in `packages/core/src/change-card.ts` takes
   `liveRunIds` and marks a live run whose `runId` is among them as
   `ownedHere`. For such a waiting run, `describeChangeCard` says
   `Waiting for you` instead of `Waiting`. Do not compute this in the view.
+
+  Done, with the word ADR 0029 gives. A card's word comes from
+  `describeChangeState`, which the Changes list and `ready` also call, so
+  the rule lives there. ADR 0029 says "Waiting for you, where the answer
+  can be given from here, or Waiting in `label`". A run waiting here that
+  this host does not hold therefore reads `Waiting in <this checkout's
+  label>`, not a plain `Waiting`: it is still waiting, and still said with
+  where.
+  - `ChangeStateFacts` gains `answerableHere`. With it, a run waiting here
+    reads `Waiting for you`, and without it `Waiting in` the checkout's
+    label. The Changes list and `ready` pass none, which is true of them:
+    they hold no run.
+  - `describeChangeCards` takes `liveRunIds`. The run a card shows now
+    carries `runId` and `ownedHere`, and a waiting run that is owned here
+    passes `answerableHere` into the word.
+  - A waiting run not held here has its line end `— answered where it was
+    started` (5.7's words).
+
+  Tests:
+  - `change-state-word.test.ts` has both forms of the word.
+  - `change-card.test.ts` has a waiting run held by nobody, which reads
+    `Waiting in repo`, and a new test for a run held here and one held
+    elsewhere, with their words, `ownedHere` and lines.
+
+  Core passes, 63 tests across the word, card and survey files. Core,
+  webui, extension, cli and server typecheck.
 - [ ] 5.2 Start is offered when the card's state is `ready`, `failed` or
   `stopped`.
   - Standalone: it opens `RunDialog` for that change in a

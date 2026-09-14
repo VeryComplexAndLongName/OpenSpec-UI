@@ -24,8 +24,12 @@ describe("describeChangeState — one word per state (a-change-says-where-it-sta
       .toBe("Running in proposals");
   });
 
-  it("Waiting for you, and waiting in a named directory", () => {
-    expect(word({ standing: standing({ here: copy("repo", 1, 4, [{ instanceId: "r", stage: "apply", waiting: true }]) }) })).toBe("Waiting for you");
+  it("Waiting for you where this host can answer, and otherwise waiting in a named directory", () => {
+    const waitingHere = standing({ here: copy("repo", 1, 4, [{ instanceId: "r", stage: "apply", waiting: true }]) });
+    expect(word({ standing: waitingHere, answerableHere: true })).toBe("Waiting for you");
+    // a-change-is-run-from-its-card, ADR 0029: a run waiting here that this
+    // host does not hold is not waiting for the reader of this surface.
+    expect(word({ standing: waitingHere })).toBe("Waiting in repo");
     expect(word({ standing: standing({ elsewhere: [copy("proposals", 1, 4, [{ instanceId: "r", stage: "apply", waiting: true }])] }) }))
       .toBe("Waiting in proposals");
   });

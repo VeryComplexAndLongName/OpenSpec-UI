@@ -37,6 +37,12 @@ export interface ChangeStateFacts {
    * in by a-card-says-what-its-change-is-doing; a fact not yet read takes no
    * part. */
   lastRun?: { outcome: "failed" | "stopped"; stage?: string };
+  /** Whether the run waiting here can be answered from the surface asking:
+   * the host showing it started the run (a-change-is-run-from-its-card).
+   * ADR 0029 says "Waiting for you" only then; a run waiting here that
+   * something else holds is "Waiting in" this checkout. A surface that holds
+   * no runs leaves this out. */
+  answerableHere?: boolean;
 }
 
 export interface ChangeStateLine {
@@ -131,7 +137,11 @@ function candidates(facts: ChangeStateFacts): Candidate[] {
   for (const copy of standing.elsewhere) {
     if (liveRuns(copy).working) found.push({ key: "running-elsewhere", word: `Running in ${copy.label}`, source: `a run's record in ${copy.label}` });
   }
-  if (here.waiting) found.push({ key: "waiting", word: "Waiting for you", source: "a run's record here" });
+  if (here.waiting) {
+    found.push(facts.answerableHere === true
+      ? { key: "waiting", word: "Waiting for you", source: "a run's record here, held by this host" }
+      : { key: "waiting", word: `Waiting in ${standing.here?.label ?? "this checkout"}`, source: "a run's record here" });
+  }
   for (const copy of standing.elsewhere) {
     if (liveRuns(copy).waiting) found.push({ key: "waiting-elsewhere", word: `Waiting in ${copy.label}`, source: `a run's record in ${copy.label}` });
   }
