@@ -50,6 +50,7 @@ describe("LiveRuns", () => {
     // It appears when it starts.
     expect(snapshots[0]).toEqual([{
       runId: "chain-1",
+      cwd: "/repo",
       changeName: "demo",
       kind: "chain",
       startedAt: at(0),
@@ -138,6 +139,25 @@ describe("LiveRuns", () => {
     for await (const event of live.track(chain, (async function* () { yield* events; })())) {
       if (event.kind === "started") break;
     }
+    expect(live.list()).toEqual([]);
+  });
+
+  it("holds the runs a wrapped runner starts, as track does", async () => {
+    const live = new LiveRuns();
+    const inner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        yield { kind: "started", runId: command.runId, timestamp: at(0), command: command.kind, cwd: command.cwd };
+        yield { kind: "completed", runId: command.runId, timestamp: at(1) };
+      },
+    };
+    const implement: Command = { ...chain, kind: "implement", runId: "item-1", taskNumber: "6.6" };
+    const heldDuring: string[] = [];
+
+    for await (const event of live.runner(inner).run(implement)) {
+      if (event.kind === "started") heldDuring.push(...live.list().map((run) => `${run.runId}:${run.kind}`));
+    }
+
+    expect(heldDuring).toEqual(["item-1:implement"]);
     expect(live.list()).toEqual([]);
   });
 

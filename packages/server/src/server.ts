@@ -12,6 +12,7 @@ import {
   resolveRunner,
   FileAuditLog,
   HarnessChainRunner,
+  LiveRuns,
   WorkbenchRecoveryService,
   type AgentRunner,
   type AuditLog,
@@ -32,6 +33,7 @@ import {
   handleCustomAgentsRequest,
   handleChangeReadinessRequest,
   handleChangeLastRunsRequest,
+  handleLiveRunsRequest,
   handleWorktreeSurveyRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
@@ -140,6 +142,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     listAuditEntries: fileAuditLog ? () => fileAuditLog.readEntries() : undefined,
     auditLog: options.auditLog,
   });
+  // One registry for the process, for the same reason: every run this
+  // server starts — over the socket or as a delegated item — is held here,
+  // and a card offers controls only for these (a-change-is-run-from-its-card).
+  const liveRuns = new LiveRuns();
   const recoveryServices = new Map<string, Promise<WorkbenchRecoveryService>>();
   const resolveRecoveryService = (cwd: string): Promise<WorkbenchRecoveryService> => {
     const root = path.resolve(cwd);
@@ -247,6 +253,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       void handleChangeLastRunsRequest(req, res, requestPolicy);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/live-runs") {
+      void handleLiveRunsRequest(req, res, requestPolicy, liveRuns);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
       void handleWorktreeSurveyRequest(req, res, requestPolicy);
       return;
@@ -264,7 +274,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       return;
     }
     if (req.method === "POST" && req.url === "/api/delegated-item/run") {
-      void handleDelegatedItemRunRequest(req, res, runners, requestPolicy, options.auditLog);
+      void handleDelegatedItemRunRequest(req, res, runners, requestPolicy, options.auditLog, liveRuns);
       return;
     }
     if (req.method === "POST" && req.url === "/api/scheduled-runs") {
@@ -344,7 +354,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       socket.close();
     });
     socket.on("message", (raw) => {
-      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner);
+      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns);
     });
   });
 

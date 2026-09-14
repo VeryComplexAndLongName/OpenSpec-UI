@@ -86,7 +86,7 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   - `list()`, which returns copies.
 
   The file passes, 7 tests, and core typechecks.
-- [ ] 2.3 Server:
+- [x] 2.3 Server:
   - `packages/server/src/websocket.ts` tracks every chain and agent run it
     starts through a single `LiveRuns` for the server process.
   - `server.ts` routes `POST /api/live-runs` to `handleLiveRunsRequest` in
@@ -94,6 +94,27 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
     that `cwd`.
   - The delegated item route in `server.ts` tracks its runs through the same
     `LiveRuns`.
+
+  Done:
+  - `createServer` holds one `LiveRuns` beside its one `HarnessChainRunner`.
+    `handleSocketMessage` takes it: a chain's events pass through
+    `liveRuns.track` in `streamChainEvents`, and a single-stage command runs
+    on `liveRuns.runner(runner)`. `LiveRun` gained `cwd` for the filter, and
+    core gained `LiveRuns.runner`, with a test.
+  - `handleLiveRunsRequest` answers `{ runs }` with the held runs whose
+    resolved `cwd` is the request's, after the same body check and
+    `authorizeCwd` as the other workspace routes.
+  - `handleDelegatedItemRunRequest` takes the registry and hands
+    `runDelegatedItem` the resolved runner wrapped the same way.
+
+  `server.test.ts` has two new tests:
+  - A `review` run over the socket, held by a gate. It is listed for its
+    workspace while it runs, not for another workspace, and gone once
+    `completed` arrives.
+  - A request with no cwd gets 400, and one outside the workspace 403.
+
+  Six selected server tests pass, and server typecheck and lint are
+  clean. The delegated route is checked end to end in 2.5.
 - [ ] 2.4 Extension:
   - `packages/extension/src/extension.ts` holds a single `LiveRuns`.
   - `RunController.run`, the chain start in `ai-panel.ts`, and the inbox's

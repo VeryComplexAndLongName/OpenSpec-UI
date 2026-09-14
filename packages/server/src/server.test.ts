@@ -1719,6 +1719,66 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  // a-change-is-run-from-its-card 2.3
+  it("holds a run it started over the socket while it runs, for that workspace only", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gatedRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        yield { kind: "started", runId: command.runId, timestamp: "t1", command: command.kind, cwd: command.cwd };
+        await gate;
+        yield { kind: "completed", runId: command.runId, timestamp: "t2" };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["fake-agent", gatedRunner]]));
+    const liveRunsFor = async (cwd: string) => {
+      const response = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+      expect(response.status).toBe(200);
+      return ((await response.json()) as { runs: Array<{ runId: string; kind: string; changeName: string | null }> }).runs;
+    };
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    let onMessage: (() => void) | undefined;
+    client.on("message", (raw) => {
+      received.push(JSON.parse(raw.toString()) as Event);
+      onMessage?.();
+    });
+    const until = (kind: Event["kind"]) => new Promise<void>((resolve) => {
+      onMessage = () => {
+        if (received.some((event) => event.kind === kind)) resolve();
+      };
+      onMessage();
+    });
+
+    client.send(JSON.stringify({ ...wsImplementCommand, kind: "review" }));
+    await until("started");
+
+    expect(await liveRunsFor(wsImplementCommand.cwd)).toEqual([expect.objectContaining({ runId: "run-1", kind: "review", changeName: "x" })]);
+    expect(await liveRunsFor(await createTempWorkspace())).toEqual([]);
+
+    release?.();
+    await until("completed");
+    expect(await liveRunsFor(wsImplementCommand.cwd)).toEqual([]);
+    client.close();
+  });
+
+  it("refuses a live-runs request that names no workspace, or one outside it", async () => {
+    const noCwd = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({}) });
+    expect(noCwd.status).toBe(400);
+
+    await server.close();
+    server = createServer({ workspaceRoot: "/workspace/repo", host: "127.0.0.1", port: 0, accessToken: ACCESS_TOKEN });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+    const outside = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd: "/outside/repo" }) });
+    expect(outside.status).toBe(403);
+  });
+
   // a-change-is-run-from-its-card 1.3
   it("carries a stop command, reason included, through to the resolved AgentRunner", async () => {
     const receivedCommands: Command[] = [];

@@ -10,12 +10,16 @@
 // No IO, and nothing but type imports and one pure helper: it observes the
 // events as they pass and changes none of them.
 
+import type { AgentRunner } from "./agent-runner.js";
 import { changeNameOf } from "./audit-runs.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
 
 /** A run this host started and holds, as its own events describe it. */
 export interface LiveRun {
   runId: string;
+  /** The working directory the command named, so a host serving more
+   * than one workspace answers each only with its own runs. */
+  cwd: string;
   /** The change's directory name, where the command names a change. */
   changeName: string | null;
   kind: CommandKind;
@@ -57,6 +61,7 @@ export class LiveRuns {
         if (run === undefined && event.kind === "started") {
           run = {
             runId: command.runId,
+            cwd: command.cwd,
             changeName: command.context.changeDir ? changeNameOf(command.context.changeDir) || null : null,
             kind: command.kind,
             startedAt: event.timestamp,
@@ -70,6 +75,13 @@ export class LiveRuns {
     } finally {
       if (run !== undefined && this.runs.get(run.runId) === run) this.runs.delete(run.runId);
     }
+  }
+
+  /** The same runner, with every run it starts held here — for a host that
+   * hands a runner to code that starts runs itself, such as a delegated
+   * item's run. */
+  runner(runner: AgentRunner): AgentRunner {
+    return { run: (command) => this.track(command, runner.run(command)) };
   }
 
   get(runId: string): LiveRun | undefined {

@@ -68,6 +68,7 @@ import {
   writeChangeHarnessConfig,
   writeGlobalHarnessConfig,
   type AgentRunner,
+  type LiveRuns,
   type AuditLog,
   type CatalogTemplate,
   type ChangeTimelineRequestEntry,
@@ -1230,6 +1231,34 @@ export async function handleChangeLastRunsRequest(
   }
 }
 
+/** The runs this server started and still holds, for one workspace
+ * (a-change-is-run-from-its-card). A card offers Answer, Stop and Stop now
+ * only for these: a run held by another host is not one a command sent
+ * here could reach. */
+export async function handleLiveRunsRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+  liveRuns: LiveRuns,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  const cwd = path.resolve(parsed.cwd);
+  sendJson(res, 200, { runs: liveRuns.list().filter((run) => path.resolve(run.cwd) === cwd) });
+}
+
 /** Every working directory of the workspace's repository, and what its
  * runs say — what-the-others-are-doing. The survey is core's, in the
  * shape core returns; this route carries it and adds nothing. No git is
@@ -1296,6 +1325,9 @@ export async function handleDelegatedItemRunRequest(
   /** Where the request and its reply are recorded: the log the runners
    * write to (a-change-says-where-it-stands). */
   auditLog?: AuditLog,
+  /** Where the item's run is held while it runs, so its change's card knows
+   * this host holds it (a-change-is-run-from-its-card). */
+  liveRuns?: LiveRuns,
 ): Promise<void> {
   let parsed: unknown;
   try {
@@ -1316,7 +1348,10 @@ export async function handleDelegatedItemRunRequest(
       workspaceRoot: parsed.cwd,
       changeName: parsed.changeName,
       lineNumber: parsed.lineNumber,
-      resolveRunner: (agentId) => resolveRunner(runners, agentId),
+      resolveRunner: (agentId) => {
+        const runner = resolveRunner(runners, agentId);
+        return runner !== undefined && liveRuns !== undefined ? liveRuns.runner(runner) : runner;
+      },
       ...(auditLog !== undefined ? { auditLog } : {}),
     });
     // A refusal is an answer, not a transport failure: the caller asked
