@@ -6,9 +6,15 @@
 // person reads and an exit code.
 
 import {
+  describeChangeState,
   describeCollision,
+  describeStandingSources,
   readChangeReadiness,
+  readChangeStandings,
+  type ChangeReadiness,
   type ChangeReadinessReport,
+  type ChangeStandings,
+  type DescribedChangeState,
 } from "@openspec-ui/core";
 
 export interface ReadyOptions {
@@ -22,6 +28,38 @@ export interface ReadyDeps {
   stderr: (line: string) => void;
   /** Test seam, the same shape `validateAll` already is. */
   read?: typeof readChangeReadiness;
+  /** Test seam for where each change stands. A test that fakes the report
+   * reads no standings unless it gives this too, so no git and no `gh` runs
+   * for a report that was never read from a repository. */
+  readStandings?: (workspaceRoot: string) => Promise<ChangeStandings>;
+}
+
+/** Where each change stands, without a fetch: a terminal reading answers from
+ * the refs it has, and says how old they are (a-change-says-where-it-stands). */
+async function standingsFor(options: ReadyOptions, deps: ReadyDeps): Promise<ChangeStandings | undefined> {
+  const read = deps.readStandings ?? (deps.read === undefined ? (root: string) => readChangeStandings(root, { fetch: "never" }) : undefined);
+  if (read === undefined) return undefined;
+  return await read(options.workspaceRoot).catch(() => undefined);
+}
+
+/** The one word core gives each change, with this checkout's readiness among
+ * its facts, so the terminal says what every other surface says. */
+function statesOf(report: ChangeReadinessReport, standings: ChangeStandings | undefined): Map<string, DescribedChangeState> {
+  const states = new Map<string, DescribedChangeState>();
+  if (standings === undefined) return states;
+  const byName = new Map(standings.standings.map((standing) => [standing.changeName, standing]));
+  for (const change of report.changes) {
+    const standing = byName.get(change.changeName);
+    if (standing !== undefined) states.set(change.changeName, describeChangeState({ standing, readiness: change.run.state }));
+  }
+  return states;
+}
+
+function printState(deps: ReadyDeps, change: ChangeReadiness, states: ReadonlyMap<string, DescribedChangeState>): void {
+  const state = states.get(change.changeName);
+  if (state === undefined) return;
+  const lines = state.lines.map((line) => line.text).join(" · ");
+  deps.stdout(`      where it stands: ${state.word}${lines.length > 0 ? ` (${lines})` : ""}`);
 }
 
 /** Always `0` where the report could be produced, and `2` where it
@@ -43,8 +81,13 @@ export async function readyCommand(options: ReadyOptions, deps: ReadyDeps): Prom
     return 2;
   }
 
+  const standings = await standingsFor(options, deps);
+  const states = statesOf(report, standings);
+
   if (options.format === "json") {
-    deps.stdout(JSON.stringify(report, null, 2));
+    // The report in core's own shape, with each change's word beside it where
+    // standings could be read.
+    deps.stdout(JSON.stringify(standings === undefined ? report : { ...report, states: Object.fromEntries(states) }, null, 2));
     return 0;
   }
 
@@ -72,6 +115,7 @@ export async function readyCommand(options: ReadyOptions, deps: ReadyDeps): Prom
         // (a-change-is-running-when-its-run-says-so).
         deps.stdout(`      in ${worktreePath} (its run reports it)`);
       }
+      printState(deps, change, states);
     }
     deps.stdout("");
   }
@@ -93,6 +137,7 @@ export async function readyCommand(options: ReadyOptions, deps: ReadyDeps): Prom
         const why = other.collisions.map(describeCollision).join("; ");
         deps.stdout(`      not with ${other.changeName} — ${why}`);
       }
+      printState(deps, change, states);
     }
     deps.stdout("");
   }
@@ -103,10 +148,12 @@ export async function readyCommand(options: ReadyOptions, deps: ReadyDeps): Prom
       if (change.run.state !== "blocked") continue;
       deps.stdout(`  ${change.changeName}`);
       deps.stdout(`      waiting on ${change.run.blockedBy.join(", ")}`);
+      printState(deps, change, states);
     }
     deps.stdout("");
   }
 
   deps.stdout(`${ready.length} ready, ${running.length} running, ${blocked.length} blocked.`);
+  if (standings !== undefined) deps.stdout(describeStandingSources(standings.sources));
   return 0;
 }
