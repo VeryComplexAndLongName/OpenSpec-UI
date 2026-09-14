@@ -379,6 +379,15 @@ A test named for a shape SHALL assert that shape.
 A fixture that runs a tool SHALL isolate that tool from configuration
 outside the repository.
 
+A fixture SHALL build what it needs without starting a process that the
+code under test does not start, where the tool offers a way that starts
+none. A process that only the fixture starts can fail under load for a
+reason unrelated to the code, and the test then reports that failure as
+the code's.
+
+A test whose code under test needs such a process to start SHALL run
+apart from the parallel load, after it and never beside it.
+
 A guard against a check reaching nothing SHALL distinguish a subject
 that is empty from a reach that is broken, and SHALL fail only for the
 second. A repository with no work in flight has reached that state by
@@ -401,6 +410,19 @@ regression.
 - **WHEN** the dated-workspace fixture runs on a machine whose global
   git configuration requires signed commits
 - **THEN** the fixture commits, and the test runs
+
+#### Scenario: A remote built for a test on Windows
+
+- **WHEN** the `git-refs` fixture builds a repository with a remote on
+  Windows
+- **THEN** it starts no shell for that remote
+
+#### Scenario: A push or fetch under test
+
+- **WHEN** core's tests run, and a test's code under test pushes to or
+  fetches from a local path
+- **THEN** that test runs after the parallel project has finished, not
+  beside it
 
 #### Scenario: No work in flight
 
