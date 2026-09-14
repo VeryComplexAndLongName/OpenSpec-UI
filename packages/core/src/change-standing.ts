@@ -56,8 +56,11 @@ const lastFetchAttempt = new Map<string, number>();
 const pullRequestReadings = new Map<string, PullRequestsByBranch>();
 
 /** What a commit holds never changes, so a tree, a file or a merge base read
- * from commits is kept by their ids. A reading after the first then runs git
- * only to list refs and name HEAD, until a ref moves (task 9.1). */
+ * from commits is kept by the repository and the commits' ids. A reading
+ * after the first then runs git only to list refs and name HEAD, until a ref
+ * moves (task 9.1). The repository is part of the key so that two
+ * repositories whose commits happen to share an id never answer for each
+ * other. */
 const readFromCommits = new Map<string, unknown>();
 const READ_FROM_COMMITS_LIMIT = 5_000;
 
@@ -152,14 +155,14 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
       mainCommit = commits.get(mainName) as string;
       sources.mainRef = mainRef;
       const main = mainCommit;
-      activeOnMain = new Set((await fromCommits(`${main}:${CHANGES}`, () => git.listTreeNames(main, CHANGES))).filter((name) => name !== "archive"));
-      for (const archived of await fromCommits(`${main}:${CHANGES}/archive`, () => git.listTreeNames(main, `${CHANGES}/archive`))) {
+      activeOnMain = new Set((await fromCommits(`${root}|${main}:${CHANGES}`, () => git.listTreeNames(main, CHANGES))).filter((name) => name !== "archive"));
+      for (const archived of await fromCommits(`${root}|${main}:${CHANGES}/archive`, () => git.listTreeNames(main, `${CHANGES}/archive`))) {
         const match = ARCHIVE_NAME.exec(archived);
         if (match?.[1] !== undefined) archivedOnMain.set(match[1], archived);
       }
       const head = await git.resolveCommit("HEAD");
-      const base = head === undefined ? undefined : await fromCommits(`base:${main}:${head}`, () => git.mergeBase(main, head));
-      if (base !== undefined) atMergeBase = new Set(await fromCommits(`${base}:${CHANGES}`, () => git.listTreeNames(base, CHANGES)));
+      const base = head === undefined ? undefined : await fromCommits(`${root}|base:${main}:${head}`, () => git.mergeBase(main, head));
+      if (base !== undefined) atMergeBase = new Set(await fromCommits(`${root}|${base}:${CHANGES}`, () => git.listTreeNames(base, CHANGES)));
     }
   } catch (error) {
     sources.refsUnreadable = message(error);
@@ -168,7 +171,7 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
   }
 
   const tasksAt = (commit: string, changeName: string) =>
-    fromCommits(`${commit}:${CHANGES}/${changeName}/tasks.md`, () => git.showFile(commit, `${CHANGES}/${changeName}/tasks.md`));
+    fromCommits(`${root}|${commit}:${CHANGES}/${changeName}/tasks.md`, () => git.showFile(commit, `${CHANGES}/${changeName}/tasks.md`));
 
   const standings: ChangeStanding[] = [];
   for (const changeName of [...names].sort()) {
