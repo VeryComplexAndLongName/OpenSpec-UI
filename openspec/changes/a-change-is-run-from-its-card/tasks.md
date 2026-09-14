@@ -145,12 +145,35 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   The two files pass, 8 and 16 tests. Extension and webui typecheck, and
   lint is clean.
-- [ ] 2.5 Check each junction below, and record it: while running, each run
+- [x] 2.5 Check each junction below, and record it: while running, each run
   appears in its host's `list()`.
   - a chain started from the Change Editor;
   - a chain started from the editor's AI panel;
   - a single-stage run from each host's AI panel;
   - a delegated item's run from each host.
+
+  Checked, junction by junction, against the code and the test that sees
+  it held:
+  - Standalone chain, from the Change Editor, the AI panel or a card:
+    `streamChainEvents` in `websocket.ts` runs the chain through
+    `liveRuns.track`. Seen held in a browser by 6.1: the card offers its
+    controls only for a run `/api/live-runs` lists.
+  - Standalone single-stage run: `dispatchSingleStage` runs through
+    `liveRuns.runner`. `server.test.ts` lists a gated `review` run while it
+    goes on, not for another workspace, and not after it completes.
+  - Standalone delegated item: `handleDelegatedItemRunRequest` resolves its
+    runner through `liveRuns.runner`, which `live-runs.test.ts` covers.
+  - Editor chain, from the Change Editor (`openspec-ui.runWithHarness`
+    opens the AI panel's chain) and from the AI panel: `AiPanel` runs
+    `chainRunner.asAgentRunner()` through `RunController.run`. That
+    method tracks every command it runs, which `run-controller.test.ts`
+    covers.
+  - Editor single-stage run: the AI panel runs it through
+    `RunController.run` too.
+  - Editor delegated item: `extension.ts` wraps the resolved runner in
+    `liveRuns.runner`.
+
+  The live runs in 7.5 and 7.6 exercise a chain in each host.
 
 ## 3. Stopping where the work is sound
 
@@ -522,6 +545,17 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   each minor. `check(changeset-present)`
 - [ ] 7.4 Run the whole browser suite, not a selected spec.
 - [ ] 7.5 **Delegated to claude-cli**: a live stop in the standalone server.
+
+  Where and how, for 7.5 and 7.6:
+  - Work in this working directory, which is on the branch
+    `implement-a-change-is-run-from-its-card`. Do not touch
+    `C:\Prog\OpenSpec-UI` or any other checkout.
+  - Take every step in a foreground command. A command sent to the
+    background ends the run with nothing recorded.
+  - Port 4817 is taken by the server that started this run. Use another
+    port.
+  - Put the scratch repository and the stand-in under the system's temp
+    directory. Change no tracked file except this task list.
 
   Setup:
   - the standalone server, built from this branch;
