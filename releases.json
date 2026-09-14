@@ -1,43 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-14T11:37:09.124Z",
+  "generated_at": "2026-09-14T13:46:07.464Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "27f2b71c9afcc9b1d6c8a709709b1852f170bb2b",
+  "commit": "7c9644cc57ef7974e9d0cf07fd03a8c1ebbf0e25",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.55.0",
-      "released_at": "2026-09-14T11:37:09.124Z",
-      "tag": "openspec-ui-vscode@0.55.0",
+      "version": "0.56.0",
+      "released_at": "2026-09-14T13:46:07.464Z",
+      "tag": "openspec-ui-vscode@0.56.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.55.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.56.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.55.0/openspec-ui-vscode-0.55.0.vsix",
-          "size_bytes": 6138628
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.56.0/openspec-ui-vscode-0.56.0.vsix",
+          "size_bytes": 6283230
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
-        },
-        {
-          "kind": "patch",
-          "summary": "A Pipeline card opens to its tasks."
-        },
-        {
-          "kind": "patch",
-          "summary": "A running chain's row in the Processes tree offers Cancel Process again, and a Pipeline card's Continue and permission answers reach a chain in the editor. The editor had sent them through the chain runner's agent runner, which answers neither, so pressing Continue did nothing; they now go to the chain runner itself, as the standalone server's socket does. The command is titled \"OpenSpec UI: Cancel Process\", no longer \"Cancel Implementation Session\", since a chain's row offers it too."
+          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
         }
       ]
     },
@@ -46,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.26.0",
-      "released_at": "2026-09-14T11:37:09.124Z",
+      "version": "1.26.1",
+      "released_at": "2026-09-14T13:46:07.464Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -57,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
+          "kind": "patch",
+          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
         }
       ]
     },
@@ -68,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.88.0",
-      "released_at": "2026-09-14T11:37:09.124Z",
+      "released_at": "2026-09-14T13:46:07.464Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -96,8 +88,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.47.0",
-      "released_at": "2026-09-14T11:37:09.124Z",
+      "version": "1.48.0",
+      "released_at": "2026-09-14T13:46:07.464Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -107,11 +99,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A Pipeline card opens to its tasks."
-        },
-        {
-          "kind": "minor",
-          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
+          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
         }
       ]
     },
@@ -121,7 +109,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-14T11:37:09.124Z",
+      "released_at": "2026-09-14T13:46:07.464Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
