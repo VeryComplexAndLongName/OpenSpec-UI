@@ -267,16 +267,51 @@ changes, and the reply every request to an agent leaves (ADR 0026 and ADR
 
   Done: `openspec validate a-change-says-where-it-stands --strict` reports
   it valid, 2026-09-14.
-- [ ] 10.2 Run `npm run verify` unpiped, after the last edit and with
+- [x] 10.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count for each package.
+
+  Local run 2026-09-14 at `5fca501`, exit code 1. Typecheck and every lint
+  passed. Tests: cli 155 passed; core 1350 passed, 1 failed; extension 356
+  passed; server 92 passed; webui 446 passed. The one failure is
+  `keeps accepting this repository's real openspec/agent-harness.json`.
+  It reads the working tree's file, and an uncommitted local edit that is
+  not part of this change sets its `autonomyLevel` to `semi-autonomous`.
+  Closed on CI: the "Typecheck, lint, test, and build" job ran
+  `npm run verify` at the same commit against the committed tree, and
+  passed,
+  <https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/34799591187/job/103839377234>.
 - [x] 10.3 A pending changeset exists: core, webui and the extension minor,
   server patch. `check(changeset-present)`
 
   Done: `.changeset/a-change-says-where-it-stands.md`, with the CLI at patch
   for `ready`'s word.
-- [ ] 10.4 Run the whole browser suite, and record the run.
-- [ ] 10.5 Run the extension integration suite with the inherited `VSCODE_*`
+- [x] 10.4 Run the whole browser suite, and record the run.
+
+  Done 2026-09-14 at `5fca501`: `npm run test:browser -w @openspec-ui/server`
+  exited 0, 18 passed (5.2 min). CI's "Standalone browser and
+  accessibility" job passed at the same commit. The retaken pictures of
+  screens this change touches were looked at and kept:
+  - `pipeline.png` shows the Refresh button under the read-at line.
+  - `run-dialog.png` shows the standing block, `Ready` with `Only here
+    (every source read)`, above the configuration.
+  - `view-summary.png` shows the fixture change's `Ready` chip and
+    `Only here`, and beneath the list the sources line. The fixture is not
+    a git repository, so that line says refs and pull requests could not be
+    read, and why.
+
+  `diff-preview.png`, `harness-settings.png` and `processes.png` were also
+  retaken. They show screens this change does not touch, and were restored.
+- [x] 10.5 Run the extension integration suite with the inherited `VSCODE_*`
   and `ELECTRON_*` variables stripped, and record the run.
+
+  Done 2026-09-14 at `5fca501`: `npm run test:integration -w
+  openspec-ui-vscode`, from a PowerShell with every `VSCODE_*` and
+  `ELECTRON_*` variable removed, exited 0 with 18 passing. That includes
+  "Changes tree keeps an implemented change as the parent of its tasks row
+  after refresh". Its assertion was first written for the bare artifact
+  state and failed on CI at `651e217`; it now expects the state word after
+  that state. CI's "Extension integration and package" job passed at
+  `5fca501`.
 - [ ] 10.6 **Delegated to claude-cli**: with a change archived on `main`,
   another ticked further in a worktree, and a third running there, open the
   Changes tree and the standalone Changes list, and try to run the archived
