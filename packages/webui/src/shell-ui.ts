@@ -925,11 +925,11 @@ export const shellThemeCss = `
     margin: 8px 0;
   }
 
-  .openspec-change-standing--settled { border-color: #3f9a5a; background: rgba(63, 154, 90, 0.12); }
-  .openspec-change-standing--ahead { border-color: #b98900; background: rgba(214, 170, 40, 0.16); }
-  .openspec-change-standing--now { border-color: #2f6fd0; background: rgba(47, 111, 208, 0.12); }
-  .openspec-change-standing--failed { border-color: #c2413b; background: rgba(194, 65, 59, 0.12); }
-  .openspec-change-standing--deleted { border-color: #7a7a7a; background: rgba(122, 122, 122, 0.14); }
+  .openspec-change-standing--settled { border-color: var(--good); background: var(--good-bg); }
+  .openspec-change-standing--ahead { border-color: var(--warn); background: var(--warn-bg); }
+  .openspec-change-standing--now { border-color: var(--primary); background: var(--primary-bg); }
+  .openspec-change-standing--failed { border-color: var(--bad); background: var(--bad-bg); }
+  .openspec-change-standing--deleted { border-color: var(--line-strong); background: var(--surface-3); }
 
   .openspec-overview-table {
     width: 100%;
