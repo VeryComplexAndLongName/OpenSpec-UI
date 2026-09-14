@@ -19,13 +19,15 @@
     "build": "npm run build --workspaces --if-present",
     "verify": "npm run typecheck && npm run lint && npm run test",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint:english && npm run lint:source-text && npm run lint:changesets && npm run lint:screenshots && npm run lint:test-budgets && npm run lint --workspaces --if-present",
+    "lint": "npm run lint:english && npm run lint:source-text && npm run lint:changesets && npm run lint:screenshots && npm run lint:test-budgets && npm run lint:openspec-config && npm run lint --workspaces --if-present",
     "lint:changesets": "node scripts/check-changesets.mjs",
     "lint:english": "node scripts/check-english.mjs",
+    "lint:openspec-config": "node scripts/check-openspec-config.mjs",
     "lint:screenshots": "node scripts/check-screenshots.mjs",
     "lint:test-budgets": "node scripts/check-test-budgets.mjs",
-    "test": "npm run test:english && npm run test:screenshots && npm run test:test-budgets && npm run test:changesets && npm run test --workspaces --if-present",
+    "test": "npm run test:english && npm run test:screenshots && npm run test:test-budgets && npm run test:changesets && npm run test:openspec-config && npm run test --workspaces --if-present",
     "test:english": "node --test scripts/check-english.test.mjs",
+    "test:openspec-config": "node --test scripts/check-openspec-config.test.mjs",
     "test:screenshots": "node --test scripts/check-screenshots.test.mjs",
     "test:changesets": "node --test scripts/check-changesets.test.mjs",
     "test:test-budgets": "node --test scripts/check-test-budgets.test.mjs",
@@ -41,6 +43,7 @@
     "globals": "^17.12.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "yaml": "^2.9.0"
   }
 }
