@@ -121,6 +121,19 @@ test.beforeAll(async () => {
   ownDirectory = path.join(worktreeRoot, "pipeline-unrelated");
   await git(workspaceRoot, ["worktree", "add", "-q", "-b", "pipeline-unrelated", ownDirectory, "main"]);
 
+  // a-card-says-what-its-change-is-doing: the audit log of a chain on
+  // pipeline-first that failed at verify. Written after the task list, so
+  // the failure is not older than it and still decides the card.
+  const endedAt = new Date().toISOString();
+  const changeDir = path.join(workspaceRoot, "openspec", "changes", "pipeline-first");
+  const entry = (fields: Record<string, unknown>) => JSON.stringify({ runId: "fixture-chain", agent: "claude-cli", cwd: workspaceRoot, changeDir, ...fields });
+  await mkdir(path.join(workspaceRoot, ".openspec-ui"), { recursive: true });
+  await writeFile(path.join(workspaceRoot, ".openspec-ui", "audit.jsonl"), [
+    entry({ outcome: "started", stage: "verify", timestamp: endedAt }),
+    entry({ outcome: "failed", stage: "verify", timestamp: endedAt, reason: "the fixture's verify failed", usage: { costUsd: 0.42 } }),
+    entry({ agent: "chain", outcome: "failed", stage: "verify", timestamp: endedAt, reason: "verify: the fixture's verify failed" }),
+  ].join("\n") + "\n", "utf8");
+
   server = createServer({ workspaceRoot, host: "127.0.0.1", port: 0 });
   const address = await server.listen();
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -159,6 +172,13 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   await expect(blocked).toContainText("waiting on pipeline-first");
   await expect(page.getByTestId("pipeline-node-pipeline-first")).toBeVisible();
   await expect(page.getByTestId("pipeline-node-pipeline-unrelated")).toBeVisible();
+
+  // a-card-says-what-its-change-is-doing 6.4: the chain's own ending, read
+  // from the audit log, is the card's state word.
+  const failed = page.getByTestId("pipeline-node-pipeline-first");
+  await expect(failed).toContainText("Failed at verify", { timeout: 15000 });
+  await expect(failed).toHaveAttribute("data-state", "failed");
+  await expect(failed).toContainText("last run failed at verify");
 
   // The declared relation is drawn; nothing else is.
   await expect(page.getByTestId("pipeline-edge-pipeline-first-to-pipeline-second")).toBeAttached();

@@ -358,6 +358,7 @@ function StandaloneApp() {
   const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
   const pipelineLastRuns = useCallback(() => loadChangeLastRuns(apiFetch, cwd), [cwd]);
+  const pipelineStandings = useCallback(() => loadChangeStandings(apiFetch, cwd), [cwd]);
   // Fetches refs now and says how fresh they are; the Pipeline then reads
   // again (a-change-says-where-it-stands).
   const pipelineRefresh = useCallback(
@@ -2063,6 +2064,7 @@ function StandaloneApp() {
               load={pipelineLoad}
               survey={pipelineSurvey}
               lastRuns={pipelineLastRuns}
+              standings={pipelineStandings}
               refresh={pipelineRefresh}
               isActive={activeTab === "pipeline"}
               onOpenChange={openChangeInEditor}

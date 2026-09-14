@@ -1353,6 +1353,33 @@ export const shellThemeCss = `
     border-left-color: var(--warn);
   }
 
+  /* The states a card says since a-card-says-what-its-change-is-doing,
+     each with a state-word token of its own. The word still differs in
+     every case, and the edge's style differs where two states share a
+     hue: waiting is dashed, a stop is dotted. */
+  .openspec-pipeline-node[data-state="waiting"] {
+    --pipeline-state-ink: var(--primary);
+    background: var(--primary-bg);
+    border-left-color: var(--primary);
+    border-left-style: dashed;
+  }
+
+  .openspec-pipeline-node[data-state="failed"] {
+    --pipeline-state-ink: var(--bad);
+    background: var(--bad-bg);
+    border-left-color: var(--bad);
+  }
+
+  .openspec-pipeline-node[data-state="stopped"] {
+    --pipeline-state-ink: var(--bad);
+    border-left-color: var(--bad);
+    border-left-style: dotted;
+  }
+
+  .openspec-pipeline-node[data-state="done"] {
+    border-left-color: var(--good);
+  }
+
   .openspec-pipeline-node-name {
     font-size: 0.8125rem;
     line-height: ${PIPELINE_CARD_REM.nameLine}rem;
@@ -1371,7 +1398,7 @@ export const shellThemeCss = `
     flex-shrink: 0;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--muted);
+    color: var(--pipeline-state-ink, var(--muted));
   }
 
   /* One line each, cut with an ellipsis at the card's width: a wrapped

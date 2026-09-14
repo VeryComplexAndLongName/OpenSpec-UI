@@ -204,7 +204,7 @@ ended (ADR 0029).
 
 ## 5. The cards
 
-- [ ] 5.1 `packages/core/src/change-card.ts` uses no Node imports and is
+- [x] 5.1 `packages/core/src/change-card.ts` uses no Node imports and is
   exported from `browser.ts`. It exports
   `describeChangeCards({ report, survey, lastRuns, now }): ChangeCard[]`,
   which returns one card per change of the report. Each card holds:
@@ -215,11 +215,21 @@ ended (ADR 0029).
   - `progress?`: `done`, `total`, `forPerson` and `delegated`;
   - `lastRun?`;
   - `where`: `label`, `path`, `branch?` and `ownWorktree: boolean`.
-- [ ] 5.2 A change's facts come from its own worktree when a surveyed
+
+  Done. `run` also carries `instanceId`, so a run line can leave out the
+  run a card shows, and the card keeps `stateFacts`, the facts it asks
+  `describeChangeState` about. `describeChangeCards` also takes optional
+  `standings`; see 5.5.
+- [x] 5.2 A change's facts come from its own worktree when a surveyed
   directory's `belongsTo` names the change, and otherwise from this
   directory's survey entry. Its runs are the surveyed runs of that directory
   whose `changeName` is the change and that are not gone.
-- [ ] 5.3 `state` follows this precedence. The first match wins:
+
+  Done: a directory other than this one whose `belongsTo` names the change
+  is the source, and otherwise this directory is. Tested with a worktree
+  whose counts and run differ from this checkout's. A run of another change
+  in the same directory, and a gone run, are not the card's.
+- [x] 5.3 `state` follows this precedence. The first match wins:
   1. `waiting`, for a live run whose record is waiting;
   2. `running`, for any other live run, or when readiness says `running` and
      no run is surveyed;
@@ -228,10 +238,18 @@ ended (ADR 0029).
   4. `blocked`;
   5. `done`, when `total > 0` and every task is done;
   6. `ready`.
-- [ ] 5.4 The guess: when a live run's record names no task, `task` is the
+
+  Done, in that order. Where a run's own record is surveyed, readiness's
+  `running` is not passed to the state word as well. A lease saying
+  running would otherwise outrank a record saying the run waits, and the
+  word would read `Running` on a waiting card.
+- [x] 5.4 The guess: when a live run's record names no task, `task` is the
   survey's `nextOpenTask`, with source `guess`. When no run is live, there is
   no `task`.
-- [ ] 5.5 `describeChangeCard(card, now)` returns `{ stateWords, lines }`.
+
+  Done: a record's own task wins; otherwise the survey's `nextOpenTask`
+  becomes the task, with source `guess`.
+- [x] 5.5 `describeChangeCard(card, now)` returns `{ stateWords, lines }`.
   - `stateWords` is the word `describeChangeState` in
     `packages/core/src/change-state.ts` gives for the card's facts; that
     function comes with `a-change-says-where-it-stands`. The card passes
@@ -251,22 +269,59 @@ ended (ADR 0029).
        the cost only where one was reported, and with the reason for a run
        stopped with one;
     5. **where:** `in <label>, on branch <branch>`.
-- [ ] 5.6 `LocalPicture` in `packages/webui/src/components/PipelineView.tsx`
+
+  Done.
+  - `ChangeStateFacts.lastRun.stage` is now optional, and a run with no
+    stage reads plainly `Failed` or `Stopped`.
+  - For the word to be the Changes list's, a card asks about the same
+    standings. `describeChangeCards` takes the standings a host read. Both
+    Pipelines now read them with the survey, fetching only on the fetch
+    interval: `standings` on `PipelineViewProps`, the standalone shell's
+    `loadChangeStandings`, and the panel's `pipeline/standings`. Without
+    them, a card asks about this copy alone.
+  - The where line is given only for a card read from the change's own
+    worktree. This checkout is already named above the picture.
+  - A completed last run reads `last run completed at <stage>`.
+  - Ages read `30s ago`, `5 minutes ago`, `2 hours ago` or `1 day ago`.
+- [x] 5.6 `LocalPicture` in `packages/webui/src/components/PipelineView.tsx`
   draws each card's state line and detail lines from `describeChangeCard`.
   It keeps the collision lines readiness already gives, and applies the
   existing line budget, so lines past the budget stay available. Do not
   compute any of these words in the view.
-- [ ] 5.7 `packages/webui/src/shell-ui.ts` gives the `Waiting`, `Failed at`
+
+  Done: `PipelineView` derives the cards once per render with
+  `describeChangeCards`. `Node` draws the card's state word and its lines,
+  then readiness's lines (`describeChange`) and `also in`, all through the
+  existing `CardDetails` budget. `data-state` is the card's state. The
+  view's own `stateWord` switch is gone.
+- [x] 5.7 `packages/webui/src/shell-ui.ts` gives the `Waiting`, `Failed at`
   and `Stopped at` state words tokens of their own. Every state is told
   apart by its word; colour agrees with the word and is never the only
   difference.
-- [ ] 5.8 The directory's run lines above the picture stay for runs no card
+
+  Done: `--pipeline-state-ink` colours the state word, and is set per
+  state from palette tokens, with no colour literals.
+  - `waiting`: primary, with a dashed edge.
+  - `failed`: bad on the bad background.
+  - `stopped`: bad, with a dotted edge and no background.
+  - `done`: a good edge.
+
+  Waiting and running share a hue, and so do failed and stopped. Within
+  each pair the word and the edge style differ. `shell-ui.test.ts`, which
+  rejects colour literals outside the palette, passes.
+- [x] 5.8 The directory's run lines above the picture stay for runs no card
   here shows: a run that names no change, or a run of another directory's
   change. They no longer repeat a run a card already shows.
 
+  Done: `runsShownOnCards(cards)` names the runs the cards show.
+  `describeDirectoryRuns` takes that set and leaves those runs out, both
+  above the picture and in another directory's section. A directory whose
+  every run is on a card says `every run here is on its change's card`
+  rather than that no run reports.
+
 ## 6. Tests
 
-- [ ] 6.1 core `change-card.test.ts`:
+- [x] 6.1 core `change-card.test.ts`:
   - one input for each precedence case in 5.3;
   - a failure older than the task list;
   - a stop with a reason, and one without;
@@ -274,15 +329,40 @@ ended (ADR 0029).
   - a guess that skips a Human-only item and a delegated item;
   - a change with its own worktree, whose progress and runs come from that
     worktree and whose card names it.
-- [ ] 6.2 core `change-card.test.ts`, for `describeChangeCard`:
+
+  Done: "the state, first match wins" has a test for each precedence case.
+  It adds a waiting run under a lease that says running, a gone run, a
+  failure with no stage, a failure older than the task list, and a
+  completed last run. "What a card is read from" covers the change's own
+  worktree and a run of another change. The skip itself is the survey's,
+  already tested in `worktree-survey.test.ts`; here the guess is taken from
+  a change that has both a Human-only and a delegated item open.
+- [x] 6.2 core `change-card.test.ts`, for `describeChangeCard`:
   - the words for each state and for each line;
   - a cost only where one was reported;
   - ages counted from `now`.
-- [ ] 6.3 webui `PipelineView.test.tsx`:
+
+  Done: "the lines" covers the guess, no guess without a live run, the
+  task a run was given, a wait, a cost only where reported, a stop with a
+  reason and without, ages from two different `now`s, and a card with
+  nothing to say. `runsShownOnCards` has two tests. The file passes, 23
+  tests.
+- [x] 6.3 webui `PipelineView.test.tsx`:
   - a card shows the state words and lines the core function returns;
   - a card with more lines than its budget still carries every line;
   - a run shown on a card is not repeated in the run lines above the
     picture.
+
+  Done: "a card says what its change is doing" has four tests.
+  - A failed card, with `Failed at verify`, `data-state="failed"`, and its
+    progress and last-run lines.
+  - A card with four lines over a two-line budget, which keeps each in its
+    text and title.
+  - A card whose word is `Archived on main` from the standings.
+  - A run shown on a card and left out above, where it reads
+    `every run here is on its change's card`.
+
+  The 31 earlier tests pass unchanged; the file has 35.
 - [ ] 6.4 browser `e2e/pipeline.spec.ts`:
   - a fixture change whose audit log shows its latest chain failing at
     verify shows `Failed at verify`;
@@ -291,11 +371,16 @@ ended (ADR 0029).
 
 ## 7. Verification
 
-- [ ] 7.1 This change validates strictly. `check(validate-change)`
+- [x] 7.1 This change validates strictly. `check(validate-change)`
+
+  Done: `openspec validate a-card-says-what-its-change-is-doing --strict`
+  reports it valid, 2026-09-14.
 - [ ] 7.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and each package's test count.
-- [ ] 7.3 A pending changeset exists, with core, webui, server and the
+- [x] 7.3 A pending changeset exists, with core, webui, server and the
   extension each at minor. `check(changeset-present)`
+
+  Done: `.changeset/a-card-says-what-its-change-is-doing.md`.
 - [ ] 7.4 Run the whole browser suite, not a selected spec. Regenerate
   `docs/images/standalone/pipeline.png` and look at it.
 - [ ] 7.5 **Delegated to claude-cli**: check a card against a real chain.

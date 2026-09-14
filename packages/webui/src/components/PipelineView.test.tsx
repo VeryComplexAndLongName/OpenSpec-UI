@@ -374,6 +374,100 @@ describe("PipelineView — told when to read (the-pipeline-opens-in-vs-code)", (
   });
 });
 
+describe("PipelineView — a card says what its change is doing", () => {
+  const alphaHere = (overrides: Partial<SurveyedDirectory> = {}) => directory({
+    changes: [{ changeName: "alpha", tasksDone: 1, tasksTotal: 3, blockers: [], alsoIn: [], tasksForPerson: 1, tasksDelegated: 0 }],
+    ...overrides,
+  } as Partial<Extract<SurveyedDirectory, { readable: true }>>);
+
+  // 6.3
+  it("shows the state word and the lines core gives the card", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(alphaHere())}
+        lastRuns={async () => ({
+          byChange: { alpha: { runId: "c1", outcome: "failed", stage: "verify", endedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), costUsd: 0.84 } },
+        })}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("Failed at verify"));
+    const node = screen.getByTestId("pipeline-node-alpha");
+    expect(node).toHaveAttribute("data-state", "failed");
+    expect(node).toHaveTextContent("1 of 3 tasks done; 1 only a person can close");
+    expect(node).toHaveTextContent("last run failed at verify 2 hours ago, $0.84");
+  });
+
+  // 6.3
+  it("keeps every line on a card with more lines than it draws", async () => {
+    const collisions = [{ kind: "overlapping-files" as const, files: ["a.ts"] }];
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha", {
+          worktreePath: "/w/alpha",
+          blockedFrom: ["beta", "gamma"].map((changeName) => ({ changeName, collisions })),
+        }))}
+        survey={async () => survey(alphaHere())}
+        lastRuns={async () => ({
+          byChange: { alpha: { runId: "c1", outcome: "completed", stage: "apply", endedAt: new Date(Date.now() - 5 * 60_000).toISOString() } },
+        })}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("last run completed at apply"));
+    const node = screen.getByTestId("pipeline-node-alpha");
+    const lines = ["1 of 3 tasks done; 1 only a person can close", "last run completed at apply 5 minutes ago", "not with beta", "not with gamma"];
+    expect(node.querySelectorAll(".openspec-pipeline-node-detail--beyond").length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(node).toHaveTextContent(line);
+      expect(node).toHaveAttribute("title", expect.stringContaining(line));
+    }
+  });
+
+  // 5.5: the word the Changes list gives, from the same standings.
+  it("says the word the standings give, as the Changes list does", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(alphaHere())}
+        standings={async () => ({
+          readAt: new Date().toISOString(),
+          standings: [{
+            changeName: "alpha",
+            here: { label: "repo", path: "/repo", counts: { done: 1, total: 3 }, runs: [] },
+            elsewhere: [],
+            main: { kind: "archived", archiveName: "2026-09-14-alpha" },
+          }],
+          sources: { fetch: { attempted: false }, pullRequests: { read: true } },
+        })}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("Archived on main"));
+  });
+
+  // 6.3, 5.8
+  it("does not repeat a run a card shows in the run lines above the picture", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(alphaHere({ runs: [run({ changeName: "alpha", workingDirectory: "/repo", activity: "Bash: npm run verify" })] }))}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("Bash: npm run verify — said"));
+    expect(screen.getByTestId("pipeline-node-alpha")).toHaveAttribute("data-state", "running");
+    const above = screen.getByTestId("pipeline-reading-runs");
+    expect(above).toHaveTextContent("every run here is on its change's card");
+    expect(above.textContent).not.toContain("npm run verify");
+  });
+});
+
 describe("PipelineView", () => {
   it("names the git author of a run that recorded one", async () => {
     render(

@@ -193,9 +193,20 @@ export function describeRun(run: SurveyedRun, now?: Date): string {
  * session this product did not start writes no record at all.
  *
  * `now` counts each stated age from the record's timestamps. Without it,
- * the ages are the ones measured when the survey was read. */
-export function describeDirectoryRuns(directory: SurveyedDirectory, now?: Date): string[] {
+ * the ages are the ones measured when the survey was read.
+ *
+ * `shownOnCards` names the runs a change's card already shows, by instance
+ * id. They are not said a second time, and a directory whose every run is
+ * on a card says so rather than that none reports
+ * (a-card-says-what-its-change-is-doing). */
+export function describeDirectoryRuns(
+  directory: SurveyedDirectory,
+  now?: Date,
+  shownOnCards: ReadonlySet<string> = new Set(),
+): string[] {
   const lines = directory.readable ? [] : [`could not be read: ${directory.reason}`];
   if (directory.runs.length === 0) return [...lines, "no run reports here"];
-  return [...lines, ...directory.runs.map((run) => describeRun(run, now))];
+  const rest = directory.runs.filter((run) => !shownOnCards.has(run.instanceId));
+  if (rest.length === 0) return [...lines, "every run here is on its change's card"];
+  return [...lines, ...rest.map((run) => describeRun(run, now))];
 }

@@ -36,6 +36,9 @@ export interface ChangeCardTask {
 
 /** The live run a card shows. */
 export interface ChangeCardRun {
+  /** The run's record, so a list of runs can leave out the one this card
+   * already shows. */
+  instanceId: string;
   stage: string | null;
   activity: string;
   activityAt: string;
@@ -153,6 +156,14 @@ export function describeChangeCards({ report, survey, lastRuns, standings }: Cha
   });
 }
 
+/** The runs the cards show, by instance id — what a directory's run lines
+ * leave out, so no run is said twice. */
+export function runsShownOnCards(cards: readonly ChangeCard[]): Set<string> {
+  const shown = new Set<string>();
+  for (const card of cards) if (card.run !== undefined) shown.add(card.run.instanceId);
+  return shown;
+}
+
 function olderThan(endedAt: string, modifiedAt: string | undefined): boolean {
   if (modifiedAt === undefined) return false;
   const ended = Date.parse(endedAt);
@@ -167,6 +178,7 @@ function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string 
     // one a run can close.
     : nextOpenTask !== undefined ? { ...nextOpenTask, source: "guess" } : undefined;
   return {
+    instanceId: run.instanceId,
     stage: run.stage,
     activity: run.activity,
     activityAt: run.activityAt,

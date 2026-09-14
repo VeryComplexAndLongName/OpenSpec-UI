@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { describeChangeCard, describeChangeCards, type ChangeCard, type ChangeCardInputs } from "./change-card.js";
+import { describeChangeCard, describeChangeCards, runsShownOnCards, type ChangeCard, type ChangeCardInputs } from "./change-card.js";
 import type { ChangeReadiness } from "./change-readiness-facts.js";
 import type { LastRun } from "./last-runs-facts.js";
-import type { SurveyedChange, SurveyedDirectory, SurveyedRun } from "./worktree-survey-facts.js";
+import { describeDirectoryRuns, type SurveyedChange, type SurveyedDirectory, type SurveyedRun } from "./worktree-survey-facts.js";
 
 // a-card-says-what-its-change-is-doing: pure over in-memory readings.
 
@@ -189,6 +189,24 @@ describe("describeChangeCards — what a card is read from", () => {
     const card = cardOf({ directories: [directory({ runs: [run({ changeName: "other" })] })] });
     expect(card.run).toBeUndefined();
     expect(card.state).toBe("ready");
+  });
+});
+
+describe("runsShownOnCards (5.8)", () => {
+  it("names the run a card shows, and a directory's run lines leave it out", () => {
+    const here = directory({ runs: [run(), run({ instanceId: "i2", changeName: "other", activity: "reading" })] });
+    const cards = describeChangeCards({ report: { changes: [readiness()] }, survey: { directories: [here], runsElsewhere: [] }, now: NOW });
+
+    const shown = runsShownOnCards(cards);
+    expect([...shown]).toEqual(["i1"]);
+    expect(describeDirectoryRuns(here, NOW, shown)).toEqual([expect.stringContaining("other (apply): reading")]);
+  });
+
+  it("says a directory's every run is on a card, rather than that none reports", () => {
+    const here = directory({ runs: [run()] });
+    const cards = describeChangeCards({ report: { changes: [readiness()] }, survey: { directories: [here], runsElsewhere: [] }, now: NOW });
+
+    expect(describeDirectoryRuns(here, NOW, runsShownOnCards(cards))).toEqual(["every run here is on its change's card"]);
   });
 });
 
