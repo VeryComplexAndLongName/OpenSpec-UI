@@ -30,6 +30,10 @@ export interface LiveRun {
   startedAt: string;
   /** At a checkpoint or on a permission, rather than working. */
   waiting: boolean;
+  /** The permission request the run waits on, while it waits on one: what
+   * an answer from a card names. The status record carries only its
+   * description. */
+  permissionRequestId: string | null;
   /** The stop a person asked for, where one was asked and the run has not
    * ended yet. */
   stopRequested: { reason: string; by?: string } | null;
@@ -70,6 +74,7 @@ export class LiveRuns {
             ...(command.agentId !== undefined ? { agentId: command.agentId } : {}),
             startedAt: event.timestamp,
             waiting: false,
+            permissionRequestId: null,
             stopRequested: null,
           };
         }
@@ -102,14 +107,19 @@ export class LiveRuns {
     if (isTerminal(event)) {
       if (this.runs.get(run.runId) === run) this.runs.delete(run.runId);
       run.waiting = false;
+      run.permissionRequestId = null;
       run.stopRequested = null;
       return;
     }
     this.runs.set(run.runId, run);
     switch (event.kind) {
       case "checkpoint":
+        run.waiting = true;
+        run.permissionRequestId = null;
+        return;
       case "permissionRequest":
         run.waiting = true;
+        run.permissionRequestId = event.requestId;
         return;
       case "stopRequested":
         if (event.outcome === "asked") run.stopRequested = { reason: event.reason, ...(event.by !== undefined ? { by: event.by } : {}) };
@@ -121,6 +131,7 @@ export class LiveRuns {
         return;
       default:
         run.waiting = false;
+        run.permissionRequestId = null;
     }
   }
 }

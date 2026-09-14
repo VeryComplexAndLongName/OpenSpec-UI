@@ -21,16 +21,21 @@ export const PIPELINE_CARD_REM = {
   stateLine: 0.875,
   /** One line of detail. */
   detailLine: 0.875,
+  /** The row of controls on a card whose run this host can answer or stop,
+   * or that can be started (a-change-is-run-from-its-card). */
+  controlsLine: 1.25,
 } as const;
 
 /** How many detail lines a card of `height` layout units holds whole,
  * where one unit is one `rem` (ADR 0025's `--u`). A card that carries a
- * state word spends a line on it. Never negative. */
-export function pipelineCardDetailLines(height: number, options: { hasState: boolean }): number {
+ * state word spends a line on it, and a card with controls spends their
+ * row. Never negative. */
+export function pipelineCardDetailLines(height: number, options: { hasState: boolean; hasControls?: boolean }): number {
   const chrome = 2 * PIPELINE_CARD_REM.paddingBlock
     + 2 * PIPELINE_CARD_REM.borderBlock
     + PIPELINE_CARD_REM.nameLine
-    + (options.hasState ? PIPELINE_CARD_REM.stateLine : 0);
+    + (options.hasState ? PIPELINE_CARD_REM.stateLine : 0)
+    + (options.hasControls ? PIPELINE_CARD_REM.controlsLine : 0);
   const room = height - chrome;
   // A hair of tolerance, so a room that is an exact multiple of a line is
   // not cut a line short by floating point.

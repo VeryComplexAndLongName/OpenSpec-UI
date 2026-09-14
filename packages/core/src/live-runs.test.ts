@@ -55,6 +55,7 @@ describe("LiveRuns", () => {
       kind: "chain",
       startedAt: at(0),
       waiting: false,
+      permissionRequestId: null,
       stopRequested: null,
     }]);
     // Waiting after the checkpoint, and no longer after the next stage starts.
@@ -104,6 +105,22 @@ describe("LiveRuns", () => {
       if (event.kind === "stopRequested") stopRequested = live.get("chain-1")?.stopRequested;
     }
     expect(stopRequested).toBeNull();
+  });
+
+  // a-change-is-run-from-its-card 5.4
+  it("holds the permission request a run waits on, and lets it go once the run moves on", async () => {
+    const live = new LiveRuns();
+    const events: Event[] = [
+      { kind: "started", runId: "chain-1", timestamp: at(0), command: "chain", cwd: "/repo" },
+      { kind: "permissionRequest", runId: "chain-1", timestamp: at(1), requestId: "p1", description: "Write to x" },
+      { kind: "stdout", runId: "chain-1", timestamp: at(2), chunk: "writing\n" },
+      { kind: "checkpoint", runId: "chain-1", timestamp: at(3), stage: "apply", nextStage: "verify", nextAgentId: "claude-cli" },
+    ];
+    const seen: Array<string | null | undefined> = [];
+    for await (const _event of live.track(chain, (async function* () { yield* events; })())) {
+      seen.push(live.get("chain-1")?.permissionRequestId);
+    }
+    expect(seen).toEqual([null, "p1", null, null]);
   });
 
   it("stays waiting on a permission through a usage report", async () => {

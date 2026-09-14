@@ -45,6 +45,9 @@ export interface ChangeCardRun {
   /** The host showing this card started the run and holds it, so the card
    * may offer to answer and stop it (a-change-is-run-from-its-card). */
   ownedHere: boolean;
+  /** Where the run was started, as its record says: the folder a card for a
+   * run held elsewhere offers to copy, and never to open. */
+  workingDirectory: string;
   stage: string | null;
   activity: string;
   activityAt: string;
@@ -194,6 +197,7 @@ function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string 
     instanceId: run.instanceId,
     runId: run.runId,
     ownedHere,
+    workingDirectory: run.workingDirectory,
     stage: run.stage,
     activity: run.activity,
     activityAt: run.activityAt,
