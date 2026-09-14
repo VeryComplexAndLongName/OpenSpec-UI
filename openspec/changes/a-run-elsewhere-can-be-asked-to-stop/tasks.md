@@ -308,7 +308,7 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 
   Done: `openspec validate a-run-elsewhere-can-be-asked-to-stop --strict`
   reports the change valid, run before section 3 was committed.
-- [ ] 4.2 Run `npm run verify` unpiped, after the last edit, with everything
+- [x] 4.2 Run `npm run verify` unpiped, after the last edit, with everything
   staged. Record the run and each package's test count.
 
   Run on 2026-09-14 at 11:52, unpiped, with everything committed, after
@@ -325,8 +325,14 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   `sh.exe` died during the test's `git push`:
   `fatal error - add_item ("\??\C:\Tools\Git", "/", ...) failed, errno 1`.
   It is the same MSYS failure under load that `a-change-is-run-from-its-card`
-  7.2 recorded. The file alone passed, 3 of 3. Left open until CI passes the
-  whole suite in one run.
+  7.2 recorded. The file alone passed, 3 of 3.
+
+  Closed on CI. On PR #502 at `f56fe1a`, which also carries 4.6's edit, run
+  34827785930 passed "Typecheck, lint, test, and build" with the whole
+  suite in one run. "Standalone browser and accessibility", "Extension
+  integration and package", "OpenSpec change validation (merge gate)",
+  "Dependency audit" and "Dependency review" also passed. The release jobs
+  were skipped, as on every pull request.
 - [x] 4.3 A pending changeset exists: core, cli, server, extension and webui,
   each at minor. `check(changeset-present)`
 
