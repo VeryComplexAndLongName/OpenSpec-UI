@@ -538,12 +538,42 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 7. Verification
 
-- [ ] 7.1 This change validates strictly. `check(validate-change)`
-- [ ] 7.2 `npm run verify` unpiped, after the last edit and with everything
-  staged. Record the run and the test count for each package.
-- [ ] 7.3 A pending changeset exists: core, server, extension and webui are
+- [x] 7.1 This change validates strictly. `check(validate-change)`
+
+  Done: `openspec validate a-change-is-run-from-its-card --strict` reports
+  the change valid.
+- [x] 7.2 `npm run verify` unpiped, after the last code edit and with
+  everything staged. Record the run and the test count for each package.
+
+  Run on 2026-09-14 at 09:07, unpiped, after the last code edit and with
+  everything staged. Typecheck and lint passed. The tests:
+  - cli: 155 in 15 files, all passed;
+  - core: 1425 in 103 files, with 1424 passed and 1 failed;
+  - extension: 367 in 27 files, all passed;
+  - server: 99 in 4 files, all passed;
+  - webui: 461 in 51 files, all passed.
+
+  The core failure was "reads a directory and a file from a branch that
+  is not checked out", in `git-refs.test.ts`, and it is not this change's.
+  Git's own `sh.exe` died during the test's `git push` with
+  `fatal error - add_item ("\??\C:\Tools\Git", "/", ...) failed, errno 1`,
+  an MSYS runtime failure under load. The file alone passed, 3 of 3.
+  CI then ran the whole suite in one run on #495, at `127691f`:
+  "Typecheck, lint, test, and build" passed, as did "Extension
+  integration and package" and "OpenSpec change validation (merge gate)".
+- [x] 7.3 A pending changeset exists: core, server, extension and webui are
   each minor. `check(changeset-present)`
-- [ ] 7.4 Run the whole browser suite, not a selected spec.
+
+  Done: `.changeset/a-change-is-run-from-its-card.md` names
+  `@openspec-ui/core`, `@openspec-ui/webui`, `@openspec-ui/server` and
+  `openspec-ui-vscode` (the extension), each minor.
+- [x] 7.4 Run the whole browser suite, not a selected spec.
+
+  Done on 2026-09-14: `npm run test:browser` in `packages/server`,
+  unpiped, with the client built from this branch. 19 passed in 3.9
+  minutes. CI's "Standalone browser and accessibility" passed on #495 at
+  `127691f`. The screenshots the suite regenerated differed only as
+  captures, and were not committed.
 - [ ] 7.5 **Delegated to claude-cli**: a live stop in the standalone server.
 
   Where and how, for 7.5 and 7.6:
