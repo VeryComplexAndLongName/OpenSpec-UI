@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run --project core && vitest run --project core-git-subprocess"
   },
   "dependencies": {
     "simple-git": "^3.27.0",
