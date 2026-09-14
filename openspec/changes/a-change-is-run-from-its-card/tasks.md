@@ -574,7 +574,74 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   minutes. CI's "Standalone browser and accessibility" passed on #495 at
   `127691f`. The screenshots the suite regenerated differed only as
   captures, and were not committed.
-- [ ] 7.5 **Delegated to claude-cli**: a live stop in the standalone server.
+- [x] 7.5 **Delegated to claude-cli**: a live stop in the standalone server.
+
+  Done on 2026-09-14, in two runs of one foreground Node driver (kept
+  outside the repository). It:
+  - rebuilt the client with `node scripts/build-client.mjs` in
+    `packages/server`;
+  - started `tsx src/cli.ts <scratch repo> 4831` from this branch, with a
+    stand-in `claude.cmd` first on `PATH` and `OPENSPEC_UI_WORKTREE_ROOT`
+    under temp;
+  - drove the Pipeline tab in headless Chromium through Playwright,
+    recording every WebSocket frame with its time.
+
+  The scratch repository (`%TEMP%/openspec-ui-live-stop-ibXbWk/repo`, git
+  identity `live-check@example.com`) held one change, `live-stop`, whose
+  `harness.json` is semi-autonomous with `claude-cli` on every stage. The
+  stand-in wrote `tasks.md` (1.1, 1.2) for `plan`, did nothing for
+  `review`, and for `implement` did exactly what the setup above says.
+
+  Run 1 is not the evidence. It had a `tasks.md` from the start, and a
+  chain whose proposal and tasks exist starts at `apply` (`design` is
+  optional), so no checkpoint came before the stop. Run 2 has no
+  `tasks.md`, so the chain starts at `propose`.
+
+  Run 2, step by step (UTC):
+  1. 06:23:46.140 Start pressed on the card. The run dialog opened over the
+     Pipeline tab; the chain path was chosen and Start chain pressed. The
+     `chain` command was sent at 06:23:48.082.
+  2. The card's `Continue live-stop to review` sent `confirmCheckpoint` at
+     06:23:51.689. Its `Continue live-stop to apply` sent the next at
+     06:23:53.235.
+  3. The stand-in printed `Starting task 1.1` at 06:23:56.263. Stop on the
+     card, with the reason `live check` and `Ask to stop`, sent `stop` at
+     06:23:56.692, before 1.1 was ticked.
+  4. The chain ended at 06:24:11.527, 14.7 s after the stop was asked.
+
+  WebSocket events from `stopRequested` through `cancelled` (the server's
+  `timestamp`, then when the page received it):
+  - `stopRequested` `{ reason: "live check", by: "live-check@example.com", outcome: "asked" }`,
+    06:23:56.826, received 06:23:56.828;
+  - `stdout` `Starting task 1.2`, 06:24:11.277, received 06:24:11.340;
+  - `cancelled`, with no `reason`, 06:24:11.527, received 06:24:11.528.
+
+  `cancelled` came 0.25 s after the `Starting task 1.2` line, and 45 s
+  before the stand-in's 60 seconds would have run out. The stand-in ticked
+  1.1 at 06:24:11.275 and printed the marker 1 ms later, so the run does
+  not show which of the two boundaries fired.
+
+  The stand-in never logged its own exit, and no stand-in process was
+  alive afterwards. `tasks.md` was left with 1.1 ticked and 1.2 not.
+
+  The chain ending entry in `.openspec-ui/audit.jsonl`:
+  `{"runId":"9c338f33-e47d-4a17-8053-49eee89cece7","agent":"chain","outcome":"cancelled","timestamp":"2026-09-14T06:24:11.527Z","stage":"apply","stopRequest":{"reason":"live check","by":"live-check@example.com"}}`,
+  with `cwd` and `changeDir` omitted here and no `reason`. The apply
+  stage's own entry is `cancelled` at 06:24:11.528.
+
+  The card's text while the stop was pending, read every second (the
+  scratch path shortened to `<repo>`):
+  - 06:23:56.700, as Stop was pressed: `live-stop RUNNING on task 1.1:
+    First task, by its own account +3 running apply — said 3s ago 0 of 2
+    tasks done in <repo> Stop`;
+  - from 06:23:58.728 until the end: `live-stop RUNNING on task 1.1: First
+    task, by its own account +3 asked to stop by live-check@example.com:
+    live check — said 0s ago 0 of 2 tasks done in <repo> Stop now`, with
+    only the age changing.
+
+  Read again after the end: `live-stop STOPPED AT APPLY 1 of 2 tasks done
+  +2 last run stopped at apply 4s ago no working directory of its own —
+  openspec-ui-cli worktree add live-stop Start`.
 
   Where and how, for 7.5 and 7.6:
   - Work in this working directory, which is on the branch
