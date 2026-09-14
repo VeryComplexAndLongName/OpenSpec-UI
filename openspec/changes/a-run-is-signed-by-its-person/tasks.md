@@ -183,7 +183,7 @@ machine, read in three states, and the key is enrolled by one confirmation
   the same facts and an inline `It was me` action. The action runs
   `openspec-ui.confirmEnrolment` with the `keyId`. Add an extension test.
 
-  Done. A row reads "Was this run yours? <label>" with the request's facts
+  Done. A row reads `Was this run yours? <label>` with the request's facts
   as its description. Its inline action, "OpenSpec UI: It Was Me", asks for
   the name, defaulting to the git author. `human-only-inbox-tree.test.ts`
   adds 2 tests.
@@ -214,14 +214,30 @@ machine, read in three states, and the key is enrolled by one confirmation
 
 ## 6. Verification
 
-- [ ] 6.1 This change validates strictly. `check(validate-change)`
+- [x] 6.1 This change validates strictly. `check(validate-change)`
+
+  Done: `openspec validate a-run-is-signed-by-its-person --strict` reports
+  it valid, 2026-09-14.
 - [ ] 6.2 Run `npm run verify` unpiped, after the last edit and with
   everything staged. Record the run and the test count of each package.
+
+  Local run 2026-09-14, exit code 1. Typecheck and every lint passed.
+  Tests: cli 152 passed; core 1321 passed, 1 failed; extension 353 passed;
+  server 89 passed; webui 437 passed. The one failure is
+  `keeps accepting this repository's real openspec/agent-harness.json`,
+  which reads the working tree's file: an uncommitted local edit, not part
+  of this change, sets its `autonomyLevel` to `semi-autonomous`. To be
+  closed on CI's run of the same checks against the committed tree.
 - [x] 6.3 A pending changeset exists: core, cli, server, extension and webui
   each at minor. `check(changeset-present)`
 
   Done: `.changeset/a-run-is-signed-by-its-person.md`.
-- [ ] 6.4 Run the whole browser suite, not a selected spec.
+- [x] 6.4 Run the whole browser suite, not a selected spec.
+
+  Done 2026-09-14: `npm run test:browser` in `packages/server`, 18 passed
+  (4.2 min). The retaken `docs/images/standalone/pipeline.png` shows the
+  fixture's unsigned run as `…said 2s ago; not verified`. The pictures it
+  retook of screens this change does not touch were left as they were.
 - [ ] 6.5 **Delegated to claude-cli**: sign, enrol and tamper with real runs.
 
   Setup: a scratch git repository with two worktrees, and a CLI built from
