@@ -57,7 +57,8 @@ rules:
       relevant" or "the corresponding" code.
     - When a plausible-looking generalization of a task would be wrong, state
       the prohibition explicitly in the task itself.
-    - A task that an implementing agent cannot perform (live, interactive, or
+    - >-
+      A task that an implementing agent cannot perform (live, interactive, or
       manual verification) must be marked as such in the task text, and must
       be reported as outstanding rather than checked off. Which marking
       depends on why: `**Human-only**` where no agent can make the check (a
