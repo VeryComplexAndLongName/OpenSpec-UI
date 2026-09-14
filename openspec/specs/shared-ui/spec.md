@@ -422,12 +422,24 @@ question cannot disagree.
 Each node SHALL state whether its change is running, ready to start, or
 blocked.
 
-A running change SHALL name where it is running and, where the lease
-recorded one, the git author of the run — as attribution, described as
-a git author and never as an established identity.
+A change SHALL be running in either of these cases:
 
-A blocked change SHALL name what it is waiting on. A change that is
-ready SHALL name what it can be started alongside.
+- a mutating run holds the working directory that belongs to the change;
+- a run's status record that is not past the staleness window names the
+  change from this working directory or from the change's own working
+  directory.
+
+A record that names the change from any other working directory SHALL NOT
+make the change running.
+
+A running change SHALL name where it is running. Where a lease recorded
+the git author of the run, the node SHALL name that author, as attribution:
+described as a git author, and never as an established identity. Where only
+a status record says the change is running, the node SHALL claim nothing
+about who is running it.
+
+A blocked change SHALL name what it is waiting on. A change that is ready
+SHALL name what it can be started alongside.
 
 #### Scenario: A change being implemented
 
@@ -441,6 +453,24 @@ ready SHALL name what it can be started alongside.
   was recorded
 - **THEN** the node says the change is running, and claims nothing about
   who is running it
+
+#### Scenario: A run that holds no lease
+
+- **WHEN** a live status record names a change from this working
+  directory, and no lease is held for that change
+- **THEN** the node says the change is running there, and claims nothing
+  about who is running it
+
+#### Scenario: A copy of the change somewhere else
+
+- **WHEN** a live status record names the change from a working directory
+  that is neither this one nor the change's own
+- **THEN** that record does not make the change running
+
+#### Scenario: A run that stopped reporting
+
+- **WHEN** the only record naming the change is past the staleness window
+- **THEN** that record does not make the change running
 
 ### Requirement: A collision is shown on the change it affects, not as a relation
 
@@ -532,10 +562,19 @@ SHALL NOT remove the others from the survey.
 
 ### Requirement: A surveyed directory shows what its runs say they are doing
 
-For each working directory, the survey SHALL show what each run
-reporting there says it is doing — its change, its stage, its activity,
-and how long since it said so — read from the status records runs
+For each working directory, the survey SHALL show what each run reporting
+there says it is doing: its change, its stage, its activity, and how long
+since it said so. These SHALL be read from the status records that runs
 already write.
+
+Where a run has said which task it is on, or was started for one task,
+the survey SHALL name that task by its number and text, and SHALL say
+which of the two applies. A task number that names no task of the run's
+change SHALL NOT be shown.
+
+Where a run is waiting at a checkpoint or for a permission, the survey
+SHALL say that it is waiting and what for, and SHALL NOT describe it as
+running a stage.
 
 A run whose record is past the staleness window SHALL be shown as gone.
 
@@ -545,8 +584,8 @@ record.
 
 No verdict about a run's health SHALL be stated.
 
-Reading the records SHALL NOT run git against any working directory
-beyond the one enumeration the survey already makes.
+Reading the records SHALL NOT run git against any working directory beyond
+the one enumeration the survey already makes.
 
 #### Scenario: A run in another working directory
 
@@ -557,14 +596,35 @@ beyond the one enumeration the survey already makes.
 #### Scenario: A directory no run reports from
 
 - **WHEN** no status record names a working directory
-- **THEN** the survey says no run reports there, and does not call it
-  idle
+- **THEN** the survey says that no run reports there, and does not call
+  the directory idle
 
 #### Scenario: A record for a directory that is gone
 
 - **WHEN** a status record names a path that is no longer a working
   directory of the repository
-- **THEN** it is reported as belonging to none, not dropped
+- **THEN** the record is reported as belonging to no directory, and is not
+  dropped
+
+#### Scenario: A run that said which task it is on
+
+- **WHEN** a run's record says it is on task 1.2 by its own account, and
+  the change's list has a task 1.2
+- **THEN** the survey names task 1.2 with its text, and says the run said
+  so
+
+#### Scenario: A run that named a task its change does not have
+
+- **WHEN** a run's record names task 9.9 and the change's list has no such
+  task
+- **THEN** the survey names no task for that run
+
+#### Scenario: A run waiting at a checkpoint
+
+- **WHEN** a run's record says it is waiting to continue to the next
+  stage
+- **THEN** the survey says the run is waiting, and does not say it is
+  running a stage
 
 ### Requirement: Another directory's changes cannot be acted on
 
@@ -710,4 +770,91 @@ more.
 - **WHEN** a card's text has more lines than its size holds
 - **THEN** the card draws the lines that fit whole, shows that there is
   more, and every line remains available
+
+### Requirement: An age on the picture keeps counting between readings
+
+How long ago a run said something, and how long ago it was last heard
+from, SHALL be counted from the times the run's record carries. It SHALL
+NOT stay at the value measured when the picture was read.
+
+Counting SHALL NOT read anything.
+
+#### Scenario: A minute between readings
+
+- **WHEN** a run said something 10 seconds before a reading, and 40
+  seconds pass with no new reading
+- **THEN** the picture says the run said it about 50 seconds ago
+
+### Requirement: A host may tell the picture when to read
+
+Where a host signals that what the picture reads has changed, the picture
+SHALL read on that signal, and on a slow interval as a backstop, instead
+of on its own shorter clock.
+
+Where a host gives no signal, the picture SHALL read on its own clock, as
+before.
+
+#### Scenario: A host that signals
+
+- **WHEN** the host signals that the survey has changed
+- **THEN** the survey is read, and the readiness report is not
+
+#### Scenario: A host that does not signal
+
+- **WHEN** the host gives no signal
+- **THEN** the picture reads on its own interval
+
+### Requirement: A form's sections are separated from each other
+
+Where a form has more than one section, the end of each section, including
+the control that saves or applies it, SHALL be separated from the next
+section's heading by more space than separates the fields within a section.
+
+Without that separation, the heading of the next section reads as if it
+belonged to the save control above it.
+
+#### Scenario: Two sections, one after the other
+
+- **WHEN** a section ending in its save control is followed by another
+  section
+- **THEN** the gap between that control and the next heading is larger
+  than the gap between two fields
+
+### Requirement: A save is offered when there is something to save
+
+A control that saves a settings form SHALL be enabled only while the form
+differs from what was last loaded, applied or saved. While it differs, the
+form SHALL say that it has unsaved changes.
+
+#### Scenario: Nothing changed
+
+- **WHEN** a settings form has just been loaded
+- **THEN** its save control is disabled
+
+#### Scenario: A field changed
+
+- **WHEN** a field is changed
+- **THEN** the save control is enabled, and the form says it has unsaved
+  changes
+
+### Requirement: A change is drawn once, beside the worktree that belongs to it
+
+Where a working directory is the one that belongs to a change of this
+working directory, the part of the picture showing the other directories
+SHALL NOT draw that change again inside it, and SHALL say that the
+directory belongs to that change.
+
+That directory's other changes, its branch and its runs SHALL still be
+shown.
+
+#### Scenario: A change with its own worktree
+
+- **WHEN** a change of this working directory has a worktree of its own
+- **THEN** the change is drawn once, and that worktree is described as
+  belonging to it
+
+#### Scenario: A worktree that inherited other changes
+
+- **WHEN** a change's own worktree also holds other changes
+- **THEN** those other changes are still drawn under that worktree
 

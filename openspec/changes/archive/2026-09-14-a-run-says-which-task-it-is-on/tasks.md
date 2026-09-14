@@ -220,7 +220,7 @@ every surface that shows it (ADR 0029).
   Done 2026-09-13: `npm run test:browser` in `packages/server`, 18 passed
   (4.1 min). The pictures it retook of screens this change does not touch
   were left as they were.
-- [ ] 6.5 **Delegated to claude-cli**: find out which agents deliver a
+- [x] 6.5 **Delegated to claude-cli**: find out which agents deliver a
   marker while they work.
 
   Setup:
@@ -240,5 +240,69 @@ every surface that shows it (ADR 0029).
   every distinct `on task` line that `status` printed, with its time. If
   none appeared before the run ended, record that.
 
+  Take each agent's steps 1 and 2 in one foreground command: start the run
+  as a child process, poll `status` while it lives, and return only once
+  the run has ended. Nothing may be left running in the background when a
+  command returns, since a command left in the background ends this turn
+  with the item open.
+
   The unit tests feed recorded chunks; only a real run shows when each
   agent's reply arrives.
+
+  Done 2026-09-14 (times below are UTC, 2026-09-13), on `main` at
+  `65ea319`, CLI rebuilt first. Result: **claude-cli-acp delivers each
+  marker while it works; claude-cli delivers none.** Its reply arrives only
+  when `apply` ends, and it carried no marker.
+
+  Setup, as the task describes, with one addition. Two scratch repositories
+  in the session scratchpad each held a change `three-small-notes` with
+  tasks 1.1 to 1.3. Each task creates one file and verifies it with
+  `sleep 20 && cat`, so a task lasts long enough to be polled. The global
+  file set `apply` to the agent under test with `claude-sonnet-5`, effort
+  `low`, and `verify` to the same agent with `claude-haiku-4-5`. The
+  per-change `harness.json` also needed
+  `checkpoints.requireConfirmationBetweenSteps: false`, because
+  `openspec-ui-cli doctor --change three-small-notes` refused with
+  `autonomyLevel: "autonomous"` alone when no terminal was attached. A
+  Node driver started `node packages/cli/dist/cli.js run three-small-notes
+  --format json` as a child process, with stdin ignored and the parent
+  session's `CLAUDECODE`/`CLAUDE_CODE_*`/`ELECTRON_*`/`VSCODE_*` variables
+  removed. While the child lived, the driver ran
+  `openspec-ui-cli status` in text and JSON form every five seconds, and it
+  returned only after the child had exited. Both runs exited 0, and both
+  changes were implemented, all tasks ticked, and archived.
+
+  **claude-cli-acp.** Run id `fdf7d8d0-d603-492c-9344-07505d3b57f9`, the
+  same value `status --json` reported as `runId`. The record's instance id
+  was `86605b7a-…`. The run took 226 s, with 40 polls. `started` audit
+  line for apply:
+  `{"runId":"fdf7d8d0-d603-492c-9344-07505d3b57f9","agent":"claude-cli-acp","outcome":"started","timestamp":"2026-09-13T21:31:06.857Z","invocation":{"kind":"process","executable":"claude","args":["-p","--input-format","stream-json","--output-format","stream-json","--verbose","--dangerously-skip-permissions","--model","claude-sonnet-5","--effort","low"]},"stage":"apply",…}`.
+  Verify started at 21:33:19.882Z. Every distinct `on task` line `status`
+  printed, with the time it was first seen:
+  - 21:31:13.366Z `on task 1.1: Create `notes/one.txt` containing the single line `one`. Verify, by its own account`
+  - 21:32:21.333Z `on task 1.2: Create `notes/two.txt` containing the single line `two`. Verify, by its own account`
+  - 21:32:50.982Z `on task 1.3: Create `notes/three.txt` containing the single line `three`., by its own account`
+
+  The run's own event stream carried each marker as an `agentUpdate`
+  about one to three seconds earlier: 21:31:12.485Z, 21:32:18.564Z and
+  21:32:49.755Z. While a task's 20-second sleep ran, `status` showed the
+  task line beneath the tool-call activity (for example
+  `PowerShell: Start-Sleep -Seconds 20; Get-Content notes/one.txt`). The
+  1.3 line stayed through `verify` until the record was removed.
+
+  **claude-cli.** Run id `f971bed2-0bcd-42be-8a67-a64776737e9e`, the same
+  value in `status --json`. The run took 128 s, with 23 polls. `started`
+  audit line for apply:
+  `{"runId":"f971bed2-0bcd-42be-8a67-a64776737e9e","agent":"claude-cli","outcome":"started","timestamp":"2026-09-13T21:35:27.058Z","invocation":{"kind":"process","executable":"claude","args":["-p","--output-format","text","--dangerously-skip-permissions","--model","claude-sonnet-5","--effort","low"]},"stage":"apply","effort":"low"}`.
+  **No `on task` line appeared before the run ended.** During `apply`,
+  `status` said only `running apply`. The event stream held just two
+  `stdout` events. The first came at 21:37:01.036Z, 1.5 minutes after
+  `apply` started and 0.6 s before `stageCompleted`, and read
+  `All three note files created and verified; all tasks in tasks.md are now checked off.`
+  It contained no marker. `--output-format text` emits only the final
+  result. The stream as a whole held no `Starting task` text.
+
+  Seen along the way, not part of this task: `status` cuts a task's text
+  at the end of its first line in `tasks.md`, which gives `…`one`. Verify`.
+  It also joins a text that ends in a full stop to `, by its own account`,
+  which gives `…`three`., by its own account`.
