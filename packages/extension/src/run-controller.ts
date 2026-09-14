@@ -3,7 +3,7 @@
 // Command Palette commands and the AI panel (Webview), so both paths see
 // the same event stream and can cancel the same run.
 
-import type { AgentRunner, Command, Event } from "@openspec-ui/core";
+import type { AgentRunner, Command, Event, LiveRuns } from "@openspec-ui/core";
 import { listChanges, showChange, statusChange, validateChange, withAgentStatus } from "@openspec-ui/core";
 
 export type EventListener = (event: Event) => void;
@@ -13,6 +13,11 @@ export class RunController {
   private activeCommand: Command | undefined;
   private activeRunner: AgentRunner | undefined;
   private readonly listeners = new Set<EventListener>();
+
+  /** `liveRuns` holds every run started here while it runs, so a Pipeline
+   * card offers controls only for runs this host holds
+   * (a-change-is-run-from-its-card). One for the extension host. */
+  constructor(private readonly liveRuns?: LiveRuns) {}
 
   onEvent(listener: EventListener): Unsubscribe {
     this.listeners.add(listener);
@@ -140,7 +145,8 @@ export class RunController {
       // the palette, and a whole chain, which arrives here through
       // `chainRunner.asAgentRunner()` — keeps a status record, the same
       // way the CLI and the standalone server do.
-      for await (const event of withAgentStatus(runner.run(command), command)) {
+      const events = this.liveRuns ? this.liveRuns.track(command, runner.run(command)) : runner.run(command);
+      for await (const event of withAgentStatus(events, command)) {
         this.emit(event);
       }
     } finally {

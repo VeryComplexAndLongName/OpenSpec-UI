@@ -115,11 +115,32 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   Six selected server tests pass, and server typecheck and lint are
   clean. The delegated route is checked end to end in 2.5.
-- [ ] 2.4 Extension:
+- [x] 2.4 Extension:
   - `packages/extension/src/extension.ts` holds a single `LiveRuns`.
   - `RunController.run`, the chain start in `ai-panel.ts`, and the inbox's
     delegated item run all track their runs through it.
   - The pipeline panel answers `pipeline/live-runs` with `list()`.
+
+  Done:
+  - `activate` makes one `LiveRuns` and gives it to `RunController`.
+  - `RunController.run` passes a runner's events through `liveRuns.track`.
+    That covers the palette, a single stage from the AI panel, and the AI
+    panel's chain, which starts through `runController.run(chainRunner.asAgentRunner(), command)`.
+  - The inbox's delegated item hands `runDelegatedItem` a runner wrapped
+    with `liveRuns.runner`.
+  - `PipelinePanel` takes the registry and answers `pipeline/live-runs`
+    with `{ runs }` for its own root. The server's route has the same
+    shape. Without a registry it answers no runs. `BridgeOperation` gains
+    the op.
+
+  Tests:
+  - `run-controller.test.ts`: a run is held while it goes on, and released
+    once it completes.
+  - `pipeline-panel.test.ts`: only the root's runs are answered, whatever
+    the message names, and none without a registry.
+
+  The two files pass, 8 and 16 tests. Extension and webui typecheck, and
+  lint is clean.
 - [ ] 2.5 Check each junction below, and record it: while running, each run
   appears in its host's `list()`.
   - a chain started from the Change Editor;

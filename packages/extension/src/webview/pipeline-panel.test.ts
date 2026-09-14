@@ -110,6 +110,7 @@ function createPipelinePanel(overrides: {
   readers?: Record<string, unknown>;
   statusDirectory?: () => Promise<string>;
   now?: () => number;
+  liveRuns?: { list: () => unknown[] };
 } = {}) {
   const readers = {
     readiness: vi.fn(async () => ({ changes: [] })),
@@ -142,6 +143,7 @@ function createPipelinePanel(overrides: {
     revealChange,
     readers: readers as never,
     ...(overrides.now ? { now: overrides.now } : {}),
+    ...(overrides.liveRuns ? { liveRuns: overrides.liveRuns as never } : {}),
   });
   return { pipeline, readers, revealChange };
 }
@@ -221,6 +223,26 @@ describe("PipelinePanel — answering the view", () => {
       ok: true,
       value: expect.objectContaining({ standings: [expect.objectContaining({ changeName: "alpha" })] }),
     }));
+  });
+
+  // a-change-is-run-from-its-card 2.4
+  it("answers the runs this host holds for its own root, and none without a registry", async () => {
+    const held = (runId: string, cwd: string) => ({ runId, cwd, changeName: "alpha", kind: "chain", startedAt: "t", waiting: false, stopRequested: null });
+    const { pipeline } = createPipelinePanel({ liveRuns: { list: () => [held("here", "/repo"), held("elsewhere", "/other")] } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "v:0", op: "pipeline/live-runs", args: { cwd: "/other" } });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "v:0",
+      ok: true,
+      value: { runs: [expect.objectContaining({ runId: "here" })] },
+    }));
+
+    const bare = createPipelinePanel();
+    bare.pipeline.show();
+    await bare.pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "v:1", op: "pipeline/live-runs" });
+    expect(created[1]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "v:1", ok: true, value: { runs: [] } }));
   });
 
   it("refuses an operation it does not offer, by name", async () => {

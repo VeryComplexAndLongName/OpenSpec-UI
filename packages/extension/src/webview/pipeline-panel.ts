@@ -22,6 +22,7 @@ import {
   surveyWorktrees,
   type ChangeStandings,
   type LastRunsReport,
+  type LiveRuns,
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
@@ -84,6 +85,10 @@ export interface PipelinePanelDeps {
   /** Reveals an active change's row in the Changes tree, as
    * `openspec-ui.revealInChanges` does. */
   revealChange: (change: ActiveChange) => Promise<void>;
+  /** The runs this extension host started and holds. A card offers its
+   * controls only for these (a-change-is-run-from-its-card); without a
+   * registry, it offers none. */
+  liveRuns?: LiveRuns;
   readers?: Partial<PipelineReaders>;
   /** Test seam for the survey's age. */
   now?: () => number;
@@ -237,6 +242,14 @@ export class PipelinePanel {
         case "pipeline/standings":
           reply({ ok: true, value: await this.readers.standings(workspaceRoot) });
           return;
+        case "pipeline/live-runs": {
+          // The same shape the server's /api/live-runs answers, for this
+          // host's own root and nothing a message names.
+          const root = path.resolve(workspaceRoot);
+          const runs = (this.deps.liveRuns?.list() ?? []).filter((run) => path.resolve(run.cwd) === root);
+          reply({ ok: true, value: { runs } });
+          return;
+        }
         case "pipeline/refresh": {
           // Fetches now, whatever the interval, and forgets the survey held,
           // so the readings the view asks for next are taken afresh.

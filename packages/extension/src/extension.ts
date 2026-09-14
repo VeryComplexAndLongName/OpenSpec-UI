@@ -9,6 +9,7 @@ import {
   CHECK_SCRIPT_NAMES,
   FileAuditLog,
   HarnessChainRunner,
+  LiveRuns,
   WorkbenchProcessScheduler,
   WorkbenchRunJournal,
   WorkspaceLeaseManager,
@@ -126,7 +127,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const outputChannel = vscode.window.createOutputChannel("OpenSpec UI");
   context.subscriptions.push(outputChannel);
 
-  const runController = new RunController();
+  // Every run this extension host starts — from the palette, the AI panel,
+  // a chain, or a delegated item — is held here while it runs, and the
+  // Pipeline's cards offer controls only for these
+  // (a-change-is-run-from-its-card).
+  const liveRuns = new LiveRuns();
+  const runController = new RunController(liveRuns);
   const workspaceRoot = getWorkspaceRoot();
   let journal: WorkbenchRunJournal | undefined;
   let restoredRuns = { processes: [], checkpointSessions: [] } as Awaited<ReturnType<WorkbenchRunJournal["load"]>>;
@@ -346,7 +352,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
               workspaceRoot: inboxRoot,
               changeName: item.changeName,
               lineNumber: item.lineNumber,
-              resolveRunner: (agentId) => resolveAgentRunner(agents, agentId),
+              resolveRunner: (agentId) => {
+                const runner = resolveAgentRunner(agents, agentId);
+                return runner === undefined ? undefined : liveRuns.runner(runner);
+              },
               // The request and its reply go to the log the runners write to
               // (a-change-says-where-it-stands).
               ...(auditLog !== undefined ? { auditLog } : {}),
@@ -450,6 +459,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const pipelinePanel = new PipelinePanel({
     extensionUri: context.extensionUri,
     getWorkspaceRoot,
+    liveRuns,
     // As `openspec-ui.revealInChanges` reveals a row: an item built from
     // the change the host found, never from the message.
     revealChange: async (change) => {
