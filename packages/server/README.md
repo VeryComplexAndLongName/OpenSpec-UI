@@ -42,6 +42,32 @@ streamed output in the same view.
 
 ![Standalone Processes and Recovery view](../../docs/images/standalone/processes.png)
 
+### See the order of the work, and what each change is doing
+
+The **Pipeline** tab draws every active change as a card, in the order the
+changes declare. A solid line means the second change waits for the
+first. Each card says, in one word, where its change stands (Running,
+Waiting for you, Failed at a stage, Blocked, Ready, Done, and so on). It
+also says how many tasks are done, and what a live run last said.
+**Show tasks** opens a card to its task list. Every other working
+directory of the repository is drawn beneath, read and never acted on.
+
+![Standalone Pipeline tab with a failed change opened to its tasks, a blocked change waiting on it, a ready change, suggestions, and two other working directories whose paths are masked](../../docs/images/standalone/pipeline.png)
+
+**Start** on a card opens the run dialog for that change. A run this
+server holds can be answered on its card, with **Continue** at a
+checkpoint and **Allow** or **Deny** on a permission. It can also be asked
+to stop: **Stop** asks for a reason, and the run stops where its work is
+sound. **Stop now** cancels at once, once a stop has been asked. A run held
+in another working directory offers Stop only when its record is signed by
+the same enrolled person as this machine's key.
+
+![The Ask to stop form on a Pipeline card, with the reason "wrong branch" typed](../../docs/images/standalone/pipeline-stop-ask.png)
+
+![A running change's card stating that it was asked to stop, and by whom, with Stop now](../../docs/images/standalone/pipeline-stop.png)
+
+See [`docs/how-to/stop-a-run.md`](../../docs/how-to/stop-a-run.md).
+
 ### Configure and run with Agentic Harness
 
 Recommend a CLI agent per OpenSpec-change stage, then start a run — a

@@ -95,7 +95,7 @@ shared core and web UI packages, and a native VS Code OpenSpec Workbench. See
 
 What the current releases added, written for somebody using the tool rather
 than building it:
-[What you can run now: 0.44 → 0.50](docs/articles/2026-09-12-what-you-can-run-now-0-44-to-0-50.md).
+[What you can see and stop: 0.44 → 0.56](docs/articles/2026-09-14-what-you-can-see-and-stop-0-44-to-0-56.md).
 
 ## Why not just `openspec view`
 
@@ -388,8 +388,34 @@ file it edits, and the two steps that reach it.
 
 `packages/cli` (see `docs/adr/0007-ci-cli-third-delivery-target.md`) is a
 third, non-interactive delivery target: a thin adapter over `core`, no
-HTTP server and no webview, meant to run in CI. It has one command,
-`validate`: list every active OpenSpec change and run strict validation
+HTTP server and no webview. It started as a merge gate with one command,
+`validate`, and now runs, checks and watches changes from a terminal too.
+`openspec-ui-cli --help` prints the full usage; in short:
+
+| Command | What it does |
+| --- | --- |
+| `validate` | Strict validation of every active change, as one report. |
+| `run <change>` | Runs a change's chain, as its own harness settings permit. |
+| `check <change>` | Runs the checks a change's `tasks.md` declares. |
+| `ready` | What can start now, and alongside what. |
+| `doctor` | What this machine and workspace are missing before a run. |
+| `advise` | What the readiness report suggests, with the commands for it. |
+| `lease`, `lease release` | Who holds the workspace; clear a lease whose holder is gone. |
+| `status` | What every run of the repository last said it was doing. |
+| `stop <instanceId> --reason <text>` | Asks a live run to stop where its work is sound. |
+| `enrol [<keyId>]` | Lists unenrolled keys signing live runs; confirms one was yours. |
+| `worktree add`, `list`, `move`, `remove` | A working directory per change. |
+| `change-graph` | What each change follows. |
+| `release-manifest` | The manifest the project site reads; used by CI. |
+
+Unless a command says otherwise below, the exit codes are shared: `0`
+the check passed or the chain completed, `1` the change did not pass or
+did not complete, `2` the CLI itself could not complete the check or
+declined to start.
+
+### `validate` — the merge gate
+
+`validate` lists every active OpenSpec change and runs strict validation
 on each, printing an aggregated report.
 
 ```bash
@@ -426,6 +452,47 @@ Exit codes: `0` nothing found would stop a run, `1` something would, `2`
 it could not look. A workspace held by a live run is reported and exits
 `0` — being busy is not being broken, which is the answer `lease`
 already gives.
+
+### `status` — what every run says it is doing
+
+`openspec-ui-cli status` prints every run of this repository, whichever
+host started it and whichever working directory it runs in: whose it is,
+where, what it last said it was doing, and how long ago. It never says
+whether a run is stuck or healthy: a silent agent and a hung one look
+identical, and telling them apart is a person's judgement.
+
+A run says whose it is only as far as its signature shows: signed by an
+enrolled person, not verified, or a signature that does not check out. It
+exits `0` whether or not anything is running.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- status --cwd .
+```
+
+### `stop` — ask a run to stop
+
+`openspec-ui-cli stop <instanceId> --reason <text>` asks a live run to
+stop where its work is sound, through a request signed with this
+machine's key. The run reads the request at its next renewal, and acts on
+it only if the request is verified and fresh. It prints the request's
+message id. It exits `1` when no live run reports itself under that
+instance id; `status` lists the instance ids.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- stop <instanceId> --reason "wrong branch" --cwd .
+```
+
+See [`docs/how-to/stop-a-run.md`](docs/how-to/stop-a-run.md) for stopping a
+run from its Pipeline card, in either host.
+
+### `enrol` — say a run was yours
+
+`openspec-ui-cli enrol` lists the keys that sign a live run's record and
+are not enrolled, with where the run is, its machine and its git author.
+`openspec-ui-cli enrol <keyId>` says a listed run was yours: its key is
+enrolled, and its runs then read as signed by you. The same confirmation
+is offered in the Human-Only Inbox of both hosts as "It was me". It exits
+`1` when the confirmation is refused.
 
 ## Getting Started
 

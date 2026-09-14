@@ -386,7 +386,66 @@ test.describe("editor documentation screenshots", () => {
     await settle(window);
     await shoot("harness-change.png");
   });
+
+  test("the Changes tree, each change with the word for where it stands", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+    await collapseRow("a-change-in-progress");
+    await collapseRow("Repository Setup");
+
+    // the-docs-catch-up-to-0-55 1.3. The caption claims a word beside
+    // EACH change, and a tree that has not read its standings yet lists
+    // the same rows without one. So every row is waited on for the dash
+    // that joins its state to its word, never on the row alone.
+    for (const change of ["a-change-in-progress", "a-change-not-started"]) {
+      const row = window.locator(`.monaco-list-row:has-text("${change}")`).first();
+      await expect(row.locator(".label-description")).toContainText(" — ", { timeout: 120_000 });
+    }
+
+    // The first capture cut the first row's word to "Re…": the side bar's
+    // default width holds the name and state but not the word. Its text was
+    // whole, so no text assertion could see it. The side bar is widened by
+    // its own sash, and each row's label is asserted to fit.
+    await widenSideBar(560);
+    for (const change of ["a-change-in-progress", "a-change-not-started"]) {
+      const label = window.locator(`.monaco-list-row:has-text("${change}") .monaco-icon-label-container`).first();
+      await expect.poll(() => label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    }
+
+    await settle(window);
+    await shoot("changes-standings.png");
+  });
+
+  test("the Pipeline, in a panel of the editor", async () => {
+    await closeEditors();
+    await runCommand("OpenSpec UI: Open Pipeline");
+
+    // the-docs-catch-up-to-0-55 1.2. Waited for on the fixture's cards in
+    // the webview, not on the panel's title: a panel that opened and has
+    // not read the changes yet photographs as a Pipeline with nothing in
+    // it.
+    const view = activeWebview();
+    await expect(view.getByTestId("pipeline-node-a-change-in-progress")).toBeVisible({ timeout: 120_000 });
+    await expect(view.getByTestId("pipeline-node-a-change-not-started")).toBeVisible();
+
+    await settle(window);
+    await shoot("pipeline-panel.png");
+  });
 });
+
+/** Drags the side bar's sash until the side bar is `width` pixels wide,
+ * the way a person widens it. There is no setting for its width. */
+async function widenSideBar(width: number): Promise<void> {
+  const sideBar = window.locator(".part.sidebar");
+  const box = await sideBar.boundingBox();
+  if (!box) throw new Error("the side bar is not drawn");
+  const y = box.y + box.height / 2;
+  await window.mouse.move(box.x + box.width - 1, y);
+  await window.mouse.down();
+  await window.mouse.move(box.x + width, y, { steps: 10 });
+  await window.mouse.up();
+  await expect.poll(async () => (await sideBar.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(width - 8);
+}
 
 /** Runs a command by its title through the command palette, the way a
  * reader of the caption would. */
