@@ -202,11 +202,32 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   the command already read. Yielding it on the stop command's stream too
   would reach the same socket or panel twice. A stop for a run it does not
   have is answered on the stop command's stream with `nothing-to-stop`.
-- [ ] 3.5 `AgentRunner` in `packages/core/src/agent-runner.ts` accepts `stop`
+- [x] 3.5 `AgentRunner` in `packages/core/src/agent-runner.ts` accepts `stop`
   for a single-stage run it holds, and ends the run at a marker naming
   another task, or when the count of ticked tasks rises, as in 3.2. For a
   `plan` or `review` run, it yields `stopRequested` and lets the run end on
   its own.
+
+  Done, and the chain's stop now uses the same rule. Where a stop may end
+  a run is in one new module, `packages/core/src/stop-boundary.ts`.
+  `HarnessChainRunner`'s stage loop and `createAgentRunner` both pass
+  their events through its `untilStopBoundary`, so the two runners cannot
+  drift into two answers.
+  - `untilStopBoundary` holds the race against a wake, the 2-second check
+    while a stop is pending, and marker reading through
+    `TaskMarkerReader`. It also denies a pending permission.
+  - Moving the marker reading there fixed one thing the chain's first
+    version did: it read markers from an ACP agent's reasoning. The shared
+    reader reads the reply only, as the status record already does.
+  - In `createAgentRunner`, a held run keeps its kind, its stop and its
+    wake. A `stop` for a held run records the stop and wakes the run,
+    whose own stream announces it, with `by` from the configured git
+    identity. A `stop` for a run it does not hold is answered
+    `nothing-to-stop`.
+  - `implement` and `verify` end at a boundary by aborting their signal,
+    so `cancelled` has no reason. `plan` and `review` announce the stop
+    and end on their own.
+  - `AgentRunnerOptions.readIdentity` is the seam for `by`.
 - [x] 3.6 After a requested stop, the chain's ending entry carries
   `stopRequest { reason, by }` and no `reason`.
 
@@ -278,8 +299,33 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   The whole file passes, 102 tests; the 95 that were there before are
   unchanged.
-- [ ] 3.10 core `agent-runner.test.ts`: a single `implement` run stops at a
+- [x] 3.10 core `agent-runner.test.ts`: a single `implement` run stops at a
   tick; a `review` run accepts a stop and ends on its own.
+
+  Done: "asked to stop" has three tests.
+  - A single `implement` run: the stop command's own stream is empty, the
+    run's stream announces the stop with its reason and `by`, and a task
+    ticked under a fake 2-second interval ends it `cancelled` with no
+    reason.
+  - A `review` run hears the stop, and a marker naming another task does
+    not end it. It ends `completed` on its own.
+  - A stop for a run the runner does not hold is answered
+    `nothing-to-stop`.
+
+  `stop-boundary.test.ts` has eight tests for the shared module:
+  - markers split across chunks;
+  - a reply taken as said once something else happens;
+  - no marker read from reasoning;
+  - the ticked count;
+  - events passed through unchanged;
+  - a run ended at a marker;
+  - a run ended at a tick;
+  - a pending permission denied.
+
+  All pass: `agent-runner` 24, `stop-boundary` 8, and `harness-chain-runner`
+  102 against the shared module. Core, cli, server and extension typecheck.
+  `agent-runner.test.ts` now states its time budget, and the budget policy
+  check passes.
 
 ## 4. The same feedback in both hosts
 

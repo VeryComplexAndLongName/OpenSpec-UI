@@ -49,8 +49,7 @@ import {
 } from "./chain-steps.js";
 import { CHAIN_ENDING_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
 import { isChainStepName, type ChainPart } from "./harness-stage.js";
-import { readTaskMarker } from "./task-marker.js";
-import { readAcpStreamedText } from "./acp-streamed-text.js";
+import { untilStopBoundary } from "./stop-boundary.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
@@ -110,11 +109,6 @@ export interface HarnessChainDeps {
 
 type CheckpointOutcome = "confirmed" | "cancelled" | "stopped";
 
-/** How often a stage with a stop pending reads its task list for a newly
- * ticked task (a-change-is-run-from-its-card). Only while a stop is
- * pending: nothing else reads the list during a stage. */
-const STOP_CHECK_INTERVAL_MS = 2_000;
-
 interface ChainState {
   cancelRequested: boolean;
   /** Why this chain was cancelled, when something other than a person
@@ -154,14 +148,11 @@ interface ChainState {
   currentRunner?: AgentRunner;
   currentCommand?: Command;
   /** A stop a person asked for (a-change-is-run-from-its-card): the reason,
-   * who asked where known, whether `stopRequested` has been yielded, and how
-   * many tasks were ticked when it was. */
-  stopRequest?: { reason: string; by?: string; announced: boolean; tickedAtRequest?: number };
-  /** Wakes the running stage's event loop, so a stop is acted on while the
-   * stage says nothing. */
+   * who asked where known, and whether `stopRequested` has been yielded. */
+  stopRequest?: { reason: string; by?: string; announced: boolean };
+  /** Wakes the running stage's stop boundary, so a stop is acted on while
+   * the stage says nothing. */
   stopWake?: () => void;
-  /** The permission request the running stage waits on, if any. */
-  pendingPermissionId?: string;
 }
 
 function nowIso(): string {
@@ -1433,99 +1424,30 @@ export class HarnessChainRunner {
     let autonomousPermissionFailure = false;
     let outcome: "completed" | "failed" | "cancelled" = "completed";
     // A stop asked for while this stage runs ends it at a sound point
-    // (a-change-is-run-from-its-card). Each event is raced against a wake
-    // that `requestStop` gives and a check every two seconds while the stop
-    // is pending, because a stage can say nothing for minutes and its task
-    // list must still be read.
-    const iterator = runner.run(stageCommand)[Symbol.asyncIterator]();
-    let pending: Promise<IteratorResult<Event>> | undefined;
-    let lastMarker: string | undefined;
-    let endingForStop = false;
-    let stopTicker: ReturnType<typeof setInterval> | undefined;
-    const partial = { stdout: "", text: "" };
-    const endStageForStop = () => {
-      if (endingForStop) return;
-      endingForStop = true;
-      drainInBackground(runner.run({ ...stageCommand, kind: "cancel" }));
-    };
-    const readMarker = (line: string) => {
-      const marker = readTaskMarker(line);
-      if (marker === undefined) return;
-      if (state.stopRequest?.announced && marker !== lastMarker) endStageForStop();
-      lastMarker = marker;
-    };
+    // (a-change-is-run-from-its-card). Where is decided by
+    // `untilStopBoundary`, the same way for a chain's stage as for a
+    // single-stage run.
+    const events = untilStopBoundary({
+      events: runner.run(stageCommand),
+      changeDir: context.changeDir,
+      stopAsked: () => state.stopRequest !== undefined,
+      onWake: (wake) => {
+        state.stopWake = wake;
+      },
+      announce: () => this.announceStop(command, state),
+      denyPermission: (requestId) => drainInBackground(runner.run({
+        ...stageCommand,
+        kind: "resolvePermission",
+        permissionRequestId: requestId,
+        permissionOutcome: "deny",
+      })),
+      endRun: () => drainInBackground(runner.run({ ...stageCommand, kind: "cancel" })),
+      // Under `autonomous` a permission request fails the stage below, as it
+      // always has.
+      mayDenyPermissions: harnessConfig.autonomyLevel !== "autonomous",
+    });
     try {
-      for (;;) {
-        const stop = state.stopRequest;
-        pending ??= iterator.next();
-        const step: IteratorResult<Event> | "wake" = stop !== undefined && !stop.announced && !endingForStop
-          ? "wake"
-          : await Promise.race([
-            pending,
-            new Promise<"wake">((resolve) => {
-              state.stopWake = () => resolve("wake");
-            }),
-          ]);
-        state.stopWake = undefined;
-        if (step === "wake") {
-          const asked = state.stopRequest;
-          if (asked !== undefined && !endingForStop) {
-            const counts = await countTasks(context.changeDir);
-            const ticked = counts === undefined ? undefined : counts.total - counts.unchecked;
-            if (!asked.announced) {
-              asked.tickedAtRequest = ticked;
-              yield* this.announceStop(command, state);
-              stopTicker ??= setInterval(() => state.stopWake?.(), STOP_CHECK_INTERVAL_MS);
-              if (state.pendingPermissionId !== undefined) {
-                drainInBackground(runner.run({
-                  ...stageCommand,
-                  kind: "resolvePermission",
-                  permissionRequestId: state.pendingPermissionId,
-                  permissionOutcome: "deny",
-                }));
-                endStageForStop();
-              }
-            } else if (asked.tickedAtRequest === undefined) {
-              asked.tickedAtRequest = ticked;
-            } else if (ticked !== undefined && ticked > asked.tickedAtRequest) {
-              endStageForStop();
-            }
-          }
-          continue;
-        }
-        pending = undefined;
-        if (step.done) break;
-        const event = step.value;
-
-        if (event.kind === "permissionRequest") {
-          state.pendingPermissionId = event.requestId;
-          // Asked to stop, and now waiting on a person: answered `deny`, and
-          // the stage ends rather than waiting.
-          if (state.stopRequest?.announced && !endingForStop && harnessConfig.autonomyLevel !== "autonomous") {
-            drainInBackground(runner.run({ ...stageCommand, kind: "resolvePermission", permissionRequestId: event.requestId, permissionOutcome: "deny" }));
-            endStageForStop();
-          }
-        } else if (event.kind === "stdout" || event.kind === "stderr" || event.kind === "agentUpdate" || event.kind === "progress") {
-          state.pendingPermissionId = undefined;
-        }
-        // A marker is a line of its own; a line is complete once its newline
-        // arrives, or once something other than more of the same text does.
-        const streamed = event.kind === "agentUpdate" ? readAcpStreamedText(event.update) : undefined;
-        const said = event.kind === "stdout"
-          ? { key: "stdout" as const, chunk: event.chunk }
-          : streamed !== undefined ? { key: "text" as const, chunk: streamed.text } : undefined;
-        for (const key of ["stdout", "text"] as const) {
-          if (said?.key !== key && partial[key] !== "") {
-            readMarker(partial[key]);
-            partial[key] = "";
-          }
-        }
-        if (said !== undefined) {
-          const lines = (partial[said.key] + said.chunk).split(/\r?\n/u);
-          partial[said.key] = lines.pop() ?? "";
-          for (const line of lines) readMarker(line);
-        }
-
+      for await (const event of events) {
         if (event.kind === "permissionRequest" && harnessConfig.autonomyLevel === "autonomous" && !autonomousPermissionFailure) {
           autonomousPermissionFailure = true;
           outcome = "failed";
@@ -1571,14 +1493,9 @@ export class HarnessChainRunner {
         yield event;
       }
     } finally {
-      if (stopTicker !== undefined) clearInterval(stopTicker);
       state.stopWake = undefined;
-      state.pendingPermissionId = undefined;
       state.currentRunner = undefined;
       state.currentCommand = undefined;
-      // A consumer that stops reading must not leave the stage's own
-      // generator suspended, as `for await` would not have.
-      void iterator.return?.();
     }
     return outcome;
   }

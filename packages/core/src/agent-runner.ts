@@ -16,7 +16,9 @@ import {
   prepareAgentContext,
 } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
-import type { Command, Event } from "./protocol.js";
+import { createGitWrapper } from "./git.js";
+import type { Command, CommandKind, Event } from "./protocol.js";
+import { untilStopBoundary } from "./stop-boundary.js";
 
 export type AdapterInvocation =
   | { kind: "process"; executable: string; args: string[] }
@@ -59,7 +61,15 @@ export interface AgentRunnerOptions {
    * second spawn ADR 0017 decision 6 already rejects. Absent means no
    * version is recorded, exactly as before this option existed. */
   agentVersion?: string;
+  /** Who asks a run to stop, when the stop names no one: the configured git
+   * identity for the run's working directory by default. A test seam. */
+  readIdentity?: (cwd: string) => Promise<string | undefined>;
 }
+
+/** The kinds that end at a sound point when asked to stop: they tick tasks.
+ * A `plan` or `review` hears the stop and ends on its own
+ * (a-change-is-run-from-its-card). */
+const ENDS_AT_A_STOP_BOUNDARY: ReadonlySet<CommandKind> = new Set<CommandKind>(["implement", "verify"]);
 
 export interface AgentRunner {
   run(command: Command): AsyncIterable<Event>;
@@ -75,6 +85,7 @@ function* failedOnce(runId: string, reason: string): Iterable<Event> {
 
 export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOptions): AgentRunner {
   const { workspaceRoot, allowlist, auditLog, allowExternalCwd = false, agentVersion } = options;
+  const readIdentity = options.readIdentity ?? ((cwd: string) => createGitWrapper({ cwd }).configuredIdentity());
   // One entry per run this runner itself started, from just before
   // `adapter.execute()` is called until that run's own `finally` below
   // deletes it. A `"cancel"` command never builds an invocation or spawns
@@ -83,7 +94,15 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
    * record it is a different `run()` call from the one that cancels it:
    * a cancel arrives as its own command, and the entry is written by the
    * original invocation's `finally`. */
-  const activeRuns = new Map<string, { controller: AbortController; reason?: string }>();
+  const activeRuns = new Map<string, {
+    controller: AbortController;
+    reason?: string;
+    kind: CommandKind;
+    /** The stop a person asked this run for, once asked. */
+    stop?: { reason: string; by?: string };
+    /** Wakes the run's stop boundary, so a silent run acts on a stop. */
+    wake?: () => void;
+  }>();
 
   return {
     async *run(command: Command): AsyncIterable<Event> {
@@ -110,6 +129,30 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           timestamp: nowIso(),
           attempted: controller ? "termination-requested" : "nothing-to-cancel",
         };
+        return;
+      }
+
+      if (command.kind === "stop") {
+        // Like "cancel", this never spawns anything. The run's own stream
+        // announces the stop and ends where its work is sound; answering
+        // here as well would say it twice to a host reading both. Only a
+        // stop that finds no run is answered on this stream
+        // (a-change-is-run-from-its-card).
+        const active = activeRuns.get(command.runId);
+        if (active === undefined) {
+          yield {
+            kind: "stopRequested",
+            runId: command.runId,
+            timestamp: nowIso(),
+            reason: command.reason ?? "",
+            outcome: "nothing-to-stop",
+          };
+          return;
+        }
+        if (active.stop === undefined) {
+          active.stop = { reason: command.reason ?? "" };
+          active.wake?.();
+        }
         return;
       }
 
@@ -186,7 +229,28 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       });
 
       const controller = new AbortController();
-      activeRuns.set(command.runId, { controller });
+      const active: NonNullable<ReturnType<typeof activeRuns.get>> = { controller, kind: command.kind };
+      activeRuns.set(command.runId, active);
+      async function* announceStop(): AsyncGenerator<Event> {
+        const stop = active.stop;
+        if (stop === undefined) return;
+        if (stop.by === undefined) {
+          try {
+            const identity = await readIdentity(command.cwd);
+            if (identity) stop.by = identity;
+          } catch {
+            // No identity is attribution missing, not a reason to refuse a stop.
+          }
+        }
+        yield {
+          kind: "stopRequested",
+          runId: command.runId,
+          timestamp: nowIso(),
+          reason: stop.reason,
+          ...(stop.by !== undefined ? { by: stop.by } : {}),
+          outcome: "asked",
+        };
+      }
 
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
       let lastSummary: string | undefined;
@@ -198,7 +262,22 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       // nothing", which is the reading this change exists to stop.
       let lastUsage: AgentUsage | undefined;
       try {
-        for await (const event of adapter.execute(invocation, command, prompt, controller.signal)) {
+        const events = untilStopBoundary({
+          events: adapter.execute(invocation, command, prompt, controller.signal),
+          changeDir: command.context.changeDir,
+          stopAsked: () => active.stop !== undefined,
+          onWake: (wake) => {
+            active.wake = wake;
+          },
+          announce: announceStop,
+          denyPermission: (requestId) => {
+            adapter.resolvePermission?.(command.runId, requestId, "deny");
+          },
+          // Aborting ends the run as a cancel does, with no reason: a person
+          // asked, and no rule fired.
+          endRun: ENDS_AT_A_STOP_BOUNDARY.has(command.kind) ? () => controller.abort() : () => undefined,
+        });
+        for await (const event of events) {
           if (event.kind === "completed") lastSummary = event.summary;
           if (event.kind === "failed") {
             lastOutcome = "failed";
