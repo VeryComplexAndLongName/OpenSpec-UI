@@ -1,35 +1,43 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-14T06:38:16.296Z",
+  "generated_at": "2026-09-14T11:37:09.124Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "5de3f546580c9d38a175af776da363d4b5def6cf",
+  "commit": "27f2b71c9afcc9b1d6c8a709709b1852f170bb2b",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.54.0",
-      "released_at": "2026-09-14T06:38:16.296Z",
-      "tag": "openspec-ui-vscode@0.54.0",
+      "version": "0.55.0",
+      "released_at": "2026-09-14T11:37:09.124Z",
+      "tag": "openspec-ui-vscode@0.55.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.54.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.55.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.54.0/openspec-ui-vscode-0.54.0.vsix",
-          "size_bytes": 6085000
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.55.0/openspec-ui-vscode-0.55.0.vsix",
+          "size_bytes": 6138628
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change is run from its Pipeline card."
+          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
+        },
+        {
+          "kind": "patch",
+          "summary": "A Pipeline card opens to its tasks."
+        },
+        {
+          "kind": "patch",
+          "summary": "A running chain's row in the Processes tree offers Cancel Process again, and a Pipeline card's Continue and permission answers reach a chain in the editor. The editor had sent them through the chain runner's agent runner, which answers neither, so pressing Continue did nothing; they now go to the chain runner itself, as the standalone server's socket does. The command is titled \"OpenSpec UI: Cancel Process\", no longer \"Cancel Implementation Session\", since a chain's row offers it too."
         }
       ]
     },
@@ -38,8 +46,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.25.0",
-      "released_at": "2026-09-14T06:38:16.296Z",
+      "version": "1.26.0",
+      "released_at": "2026-09-14T11:37:09.124Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +58,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change is run from its Pipeline card."
+          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
         }
       ]
     },
@@ -59,8 +67,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.87.0",
-      "released_at": "2026-09-14T06:38:16.296Z",
+      "version": "0.88.0",
+      "released_at": "2026-09-14T11:37:09.124Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +79,15 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change is run from its Pipeline card."
+          "summary": "A Pipeline card opens to its tasks."
+        },
+        {
+          "kind": "minor",
+          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
+        },
+        {
+          "kind": "patch",
+          "summary": "A standing whose repository has no remote on a GitHub host gh knows says so, rather than that gh is not signed in."
         }
       ]
     },
@@ -80,8 +96,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.46.0",
-      "released_at": "2026-09-14T06:38:16.296Z",
+      "version": "1.47.0",
+      "released_at": "2026-09-14T11:37:09.124Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +107,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change is run from its Pipeline card."
+          "summary": "A Pipeline card opens to its tasks."
+        },
+        {
+          "kind": "minor",
+          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
         }
       ]
     },
@@ -100,8 +120,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.13.0",
-      "released_at": "2026-09-14T06:38:16.296Z",
+      "version": "0.14.0",
+      "released_at": "2026-09-14T11:37:09.124Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -111,11 +131,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A run is signed by its person. Each person gets an Ed25519 key per machine, made on first need under `~/.openspec-ui/identity`. A run seals its status record's exact bytes with that key, and a reader verifies them before it parses anything. Every record reads as one of three states: verified (signed by an enrolled person), unverified, or does not check out. A record that does not check out shows nothing from its contents, and the sweep keeps it."
-        },
-        {
-          "kind": "patch",
-          "summary": "A change says where it stands. Core reads each change across this checkout, every working directory, `main`, the change's own branch and, where `gh` can read it, its pull request (`readChangeStandings`). It also says how fresh each of those sources is. `describeChangeState` gives the one word every surface shows: Running, Waiting, Archived on main, Merged in #N, Deleted on main, Further along, Failed or Stopped at a stage, Done, Blocked, or Ready. The lines beneath the word name their sources, and a colour agrees with the word."
+          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
         }
       ]
     }
