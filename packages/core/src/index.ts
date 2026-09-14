@@ -30,6 +30,8 @@ export * from "./workspace-lease.js";
 export * from "./lease-release.js";
 export * from "./agent-status.js";
 export * from "./agent-roster.js";
+export * from "./agent-messages.js";
+export * from "./stop-request-handlers.js";
 export * from "./enrolment.js";
 export * from "./machine-key.js";
 export * from "./signed-envelope.js";

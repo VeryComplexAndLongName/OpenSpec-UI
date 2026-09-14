@@ -15,6 +15,7 @@ import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { describeAcpUpdate } from "./acp-update-line.js";
+import { messageDirectoryBeside, readStopRequests, STOP_MESSAGE_STALE_AFTER_MS, type StopRequestRefusal } from "./agent-messages.js";
 import { readAgentRoster, rosterDirectoryBeside, rosterOf } from "./agent-roster.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
@@ -42,6 +43,29 @@ export const AGENT_STATUS_STALE_AFTER_MS = WORKSPACE_LEASE_STALE_AFTER_MS;
 export const AGENT_STATUS_STREAM_WRITE_INTERVAL_MS = 1_000;
 
 const LINE_BREAK = String.fromCharCode(10);
+
+/** How a run's activity says why a request to stop it was not acted on. */
+const REFUSAL_WORDS: Readonly<Record<StopRequestRefusal, string>> = {
+  unverified: "not verified",
+  stale: "stale",
+  seen: "already read",
+};
+
+/** A request to stop a run, as the run hands it to its host: the reason,
+ * the enrolled person who asked, and the request's message id
+ * (a-run-elsewhere-can-be-asked-to-stop). */
+export interface AgentStatusStopRequestMessage {
+  reason: string;
+  by: string;
+  messageId: string;
+}
+
+/** A request addressed to a run that it did not act on, and why. */
+export interface AgentStatusStopRequestRefusal {
+  messageId: string;
+  why: StopRequestRefusal;
+  reason: string;
+}
 
 /** The most of an unfinished line a stream is allowed to hold. A stream
  * that never breaks a line — one long JSON document, say — must not grow
@@ -145,6 +169,17 @@ export interface AgentStatusWriterOptions {
   gitAuthor?: string;
   /** Test seam: the machine's name. */
   machine?: string;
+  /** Called for each request to stop this run that is verified, fresh and
+   * not read before. Absent, the writer reads no requests
+   * (a-run-elsewhere-can-be-asked-to-stop). */
+  onStopRequested?: (request: AgentStatusStopRequestMessage) => void;
+  /** Called once for each request addressed to this run that is not acted
+   * on, so the host can record it. */
+  onStopRequestRefused?: (refusal: AgentStatusStopRequestRefusal) => void;
+  /** Test seams: where requests are read from, and the enrolled keys. Read
+   * from beside the status directory where not given. */
+  messageDirectory?: string;
+  readRoster?: () => Promise<Roster>;
 }
 
 /** The file operations a writer makes. */
@@ -215,6 +250,13 @@ export class AgentStatusWriter {
   private readonly machine: string;
   private timer: NodeJS.Timeout | undefined;
   private stopped = false;
+  private readonly onStopRequested: ((request: AgentStatusStopRequestMessage) => void) | undefined;
+  private readonly onStopRequestRefused: ((refusal: AgentStatusStopRequestRefusal) => void) | undefined;
+  private readonly messageDirectory: string;
+  private readonly readRoster: (() => Promise<Roster>) | undefined;
+  /** Every request this run has read. It dies with the run, and so does the
+   * only instance a replay could reach. */
+  private readonly seenStopRequests = new Set<string>();
   /** When the record was last written, and whether it holds everything
    * reported since — so streamed activity can wait for the next write
    * instead of forcing one. */
@@ -235,6 +277,10 @@ export class AgentStatusWriter {
     this.key = options.key;
     this.gitAuthor = options.gitAuthor;
     this.machine = options.machine ?? os.hostname();
+    this.onStopRequested = options.onStopRequested;
+    this.onStopRequestRefused = options.onStopRequestRefused;
+    this.messageDirectory = options.messageDirectory ?? messageDirectoryBeside(this.directory);
+    this.readRoster = options.readRoster;
     this.filePath = path.join(this.directory, `${this.instanceId}.json`);
     this.activityAt = this.now().toISOString();
     this.task = options.taskNumber !== undefined
@@ -258,9 +304,10 @@ export class AgentStatusWriter {
     await sweepAgentStatuses(this.directory, { now: this.now }).catch(() => undefined);
     await this.enqueue();
     this.timer = setInterval(() => {
-      // `writeQuietly` never rejects. A rejection left unhandled here is
-      // what ended a run on Windows.
-      void this.writeQuietly();
+      // Neither rejects. A rejection left unhandled here is what ended a run
+      // on Windows. Requests are read first, so the renewal carries what
+      // they made the run say.
+      void this.checkStopRequests().then(() => this.writeQuietly());
     }, AGENT_STATUS_RENEW_INTERVAL_MS);
     // Never hold a process open on the heartbeat alone.
     this.timer.unref?.();
@@ -329,6 +376,46 @@ export class AgentStatusWriter {
     this.stopRequested = { reason, ...(by !== undefined ? { by } : {}), at: this.now().toISOString() };
     this.setActivity(`asked to stop${by !== undefined ? ` by ${by}` : ""}: ${reason}`);
     await this.writeQuietly();
+  }
+
+  /** Reads the requests to stop addressed to this run, once, as each renewal
+   * does (a-run-elsewhere-can-be-asked-to-stop).
+   *
+   * A request that is verified, fresh and not read before goes to
+   * `onStopRequested`. One that is not acted on is said in the activity,
+   * once per request, and told to `onStopRequestRefused`. Every request read
+   * joins the seen set, so none is acted on twice. A stopped writer, or one
+   * no host asked to hear requests, reads none. Never rejects. */
+  async checkStopRequests(): Promise<void> {
+    if (this.stopped || this.onStopRequested === undefined) return;
+    let said = false;
+    try {
+      const roster = await (this.readRoster ?? (() => rosterBeside(this.directory)))();
+      const readings = await readStopRequests({
+        directory: this.messageDirectory,
+        instanceId: this.instanceId,
+        roster,
+        now: this.now(),
+        seen: this.seenStopRequests,
+      });
+      for (const reading of readings) {
+        if (this.stopped) return;
+        const { messageId, reason } = reading.message;
+        const firstReading = !this.seenStopRequests.has(messageId);
+        this.seenStopRequests.add(messageId);
+        if (reading.state === "act") {
+          this.onStopRequested({ reason, by: reading.person.label, messageId });
+        } else if (firstReading) {
+          this.setActivity(`a request to stop arrived, ${REFUSAL_WORDS[reading.why]}; not acted on`);
+          this.onStopRequestRefused?.({ messageId, why: reading.why, reason });
+          said = true;
+        }
+      }
+    } catch {
+      // Requests that cannot be read this time are read at the next renewal;
+      // reporting never stops the run.
+    }
+    if (said) await this.writeQuietly();
   }
 
   setChangeName(changeName: string | null): void {
@@ -780,7 +867,36 @@ export async function sweepAgentStatuses(
     }
   }
 
+  // Requests to stop whose window is long over: a run that has not read one
+  // by now never will (a-run-elsewhere-can-be-asked-to-stop 2.5). Their age
+  // is read again immediately before removal, as a record's is.
+  const messages = messageDirectoryBeside(directory);
+  const requestGoneAfterMs = STOP_MESSAGE_STALE_AFTER_MS + staleAfterMs;
+  let messageFiles: string[] = [];
+  try {
+    messageFiles = await readdir(messages);
+  } catch {
+    messageFiles = [];
+  }
+  for (const fileName of messageFiles) {
+    const filePath = path.join(messages, fileName);
+    if (!(await modifiedLongerAgoThan(filePath, requestGoneAfterMs, now))) continue;
+    await options.beforeReread?.(fileName);
+    if (!(await modifiedLongerAgoThan(filePath, requestGoneAfterMs, now))) continue;
+    await removeIfStillThere(filePath);
+  }
+
   return result;
+}
+
+/** Whether a file was last modified longer ago than `ms`. A file that is gone
+ * or cannot be read is not, so nothing is removed on its account. */
+async function modifiedLongerAgoThan(filePath: string, ms: number, now: () => Date): Promise<boolean> {
+  try {
+    return now().getTime() - (await stat(filePath)).mtimeMs > ms;
+  } catch {
+    return false;
+  }
 }
 
 /** Removes a file that another sweep, or its writer, may be touching at
@@ -996,6 +1112,11 @@ export interface AgentStatusRunOptions {
   loadKey?: () => Promise<MachineKey | undefined>;
   /** Test seam: the git identity configured for `cwd`. */
   readGitAuthor?: (cwd: string) => Promise<string | undefined>;
+  /** How the host stops the run it holds when a request to stop is acted
+   * on. Absent, the run reads no requests (a-run-elsewhere-can-be-asked-to-stop). */
+  onStopRequested?: (request: AgentStatusStopRequestMessage) => void;
+  /** How the host records a request the run did not act on. */
+  onStopRequestRefused?: (refusal: AgentStatusStopRequestRefusal) => void;
 }
 
 let machineKeyOnce: Promise<MachineKey | undefined> | undefined;
@@ -1062,6 +1183,8 @@ export async function startAgentStatusWriter(options: AgentStatusRunOptions): Pr
       ...(options.taskNumber !== undefined ? { taskNumber: options.taskNumber } : {}),
       ...(key !== undefined ? { key } : {}),
       ...(gitAuthor !== undefined ? { gitAuthor } : {}),
+      ...(options.onStopRequested !== undefined ? { onStopRequested: options.onStopRequested } : {}),
+      ...(options.onStopRequestRefused !== undefined ? { onStopRequestRefused: options.onStopRequestRefused } : {}),
     });
     await writer.start(options.changeName ? `starting "${options.changeName}"` : "starting");
     return writer;
@@ -1102,7 +1225,7 @@ const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["ki
 export async function* withAgentStatus(
   events: AsyncIterable<Event>,
   command: Pick<Command, "kind" | "cwd" | "context" | "runId" | "taskNumber">,
-  seams: Pick<AgentStatusRunOptions, "resolveDirectory" | "loadKey" | "readGitAuthor"> = {},
+  seams: Pick<AgentStatusRunOptions, "resolveDirectory" | "loadKey" | "readGitAuthor" | "onStopRequested" | "onStopRequestRefused"> = {},
 ): AsyncGenerator<Event> {
   if (!REPORTED_COMMAND_KINDS.has(command.kind)) {
     yield* events;

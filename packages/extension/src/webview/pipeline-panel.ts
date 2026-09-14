@@ -9,8 +9,10 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import {
+  askLiveRunToStop,
   createGitWrapper,
   describeStandingSources,
+  myRosterLabel,
   discoverOpenSpecWorkspace,
   isValidChangeName,
   readChangeStandings,
@@ -40,6 +42,23 @@ export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
 
 /** Webview to host: a card answered or stopped a run. */
 export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
+
+/** Webview to host: a card asked a run held elsewhere to stop
+ * (a-run-elsewhere-can-be-asked-to-stop). */
+export const ASK_TO_STOP_MESSAGE_TYPE = "openspec-ui/ask-to-stop";
+
+/** Host to webview: what became of a request to stop. */
+export const ASK_TO_STOP_RESULT_MESSAGE_TYPE = "openspec-ui/ask-to-stop-result";
+
+/** A request to stop from a message, or `undefined` for anything that is not
+ * one: it needs an instance id and a reason, both non-blank. */
+function asAskToStop(value: unknown): { instanceId: string; reason: string } | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const message = value as Record<string, unknown>;
+  if (typeof message.instanceId !== "string" || message.instanceId.trim().length === 0) return undefined;
+  if (typeof message.reason !== "string" || message.reason.trim().length === 0) return undefined;
+  return { instanceId: message.instanceId, reason: message.reason };
+}
 
 /** A control a card sends, as the host accepts it. */
 export interface PipelineRunControl {
@@ -105,6 +124,11 @@ export interface PipelineReaders {
   /** Where every change stands, fetching refs only on the interval, so a
    * card's word is the Changes tree's (a-card-says-what-its-change-is-doing). */
   standings: (workspaceRoot: string) => Promise<ChangeStandings>;
+  /** The roster label of this host's own key, beside a status directory. */
+  myLabel: (statusDirectory: string) => Promise<string | undefined>;
+  /** Asks a run the host reads as live to stop, with its own key
+   * (a-run-elsewhere-can-be-asked-to-stop). */
+  askLiveRun: typeof askLiveRunToStop;
 }
 
 const DEFAULT_READERS: PipelineReaders = {
@@ -117,6 +141,8 @@ const DEFAULT_READERS: PipelineReaders = {
   statusDirectory: (workspaceRoot) => resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
   findActiveChange: async (workspaceRoot, changeName) =>
     (await discoverOpenSpecWorkspace(workspaceRoot)).changes.find((change) => change.name === changeName),
+  myLabel: (statusDirectory) => myRosterLabel(statusDirectory),
+  askLiveRun: (options) => askLiveRunToStop(options),
 };
 
 export interface PipelinePanelDeps {
@@ -268,6 +294,10 @@ export class PipelinePanel {
       this.runControl((message as { control?: unknown }).control);
       return;
     }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === ASK_TO_STOP_MESSAGE_TYPE) {
+      await this.askToStop(panel, message);
+      return;
+    }
     const request = asRequest(message);
     if (!request) return;
     const reply = (body: { ok: boolean; value?: unknown; error?: string }) => {
@@ -299,7 +329,12 @@ export class PipelinePanel {
           // host's own root and nothing a message names.
           const root = path.resolve(workspaceRoot);
           const runs = (this.deps.liveRuns?.list() ?? []).filter((run) => path.resolve(run.cwd) === root);
-          reply({ ok: true, value: { runs } });
+          // The label this host's key is enrolled under, so a card offers
+          // Stop on a run elsewhere only when it is this person's
+          // (a-run-elsewhere-can-be-asked-to-stop).
+          const statusDirectory = await this.readers.statusDirectory(workspaceRoot).catch(() => undefined);
+          const myLabel = statusDirectory === undefined ? undefined : await this.readers.myLabel(statusDirectory);
+          reply({ ok: true, value: { runs, ...(myLabel !== undefined ? { myLabel } : {}) } });
           return;
         }
         case "pipeline/refresh": {
@@ -378,6 +413,25 @@ export class PipelinePanel {
     if (held === undefined || held.changeName !== control.changeName) return;
     if (path.resolve(held.cwd) !== path.resolve(workspaceRoot)) return;
     this.deps.sendRunControl(control);
+  }
+
+  /** A card's Stop on a run held elsewhere (a-run-elsewhere-can-be-asked-to-stop).
+   * The request is written only for a run this host reads as live in its own
+   * workspace's status directory, with this host's key; any other instance is
+   * refused. What became of it goes back to the view, and a message that is
+   * not a request changes nothing. */
+  private async askToStop(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
+    const request = asAskToStop(message);
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    if (request === undefined || !workspaceRoot) return;
+    const statusDirectory = await this.readers.statusDirectory(workspaceRoot).catch(() => undefined);
+    const result = statusDirectory === undefined
+      ? { asked: false as const, why: `no live run reports itself as ${request.instanceId}: this workspace has no status records to read` }
+      : await this.readers.askLiveRun({ statusDirectory, workspaceRoot, instanceId: request.instanceId, reason: request.reason })
+        .catch((error: unknown) => ({ asked: false as const, why: error instanceof Error ? error.message : String(error) }));
+    const response = { type: ASK_TO_STOP_RESULT_MESSAGE_TYPE, instanceId: request.instanceId, ...result };
+    for (const listener of this.testMessageListeners) listener(response);
+    void panel.webview.postMessage(response);
   }
 
   private async openChange(changeName: unknown): Promise<void> {

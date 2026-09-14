@@ -14,13 +14,13 @@ import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
-import { PipelineView, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, type AskToStop, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
 
 /** Where the standalone shell keeps what a viewer left the Pipeline as. */
 const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
 import { loadChangeReadiness } from "./change-readiness-client.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
-import { loadLiveRuns } from "./live-runs-client.js";
+import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-client.js";
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -381,6 +381,13 @@ function StandaloneApp() {
   // The runs this server holds, and what a card sends for them over the
   // socket every run here already uses (a-change-is-run-from-its-card).
   const pipelineLiveRuns = useCallback(() => loadLiveRuns(apiFetch, cwd), [cwd]);
+  // A card's Stop on a run held elsewhere: the server checks the run is live
+  // and writes the signed request with its own key
+  // (a-run-elsewhere-can-be-asked-to-stop). A refusal changes nothing on the
+  // card, which goes on to say the run has not read a request.
+  const pipelineAskToStop = useCallback((request: AskToStop) => {
+    void askRunToStopRequest(apiFetch, cwd, request.instanceId, request.reason).catch(() => undefined);
+  }, [cwd]);
   const pipelineRunControl = useCallback((control: RunControl) => {
     transport.send({
       kind: control.kind,
@@ -2159,6 +2166,7 @@ function StandaloneApp() {
                 onStart={pipelineStart}
                 copyText={pipelineCopyText}
                 viewState={pipelineViewState}
+                onAskToStop={pipelineAskToStop}
               />
               {runOpenedFrom === "pipeline" && runHarnessMessage
                 ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>

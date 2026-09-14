@@ -14,6 +14,7 @@ import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
+import { stopCommand } from "./stop-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -35,6 +36,8 @@ Usage:
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli status [--cwd <path>] [--format text|json]
+  openspec-ui-cli stop <instanceId> --reason <text> [--cwd <path>]
+                       [--format text|json]
   openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
                         [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
@@ -65,6 +68,7 @@ Options:
   --all               Include changes that state no relation
   --label <text>      The name an enrolled key's person is known by
                       (default: the run's git author)
+  --reason <text>     Why a run is asked to stop; the run records it
   --repository        owner/name for the manifest's links
                       (default: VeryComplexAndLongName/OpenSpec-UI)
   --ref <ref>         Ref the manifest's links point at (default: main)
@@ -110,6 +114,12 @@ look identical to. It exits 0 whether or not anything is running. Each
 run says whose it is only as far as its signature shows: signed by an
 enrolled person, not verified, or a signature that does not check out.
 
+'stop' asks a live run to stop where its work is sound, through a request
+signed with this machine's key. The run reads it at its next renewal and
+acts on it only if the request is verified and fresh. It prints the
+request's message id, and exits 1 when no live run reports itself under
+that instance id.
+
 'enrol' lists the keys that sign a live run's record and are not
 enrolled, with where the run is, its machine and git author. 'enrol
 <keyId>' says a listed run was yours: its key is enrolled, and its runs
@@ -150,6 +160,8 @@ export interface MainOptions {
   base?: string;
   /** `enrol`'s name for the person a key is enrolled for. */
   label?: string;
+  /** `stop`'s reason for asking a run to stop. */
+  reason?: string;
 }
 
 export interface MainDeps {
@@ -168,6 +180,7 @@ export interface MainDeps {
   checkChange?: typeof checkChange;
   leaseCommand?: typeof leaseCommand;
   statusCommand?: typeof statusCommand;
+  stopCommand?: typeof stopCommand;
   enrolCommand?: typeof enrolCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
@@ -205,11 +218,12 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--path" ||
       arg === "--base" ||
       arg === "--change" ||
-      arg === "--label"
+      arg === "--label" ||
+      arg === "--reason"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -334,6 +348,19 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
         // `lease release` puts the action where `run <change>` puts its
         // subject, so it arrives as the same positional.
         ...(options.changeName !== undefined ? { action: options.changeName } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
+  if (command === "stop") {
+    return await (deps.stopCommand ?? stopCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        // The run to ask arrives where `run <change>` puts its subject.
+        instanceId: options.changeName,
+        reason: options.reason,
         format: options.format === "json" ? "json" : "text",
       },
       { stdout, stderr },

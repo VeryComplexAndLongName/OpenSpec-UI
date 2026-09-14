@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { describeChangeCard, describeChangeCards, describeTaskRows, runsShownOnCards, type ChangeCard, type ChangeCardInputs } from "./change-card.js";
+import { AGENT_STATUS_RENEW_INTERVAL_MS } from "./agent-status.js";
+import {
+  describeChangeCard,
+  describeChangeCards,
+  describeTaskRows,
+  runsShownOnCards,
+  STOP_REQUEST_READ_WITHIN_MS,
+  type ChangeCard,
+  type ChangeCardInputs,
+} from "./change-card.js";
 import type { ChangeReadiness } from "./change-readiness-facts.js";
 import type { LastRun } from "./last-runs-facts.js";
 import { describeDirectoryRuns, type SurveyedChange, type SurveyedDirectory, type SurveyedRun } from "./worktree-survey-facts.js";
@@ -70,17 +79,63 @@ function cardOf(options: {
   directories?: SurveyedDirectory[];
   last?: LastRun;
   liveRunIds?: string[];
+  myLabel?: string;
+  stopsAsked?: Map<string, string>;
 } = {}): ChangeCard {
   const inputs: ChangeCardInputs = {
     report: { changes: [readiness(options.run)] },
     survey: { directories: options.directories ?? [directory()], runsElsewhere: [] },
     ...(options.last !== undefined ? { lastRuns: { byChange: { demo: options.last } } } : {}),
     ...(options.liveRunIds !== undefined ? { liveRunIds: options.liveRunIds } : {}),
+    ...(options.myLabel !== undefined ? { myLabel: options.myLabel } : {}),
+    ...(options.stopsAsked !== undefined ? { stopsAsked: options.stopsAsked } : {}),
     now: NOW,
   };
   const [card] = describeChangeCards(inputs);
   return card!;
 }
+
+// a-run-elsewhere-can-be-asked-to-stop 3.2, 3.4 and 3.5.
+describe("describeChangeCards — a run held elsewhere", () => {
+  const ada = { keyId: "key-ada", label: "Ada" };
+  const bob = { keyId: "key-bob", label: "Bob" };
+
+  it("marks a run stoppable by me only when its record is verified and signed by my own label", () => {
+    const verifiedAda = [directory({ runs: [run({ signature: "verified", person: ada })] })];
+
+    expect(cardOf({ directories: verifiedAda, myLabel: "Ada" }).run?.stoppableByMe).toBe(true);
+    expect(cardOf({ directories: verifiedAda, myLabel: "Bob" }).run?.stoppableByMe).toBe(false);
+    expect(cardOf({ directories: verifiedAda }).run?.stoppableByMe).toBe(false);
+    expect(cardOf({ directories: [directory({ runs: [run({ signature: "unverified" })] })], myLabel: "Ada" }).run?.stoppableByMe).toBe(false);
+    // A run this host holds is stopped as its own, not through the channel.
+    expect(cardOf({ directories: verifiedAda, myLabel: "Ada", liveRunIds: ["r1"] }).run?.stoppableByMe).toBe(false);
+  });
+
+  it("says whose a run held elsewhere is, and says nothing of it for my own", () => {
+    const lines = (card: ChangeCard) => describeChangeCard(card, NOW).lines;
+
+    expect(lines(cardOf({ directories: [directory({ runs: [run({ signature: "verified", person: bob })] })], myLabel: "Ada" }))).toContain("Bob's run, verified");
+    expect(lines(cardOf({ directories: [directory({ runs: [run({ signature: "unverified" })] })], myLabel: "Ada" }))).toContain("not verified");
+    const mine = lines(cardOf({ directories: [directory({ runs: [run({ signature: "verified", person: ada })] })], myLabel: "Ada" }));
+    expect(mine).not.toContain("Ada's run, verified");
+    expect(mine).not.toContain("not verified");
+  });
+
+  it("says a request is waiting for the run to read it, then that the run has not, and nothing once the record shows the stop", () => {
+    const asked = (secondsAgo: number) => new Map([["i1", new Date(NOW.getTime() - secondsAgo * 1000).toISOString()]]);
+    const mine = [directory({ runs: [run({ signature: "verified", person: ada })] })];
+    const lines = (card: ChangeCard) => describeChangeCard(card, NOW).lines;
+
+    expect(lines(cardOf({ directories: mine, myLabel: "Ada", stopsAsked: asked(5) }))).toContain("stop requested 5s ago; waiting for the run to read it");
+    expect(lines(cardOf({ directories: mine, myLabel: "Ada", stopsAsked: asked(30) }))).toContain("stop requested 30s ago; the run has not read the request");
+    const heard = [directory({ runs: [run({ signature: "verified", person: ada, stopRequested: { reason: "live check", by: "Ada", at: NOW.toISOString() } })] })];
+    expect(lines(cardOf({ directories: heard, myLabel: "Ada", stopsAsked: asked(30) })).some((line) => line.startsWith("stop requested"))).toBe(false);
+  });
+
+  it("waits two of the status writer's renewals before saying a request was not read", () => {
+    expect(STOP_REQUEST_READ_WITHIN_MS).toBe(2 * AGENT_STATUS_RENEW_INTERVAL_MS);
+  });
+});
 
 describe("describeChangeCards — the state, first match wins", () => {
   it("is waiting for a live run whose record waits, even where a lease says running", () => {
@@ -199,6 +254,9 @@ describe("describeChangeCards — what a card is read from", () => {
     expect(describeChangeCard(card, NOW).lines).toEqual([
       "on task 1.2: Wire it, by its own account",
       "running apply — said 30s ago",
+      // Not held here, so the card says whose the run is
+      // (a-run-elsewhere-can-be-asked-to-stop 3.4).
+      "not verified",
       "2 of 3 tasks done",
       "in demo-worktree, on branch demo",
     ]);
@@ -277,6 +335,7 @@ describe("describeChangeCard — the lines", () => {
     expect(describeChangeCard(card, NOW).lines).toEqual([
       "probably task 2.4: Write the tests",
       "running apply — said 30s ago",
+      "not verified",
       "1 of 3 tasks done; 1 only a person can close; 1 delegated",
     ]);
   });

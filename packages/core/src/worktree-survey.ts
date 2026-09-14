@@ -212,6 +212,9 @@ function toRun(report: AgentStatusReport, tasks: readonly TaskChecklistItem[] | 
     ...(task ? { task } : {}),
     signature: report.signature,
     ...(report.person ? { person: report.person } : {}),
+    // So a card that asked can see the run has heard it
+    // (a-run-elsewhere-can-be-asked-to-stop).
+    stopRequested: report.stopRequested,
   };
 }
 

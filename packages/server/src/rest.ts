@@ -79,6 +79,10 @@ import {
   type OpenSpecRoot,
   type OpenSpecSpecListItem,
   resolveRunner,
+  askLiveRunToStop,
+  createGitWrapper,
+  myRosterLabel,
+  resolveAgentStatusDirectory,
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
 
@@ -1256,7 +1260,78 @@ export async function handleLiveRunsRequest(
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   const cwd = path.resolve(parsed.cwd);
-  sendJson(res, 200, { runs: liveRuns.list().filter((run) => path.resolve(run.cwd) === cwd) });
+  // The roster label of this server's own key, so a card offers Stop on a run
+  // held elsewhere only when it is this person's (a-run-elsewhere-can-be-asked-to-stop).
+  const myLabel = await statusDirectoryFor(cwd).then((directory) => (directory === undefined ? undefined : myRosterLabel(directory)));
+  sendJson(res, 200, {
+    runs: liveRuns.list().filter((run) => path.resolve(run.cwd) === cwd),
+    ...(myLabel !== undefined ? { myLabel } : {}),
+  });
+}
+
+/** The shared status directory for a workspace, or `undefined` where it
+ * cannot be resolved: a workspace that is not a git repository has no runs
+ * reporting beside it. */
+function statusDirectoryFor(cwd: string): Promise<string | undefined> {
+  return resolveAgentStatusDirectory(createGitWrapper({ cwd }), cwd).catch(() => undefined);
+}
+
+interface AskToStopRequest extends WorkspaceRequest {
+  instanceId: string;
+  reason: string;
+}
+
+function isAskToStopRequest(value: unknown): value is AskToStopRequest {
+  if (!isWorkspaceRequest(value)) return false;
+  const record = value as unknown as Record<string, unknown>;
+  return typeof record.instanceId === "string" && record.instanceId.trim().length > 0
+    && typeof record.reason === "string" && record.reason.trim().length > 0;
+}
+
+/** A card's Stop on a run held elsewhere: writes a signed request with this
+ * server's key, but only for a run whose status record it reads as live now.
+ * Any other instance is refused, with why (a-run-elsewhere-can-be-asked-to-stop). */
+export async function handleAskToStopRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+  seams: { ask?: typeof askLiveRunToStop; statusDirectory?: (cwd: string) => Promise<string | undefined> } = {},
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isAskToStopRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd, instanceId and reason" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  const cwd = path.resolve(parsed.cwd);
+  try {
+    const statusDirectory = await (seams.statusDirectory ?? statusDirectoryFor)(cwd);
+    if (statusDirectory === undefined) {
+      sendJson(res, 400, { error: `no live run reports itself as ${parsed.instanceId}: this workspace has no status records to read` });
+      return;
+    }
+    const result = await (seams.ask ?? askLiveRunToStop)({
+      statusDirectory,
+      workspaceRoot: cwd,
+      instanceId: parsed.instanceId,
+      reason: parsed.reason,
+    });
+    if (!result.asked) {
+      sendJson(res, 400, { error: result.why });
+      return;
+    }
+    sendJson(res, 200, { messageId: result.messageId });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 /** Every working directory of the workspace's repository, and what its

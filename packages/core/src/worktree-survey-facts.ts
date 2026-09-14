@@ -7,7 +7,7 @@
 // made for the same reason. See ADR 0026 and
 // openspec/changes/what-the-others-are-doing.
 
-import type { AgentStatusWaiting } from "./agent-status.js";
+import type { AgentStatusStopRequest, AgentStatusWaiting } from "./agent-status.js";
 // A leaf with no imports of its own, so the browser can have its wording.
 import { describeSignature, type EnrolledPerson, type RecordSignature } from "./signature-facts.js";
 import type { TaskInHand } from "./task-marker.js";
@@ -104,6 +104,10 @@ export interface SurveyedRun {
   signature: RecordSignature;
   /** The enrolled person, where the record is verified. */
   person?: EnrolledPerson;
+  /** The stop the run has heard, as its record holds it: `null` or absent
+   * until it has read one. A card that asked says it is waiting for the run
+   * until this appears (a-run-elsewhere-can-be-asked-to-stop). */
+  stopRequested?: AgentStatusStopRequest | null;
 }
 
 interface SurveyedDirectoryBase {

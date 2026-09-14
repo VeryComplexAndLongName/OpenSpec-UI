@@ -416,7 +416,12 @@ export interface AuditEntry {
    * requested stop, and on no other entry. Its own field rather than
    * `reason`: `reason` on a cancellation means a rule fired, and a person
    * asking is not one (a-change-is-run-from-its-card). */
-  stopRequest?: { reason: string; by?: string };
+  stopRequest?: { reason: string; by?: string; messageId?: string };
+  /** A request to stop this run that the run did not act on, and why, on an
+   * entry whose outcome is `message` (a-run-elsewhere-can-be-asked-to-stop).
+   * The request's reason is not repeated here: it was not verified to be
+   * anybody's. */
+  stopRequestRefused?: { messageId: string; why: "unverified" | "stale" | "seen" };
 }
 
 export interface AuditLog {

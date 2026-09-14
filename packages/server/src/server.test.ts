@@ -1767,6 +1767,27 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  // a-run-elsewhere-can-be-asked-to-stop 3.6: the route asks only a run it
+  // reads as live, and says why it did not.
+  it("refuses to ask an unknown instance to stop, and a request with no reason", async () => {
+    const cwd = await createTempWorkspace();
+
+    const unknown = await fetch(`${baseUrl}/api/runs/ask-to-stop`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, instanceId: "no-such-run", reason: "live check" }),
+    });
+    const noReason = await fetch(`${baseUrl}/api/runs/ask-to-stop`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, instanceId: "no-such-run", reason: "  " }),
+    });
+
+    expect(unknown.status).toBe(400);
+    expect(((await unknown.json()) as { error: string }).error).toContain("no live run reports itself as no-such-run");
+    expect(noReason.status).toBe(400);
+  });
+
   it("refuses a live-runs request that names no workspace, or one outside it", async () => {
     const noCwd = await fetch(`${baseUrl}/api/live-runs`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({}) });
     expect(noCwd.status).toBe(400);

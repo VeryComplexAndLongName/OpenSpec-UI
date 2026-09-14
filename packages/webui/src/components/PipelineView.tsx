@@ -32,6 +32,7 @@ import {
   pipelineCardDetailLines,
   pipelineOpenCardHeight,
   runsShownOnCards,
+  STOP_REQUEST_READ_WITHIN_MS,
   type ChangeCard,
   type ChangeLayout,
   type ChangeLayoutEdge,
@@ -115,8 +116,11 @@ export interface PipelineViewProps {
   standings?: () => Promise<ChangeStandings>;
   /** Reads the runs this host started and holds. A card offers to answer,
    * stop or stop now only a run among these (a-change-is-run-from-its-card).
-   * Absent, no card offers any of them. */
-  liveRuns?: () => Promise<{ runs: LiveRun[] }>;
+   * Absent, no card offers any of them. `myLabel` is the roster label of the
+   * host's own key, where it is enrolled: a card offers Stop on a run held
+   * elsewhere only when that run is this person's, by its verified record
+   * (a-run-elsewhere-can-be-asked-to-stop). */
+  liveRuns?: () => Promise<{ runs: LiveRun[]; myLabel?: string }>;
   /** Sends a control for a held run: the host adds where it runs. */
   onRunControl?: (control: RunControl) => void;
   /** Starts a change: the host opens its run dialog. Absent, no Start. */
@@ -127,6 +131,9 @@ export interface PipelineViewProps {
    * A reader or writer that throws leaves the default zoom and every card
    * closed (a-card-opens-to-its-tasks). */
   viewState?: { read(): PipelineViewMemory | undefined; write(memory: PipelineViewMemory): void };
+  /** Asks a run held elsewhere to stop, through the signed channel, with the
+   * host's own key. Absent, no card offers it. */
+  onAskToStop?: (request: AskToStop) => void;
 }
 
 /** The zoom steps the picture offers, as factors of its unit. */
@@ -209,6 +216,18 @@ function openHeights(
   }
   return heights;
 }
+
+/** A request to stop a run held elsewhere, as a card sends it. */
+export interface AskToStop {
+  changeName: string;
+  /** The instance id of the run, from its status record. */
+  instanceId: string;
+  reason: string;
+}
+
+/** What the reason form is open for: a run this host holds, by its run id, or
+ * a run elsewhere, by its instance id. */
+type StopTarget = { changeName: string; runId: string } | { changeName: string; instanceId: string };
 
 /** A control a card sends for a run this host holds. */
 export interface RunControl {
@@ -295,6 +314,7 @@ export function PipelineView({
   onStart,
   copyText,
   viewState,
+  onAskToStop,
 }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -303,7 +323,10 @@ export function PipelineView({
   // The runs this host holds, read with the survey: a card offers controls
   // only for these (a-change-is-run-from-its-card).
   const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
-  const [stopFor, setStopFor] = useState<{ changeName: string; runId: string } | undefined>(undefined);
+  const [stopFor, setStopFor] = useState<StopTarget | undefined>(undefined);
+  /** When this view asked each run elsewhere to stop, by instance id, so its
+   * card can say it is waiting for the run to read the request. */
+  const [stopsAsked, setStopsAsked] = useState<ReadonlyMap<string, string>>(() => new Map());
   // What the viewer left: read once, and kept as it changes. A host that
   // cannot give or keep it leaves the default zoom and every card closed
   // (a-card-opens-to-its-tasks).
@@ -357,6 +380,8 @@ export function PipelineView({
     ...(ended.value !== undefined ? { lastRuns: ended.value } : {}),
     ...(stands.value !== undefined ? { standings: stands.value } : {}),
     ...(held.value !== undefined ? { liveRunIds: held.value.runs.map((run) => run.runId) } : {}),
+    ...(held.value?.myLabel !== undefined ? { myLabel: held.value.myLabel } : {}),
+    stopsAsked,
     now,
   });
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
@@ -375,6 +400,7 @@ export function PipelineView({
     ...(onStart !== undefined ? { onStart } : {}),
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
+    canAskToStop: onAskToStop !== undefined,
   };
   // The cards Open all opens: every card with rows to list, here and in
   // every other working directory.
@@ -459,11 +485,29 @@ export function PipelineView({
       {refreshError !== undefined
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
-      {stopFor !== undefined && sendRunControl !== undefined ? (
+      {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
         <StopReasonForm
           changeName={stopFor.changeName}
           onAsk={(reason) => {
-            sendRunControl({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
+            if ("runId" in stopFor) {
+              sendRunControl?.({ changeName: stopFor.changeName, runId: stopFor.runId, kind: "stop", reason });
+            } else {
+              // Through the signed channel to a run held elsewhere. The card
+              // says it is waiting until the run's record shows the stop. It
+              // reads the runs again soon, and at each clock tick until the
+              // window a run has to read the request is past, so "has not
+              // read" rests on a reading taken after that window, never on
+              // one from before the run's renewal (found by 4.5's live stop).
+              const { changeName, instanceId } = stopFor;
+              onAskToStop?.({ changeName, instanceId, reason });
+              setStopsAsked((current) => new Map(current).set(instanceId, new Date().toISOString()));
+              const rereadUntil = Date.now() + STOP_REQUEST_READ_WITHIN_MS;
+              const reread = () => {
+                void Promise.all([others.read(), held.read()]);
+                if (Date.now() <= rereadUntil) setTimeout(reread, PIPELINE_CLOCK_INTERVAL_MS);
+              };
+              setTimeout(reread, RUN_CONTROL_REREAD_MS);
+            }
             setStopFor(undefined);
           }}
           onCancel={() => setStopFor(undefined)}
@@ -803,7 +847,9 @@ interface CardControlHandlers {
   onRunControl?: (control: RunControl) => void;
   onStart?: (changeName: string) => void;
   copyText?: (text: string) => Promise<void>;
-  onAskStop: (target: { changeName: string; runId: string }) => void;
+  onAskStop: (target: StopTarget) => void;
+  /** The host can ask a run held elsewhere to stop. */
+  canAskToStop: boolean;
 }
 
 /** The buttons a card offers, from its facts alone. Answer, Stop and Stop
@@ -827,6 +873,16 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
 
   const held = run.ownedHere && run.runId !== null ? handlers.heldRuns.get(run.runId) : undefined;
   if (held === undefined || handlers.onRunControl === undefined) {
+    // A run elsewhere that is this person's own, by its verified record, can
+    // be asked to stop through the signed channel; nobody else's is offered
+    // here (a-run-elsewhere-can-be-asked-to-stop). Not again while a request
+    // is waiting to be read, or once the run has heard one.
+    if (!run.ownedHere && run.stoppableByMe && handlers.canAskToStop && run.stopAskedAt === undefined && run.stopRequested === null) {
+      const instanceId = run.instanceId;
+      buttons.push(
+        <button key="ask-stop" type="button" data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}>Stop</button>,
+      );
+    }
     // Answered where it was started: the card names the folder, and offers
     // to copy it, never to open it.
     if (!run.ownedHere && handlers.copyText !== undefined && run.workingDirectory !== "") {

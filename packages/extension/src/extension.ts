@@ -14,7 +14,9 @@ import {
   WorkbenchRunJournal,
   WorkspaceLeaseManager,
   auditLogPath,
+  agentStopRequestHandlers,
   buildDefaultAgentRunners,
+  chainStopRequestHandlers,
   confirmEnrolmentFor,
   readGitAuthor,
   resolveCheckScripts,
@@ -133,7 +135,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // Pipeline's cards offer controls only for these
   // (a-change-is-run-from-its-card).
   const liveRuns = new LiveRuns();
-  const runController = new RunController(liveRuns);
+  // A run started here reads requests to stop it from other worktrees, and
+  // stops as a card's Stop would stop it: a chain through the chain runner,
+  // with the enrolled person and the request's id, a single stage through its
+  // runner (a-run-elsewhere-can-be-asked-to-stop). `chainRunner` and
+  // `auditLog` are read when a request arrives, long after activation.
+  const runController = new RunController(liveRuns, (runner, command) =>
+    command.kind === "chain"
+      ? chainStopRequestHandlers(chainRunner, command, auditLog)
+      : agentStopRequestHandlers(runner, command, auditLog));
   const workspaceRoot = getWorkspaceRoot();
   let journal: WorkbenchRunJournal | undefined;
   let restoredRuns = { processes: [], checkpointSessions: [] } as Awaited<ReturnType<WorkbenchRunJournal["load"]>>;

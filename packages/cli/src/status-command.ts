@@ -15,9 +15,14 @@ import {
   describeSignature,
   describeTaskInHand,
   describeWaiting,
+  messageDirectoryBeside,
+  readAgentRoster,
   readAgentStatuses,
   readTaskChecklist,
+  readUnopenedRequests,
   resolveAgentStatusDirectory,
+  rosterDirectoryBeside,
+  rosterOf,
   sweepAgentStatuses,
   taskInHand,
   type AgentStatusReadResult,
@@ -44,6 +49,22 @@ export interface StatusDeps {
   sweep?: typeof sweepAgentStatuses;
   /** Test seam for reading a run's change's task list. */
   readTasks?: (workingDirectory: string, changeName: string) => Promise<TaskChecklistItem[]>;
+  /** Test seam: the file names of requests to stop, beside the status
+   * directory, whose envelope does not check out. */
+  readUnopened?: (statusDirectory: string) => Promise<string[]>;
+}
+
+/** Requests to stop that do not check out, beside a status directory. A
+ * roster that cannot be read enrols nobody, which changes nothing here: an
+ * envelope that does not check out does not check out for any roster. */
+async function unopenedRequestsBeside(statusDirectory: string): Promise<string[]> {
+  let roster;
+  try {
+    roster = rosterOf((await readAgentRoster(rosterDirectoryBeside(statusDirectory))).entries);
+  } catch {
+    roster = new Map();
+  }
+  return readUnopenedRequests(messageDirectoryBeside(statusDirectory), roster);
 }
 
 /** The task list of a run's own change in the run's own directory, or no
@@ -66,6 +87,7 @@ async function tasksOf(report: AgentStatusReport, deps: StatusDeps): Promise<Tas
 export async function statusCommand(options: StatusOptions, deps: StatusDeps): Promise<number> {
   let result: AgentStatusReadResult;
   let swept: AgentStatusSweepResult | undefined;
+  let unopened: string[] = [];
   try {
     const git = (deps.createGit ?? ((cwd: string) => createGitWrapper({ cwd })))(options.workspaceRoot);
     const directory = await (deps.resolveDirectory ?? resolveAgentStatusDirectory)(git, options.workspaceRoot);
@@ -75,15 +97,26 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
     // answer the question that was asked.
     swept = await (deps.sweep ?? sweepAgentStatuses)(directory).catch(() => undefined);
     result = await (deps.read ?? readAgentStatuses)(directory);
+    // A request that cannot be read is no reason not to report the runs.
+    unopened = await (deps.readUnopened ?? unopenedRequestsBeside)(directory).catch(() => []);
   } catch (error) {
     deps.stderr(`openspec-ui-cli: could not read agent status: ${message(error)}`);
     return 2;
   }
 
   if (options.format === "json") {
-    deps.stdout(JSON.stringify(result, null, 2));
+    // The field is added only where there is something to say, so a reading
+    // with none keeps the shape it always had.
+    deps.stdout(JSON.stringify(unopened.length > 0 ? { ...result, unopenedRequests: unopened } : result, null, 2));
     return 0;
   }
+
+  // A request to stop that does not check out names no run: nothing it says
+  // is read, so it is reported by its file, beneath the runs, and never as
+  // any run's own (a-run-elsewhere-can-be-asked-to-stop 1.4).
+  const reportUnopened = () => {
+    for (const fileName of unopened) deps.stdout(`a request to stop that does not check out: ${fileName}`);
+  };
 
   // Said on stderr, so what stdout says about runs reads the same whether
   // or not anything was removed first.
@@ -96,6 +129,7 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
 
   if (result.reports.length === 0 && result.malformed.length === 0) {
     deps.stdout("No runs are reporting themselves.");
+    reportUnopened();
     return 0;
   }
 
@@ -127,6 +161,7 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
     // run itself is still only what its record claims.
     deps.stdout(`    ${describeSignature(report.signature, report.person)}`);
   }
+  reportUnopened();
 
   for (const bad of result.malformed) {
     deps.stderr(`openspec-ui-cli: ${bad.fileName}: ${bad.reason}`);

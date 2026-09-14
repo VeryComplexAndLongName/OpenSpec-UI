@@ -46,9 +46,13 @@ function collectingIo() {
 function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {}) {
   const confirmed: string[] = [];
   const cancelled: string[] = [];
+  /** Stops asked through a signed request from another worktree
+   * (a-run-elsewhere-can-be-asked-to-stop). */
+  const stopsRequested: Array<{ runId: string; reason: string; by?: string; messageId?: string }> = [];
   return {
     confirmed,
     cancelled,
+    stopsRequested,
     create: () => ({
       async *run(command: Command) {
         hooks.beforeEvents?.();
@@ -60,6 +64,10 @@ function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {
       },
       cancel(runId: string) {
         cancelled.push(runId);
+        return true;
+      },
+      requestStop(runId: string, reason: string, by?: string, messageId?: string) {
+        stopsRequested.push({ runId, reason, ...(by !== undefined ? { by } : {}), ...(messageId !== undefined ? { messageId } : {}) });
         return true;
       },
     }),

@@ -16,6 +16,7 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  chainStopRequestHandlers,
   createGitWrapper,
   readGitAuthor,
   readRepositoryAuditEntries,
@@ -52,7 +53,7 @@ export interface RunChangeDeps {
     resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
     listAuditEntries: () => ReturnType<FileAuditLog["readEntries"]>;
     auditLog: FileAuditLog;
-  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "cancel">;
+  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "cancel" | "requestStop">;
   /** Registers an interrupt handler and returns a function that removes
    * it. Injected because a unit test must not install a process-wide
    * signal handler. */
@@ -181,7 +182,9 @@ async function driveChain(
 
   let outcome: "completed" | "failed" | "cancelled" | "unterminated" = "unterminated";
   try {
-    for await (const event of withAgentStatus(chain.run(command), command)) {
+    // A request to stop this run, from another worktree, stops it where its
+    // work is sound, as a card's Stop would (a-run-elsewhere-can-be-asked-to-stop).
+    for await (const event of withAgentStatus(chain.run(command), command, chainStopRequestHandlers(chain, command, wiring.auditLog))) {
       write(event);
 
       if (event.kind === "checkpoint") {

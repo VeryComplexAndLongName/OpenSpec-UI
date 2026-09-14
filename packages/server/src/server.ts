@@ -34,6 +34,7 @@ import {
   handleChangeReadinessRequest,
   handleChangeLastRunsRequest,
   handleLiveRunsRequest,
+  handleAskToStopRequest,
   handleWorktreeSurveyRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
@@ -257,6 +258,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       void handleLiveRunsRequest(req, res, requestPolicy, liveRuns);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/runs/ask-to-stop") {
+      void handleAskToStopRequest(req, res, requestPolicy);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
       void handleWorktreeSurveyRequest(req, res, requestPolicy);
       return;
@@ -354,7 +359,7 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
       socket.close();
     });
     socket.on("message", (raw) => {
-      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns);
+      handleSocketMessage(socket, raw.toString(), runners, resolveRecoveryService, chainRunner, liveRuns, options.auditLog);
     });
   });
 
