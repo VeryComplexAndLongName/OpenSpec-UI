@@ -68,6 +68,12 @@ export class ProcessTreeItem extends vscode.TreeItem {
         : process.state === "completed" || process.state === "failed" || process.state === "interrupted"
           ? "openspec-ui.rollbackableProcess"
           : "openspec-ui.finishedProcess";
+    } else if (process.operation === "chain" && active) {
+      // A running chain can be cancelled from its row: the entry carries the
+      // chain's run id, and cancelling it cancels the chain
+      // (a-change-is-run-from-its-card 4.2). Without this the row offered
+      // nothing, found by 7.6's live run.
+      this.contextValue = "openspec-ui.cancellableProcess";
     } else {
       this.contextValue = process.mutating && ["completed", "failed", "interrupted"].includes(process.state)
         ? "openspec-ui.rollbackableProcess"

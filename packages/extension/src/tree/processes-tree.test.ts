@@ -40,6 +40,14 @@ describe("ProcessTreeItem", () => {
     expect(new ProcessTreeItem(process("archive", "running"), undefined).contextValue).toBe("openspec-ui.finishedProcess");
   });
 
+  // a-change-is-run-from-its-card 4.2, found by 7.6: a running chain's row
+  // offers Cancel Process, and a finished one does not.
+  it("offers cancel on a queued or running chain, and not on a finished one", () => {
+    expect(new ProcessTreeItem(process("chain", "running"), undefined).contextValue).toBe("openspec-ui.cancellableProcess");
+    expect(new ProcessTreeItem(process("chain", "queued"), undefined).contextValue).toBe("openspec-ui.cancellableProcess");
+    expect(new ProcessTreeItem(process("chain", "cancelled"), undefined).contextValue).toBe("openspec-ui.finishedProcess");
+  });
+
   it("offers rollback for terminal mutating sessions with checkpoints", () => {
     expect(new ProcessTreeItem(process("implement", "completed"), undefined).contextValue).toBe("openspec-ui.rollbackableProcess");
     expect(new ProcessTreeItem(process("implement", "failed"), undefined).contextValue).toBe("openspec-ui.rollbackableProcess");
