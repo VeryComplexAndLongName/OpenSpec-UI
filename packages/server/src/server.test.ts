@@ -92,6 +92,8 @@ const ALL_EVENT_VARIANTS: Event[] = [
   // server-side special-casing, same as every kind above (ADR 0001).
   { kind: "agentUpdate", runId: "run-1", timestamp: "t4a", update: { sessionUpdate: "plan", entries: [] } },
   { kind: "permissionRequest", runId: "run-1", timestamp: "t4b", requestId: "perm-1", description: "Write to x" },
+  // a-change-is-run-from-its-card 1.3: non-terminal, carried like the rest.
+  { kind: "stopRequested", runId: "run-1", timestamp: "t4c", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
   { kind: "completed", runId: "run-1", timestamp: "t5", summary: "diff --git a/x b/x" },
   { kind: "failed", runId: "run-1", timestamp: "t6", reason: "boom" },
   { kind: "cancelled", runId: "run-1", timestamp: "t7" },
@@ -1714,6 +1716,37 @@ describe("server — WebSocket /api/ws", () => {
 
     expect(receivedCommands).toEqual([expect.objectContaining(resolvePermissionCommand)]);
     expect(received).toEqual([expect.objectContaining({ kind: "failed" })]);
+    client.close();
+  });
+
+  // a-change-is-run-from-its-card 1.3
+  it("carries a stop command, reason included, through to the resolved AgentRunner", async () => {
+    const receivedCommands: Command[] = [];
+    const recordingRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        receivedCommands.push(command);
+        yield { kind: "stopRequested", runId: command.runId, timestamp: "t", reason: command.reason ?? "", outcome: "nothing-to-stop" };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["fake-agent", recordingRunner]]));
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    const done = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        received.push(JSON.parse(raw.toString()) as Event);
+        resolve();
+      });
+    });
+
+    const stopCommand: Command = { ...wsImplementCommand, kind: "stop", reason: "wrong branch" };
+    client.send(JSON.stringify(stopCommand));
+    await done;
+
+    expect(receivedCommands).toEqual([expect.objectContaining({ kind: "stop", reason: "wrong branch" })]);
+    expect(received).toEqual([expect.objectContaining({ kind: "stopRequested", reason: "wrong branch", outcome: "nothing-to-stop" })]);
     client.close();
   });
 

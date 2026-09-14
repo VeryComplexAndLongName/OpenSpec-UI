@@ -3,15 +3,43 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 1. The protocol
 
-- [ ] 1.1 `CommandKind` and `COMMAND_KINDS` in `packages/core/src/protocol.ts`
+- [x] 1.1 `CommandKind` and `COMMAND_KINDS` in `packages/core/src/protocol.ts`
   gain `"stop"`. The documentation of `Command.reason` says that a `stop`
   carries the reason a person gave.
-- [ ] 1.2 `StopRequestedEvent { kind: "stopRequested"; reason: string; by?: string; outcome: "asked" | "nothing-to-stop" }`
+
+  Done. `commandInstruction` in `agents/shared.ts` has an exhaustive
+  switch, so it lists `stop` with the kinds that never reach a CLI agent.
+  `protocol.test.ts` checks that `COMMAND_KINDS` contains `stop`.
+- [x] 1.2 `StopRequestedEvent { kind: "stopRequested"; reason: string; by?: string; outcome: "asked" | "nothing-to-stop" }`
   joins `Event`. `isEvent` accepts it only when `reason` is a string and
   `outcome` is one of the two values.
-- [ ] 1.3 The contract test for "every defined event kind survives a
+
+  Done. `isEvent` also refuses a `by` that is present but not a string.
+  `protocol.test.ts` has `stopRequested` in its sample for every kind,
+  which a missing kind fails to compile, and a round trip for each
+  outcome. One further test refuses a missing or non-string reason, an
+  unknown or missing outcome, and a non-string `by`. The file passes, 32
+  tests.
+- [x] 1.3 The contract test for "every defined event kind survives a
   transport" covers `stopRequested` over the server's WebSocket and over the
   extension's bridge. A `stop` command survives both transports too.
+
+  Done:
+  - Server: `ALL_EVENT_VARIANTS`, which "streams every event variant back
+    over the same connection, in order" sends, now includes a
+    `stopRequested`. A new test sends a `stop` command with a reason over
+    the WebSocket; the resolved runner receives it whole, and its
+    `stopRequested` comes back.
+  - Bridge: `message-bridge-transport.test.ts` delivers `stopRequested`
+    with each outcome to the webview, and posts a `stop` command whole,
+    reason included.
+  - The three exhaustive event switches say what a stop request is:
+    `describe-event.ts` in the extension (tested with each outcome), the
+    AI panel's in the webui, and the extension AI panel's list of
+    non-terminal kinds.
+
+  Webui, extension and server typecheck. The touched tests pass: server
+  3 selected, webui bridge and AiPanel 66, extension `describe-event`.
 - [ ] 1.4 `AuditEntry` in `packages/core/src/security.ts` gains
   `stopRequest?: { reason: string; by?: string }`. It is written only on a
   chain ending entry, after a requested stop.

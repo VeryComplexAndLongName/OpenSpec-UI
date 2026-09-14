@@ -43,12 +43,14 @@ const sampleByKind: Record<EventKind, Event> = {
     update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } },
   },
   permissionRequest: { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
+  stopRequested: { ...base, kind: "stopRequested", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
 };
 
 const samples: Event[] = [
   ...Object.values(sampleByKind),
   // Variants beyond the one-per-kind record above.
   { ...base, kind: "completed" },
+  { ...base, kind: "stopRequested", reason: "wrong branch", outcome: "nothing-to-stop" },
 ];
 
 describe("protocol Event serialization", () => {
@@ -134,12 +136,24 @@ describe("protocol Event serialization", () => {
     expect(isEvent({ ...base, kind: "permissionRequest", requestId: "perm-1" })).toBe(false);
     expect(isEvent({ ...base, kind: "permissionRequest", requestId: 42, description: "Write to x" })).toBe(false);
   });
+
+  // a-change-is-run-from-its-card 1.2
+  it("accepts a stopRequested only with a reason and one of the two outcomes", () => {
+    expect(isEvent({ ...base, kind: "stopRequested", reason: "r", outcome: "asked" })).toBe(true);
+    expect(isEvent({ ...base, kind: "stopRequested", reason: "r", outcome: "nothing-to-stop", by: "ada" })).toBe(true);
+    expect(isEvent({ ...base, kind: "stopRequested", outcome: "asked" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stopRequested", reason: 42, outcome: "asked" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stopRequested", reason: "r", outcome: "maybe" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stopRequested", reason: "r" })).toBe(false);
+    expect(isEvent({ ...base, kind: "stopRequested", reason: "r", outcome: "asked", by: 7 })).toBe(false);
+  });
 });
 
 describe("COMMAND_KINDS", () => {
-  it("contains 'verify' and 'resolvePermission', additive alongside every previously present kind", () => {
+  it("contains 'verify', 'resolvePermission' and 'stop', additive alongside every previously present kind", () => {
     expect(COMMAND_KINDS).toContain("verify");
     expect(COMMAND_KINDS).toContain("resolvePermission");
+    expect(COMMAND_KINDS).toContain("stop");
     for (const kind of ["plan", "implement", "review", "status", "list", "show", "validate", "cancel", "chain", "confirmCheckpoint"]) {
       expect(COMMAND_KINDS).toContain(kind);
     }

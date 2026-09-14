@@ -157,6 +157,7 @@ export function commandInstruction(kind: CommandKind): string {
     case "chain":
     case "confirmCheckpoint":
     case "resolvePermission":
+    case "stop": // answered by the runner that holds the run, never a CLI agent (a-change-is-run-from-its-card)
       // HarnessChainRunner decomposes a chain into calls to this same
       // spawnAndStream path using each stage's own single-stage
       // CommandKind (`plan`/`review`/`implement`/...) — it never invokes

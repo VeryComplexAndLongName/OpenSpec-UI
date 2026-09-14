@@ -46,5 +46,9 @@ export function describeEvent(event: Event): string | undefined {
     }
     case "permissionRequest":
       return `[permission requested] ${event.description}`;
+    case "stopRequested":
+      return event.outcome === "nothing-to-stop"
+        ? `[stop] nothing was running: ${event.reason}`
+        : `[stop] asked to stop${event.by ? ` by ${event.by}` : ""}: ${event.reason}`;
   }
 }

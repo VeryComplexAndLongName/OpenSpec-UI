@@ -412,6 +412,11 @@ export interface AuditEntry {
    * `message` (ADR 0028's amendment of 2026-09-13). Optional, so entries
    * written before it stay valid. */
   message?: AuditMessage;
+  /** The stop a person asked for, on a chain's ending entry after a
+   * requested stop, and on no other entry. Its own field rather than
+   * `reason`: `reason` on a cancellation means a rule fired, and a person
+   * asking is not one (a-change-is-run-from-its-card). */
+  stopRequest?: { reason: string; by?: string };
 }
 
 export interface AuditLog {

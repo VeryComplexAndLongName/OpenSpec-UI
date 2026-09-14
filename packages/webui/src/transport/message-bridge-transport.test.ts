@@ -75,6 +75,9 @@ describe("MessageBridgeTransport — every event kind reaches the webview", () =
     { kind: "cancelling", runId: "run-1", timestamp: "t", attempted: "termination-requested" },
     { kind: "cancelling", runId: "run-1", timestamp: "t", attempted: "nothing-to-cancel" },
     { kind: "usageReported", runId: "run-1", timestamp: "t", usage: { inputTokens: 10, outputTokens: 4, costUsd: 0.26 } },
+    // a-change-is-run-from-its-card 1.3
+    { kind: "stopRequested", runId: "run-1", timestamp: "t", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
+    { kind: "stopRequested", runId: "run-1", timestamp: "t", reason: "wrong branch", outcome: "nothing-to-stop" },
   ];
 
   for (const event of cases) {
@@ -89,6 +92,16 @@ describe("MessageBridgeTransport — every event kind reaches the webview", () =
       expect(received).toEqual([event]);
     });
   }
+
+  it("posts a stop command whole, reason included", () => {
+    const postMessage = vi.fn();
+    const transport = new MessageBridgeTransport({ vscodeApi: { postMessage } });
+    const stop: Command = { ...command, kind: "stop", reason: "wrong branch" };
+
+    transport.send(stop);
+
+    expect(postMessage).toHaveBeenCalledWith({ type: "openspec-ui/command", command: stop });
+  });
 
   it("still drops a payload whose kind the protocol does not define", () => {
     const fakeTarget = new EventTarget();

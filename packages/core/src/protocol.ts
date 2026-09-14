@@ -33,7 +33,13 @@ export type CommandKind =
    * `permissionRequest`; a target that never emitted one treats it as a
    * no-op (see acp-agent-adapters spec.md's "Permission request
    * answered" scenario). */
-  | "resolvePermission";
+  | "resolvePermission"
+  /** Asks a run to stop where its work is sound — at a checkpoint at once,
+   * inside a stage at the next task boundary — rather than killing it as
+   * `cancel` does. Answered by a `stopRequested` event, and carries the
+   * reason a person gave in `reason` (a-change-is-run-from-its-card,
+   * ADR 0028). */
+  | "stop";
 
 /** Runtime enumeration of `CommandKind`, kept in this one place so
  * transport-boundary shape checks (e.g. `packages/server/src/wire.ts`'s
@@ -51,6 +57,7 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "chain",
   "confirmCheckpoint",
   "resolvePermission",
+  "stop",
 ];
 
 /** One file changed by the run a `"verify"` command is reviewing, carried
@@ -141,7 +148,12 @@ export interface Command {
    * emits `cancelled` knows only that its signal aborted, so without this
    * a run cut by a ceiling and a run a person cancelled are
    * indistinguishable in the record. Absent for a person's cancel, which
-   * is what an absent reason has always meant. */
+   * is what an absent reason has always meant.
+   *
+   * On a `"stop"` command it is the reason the person gave for asking the
+   * run to stop, and it is required there: a stop without a reason is
+   * refused at the card, and recorded with the chain's ending as
+   * `stopRequest` rather than as a cancellation's `reason`. */
   reason?: string;
   /** Only meaningful for a `"resolvePermission"` command: the `requestId`
    * of the `PermissionRequestEvent` being answered (see protocol.ts's
@@ -180,7 +192,10 @@ export type EventKind =
    * where the underlying agent genuinely supports them"). Answered by a
    * `"resolvePermission"` command naming this event's `requestId`.
    * Non-terminal. */
-  | "permissionRequest";
+  | "permissionRequest"
+  /** A `"stop"` command reached the run — see `StopRequestedEvent`.
+   * Non-terminal. */
+  | "stopRequested";
 
 interface BaseEvent {
   runId: string;
@@ -359,6 +374,22 @@ export interface PermissionRequestEvent extends BaseEvent {
   description: string;
 }
 
+/** A `"stop"` command reached the runner.
+ *
+ * **Not terminal.** With `outcome: "asked"` the run goes on to a sound
+ * point — the next task boundary, or the end of its stage — and then ends
+ * `cancelled`; until then everything that follows from a run being active
+ * still follows. With `outcome: "nothing-to-stop"` the runner had no such
+ * run, and nothing follows. `by` is the configured git identity of the
+ * host that asked, where it has one — attribution, never authentication.
+ * See a-change-is-run-from-its-card. */
+export interface StopRequestedEvent extends BaseEvent {
+  kind: "stopRequested";
+  reason: string;
+  by?: string;
+  outcome: "asked" | "nothing-to-stop";
+}
+
 export type Event =
   | StartedEvent
   | StdoutEvent
@@ -374,7 +405,8 @@ export type Event =
   | CheckpointEvent
   | HandedOffEvent
   | AgentUpdateEvent
-  | PermissionRequestEvent;
+  | PermissionRequestEvent
+  | StopRequestedEvent;
 
 /** Type guard helper: serializing an Event is just JSON, but we verify
  * that `kind` is one of the known variants when deserializing from an
@@ -427,6 +459,12 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.update === "object" && v.update !== null;
     case "permissionRequest":
       return typeof v.requestId === "string" && typeof v.description === "string";
+    case "stopRequested":
+      return (
+        typeof v.reason === "string" &&
+        (v.outcome === "asked" || v.outcome === "nothing-to-stop") &&
+        (v.by === undefined || typeof v.by === "string")
+      );
     default:
       return false;
   }

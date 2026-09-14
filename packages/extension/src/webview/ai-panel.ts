@@ -297,6 +297,7 @@ export class AiPanel {
               case "handedOff":
               case "agentUpdate":
               case "permissionRequest":
+              case "stopRequested": // asked to stop is not stopped: `cancelled` follows at a sound point
                 return;
             }
           });
