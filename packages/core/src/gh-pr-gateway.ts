@@ -36,6 +36,9 @@ function whyGhFailed(error: unknown): string {
   const code = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
   if (code === "ENOENT") return "gh is not installed";
   const text = error instanceof Error ? error.message : String(error);
+  // Before the signed-out wording: gh's refusal for a remote on no host it
+  // knows also ends by suggesting `gh auth login` (a-gh-refusal-names-its-cause).
+  if (/known GitHub host|none of the git remotes/iu.test(text)) return "no remote is on a GitHub host gh knows";
   if (/auth login|not logged in/iu.test(text)) return "gh is not signed in";
   const first = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? "no reason given";
   return `gh failed: ${first.trim()}`;
