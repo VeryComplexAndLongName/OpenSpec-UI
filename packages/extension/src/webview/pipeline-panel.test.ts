@@ -127,6 +127,7 @@ function createPipelinePanel(overrides: {
         pullRequests: { read: true },
       },
     })),
+    lastRuns: vi.fn(async () => ({ byChange: { alpha: { runId: "c1", outcome: "failed", stage: "verify", endedAt: "2026-09-14T00:00:00.000Z" } } })),
     ...overrides.readers,
   };
   const revealChange = vi.fn(async () => undefined);
@@ -184,6 +185,21 @@ describe("PipelinePanel — answering the view", () => {
     expect(readers.survey).toHaveBeenCalledWith("/repo");
     expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "r:0", ok: true }));
     expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "s:1", ok: true }));
+  });
+
+  // a-card-says-what-its-change-is-doing 4.4
+  it("answers how each change's last run ended, against its own workspace root", async () => {
+    const { pipeline, readers } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "l:0", op: "pipeline/last-runs", args: { cwd: "/elsewhere" } });
+
+    expect(readers.lastRuns).toHaveBeenCalledWith("/repo");
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "l:0",
+      ok: true,
+      value: { byChange: { alpha: expect.objectContaining({ outcome: "failed", stage: "verify" }) } },
+    }));
   });
 
   it("refuses an operation it does not offer, by name", async () => {

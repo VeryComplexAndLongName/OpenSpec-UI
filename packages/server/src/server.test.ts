@@ -1371,6 +1371,60 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(400);
   });
 
+  describe("change last runs (a-card-says-what-its-change-is-doing)", () => {
+    it("reports each change's last run for an authorized cwd", async () => {
+      const cwd = await createTempWorkspace();
+      await mkdir(path.join(cwd, ".openspec-ui"), { recursive: true });
+      const changeDir = path.join(cwd, "openspec", "changes", "demo");
+      const lines = [
+        { runId: "c1", agent: "claude-cli", cwd, changeDir, outcome: "started", timestamp: "2026-09-14T10:00:00.000Z", stage: "verify" },
+        { runId: "c1", agent: "claude-cli", cwd, changeDir, outcome: "failed", timestamp: "2026-09-14T10:01:00.000Z", stage: "verify" },
+        { runId: "c1", agent: "chain", cwd, changeDir, outcome: "failed", timestamp: "2026-09-14T10:01:00.010Z", stage: "verify", reason: "verify failed" },
+      ];
+      await writeFile(path.join(cwd, ".openspec-ui", "audit.jsonl"), lines.map((line) => JSON.stringify(line)).join("\n") + "\n", "utf8");
+
+      const response = await fetch(`${baseUrl}/api/change-last-runs`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd }),
+      });
+      const body = (await response.json()) as { byChange: Record<string, unknown> };
+
+      expect(response.status).toBe(200);
+      expect(body.byChange.demo).toMatchObject({ runId: "c1", outcome: "failed", stage: "verify", reason: "verify failed" });
+    });
+
+    it("rejects a request for a cwd outside the workspace", async () => {
+      await server.close();
+      server = createServer({
+        workspaceRoot: "/workspace/repo",
+        host: "127.0.0.1",
+        port: 0,
+        accessToken: ACCESS_TOKEN,
+      });
+      const address = await server.listen();
+      baseUrl = `http://127.0.0.1:${address.port}`;
+
+      const response = await fetch(`${baseUrl}/api/change-last-runs`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ cwd: "/outside/repo" }),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("rejects a request that names no workspace", async () => {
+      const response = await fetch(`${baseUrl}/api/change-last-runs`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
   it("deletes an existing project-level template", async () => {
     const cwd = await createTempWorkspace();
     const projectDir = path.join(cwd, "openspec", "templates", "my-template");

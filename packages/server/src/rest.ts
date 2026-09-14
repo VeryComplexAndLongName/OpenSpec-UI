@@ -47,6 +47,7 @@ import {
   readChangeStandings,
   STANDING_FETCH_INTERVAL_MS,
   readPipelineReadiness,
+  readLastRuns,
   surveyWorktrees,
   runDelegatedItem,
   customAgentDirectories,
@@ -1195,6 +1196,35 @@ export async function handleChangeReadinessRequest(
     // Assembled in core, suggestions included, because the editor's
     // Pipeline panel sends the same payload (the-pipeline-opens-in-vs-code).
     sendJson(res, 200, await readPipelineReadiness(parsed.cwd));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** How each change's last run ended, across every worktree's audit log
+ * (a-card-says-what-its-change-is-doing). Read in core and carried
+ * whole, like the readiness beside it. */
+export async function handleChangeLastRunsRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await readLastRuns({ workspaceRoot: parsed.cwd }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }

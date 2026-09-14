@@ -16,6 +16,7 @@ import { ArchiveList } from "./components/ArchiveList.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { PipelineView } from "./components/PipelineView.js";
 import { loadChangeReadiness } from "./change-readiness-client.js";
+import { loadChangeLastRuns } from "./change-last-runs-client.js";
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
@@ -356,6 +357,7 @@ function StandaloneApp() {
   // down and restarted on every one of them.
   const pipelineLoad = useCallback(() => loadChangeReadiness(apiFetch, cwd), [cwd]);
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
+  const pipelineLastRuns = useCallback(() => loadChangeLastRuns(apiFetch, cwd), [cwd]);
   // Fetches refs now and says how fresh they are; the Pipeline then reads
   // again (a-change-says-where-it-stands).
   const pipelineRefresh = useCallback(
@@ -2060,6 +2062,7 @@ function StandaloneApp() {
             <PipelineView
               load={pipelineLoad}
               survey={pipelineSurvey}
+              lastRuns={pipelineLastRuns}
               refresh={pipelineRefresh}
               isActive={activeTab === "pipeline"}
               onOpenChange={openChangeInEditor}

@@ -14,11 +14,13 @@ import {
   discoverOpenSpecWorkspace,
   isValidChangeName,
   readChangeStandings,
+  readLastRuns,
   readPipelineReadiness,
   refreshSurveyRuns,
   resolveAgentStatusDirectory,
   surveyWorktrees,
   type ChangeStandings,
+  type LastRunsReport,
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
@@ -56,10 +58,13 @@ export interface PipelineReaders {
   /** Where every change stands, with the refs fetched now
    * (a-change-says-where-it-stands). */
   standingsNow: (workspaceRoot: string) => Promise<ChangeStandings>;
+  /** How each change's last run ended (a-card-says-what-its-change-is-doing). */
+  lastRuns: (workspaceRoot: string) => Promise<LastRunsReport>;
 }
 
 const DEFAULT_READERS: PipelineReaders = {
   standingsNow: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: "now" }),
+  lastRuns: (workspaceRoot) => readLastRuns({ workspaceRoot }),
   readiness: (workspaceRoot) => readPipelineReadiness(workspaceRoot),
   survey: (workspaceRoot) => surveyWorktrees({ workspaceRoot, sweepStatuses: true }),
   refreshRuns: (survey) => refreshSurveyRuns(survey, { sweepStatuses: true }),
@@ -220,6 +225,9 @@ export class PipelinePanel {
           return;
         case "pipeline/survey":
           reply({ ok: true, value: await this.surveyFor(workspaceRoot) });
+          return;
+        case "pipeline/last-runs":
+          reply({ ok: true, value: await this.readers.lastRuns(workspaceRoot) });
           return;
         case "pipeline/refresh": {
           // Fetches now, whatever the interval, and forgets the survey held,

@@ -8,7 +8,7 @@
 
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo } from "react";
-import type { ChangeReadinessReport, WorktreeSurvey } from "@openspec-ui/core/browser";
+import type { ChangeReadinessReport, LastRunsReport, WorktreeSurvey } from "@openspec-ui/core/browser";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
 import { PipelineView, type PipelineReading } from "./components/PipelineView.js";
@@ -40,6 +40,9 @@ function PipelineApp() {
   // The host fetches refs now and says how fresh they are
   // (a-change-says-where-it-stands).
   const refresh = useCallback(() => bridge.request<string>("pipeline/refresh"), [bridge]);
+  // Read with the survey: the host's survey signal is its signal too
+  // (a-card-says-what-its-change-is-doing).
+  const lastRuns = useCallback(() => bridge.request<LastRunsReport>("pipeline/last-runs"), [bridge]);
   const subscribe = useCallback((listener: (reading: PipelineReading) => void) => {
     const handler = (event: MessageEvent<unknown>) => {
       for (const reading of readingsOf(event.data)) listener(reading);
@@ -59,7 +62,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} />
       </section>
     </div>
   );

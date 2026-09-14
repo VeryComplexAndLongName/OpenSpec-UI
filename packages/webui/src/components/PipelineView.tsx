@@ -31,6 +31,7 @@ import {
   type ChangeLayoutNode,
   type ChangeReadiness,
   type ChangeReadinessReport,
+  type LastRunsReport,
   type SurveyedChange,
   type SurveyedDirectory,
   type WorktreeSurvey,
@@ -88,6 +89,10 @@ export interface PipelineViewProps {
    * and what failed. The view then reads everything again. Absent, no
    * Refresh is offered (a-change-says-where-it-stands). */
   refresh?: () => Promise<string>;
+  /** Reads how each change's last run ended. Read together with the
+   * survey — on its interval, or on its signal — because a run ending is
+   * what changes both (a-card-says-what-its-change-is-doing). */
+  lastRuns?: () => Promise<LastRunsReport>;
 }
 
 /** One reading, repeated while the tab is looked at: on a timer, or on a
@@ -150,9 +155,10 @@ function useClock(isActive: boolean): Date {
   return now;
 }
 
-export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh }: PipelineViewProps) {
+export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, refresh, lastRuns }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const now = useClock(isActive);
   const [refreshing, setRefreshing] = useState(false);
   const [refs, setRefs] = useState<string | undefined>(undefined);
@@ -168,7 +174,7 @@ export function PipelineView({ load, survey, isActive, onOpenChange, subscribe, 
     setRefreshError(undefined);
     try {
       setRefs(await refresh());
-      await Promise.all([local.read(), others.read()]);
+      await Promise.all([local.read(), others.read(), ended.read()]);
     } catch (cause) {
       setRefreshError(cause instanceof Error ? cause.message : String(cause));
     } finally {

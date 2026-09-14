@@ -102,11 +102,14 @@ ended (ADR 0029).
 
 ## 3. How the last run ended
 
-- [ ] 3.1 `packages/core/src/last-runs-facts.ts` uses no Node imports and is
+- [x] 3.1 `packages/core/src/last-runs-facts.ts` uses no Node imports and is
   exported from `browser.ts`. It defines:
   - `LastRun { runId: string; outcome: "completed" | "failed" | "cancelled"; stage?: string; endedAt: string; reason?: string; costUsd?: number }`
   - `LastRunsReport { byChange: Record<string, LastRun> }`
-- [ ] 3.2 `readLastRuns({ workspaceRoot, git? }): Promise<LastRunsReport>`
+
+  Done. `browser.ts` also exports `CHAIN_ENDING_AGENT_NAME` beside
+  `VERIFY_CHECKS_AGENT_NAME`.
+- [x] 3.2 `readLastRuns({ workspaceRoot, git? }): Promise<LastRunsReport>`
   in `packages/core/src/last-runs.ts`:
   - reads `readRepositoryAuditEntries`;
   - keeps entries that pass `isRunEntry`, together with chain ending
@@ -125,12 +128,25 @@ ended (ADR 0029).
 
   A run with no terminal entry is skipped. Export `readLastRuns` from
   `index.ts`.
-- [ ] 3.3 `readRepositoryAuditEntries` in
+
+  Done: `readLastRuns` reads the entries, and `lastRunsOf` gives the same
+  answer over entries a caller already has. Without a chain ending, a run
+  counts as ended only when its last entry is terminal. A last `started`
+  is a stage still going, or one that died without saying. A chain resting
+  at a checkpoint after a completed stage therefore reads as that stage's
+  completion, and a card shows it as `Waiting` first, by 5.3's precedence.
+  The `git` option needs only `worktreeList`.
+- [x] 3.3 `readRepositoryAuditEntries` in
   `packages/core/src/repository-audit.ts` accepts an optional cache. With
   one, it parses a file again only when the file's size or modification
   time has changed. `readLastRuns` passes a cache that lives for the whole
   module.
-- [ ] 3.4 core `last-runs.test.ts`:
+
+  Done: `AuditReadCache` is keyed by file path. A log that is absent or
+  cannot be read drops out of the cache and gives nothing, which is what
+  `readEntries` said before. The existing callers pass no cache, and
+  `repository-audit.test.ts` still passes, 7 tests.
+- [x] 3.4 core `last-runs.test.ts`:
   - a chain that failed at verify;
   - a chain cancelled at a checkpoint, whose ending comes from the chain
     entry;
@@ -142,27 +158,49 @@ ended (ADR 0029).
     the last terminal entry;
   - two reads of an unchanged file, which parse it once.
 
+  Done: seven tests, one for each case, and the last also checks that a
+  log which grew is parsed again. The failed chain's cost is the sum of
+  its stages, 0.5 and 0.25. Core typechecks.
+
 ## 4. Carried to both hosts
 
-- [ ] 4.1 Add `handleChangeLastRunsRequest` to `packages/server/src/rest.ts`,
+- [x] 4.1 Add `handleChangeLastRunsRequest` to `packages/server/src/rest.ts`,
   routed at `POST /api/change-last-runs` in `server.ts` beside
   `/api/change-readiness`. It answers:
   - 400 when the body has no `cwd`;
   - the same authorization as the readiness route;
   - 200 with `readLastRuns({ workspaceRoot: cwd })`.
-- [ ] 4.2 A server route test covers all three answers.
-- [ ] 4.3 Add `packages/webui/src/change-last-runs-client.ts`, shaped like
+
+  Done: the route is written like the readiness route, with the same body
+  check and `authorizeCwd`.
+- [x] 4.2 A server route test covers all three answers.
+
+  Done: `server.test.ts` "change last runs", three tests. The 200 case
+  reads a real audit log whose chain failed at verify; the others are the
+  403 for a cwd outside the workspace and the 400 for a body with no cwd.
+  They pass.
+- [x] 4.3 Add `packages/webui/src/change-last-runs-client.ts`, shaped like
   `change-readiness-client.ts`.
-- [ ] 4.4 The pipeline panel in
+
+  Done: `loadChangeLastRuns(request, cwd)`.
+- [x] 4.4 The pipeline panel in
   `packages/extension/src/webview/pipeline-panel.ts` answers
   `pipeline/last-runs` with `readLastRuns({ workspaceRoot })`.
   `BridgeOperation` gains `pipeline/last-runs`, and `pipeline-entry.tsx`
   passes it to the view.
-- [ ] 4.5 `PipelineViewProps` gains
+
+  Done: `PipelineReaders.lastRuns`, with a test that it answers against the
+  host's own root whatever the message names. `pipeline-panel.test.ts`
+  passes, 14 tests, and the extension typechecks.
+- [x] 4.5 `PipelineViewProps` gains
   `lastRuns?: () => Promise<LastRunsReport>`. It is read together with the
   survey: on the survey's interval without `subscribe`, and on the survey's
   signal with it. `standalone-entry.tsx` and `pipeline-entry.tsx` both pass
   it.
+
+  Done: `usePolledReading(lastRuns, …, SURVEY_POLL_INTERVAL_MS, { name:
+  "survey", subscribe })`, and Refresh reads it again with the others.
+  Webui typechecks, and the two PipelineView test files pass, 34 tests.
 
 ## 5. The cards
 
