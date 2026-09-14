@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.56.0
+
+### Minor Changes
+
+- cc67d90: The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon.
+
+### Patch Changes
+
+- Updated dependencies [cc67d90]
+  - @openspec-ui/webui@1.48.0
+  - @openspec-ui/server@1.26.1
+
 ## 0.55.0
 
 ### Minor Changes
