@@ -24,7 +24,7 @@ the cause gh gave (found by a-change-says-where-it-stands 10.6).
 
   Done: `openspec validate a-gh-refusal-names-its-cause --strict` reports
   the change valid.
-- [ ] 2.2 Run `npm run verify` unpiped, with everything staged. Record
+- [x] 2.2 Run `npm run verify` unpiped, with everything staged. Record
   each package's test count.
 
   Run on 2026-09-14 at 12:50, unpiped, with everything staged, on main
@@ -42,6 +42,13 @@ the cause gh gave (found by a-change-says-where-it-stands 10.6).
   alone passed in this worktree, 3 of 3. The branch
   is rebased onto main after this run, so this stays open until CI passes
   the whole suite on the rebased branch.
+
+  Closed on CI. On PR #504 at `2d01e1f`, rebased onto main `352b8a6`, run
+  34829509761 passed "Typecheck, lint, test, and build" with the whole
+  suite in one run. "Standalone browser and accessibility", "Extension
+  integration and package", "OpenSpec change validation (merge gate)",
+  "Dependency audit" and "Dependency review" also passed. The release jobs
+  were skipped, as on every pull request.
 - [x] 2.3 A pending changeset exists: `@openspec-ui/core` at patch.
   `check(changeset-present)`
 
