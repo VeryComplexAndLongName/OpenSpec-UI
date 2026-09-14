@@ -11,7 +11,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { MachineKey } from "./machine-key.js";
+import { readAgentRoster, rosterDirectoryBeside, rosterOf } from "./agent-roster.js";
+import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
 import type { EnrolledPerson } from "./signature-facts.js";
 import { openEnvelope, sealEnvelope, type Roster } from "./signed-envelope.js";
 
@@ -182,6 +183,32 @@ export async function readStopRequests(options: ReadStopRequestsOptions): Promis
     }
   }
   return readings;
+}
+
+/** The label this machine's key is enrolled under in the roster beside a
+ * status directory, or `undefined` where it is not enrolled or cannot be
+ * read. A host passes it to the cards as `myLabel`, so a card offers Stop only
+ * on this person's own verified runs (a-run-elsewhere-can-be-asked-to-stop). */
+export async function myRosterLabel(
+  statusDirectory: string,
+  seams: {
+    loadKey?: () => Promise<Pick<MachineKey, "keyId">>;
+    readRoster?: (rosterDirectory: string) => Promise<Roster>;
+  } = {},
+): Promise<string | undefined> {
+  try {
+    const readRoster = seams.readRoster ?? (async (directory: string) => rosterOf((await readAgentRoster(directory)).entries));
+    const roster = await readRoster(rosterDirectoryBeside(statusDirectory));
+    // Read first: where nobody is enrolled there is no label to find, and no
+    // reason to load, or make, this machine's key just to look.
+    if (roster.size === 0) return undefined;
+    const key = await (seams.loadKey ?? (() => loadOrCreateMachineKey()))();
+    return roster.get(key.keyId)?.label;
+  } catch {
+    // No key, or no roster to read: nobody is enrolled, so no card offers
+    // Stop on a run elsewhere.
+    return undefined;
+  }
 }
 
 /** The file names of requests whose envelope does not check out. Nobody can

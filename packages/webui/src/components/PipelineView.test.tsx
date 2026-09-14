@@ -208,6 +208,55 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
   });
 });
 
+// a-run-elsewhere-can-be-asked-to-stop 3.6: Stop on a run held elsewhere is
+// offered only for the person's own verified run, and says it is waiting.
+describe("PipelineView — asking a run elsewhere to stop", () => {
+  function renderElsewhere(options: { signature: "verified" | "unverified"; label?: string; myLabel?: string }) {
+    const onAskToStop = vi.fn();
+    const person = options.label !== undefined ? { keyId: "key-1", label: options.label } : undefined;
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({
+          changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }],
+          runs: [run({ changeName: "alpha", instanceId: "run-b", runId: "chain-b", workingDirectory: "/wt/repo/b", signature: options.signature, ...(person !== undefined ? { person } : {}) })],
+        }))}
+        liveRuns={async () => ({ runs: [], ...(options.myLabel !== undefined ? { myLabel: options.myLabel } : {}) })}
+        onAskToStop={onAskToStop}
+        copyText={async () => undefined}
+      />,
+    );
+    return { onAskToStop };
+  }
+
+  it("offers Stop on my own verified run elsewhere, asks with the instance id and reason, and then says it is waiting", async () => {
+    const { onAskToStop } = renderElsewhere({ signature: "verified", label: "Ada", myLabel: "Ada" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
+    fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
+    fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
+
+    expect(onAskToStop).toHaveBeenCalledWith({ changeName: "alpha", instanceId: "run-b", reason: "live check" });
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("waiting for the run to read it"));
+    // Not offered again while the request waits to be read.
+    expect(screen.queryByTestId("pipeline-ask-stop-alpha")).toBeNull();
+  });
+
+  it("offers no Stop on somebody else's run, and says whose it is", async () => {
+    renderElsewhere({ signature: "verified", label: "Bob", myLabel: "Ada" });
+    expect(await screen.findByText(/Bob's run, verified/u)).toBeInTheDocument();
+    expect(screen.queryByTestId("pipeline-ask-stop-alpha")).toBeNull();
+  });
+
+  it("offers no Stop on an unverified run, even to a host with a label", async () => {
+    renderElsewhere({ signature: "unverified", myLabel: "Ada" });
+    expect(await screen.findByText(/not verified/u)).toBeInTheDocument();
+    expect(screen.queryByTestId("pipeline-ask-stop-alpha")).toBeNull();
+  });
+});
+
 describe("PipelineView — other working directories", () => {
   // 5.1
   it("names the branch this picture was read from, even with nothing in the queue", async () => {

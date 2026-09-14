@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   askRunToStop,
+  myRosterLabel,
   readStopRequests,
   readUnopenedRequests,
   STOP_MESSAGE_STALE_AFTER_MS,
@@ -120,6 +121,27 @@ describe("readStopRequests", () => {
 
     expect(await readStopRequests({ directory, instanceId: INSTANCE, roster: rosterWith(key), now: SENT_AT, seen: new Set() })).toEqual([]);
     expect(await readUnopenedRequests(directory, rosterWith(key))).toEqual([]);
+  });
+
+  // a-run-elsewhere-can-be-asked-to-stop 3.2: the label a host passes to its
+  // cards as myLabel.
+  it("finds this machine's roster label, and loads no key where nobody is enrolled", async () => {
+    const key = memoryKey();
+    const loadKey = vi.fn(async () => key);
+
+    expect(await myRosterLabel("/wt/repo/.agent-status", { loadKey, readRoster: async () => new Map() })).toBeUndefined();
+    expect(loadKey).not.toHaveBeenCalled();
+
+    expect(await myRosterLabel("/wt/repo/.agent-status", { loadKey, readRoster: async () => rosterWith(key, "Ada") })).toBe("Ada");
+    expect(await myRosterLabel("/wt/repo/.agent-status", { loadKey, readRoster: async () => rosterWith(memoryKey(), "Bob") })).toBeUndefined();
+  });
+
+  it("reads the roster beside the status directory", async () => {
+    const readRoster = vi.fn(async () => new Map());
+
+    await myRosterLabel(path.join("/wt", "repo", ".agent-status"), { readRoster });
+
+    expect(readRoster).toHaveBeenCalledWith(path.resolve("/wt", "repo", ".agent-roster"));
   });
 
   it("reads no requests from a directory nobody has written to", async () => {

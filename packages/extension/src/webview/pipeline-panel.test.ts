@@ -131,6 +131,10 @@ function createPipelinePanel(overrides: {
       },
     })),
     lastRuns: vi.fn(async () => ({ byChange: { alpha: { runId: "c1", outcome: "failed", stage: "verify", endedAt: "2026-09-14T00:00:00.000Z" } } })),
+    // Never the real ones: they read, or make, this machine's key under the
+    // home directory (a-run-elsewhere-can-be-asked-to-stop).
+    myLabel: vi.fn(async () => undefined),
+    askLiveRun: vi.fn(async () => ({ asked: false, why: "not in this test" })),
     standings: vi.fn(async () => ({
       readAt: "2026-09-14T00:00:00.000Z",
       standings: [{ changeName: "alpha", elsewhere: [], main: { kind: "archived", archiveName: "2026-09-14-alpha" } }],
@@ -247,6 +251,50 @@ describe("PipelinePanel — answering the view", () => {
     bare.pipeline.show();
     await bare.pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "v:1", op: "pipeline/live-runs" });
     expect(created[1]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "v:1", ok: true, value: { runs: [] } }));
+  });
+
+  // a-run-elsewhere-can-be-asked-to-stop 3.3 and 3.6: a card's Stop on a run
+  // held elsewhere is asked only of a run this host reads as live.
+  it("asks a live run elsewhere to stop, refuses an unknown instance, and says which to the view", async () => {
+    const { askLiveRunToStop } = await import("@openspec-ui/core");
+    const ask = vi.fn(async () => "message-1");
+    const askLiveRun = vi.fn((options: Parameters<typeof askLiveRunToStop>[0]) => askLiveRunToStop({
+      ...options,
+      // The real check, over records a test writes: run-b is live, nothing else.
+      read: async () => ({ reports: [{ instanceId: "run-b", gone: false, signature: "verified" }] as never, malformed: [] }),
+      ask,
+      loadKey: async () => ({ keyId: "k" }) as never,
+      readAuthor: async () => undefined,
+      machine: "machine-a",
+    }));
+    const { pipeline } = createPipelinePanel({ readers: { askLiveRun } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/ask-to-stop", instanceId: "no-such-run", reason: "live check" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/ask-to-stop", instanceId: "run-b", reason: "live check" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/ask-to-stop", instanceId: "run-b", reason: "   " });
+
+    const posted = created[0]!.webview.postMessage;
+    expect(posted).toHaveBeenCalledWith(expect.objectContaining({
+      type: "openspec-ui/ask-to-stop-result",
+      instanceId: "no-such-run",
+      asked: false,
+      why: expect.stringContaining("no live run reports itself as no-such-run"),
+    }));
+    expect(posted).toHaveBeenCalledWith({ type: "openspec-ui/ask-to-stop-result", instanceId: "run-b", asked: true, messageId: "message-1" });
+    // Asked once: the unknown instance and the blank reason wrote nothing.
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ to: "run-b", reason: "live check", machine: "machine-a" }));
+    expect(askLiveRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers the live runs with the label this host's key is enrolled under", async () => {
+    const { pipeline } = createPipelinePanel({ readers: { myLabel: vi.fn(async () => "Ada") } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "m:0", op: "pipeline/live-runs" });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "m:0", ok: true, value: { runs: [], myLabel: "Ada" } }));
   });
 
   // a-change-is-run-from-its-card 5.2

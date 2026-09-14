@@ -10,7 +10,8 @@
 //
 // Pure and free of Node built-ins: the browser bundle has it.
 
-import type { AgentStatusWaiting } from "./agent-status.js";
+import type { AgentStatusStopRequest, AgentStatusWaiting } from "./agent-status.js";
+import type { EnrolledPerson, RecordSignature } from "./signature-facts.js";
 import type { ChangeReadinessReport } from "./change-readiness-facts.js";
 import type { ChangeStanding, ChangeStandings } from "./change-standing-facts.js";
 import { describeChangeState, type ChangeStateFacts } from "./change-state-word.js";
@@ -46,6 +47,19 @@ export interface ChangeCardRun {
   /** The host showing this card started the run and holds it, so the card
    * may offer to answer and stop it (a-change-is-run-from-its-card). */
   ownedHere: boolean;
+  /** The run is held elsewhere, and its verified record is signed by the
+   * person this host's own key is enrolled as, so the card may offer to ask
+   * it to stop through the signed channel (a-run-elsewhere-can-be-asked-to-stop). */
+  stoppableByMe: boolean;
+  /** How far the run's record shows whose it is. */
+  signature: RecordSignature;
+  /** The enrolled person, where the record is verified. */
+  person?: EnrolledPerson;
+  /** The stop the run has heard, where its record holds one. */
+  stopRequested: AgentStatusStopRequest | null;
+  /** When this host asked the run to stop, where it has, so the card can say
+   * it is waiting for the run to read the request. */
+  stopAskedAt?: string;
   /** Where the run was started, as its record says: the folder a card for a
    * run held elsewhere offers to copy, and never to open. */
   workingDirectory: string;
@@ -99,13 +113,25 @@ export interface ChangeCardInputs {
   /** The run ids of the runs the host showing the cards started and holds
    * (its live-runs list). A card offers controls only for these. */
   liveRunIds?: readonly string[];
+  /** The roster label of this host's own machine key, where it is enrolled.
+   * A card offers Stop on a run held elsewhere only when that run's verified
+   * record is signed by this person (a-run-elsewhere-can-be-asked-to-stop). */
+  myLabel?: string;
+  /** When this host asked each run to stop, by instance id. */
+  stopsAsked?: ReadonlyMap<string, string>;
   now: Date;
 }
+
+/** How long a card waits for a run to read a request before saying it has
+ * not: two of the status writer's renewals, each five seconds
+ * (`AGENT_STATUS_RENEW_INTERVAL_MS`, pinned by a test). Written out here
+ * because this module is the browser's and the writer's is Node's. */
+export const STOP_REQUEST_READ_WITHIN_MS = 10_000;
 
 const THIS_CHECKOUT: ChangeCardWhere = { label: "this checkout", path: "", ownWorktree: false };
 
 /** One card for each change of the report, in the report's order. */
-export function describeChangeCards({ report, survey, lastRuns, standings, liveRunIds = [] }: ChangeCardInputs): ChangeCard[] {
+export function describeChangeCards({ report, survey, lastRuns, standings, liveRunIds = [], myLabel, stopsAsked }: ChangeCardInputs): ChangeCard[] {
   const here = survey?.directories.find((directory) => directory.isThis);
   const held = new Set(liveRunIds);
   return report.changes.map((change) => {
@@ -134,7 +160,9 @@ export function describeChangeCards({ report, survey, lastRuns, standings, liveR
     const waitingRun = runs.find((run) => run.waiting !== null);
     const shownRun = waitingRun ?? runs[0];
     const ownedHere = shownRun?.runId !== undefined && shownRun.runId !== null && held.has(shownRun.runId);
-    const run = shownRun === undefined ? undefined : cardRun(shownRun, surveyed?.nextOpenTask, ownedHere);
+    const run = shownRun === undefined
+      ? undefined
+      : cardRun(shownRun, surveyed?.nextOpenTask, ownedHere, myLabel, stopsAsked?.get(shownRun.instanceId));
 
     const lastRun = lastRuns?.byChange[name];
     // A failure older than the task list no longer decides the card: the
@@ -226,16 +254,35 @@ function olderThan(endedAt: string, modifiedAt: string | undefined): boolean {
   return Number.isFinite(ended) && Number.isFinite(modified) && ended < modified;
 }
 
-function cardRun(run: SurveyedRun, nextOpenTask: { number: string; text: string } | undefined, ownedHere: boolean): ChangeCardRun {
+function cardRun(
+  run: SurveyedRun,
+  nextOpenTask: { number: string; text: string } | undefined,
+  ownedHere: boolean,
+  myLabel: string | undefined,
+  stopAskedAt: string | undefined,
+): ChangeCardRun {
   const task: ChangeCardTask | undefined = run.task !== undefined
     ? { number: run.task.number, text: run.task.text, source: run.task.source }
     // The guess: a record that names no task is probably on the first open
     // one a run can close.
     : nextOpenTask !== undefined ? { ...nextOpenTask, source: "guess" } : undefined;
+  // Offered only for the person's own verified runs: ADR 0028 does not offer
+  // stopping somebody else's agent in the interface. Decided here, never in
+  // a view.
+  const stoppableByMe = !ownedHere
+    && run.signature === "verified"
+    && myLabel !== undefined
+    && myLabel.length > 0
+    && run.person?.label === myLabel;
   return {
     instanceId: run.instanceId,
     runId: run.runId,
     ownedHere,
+    stoppableByMe,
+    signature: run.signature,
+    ...(run.person !== undefined ? { person: run.person } : {}),
+    stopRequested: run.stopRequested ?? null,
+    ...(stopAskedAt !== undefined ? { stopAskedAt } : {}),
     workingDirectory: run.workingDirectory,
     stage: run.stage,
     activity: run.activity,
@@ -319,6 +366,23 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
     } else {
       const age = ageFrom(run.activityAt, now);
       lines.push(age !== undefined ? `${run.activity} — said ${age}` : run.activity);
+    }
+    // A run held elsewhere and not the person's own says whose it is, as far
+    // as its signature shows, since the card offers nothing to stop it
+    // (a-run-elsewhere-can-be-asked-to-stop).
+    if (!run.ownedHere && !run.stoppableByMe) {
+      lines.push(run.signature === "verified" && run.person !== undefined ? `${run.person.label}'s run, verified` : "not verified");
+    }
+    // A request this host sent, until the run's record shows it heard one.
+    // Never that the run refused: a refusal is the run's to say.
+    if (run.stopAskedAt !== undefined && run.stopRequested === null) {
+      const asked = Date.parse(run.stopAskedAt);
+      const age = ageFrom(run.stopAskedAt, now);
+      if (Number.isFinite(asked) && age !== undefined) {
+        lines.push(now.getTime() - asked <= STOP_REQUEST_READ_WITHIN_MS
+          ? `stop requested ${age}; waiting for the run to read it`
+          : `stop requested ${age}; the run has not read the request`);
+      }
     }
   }
 

@@ -180,19 +180,56 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 
 ## 3. Asking
 
-- [ ] 3.1 `openspec-ui-cli stop <instanceId> --reason <text>`, in
+- [x] 3.1 `openspec-ui-cli stop <instanceId> --reason <text>`, in
   `packages/cli/src/stop-command.ts`, reads the live records. It refuses an
   instance that has no live record, exiting non-zero and saying so.
   Otherwise it writes the request with this machine's key and prints the
   message id. Add a test.
-- [ ] 3.2 `describeChangeCards` in `packages/core/src/change-card.ts` marks a
+
+  Done.
+  - An instance id that no live record reports, or only a gone one or one
+    that does not check out, exits 1 and says that nothing was asked.
+  - A missing instance id or a blank reason exits 2, as does a status
+    directory, key or file the command cannot use.
+  - Otherwise it loads this machine's key and writes the request to the
+    message directory beside the status directory, with the machine name
+    and the configured git author.
+  - It prints the message id, or `{ messageId, to }` with `--format json`.
+
+  `main.ts` gains `--reason`, the `stop` command and its usage and help
+  text. `stop-command.test.ts` has 4 tests:
+  - a request written for a live run, with its message id printed;
+  - an unknown and a gone instance refused with nothing written;
+  - a missing id and a blank reason refused;
+  - the JSON output.
+
+  cli typechecks and lint is clean. `stop-command` passes 4 tests and
+  `main` 23.
+- [x] 3.2 `describeChangeCards` in `packages/core/src/change-card.ts` marks a
   live run that is not `ownedHere` as `stoppableByMe` only when both hold:
   - its record is verified;
   - its `person` label equals the roster label of this host's machine key,
     which the host passes as `myLabel`.
 
   Do not compare in the view.
-- [ ] 3.3 A card whose run is `stoppableByMe` offers `Stop`, with the same
+
+  Done, in `cardRun`, and nowhere in a view.
+  - `ChangeCardInputs` gains `myLabel` and `stopsAsked`, when this host
+    asked each run, by instance id.
+  - `ChangeCardRun` gains `stoppableByMe`, `signature`, `person`,
+    `stopRequested` and `stopAskedAt`. A run this host holds is never
+    `stoppableByMe`, since it is stopped as its own.
+  - The survey now carries each run's `stopRequested`, an optional field
+    on `SurveyedRun` that `toRun` fills from the record.
+  - Hosts find `myLabel` with the new `myRosterLabel` in core. It reads the
+    roster beside the status directory first, and loads no key where
+    nobody is enrolled.
+
+  Tests: `change-card.test.ts` "a run held elsewhere" covers a verified run
+  of my label, of another label, one with no label given, an unverified
+  run, and a run held here. `agent-messages.test.ts` has two tests for
+  `myRosterLabel`.
+- [x] 3.3 A card whose run is `stoppableByMe` offers `Stop`, with the same
   reason form as for an owned run. Sending it calls:
   - `POST /api/runs/ask-to-stop` in the standalone server, handled by
     `handleAskToStopRequest` in `rest.ts`;
@@ -201,17 +238,69 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   Both handlers check that the instance is one of the live records they have
   just read, and refuse any other. They then call `askRunToStop` with the
   host's key.
-- [ ] 3.4 A card whose run is neither `ownedHere` nor `stoppableByMe` states
+
+  Done.
+  - **The card.** Its `Stop`, named `Stop <change>`, opens the same reason
+    form and calls the view's new `onAskToStop` with the change, the
+    instance id and the reason. It is not offered again while the request
+    waits to be read, or once the run has heard a stop.
+  - **Standalone.** `askRunToStop` in `live-runs-client.ts` posts to
+    `POST /api/runs/ask-to-stop`, handled by `handleAskToStopRequest` in
+    `rest.ts`.
+  - **Editor.** The view posts the message `openspec-ui/ask-to-stop`, and
+    the panel answers with `openspec-ui/ask-to-stop-result`. It is a
+    message rather than a request op because a request carries only its
+    id and op, and a card's other controls are messages already.
+  - **The check.** Both handlers call `askLiveRunToStop` in core. It reads
+    the live records now, refuses any other instance and says why, and
+    only then calls `askRunToStop` with the host's key, machine and git
+    author.
+  - `/api/live-runs` and `pipeline/live-runs` now also answer with
+    `myLabel`.
+- [x] 3.4 A card whose run is neither `ownedHere` nor `stoppableByMe` states
   whose the run is (`<label>'s run, verified`, or `not verified`) and offers
   no Stop.
-- [ ] 3.5 Until the run's record shows `stopRequested`, the card says
+
+  Done: `describeChangeCard` adds that line. Two earlier card tests pinned
+  a card's whole line list for a run nobody held here, and now expect it.
+- [x] 3.5 Until the run's record shows `stopRequested`, the card says
   `stop requested <age> ago; waiting for the run to read it`. After two
   renewal windows it says `the run has not read the request`.
-- [ ] 3.6 Tests:
+
+  Done.
+  - The line is `stop requested 5s ago; waiting for the run to read it`,
+    since a card's age already ends in "ago". Once
+    `STOP_REQUEST_READ_WITHIN_MS` has passed it becomes
+    `stop requested 30s ago; the run has not read the request`. It never
+    says the run refused.
+  - `STOP_REQUEST_READ_WITHIN_MS` is 10 seconds, written in `change-card.ts`
+    because that module is the browser's. A test pins it to twice
+    `AGENT_STATUS_RENEW_INTERVAL_MS`.
+  - The line goes once the run's record shows `stopRequested`.
+  - The view records when it asked, and reads the runs again a second
+    later.
+- [x] 3.6 Tests:
   - webui `PipelineView.test.tsx`: Stop is offered only for a verified run
     whose person is `myLabel`, and the waiting words appear;
   - server: the route refuses an unknown instance;
   - extension: `pipeline/ask-to-stop` refuses an unknown instance.
+
+  Done.
+  - **webui.** "asking a run elsewhere to stop" has 3 tests: Stop offered
+    and sent for my own verified run, then the waiting line and no second
+    Stop; no Stop on another person's run, which says whose it is; no Stop
+    on an unverified run. The file passes, 45 tests.
+  - **Server.** "refuses to ask an unknown instance to stop, and a request
+    with no reason". The file passes, 87 tests.
+  - **Extension.** One test asks a live run and refuses an unknown instance
+    and a blank reason, through the real `askLiveRunToStop` over records
+    the test supplies. Another answers the live runs with `myLabel`. The
+    panel's test readers now fake `myLabel` and `askLiveRun`, so no test
+    reads or makes this machine's key. The file passes, 21 tests.
+
+  Core, cli, server, extension and webui typecheck, and lint is clean.
+  Core passes `change-card` 28, `agent-messages` 9 and
+  `stop-request-handlers` 4.
 
 ## 4. Verification
 

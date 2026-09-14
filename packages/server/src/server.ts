@@ -34,6 +34,7 @@ import {
   handleChangeReadinessRequest,
   handleChangeLastRunsRequest,
   handleLiveRunsRequest,
+  handleAskToStopRequest,
   handleWorktreeSurveyRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
@@ -255,6 +256,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/live-runs") {
       void handleLiveRunsRequest(req, res, requestPolicy, liveRuns);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/runs/ask-to-stop") {
+      void handleAskToStopRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
