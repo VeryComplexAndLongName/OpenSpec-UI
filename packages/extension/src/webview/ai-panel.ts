@@ -253,15 +253,23 @@ export class AiPanel {
       .filter((segment) => segment.length > 0)
       .pop();
 
-    const handle: ReturnType<WorkbenchProcessScheduler["start"]> = scheduler.start({
+    const options: Parameters<WorkbenchProcessScheduler["start"]>[0] = {
       operation: command.kind,
       changeName,
       agentId: command.agentId,
       // A chain includes "implement"/"archive" stages that mutate the
       // repository just as directly as a standalone `implement` does.
       mutating: command.kind === "implement" || command.kind === "chain",
-      execute: ({ report }) =>
+      execute: ({ report, signal }) =>
         new Promise<string | void>((resolve, reject) => {
+          // "Cancel Process" on a chain's entry cancels the chain itself,
+          // not only its row: the scheduler aborts this signal, and nothing
+          // else would reach the chain (a-change-is-run-from-its-card).
+          if (command.kind === "chain") {
+            signal.addEventListener("abort", () => {
+              this.deps.chainRunner.cancel(command.runId);
+            }, { once: true });
+          }
           const unsubscribe = this.deps.runController.onEvent((event) => {
             if (event.runId !== command.runId) return;
             switch (event.kind) {
@@ -302,7 +310,20 @@ export class AiPanel {
             }
           });
         }),
-    });
+    };
+    // A chain's entry carries the chain's run id, so the entry and the
+    // chain are one thing to whoever reads either. An id already taken
+    // falls back to a fresh one rather than refusing to track the run.
+    let handle: ReturnType<WorkbenchProcessScheduler["start"]>;
+    if (command.kind === "chain") {
+      try {
+        handle = scheduler.start({ ...options, id: command.runId });
+      } catch {
+        handle = scheduler.start(options);
+      }
+    } else {
+      handle = scheduler.start(options);
+    }
   }
 
   /** Routes a `"plan"`/`"review"`/`"implement"` command either to a

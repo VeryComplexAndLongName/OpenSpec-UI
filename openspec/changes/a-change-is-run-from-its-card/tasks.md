@@ -353,10 +353,23 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   Server typecheck and lint are clean. The selected server tests pass, 8;
   core passes, `live-runs` 8 and `harness-chain-runner` 102.
-- [ ] 4.2 `trackHarnessProcess` in `packages/extension/src/webview/ai-panel.ts`
+- [x] 4.2 `trackHarnessProcess` in `packages/extension/src/webview/ai-panel.ts`
   gives a chain's scheduler entry the chain's `runId`. Cancelling that entry
   from the Processes tree calls `HarnessChainRunner.cancel` for the chain.
   Cover this in the extension's tests.
+
+  Done: a chain's entry is started with `id` set to the chain's `runId`. If
+  that id is already an entry, the scheduler throws, and the chain is
+  tracked under a fresh id rather than going untracked. "Cancel Process"
+  aborts the entry's signal, and the chain's `execute` now listens for
+  that abort and calls `chainRunner.cancel(runId)`. Before this, the
+  signal was ignored, and cancelling the entry left the chain running.
+
+  `ai-panel.test.ts` "AiPanel harness process tracking" gains two tests:
+  - the entry carries `chain-1`, and aborting its signal cancels `chain-1`;
+  - a taken id falls back to an entry started without one.
+
+  The file passes, 40 tests, and the extension typechecks.
 
 ## 5. The card's controls
 

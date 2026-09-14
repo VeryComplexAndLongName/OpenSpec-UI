@@ -496,6 +496,39 @@ describe("AiPanel harness process tracking", () => {
         expect(scheduler.start).toHaveBeenCalledWith(expect.objectContaining({ operation: "chain", mutating: true }));
     });
 
+    // a-change-is-run-from-its-card 4.2
+    it("gives a chain's process entry the chain's run id, and cancels the chain when that entry is cancelled", async () => {
+        const { scheduler, receiveMessage, chainRunner, emit } = createHarnessFixture();
+        chainRunner.asAgentRunner.mockReturnValue({ run: vi.fn() });
+
+        sendChainCommand(receiveMessage);
+
+        expect(scheduler.start).toHaveBeenCalledWith(expect.objectContaining({ id: "chain-1", operation: "chain" }));
+        const execute = scheduler.start.mock.calls[0]?.[0].execute as (ctx: { report: (message: string) => void; signal: AbortSignal }) => Promise<string | void>;
+        const controller = new AbortController();
+        const result = execute({ report: vi.fn(), signal: controller.signal });
+
+        // What "Cancel Process" in the Processes tree does to the entry.
+        controller.abort();
+        expect(chainRunner.cancel).toHaveBeenCalledWith("chain-1");
+
+        emit({ kind: "cancelled", runId: "chain-1" });
+        await result;
+    });
+
+    it("tracks a chain under a fresh id when its run id is already an entry", () => {
+        const { scheduler, receiveMessage, chainRunner } = createHarnessFixture();
+        chainRunner.asAgentRunner.mockReturnValue({ run: vi.fn() });
+        scheduler.start.mockImplementationOnce(() => {
+            throw new Error("Workbench process already exists: chain-1");
+        });
+
+        sendChainCommand(receiveMessage);
+
+        expect(scheduler.start).toHaveBeenCalledTimes(2);
+        expect(scheduler.start.mock.calls[1]?.[0]).not.toHaveProperty("id");
+    });
+
     it("routes confirmCheckpoint directly to chainRunner without starting a new run", () => {
         const { runController, receiveMessage, chainRunner } = createHarnessFixture();
 
