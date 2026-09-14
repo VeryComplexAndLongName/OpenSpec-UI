@@ -69,6 +69,45 @@ describe("statusCommand", () => {
     expect(io.out.join("\n")).toContain("No runs are reporting themselves.");
   });
 
+  // a-run-elsewhere-can-be-asked-to-stop 1.4: a request that does not check
+  // out is named by its file, beneath the runs, and as no run's own.
+  it("reports a request to stop that does not check out by its file name, beneath the runs", async () => {
+    const io = collectingIo();
+    const result: AgentStatusReadResult = { reports: [REPORT], malformed: [] };
+
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      { ...io, resolveDirectory: async () => "/wt/repo/.agent-status", read: async () => result, readUnopened: async () => ["m-1.json"] },
+    );
+
+    expect(code).toBe(0);
+    expect(io.out.at(-1)).toBe("a request to stop that does not check out: m-1.json");
+    expect(io.out.filter((line) => line.includes("m-1.json"))).toHaveLength(1);
+  });
+
+  it("reports such a request even when no run is reporting, and carries it in json only where there is one", async () => {
+    const quiet = collectingIo();
+    await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      { ...quiet, resolveDirectory: async () => "/wt/repo/.agent-status", read: async () => ({ reports: [], malformed: [] }), readUnopened: async () => ["m-2.json"] },
+    );
+    expect(quiet.out).toEqual(["No runs are reporting themselves.", "a request to stop that does not check out: m-2.json"]);
+
+    const withOne = collectingIo();
+    await statusCommand(
+      { workspaceRoot: "/repo", format: "json" },
+      { ...withOne, resolveDirectory: async () => "/wt/repo/.agent-status", read: async () => ({ reports: [], malformed: [] }), readUnopened: async () => ["m-2.json"] },
+    );
+    expect(JSON.parse(withOne.out.join("\n"))).toEqual({ reports: [], malformed: [], unopenedRequests: ["m-2.json"] });
+
+    const withNone = collectingIo();
+    await statusCommand(
+      { workspaceRoot: "/repo", format: "json" },
+      { ...withNone, resolveDirectory: async () => "/wt/repo/.agent-status", read: async () => ({ reports: [], malformed: [] }), readUnopened: async () => [] },
+    );
+    expect(JSON.parse(withNone.out.join("\n"))).toEqual({ reports: [], malformed: [] });
+  });
+
   it("reports a gone run and never states a health verdict", async () => {
     const io = collectingIo();
     const result: AgentStatusReadResult = { reports: [{ ...REPORT, gone: true }], malformed: [] };

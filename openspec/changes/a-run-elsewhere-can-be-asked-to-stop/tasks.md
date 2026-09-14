@@ -3,16 +3,24 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
 
 ## 1. The request
 
-- [ ] 1.1 `packages/core/src/agent-messages.ts` exports:
+- [x] 1.1 `packages/core/src/agent-messages.ts` exports:
   - `agentMessageDirectory(root, mainPath)`, returning
     `<root>/<repo>/.agent-messages`, beside `agentStatusDirectory`;
   - `StopMessage { version: 1; messageId: string; kind: "stop"; to: string; reason: string; sentAt: string; machine: string; gitAuthor?: string }`;
   - `STOP_MESSAGE_STALE_AFTER_MS = 60_000`.
-- [ ] 1.2 `askRunToStop({ directory, to, reason, key, machine, gitAuthor })`
+
+  Done, with `messageDirectoryBeside(statusDirectory)` beside them, as
+  `rosterDirectoryBeside` is for the roster: a host that already holds a
+  status directory finds the messages without resolving the repository
+  again. Core's `index.ts` exports the module.
+- [x] 1.2 `askRunToStop({ directory, to, reason, key, machine, gitAuthor })`
   seals the message with `sealEnvelope` and writes it to
   `<messageId>.json` through a temporary name and rename. It returns the
   `messageId`, a random UUID.
-- [ ] 1.3 `readStopRequests({ directory, instanceId, roster, now, seen })`
+
+  Done. A temporary file that a failed rename leaves behind is removed.
+  `now` and `messageId` are test seams.
+- [x] 1.3 `readStopRequests({ directory, instanceId, roster, now, seen })`
   opens every file with `openEnvelope`, parses a payload only once its
   envelope opens, and keeps the payloads whose `to` is `instanceId`. It
   returns each kept message with one of these states:
@@ -23,11 +31,34 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   A file whose envelope does not check out is never parsed, so nothing says
   which run it is addressed to. `readStopRequests` returns nothing for it.
   Do not attribute it to whichever run happens to read it.
-- [ ] 1.4 `readUnopenedRequests(directory, roster)` returns the file names of
+
+  Done. An `act` reading carries the enrolled `person`, whose label is the
+  `by` a run records.
+  - A refusal is decided in this order: unverified, then seen, then stale.
+    A request dated more than the window ahead of `now` is stale too,
+    since it was not made just now.
+  - A payload that is not a well-formed stop message, or whose `messageId`
+    is not its file name, is a request to nobody and is not returned.
+  - Temporary files are not read. A file that vanishes between listing and
+    reading is skipped.
+- [x] 1.4 `readUnopenedRequests(directory, roster)` returns the file names of
   requests whose envelope does not check out. `openspec-ui-cli status`
   reports each one beneath the runs as
   `a request to stop that does not check out: <file>`.
-- [ ] 1.5 core `agent-messages.test.ts`:
+
+  Done. `status` reads the roster and the messages beside the status
+  directory it already resolved.
+  - The line appears beneath the runs, and also after "No runs are
+    reporting themselves." when nothing runs.
+  - `--format json` adds `unopenedRequests` only where there is one, so a
+    reading with none keeps its shape.
+  - A request directory that cannot be read does not stop the runs being
+    reported.
+
+  `status-command.test.ts` has two new tests: the line beneath a run, and
+  the line with nothing running plus the JSON field present and absent. The
+  file passes, 21 tests.
+- [x] 1.5 core `agent-messages.test.ts`:
   - a verified message for this instance is acted on;
   - the same message a second time is refused as `seen`;
   - a message 61 seconds old is refused as `stale`;
@@ -35,6 +66,12 @@ only when verified, fresh and new (ADR 0028, ADR 0029, ADR 0026 amendment).
   - a message with one changed byte is not parsed, is not returned for any
     instance, and is listed by `readUnopenedRequests`;
   - a message for another instance is not returned.
+
+  Done: each of these is a test. A seventh reads a directory nobody has
+  written to as holding no requests. The changed byte is flipped inside the
+  signed payload, so the signature no longer verifies. The file passes, 7
+  tests, and states its time budget. Core and cli typecheck, and lint is
+  clean.
 
 ## 2. The run reads its requests
 
