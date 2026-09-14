@@ -150,12 +150,17 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
 ## 3. Stopping where the work is sound
 
-- [ ] 3.1 `HarnessChainRunner.requestStop(runId: string, reason: string, by?: string): boolean`
+- [x] 3.1 `HarnessChainRunner.requestStop(runId: string, reason: string, by?: string): boolean`
   in `packages/core/src/harness-chain-runner.ts` returns `false` for a run
   it does not have. For a run waiting at a checkpoint, it yields
   `stopRequested` with outcome `asked`, then ends the chain `cancelled` with
   no reason, as a declined checkpoint does.
-- [ ] 3.2 For a run inside a stage, `requestStop` yields `stopRequested` with
+
+  Done: the checkpoint resolves `stopped`, and the chain yields
+  `stopRequested` and then `cancelled` with no reason. A stop asked for
+  between stages ends the chain the same way before another stage starts.
+  A second request while one is pending changes nothing.
+- [x] 3.2 For a run inside a stage, `requestStop` yields `stopRequested` with
   outcome `asked`, then ends the stage at the first of:
   - a completed reply or stdout line that `readTaskMarker` reads as a task
     other than the last one named;
@@ -166,20 +171,54 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
 
   It then cancels the stage's runner, starts no further stage, and ends
   `cancelled` with no reason.
-- [ ] 3.3 A run waiting on a permission stops at once: the request is
+
+  Done: `runStage` no longer reads the runner with `for await`. It races
+  the next event against a wake that `requestStop` gives, and, once the
+  stop is announced, against a 2-second interval that only runs then.
+  - A marker is read from stdout lines and from an ACP agent's streamed
+    text. A line counts once its newline arrives, or once a different kind
+    of event does.
+  - The ticked count is taken as the stop is announced and read on each
+    wake.
+  - The stage ends through the runner's own `cancel`, so its `cancelled`
+    comes once the process is gone, with no reason, and is not taken for
+    a ceiling to retry.
+  - A stage that ends on its own first ends the chain before another stage
+    starts.
+- [x] 3.3 A run waiting on a permission stops at once: the request is
   answered `deny`, and the chain ends as in 3.1.
-- [ ] 3.4 `asAgentRunner()` turns a `stop` command into `requestStop` and
+
+  Done: the stage remembers the permission request it waits on until any
+  other output arrives. A stop sends `resolvePermission` with `deny` for
+  it and cancels the stage. A permission asked for after the stop is
+  announced is denied the same way.
+- [x] 3.4 `asAgentRunner()` turns a `stop` command into `requestStop` and
   yields the `stopRequested` it produces. For a run it does not have, it
   yields `stopRequested` with `outcome: "nothing-to-stop"`.
+
+  Done, with one deliberate difference. For a run this runner has, the
+  `stopRequested` is yielded once, on the chain's own stream. That is the
+  stream the status record, the live-runs registry and the host that sent
+  the command already read. Yielding it on the stop command's stream too
+  would reach the same socket or panel twice. A stop for a run it does not
+  have is answered on the stop command's stream with `nothing-to-stop`.
 - [ ] 3.5 `AgentRunner` in `packages/core/src/agent-runner.ts` accepts `stop`
   for a single-stage run it holds, and ends the run at a marker naming
   another task, or when the count of ticked tasks rises, as in 3.2. For a
   `plan` or `review` run, it yields `stopRequested` and lets the run end on
   its own.
-- [ ] 3.6 After a requested stop, the chain's ending entry carries
+- [x] 3.6 After a requested stop, the chain's ending entry carries
   `stopRequest { reason, by }` and no `reason`.
-- [ ] 3.7 `by` is `GitWrapper.configuredIdentity()` for the host's
+
+  Done: `recordEnding` writes `stopRequest` on a `cancelled` ending after a
+  requested stop, and leaves `reason` off it.
+- [x] 3.7 `by` is `GitWrapper.configuredIdentity()` for the host's
   workspace. It is absent when no identity is configured.
+
+  Done: where the caller gives no `by`, the announcement reads
+  `configuredIdentity()` for the command's `cwd` through the runner's own
+  `createGitWrapper` seam. An identity that is absent or cannot be read
+  leaves `by` off; the stop still goes ahead.
 - [ ] 3.8 The status record:
   - `AgentStatusDocument` gains
     `stopRequested: { reason: string; by?: string; at: string } | null`.
@@ -187,7 +226,7 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
     outcome `asked`, and writes at once. The activity becomes
     `asked to stop`, followed by `by <by>` where known and `: <reason>`.
   - `readAgentStatusRecord` reads a missing or malformed value as `null`.
-- [ ] 3.9 core `harness-chain-runner.test.ts`:
+- [x] 3.9 core `harness-chain-runner.test.ts`:
   - a stop at a checkpoint ends the chain at once;
   - a stop during a stage ends it at the next marker naming another task;
   - when no marker comes, it ends at the next tick (a fake clock drives the
@@ -196,6 +235,23 @@ stop that waits for a sound point (ADR 0029, ADR 0028).
   - no stage starts after a stop;
   - the ending entry carries `stopRequest`;
   - an unknown run yields `nothing-to-stop`.
+
+  Done: "asked to stop" has seven tests. A scripted stage runner is fed
+  one event at a time:
+  - a marker, where the stage survives a line on the same task and ends
+    at `Starting task 2.2`, no stage starts after, and the ending entry
+    carries `stopRequest` with no `reason`;
+  - a tick, under a fake `setInterval`: nothing happens at the first two
+    seconds, and the stage ends at the next once a task is ticked;
+  - the stage's own end;
+  - a checkpoint, where `by` is left off when no identity is configured;
+  - a permission, answered `deny`;
+  - a stop sent through `asAgentRunner`, which arrives once, on the
+    chain's stream;
+  - an unknown run.
+
+  The whole file passes, 102 tests; the 95 that were there before are
+  unchanged.
 - [ ] 3.10 core `agent-runner.test.ts`: a single `implement` run stops at a
   tick; a `review` run accepts a stop and ends on its own.
 
