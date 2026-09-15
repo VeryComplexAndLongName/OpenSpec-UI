@@ -309,6 +309,16 @@ export const shellThemeCss = `
      Metro's 16px, so a placeholder and a value are the same size. */
   .openspec-metro {
     --input-font-size: 1em;
+
+    /* A disabled control still says what it is. Metro's dark palette
+       draws one at 25% opacity, or as near-black text on a near-black
+       ground, and on screen it all but vanished beside the controls that
+       work. Disabled text needs no contrast ratio, but it should still be
+       legible, so these come from the shell's tokens in both themes. The
+       VS Code layer sets them again, from the editor theme. */
+    --button-disabled-opacity: 0.55;
+    --input-color-disabled: var(--muted);
+    --input-background-disabled: var(--surface-2);
   }
 
   .openspec-shell-field input,

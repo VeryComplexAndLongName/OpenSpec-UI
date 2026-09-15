@@ -298,8 +298,25 @@ dark theme that follows the system.
 
 ## 5. Pictures and checks
 
-- [ ] 5.1 The whole standalone browser suite passes. axe's WCAG AA run covers
+- [x] 5.1 The whole standalone browser suite passes. axe's WCAG AA run covers
   the standalone shell in light and in dark.
+
+  Done on 2026-09-15.
+  - **The whole suite.** `npm run test:browser -w @openspec-ui/server`, run
+    unpiped: 20 passed in 7.2 minutes.
+  - **The dark pass.** `standalone.spec.ts` now presses the header's "Dark
+    theme" toggle after its light axe run. It checks `aria-pressed` and
+    `data-openspec-theme="dark"`, then runs axe again with the same WCAG
+    2.0 and 2.1 A/AA tags, with no serious or critical violation allowed.
+  - **A second run.** That spec, with the disabled-state fix below, was
+    rebuilt and run on its own: 1 passed in 15.2s. The whole-suite run
+    had compiled the spec before the dark pass was added.
+  - **A fix found while looking at the dark screen.** Metro's dark palette
+    draws a disabled button at 25% opacity, and a disabled field as
+    near-black text on near-black. Both all but vanished. `shellThemeCss`
+    now sets `--button-disabled-opacity`, `--input-color-disabled` and
+    `--input-background-disabled` from the shell's tokens, and the VS Code
+    layer sets them from the editor theme.
 - [ ] 5.2 Every picture under `docs/images/` is retaken by its spec, from Bash
   for the editor pictures, and looked at.
 - [x] 5.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` minor,
