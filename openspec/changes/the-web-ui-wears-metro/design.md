@@ -74,10 +74,27 @@ exporting one string. The pass:
   `checkbox`, `table`, `tabs`, `dialog`, `progress`, `badge`, `panel` and
   `card`), `:root` and `.dark-side` variable blocks for those components and
   the base palette, and the `@keyframes` those rules name;
-- **drops** every rule whose selector is a bare element, `*`, `html` or
-  `body`;
+- **keeps** Metro's rules on the native controls `button`, `input`, `select`,
+  `textarea` and `table`. Without `metro.js` these are how Metro draws a
+  native control. Its `.input`, `.select` and `.textarea` classes are for the
+  wrappers its script builds (`display:flex; padding:0`), and on a native
+  field they break it;
+- **drops** every other rule whose selector is a bare element, `*` outside a
+  kept component, `html` or `body`;
 - **scopes** each kept selector under `.openspec-metro`, and rewrites `:root`
-  and `.dark-side` as `.openspec-metro` and `.openspec-metro.dark-side`.
+  and `.dark-side` as `.openspec-metro` and `.openspec-metro.dark-side`;
+- **wraps** the copy in `@layer metro`. An unlayered rule wins over a layered
+  one whatever their specificity, so the shell's widths and layout (0023)
+  hold against Metro's scoped selectors with no `!important` and no
+  specificity race;
+- **strips `!important`** from every kept declaration. Inside a layer an
+  important declaration beats every unlayered one. Metro's
+  `.button.primary:hover` and `.button.alert:hover` set literal colours that
+  way, and they would override the VS Code mapping of decision 6.
+
+The native-control rules and the layer were settled while implementing
+2.2, after the first build put a bare `<input>` under Metro's wrapper rule.
+ADR 0030 decision 2 carries the amendment.
 
 The generated module is committed, and a test runs the script and asserts
 the output is unchanged. A forgotten rebuild fails there, not in a picture.
@@ -96,12 +113,18 @@ from the body class the editor adds.
 
 ### 4. The controls take Metro's classes
 
-For example, `button` gains `button`, the primary action `button primary`, and
-a text field `input`. Tabs keep their ARIA structure and take `tabs` classes.
+Native buttons, fields, selects, textareas and checkboxes take Metro's look
+with no class of their own, from the native-control rules of decision 2. A
+class is added where it says something Metro draws differently: the primary
+action `button primary`, a destructive one `button alert`, a small one
+`small`, a table `table`, a count `badge`. Tabs keep their ARIA structure and
+take `tabs` classes.
+
 Existing `openspec-*` classes stay for layout, which Metro does not provide.
-Where a Metro rule and an `openspec-*` rule disagree on spacing, the
-`openspec-*` rule is removed, not overridden: two rules fighting over one
-property is how 0023's patchy look began.
+Because Metro sits in a layer, an `openspec-*` rule wins wherever both set a
+property. Such a rule that only repeats a look Metro now draws is removed
+(task 3.3). Two rules fighting over one property is how 0023's patchy look
+began.
 
 ### 5. The standalone theme: system first, then the person's choice
 

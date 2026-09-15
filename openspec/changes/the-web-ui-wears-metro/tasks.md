@@ -43,7 +43,25 @@ dark theme that follows the system.
   - **The rule now.** A selector is kept only when every class it names is a
     kept component's or one of `KEPT_MODIFIERS`: a colour for an action or
     state (`primary`, `alert`, `success`, `warning`, `info`), `small`, and the
-    states a control passes through.
+    states a control passes through. Beside a kept class, any element may
+    appear (`.table td`, `.button-group>*`).
+  - **Native controls.** Metro's rules on `button`, `input`, `select`,
+    `textarea` and `table` are kept too. Without `metro.js` they are how Metro
+    draws a native control. Its `.input`, `.select` and `.textarea` classes
+    style the wrappers its script builds, as `display:flex; padding:0`, so
+    on a bare `<input>` they break the field. `html` and `body` are never
+    kept.
+  - **The layer.** The copy is wrapped in `@layer metro`. The shell's
+    unlayered rules (widths, layout) then win over Metro's scoped selectors,
+    with no specificity race.
+  - **`!important`.** It is stripped from every kept declaration: 55 of
+    them. Inside a layer an important declaration beats every unlayered
+    one, and Metro's primary and alert hover colours are literals written
+    that way.
+  - **Where it is written down.** ADR 0030 decision 2 carries these three
+    points as an amendment dated 2026-09-15. So do design decision 2 and the
+    spec delta, with a scenario for a native field keeping the shell's
+    width.
 - [x] 2.3 Tests:
   - the vendored file's hash;
   - the generated module matches a fresh run of the script;
@@ -51,26 +69,41 @@ dark theme that follows the system.
   - every selector starts with `.openspec-metro`;
   - no `url(` to another origin.
 
-  Done: `packages/webui/scripts/build-metro.test.mjs`, 5 tests, run by the
-  package's `vitest run`.
+  Done: `packages/webui/scripts/build-metro.test.mjs` has 8 tests, run by the
+  package's `vitest run`. They check:
+  - the hash;
+  - the fresh run;
+  - one `@layer metro` at the top;
+  - scoping;
+  - no selector but a kept component's or a native control's;
+  - no `html` or `body`, and no `*` outside a kept component;
+  - no `!important`;
+  - no external `url(` or `@import`.
+
+  Notes:
   - **Environment.** They run in Vitest's node environment.
   - **The script's `#!` line went.** Vitest failed on it when importing the
     script, and the npm script runs the file through `node` anyway.
-  - **What counts as `*`.** A `*` inside a kept selector stays, as in
-    `.button-group>*`, `.dialog *+.dialog-content` or `*+.card`. It reaches
-    only that component's children. A selector whose only class is the root
-    fails the bare-element test, and `html` and `body` may not appear at all.
+  - **A `*` inside a kept component stays.** Examples are `.button-group>*`,
+    `.dialog *+.dialog-content` and `*+.card`. It reaches only that
+    component's children.
 - [x] 2.4 Record the derived copy's size, and each kept component's rule
   count.
 
-  **First build with the narrower rule, 2026-09-15:**
-  - **Size.** 132,319 bytes: 1,024 rules, 90 light and 64 dark variables,
-    and no keyframes. 86 rules on bare elements were dropped.
+  **Build of 2026-09-15**, with native controls, the layer and no
+  `!important`:
+  - **Size.** 147,634 bytes: 1,048 rules, 101 light and 72 dark variables,
+    and no keyframes. 65 rules on bare elements were dropped.
+  - **Earlier builds.** The narrower class rule alone gave 132,319 bytes and
+    1,024 rules. The first, broad rule gave 221,032 bytes and 1,661 rules.
   - **Selectors per component:** button 621, input 308, tabs 94, checkbox
     77, select 60, table 53, progress 52, textarea 51, badge 39, dialog 24,
     card 5 and panel 5.
-  - **Checks.** No selector falls outside `.openspec-metro`, none names no
-    class of its own, and no `url(`.
+  - **Selectors on native controls,** where no kept class is named: input
+    252, button 20, textarea 19, select 16 and table 1. Most of the input
+    count is the per-type lists `input[type=text],input[type=password],…`.
+  - **Checks.** No selector falls outside `.openspec-metro`, and there is no
+    `url(` and no `!important`.
 
   To be recorded again once 3.2 settles which modifiers the controls use.
 
@@ -81,8 +114,11 @@ dark theme that follows the system.
 
   Done in the five entries: standalone, the AI panel, Harness Settings, the
   Pipeline and the Timeline.
-  - **Nothing changes on screen yet.** No `className` in webui names a bare
-    Metro class or modifier, so no kept rule matches an element until 3.2.
+  - **What changes on screen.** When 3.1 was first committed, nothing did:
+    no `className` named a Metro class. Once 2.2 kept the native-control
+    rules, every native button, field, select and textarea under the root
+    takes Metro's look straight away. Wherever the shell's own unlayered
+    rules set a property, theirs still wins.
   - **Checks.** webui typecheck and lint pass, and its tests pass: 52 files,
     477 tests.
   - **Line endings.** The root `.gitattributes` keeps

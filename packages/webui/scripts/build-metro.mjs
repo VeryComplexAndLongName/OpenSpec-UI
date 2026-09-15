@@ -5,13 +5,19 @@
 // element, and defines its colours as more than a thousand variables. This
 // keeps only what the web UI's controls use:
 //
-// - rules whose selector names a class of a kept component, each selector
-//   scoped under `.openspec-metro`;
+// - rules whose selector names a class of a kept component, or one of the
+//   native controls Metro styles without metro.js (`button`, `input`,
+//   `select`, `textarea`, `table`), each selector scoped under
+//   `.openspec-metro`;
 // - from Metro's `:root` and `.dark-side` blocks, only the variables those
 //   rules read, followed through the variables they read in turn;
 // - the `@keyframes` the kept rules name.
 //
-// Every rule on a bare element, `@font-face` and `@import` is dropped.
+// Every other rule on a bare element, `@font-face` and `@import` is dropped.
+// The copy is wrapped in `@layer metro`, so the shell's own unlayered rules
+// win wherever both set a property: Metro draws a control, the shell keeps
+// its layout and widths.
+//
 // The result is written as a TypeScript module, committed, and checked
 // against a fresh run by a test, so a forgotten rebuild fails there.
 //
@@ -28,6 +34,9 @@ export const OUTPUT = path.resolve(here, "../src/metro-css.generated.ts");
 
 /** The root every kept selector is placed under. */
 export const ROOT_CLASS = "openspec-metro";
+
+/** The cascade layer the copy sits in, beneath the shell's own rules. */
+export const LAYER = "metro";
 
 /** The Metro components the web UI's controls use. A class belongs to a
  * component when it is the component's name or starts with it and a dash
@@ -46,6 +55,12 @@ export const KEPT_COMPONENTS = [
   "panel",
   "card",
 ];
+
+/** The native elements Metro styles with no class and no metro.js. Its
+ * `.input`, `.select` and `.textarea` classes are for the wrappers metro.js
+ * builds (`display:flex; padding:0`), so a native field takes Metro's look
+ * from these rules instead. */
+export const KEPT_ELEMENTS = ["button", "input", "select", "textarea", "table"];
 
 function isKeptClass(name) {
   return KEPT_COMPONENTS.some((component) => name === component || name.startsWith(`${component}-`));
@@ -75,20 +90,35 @@ export const KEPT_MODIFIERS = [
   "compact",
 ];
 
-function isKeptSelector(names) {
-  return names.some(isKeptClass) && names.every((name) => isKeptClass(name) || KEPT_MODIFIERS.includes(name));
-}
-
-/** Every class name a selector names, anywhere in it. */
-function classesOf(selector) {
-  const names = [];
+/** The class names and element names a selector names, anywhere in it. */
+function namesOf(selector) {
+  const classes = [];
+  const elements = [];
   csstree.walk(selector, {
-    visit: "ClassSelector",
     enter(node) {
-      names.push(node.name);
+      if (node.type === "ClassSelector") classes.push(node.name);
+      if (node.type === "TypeSelector") elements.push(node.name.toLowerCase());
     },
   });
-  return names;
+  return { classes, elements };
+}
+
+/**
+ * A selector is kept when it names a kept component's class or a kept native
+ * element, and every class it names is a kept component's or a kept modifier.
+ *
+ * - **Beside a kept class,** any element is allowed: `.table td`,
+ *   `.button-group>*`. It reaches only that component's own children.
+ * - **Without a kept class,** every element must be a kept native control, so
+ *   `input[type=text]` stays and `label:has(input)` goes.
+ * - **`html` and `body`** are never kept.
+ */
+function isKeptSelector(selector) {
+  const { classes, elements } = namesOf(selector);
+  if (elements.includes("html") || elements.includes("body")) return false;
+  if (!classes.every((name) => isKeptClass(name) || KEPT_MODIFIERS.includes(name))) return false;
+  if (classes.some(isKeptClass)) return true;
+  return elements.length > 0 && elements.every((name) => KEPT_ELEMENTS.includes(name));
 }
 
 /** `:root` alone, or `.dark-side` alone, as Metro writes its variable blocks. */
@@ -157,6 +187,7 @@ export function deriveMetroCss(sourceText) {
   /** `@keyframes` blocks by name. */
   const keyframes = new Map();
   let droppedBare = 0;
+  let droppedImportant = 0;
 
   function collect(list, media) {
     list.forEach((node) => {
@@ -184,11 +215,24 @@ export function deriveMetroCss(sourceText) {
         return;
       }
 
-      const kept = selectors.filter((selector) => isKeptSelector(classesOf(selector)));
+      const kept = selectors.filter(isKeptSelector);
       if (kept.length === 0) {
-        if (selectors.every((selector) => classesOf(selector).length === 0)) droppedBare += 1;
+        if (selectors.every((selector) => namesOf(selector).classes.length === 0)) droppedBare += 1;
         return;
       }
+      // An `!important` inside a layer beats every unlayered rule, which
+      // would let Metro's literal hover colours (`.button.primary:hover`)
+      // override the VS Code theme mapping and the shell's own rules. The
+      // layer decides precedence instead.
+      csstree.walk(node.block, {
+        visit: "Declaration",
+        enter(declaration) {
+          if (declaration.important) {
+            declaration.important = false;
+            droppedImportant += 1;
+          }
+        },
+      });
       keptRules.push({ selectors: kept.map((selector) => scoped(csstree.generate(selector))), block: node.block, media });
     });
   }
@@ -240,7 +284,7 @@ export function deriveMetroCss(sourceText) {
     if (block) out.push(csstree.generate(block));
   }
 
-  const css = out.join("\n");
+  const css = `@layer ${LAYER}{\n${out.join("\n")}\n}`;
   return {
     css,
     figures: {
@@ -249,6 +293,7 @@ export function deriveMetroCss(sourceText) {
       darkVariables: dark.length,
       keyframes: [...neededAnimations].filter((name) => keyframes.has(name)).length,
       droppedBareRules: droppedBare,
+      droppedImportant,
       bytes: Buffer.byteLength(css, "utf8"),
     },
   };

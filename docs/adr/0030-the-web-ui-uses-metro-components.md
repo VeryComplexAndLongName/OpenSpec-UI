@@ -48,13 +48,35 @@ that maps each token to `--vscode-*` (0023 decision 4).
    webview's Content Security Policy would refuse it, and the project site made
    the same call.
 
-2. **What ships is a derived copy, built from the vendored source.** A build
-   step keeps only the rules of the components the web UI uses. It scopes
-   every selector under one root class, and drops every rule on a bare element
-   (`*`, `html`, `body`, `table`, `img` and the rest). The result is one CSS
-   string the five bundles already know how to carry. Metro's global rules
-   would otherwise restyle every webview page: the project site found its
-   `body` rule shrinking the header and footer to their content.
+2. **What ships is a derived copy, built from the vendored source.**
+   - **What the build step keeps.** Only the rules of the components the web
+     UI uses, and Metro's rules on the native controls those components are
+     drawn with: `button`, `input`, `select`, `textarea` and `table`.
+   - **What it drops.** Every other rule on a bare element: `*`, `html`,
+     `body`, `img`, headings and the rest.
+   - **Scope.** Every selector sits under one root class.
+   - **Layer.** The copy sits in a cascade layer, so the shell's own layout
+     and width rules win wherever both set a property.
+
+   The result is one CSS string the five bundles already know how to carry.
+   Metro's global rules would otherwise restyle every webview page: the
+   project site found its `body` rule shrinking the header and footer to their
+   content.
+
+   *Amended on 2026-09-15, during implementation.* The first wording dropped
+   every rule on a bare element, native controls included. Without
+   `metro.js`, though, those rules are how Metro draws a native control. Its
+   `.input`, `.select` and `.textarea` classes style the wrappers its script
+   builds, as a flex box with no padding. Scoped under the root, a
+   native-control rule reaches no page Metro does not own, so the decision's
+   reason still holds.
+
+   The same amendment added two more things:
+   - **The cascade layer.** Without it, Metro's scoped selectors outweigh the
+     shell's widths from 0023.
+   - **Stripping `!important`** from the copy. Inside a layer, an important
+     declaration beats every unlayered one. Metro's primary and alert hover
+     colours are written that way, so they would override the editor theme's.
 
 3. **No `metro.js`.** React owns the DOM and every behaviour. Metro's script
    builds and moves elements itself, which React would fight.

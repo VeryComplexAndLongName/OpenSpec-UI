@@ -86,18 +86,30 @@ The component framework SHALL be vendored in the repository as its
 published file, pinned by version and checksum, with its licence.
 
 What ships SHALL be derived from that file by a build step that keeps only
-the components the shell uses. That step SHALL scope every rule under the
-shell's own root, and SHALL keep no rule on a bare element. The derived
-copy SHALL be committed, and a check SHALL fail when it differs from what
-the step produces.
+the components the shell uses, and the framework's rules on the native
+controls those components are drawn with.
+
+That step SHALL scope every rule under the shell's own root. It SHALL keep
+no rule on `body`, `html`, or any other bare element that is not such a
+control, and no `*` outside a kept component. The derived copy SHALL sit
+in a cascade layer beneath the shell's own rules.
+
+The derived copy SHALL be committed, and a check SHALL fail when it differs
+from what the step produces.
 
 Nothing the shell draws SHALL be fetched from another origin.
 
 #### Scenario: A global rule in the framework
 
 - **WHEN** the vendored framework contains a rule on `body`, `html`, `*`
-  or another bare element
+  or a bare element that is not a native control
 - **THEN** the shipped copy does not contain it
+
+#### Scenario: A native control and the shell's own width
+
+- **WHEN** a native field inside the shell's root is given a width by the
+  shell, and the framework's rule for that field sets another
+- **THEN** the field takes the framework's appearance and the shell's width
 
 #### Scenario: A forgotten rebuild
 
