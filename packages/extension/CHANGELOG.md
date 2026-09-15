@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.58.1
+
+### Patch Changes
+
+- dbcbeb9: A change's artifact list now includes only files inside that change's own
+  folder. Some OpenSpec schemas point outside the change, for example
+  `spec-driven-with-adr` as published between May and June 2026, whose ADR
+  artifact covered the repository's whole `adr/` folder. With such a schema,
+  every ADR of the repository used to appear under every change. A link inside
+  a change that points elsewhere no longer brings files in either.
+- Updated dependencies [dbcbeb9]
+  - @openspec-ui/core@0.89.1
+  - @openspec-ui/server@1.26.4
+  - @openspec-ui/webui@1.49.2
+
 ## 0.58.0
 
 ### Minor Changes
