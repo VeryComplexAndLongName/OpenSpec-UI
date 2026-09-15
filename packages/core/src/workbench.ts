@@ -40,12 +40,6 @@ export interface WorkbenchChange {
   schema?: ChangeSchema;
 }
 
-export interface WorkbenchSpec {
-  id: string;
-  path: string;
-  exists: boolean;
-}
-
 export interface OpenSpecWorkspace {
   root: string;
   openspecRoot: string;
@@ -54,8 +48,10 @@ export interface OpenSpecWorkspace {
   configExists: boolean;
   changes: WorkbenchChange[];
   archivedChanges: WorkbenchChange[];
-  specs: WorkbenchSpec[];
   archiveExists: boolean;
+  /** Whether `openspec/specs/` exists. The canonical specs themselves are
+   * listed by the OpenSpec CLI (`listSpecs`), which finds them at any depth;
+   * core keeps no second, shallower list of them (ADR 0031). */
   specsRootExists: boolean;
 }
 
@@ -253,17 +249,10 @@ export async function discoverOpenSpecWorkspace(
     exists(archiveRoot),
     exists(specsRoot),
   ]);
-  const [changes, archivedChanges, specIds] = await Promise.all([
+  const [changes, archivedChanges] = await Promise.all([
     discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment),
     discoverChanges(changesRoot, true, resolvedRoot, schemaCache, environment),
-    directoryNames(specsRoot),
   ]);
-  const specs = await Promise.all(
-    specIds.map(async (id): Promise<WorkbenchSpec> => {
-      const specPath = path.join(specsRoot, id, "spec.md");
-      return { id, path: specPath, exists: await exists(specPath) };
-    }),
-  );
 
   return {
     root: resolvedRoot,
@@ -273,7 +262,6 @@ export async function discoverOpenSpecWorkspace(
     configExists,
     changes,
     archivedChanges,
-    specs,
     archiveExists,
     specsRootExists,
   };

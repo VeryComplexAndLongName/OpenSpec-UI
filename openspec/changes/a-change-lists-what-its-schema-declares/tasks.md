@@ -87,6 +87,23 @@ on 2026-09-15. See ADR 0031.
 
   Done: `"yaml": "^2.9.0"`, the version already in the lockfile, recorded
   with `npm install --package-lock-only`.
+- [x] 2.7 Core keeps no second list of canonical specs: `workspace.specs`
+  and `WorkbenchSpec` are removed.
+
+  Done.
+  - **What changed.** `OpenSpecWorkspace` keeps `specsRootExists`, which
+    decides `initialized` and the empty-state text, and loses `specs`.
+    `workbench.test.ts` now asserts the property is gone.
+  - **Checks.** Typecheck passes in core, the server, the extension, the
+    CLI and webui, so nothing else referenced it. The workbench and
+    change-schema tests pass (21), and core lint passes.
+  - **Why.** Every screen lists canonical specs through the OpenSpec CLI
+    (`listSpecs`), which finds them at any depth: the Specs tree, the
+    standalone overview (`rest.ts` sends `specsResult.specs`), and the
+    extension's summaries. Core's own copy looked one level deep, and only
+    its own test read it.
+  - **Decided with the owner on 2026-09-15.** Remove the copy rather than
+    make it recursive, so no later caller picks up the shallower list.
 
 ## 3. The consumers
 

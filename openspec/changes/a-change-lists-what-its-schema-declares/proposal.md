@@ -42,6 +42,9 @@ decision this change applies.
   delta specs their kind, so the Timeline, the task checklist, the task
   templates and the spec-delta check are unchanged. Any other artifact is
   listed under its schema id.
+- **Core's own list of canonical specs is removed** (`workspace.specs`).
+  Every screen already lists them through the CLI, which finds nested specs.
+  The one-level copy in `workbench.ts` was read by nothing but its own test.
 - **A schema that cannot be read falls back to `spec-driven`.** The change
   says why: not found, does not parse, or declares no artifacts.
 - **Dependency.** Core gains `yaml` as a runtime dependency.

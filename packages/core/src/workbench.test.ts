@@ -37,7 +37,6 @@ describe("discoverOpenSpecWorkspace", () => {
     expect(workspace.specsRootExists).toBe(false);
     expect(workspace.changes).toEqual([]);
     expect(workspace.archivedChanges).toEqual([]);
-    expect(workspace.specs).toEqual([]);
   });
 
   it("discovers config, change artifacts, archive, and canonical specs", async () => {
@@ -78,9 +77,9 @@ describe("discoverOpenSpecWorkspace", () => {
     ]);
     expect(workspace.changes[0]?.schema).toMatchObject({ name: "spec-driven", source: "built-in" });
     expect(workspace.archivedChanges[0]?.state).toBe("archived");
-    expect(workspace.specs).toEqual([
-      { id: "demo", path: path.join(canonicalSpec, "spec.md"), exists: true },
-    ]);
+    // Canonical specs are listed by the OpenSpec CLI, not by discovery
+    // (a-change-lists-what-its-schema-declares 2.7).
+    expect(workspace).not.toHaveProperty("specs");
   });
 
   // Both defects reported by DW, a user of the VS Code extension, on
