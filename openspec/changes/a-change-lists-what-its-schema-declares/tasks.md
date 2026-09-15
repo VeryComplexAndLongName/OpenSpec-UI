@@ -145,13 +145,33 @@ on 2026-09-15. See ADR 0031.
 
 ## 4. Checks
 
-- [ ] 4.1 `openspec validate a-change-lists-what-its-schema-declares --strict`
+- [x] 4.1 `openspec validate a-change-lists-what-its-schema-declares --strict`
   passes.
-- [ ] 4.2 `npm run verify` passes, run unpiped. Record each package's count.
-- [ ] 4.3 The whole standalone browser suite passes: the server reads the same
+
+  Done on 2026-09-15: "Change 'a-change-lists-what-its-schema-declares' is
+  valid", run right before the implementation commit.
+- [x] 4.2 `npm run verify` passes, run unpiped. Record each package's count.
+
+  Done on 2026-09-15. `npm run verify` exited 0, with its output written to a
+  file.
+  - **The root's script tests** report `fail 0`.
+  - **Workspace tests:**
+    - `@openspec-ui/cli`: 16 files, 161 tests;
+    - `@openspec-ui/core`: 104 files, 1,472 tests, then 2 files, 4 tests;
+    - `openspec-ui-vscode`: 28 files, 378 tests;
+    - `@openspec-ui/server`: 4 files, 100 tests;
+    - `@openspec-ui/webui`: 55 files, 491 tests.
+- [x] 4.3 The whole standalone browser suite passes: the server reads the same
   discovery.
-- [ ] 4.4 A changeset: `@openspec-ui/core` minor, `openspec-ui-vscode` minor,
+
+  Done on 2026-09-15: `npm run test:browser -w @openspec-ui/server`, run
+  unpiped with the client rebuilt from this branch. 20 passed in 5.0 minutes.
+- [x] 4.4 A changeset: `@openspec-ui/core` minor, `openspec-ui-vscode` minor,
   `@openspec-ui/server` patch.
+
+  Done: `.changeset/a-change-lists-what-its-schema-declares.md`, with those
+  three levels and a summary for the extension's changelog. `lint:changesets`
+  passes.
 - [ ] 4.5 A live check in the Extension Development Host, on a workspace with
   DW's layout and schema, with a picture kept outside the repository. The
   change shows Proposal, ADR, Spec: web/dashboard-foundation, Design and
