@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-14T13:46:07.464Z",
+  "generated_at": "2026-09-15T04:31:16.392Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "7c9644cc57ef7974e9d0cf07fd03a8c1ebbf0e25",
+  "commit": "a5e6d32462ed963685e0a00c33685212ba16c8d4",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.56.0",
-      "released_at": "2026-09-14T13:46:07.464Z",
-      "tag": "openspec-ui-vscode@0.56.0",
+      "version": "0.57.0",
+      "released_at": "2026-09-15T04:31:16.392Z",
+      "tag": "openspec-ui-vscode@0.57.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.56.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.57.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.56.0/openspec-ui-vscode-0.56.0.vsix",
-          "size_bytes": 6283230
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.57.0/openspec-ui-vscode-0.57.0.vsix",
+          "size_bytes": 6429162
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
+          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.26.1",
-      "released_at": "2026-09-14T13:46:07.464Z",
+      "version": "1.26.2",
+      "released_at": "2026-09-15T04:31:16.392Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +50,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
+          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
         }
       ]
     },
@@ -60,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.88.0",
-      "released_at": "2026-09-14T13:46:07.464Z",
+      "released_at": "2026-09-15T04:31:16.392Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -88,8 +88,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.48.0",
-      "released_at": "2026-09-14T13:46:07.464Z",
+      "version": "1.49.0",
+      "released_at": "2026-09-15T04:31:16.392Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -99,7 +99,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The owl marks the app. It stands at the left of the standalone shell's headline and of the editor's AI panel, and it is the standalone page's browser-tab icon. In VS Code it is the extension's icon, and a monochrome owl is its Activity Bar icon."
+          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
         }
       ]
     },
@@ -109,7 +109,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-14T13:46:07.464Z",
+      "released_at": "2026-09-15T04:31:16.392Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
