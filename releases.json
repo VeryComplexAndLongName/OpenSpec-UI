@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-15T09:50:52.485Z",
+  "generated_at": "2026-09-15T16:13:34.569Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "a699fe37142a7a862aae67160eff147d4f2a13d4",
+  "commit": "83912d5ee11da111531bac1a6509bf590305b81f",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.58.1",
-      "released_at": "2026-09-15T09:50:52.485Z",
-      "tag": "openspec-ui-vscode@0.58.1",
+      "version": "0.58.2",
+      "released_at": "2026-09-15T16:13:34.569Z",
+      "tag": "openspec-ui-vscode@0.58.2",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.58.1"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.58.2"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.58.1/openspec-ui-vscode-0.58.1.vsix",
-          "size_bytes": 6586742
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.58.2/openspec-ui-vscode-0.58.2.vsix",
+          "size_bytes": 6588812
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "A change's artifact list now includes only files inside that change's own"
+          "summary": "Artifact labels in the Changes tree read better with custom OpenSpec schemas."
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.26.4",
-      "released_at": "2026-09-15T09:50:52.485Z",
+      "version": "1.26.5",
+      "released_at": "2026-09-15T16:13:34.569Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,8 +54,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.89.1",
-      "released_at": "2026-09-15T09:50:52.485Z",
+      "version": "0.90.0",
+      "released_at": "2026-09-15T16:13:34.569Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -65,8 +65,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A change's artifact list now includes only files inside that change's own"
+          "kind": "minor",
+          "summary": "Artifact labels in the Changes tree read better with custom OpenSpec schemas."
         }
       ]
     },
@@ -75,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.49.2",
-      "released_at": "2026-09-15T09:50:52.485Z",
+      "version": "1.49.3",
+      "released_at": "2026-09-15T16:13:34.569Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +91,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-15T09:50:52.485Z",
+      "released_at": "2026-09-15T16:13:34.569Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
