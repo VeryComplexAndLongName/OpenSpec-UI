@@ -26,6 +26,8 @@ import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
+import { useStandaloneTheme } from "./standalone-theme.js";
+import { ThemeToggle } from "./components/ThemeToggle.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
@@ -260,6 +262,7 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
+  const { theme, toggle: toggleTheme } = useStandaloneTheme();
   const [activeTab, setActiveTab] = useState<string>("run-a-command");
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
@@ -1368,7 +1371,7 @@ function StandaloneApp() {
   const canInitialize = Boolean(overview?.initialization?.canInitialize);
 
   return (
-    <div className="openspec-standalone-app openspec-metro">
+    <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
       <style>{`${metroCss}\n${shellThemeCss}`}</style>
 
       <header className="openspec-shell-headline">
@@ -1377,6 +1380,7 @@ function StandaloneApp() {
           <h1>OpenSpec UI</h1>
           <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
         </div>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </header>
 
       {/* Outside the tabs, because a schedule moves a person between

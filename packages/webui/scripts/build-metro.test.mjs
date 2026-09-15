@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import * as csstree from "css-tree";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   KEPT_COMPONENTS,
   KEPT_ELEMENTS,
@@ -21,9 +21,12 @@ import {
 /** The published file's hash, as `vendor/metro/README.md` records it. */
 const PUBLISHED_SHA256 = "50e237f90becdbae2f216e97d84c2d3e35ef2bde1bbd1b69d2b24ed9c762c1f1";
 
-/** Parsing Metro's 1.5 MB stylesheet takes a second or two on a loaded
- * runner, and each test here parses it or its derived copy. */
+/** Each test reads Metro's 1.5 MB stylesheet or parses it or its derived
+ * copy. Measured on 2026-09-15 on a developer machine: 311–331 ms for the
+ * fresh derivation, and 407–655 ms for the whole file. 30 s leaves room for
+ * a loaded CI runner. */
 const PARSE_TIMEOUT_MS = 30_000;
+vi.setConfig({ testTimeout: PARSE_TIMEOUT_MS });
 
 function shippedCss() {
   const text = readFileSync(OUTPUT, "utf8");

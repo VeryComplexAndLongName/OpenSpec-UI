@@ -10,10 +10,26 @@ function rootTokens(css: string): string[] {
     return [...block.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1] as string);
 }
 
-/** Everything after the `:root` block — the rules themselves. */
+/** The standalone dark palette's selector (the-web-ui-wears-metro 4.1). */
+const DARK_PALETTE = ':root[data-openspec-theme="dark"]';
+
+/** The dark palette block, and the token names it declares. */
+function darkTokens(css: string): string[] {
+    const start = css.indexOf(DARK_PALETTE);
+    if (start < 0) return [];
+    const open = css.indexOf("{", start);
+    const block = css.slice(open + 1, css.indexOf("}", open));
+    return [...block.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1] as string);
+}
+
+/** Everything after the `:root` block — the rules themselves. The dark
+ * palette is a palette too, so it is cut out as well. */
 function rulesAfterRoot(css: string): string {
     const open = css.indexOf("{", css.indexOf(":root"));
-    return css.slice(css.indexOf("}", open) + 1);
+    const rules = css.slice(css.indexOf("}", open) + 1);
+    const dark = rules.indexOf(DARK_PALETTE);
+    if (dark < 0) return rules;
+    return rules.slice(0, dark) + rules.slice(rules.indexOf("}", dark) + 1);
 }
 
 describe("shell themes", () => {
@@ -61,6 +77,20 @@ describe("shell themes", () => {
         const literals = rulesAfterRoot(shellThemeCss).match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
 
         expect(literals).toEqual([]);
+    });
+
+    it("gives the dark palette every colour token of the light one, and no other", () => {
+        // A colour token left out of the dark palette keeps its light
+        // value on a dark ground: a white panel in a dark shell.
+        const start = shellThemeCss.indexOf(":root");
+        const open = shellThemeCss.indexOf("{", start);
+        const light = shellThemeCss.slice(open + 1, shellThemeCss.indexOf("}", open));
+        const lightColours = [...light.matchAll(/(--[a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\()/g)]
+            .map((match) => match[1] as string);
+        const dark = darkTokens(shellThemeCss);
+
+        expect(lightColours.filter((token) => !dark.includes(token))).toEqual([]);
+        expect(dark.filter((token) => !rootTokens(shellThemeCss).includes(token))).toEqual([]);
     });
 
     it("gives a control a width for the kind of value it holds", () => {

@@ -134,9 +134,35 @@ dark theme that follows the system.
 
 ## 4. Themes
 
-- [ ] 4.1 Standalone: the toggle in the header and the theme choice of
+- [x] 4.1 Standalone: the toggle in the header and the theme choice of
   design decision 5, with unit tests for no stored choice, a stored choice,
   a system change and unreadable storage.
+
+  Done on 2026-09-15.
+  - **`src/standalone-theme.ts`.** `useStandaloneTheme` resolves a stored
+    `light` or `dark` under `openspec-ui.theme` first, then
+    `(prefers-color-scheme: dark)`. It follows a change to that query while
+    no choice is stored. It sets `data-openspec-theme` on the document
+    element, and its storage and `matchMedia` calls are wrapped so that
+    none of them throws.
+  - **`components/ThemeToggle.tsx`.** A `button` named "Dark theme" with
+    `aria-pressed`, so the visible text and the accessible name agree. It
+    sits at the end of the standalone headline, and the root gains Metro's
+    `dark-side` when the theme is dark.
+  - **The shell's own dark palette.** `:root[data-openspec-theme="dark"]` in
+    `shellThemeCss` redefines every colour token. It keys on the document
+    element because `body` draws its ground from those tokens.
+    - `shell-ui.test.ts` cuts that block out of the no-literal check, as a
+      palette.
+    - A new test asserts that the dark palette carries every colour token of
+      the light one, and no token the light one lacks.
+    - Contrast is checked by axe in 5.1.
+  - **Tests.** `standalone-theme.test.tsx` has 5 tests: no stored choice on
+    a dark system; a stored choice over the system; a system change followed
+    until a choice is made; storage that throws on read and write, where the
+    toggle still works for the page; and reaching storage itself throwing.
+  - **Checks.** The webui suite passes with 53 files and 486 tests, and
+    typecheck and lint pass.
 - [ ] 4.2 VS Code: `vscodeThemeCss` sets every variable the generated copy
   reads, and `dark-side` follows `vscode-dark` and `vscode-high-contrast`. A
   test asserts every read variable is set.

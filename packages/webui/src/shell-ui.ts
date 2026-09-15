@@ -78,6 +78,45 @@ export const shellThemeCss = `
     --w-sentence: 26rem;
   }
 
+  /* The standalone dark palette, chosen by the header toggle or the
+     system preference (the-web-ui-wears-metro design decision 5). It
+     redefines every colour token above and nothing else. It keys on the
+     document element rather than the app root because body's ground is
+     drawn from these tokens too. VS Code never sets this attribute: its
+     colours come from the editor theme.
+
+     The accent turns light on a dark ground, so its text turns dark:
+     --primary-ink on --primary is measured the same way as in light. */
+  :root[data-openspec-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #15181d;
+    --bg-accent: #1b1f25;
+    --surface: #1e2228;
+    --surface-2: #252a31;
+    --surface-3: #2d333b;
+
+    --ink: #e6e9ee;
+    --muted: #a3acb8;
+
+    --primary: #4fb3a3;
+    --primary-soft: #6cc5b6;
+    --primary-bg: #1d3530;
+    --primary-ink: #0b1411;
+
+    --good: #5fc98f;
+    --good-bg: #183225;
+    --warn: #e0b35c;
+    --warn-bg: #36290f;
+    --bad: #f08080;
+    --bad-bg: #3a1c1c;
+
+    --line: #353b44;
+    --line-strong: #4a525d;
+
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+
   body {
     margin: 0;
     font-family: system-ui, "Segoe UI", "Helvetica Neue", sans-serif;
@@ -140,6 +179,13 @@ export const shellThemeCss = `
   .openspec-shell-headline p {
     margin: 0;
     color: var(--muted);
+  }
+
+  /* The theme toggle sits at the far end of the headline, apart from
+     the name it would otherwise read as part of. */
+  .openspec-theme-toggle {
+    margin-left: auto;
+    flex: none;
   }
 
   .openspec-page-tabs {
