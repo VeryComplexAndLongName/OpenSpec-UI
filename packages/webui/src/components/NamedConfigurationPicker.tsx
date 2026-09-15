@@ -80,6 +80,7 @@ export function NamedConfigurationPicker(
       <div className="openspec-ai-panel-controls">
         <button
           type="button"
+          className="button primary"
           data-testid={`${testIdPrefix}-named-configuration-apply`}
           onClick={() => {
             setAppliedId(selected.id);

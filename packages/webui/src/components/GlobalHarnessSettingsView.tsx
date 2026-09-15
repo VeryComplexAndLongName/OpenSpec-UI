@@ -212,7 +212,7 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
           can relax it).
         </p>
         <div className="openspec-ai-panel-controls">
-          <button type="button" onClick={() => void save()} disabled={loading || !dirty}>
+          <button type="button" className="button primary" onClick={() => void save()} disabled={loading || !dirty}>
             {loading ? "Working..." : "Save global settings"}
           </button>
           {dirty ? <span className="openspec-shell-note" data-testid="global-harness-unsaved">Unsaved changes</span> : null}

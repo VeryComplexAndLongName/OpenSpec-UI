@@ -90,5 +90,26 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
     (violation) => violation.impact === "serious" || violation.impact === "critical",
   );
   expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
+
+  // Both palettes meet WCAG AA (the-web-ui-wears-metro, "The standalone
+  // shell follows the system theme, and remembers a choice"). The same
+  // screen, with the header toggle pressed, is checked again in dark.
+  const toggle = page.getByRole("button", { name: "Dark theme" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-openspec-theme", "dark");
+  // Metro's controls ease between colours over 0.2s. On a slower CI runner
+  // axe measured them half-way, and reported blends that belong to neither
+  // palette: #717674 text on #349283. The check waits on the transitions
+  // themselves, not on a duration.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
+  const darkAccessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  const darkBlockingViolations = darkAccessibility.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(darkBlockingViolations, JSON.stringify(darkBlockingViolations, null, 2)).toEqual([]);
   expect(pageErrors).toEqual([]);
 });

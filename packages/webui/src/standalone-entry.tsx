@@ -25,6 +25,9 @@ import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-c
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
+import { metroCss } from "./metro-css.generated.js";
+import { useStandaloneTheme } from "./standalone-theme.js";
+import { ThemeToggle } from "./components/ThemeToggle.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
@@ -259,6 +262,7 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
+  const { theme, toggle: toggleTheme } = useStandaloneTheme();
   const [activeTab, setActiveTab] = useState<string>("run-a-command");
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
@@ -1367,8 +1371,8 @@ function StandaloneApp() {
   const canInitialize = Boolean(overview?.initialization?.canInitialize);
 
   return (
-    <div className="openspec-standalone-app">
-      <style>{shellThemeCss}</style>
+    <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
+      <style>{`${metroCss}\n${shellThemeCss}`}</style>
 
       <header className="openspec-shell-headline">
         <OwlLogo />
@@ -1376,6 +1380,7 @@ function StandaloneApp() {
           <h1>OpenSpec UI</h1>
           <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
         </div>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </header>
 
       {/* Outside the tabs, because a schedule moves a person between
@@ -1442,7 +1447,7 @@ function StandaloneApp() {
               </select>
             </label>
             <div className="openspec-ai-panel-controls">
-              <button type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
+              <button className="button primary" type="button" onClick={handleInitializeOpenSpec} disabled={initLoading || cwd.trim().length === 0}>
                 {initLoading ? "Initializing..." : "Initialize OpenSpec"}
               </button>
             </div>
@@ -1501,7 +1506,7 @@ function StandaloneApp() {
           Parsed, visual summary of repository state. Use this as a readable companion to terminal <code>openspec view</code>.
         </p>
         <div className="openspec-ai-panel-controls">
-          <button type="button" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
+          <button className="button primary" type="button" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
             {overviewLoading ? "Loading..." : "Load summary"}
           </button>
         </div>
@@ -1534,7 +1539,7 @@ function StandaloneApp() {
                       {runnable ? (
                         <>
                           {" "}
-                          <button
+                          <button className="button"
                             type="button"
                             data-testid={`run-delegated-${key}`}
                             disabled={runningDelegated !== null}
@@ -1614,7 +1619,7 @@ function StandaloneApp() {
             {overview.specs.length > 0 ? (
               <div className="openspec-overview-block">
                 <h3>Specs</h3>
-                <table className="openspec-overview-table">
+                <table className="table openspec-overview-table">
                   <thead>
                     <tr>
                       <th>Spec</th>
@@ -1668,7 +1673,7 @@ function StandaloneApp() {
         </div>
 
         <div className="openspec-ai-panel-controls">
-          <button type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
+          <button className="button primary" type="button" onClick={handleCreateChange} disabled={editorCreating || cwd.trim().length === 0}>
             {editorCreating ? "Creating..." : "Create change"}
           </button>
 
@@ -1687,7 +1692,7 @@ function StandaloneApp() {
             ))}
           </select>
 
-          <button
+          <button className="button"
             type="button"
             onClick={() => void loadChangeEditor(editorChangeName)}
             disabled={editorLoading || editorChangeName.trim().length === 0}
@@ -1695,7 +1700,7 @@ function StandaloneApp() {
             {editorLoading ? "Loading..." : "Load change"}
           </button>
 
-          <button
+          <button className="button primary"
             type="button"
             data-testid="run-with-harness-button"
             onClick={() => void handleRunWithHarness()}
@@ -1775,7 +1780,7 @@ function StandaloneApp() {
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            <button
+            <button className="button"
               type="button"
               onClick={() => void handleInsertTasksTemplate()}
               disabled={
@@ -1820,7 +1825,7 @@ function StandaloneApp() {
         </div>
 
         <div className="openspec-ai-panel-controls">
-          <button
+          <button className="button primary"
             type="button"
             onClick={handleSaveEditor}
             disabled={editorSaving || editorChangeName.trim().length === 0 || editorRevision.length === 0}
@@ -1843,7 +1848,7 @@ function StandaloneApp() {
           built-in template into your project, keeping a backlink to the built-in version it came from.
         </p>
         <div className="openspec-ai-panel-controls">
-          <button type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
+          <button className="button primary" type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
             {templatesLoading ? "Loading..." : "Load templates"}
           </button>
         </div>
@@ -1851,7 +1856,7 @@ function StandaloneApp() {
         {templatesError ? <p className="openspec-overview-error">Failed to load templates: {templatesError}</p> : null}
 
         {templates ? (
-          <table className="openspec-overview-table" data-testid="templates-table">
+          <table className="table openspec-overview-table" data-testid="templates-table">
             <thead>
               <tr>
                 <th>Title</th>
@@ -1879,11 +1884,11 @@ function StandaloneApp() {
                   <td>{template.manifest.category}</td>
                   <td>{template.origin}</td>
                   <td className="openspec-ai-panel-controls">
-                    <button type="button" onClick={() => handleSelectTemplate(template)}>
+                    <button className="button" type="button" onClick={() => handleSelectTemplate(template)}>
                       Select
                     </button>
                     {template.origin === "built-in" && !isTemplateCustomized(template.manifest.id) ? (
-                      <button
+                      <button className="button"
                         type="button"
                         onClick={() => void handleCustomizeTemplate(template.manifest.id)}
                         disabled={templateActionLoading}
@@ -1892,7 +1897,7 @@ function StandaloneApp() {
                       </button>
                     ) : null}
                     {template.origin === "project" ? (
-                      <button
+                      <button className="button alert"
                         type="button"
                         onClick={() => void handleDeleteProjectTemplate(template.manifest.id)}
                         disabled={templateActionLoading}
@@ -1941,7 +1946,7 @@ function StandaloneApp() {
               </select>
             </label>
             <div className="openspec-ai-panel-controls">
-              <button
+              <button className="button primary"
                 type="button"
                 onClick={() => void handleInsertTemplateIntoChange()}
                 disabled={templateActionLoading || templateInsertTargetChange.trim().length === 0}
@@ -2007,7 +2012,7 @@ function StandaloneApp() {
                   <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
                 ))}
               </select>
-              <button
+              <button className="button primary"
                 type="button"
                 onClick={() => void loadTimeline()}
                 disabled={timelineLoading || timelineSelection.trim().length === 0}
@@ -2069,7 +2074,7 @@ function StandaloneApp() {
               </select>
             </label>
             <div className="openspec-ai-panel-controls">
-              <button
+              <button className="button primary"
                 type="button"
                 onClick={() => void loadMultiTimelines()}
                 disabled={multiLoading || multiSelection.length === 0}
@@ -2130,7 +2135,7 @@ function StandaloneApp() {
               </select>
             </label>
             <div className="openspec-ai-panel-controls">
-              <button
+              <button className="button primary"
                 type="button"
                 onClick={() => void downloadSprintReport()}
                 disabled={sprintReportLoading || multiSelection.length === 0}
@@ -2205,7 +2210,7 @@ function StandaloneApp() {
                     >
                       <h3>{`Run ${runChangeName}`}</h3>
                       <HarnessChainPanel transport={transport} cwd={cwd} changeDir={pipelineChain.changeDir} budget={pipelineChain.budget} />
-                      <button type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
+                      <button className="button" type="button" data-testid="pipeline-run-close" onClick={closePipelineRun}>Close</button>
                     </section>
                   ) : null}
                 </div>

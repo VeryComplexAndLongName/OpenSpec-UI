@@ -27,7 +27,7 @@ export function TasksChecklist({ tasks, onRunTask }: TasksChecklistProps) {
             <span aria-hidden="true">{task.done ? "[x]" : "[ ]"}</span>
             <span>{task.description}</span>
             {!task.done && (
-              <button type="button" data-testid={`run-task-${task.id}`} onClick={() => onRunTask?.(task)}>
+              <button className="button" type="button" data-testid={`run-task-${task.id}`} onClick={() => onRunTask?.(task)}>
                 Run
               </button>
             )}

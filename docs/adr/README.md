@@ -29,12 +29,13 @@ Alternatives / Consequences.
 | [0020](0020-cli-runs-a-change.md) | The CLI runs a change | Accepted |
 | [0021](0021-declared-chain-steps.md) | Declared chain steps | Accepted |
 | [0022](0022-changes-run-side-by-side.md) | Changes run side by side, in git worktrees | Accepted |
-| [0023](0023-standalone-shell-visual-direction.md) | The standalone shell commits to an editor-native look | Accepted |
+| [0023](0023-standalone-shell-visual-direction.md) | The standalone shell commits to an editor-native look | Accepted; its Metro rejection superseded by [0030](0030-the-web-ui-uses-metro-components.md) |
 | [0024](0024-parallel-readiness-is-derived.md) | Parallel readiness is derived, never declared | Accepted |
 | [0025](0025-the-pipeline-picture-is-derived-and-drawn-by-hand.md) | The pipeline picture is derived, and drawn without a graph library | Accepted |
 | [0026](0026-other-working-directories-are-observed-never-touched.md) | Other working directories are observed, never touched | Accepted |
 | [0027](0027-a-working-directory-is-disposable.md) | A working directory is disposable, and nothing of value stays in it | Accepted |
 | [0028](0028-agents-coordinate-beside-the-repository.md) | Agents coordinate beside the repository, not inside it | Accepted |
 | [0029](0029-the-pipeline-is-where-a-change-is-run.md) | The Pipeline is where a change is run | Accepted |
+| [0030](0030-the-web-ui-uses-metro-components.md) | The web UI uses Metro UI's components, scoped and themed by its host | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

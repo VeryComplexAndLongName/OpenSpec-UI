@@ -243,6 +243,8 @@ export function RunDialog(
           <button
             key={path.id}
             type="button"
+            // The configured path is the one this dialog recommends.
+            className={path.id === plan.resolved ? "button primary" : "button"}
             data-testid={`run-dialog-path-${path.id}`}
             title={path.describes}
             disabled={held}
@@ -251,7 +253,7 @@ export function RunDialog(
             {path.id === plan.resolved ? `${path.title} (configured)` : path.title}
           </button>
         ))}
-        <button type="button" data-testid="run-dialog-cancel" onClick={onDismiss}>Cancel</button>
+        <button className="button" type="button" data-testid="run-dialog-cancel" onClick={onDismiss}>Cancel</button>
       </div>
 
       {onSchedule ? (
@@ -268,7 +270,7 @@ export function RunDialog(
           </label>
           <div className="openspec-ai-panel-controls">
             {plan.offered.map((path) => (
-              <button
+              <button className="button"
                 key={`schedule-${path.id}`}
                 type="button"
                 data-testid={`run-dialog-schedule-${path.id}`}

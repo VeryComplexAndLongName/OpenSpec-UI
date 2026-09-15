@@ -78,6 +78,45 @@ export const shellThemeCss = `
     --w-sentence: 26rem;
   }
 
+  /* The standalone dark palette, chosen by the header toggle or the
+     system preference (the-web-ui-wears-metro design decision 5). It
+     redefines every colour token above and nothing else. It keys on the
+     document element rather than the app root because body's ground is
+     drawn from these tokens too. VS Code never sets this attribute: its
+     colours come from the editor theme.
+
+     The accent turns light on a dark ground, so its text turns dark:
+     --primary-ink on --primary is measured the same way as in light. */
+  :root[data-openspec-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #15181d;
+    --bg-accent: #1b1f25;
+    --surface: #1e2228;
+    --surface-2: #252a31;
+    --surface-3: #2d333b;
+
+    --ink: #e6e9ee;
+    --muted: #a3acb8;
+
+    --primary: #4fb3a3;
+    --primary-soft: #6cc5b6;
+    --primary-bg: #1d3530;
+    --primary-ink: #0b1411;
+
+    --good: #5fc98f;
+    --good-bg: #183225;
+    --warn: #e0b35c;
+    --warn-bg: #36290f;
+    --bad: #f08080;
+    --bad-bg: #3a1c1c;
+
+    --line: #353b44;
+    --line-strong: #4a525d;
+
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+
   body {
     margin: 0;
     font-family: system-ui, "Segoe UI", "Helvetica Neue", sans-serif;
@@ -140,6 +179,13 @@ export const shellThemeCss = `
   .openspec-shell-headline p {
     margin: 0;
     color: var(--muted);
+  }
+
+  /* The theme toggle sits at the far end of the headline, apart from
+     the name it would otherwise read as part of. */
+  .openspec-theme-toggle {
+    margin-left: auto;
+    flex: none;
   }
 
   .openspec-page-tabs {
@@ -257,19 +303,37 @@ export const shellThemeCss = `
     margin-top: 18px;
   }
 
+  /* Metro draws the controls: border, radius, padding, height and their
+     states (ADR 0030). The shell sets only what a dense form needs
+     differently. A control reads in the text size around it, rather than
+     Metro's 16px, so a placeholder and a value are the same size. */
+  .openspec-metro {
+    --input-font-size: 1em;
+    /* A table's text follows the page too: Metro's 16px body cells stood
+       a size above the 13px prose around the Processes and chart tables. */
+    --table-body-font-size: 1em;
+    --table-head-font-size: 1em;
+    --table-caption-font-size: 1em;
+
+    /* A disabled control still says what it is. Metro's dark palette
+       draws one at 25% opacity, or as near-black text on a near-black
+       ground, and on screen it all but vanished beside the controls that
+       work. Disabled text needs no contrast ratio, but it should still be
+       legible, so these come from the shell's tokens in both themes. The
+       VS Code layer sets them again, from the editor theme. */
+    --button-disabled-opacity: 0.55;
+    --input-color-disabled: var(--muted);
+    --input-background-disabled: var(--surface-2);
+  }
+
   .openspec-shell-field input,
   .openspec-shell-field textarea,
   .openspec-shell-field select,
   .openspec-ai-panel-controls select,
   .openspec-ai-panel-controls button {
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm);
-    padding: 5px 8px;
     font: inherit;
     font-weight: 400;
     letter-spacing: normal;
-    color: var(--ink);
-    background: var(--surface);
   }
 
   /* Fault 3. Every control filled its container, which is why a
@@ -303,6 +367,18 @@ export const shellThemeCss = `
 
   .openspec-shell-field input[type="number"] {
     width: var(--w-amount);
+  }
+
+  /* Metro's field rule lists text, search, date and the like, but not
+     number, which then kept the browser's own short box beside 36px
+     selects. It is drawn from the same Metro variables here. */
+  .openspec-metro input[type="number"] {
+    height: var(--input-height);
+    padding: 0 8px;
+    border: 1px solid var(--input-border-color);
+    border-radius: var(--input-border-radius);
+    color: var(--input-color);
+    background: var(--input-background);
   }
 
   .openspec-shell-field textarea {
@@ -523,37 +599,40 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
-  /* An action carries more padding than a control that holds a value:
-     it is pressed, not read, and a 5px target is not one. */
-  .openspec-ai-panel-controls button {
-    cursor: pointer;
-    padding: 7px 14px;
-    background: var(--primary);
+  /* An action's colour is the shell's, not Metro's (the-web-ui-wears-metro
+     design decision 4): Metro's colour classes are literal and fail AA.
+     Metro draws the button itself, its height, padding and disabled
+     state. The primary action of a form is the accent; an action that
+     stops or discards something is the danger colour. Every other button
+     is Metro's neutral one. */
+  .openspec-metro .button.primary,
+  .openspec-metro .button.alert {
     color: var(--primary-ink);
+    background: var(--primary);
     border-color: transparent;
     font-weight: 600;
   }
 
-  .openspec-ai-panel-controls button:hover:not(:disabled) {
+  .openspec-metro .button.primary:hover:not(:disabled) {
     background: var(--primary-soft);
   }
 
-  /* The focus ring sits on the accent here, so it has to be drawn
-     against the button rather than in it — a quieter palette is
-     exactly where a ring disappears into its own control. */
-  .openspec-ai-panel-controls button:focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: 2px;
-    border-color: transparent;
-  }
-
-  .openspec-ai-panel-controls button[data-testid="cancel-button"] {
+  .openspec-metro .button.alert {
     background: var(--danger);
   }
 
-  .openspec-ai-panel-controls button:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
+  .openspec-metro .button.alert:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 85%, var(--ink));
+  }
+
+  /* The focus ring sits on the fill here, so it has to be drawn against
+     the button rather than in it — a quieter palette is exactly where a
+     ring disappears into its own control. */
+  .openspec-metro .button.primary:focus-visible,
+  .openspec-metro .button.alert:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-color: transparent;
   }
 
   .openspec-ai-panel-events {
@@ -1828,6 +1907,106 @@ export const vscodeThemeCss = `
     --w-sentence: 26rem;
   }
 
+  /* Every variable the derived Metro copy reads from its palette, set from
+     the editor theme (the-web-ui-wears-metro design decision 6). Unlayered,
+     so it wins over Metro's light and dark palettes in any theme, built-in
+     or not; vscode-metro-mapping.test.ts fails when Metro reads a variable
+     this block does not set. Sizes follow the editor's density rather than
+     Metro's 36px forms. No colour is written here, only the theme's own. */
+  .openspec-metro {
+    --default-background: var(--vscode-checkbox-background, var(--vscode-input-background));
+    --border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+    --control-height-normal: 28px;
+    --control-height-small: 22px;
+
+    --button-background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+    --button-color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+    --button-border-radius: 2px;
+    --button-disabled-opacity: 0.5;
+    --button-font-size: var(--vscode-font-size);
+    --button-group-active-background: var(--vscode-button-background);
+    --button-group-active-color: var(--vscode-button-foreground);
+
+    --input-background: var(--vscode-input-background);
+    --input-background-disabled: var(--vscode-input-background);
+    --input-border-color: var(--vscode-input-border, var(--vscode-contrastBorder, var(--vscode-panel-border, transparent)));
+    --input-border-color-hover: var(--vscode-input-border, var(--vscode-focusBorder));
+    --input-border-radius: 2px;
+    --input-box-shadow: transparent;
+    --input-color: var(--vscode-input-foreground);
+    --input-color-disabled: var(--vscode-disabledForeground);
+    --input-font-size: 1em;
+    --input-height: var(--control-height-normal);
+    --input-invalid-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+    --input-valid-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+    --material-input-border-color: var(--border-color);
+    --material-input-border-color-hover: var(--vscode-focusBorder);
+    --material-input-color: var(--vscode-input-foreground);
+    --material-input-placeholder-color: var(--vscode-input-placeholderForeground);
+
+    --checkbox-background-disabled: var(--vscode-input-background);
+    --checkbox-border-radius: 3px;
+    --checkbox-color: var(--vscode-checkbox-foreground, var(--vscode-foreground));
+    --checkbox-color-disabled: var(--vscode-disabledForeground);
+    --checkbox-focus-color: var(--vscode-focusBorder);
+    --checkbox-size: 18px;
+    --radio-background-disabled: var(--vscode-input-background);
+    --radio-color: var(--vscode-checkbox-foreground, var(--vscode-foreground));
+    --radio-color-disabled: var(--vscode-disabledForeground);
+    --radio-focus-color: var(--vscode-focusBorder);
+    --radio-size: 18px;
+
+    --select-border-radius: 2px;
+    --select-button-background: transparent;
+    --select-button-background-hover: transparent;
+    --select-button-color: var(--vscode-dropdown-foreground);
+    --select-button-color-hover: var(--vscode-dropdown-foreground);
+    --select-focus-color: var(--vscode-list-focusBackground, transparent);
+
+    --textarea-border-radius: 2px;
+    --textarea-color: var(--vscode-input-foreground);
+    --textarea-font-size: var(--vscode-font-size);
+
+    --table-body-font-size: var(--vscode-font-size);
+    --table-caption-font-size: var(--vscode-font-size);
+    --table-head-font-size: var(--vscode-font-size);
+    --table-border-color: var(--vscode-panel-border, var(--vscode-contrastBorder, transparent));
+    --table-color: var(--vscode-foreground);
+    --table-header-background: var(--vscode-editorWidget-background, transparent);
+    --table-header-color: var(--vscode-foreground);
+    --table-inspector-background: var(--vscode-editorWidget-background);
+    --table-inspector-border-color: var(--vscode-editorWidget-border, transparent);
+    --table-inspector-border-radius: 4px;
+    --table-inspector-color: var(--vscode-foreground);
+    --table-selected-background: var(--vscode-list-activeSelectionBackground);
+    --table-selected-color: var(--vscode-list-activeSelectionForeground);
+    --table-striped-background: var(--vscode-list-hoverBackground, transparent);
+  }
+
+  /* A neutral button keeps an edge where the theme draws one. Default Dark
+     Modern's secondary button ground is transparent, and without the
+     theme's button border the AI panel's "Reload changes" read as a label,
+     measured in the Extension Development Host. Metro's own border takes
+     the ground's colour, which is that same transparency. */
+  /* A high-contrast theme draws a button as a ground no different from the
+     page, and outlines it with the contrast border instead; in Default High
+     Contrast "Apply" read as text until that border was drawn. The primary
+     and alert selectors are named so this wins over the shell's own
+     transparent border on them. */
+  .openspec-extension-app .button,
+  .openspec-extension-app .button.primary,
+  .openspec-extension-app .button.alert {
+    border-color: var(--vscode-contrastBorder, var(--vscode-button-border, transparent));
+  }
+
+  /* An action that stops or discards, in the editor's own error colour. The
+     error border is the one the theme draws behind white-on-colour text; the
+     error foreground is a text colour and too light to sit under text. */
+  .openspec-extension-app .button.alert {
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  }
+
   body {
     font-family: var(--vscode-font-family);
     font-size: var(--vscode-font-size);
@@ -1853,14 +2032,10 @@ export const vscodeThemeCss = `
     background: var(--surface);
   }
 
-  .openspec-extension-app input,
-  .openspec-extension-app textarea,
-  .openspec-extension-app select {
-    color: var(--vscode-input-foreground);
-    background: var(--vscode-input-background);
-    border-color: var(--vscode-input-border, var(--line));
-  }
-
+  /* A field's colour, ground and border are Metro's native-field rules,
+     reading the --input-* variables the mapping above sets from the same
+     --vscode-input-* colours. The placeholder is the one thing Metro does
+     not colour. */
   .openspec-extension-app input::placeholder,
   .openspec-extension-app textarea::placeholder {
     color: var(--vscode-input-placeholderForeground);
@@ -1873,13 +2048,16 @@ export const vscodeThemeCss = `
     outline-color: var(--vscode-focusBorder);
   }
 
-  .openspec-extension-app .openspec-ai-panel-controls button,
+  /* The editor's primary button colours go to the one primary action, as
+     the shell's accent does standalone. Every other button is drawn from
+     Metro's variables, which the mapping below sets from the theme. */
+  .openspec-extension-app .button.primary,
   .openspec-extension-app .openspec-editor-tabs button.is-active {
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
   }
 
-  .openspec-extension-app .openspec-ai-panel-controls button:hover,
+  .openspec-extension-app .button.primary:hover:not(:disabled),
   .openspec-extension-app .openspec-editor-tabs button.is-active:hover {
     background: var(--vscode-button-hoverBackground);
   }

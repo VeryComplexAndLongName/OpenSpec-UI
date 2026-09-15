@@ -295,7 +295,7 @@ export function ChangeHarnessSettingsView(
               </select>
             </label>
             <div className="openspec-ai-panel-controls">
-              <button type="button" onClick={() => void save()} disabled={loading || !dirty}>
+              <button type="button" className="button primary" onClick={() => void save()} disabled={loading || !dirty}>
                 {loading ? "Working..." : "Save change settings"}
               </button>
               {dirty ? <span className="openspec-shell-note" data-testid="change-harness-unsaved">Unsaved changes</span> : null}

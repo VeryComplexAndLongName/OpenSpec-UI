@@ -189,7 +189,7 @@ function ChartBlock(
       {/* Always here, not behind a toggle: it is the accessible form and
           it is what someone copies into a message. */}
       {bars.length > 0 ? (
-        <table className="openspec-chart-table" data-testid={`${testId}-table`}>
+        <table className="table openspec-chart-table" data-testid={`${testId}-table`}>
           <thead>
             <tr><th scope="col">{valueHeading}</th><th scope="col">Changes</th></tr>
           </thead>

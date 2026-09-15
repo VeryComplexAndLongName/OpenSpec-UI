@@ -128,11 +128,11 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
             It used to read "Run with Agentic Harness", which is also the
             dispatch entry rendered directly above it in the standalone
             UI — two buttons, one label, different actions. */}
-        <button type="button" data-testid="start-chain-button" onClick={startChain} disabled={isRunning}>
+        <button type="button" className="button primary" data-testid="start-chain-button" onClick={startChain} disabled={isRunning}>
           Start chain
         </button>
         {isRunning && !pendingCheckpoint ? (
-          <button type="button" data-testid="cancel-chain-button" onClick={() => sendOnCurrentRun("cancel")}>
+          <button type="button" className="button alert" data-testid="cancel-chain-button" onClick={() => sendOnCurrentRun("cancel")}>
             Cancel
           </button>
         ) : null}
@@ -149,12 +149,13 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           <div className="openspec-ai-panel-controls">
             <button
               type="button"
+              className="button primary"
               data-testid="confirm-checkpoint-button"
               onClick={() => sendOnCurrentRun("confirmCheckpoint")}
             >
               Continue
             </button>
-            <button type="button" data-testid="cancel-checkpoint-button" onClick={() => sendOnCurrentRun("cancel")}>
+            <button type="button" className="button alert" data-testid="cancel-checkpoint-button" onClick={() => sendOnCurrentRun("cancel")}>
               Cancel
             </button>
           </div>
