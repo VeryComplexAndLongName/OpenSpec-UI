@@ -77,12 +77,19 @@ export class ArtifactTreeItem extends vscode.TreeItem {
     // it rather than assemble a second answer. See
     // a-restored-row-says-what-it-is.
     public readonly parent?: ChangeTreeItem,
+    // A spec file OpenSpec's archive drops, as core decides
+    // (an-artifact-label-says-what-it-is).
+    notAppliedOnArchive = false,
   ) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.id = `artifact:${artifactPath}`;
-    this.description = exists ? undefined : "missing";
+    const dropped = exists && notAppliedOnArchive;
+    this.description = !exists ? "missing" : dropped ? "not applied on archive" : undefined;
+    if (dropped) {
+      this.tooltip = "OpenSpec archive applies only specs/<capability>/spec.md, so this file is not merged into openspec/specs.";
+    }
     this.contextValue = contextValue;
-    this.iconPath = new vscode.ThemeIcon(exists ? "markdown" : "warning");
+    this.iconPath = new vscode.ThemeIcon(exists && !dropped ? "markdown" : "warning");
     this.command = {
       command: "vscode.open",
       title: `Open ${label}`,
@@ -310,6 +317,7 @@ export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] 
       element.changeDir,
       element.archived,
       element,
+      artifact.notAppliedOnArchive === true,
     );
   })];
 }

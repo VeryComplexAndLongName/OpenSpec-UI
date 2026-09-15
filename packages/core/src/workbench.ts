@@ -8,6 +8,7 @@ import {
   isValidChangeName,
 } from "./change-name.js";
 import {
+  isGlobPattern,
   resolveChangeSchema,
   resolveGenerates,
   type ChangeSchema,
@@ -27,6 +28,10 @@ export interface WorkbenchArtifact {
   label: string;
   path: string;
   exists: boolean;
+  /** A file under the change's `specs/` that is not a delta spec. OpenSpec's
+   * archive applies only `specs/<capability>/spec.md`, so it drops this one
+   * (an-artifact-label-says-what-it-is). */
+  notAppliedOnArchive?: true;
 }
 
 export interface WorkbenchChange {
@@ -116,13 +121,39 @@ const STANDARD_LABELS: Readonly<Record<string, string>> = {
   tasks: "Tasks",
 };
 
+/** Words written the way their term is written, whatever case an id has
+ * (an-artifact-label-says-what-it-is). Nothing in `asyncapi` marks where its
+ * words break, so the term has to be known. */
+const KNOWN_TERMS: Readonly<Record<string, string>> = {
+  api: "API",
+  asyncapi: "AsyncAPI",
+  openapi: "OpenAPI",
+  graphql: "GraphQL",
+  grpc: "gRPC",
+  json: "JSON",
+  yaml: "YAML",
+  http: "HTTP",
+  sql: "SQL",
+  adr: "ADR",
+  rfc: "RFC",
+  prd: "PRD",
+  ui: "UI",
+  ux: "UX",
+};
+
 /** A schema artifact's label from its id: three letters or fewer read as an
  * abbreviation (`adr` → ADR), anything longer as words (`tech-notes` → Tech
- * notes). */
+ * notes), with a known term written as the term (`asyncapi` → AsyncAPI). */
 export function labelForSchemaArtifact(id: string): string {
   if (/^[a-z]{1,3}$/iu.test(id)) return id.toUpperCase();
-  const words = id.replace(/[-_]+/gu, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  const words = id.split(/[-_]+/u).filter((word) => word !== "");
+  return words
+    .map((word, index) => {
+      const term = KNOWN_TERMS[word.toLowerCase()];
+      if (term !== undefined) return term;
+      return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+    })
+    .join(" ");
 }
 
 /** The capability path of a delta spec file, or undefined when the relative
@@ -132,6 +163,23 @@ export function deltaSpecCapability(relativePath: string): string | undefined {
   const parts = relativePath.split("/");
   if (parts.length < 3 || parts[0] !== "specs" || parts[parts.length - 1] !== "spec.md") return undefined;
   return parts.slice(1, -1).join("/");
+}
+
+function artifactLabel(id: string): string {
+  return STANDARD_LABELS[id] ?? labelForSchemaArtifact(id);
+}
+
+/** A matched file's path below the fixed folder of the glob that matched it:
+ * the glob's segments before the first with a `*` or `?`. A `specs` glob
+ * matching `specs/landing-page.md` gives `landing-page.md`. */
+function pathUnderFixedFolder(generates: string, relative: string): string {
+  const literal: string[] = [];
+  for (const segment of generates.replace(/\\/gu, "/").replace(/^\.\//u, "").split("/")) {
+    if (isGlobPattern(segment)) break;
+    literal.push(segment);
+  }
+  const prefix = literal.length > 0 ? `${literal.join("/")}/` : "";
+  return prefix !== "" && relative.startsWith(prefix) ? relative.slice(prefix.length) : relative;
 }
 
 /** A change's artifacts, in the order its schema declares them (ADR 0031).
@@ -158,13 +206,19 @@ async function discoverChangeArtifacts(
       const capability = deltaSpecCapability(relative);
       if (capability !== undefined) {
         artifacts.push({ id: `delta-spec:${capability}`, kind: "delta-spec", label: capability, path: filePath, exists: fileExists });
-      } else if (plain && declared.id in STANDARD_LABELS) {
+        continue;
+      }
+      // OpenSpec's archive merges only specs/<capability>/spec.md; any other
+      // file under specs/ is dropped (an-artifact-label-says-what-it-is).
+      const dropped = relative.startsWith("specs/") ? { notAppliedOnArchive: true as const } : {};
+      if (plain && declared.id in STANDARD_LABELS) {
         artifacts.push({
           id: declared.id,
           kind: declared.id as "proposal" | "design" | "tasks",
           label: STANDARD_LABELS[declared.id]!,
           path: filePath,
           exists: fileExists,
+          ...dropped,
         });
       } else if (plain) {
         artifacts.push({
@@ -173,9 +227,17 @@ async function discoverChangeArtifacts(
           label: labelForSchemaArtifact(declared.id),
           path: filePath,
           exists: fileExists,
+          ...dropped,
         });
       } else {
-        artifacts.push({ id: `${declared.id}:${relative}`, kind: "schema-artifact", label: relative, path: filePath, exists: fileExists });
+        artifacts.push({
+          id: `${declared.id}:${relative}`,
+          kind: "schema-artifact",
+          label: `${artifactLabel(declared.id)}: ${pathUnderFixedFolder(declared.generates, relative)}`,
+          path: filePath,
+          exists: fileExists,
+          ...dropped,
+        });
       }
     }
   }
