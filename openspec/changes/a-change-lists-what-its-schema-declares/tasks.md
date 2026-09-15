@@ -174,7 +174,31 @@ on 2026-09-15. See ADR 0031.
   Done: `.changeset/a-change-lists-what-its-schema-declares.md`, with those
   three levels and a summary for the extension's changelog. `lint:changesets`
   passes.
-- [ ] 4.5 A live check in the Extension Development Host, on a workspace with
+- [x] 4.5 A live check in the Extension Development Host, on a workspace with
   DW's layout and schema, with a picture kept outside the repository. The
   change shows Proposal, ADR, Spec: web/dashboard-foundation, Design and
   Tasks in schema order, and nothing reads as missing that exists.
+
+  Done on 2026-09-15, with VS Code 1.137.0 from `.vscode-test` and the
+  extension built from this branch.
+  - **How.** A one-off Playwright `_electron` spec, not committed, built a
+    workspace with DW's layout:
+    - a project schema `spec-driven-with-adr` (proposal, adr, specs, design,
+      tasks);
+    - the change `dashboard-declare-company-derivation`, with `adr.md`,
+      `exploration.md` and `specs/web/dashboard-foundation/spec.md`;
+    - a second change, `names-a-missing-schema`, whose `.openspec.yaml` names
+      a schema that exists nowhere.
+
+    It read each row under both changes from the Changes tree, and kept a
+    picture outside the repository.
+  - **DW's change:** Proposal, ADR, "Spec: web/dashboard-foundation", Design,
+    Tasks, in schema order, none described as missing. `exploration.md` is
+    not listed, since the schema does not declare it.
+  - **The missing schema:** "Schema: nowhere-to-be-found — not found —
+    showing spec-driven artifacts" first, then Proposal, and Design and Tasks
+    as missing, which they are.
+  - **A first run failed on the check itself, not on the extension.** A
+    monaco tree draws only the rows in view, and with every pane expanded the
+    Changes pane drew DW's Proposal and ADR and nothing below. The spec now
+    collapses every other pane first, and the rerun passed.
