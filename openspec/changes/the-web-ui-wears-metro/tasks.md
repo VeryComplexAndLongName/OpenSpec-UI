@@ -370,8 +370,39 @@ dark theme that follows the system.
     now sets `--button-disabled-opacity`, `--input-color-disabled` and
     `--input-background-disabled` from the shell's tokens, and the VS Code
     layer sets them from the editor theme.
-- [ ] 5.2 Every picture under `docs/images/` is retaken by its spec, from Bash
+- [x] 5.2 Every picture under `docs/images/` is retaken by its spec, from Bash
   for the editor pictures, and looked at.
+
+  Done on 2026-09-15, after the last styling fix (d474664, 1413709).
+  - **Standalone: 14 pictures changed.** They were retaken by the whole
+    browser suite, `npm run test:browser -w @openspec-ui/server`: 20 passed
+    in 4.7 minutes.
+  - **Editor: 5 pictures changed.** They were retaken from Bash with the
+    inherited `VSCODE_*`/`ELECTRON_*` variables removed:
+    `npm run test:pictures -w openspec-ui-vscode`, 13 passed in 54s. The
+    changed ones are `harness-settings.png`, `harness-change.png`,
+    `pipeline-panel.png`, `changes-standings.png` and `specs-editor.png`.
+    The other editor pictures show no webview, and their bytes did not
+    change.
+  - **What was looked at, and what it shows.**
+    - **Actions.** Metro's neutral buttons are grey with the accent on the
+      primary action. "Clean old history" and "Ask to stop" are in the
+      danger colour.
+    - **Fields and tables.** Metro draws the fields at 36px, `input[type=number]`
+      included. Table text is at page size on Processes and the change charts.
+    - **The Pipeline.** Its cards keep their own controls and geometry.
+    - **In the editor.** Harness Settings' Apply takes the theme's button
+      colour.
+  - **A blue edge on neutral buttons in `pipeline-panel.png`.** The picture
+    suite writes no colour theme, so it runs in VS Code 1.137's default
+    theme (editor ground `#121314`), not Default Dark Modern.
+    - That theme sets `--vscode-button-border` to `#297aa0`, the same as its
+      button ground, and leaves `--vscode-contrastBorder` empty.
+    - Measured in the Extension Development Host, the neutral button draws
+      that border. In Default Dark Modern the same button draws the theme's
+      `rgba(255, 255, 255, 0.1)`.
+    - It is the theme's own edge, as the requirement asks, so it stays.
+  - **`lint:screenshots`.** 28 pictures, 28 captured, none hand-taken.
 - [x] 5.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` minor,
   `@openspec-ui/server` patch.
 
