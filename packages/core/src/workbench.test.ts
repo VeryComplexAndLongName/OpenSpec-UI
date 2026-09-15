@@ -37,7 +37,6 @@ describe("discoverOpenSpecWorkspace", () => {
     expect(workspace.specsRootExists).toBe(false);
     expect(workspace.changes).toEqual([]);
     expect(workspace.archivedChanges).toEqual([]);
-    expect(workspace.specs).toEqual([]);
   });
 
   it("discovers config, change artifacts, archive, and canonical specs", async () => {
@@ -68,18 +67,87 @@ describe("discoverOpenSpecWorkspace", () => {
     expect(workspace.specsRootExists).toBe(true);
     expect(workspace.changes).toHaveLength(1);
     expect(workspace.changes[0]?.state).toBe("implemented");
+    // In the order the built-in spec-driven schema declares its artifacts:
+    // proposal, specs, design, tasks (ADR 0031).
     expect(workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.exists])).toEqual([
       ["proposal", true],
+      ["delta-spec:demo", true],
       ["design", false],
       ["tasks", true],
-      ["delta-spec:demo", true],
     ]);
+    expect(workspace.changes[0]?.schema).toMatchObject({ name: "spec-driven", source: "built-in" });
     expect(workspace.archivedChanges[0]?.state).toBe("archived");
-    expect(workspace.specs).toEqual([
-      { id: "demo", path: path.join(canonicalSpec, "spec.md"), exists: true },
+    // Canonical specs are listed by the OpenSpec CLI, not by discovery
+    // (a-change-lists-what-its-schema-declares 2.7).
+    expect(workspace).not.toHaveProperty("specs");
+  });
+
+  // Both defects reported by DW, a user of the VS Code extension, on
+  // 2026-09-15: a nested delta spec read as "Spec: web — missing", and the
+  // project schema's ADR never appeared.
+  it("lists a change's artifacts from its project schema, naming a nested delta spec by its path", async () => {
+    const root = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "dashboard-declare-company-derivation");
+    const schemaDir = path.join(root, "openspec", "schemas", "spec-driven-with-adr");
+    await Promise.all([
+      mkdir(path.join(change, "specs", "web", "dashboard-foundation"), { recursive: true }),
+      mkdir(schemaDir, { recursive: true }),
     ]);
+    await Promise.all([
+      writeFile(path.join(root, "openspec", "config.yaml"), "schema: spec-driven-with-adr\n"),
+      writeFile(path.join(schemaDir, "schema.yaml"), [
+        "name: spec-driven-with-adr",
+        "artifacts:",
+        "  - { id: proposal, generates: proposal.md, template: proposal.md }",
+        "  - { id: adr, generates: adr.md, template: adr.md }",
+        "  - { id: specs, generates: \"specs/**/*.md\", template: spec.md }",
+        "  - { id: design, generates: design.md, template: design.md }",
+        "  - { id: tasks, generates: tasks.md, template: tasks.md }",
+        "",
+      ].join("\n")),
+      writeFile(path.join(change, "proposal.md"), "# Proposal\n"),
+      writeFile(path.join(change, "adr.md"), "# ADR\n"),
+      writeFile(path.join(change, "tasks.md"), "- [ ] one\n"),
+      writeFile(path.join(change, "specs", "web", "dashboard-foundation", "spec.md"), "## ADDED Requirements\n"),
+    ]);
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    const artifacts = workspace.changes[0]?.artifacts ?? [];
+    expect(artifacts.map((artifact) => [artifact.id, artifact.kind, artifact.label, artifact.exists])).toEqual([
+      ["proposal", "proposal", "Proposal", true],
+      ["adr", "schema-artifact", "ADR", true],
+      ["delta-spec:web/dashboard-foundation", "delta-spec", "web/dashboard-foundation", true],
+      ["design", "design", "Design", false],
+      ["tasks", "tasks", "Tasks", true],
+    ]);
+    expect(artifacts.some((artifact) => artifact.label === "web")).toBe(false);
+    expect(workspace.changes[0]?.schema).toMatchObject({ name: "spec-driven-with-adr", source: "project" });
+    expect(workspace.changes[0]?.schema?.fallback).toBeUndefined();
+  });
+
+  it("lists the spec-driven artifacts, and says why, when the change's schema is found nowhere", async () => {
+    const root = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "lost-schema");
+    await mkdir(change, { recursive: true });
+    await Promise.all([
+      writeFile(path.join(change, ".openspec.yaml"), "schema: nowhere-to-be-found\n"),
+      writeFile(path.join(change, "proposal.md"), "# Proposal\n"),
+    ]);
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    expect(workspace.changes[0]?.artifacts.map((artifact) => artifact.id)).toEqual(["proposal", "design", "tasks"]);
+    expect(workspace.changes[0]?.schema?.fallback?.reason).toBe("not-found");
+    expect(workspace.changes[0]?.schema?.name).toBe("nowhere-to-be-found");
   });
 });
+
+/** A user schema directory no real schema lives in, so a test never reads
+ * the machine's own `~/.local/share/openspec/schemas`. */
+const NO_USER_SCHEMAS = {
+  schemaEnvironment: { env: { XDG_DATA_HOME: path.join(os.tmpdir(), "openspec-workbench-no-user-schemas") } },
+};
 
 describe("change lifecycle filesystem operations", () => {
   it("unarchives a change without overwriting an active change", async () => {

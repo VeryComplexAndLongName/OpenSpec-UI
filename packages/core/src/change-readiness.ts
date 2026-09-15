@@ -34,22 +34,22 @@ export {
   type ChangeRunState,
 } from "./change-readiness-facts.js";
 
-/** The capabilities a change's spec delta names — the directories under
- * its own `specs/`. Two changes sharing one write to the same
- * `openspec/specs/<capability>/spec.md` when they archive, which is the
- * collision that is knowable before either has been started. */
+/** The capabilities a change's spec delta names: the capability path of
+ * each delta spec its schema finds, at any depth, such as
+ * `web/dashboard-foundation` (ADR 0031). Two changes sharing one write to the
+ * same `openspec/specs/<capability>/spec.md` when they archive, which is the
+ * collision that is knowable before either has been started. A change with
+ * no delta collides with nobody over a capability, which is what an empty
+ * list already means here. */
 async function capabilitiesOf(workspaceRoot: string, changeName: string): Promise<string[]> {
-  const { readdir } = await import("node:fs/promises");
-  try {
-    const entries = await readdir(path.join(workspaceRoot, "openspec", "changes", changeName, "specs"), {
-      withFileTypes: true,
-    });
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-  } catch {
-    // A change with no delta collides with nobody over a capability,
-    // which is what an empty list already means here.
-    return [];
-  }
+  const { listChangeArtifacts } = await import("./workbench.js");
+  const { artifacts } = await listChangeArtifacts(path.join(workspaceRoot, "openspec", "changes", changeName), {
+    projectRoot: workspaceRoot,
+  });
+  return artifacts
+    .filter((artifact) => artifact.kind === "delta-spec" && artifact.exists)
+    .map((artifact) => artifact.label)
+    .sort();
 }
 
 /** What a worktree's branch has changed against its base. Precise, and

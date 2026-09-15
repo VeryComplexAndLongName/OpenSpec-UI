@@ -197,6 +197,24 @@ describe("readChangeReadiness — what two changes would collide over", () => {
     ]);
   });
 
+  // a-change-lists-what-its-schema-declares 3.2, from DW's layout: a
+  // capability kept in an area folder is named by its whole path.
+  it("catches two deltas for one capability nested in an area folder", async () => {
+    const root = await temporaryRoot();
+    await makeChange(root, "alpha", { capabilities: ["web/dashboard-foundation"] });
+    await makeChange(root, "beta", { capabilities: ["web/dashboard-foundation"] });
+
+    const report = await readChangeReadiness({
+      workspaceRoot: root,
+      git: fakeGit({ worktrees: twoWorktrees(root) }),
+    });
+
+    expect(report.changes.find((c) => c.changeName === "alpha")?.canJoin).toEqual([]);
+    const serialized = JSON.stringify(report);
+    expect(serialized).toContain('"capability":"web/dashboard-foundation"');
+    expect(serialized).not.toContain('"capability":"web"');
+  });
+
   it("catches two branches that have changed the same file", async () => {
     const root = await temporaryRoot();
     await makeChange(root, "alpha", { capabilities: ["ci-cli"] });

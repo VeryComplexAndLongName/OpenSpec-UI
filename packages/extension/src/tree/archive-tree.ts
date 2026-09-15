@@ -46,7 +46,7 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       ];
     }
     return workspace.archivedChanges.map(
-      (change) => new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, true),
+      (change) => new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, true, undefined, change.schema),
     );
   }
 }

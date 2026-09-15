@@ -45,6 +45,9 @@ export class ChangeTreeItem extends vscode.TreeItem {
     /** Where the change stands across the repository, where it has been
      * read (a-change-says-where-it-stands). */
     public readonly standing?: DescribedChangeState,
+    /** The OpenSpec schema its artifacts were read from; a fallback puts a
+     * warning row first (a-change-lists-what-its-schema-declares). */
+    public readonly schema?: { name: string; fallback?: { reason: string; detail: string } },
   ) {
     super(changeName, vscode.TreeItemCollapsibleState.Collapsed);
     this.id = `change:${archived ? "archived" : "active"}:${changeName}`;
@@ -241,10 +244,35 @@ export class HarnessSettingsRootTreeItem extends vscode.TreeItem {
   }
 }
 
+/** The first row under a change whose OpenSpec schema could not be read:
+ * the artifacts that follow are the built-in `spec-driven` ones, and this
+ * says why (a-change-lists-what-its-schema-declares, ADR 0031). Its id is
+ * tied to the change, so two changes naming the same missing schema never
+ * share one. */
+export class SchemaFallbackTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly parent: ChangeTreeItem,
+    schemaName: string,
+    fallback: { reason: string; detail: string },
+  ) {
+    super(`Schema: ${schemaName}`, vscode.TreeItemCollapsibleState.None);
+    this.id = `schema-fallback:${parent.archived ? "archived" : "active"}:${parent.changeName}`;
+    this.description = fallback.reason === "not-found"
+      ? "not found — showing spec-driven artifacts"
+      : fallback.reason === "no-artifacts"
+        ? "declares no artifacts — showing spec-driven artifacts"
+        : "unreadable — showing spec-driven artifacts";
+    this.tooltip = fallback.detail;
+    this.contextValue = "openspec-ui.schemaFallback";
+    this.iconPath = new vscode.ThemeIcon("warning");
+  }
+}
+
 export type WorkbenchTreeItem =
   | ChangeTreeItem
   | ArtifactTreeItem
   | TasksArtifactTreeItem
+  | SchemaFallbackTreeItem
   | EmptyTreeItem
   | TaskTreeItem
   | RepoBootstrapRootTreeItem
@@ -257,7 +285,11 @@ export type WorkbenchTreeItem =
  * checklist items nest under *it*, not flat alongside Proposal/Design/
  * Spec. See openspec/changes/nest-tasks-under-tasks-artifact/design.md. */
 export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] {
-  return element.artifacts.map((artifact) => {
+  const fallback = element.schema?.fallback;
+  const schemaRow: WorkbenchTreeItem[] = fallback && element.schema
+    ? [new SchemaFallbackTreeItem(element, element.schema.name, fallback)]
+    : [];
+  return [...schemaRow, ...element.artifacts.map((artifact): WorkbenchTreeItem => {
     if (artifact.kind === "tasks") {
       return new TasksArtifactTreeItem(
         artifact.label,
@@ -279,7 +311,7 @@ export function getChangeChildren(element: ChangeTreeItem): WorkbenchTreeItem[] 
       element.archived,
       element,
     );
-  });
+  })];
 }
 
 /** Children of a `TasksArtifactTreeItem` — the individual `tasks.md`
@@ -319,7 +351,11 @@ export async function getTasksArtifactChildren(
  * that went wrong. */
 export function getWorkbenchParent(element: WorkbenchTreeItem): WorkbenchTreeItem | undefined {
   if (element instanceof ChangeTreeItem) return undefined;
-  if (element instanceof ArtifactTreeItem || element instanceof TasksArtifactTreeItem) {
+  if (
+    element instanceof ArtifactTreeItem
+    || element instanceof TasksArtifactTreeItem
+    || element instanceof SchemaFallbackTreeItem
+  ) {
     return element.parent;
   }
   return undefined;
@@ -432,7 +468,15 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     items.push(new RepoBootstrapRootTreeItem());
     items.push(new HarnessSettingsRootTreeItem());
     for (const change of workspace.changes) {
-      items.push(new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, false, this.states?.get(change.name)));
+      items.push(new ChangeTreeItem(
+        change.name,
+        change.path,
+        change.state,
+        change.artifacts,
+        false,
+        this.states?.get(change.name),
+        change.schema,
+      ));
     }
     if (workspace.changes.length === 0) {
       items.push(workspace.initialized

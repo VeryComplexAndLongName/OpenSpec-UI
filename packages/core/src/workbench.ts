@@ -7,8 +7,19 @@ import {
   InvalidChangeNameError,
   isValidChangeName,
 } from "./change-name.js";
+import {
+  resolveChangeSchema,
+  resolveGenerates,
+  type ChangeSchema,
+  type SchemaCache,
+  type SchemaEnvironment,
+} from "./change-schema.js";
 
-export type ChangeArtifactKind = "proposal" | "design" | "tasks" | "delta-spec";
+/** `proposal`, `design` and `tasks` keep their own kinds, and delta specs
+ * theirs, because the Timeline, the task checklist, the task templates and
+ * the spec-delta check find them by it. Anything else a change's schema
+ * declares is a `schema-artifact` (ADR 0031). */
+export type ChangeArtifactKind = "proposal" | "design" | "tasks" | "delta-spec" | "schema-artifact";
 
 export interface WorkbenchArtifact {
   id: string;
@@ -24,12 +35,9 @@ export interface WorkbenchChange {
   state: ChangeState;
   archived: boolean;
   artifacts: WorkbenchArtifact[];
-}
-
-export interface WorkbenchSpec {
-  id: string;
-  path: string;
-  exists: boolean;
+  /** The OpenSpec schema the artifacts were read from, and why it fell
+   * back to `spec-driven` where it did. Absent in hand-built values. */
+  schema?: ChangeSchema;
 }
 
 export interface OpenSpecWorkspace {
@@ -40,8 +48,10 @@ export interface OpenSpecWorkspace {
   configExists: boolean;
   changes: WorkbenchChange[];
   archivedChanges: WorkbenchChange[];
-  specs: WorkbenchSpec[];
   archiveExists: boolean;
+  /** Whether `openspec/specs/` exists. The canonical specs themselves are
+   * listed by the OpenSpec CLI (`listSpecs`), which finds them at any depth;
+   * core keeps no second, shallower list of them (ADR 0031). */
   specsRootExists: boolean;
 }
 
@@ -100,60 +110,138 @@ async function directoryNames(directoryPath: string): Promise<string[]> {
   }
 }
 
-async function discoverChangeArtifacts(changePath: string): Promise<WorkbenchArtifact[]> {
-  const standardArtifacts: Array<{ id: string; kind: ChangeArtifactKind; label: string; file: string }> = [
-    { id: "proposal", kind: "proposal", label: "Proposal", file: "proposal.md" },
-    { id: "design", kind: "design", label: "Design", file: "design.md" },
-    { id: "tasks", kind: "tasks", label: "Tasks", file: "tasks.md" },
-  ];
-  const artifacts = await Promise.all(
-    standardArtifacts.map(async (artifact) => {
-      const artifactPath = path.join(changePath, artifact.file);
-      return { ...artifact, path: artifactPath, exists: await exists(artifactPath) };
-    }),
-  );
+const STANDARD_LABELS: Readonly<Record<string, string>> = {
+  proposal: "Proposal",
+  design: "Design",
+  tasks: "Tasks",
+};
 
-  const specsPath = path.join(changePath, "specs");
-  const specIds = await directoryNames(specsPath);
-  const deltaSpecs = await Promise.all(
-    specIds.map(async (specId): Promise<WorkbenchArtifact> => {
-      const specPath = path.join(specsPath, specId, "spec.md");
-      return {
-        id: `delta-spec:${specId}`,
-        kind: "delta-spec",
-        label: specId,
-        path: specPath,
-        exists: await exists(specPath),
-      };
-    }),
-  );
-  return [...artifacts, ...deltaSpecs];
+/** A schema artifact's label from its id: three letters or fewer read as an
+ * abbreviation (`adr` → ADR), anything longer as words (`tech-notes` → Tech
+ * notes). */
+export function labelForSchemaArtifact(id: string): string {
+  if (/^[a-z]{1,3}$/iu.test(id)) return id.toUpperCase();
+  const words = id.replace(/[-_]+/gu, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-async function discoverChanges(changesRoot: string, archived: boolean): Promise<WorkbenchChange[]> {
+/** The capability path of a delta spec file, or undefined when the relative
+ * path is not `specs/<one or more folders>/spec.md`. A `spec.md` directly in
+ * `specs/` is not one: the CLI ignores it when a change is applied. */
+export function deltaSpecCapability(relativePath: string): string | undefined {
+  const parts = relativePath.split("/");
+  if (parts.length < 3 || parts[0] !== "specs" || parts[parts.length - 1] !== "spec.md") return undefined;
+  return parts.slice(1, -1).join("/");
+}
+
+/** A change's artifacts, in the order its schema declares them (ADR 0031).
+ * A declared single file is listed whether or not it exists; a glob lists
+ * the files it matches. */
+async function discoverChangeArtifacts(
+  changePath: string,
+  projectRoot: string,
+  cache: SchemaCache,
+  environment: SchemaEnvironment,
+): Promise<{ artifacts: WorkbenchArtifact[]; schema: ChangeSchema }> {
+  const schema = await resolveChangeSchema(changePath, projectRoot, cache, environment);
+  const artifacts: WorkbenchArtifact[] = [];
+  const listed = new Set<string>();
+
+  for (const declared of schema.artifacts) {
+    const files = await resolveGenerates(changePath, declared.generates);
+    const plain = files.length === 1 && files[0] === declared.generates.replace(/\\/gu, "/").replace(/^\.\//u, "");
+    for (const relative of files) {
+      if (listed.has(relative)) continue;
+      listed.add(relative);
+      const filePath = path.join(changePath, ...relative.split("/"));
+      const fileExists = plain ? await exists(filePath) : true;
+      const capability = deltaSpecCapability(relative);
+      if (capability !== undefined) {
+        artifacts.push({ id: `delta-spec:${capability}`, kind: "delta-spec", label: capability, path: filePath, exists: fileExists });
+      } else if (plain && declared.id in STANDARD_LABELS) {
+        artifacts.push({
+          id: declared.id,
+          kind: declared.id as "proposal" | "design" | "tasks",
+          label: STANDARD_LABELS[declared.id]!,
+          path: filePath,
+          exists: fileExists,
+        });
+      } else if (plain) {
+        artifacts.push({
+          id: declared.id,
+          kind: "schema-artifact",
+          label: labelForSchemaArtifact(declared.id),
+          path: filePath,
+          exists: fileExists,
+        });
+      } else {
+        artifacts.push({ id: `${declared.id}:${relative}`, kind: "schema-artifact", label: relative, path: filePath, exists: fileExists });
+      }
+    }
+  }
+  return { artifacts, schema };
+}
+
+/** A change's artifacts and schema, for a caller that has only the change's
+ * directory: the prompt of an agent run, readiness. The project root is the
+ * directory above `openspec/`, whether the change is active or archived. */
+export async function listChangeArtifacts(
+  changeDir: string,
+  options: DiscoverOpenSpecWorkspaceOptions & { projectRoot?: string } = {},
+): Promise<{ artifacts: WorkbenchArtifact[]; schema: ChangeSchema }> {
+  const resolved = path.resolve(changeDir);
+  const parent = path.dirname(resolved);
+  const changesRoot = path.basename(parent) === "archive" ? path.dirname(parent) : parent;
+  const projectRoot = options.projectRoot ?? path.dirname(path.dirname(changesRoot));
+  return discoverChangeArtifacts(resolved, projectRoot, new Map(), options.schemaEnvironment ?? {});
+}
+
+async function discoverChanges(
+  changesRoot: string,
+  archived: boolean,
+  projectRoot: string,
+  cache: SchemaCache,
+  environment: SchemaEnvironment,
+): Promise<WorkbenchChange[]> {
   const root = archived ? path.join(changesRoot, "archive") : changesRoot;
   const names = (await directoryNames(root)).filter((name) => archived || name !== "archive");
   return Promise.all(
     names.map(async (name) => {
       const changePath = path.join(root, name);
+      const [state, discovered] = await Promise.all([
+        readChangeState(changePath),
+        discoverChangeArtifacts(changePath, projectRoot, cache, environment),
+      ]);
       return {
         name,
         path: changePath,
-        state: await readChangeState(changePath),
+        state,
         archived,
-        artifacts: await discoverChangeArtifacts(changePath),
+        artifacts: discovered.artifacts,
+        schema: discovered.schema,
       };
     }),
   );
 }
 
-export async function discoverOpenSpecWorkspace(root: string): Promise<OpenSpecWorkspace> {
+export interface DiscoverOpenSpecWorkspaceOptions {
+  /** Where the user's OpenSpec schema directory is; tests point it away
+   * from the machine's own. */
+  schemaEnvironment?: SchemaEnvironment;
+}
+
+export async function discoverOpenSpecWorkspace(
+  root: string,
+  options: DiscoverOpenSpecWorkspaceOptions = {},
+): Promise<OpenSpecWorkspace> {
   const resolvedRoot = path.resolve(root);
   const openspecRoot = path.join(resolvedRoot, "openspec");
   const changesRoot = path.join(openspecRoot, "changes");
   const archiveRoot = path.join(changesRoot, "archive");
   const specsRoot = path.join(openspecRoot, "specs");
   const configPath = path.join(openspecRoot, "config.yaml");
+  const schemaCache: SchemaCache = new Map();
+  const environment = options.schemaEnvironment ?? {};
 
   const [configExists, changesRootExists, archiveExists, specsRootExists] = await Promise.all([
     exists(configPath),
@@ -161,17 +249,10 @@ export async function discoverOpenSpecWorkspace(root: string): Promise<OpenSpecW
     exists(archiveRoot),
     exists(specsRoot),
   ]);
-  const [changes, archivedChanges, specIds] = await Promise.all([
-    discoverChanges(changesRoot, false),
-    discoverChanges(changesRoot, true),
-    directoryNames(specsRoot),
+  const [changes, archivedChanges] = await Promise.all([
+    discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment),
+    discoverChanges(changesRoot, true, resolvedRoot, schemaCache, environment),
   ]);
-  const specs = await Promise.all(
-    specIds.map(async (id): Promise<WorkbenchSpec> => {
-      const specPath = path.join(specsRoot, id, "spec.md");
-      return { id, path: specPath, exists: await exists(specPath) };
-    }),
-  );
 
   return {
     root: resolvedRoot,
@@ -181,7 +262,6 @@ export async function discoverOpenSpecWorkspace(root: string): Promise<OpenSpecW
     configExists,
     changes,
     archivedChanges,
-    specs,
     archiveExists,
     specsRootExists,
   };
