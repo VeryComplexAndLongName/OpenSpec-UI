@@ -411,9 +411,35 @@ dark theme that follows the system.
   a vendored copy, primary and alert actions, the standalone dark theme and
   its toggle, and the editor theme's colours in VS Code.
   `lint:changesets` passes.
-- [ ] 5.4 `openspec validate the-web-ui-wears-metro --strict`, `lint:english`
+- [x] 5.4 `openspec validate the-web-ui-wears-metro --strict`, `lint:english`
   after `git add`, and `lint:screenshots` pass.
-- [ ] 5.5 `npm run verify` passes, run unpiped. Record each package's count.
+
+  Done on 2026-09-15.
+  - `openspec validate the-web-ui-wears-metro --strict` passes: "Change
+    'the-web-ui-wears-metro' is valid". It was run after the last edit to
+    the proposal, the design and the spec delta.
+  - `lint:english` passes after `git add`, before every commit on this
+    branch, the last with the retaken pictures staged.
+  - `lint:screenshots` passes: 28 pictures, 28 captured, 0 listed as
+    hand-taken.
+  - `lint:changesets`, `lint:source-text` and `lint:test-budgets` pass too.
+- [x] 5.5 `npm run verify` passes, run unpiped. Record each package's count.
+
+  Done on 2026-09-15. `npm run verify` exited 0, run unpiped with its output
+  written to a file. That covers typecheck, lint (every repository check and
+  each workspace's ESLint), and test.
+  - **The root's script tests** (`node --test`, one run each for
+    check-english, check-screenshots, check-test-budgets, check-changesets
+    and check-openspec-config) report `fail 0`.
+  - **Workspace tests, in the order they ran:**
+    - `@openspec-ui/cli`: 16 files, 161 tests;
+    - `@openspec-ui/core`: 103 files, 1,453 tests, then 2 files and 4 tests
+      in a second run before the extension's;
+    - `openspec-ui-vscode`: 28 files, 376 tests;
+    - `@openspec-ui/server`: 4 files, 100 tests;
+    - `@openspec-ui/webui`: 55 files, 491 tests.
+  - **Browser suites.** They run outside `verify`, and are recorded in 5.1
+    and 5.2.
 - [x] 5.6 Live check of the standalone server in both themes, with a
   picture of the toggle.
 
