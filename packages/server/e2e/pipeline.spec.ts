@@ -98,6 +98,41 @@ async function writeChange(changeName: string, blockedBy?: string, root: string 
   ]);
 }
 
+/** The account a picture would betray: the fixture lives in a temporary
+ * directory under the home of whoever regenerates the pictures. */
+const ACCOUNT = os.userInfo().username;
+
+/** The locators a documentation picture of the Pipeline masks, all of
+ * them lines that print a fixture's temporary directory, which sits under
+ * that home (the-docs-catch-up-to-0-55):
+ * - every other working directory's "branch — path" line;
+ * - every card detail naming one of `paths`, such as a run's "in <path>".
+ *   Such a line may be drawn or held beyond the card's "+N"; it is masked
+ *   either way, since opening or widening a card draws it. */
+function pictureMasks(page: Page, paths: string[]) {
+  return [
+    page.locator("[data-testid^='pipeline-directory-'][data-testid$='-where']"),
+    ...paths.map((fixturePath) => page.locator(".openspec-pipeline-node-detail").filter({ hasText: fixturePath })),
+  ];
+}
+
+/** Fails, rather than letting a picture publish the account name, when
+ * any text in the section carries it outside the lines `pictureMasks`
+ * covers. Those are removed by what they are — the directory lines, and
+ * details naming a known fixture path — never by whether they hold the
+ * name, so an account name anywhere else still fails here. */
+async function expectNoAccountIn(page: Page, testId: string, paths: string[]): Promise<void> {
+  const shown = await page.getByTestId(testId).evaluate((root, fixturePaths) => {
+    const copy = root.cloneNode(true) as HTMLElement;
+    for (const masked of Array.from(copy.querySelectorAll("[data-testid^='pipeline-directory-'][data-testid$='-where']"))) masked.remove();
+    for (const detail of Array.from(copy.querySelectorAll(".openspec-pipeline-node-detail"))) {
+      if (fixturePaths.some((fixturePath) => (detail.textContent ?? "").includes(fixturePath))) detail.remove();
+    }
+    return copy.textContent ?? "";
+  }, paths);
+  expect(shown).not.toContain(ACCOUNT);
+}
+
 test.beforeAll(async () => {
   workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-pipeline-"));
   await mkdir(path.join(workspaceRoot, "openspec", "specs"), { recursive: true });
@@ -301,7 +336,17 @@ test("opens a card to its tasks, and cuts no line at any zoom", async ({ page })
   expect((await blocked.boundingBox())?.y).toBe(blockedBefore?.y);
   expect(await cutLinesIn(page)).toEqual([]);
 
-  await page.screenshot({ path: path.join(IMAGES_DIR, "pipeline.png"), fullPage: true });
+  // the-docs-catch-up-to-0-55 1.5: every other working directory's path is
+  // masked, and nothing else on the page may carry the account name. The
+  // picture published before this showed both paths in full.
+  const fixturePaths = [workspaceRoot, worktreeRoot];
+  await expectNoAccountIn(page, "pipeline", fixturePaths);
+  await page.screenshot({
+    path: path.join(IMAGES_DIR, "pipeline.png"),
+    fullPage: true,
+    mask: pictureMasks(page, fixturePaths),
+    maskColor: "#94a3b8",
+  });
   await expectNoBlockingViolations(page);
 
   await page.getByTestId("pipeline-zoom-in").click();
@@ -323,7 +368,9 @@ async function readPipelineAgain(page: Page): Promise<void> {
 // reason. The stand-in holds the verify stage open, so the stop is asked
 // while a stage runs and stays pending for the card to state.
 test("starts a chain from its card, answers it there, and asks it to stop", async ({ page }) => {
-  test.setTimeout(150000);
+  // Start (up to 45 s), Continue until a stage runs (up to 90 s), then the
+  // stop and its pictures; see 4.4 of the-docs-catch-up-to-0-55.
+  test.setTimeout(240000);
   const changeName = "pipeline-run";
   const runRoot = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-pipeline-run-"));
   await mkdir(path.join(runRoot, "openspec", "specs"), { recursive: true });
@@ -337,6 +384,12 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
     "utf8",
   );
   await git(runRoot, ["init", "-q", "-b", "main"]);
+  // A stop names who asked by the working directory's git identity. Set
+  // here, so the card reads the fixture's identity rather than the machine's
+  // own, which a documentation picture would otherwise publish
+  // (the-docs-catch-up-to-0-55 1.1).
+  await git(runRoot, ["config", "user.email", "fixture@example.com"]);
+  await git(runRoot, ["config", "user.name", "Fixture"]);
   await git(runRoot, ["add", "."]);
   await git(runRoot, ["commit", "-q", "-m", "workspace"]);
 
@@ -387,13 +440,18 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
       await readPipelineAgain(page);
       await expect(continueOnCard).toBeVisible({ timeout: 3000 });
     }).toPass({ timeout: 45000 });
-    await continueOnCard.click();
+    // Every click on the card has its own timeout. A click waits for its
+    // element to be stable, and the card's line of what the run says moves
+    // while it counts its age: on CI a click on Continue waited for that for
+    // the whole of `toPass`'s window, so the predicate never returned to be
+    // retried (the-docs-catch-up-to-0-55 4.4). A click that times out now
+    // fails one pass, and the next pass reads the card again.
     await expect(async () => {
       await readPipelineAgain(page);
-      if (await continueOnCard.isVisible()) await continueOnCard.click();
-      await expect(continueOnCard).toBeHidden({ timeout: 3000 });
-      await expect(stopOnCard).toBeVisible({ timeout: 3000 });
-    }).toPass({ timeout: 60000 });
+      if (await continueOnCard.isVisible()) await continueOnCard.click({ timeout: 5000 });
+      await expect(continueOnCard).toBeHidden({ timeout: 10000 });
+      await expect(stopOnCard).toBeVisible({ timeout: 10000 });
+    }).toPass({ timeout: 90000 });
 
     // 3. Stop, with a reason, through a form that passes axe while open.
     await stopOnCard.click();
@@ -407,6 +465,11 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
     );
     expect(blockingViolations, JSON.stringify(blockingViolations, null, 2)).toEqual([]);
     await form.getByTestId("pipeline-stop-reason").fill("wrong branch");
+    // the-docs-catch-up-to-0-55 1.1: the reason, whole, where it is given.
+    // A card draws its details one line each, and this one's line is cut at
+    // the card's width, so the picture of the card cannot show the reason.
+    await expect(form.getByTestId("pipeline-stop-reason")).toHaveValue("wrong branch");
+    await form.screenshot({ path: path.join(IMAGES_DIR, "pipeline-stop-ask.png") });
     await form.getByTestId("pipeline-ask-to-stop").click();
     await expect(form).toBeHidden();
 
@@ -415,6 +478,19 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
     const card = page.getByTestId(`pipeline-node-${changeName}`);
     await expect(card).toContainText("asked to stop", { timeout: 15000 });
     await expect(card).toContainText("wrong branch");
+    await expect(card).toContainText("by fixture@example.com");
+
+    // the-docs-catch-up-to-0-55 1.1: the picture the documentation shows
+    // for a run asked to stop, taken once the card states the request, so
+    // the caption cannot outrun the screen. The whole Pipeline section, not
+    // the card alone, so a reader sees where the card sits.
+    // The run's own card carries "in <runRoot>" among its details.
+    await expectNoAccountIn(page, "pipeline", [runRoot]);
+    await page.getByTestId("pipeline").screenshot({
+      path: path.join(IMAGES_DIR, "pipeline-stop.png"),
+      mask: pictureMasks(page, [runRoot]),
+      maskColor: "#94a3b8",
+    });
     expect(pageErrors).toEqual([]);
   } finally {
     releaseVerify();

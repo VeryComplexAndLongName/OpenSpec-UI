@@ -27,6 +27,9 @@ Two things it does **not** do:
 - It does not remove the ceilings. A run with nobody watching is the one
   that most wants a budget: see
   [cap what a run can spend](cap-what-a-run-can-spend.md).
+- It does not stop you stopping it. Its Pipeline card, or
+  `openspec-ui-cli stop`, still asks it to stop with a reason: see
+  [stop a run](stop-a-run.md).
 
 Accepted values, what each autonomy level means, and why a global file
 may not set either key: [`HARNESS.md`](../../HARNESS.md).

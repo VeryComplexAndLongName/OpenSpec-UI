@@ -37,6 +37,34 @@ context menu.
 
 ![Expanded archived change tasks beside the archive context menu](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-tasks.png)
 
+### Where each change stands, and the Pipeline
+
+The Changes tree states each change's standing beside its name, in the
+same word every surface uses. The words are:
+- Running, or Running in another working directory;
+- Waiting for you, or Waiting in another working directory;
+- Failed or Stopped at a stage;
+- Blocked, Ready or Done;
+- Further along in another copy;
+- Merged in #N, Archived on main, or Deleted on main.
+
+Hovering a change shows where each part of that word was read from.
+
+![Changes tree with each change's state and its standing word, such as in-progress — Ready](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/changes-standings.png)
+
+**OpenSpec UI: Open Pipeline**, also in the Changes view's title bar,
+opens the Pipeline in a panel of its own. It is the same picture the
+standalone app draws: every change as a card in the order the changes
+declare, with its state, its tasks, what a live run last said, and what
+can start alongside what.
+
+![The Pipeline panel in VS Code with two ready changes as cards, each with Start and Show tasks, and the worktree command suggested for each](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/pipeline-panel.png)
+
+A card's **Start** opens the run dialog for that change. On a run this
+editor holds, the card answers a checkpoint or a permission, and **Stop**
+asks the run to stop, with a reason. See
+[stopping a run](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/how-to/stop-a-run.md).
+
 ### Specs, templates, and repository setup
 
 #### Canonical spec editor
@@ -88,6 +116,17 @@ context menu.
   done: those items are reported by a person after observing the thing
   they name, and a button on a surface that cannot observe it would turn
   that rule into a formality.
+- Open the **Pipeline** in a panel ("OpenSpec UI: Open Pipeline"): every
+  active change as a card with its state, its tasks and what a live run
+  last said, and every other working directory beneath. A card starts its
+  change, answers a run's checkpoint or permission, and asks a run to stop
+  with a reason. A run held elsewhere offers Stop only when it is signed by
+  the same enrolled person as this machine's key.
+- See each change's standing word beside it in the Changes tree — the same
+  word the Pipeline, the standalone app and `openspec-ui-cli ready` use —
+  with where each part of it was read from on hover.
+- Say that a run signed by an unenrolled key was yours with **It was me** in
+  the Human-Only Inbox; its runs then read as signed by you.
 - Ask a change what it follows — "Show What This Change Follows" walks
   back to the changes it grew out of and opens any of them. This is how a
   decision is traced to the reason for it once the change that made it is

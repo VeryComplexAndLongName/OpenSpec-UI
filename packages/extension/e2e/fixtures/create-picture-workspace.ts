@@ -9,9 +9,27 @@
 // account name out of the picture rather than masking it afterwards.
 // The temporary holder above it is random; the workspace inside is not.
 
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
+import { gitIsolationArgs } from "@openspec-ui/core/test-support/git-isolation";
+
+const run = promisify(execFile);
+
+/** git with this machine's own signing and hooks settings kept out, the
+ * way the standalone Pipeline fixture commits. */
+async function git(cwd: string, args: string[]): Promise<void> {
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "Fixture",
+    GIT_AUTHOR_EMAIL: "fixture@example.com",
+    GIT_COMMITTER_NAME: "Fixture",
+    GIT_COMMITTER_EMAIL: "fixture@example.com",
+  };
+  await run("git", [...(await gitIsolationArgs()), ...args], { cwd, env });
+}
 
 /** What the title bar and Explorer root will read. Chosen to be what a
  * reader would expect a workspace to be called, since it is visible in
@@ -155,6 +173,15 @@ export async function createPictureWorkspace(): Promise<PictureWorkspace> {
     "- **THEN** it also holds",
     "",
   ].join("\n"));
+
+  // A git repository, committed once, with no remote. The Changes tree
+  // states a change's standing only where it can read one, and a standing
+  // is read from git; without a repository every row lists its change
+  // with no word, which is not what `changes-standings.png` is of. See
+  // the-docs-catch-up-to-0-55.
+  await git(root, ["init", "-q", "-b", "main"]);
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-q", "-m", "fixture"]);
 
   return { path: root, holder };
 }
