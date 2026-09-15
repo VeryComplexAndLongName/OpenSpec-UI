@@ -225,6 +225,42 @@ describe("ChangesTreeProvider", () => {
     expect(provider.getParent(children[0]!)).toBe(change);
   });
 
+  // an-artifact-label-says-what-it-is 2.2: a spec file archive will not apply
+  // says so, and the delta spec beside it does not.
+  it("marks a spec file archive will not apply, and leaves the delta spec beside it unmarked", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [{
+        name: "landing",
+        path: "/changes/landing",
+        state: "draft",
+        artifacts: [
+          { id: "delta-spec:checkout", kind: "delta-spec", label: "checkout", path: "/changes/landing/specs/checkout/spec.md", exists: true },
+          {
+            id: "specs:specs/landing-page.md",
+            kind: "schema-artifact",
+            label: "Specs: landing-page.md",
+            path: "/changes/landing/specs/landing-page.md",
+            exists: true,
+            notAppliedOnArchive: true,
+          },
+        ],
+      }],
+    });
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const children = await provider.getChildren(roots[3]);
+
+    expect(children.map((item) => [item.label, item.description])).toEqual([
+      ["Spec: checkout", undefined],
+      ["Specs: landing-page.md", "not applied on archive"],
+    ]);
+    expect(children[0]?.tooltip).toBeUndefined();
+    expect(children[1]?.tooltip).toContain("specs/<capability>/spec.md");
+  });
+
   it("a missing tasks.md is a non-collapsible leaf, same as any other missing artifact", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteChange, discoverOpenSpecWorkspace, unarchiveChange } from "./workbench.js";
+import { deleteChange, discoverOpenSpecWorkspace, labelForSchemaArtifact, unarchiveChange } from "./workbench.js";
 
 // every-varying-check-has-a-budget:
 // measured 2026-09-05 at 0.2s idle and 0.6s under deliberate 8-worker CPU
@@ -23,6 +23,15 @@ async function temporaryRoot(): Promise<string> {
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+// an-artifact-label-says-what-it-is 1.1.
+describe("labelForSchemaArtifact", () => {
+  it("reads a short id as an abbreviation, a known term as the term, and other words as words", () => {
+    expect(
+      ["adr", "asyncapi", "openapi-contract", "api_design", "event-storming", "use-cases", "tech-notes"].map(labelForSchemaArtifact),
+    ).toEqual(["ADR", "AsyncAPI", "OpenAPI contract", "API design", "Event storming", "Use cases", "Tech notes"]);
+  });
 });
 
 describe("discoverOpenSpecWorkspace", () => {
@@ -119,7 +128,7 @@ describe("discoverOpenSpecWorkspace", () => {
     expect(workspace.changes[0]?.schema?.fallback).toBeUndefined();
   });
 
-  it("lists event-driven's artifacts in its order, with today's labels", async () => {
+  it("lists event-driven's artifacts in its order, with AsyncAPI written as the term", async () => {
     const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
     const root = await temporaryRoot();
     const change = path.join(root, "openspec", "changes", "order-events");
@@ -134,18 +143,20 @@ describe("discoverOpenSpecWorkspace", () => {
 
     const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
 
-    // Labels pinned as they are; nicer ones for compound ids are a later change.
+    // an-artifact-label-says-what-it-is 1.4: `asyncapi` read "Asyncapi" before.
     expect(workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.label, artifact.exists])).toEqual([
       ["event-storming", "Event storming", true],
       ["event-modeling", "Event modeling", false],
       ["delta-spec:orders", "orders", true],
       ["design", "Design", false],
-      ["asyncapi", "Asyncapi", true],
+      ["asyncapi", "AsyncAPI", true],
       ["tasks", "Tasks", false],
     ]);
   });
 
-  it("lists minimalist's flat spec file by its path, not as a delta spec", async () => {
+  // an-artifact-label-says-what-it-is 1.4. OpenSpec CLI 1.7.0's archive merged
+  // only specs/checkout/spec.md from such a change, and validate passed it.
+  it("names minimalist's spec files outside a capability folder by artifact and file, marked not applied on archive", async () => {
     const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
     const root = await temporaryRoot();
     const change = path.join(root, "openspec", "changes", "landing");
@@ -154,16 +165,22 @@ describe("discoverOpenSpecWorkspace", () => {
     await Promise.all([
       writeFile(path.join(change, ".openspec.yaml"), `schema: ${name}\n`),
       writeFile(path.join(change, "specs", "checkout", "spec.md"), "## ADDED Requirements\n"),
+      writeFile(path.join(change, "specs", "checkout", "notes.md"), "Why checkout first.\n"),
       writeFile(path.join(change, "specs", "landing-page.md"), "As a visitor, I want a landing page.\n"),
+      writeFile(path.join(change, "specs", "spec.md"), "## ADDED Requirements\n"),
       writeFile(path.join(change, "tasks.md"), "- [ ] one\n"),
     ]);
 
     const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
 
-    expect(workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.kind, artifact.label])).toEqual([
-      ["delta-spec:checkout", "delta-spec", "checkout"],
-      ["specs:specs/landing-page.md", "schema-artifact", "specs/landing-page.md"],
-      ["tasks", "tasks", "Tasks"],
+    expect(
+      workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.kind, artifact.label, artifact.notAppliedOnArchive]),
+    ).toEqual([
+      ["specs:specs/checkout/notes.md", "schema-artifact", "Specs: checkout/notes.md", true],
+      ["delta-spec:checkout", "delta-spec", "checkout", undefined],
+      ["specs:specs/landing-page.md", "schema-artifact", "Specs: landing-page.md", true],
+      ["specs:specs/spec.md", "schema-artifact", "Specs: spec.md", true],
+      ["tasks", "tasks", "Tasks", undefined],
     ]);
   });
 
