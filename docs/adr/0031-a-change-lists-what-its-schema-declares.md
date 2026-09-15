@@ -1,6 +1,6 @@
 # 0031: A Change Lists What Its OpenSpec Schema Declares
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-09-15
 

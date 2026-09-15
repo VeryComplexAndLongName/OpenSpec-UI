@@ -3,13 +3,15 @@ on 2026-09-15. See ADR 0031.
 
 ## 1. The decision
 
-- [ ] 1.1 `docs/adr/0031-a-change-lists-what-its-schema-declares.md`:
+- [x] 1.1 `docs/adr/0031-a-change-lists-what-its-schema-declares.md`:
   artifacts from the change's schema, read from disk in the CLI's order, with
   DW credited for both reports. The owner reviews it, and its status becomes
   Accepted.
+
+  Done: the owner approved it on 2026-09-15, and its status is Accepted.
 - [x] 1.2 `docs/adr/README.md` gains the 0031 row.
 
-  Done: it is listed as Proposed until 1.1's review.
+  Done: listed as Accepted.
 
 ## 2. Schema discovery in core
 
