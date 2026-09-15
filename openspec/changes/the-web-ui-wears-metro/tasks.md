@@ -76,8 +76,18 @@ dark theme that follows the system.
 
 ## 3. The controls
 
-- [ ] 3.1 Each entry's root gains `openspec-metro` and injects the generated
+- [x] 3.1 Each entry's root gains `openspec-metro` and injects the generated
   CSS before `shellThemeCss`.
+
+  Done in the five entries: standalone, the AI panel, Harness Settings, the
+  Pipeline and the Timeline.
+  - **Nothing changes on screen yet.** No `className` in webui names a bare
+    Metro class or modifier, so no kept rule matches an element until 3.2.
+  - **Checks.** webui typecheck and lint pass, and its tests pass: 52 files,
+    477 tests.
+  - **Line endings.** The root `.gitattributes` keeps
+    `src/metro-css.generated.ts` in LF. A CRLF checkout would break the test
+    that compares the module with a fresh run.
 - [ ] 3.2 Buttons, inputs, selects, textareas, checkboxes, tables, tabs,
   dialogs, progress and badges take Metro's classes. Record per component how
   many places changed.

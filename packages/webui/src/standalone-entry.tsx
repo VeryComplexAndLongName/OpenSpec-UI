@@ -25,6 +25,7 @@ import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-c
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
+import { metroCss } from "./metro-css.generated.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
@@ -1367,8 +1368,8 @@ function StandaloneApp() {
   const canInitialize = Boolean(overview?.initialization?.canInitialize);
 
   return (
-    <div className="openspec-standalone-app">
-      <style>{shellThemeCss}</style>
+    <div className="openspec-standalone-app openspec-metro">
+      <style>{`${metroCss}\n${shellThemeCss}`}</style>
 
       <header className="openspec-shell-headline">
         <OwlLogo />

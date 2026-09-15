@@ -3,3 +3,7 @@
 # Windows rewrites its line endings on checkout and the hash no longer matches.
 # See packages/webui/vendor/metro/README.md and ADR 0030.
 packages/webui/vendor/metro/metro.css -text
+
+# The copy derived from it is compared, byte for byte, with a fresh run of
+# packages/webui/scripts/build-metro.mjs, which writes LF.
+packages/webui/src/metro-css.generated.ts text eol=lf

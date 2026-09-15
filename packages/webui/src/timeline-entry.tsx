@@ -12,6 +12,7 @@ import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
 import { ChangeChartsView } from "./components/ChangeChartsView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
+import { metroCss } from "./metro-css.generated.js";
 import type { ChangeTimeline } from "./change-timeline-client.js";
 
 interface MultiChangeTimelinePayload {
@@ -38,8 +39,8 @@ function TimelineApp({
   staleThresholdDays: number | undefined;
 }) {
   return (
-    <div className="openspec-extension-app">
-      <style>{`${shellThemeCss}\n${vscodeThemeCss}`}</style>
+    <div className="openspec-extension-app openspec-metro">
+      <style>{`${metroCss}\n${shellThemeCss}\n${vscodeThemeCss}`}</style>
       {timeline ? (
         <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} />
       ) : multi ? (
