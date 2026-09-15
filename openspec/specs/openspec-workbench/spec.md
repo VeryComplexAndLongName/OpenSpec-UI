@@ -29,6 +29,13 @@ order the schema declares them.
   missing.
 - **Delta specs.** A delta spec SHALL be found at any depth under the change's
   `specs/` directory, and named by its capability path under `specs/`.
+- **Labels.** An artifact other than proposal, design, tasks and the delta
+  specs SHALL be labelled from its id. A word of the id that is a known term
+  SHALL be written as that term is usually written. A file a glob matched that
+  is not a delta spec SHALL be labelled with its artifact's label and its path
+  under the glob's fixed folder.
+- **Files archive does not apply.** A listed file under the change's `specs/`
+  directory that is not a delta spec SHALL be shown as not applied on archive.
 - **No CLI process.** Discovering a change's artifacts SHALL NOT start the
   OpenSpec CLI.
 
@@ -58,6 +65,21 @@ built-in `spec-driven` artifacts and SHALL say why.
   schema declares it
 - **AND** the proposal, design, tasks, and delta specs the schema also declares
   are shown as before
+
+#### Scenario: A compound id is a known term
+
+- **WHEN** a change uses a schema that declares an `asyncapi` artifact
+  generating `asyncapi.yaml`
+- **THEN** that artifact is labelled AsyncAPI
+
+#### Scenario: A spec file outside a capability folder
+
+- **WHEN** a change uses a schema whose `specs` artifact generates
+  `specs/**/*.md`, and the change has `specs/landing-page.md` and
+  `specs/checkout/spec.md`
+- **THEN** `specs/landing-page.md` is labelled "Specs: landing-page.md" and
+  shown as not applied on archive
+- **AND** `checkout` is shown as a delta spec, not marked
 
 #### Scenario: A schema declares files outside the change
 
