@@ -306,6 +306,52 @@ describe("prepareAgentContext", () => {
     expect(result.prompt).toContain("Some delta.");
   });
 
+  // a-change-lists-what-its-schema-declares 3.1, from DW's report: an agent
+  // sees the files the change's schema declares, as the Changes tree does.
+  it("embeds a nested delta spec and an artifact the project schema adds", async () => {
+    const root = await temporaryChangeDir();
+    const changeDir = path.join(root, "openspec", "changes", "dashboard");
+    const schemaDir = path.join(root, "openspec", "schemas", "spec-driven-with-adr");
+    await mkdir(path.join(changeDir, "specs", "web", "dashboard-foundation"), { recursive: true });
+    await mkdir(schemaDir, { recursive: true });
+    await writeFile(path.join(changeDir, ".openspec.yaml"), "schema: spec-driven-with-adr\n", "utf8");
+    await writeFile(path.join(schemaDir, "schema.yaml"), [
+      "artifacts:",
+      "  - { id: proposal, generates: proposal.md, template: proposal.md }",
+      "  - { id: adr, generates: adr.md, template: adr.md }",
+      "  - { id: specs, generates: \"specs/**/*.md\", template: spec.md }",
+      "",
+    ].join("\n"), "utf8");
+    await writeFile(path.join(changeDir, "adr.md"), "the decision record", "utf8");
+    await writeFile(
+      path.join(changeDir, "specs", "web", "dashboard-foundation", "spec.md"),
+      "## ADDED Requirements\n\nA nested delta.",
+      "utf8",
+    );
+
+    const result = await prepareAgentContext({ changeDir });
+
+    expect(result.prompt).toContain("## adr.md");
+    expect(result.prompt).toContain("the decision record");
+    expect(result.prompt).toContain("## specs/web/dashboard-foundation/spec.md");
+    expect(result.prompt).toContain("A nested delta.");
+  });
+
+  it("does not embed a declared file whose real path lies outside the change", async () => {
+    const { symlink } = await import("node:fs/promises");
+    const changeDir = await temporaryChangeDir();
+    const outside = await temporaryChangeDir();
+    await mkdir(path.join(outside, "leaked"), { recursive: true });
+    await writeFile(path.join(outside, "leaked", "spec.md"), "content from outside the change", "utf8");
+    await mkdir(path.join(changeDir, "specs"), { recursive: true });
+    // A junction needs no elevation on Windows, and is a directory link elsewhere.
+    await symlink(outside, path.join(changeDir, "specs", "linked"), process.platform === "win32" ? "junction" : "dir");
+
+    const result = await prepareAgentContext({ changeDir });
+
+    expect(result.prompt).not.toContain("content from outside the change");
+  });
+
   it("produces no embedded content, not an error, for a nonexistent changeDir", async () => {
     const result = await prepareAgentContext({ changeDir: "/does/not/exist/openspec/changes/x" });
     expect(result.prompt).toContain("no artifact files found");

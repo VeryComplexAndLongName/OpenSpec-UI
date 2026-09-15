@@ -176,6 +176,55 @@ describe("ChangesTreeProvider", () => {
     expect(artifacts[3]?.collapsibleState).toBe(0); // None
   });
 
+  // a-change-lists-what-its-schema-declares 3.3: DW's report. A nested delta
+  // spec is named by its path, and a schema that could not be read says so
+  // above the spec-driven artifacts it fell back to.
+  it("names a nested delta by its path, and puts a schema fallback row first under its own change", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      configPath: "/workspace/repo/openspec/config.yaml",
+      configExists: true,
+      changes: [{
+        name: "dashboard",
+        path: "/changes/dashboard",
+        state: "draft",
+        artifacts: [
+          { id: "proposal", kind: "proposal", label: "Proposal", path: "/changes/dashboard/proposal.md", exists: true },
+          {
+            id: "delta-spec:web/dashboard-foundation",
+            kind: "delta-spec",
+            label: "web/dashboard-foundation",
+            path: "/changes/dashboard/specs/web/dashboard-foundation/spec.md",
+            exists: true,
+          },
+          { id: "adr", kind: "schema-artifact", label: "ADR", path: "/changes/dashboard/adr.md", exists: true },
+        ],
+        schema: {
+          name: "nowhere-to-be-found",
+          source: "built-in",
+          artifacts: [],
+          fallback: { reason: "not-found", detail: "schema \"nowhere-to-be-found\" is not in openspec/schemas" },
+        },
+      }],
+    });
+
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    const roots = await provider.getChildren();
+    const change = roots[3];
+    const children = await provider.getChildren(change);
+
+    expect(children.map((item) => item.label)).toEqual([
+      "Schema: nowhere-to-be-found",
+      "Proposal",
+      "Spec: web/dashboard-foundation",
+      "ADR",
+    ]);
+    expect(children[0]?.description).toContain("not found");
+    expect(children[0]?.tooltip).toContain("nowhere-to-be-found");
+    expect(children[0]?.id).toBe("schema-fallback:active:dashboard");
+    expect(children[2]?.description).toBeUndefined();
+    expect(provider.getParent(children[0]!)).toBe(change);
+  });
+
   it("a missing tasks.md is a non-collapsible leaf, same as any other missing artifact", async () => {
     discoverOpenSpecWorkspaceMock.mockResolvedValue({
       configPath: "/workspace/repo/openspec/config.yaml",

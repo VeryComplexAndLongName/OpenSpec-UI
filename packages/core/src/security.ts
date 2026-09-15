@@ -8,7 +8,7 @@
 //      gets run or where.
 // All checks run BEFORE the process is spawned / the HTTP call is made.
 
-import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
 import type { AuditMessage } from "./audit-message.js";
@@ -17,6 +17,7 @@ import { instructionsForArtifact } from "./openspec.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
 import type { HarnessStage } from "./harness-stage.js";
 import type { CommandContext, CommandKind, VerifiedDeltaEntry } from "./protocol.js";
+import { listChangeArtifacts } from "./workbench.js";
 
 export interface AllowlistRule {
   /** Name of the executable/binary, exact match. */
@@ -114,12 +115,6 @@ const RULES_ARTIFACT_BY_COMMAND_KIND: Partial<Record<CommandKind, string>> = {
   implement: "tasks",
 };
 
-const STANDARD_ARTIFACTS: readonly { file: string; label: string }[] = [
-  { file: "proposal.md", label: "proposal.md" },
-  { file: "design.md", label: "design.md" },
-  { file: "tasks.md", label: "tasks.md" },
-];
-
 async function readIfExists(filePath: string): Promise<string | undefined> {
   try {
     return await readFile(filePath, "utf8");
@@ -128,31 +123,41 @@ async function readIfExists(filePath: string): Promise<string | undefined> {
   }
 }
 
-/** Reads the standard artifacts (`proposal.md`/`design.md`/`tasks.md`) and
- * any delta specs (`specs/<capability>/spec.md`) under `changeDir`,
- * skipping whichever do not exist — mirrors `workbench.ts`'s
- * `discoverChangeArtifacts` discovery shape, kept as its own minimal,
- * self-contained copy here rather than imported, so this security-critical
- * module's file-reading surface stays easy to audit in one place. */
+/** Reads every existing file the change's OpenSpec schema declares under
+ * `changeDir`, in the order the schema declares them: proposal, delta specs
+ * at any depth, design, tasks, and whatever else the schema adds (ADR 0031).
+ * Which files those are comes from the workbench's discovery, the one rule
+ * the Changes tree and readiness use too, so an agent sees the files a person
+ * sees. Discovery only names files; the reading stays here, in one place.
+ * A file whose real path lies outside `changeDir`, reached through a link,
+ * is never read into a prompt. Each is labelled by its path relative to the
+ * change, as `specs/<capability>/spec.md` was before. */
 async function readChangeArtifacts(changeDir: string): Promise<Array<{ label: string; content: string }>> {
   const found: Array<{ label: string; content: string }> = [];
-
-  for (const artifact of STANDARD_ARTIFACTS) {
-    const content = await readIfExists(path.join(changeDir, artifact.file));
-    if (content !== undefined) found.push({ label: artifact.label, content });
-  }
-
-  let specIds: string[] = [];
+  let root: string;
   try {
-    const entries = await readdir(path.join(changeDir, "specs"), { withFileTypes: true });
-    specIds = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    root = await realpath(changeDir);
   } catch {
-    specIds = [];
+    return found;
   }
-  for (const specId of specIds) {
-    const specPath = path.join(changeDir, "specs", specId, "spec.md");
-    const content = await readIfExists(specPath);
-    if (content !== undefined) found.push({ label: `specs/${specId}/spec.md`, content });
+  const rootWithSeparator = root.endsWith(path.sep) ? root : root + path.sep;
+  const within = (candidate: string): boolean => (process.platform === "win32"
+    ? candidate.toLowerCase().startsWith(rootWithSeparator.toLowerCase())
+    : candidate.startsWith(rootWithSeparator));
+
+  const { artifacts } = await listChangeArtifacts(changeDir);
+  for (const artifact of artifacts) {
+    if (!artifact.exists) continue;
+    let real: string;
+    try {
+      real = await realpath(artifact.path);
+    } catch {
+      continue;
+    }
+    if (!within(real)) continue;
+    const content = await readIfExists(real);
+    if (content === undefined) continue;
+    found.push({ label: path.relative(changeDir, artifact.path).split(path.sep).join("/"), content });
   }
 
   return found;
