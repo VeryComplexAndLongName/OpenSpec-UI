@@ -308,10 +308,46 @@ dark theme that follows the system.
       and a theme switched while the webview is open.
   - **Checks.** The webui suite passes with 55 files and 491 tests, and
     typecheck, lint and `lint:test-budgets` pass.
-- [ ] 4.3 Live check in the Extension Development Host, with pictures, in
+- [x] 4.3 Live check in the Extension Development Host, with pictures, in
   Default Dark Modern, Default Light Modern, Default High Contrast and one
   third-party theme: the AI panel, Harness Settings, the Pipeline and the
   Timeline. Record that each control's colours come from that theme.
+
+  Done on 2026-09-15, with VS Code 1.137.0 from `.vscode-test`.
+  - **How.** A one-off Playwright `_electron` spec, not committed, launched
+    the Extension Development Host once per theme, set through
+    `workbench.colorTheme`. Each run opened the four panels by their
+    commands: Open Process Dashboard, Configure Harness Settings, Open
+    Pipeline, and Show Change Comparison Timeline, answering its picker.
+    In each webview it read the body class, the root class, the theme's
+    `--vscode-*` values, and the colours actually drawn on a primary
+    button, a neutral button and a field. 16 of 16 passed; the pictures
+    were kept outside the repository.
+  - **The fourth theme is Monokai,** a community theme that ships inside
+    VS Code. No Marketplace colour theme is installed on this machine, and
+    the run's extensions directory is empty.
+  - **What each theme drew:**
+
+    | Theme | Root | Primary button | Neutral button | Field |
+    | --- | --- | --- | --- | --- |
+    | Default Dark Modern | `dark-side` | `#0078d4` on white | transparent, `#cccccc` text | `#313131`, border `#3c3c3c` |
+    | Default Light Modern | light | `#005fb8` on white | `#e5e5e5`, `#3b3b3b` text | white, border `#cecece` |
+    | Default High Contrast | `dark-side` | black on white, contrast border | black, contrast border | black, border `#6fc3df` |
+    | Monokai | `dark-side` | `#75715e` on white | `#3e3d32`, `#cccccc` text | `#414339` |
+
+    Every value is that theme's own `--vscode-button-*` or
+    `--vscode-input-*`, and none is Metro's.
+  - **Found and fixed on the way.**
+    - **Default Dark Modern.** Its secondary button ground is transparent,
+      so "Reload changes", "Open all" and "Refresh" read as text. A neutral
+      button now takes the theme's button border.
+    - **Default High Contrast.** "Apply" read as text, because the shell's
+      transparent border on a primary button won over that rule. Every
+      button, primary and alert included, now takes
+      `--vscode-contrastBorder` first. The rerun's pictures show the border
+      in both themes.
+  - **Left as it was.** The Pipeline card's own Start and Show tasks
+    buttons keep the shell's styling (3.4).
 
 ## 5. Pictures and checks
 
