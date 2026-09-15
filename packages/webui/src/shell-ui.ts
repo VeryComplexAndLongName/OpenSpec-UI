@@ -2001,14 +2001,10 @@ export const vscodeThemeCss = `
     background: var(--surface);
   }
 
-  .openspec-extension-app input,
-  .openspec-extension-app textarea,
-  .openspec-extension-app select {
-    color: var(--vscode-input-foreground);
-    background: var(--vscode-input-background);
-    border-color: var(--vscode-input-border, var(--line));
-  }
-
+  /* A field's colour, ground and border are Metro's native-field rules,
+     reading the --input-* variables the mapping above sets from the same
+     --vscode-input-* colours. The placeholder is the one thing Metro does
+     not colour. */
   .openspec-extension-app input::placeholder,
   .openspec-extension-app textarea::placeholder {
     color: var(--vscode-input-placeholderForeground);

@@ -194,8 +194,33 @@ dark theme that follows the system.
     that painted every AI panel button with the accent is gone. In
     `vscodeThemeCss`, the editor's button colours now go to `.button.primary`
     only.
-- [ ] 3.3 Remove each `openspec-*` rule that a Metro rule now does, rather
+- [x] 3.3 Remove each `openspec-*` rule that a Metro rule now does, rather
   than overriding it. Record which rules went.
+
+  Done on 2026-09-15. These rules went.
+  - **The shared field block** (`.openspec-shell-field input/textarea/select`,
+    `.openspec-ai-panel-controls select/button`): `border`, `border-radius`,
+    `padding`, `color` and `background` went. Metro's native-field and
+    `.button` rules draw those. `font: inherit`, `font-weight` and
+    `letter-spacing` stay, so a control reads in the form's own text size.
+  - **The accent on every AI panel button.** `.openspec-ai-panel-controls
+    button` and its hover, focus and disabled rules went. The old block also
+    held a `[data-testid="cancel-button"]` danger rule that matched no
+    element: the button's id is `cancel-run-button`. Colour now comes from
+    `.button.primary` and `.button.alert` on the shell's tokens, and Metro
+    draws the disabled state.
+  - **The VS Code field colours.** `.openspec-extension-app input, textarea,
+    select` set `color`, `background` and `border-color` from
+    `--vscode-input-*`. The Metro mapping sets `--input-*` from the same
+    colours, so that rule went. The placeholder rule stays, since Metro
+    colours no placeholder.
+
+  These stay, because Metro does not do them:
+  - control widths by kind of value (ADR 0023);
+  - the focus-visible outlines, which are stronger than Metro's 3px grey
+    shadow;
+  - the page and editor tabs, list rows and the Pipeline card's controls;
+  - `input[type=number]`, which Metro does not list.
 - [ ] 3.4 Layout, the Pipeline picture, the dense forms' two-column rows and
   prose widths are unchanged. The unit tests that assert them still pass.
 
@@ -277,8 +302,14 @@ dark theme that follows the system.
   the standalone shell in light and in dark.
 - [ ] 5.2 Every picture under `docs/images/` is retaken by its spec, from Bash
   for the editor pictures, and looked at.
-- [ ] 5.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` minor,
+- [x] 5.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` minor,
   `@openspec-ui/server` patch.
+
+  Done: `.changeset/the-web-ui-wears-metro.md`, with those three levels.
+  Its summary is written for the Marketplace changelog: Metro controls from
+  a vendored copy, primary and alert actions, the standalone dark theme and
+  its toggle, and the editor theme's colours in VS Code.
+  `lint:changesets` passes.
 - [ ] 5.4 `openspec validate the-web-ui-wears-metro --strict`, `lint:english`
   after `git add`, and `lint:screenshots` pass.
 - [ ] 5.5 `npm run verify` passes, run unpiped. Record each package's count.
