@@ -221,8 +221,25 @@ dark theme that follows the system.
     shadow;
   - the page and editor tabs, list rows and the Pipeline card's controls;
   - `input[type=number]`, which Metro does not list.
-- [ ] 3.4 Layout, the Pipeline picture, the dense forms' two-column rows and
+- [x] 3.4 Layout, the Pipeline picture, the dense forms' two-column rows and
   prose widths are unchanged. The unit tests that assert them still pass.
+
+  Done on 2026-09-15.
+  - **Widths.** The width rules sit in the shell's unlayered layer, above
+    `@layer metro`: control widths by kind of value, a select sized by its
+    options, the two-column settings rows, and the phone-width collapse.
+    `shell-ui.test.ts` asserts them ("gives a control a width for the kind
+    of value it holds", "lets a select size itself…"), and it passes.
+  - **The Pipeline.** Its card controls take no Metro class, so the cards
+    keep their measured geometry. The browser suite's geometry specs pass:
+    "opens a card to its tasks, and cuts no line at any zoom" and "becomes
+    headed lanes at phone width, with no lines". The retaken `pipeline.png`
+    shows the cards as before, with Metro buttons only on the toolbar and
+    on Refresh.
+  - **The forms.** Harness Settings, the run dialog and the Change Editor
+    keep their two-column rows and prose widths in the retaken pictures.
+    Controls are 36px tall instead of about 30px, which is Metro's control
+    height and the one visible change.
 
 ## 4. Themes
 
@@ -330,5 +347,25 @@ dark theme that follows the system.
 - [ ] 5.4 `openspec validate the-web-ui-wears-metro --strict`, `lint:english`
   after `git add`, and `lint:screenshots` pass.
 - [ ] 5.5 `npm run verify` passes, run unpiped. Record each package's count.
-- [ ] 5.6 Live check of the standalone server in both themes, with a
+- [x] 5.6 Live check of the standalone server in both themes, with a
   picture of the toggle.
+
+  Done on 2026-09-15, against `npm run start -w @openspec-ui/server --
+  C:\Prog\OpenSpec-UI 4917` in Chromium, with pictures kept outside the
+  repository.
+  - **A light system.** The shell opens light, and the toggle reads "Dark
+    theme" with `aria-pressed="false"`. On the Run a Command screen the
+    neutral Metro buttons are grey, Run is the accent and Cancel the danger
+    colour.
+  - **The toggle, pressed.** The shell turns dark, and after a reload
+    `data-openspec-theme` is still `dark`: the choice was remembered.
+  - **A dark system with no stored choice.** The shell opens dark in
+    379 ms, with the toggle pressed. After the disabled-state fix of 5.1,
+    disabled selects read in the muted colour, and the enabled Run and
+    Cancel keep their colours.
+  - **Two failed captures were the script's.** Its reload started a `list`
+    run, and the next browser context waited behind it. A fresh
+    dark-scheme context loads normally, and the server logged no error.
+  - **Found by looking.** Tables drew their cells at Metro's 16px beside
+    13px prose, on Processes and the change charts. `shellThemeCss` now
+    sets the three table font-size variables to `1em`.

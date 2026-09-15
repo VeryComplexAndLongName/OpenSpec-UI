@@ -309,6 +309,11 @@ export const shellThemeCss = `
      Metro's 16px, so a placeholder and a value are the same size. */
   .openspec-metro {
     --input-font-size: 1em;
+    /* A table's text follows the page too: Metro's 16px body cells stood
+       a size above the 13px prose around the Processes and chart tables. */
+    --table-body-font-size: 1em;
+    --table-head-font-size: 1em;
+    --table-caption-font-size: 1em;
 
     /* A disabled control still says what it is. Metro's dark palette
        draws one at 25% opacity, or as near-black text on a near-black
@@ -1976,6 +1981,15 @@ export const vscodeThemeCss = `
     --table-selected-background: var(--vscode-list-activeSelectionBackground);
     --table-selected-color: var(--vscode-list-activeSelectionForeground);
     --table-striped-background: var(--vscode-list-hoverBackground, transparent);
+  }
+
+  /* A neutral button keeps an edge where the theme draws one. Default Dark
+     Modern's secondary button ground is transparent, and without the
+     theme's button border the AI panel's "Reload changes" read as a label,
+     measured in the Extension Development Host. Metro's own border takes
+     the ground's colour, which is that same transparency. */
+  .openspec-extension-app .button {
+    border-color: var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
   }
 
   /* An action that stops or discards, in the editor's own error colour. The
