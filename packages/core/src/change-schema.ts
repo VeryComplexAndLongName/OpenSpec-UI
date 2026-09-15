@@ -11,8 +11,15 @@
 //   file:  `<project>/openspec/schemas/<name>/schema.yaml`, then the user's
 //          `<data>/openspec/schemas/<name>/schema.yaml`, then the built-in
 //          `spec-driven`, carried below as data.
+//
+// A change's artifacts are files inside the change's own directory. A
+// `generates` value that reaches outside it, through `..` or a link, names
+// nothing here (a-schema-artifact-stays-inside-its-change). A version of
+// `spec-driven-with-adr` in use from 2026-05-11 to 2026-06-22 declared
+// `adr` as `../../../adr/*.md`, which listed every ADR of a repository under
+// every change.
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -242,19 +249,56 @@ async function walkFiles(root: string, relative: string, found: string[]): Promi
   }
 }
 
-/** The files an artifact's `generates` value names under `changeDir`, as
- * relative POSIX paths. A plain path is returned whether or not it exists;
- * a glob returns the files it matches, sorted. */
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+/** Whether a relative path stays inside the change directory: by path, so
+ * `..` cannot leave it, and, for a file that exists, by real path, so a link
+ * cannot either. */
+async function staysInside(changeDir: string, realChangeDir: string | undefined, relative: string): Promise<boolean> {
+  const resolvedRoot = path.resolve(changeDir);
+  const resolved = path.resolve(resolvedRoot, ...relative.split("/"));
+  if (!isWithin(resolvedRoot, resolved)) return false;
+  if (realChangeDir === undefined) return true;
+  try {
+    return isWithin(realChangeDir, await realpath(resolved));
+  } catch {
+    // Nothing exists there yet, so there is no link to follow.
+    return true;
+  }
+}
+
+/** The files an artifact's `generates` value names inside `changeDir`, as
+ * relative POSIX paths. A plain path is returned whether or not it exists; a
+ * glob returns the files it matches, sorted. Nothing outside the change
+ * directory is returned. */
 export async function resolveGenerates(changeDir: string, generates: string): Promise<string[]> {
   const pattern = generates.replace(/\\/gu, "/").replace(/^\.\//u, "");
-  if (!isGlobPattern(pattern)) return [pattern];
+  let realChangeDir: string | undefined;
+  try {
+    realChangeDir = await realpath(changeDir);
+  } catch {
+    realChangeDir = undefined;
+  }
+  if (!isGlobPattern(pattern)) {
+    return (await staysInside(changeDir, realChangeDir, pattern)) ? [pattern] : [];
+  }
   const segments = pattern.split("/");
   const literal: string[] = [];
   for (const segment of segments) {
     if (isGlobPattern(segment)) break;
     literal.push(segment);
   }
+  // A glob whose fixed part leaves the change is not walked at all.
+  if (!isWithin(path.resolve(changeDir), path.resolve(changeDir, ...literal))) return [];
   const files: string[] = [];
   await walkFiles(changeDir, literal.join("/"), files);
-  return files.filter((file) => matchesGlob(file, pattern)).sort((left, right) => left.localeCompare(right));
+  const matched = files.filter((file) => matchesGlob(file, pattern)).sort((left, right) => left.localeCompare(right));
+  const inside: string[] = [];
+  for (const file of matched) {
+    if (await staysInside(changeDir, realChangeDir, file)) inside.push(file);
+  }
+  return inside;
 }

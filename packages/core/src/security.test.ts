@@ -309,19 +309,14 @@ describe("prepareAgentContext", () => {
   // a-change-lists-what-its-schema-declares 3.1, from DW's report: an agent
   // sees the files the change's schema declares, as the Changes tree does.
   it("embeds a nested delta spec and an artifact the project schema adds", async () => {
+    // The real spec-driven-with-adr, copied from
+    // intent-driven-dev/openspec-schemas (a-schema-artifact-stays-inside-its-change).
+    const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
     const root = await temporaryChangeDir();
     const changeDir = path.join(root, "openspec", "changes", "dashboard");
-    const schemaDir = path.join(root, "openspec", "schemas", "spec-driven-with-adr");
     await mkdir(path.join(changeDir, "specs", "web", "dashboard-foundation"), { recursive: true });
-    await mkdir(schemaDir, { recursive: true });
-    await writeFile(path.join(changeDir, ".openspec.yaml"), "schema: spec-driven-with-adr\n", "utf8");
-    await writeFile(path.join(schemaDir, "schema.yaml"), [
-      "artifacts:",
-      "  - { id: proposal, generates: proposal.md, template: proposal.md }",
-      "  - { id: adr, generates: adr.md, template: adr.md }",
-      "  - { id: specs, generates: \"specs/**/*.md\", template: spec.md }",
-      "",
-    ].join("\n"), "utf8");
+    const name = await installSchemaFixture(root, "spec-driven-with-adr");
+    await writeFile(path.join(changeDir, ".openspec.yaml"), `schema: ${name}\n`, "utf8");
     await writeFile(path.join(changeDir, "adr.md"), "the decision record", "utf8");
     await writeFile(
       path.join(changeDir, "specs", "web", "dashboard-foundation", "spec.md"),

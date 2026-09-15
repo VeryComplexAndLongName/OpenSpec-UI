@@ -46,8 +46,11 @@ project with DW's layout: a nested delta spec and a project schema
 ## Goals / Non-Goals
 
 **Goals**
-- DW's change shows its ADR, its exploration notes and
-  `web/dashboard-foundation` as present.
+- DW's change shows its ADR and `web/dashboard-foundation` as present. Its
+  `exploration.md` is not shown, since DW's schema declares no such artifact:
+  only what a schema declares appears. (Corrected by
+  `a-schema-artifact-stays-inside-its-change`; this goal first named the
+  exploration notes too.)
 - Any project schema's artifacts are listed in the order the schema declares
   them.
 - An agent run and the readiness report see the same files as the tree.

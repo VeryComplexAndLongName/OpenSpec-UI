@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
   schemaNameForChange,
   userSchemasDir,
 } from "./change-schema.js";
+import { installSchemaFixture } from "./test-support/openspec-schema-fixtures.js";
 
 // Reads a handful of files per test in a temporary directory. Measured
 // 2026-09-15 at under 0.1s per test idle; the budget follows
@@ -33,28 +34,6 @@ async function put(filePath: string, content: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, content, "utf8");
 }
-
-const ADR_SCHEMA = [
-  "name: spec-driven-with-adr",
-  "version: 1",
-  "artifacts:",
-  "  - id: proposal",
-  "    generates: proposal.md",
-  "    template: proposal.md",
-  "  - id: adr",
-  "    generates: adr.md",
-  "    template: adr.md",
-  "  - id: specs",
-  "    generates: \"specs/**/*.md\"",
-  "    template: spec.md",
-  "  - id: design",
-  "    generates: design.md",
-  "    template: design.md",
-  "  - id: tasks",
-  "    generates: tasks.md",
-  "    template: tasks.md",
-  "",
-].join("\n");
 
 /** A user directory nobody's real schemas live in. */
 const NO_USER_SCHEMAS = { env: { XDG_DATA_HOME: path.join(os.tmpdir(), "openspec-schema-no-user") } };
@@ -96,25 +75,27 @@ describe("userSchemasDir", () => {
 });
 
 describe("resolveChangeSchema", () => {
+  // The real spec-driven-with-adr, the schema DW's project uses
+  // (a-schema-artifact-stays-inside-its-change 3.4).
   it("reads a project schema, in the order it declares its artifacts", async () => {
     const root = await temporaryRoot();
     const change = path.join(root, "openspec", "changes", "dashboard");
-    await put(path.join(change, ".openspec.yaml"), "schema: spec-driven-with-adr\n");
-    await put(path.join(root, "openspec", "schemas", "spec-driven-with-adr", "schema.yaml"), ADR_SCHEMA);
+    const name = await installSchemaFixture(root, "spec-driven-with-adr");
+    await put(path.join(change, ".openspec.yaml"), `schema: ${name}\n`);
 
     const schema = await resolveChangeSchema(change, root, new Map(), NO_USER_SCHEMAS);
 
     expect(schema.source).toBe("project");
     expect(schema.fallback).toBeUndefined();
-    expect(schema.artifacts.map((artifact) => artifact.id)).toEqual(["proposal", "adr", "specs", "design", "tasks"]);
+    expect(schema.artifacts.map((artifact) => artifact.id)).toEqual(["proposal", "specs", "design", "adr", "tasks"]);
   });
 
   it("reads a user schema, and lets a project schema of the same name shadow it", async () => {
     const root = await temporaryRoot();
     const userData = await temporaryRoot();
     const change = path.join(root, "openspec", "changes", "one");
-    await put(path.join(change, ".openspec.yaml"), "schema: shared\n");
-    await put(path.join(userData, "openspec", "schemas", "shared", "schema.yaml"), [
+    await put(path.join(change, ".openspec.yaml"), "schema: spec-driven-with-adr\n");
+    await put(path.join(userData, "openspec", "schemas", "spec-driven-with-adr", "schema.yaml"), [
       "artifacts:",
       "  - id: notes",
       "    generates: notes.md",
@@ -126,7 +107,7 @@ describe("resolveChangeSchema", () => {
     expect(fromUser.source).toBe("user");
     expect(fromUser.artifacts.map((artifact) => artifact.id)).toEqual(["notes"]);
 
-    await put(path.join(root, "openspec", "schemas", "shared", "schema.yaml"), ADR_SCHEMA);
+    await installSchemaFixture(root, "spec-driven-with-adr");
     const fromProject = await resolveChangeSchema(change, root, new Map(), environment);
     expect(fromProject.source).toBe("project");
   });
@@ -168,13 +149,13 @@ describe("resolveChangeSchema", () => {
   it("reads one schema file once across the changes of a discovery", async () => {
     const root = await temporaryRoot();
     const cache = new Map();
-    await put(path.join(root, "openspec", "config.yaml"), "schema: spec-driven-with-adr\n");
-    await put(path.join(root, "openspec", "schemas", "spec-driven-with-adr", "schema.yaml"), ADR_SCHEMA);
+    const name = await installSchemaFixture(root, "spec-driven-with-adr");
+    await put(path.join(root, "openspec", "config.yaml"), `schema: ${name}\n`);
 
     await resolveChangeSchema(path.join(root, "openspec", "changes", "a"), root, cache, NO_USER_SCHEMAS);
     await resolveChangeSchema(path.join(root, "openspec", "changes", "b"), root, cache, NO_USER_SCHEMAS);
 
-    const projectFile = path.join(root, "openspec", "schemas", "spec-driven-with-adr", "schema.yaml");
+    const projectFile = path.join(root, "openspec", "schemas", name, "schema.yaml");
     expect([...cache.keys()].filter((key) => key === projectFile)).toHaveLength(1);
   });
 });
@@ -216,6 +197,24 @@ describe("resolveGenerates", () => {
   it("matches nothing when the directory a glob walks is absent", async () => {
     const root = await temporaryRoot();
     expect(await resolveGenerates(root, "specs/**/*.md")).toEqual([]);
+  });
+
+  // a-schema-artifact-stays-inside-its-change 2.2: spec-driven-with-adr at
+  // f04aaa2 declared `adr` as `../../../adr/*.md`.
+  it("names nothing outside the change, through .. or through a link", async () => {
+    const project = await temporaryRoot();
+    const change = path.join(project, "openspec", "changes", "one");
+    await put(path.join(project, "adr", "0001-first.md"), "# ADR 1\n");
+    await put(path.join(change, "proposal.md"), "# Proposal\n");
+    const outside = await temporaryRoot();
+    await put(path.join(outside, "leaked", "spec.md"), "outside\n");
+    await mkdir(path.join(change, "specs"), { recursive: true });
+    await symlink(outside, path.join(change, "specs", "linked"), process.platform === "win32" ? "junction" : "dir");
+
+    expect(await resolveGenerates(change, "../../../adr/*.md")).toEqual([]);
+    expect(await resolveGenerates(change, "../../../adr/0001-first.md")).toEqual([]);
+    expect(await resolveGenerates(change, "specs/**/*.md")).toEqual([]);
+    expect(await resolveGenerates(change, "proposal.md")).toEqual(["proposal.md"]);
   });
 });
 

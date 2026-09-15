@@ -219,3 +219,10 @@ on 2026-09-15. See ADR 0031.
     monaco tree draws only the rows in view, and with every pane expanded the
     Changes pane drew DW's Proposal and ADR and nothing below. The spec now
     collapses every other pane first, and the rerun passed.
+  - **The probe's schema order was invented.** It was written from DW's
+    screenshot, with `adr` second. The real `spec-driven-with-adr`, in
+    `intent-driven-dev/openspec-schemas`, declares proposal, specs, design,
+    adr, tasks, so DW's tree reads Proposal,
+    "Spec: web/dashboard-foundation", Design, ADR, Tasks. The tree follows
+    whichever order the schema declares. The tests now use that schema: see
+    `a-schema-artifact-stays-inside-its-change`.
