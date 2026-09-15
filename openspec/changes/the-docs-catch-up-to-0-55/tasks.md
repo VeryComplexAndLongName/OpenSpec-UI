@@ -278,15 +278,23 @@ specs, and an article and teaser on the same releases.
   chain from its card, answers it there, and asks it to stop" failed the
   same way twice, with its retry: step 2's loop gave up after 60 seconds,
   waiting for `pipeline-stop-pipeline-run`. The other 19 tests passed.
-  - **What the trace shows.** In both attempts the DOM snapshots hold
-    `pipeline-stop-pipeline-run` once and `pipeline-ask-stop-pipeline-run`
-    never. The run was held by the host throughout, and the card offered its
-    own Stop, but only after the loop's last pass. The failure screenshot
-    shows the card RUNNING, "checking the change — said 55s ago", with Stop.
-  - **The cause.** Each pass switches tabs to read the Pipeline again, which
-    redraws the card without controls until the live runs are read back.
-    On the loaded Linux runner that took longer than the 3-second wait per
-    pass. It is not the fixture's git identity from 1.1: a run held here is
-    decided by run id alone, in `describeChangeCards`.
-  - **The fix.** The wait per pass is now 10 seconds, the loop's budget 90
-    seconds, and the test's timeout 240 seconds.
+  - **A first explanation, wrong.** From counting test ids in the trace's DOM
+    snapshots, I read the card as drawing its Stop late, and blamed the
+    3-second wait per pass. Those snapshots are incremental, so the counts
+    proved nothing. The wait was raised to 10 seconds per pass, 90 seconds
+    for the loop and 240 for the test, in d8a744f.
+  - **The second CI run failed the same way** at d8a744f, run 34917562298,
+    twice, now after 90 seconds.
+  - **The cause, from that trace's `test.trace`.** The first pass's
+    `continueOnCard.click()` (call `pw:api@66`) never completed. Its call
+    log repeats "element is not stable — retrying click action" until "Test
+    ended". A click without a timeout inside the predicate held `toPass`'s
+    whole window, so the predicate was never retried. Meanwhile the chain
+    reached verify, and the failure screenshot shows the card RUNNING,
+    "checking the change — said 1 min…", with its Stop.
+  - **Not the cause.** It is not the fixture's git identity from 1.1, since a
+    run held here is decided by run id alone, in `describeChangeCards`. Nor is
+    it how fast the card reads its live runs.
+  - **The fix.** The loop's click on Continue has a 5-second timeout, so a
+    moving button fails one pass instead of the whole window. The longer
+    waits of d8a744f are kept.

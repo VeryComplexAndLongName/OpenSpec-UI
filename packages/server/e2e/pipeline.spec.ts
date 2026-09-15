@@ -440,16 +440,15 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
       await readPipelineAgain(page);
       await expect(continueOnCard).toBeVisible({ timeout: 3000 });
     }).toPass({ timeout: 45000 });
-    await continueOnCard.click();
-    // Each pass reads the Pipeline again, which redraws the card without its
-    // controls until the live runs are read back. Three seconds per pass was
-    // shorter than that on a loaded CI runner: the card drew Stop only after
-    // the last pass had given up, twice in a row
-    // (the-docs-catch-up-to-0-55 4.4). Ten seconds per pass, and time for
-    // several.
+    // Every click on the card has its own timeout. A click waits for its
+    // element to be stable, and the card's line of what the run says moves
+    // while it counts its age: on CI a click on Continue waited for that for
+    // the whole of `toPass`'s window, so the predicate never returned to be
+    // retried (the-docs-catch-up-to-0-55 4.4). A click that times out now
+    // fails one pass, and the next pass reads the card again.
     await expect(async () => {
       await readPipelineAgain(page);
-      if (await continueOnCard.isVisible()) await continueOnCard.click();
+      if (await continueOnCard.isVisible()) await continueOnCard.click({ timeout: 5000 });
       await expect(continueOnCard).toBeHidden({ timeout: 10000 });
       await expect(stopOnCard).toBeVisible({ timeout: 10000 });
     }).toPass({ timeout: 90000 });
