@@ -69,16 +69,23 @@ to upgrade, and would put the upgrade in a lockfile diff nobody reads.
 `@openspec-ui/webui`. It writes `packages/webui/src/metro-css.generated.ts`,
 exporting one string. The pass:
 
-- **keeps** rules whose selectors name a class of a kept component (a list in
-  the script, starting from Metro's `button`, `input`, `select`, `textarea`,
-  `checkbox`, `table`, `tabs`, `dialog`, `progress`, `badge`, `panel` and
-  `card`), `:root` and `.dark-side` variable blocks for those components and
-  the base palette, and the `@keyframes` those rules name;
-- **keeps** Metro's rules on the native controls `button`, `input`, `select`,
+- **keeps** rules whose selectors name a class of a kept component, `:root`
+  and `.dark-side` variable blocks for those components and the base
+  palette, and the `@keyframes` those rules name;
+  - **The kept components** are a list in the script. It started from
+    Metro's `button`, `input`, `select`, `textarea`, `checkbox`, `table`,
+    `tabs`, `dialog`, `progress`, `badge`, `panel` and `card`.
+  - **Task 3.2 cut it** to `button`, `input`, `select`, `textarea` and
+    `table`. The others style DOM that `metro.js` builds, or a
+    fixed-position modal, or nothing on screen uses them;
+- **keeps** Metro's rules on the native fields `input`, `select`,
   `textarea` and `table`. Without `metro.js` these are how Metro draws a
-  native control. Its `.input`, `.select` and `.textarea` classes are for the
+  native field. Its `.input`, `.select` and `.textarea` classes are for the
   wrappers its script builds (`display:flex; padding:0`), and on a native
-  field they break it;
+  field they break it. Its bare `button` rule is not kept. The web UI
+  renders list rows, tree nodes and links as buttons, and that rule gave
+  each one a grey fill and a 36px height. An action takes the `button`
+  class instead;
 - **drops** every other rule whose selector is a bare element, `*` outside a
   kept component, `html` or `body`;
 - **scopes** each kept selector under `.openspec-metro`, and rewrites `:root`
@@ -113,11 +120,18 @@ from the body class the editor adds.
 
 ### 4. The controls take Metro's classes
 
-Native buttons, fields, selects, textareas and checkboxes take Metro's look
-with no class of their own, from the native-control rules of decision 2. A
-class is added where it says something Metro draws differently: a small
-control `small`, a table `table`, a count `badge`. Tabs keep their ARIA
-structure and take `tabs` classes.
+Native fields, selects, textareas and checkboxes take Metro's look with no
+class of their own, from the native-field rules of decision 2. The classes
+added are:
+- `button` on each action;
+- `button primary` on the one primary action of a form;
+- `button alert` on an action that stops or discards;
+- `table` on a table;
+- `badge` on a count.
+
+Buttons that are list rows, tree nodes, links, tabs or a Pipeline card's own
+controls take no Metro class. They keep the shell's styling, and the
+Pipeline card keeps its measured geometry. Tabs keep their ARIA structure.
 
 **What an action's colour is** — the primary action, a destructive one, a
 state — does not come from Metro's colour classes.

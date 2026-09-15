@@ -40,27 +40,30 @@ export const LAYER = "metro";
 
 /** The Metro components the web UI's controls use. A class belongs to a
  * component when it is the component's name or starts with it and a dash
- * (`button`, `button-group`). Adding a control of a new kind starts here. */
-export const KEPT_COMPONENTS = [
-  "button",
-  "input",
-  "select",
-  "textarea",
-  "checkbox",
-  "table",
-  "tabs",
-  "dialog",
-  "progress",
-  "badge",
-  "panel",
-  "card",
-];
+ * (`button`, `button-group`). Adding a control of a new kind starts here.
+ *
+ * Measured against the web UI on 2026-09-15, the design's first list also
+ * named `checkbox`, `tabs`, `dialog`, `progress`, `badge`, `panel` and `card`.
+ * None of them is carried:
+ * - `checkbox`, `tabs` and `progress` style the elements metro.js builds
+ *   around a native control, which React does not render. A native checkbox
+ *   takes Metro's look from the `input` rules.
+ * - `dialog` is a fixed-position modal, while the run dialog and the stop
+ *   form sit in the page.
+ * - No screen uses `badge`, `panel` or `card`, and the shell's own panels
+ *   already draw that arrangement (ADR 0030 decision 4). */
+export const KEPT_COMPONENTS = ["button", "input", "select", "textarea", "table"];
 
 /** The native elements Metro styles with no class and no metro.js. Its
  * `.input`, `.select` and `.textarea` classes are for the wrappers metro.js
  * builds (`display:flex; padding:0`), so a native field takes Metro's look
- * from these rules instead. */
-export const KEPT_ELEMENTS = ["button", "input", "select", "textarea", "table"];
+ * from these rules instead.
+ *
+ * `button` is not one of them. The web UI renders list rows, tree nodes and
+ * links as buttons too, and Metro's bare `button` rule gave every one a grey
+ * fill and a 36px height. An action takes `className="button"` instead, the
+ * way the project site uses Metro. */
+export const KEPT_ELEMENTS = ["input", "select", "textarea", "table"];
 
 function isKeptClass(name) {
   return KEPT_COMPONENTS.some((component) => name === component || name.startsWith(`${component}-`));

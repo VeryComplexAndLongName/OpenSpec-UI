@@ -124,16 +124,16 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
   return (
     <div data-testid="processes-view">
       <div className="openspec-ai-panel-controls">
-        <button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
+        <button className="button" type="button" onClick={() => void load()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
         <label className="openspec-shell-field">
           Retain days
           <input type="number" min={1} value={retentionDays} onChange={(event) => setRetentionDays(Math.max(1, Number(event.target.value) || 1))} />
         </label>
-        <button type="button" onClick={() => void cleanup()} disabled={loading}>Clean old history</button>
+        <button className="button alert" type="button" onClick={() => void cleanup()} disabled={loading}>Clean old history</button>
       </div>
       {message ? <p className="openspec-shell-note" role="status" data-testid="processes-message">{message}</p> : null}
       {processes.length === 0 ? <p className="openspec-shell-note">No persisted processes.</p> : (
-        <table className="openspec-overview-table">
+        <table className="table openspec-overview-table">
           <thead><tr><th>Operation</th><th>Change</th><th>Agent</th><th>Progress</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
           <tbody>{processes.map((process) => (
             <tr key={process.id}>
@@ -141,7 +141,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
               <td>{process.agentId ?? "-"}</td>
               <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
               <td>{[process.state, process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
-              <td><button type="button" onClick={() => void inspect(process.id)}>Review</button></td>
+              <td><button className="button" type="button" onClick={() => void inspect(process.id)}>Review</button></td>
             </tr>
           ))}</tbody>
         </table>
@@ -156,7 +156,7 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
           <p>Skipped files: {details.coverage?.skippedFiles.join(", ") || "none"}</p>
           <p>Excluded directories: {details.coverage?.excludedDirectories.join(", ") || "none"}</p>
           <div className="openspec-ai-panel-controls">
-            <button type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>Rollback files</button>
+            <button className="button alert" type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>Rollback files</button>
           </div>
         </div>
       ) : null}

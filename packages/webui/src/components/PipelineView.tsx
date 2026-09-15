@@ -435,12 +435,12 @@ export function PipelineView({
     <div data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
       {here ? <Reading directory={here} now={now} onCards={onCards} /> : null}
       <div className="openspec-ai-panel-controls" data-testid="pipeline-view-controls">
-        <button type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>Open all</button>
-        <button type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>Close all</button>
-        <button type="button" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>Zoom out</button>
+        <button className="button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>Open all</button>
+        <button className="button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>Close all</button>
+        <button className="button" type="button" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>Zoom out</button>
         <span className="openspec-shell-note" data-testid="pipeline-zoom-level">{`Zoom ${Math.round(zoom * 100)}%`}</span>
-        <button type="button" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>Zoom in</button>
-        <button type="button" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>Reset zoom</button>
+        <button className="button" type="button" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>Zoom in</button>
+        <button className="button" type="button" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>Reset zoom</button>
       </div>
       {showLegend ? <Legend testId="pipeline-legend" /> : null}
       {local.error !== undefined
@@ -476,7 +476,7 @@ export function PipelineView({
       </p>
       {refresh ? (
         <div className="openspec-ai-panel-controls">
-          <button type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
+          <button className="button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
           {refs ? <span className="openspec-shell-note" data-testid="pipeline-refs">{refs}</span> : null}
@@ -970,8 +970,8 @@ function StopReasonForm({ changeName, onAsk, onCancel }: {
       </label>
       {refused ? <p className="openspec-shell-error" role="alert">A stop needs a reason.</p> : null}
       <div className="openspec-ai-panel-controls">
-        <button type="submit" data-testid="pipeline-ask-to-stop">Ask to stop</button>
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="button alert" data-testid="pipeline-ask-to-stop">Ask to stop</button>
+        <button className="button" type="button" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );

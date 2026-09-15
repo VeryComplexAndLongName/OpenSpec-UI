@@ -76,7 +76,7 @@ function Recommendations(
       {onUseAgent && agents.length > 0 ? (
         <div className="openspec-ai-panel-controls">
           {agents.map((agent) => (
-            <button
+            <button className="button"
               key={agent}
               type="button"
               data-testid={`run-stats-use-${agent}`}

@@ -33,7 +33,7 @@ export function EnrolmentRequests({ requests, confirming, outcomes, onConfirm }:
             {request.gitAuthor ? `, git author ${request.gitAuthor}` : ", no git author"}
             {`, last seen ${new Date(request.seenAt).toLocaleString()}`}
             {" "}
-            <button
+            <button className="button primary"
               type="button"
               data-testid={`enrolment-confirm-${request.keyId}`}
               disabled={confirming !== null}

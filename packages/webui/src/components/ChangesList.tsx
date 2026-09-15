@@ -53,7 +53,7 @@ export function ChangesList({ changes, onSelect, states, sources, onRefresh, ref
           onChange={(e) => setQuery(e.target.value)}
         />
         {onRefresh ? (
-          <button type="button" data-testid="changes-refresh" disabled={refreshing} onClick={onRefresh}>
+          <button type="button" className="button" data-testid="changes-refresh" disabled={refreshing} onClick={onRefresh}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         ) : null}

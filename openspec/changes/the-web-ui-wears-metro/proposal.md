@@ -19,17 +19,24 @@ that decision.
 - **A build step derives the copy that ships:**
   - only the rules of the components the web UI uses;
   - every selector scoped under one root class;
-  - no rule on a bare element.
+  - no rule on a bare element, except Metro's native-field rules scoped
+    under that root;
+  - all of it in a cascade layer beneath the shell's own rules.
 
   It is emitted as a TypeScript string, so the standalone shell and all four
   VS Code webviews carry it the way they carry `shellThemeCss` today.
-- **The web UI's controls take Metro's classes.** Buttons, inputs, selects,
-  textareas, checkboxes, tables, tabs, dialogs, progress and badges. Screen
-  layouts, dense forms and the Pipeline picture keep their own structure.
+- **The web UI's controls take Metro's look.** Actions take its `button`
+  class, tables its `table` class, and native fields its native-field
+  rules. The first list also named checkboxes, tabs, dialogs, progress and
+  badges. Implementing it showed that those style DOM `metro.js` builds, or
+  a fixed modal, or nothing on screen (tasks 3.2). Screen layouts, dense
+  forms and the Pipeline picture keep their own structure.
 - **Colours.**
   - **The standalone shell** uses Metro's light palette. It uses the dark
     palette when the system prefers dark, or when the header toggle says
-    so; the toggle's choice is remembered.
+    so; the toggle's choice is remembered. The accent and state colours
+    stay the shell's own tokens, because Metro writes them as literal
+    `!important` utilities that fail AA.
   - **In VS Code**, a mapping layer sets every Metro variable the derived
     copy reads from `--vscode-*`. Dark and high contrast follow the class
     the editor puts on the page.

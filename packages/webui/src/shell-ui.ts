@@ -303,19 +303,22 @@ export const shellThemeCss = `
     margin-top: 18px;
   }
 
+  /* Metro draws the controls: border, radius, padding, height and their
+     states (ADR 0030). The shell sets only what a dense form needs
+     differently. A control reads in the text size around it, rather than
+     Metro's 16px, so a placeholder and a value are the same size. */
+  .openspec-metro {
+    --input-font-size: 1em;
+  }
+
   .openspec-shell-field input,
   .openspec-shell-field textarea,
   .openspec-shell-field select,
   .openspec-ai-panel-controls select,
   .openspec-ai-panel-controls button {
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-sm);
-    padding: 5px 8px;
     font: inherit;
     font-weight: 400;
     letter-spacing: normal;
-    color: var(--ink);
-    background: var(--surface);
   }
 
   /* Fault 3. Every control filled its container, which is why a
@@ -349,6 +352,18 @@ export const shellThemeCss = `
 
   .openspec-shell-field input[type="number"] {
     width: var(--w-amount);
+  }
+
+  /* Metro's field rule lists text, search, date and the like, but not
+     number, which then kept the browser's own short box beside 36px
+     selects. It is drawn from the same Metro variables here. */
+  .openspec-metro input[type="number"] {
+    height: var(--input-height);
+    padding: 0 8px;
+    border: 1px solid var(--input-border-color);
+    border-radius: var(--input-border-radius);
+    color: var(--input-color);
+    background: var(--input-background);
   }
 
   .openspec-shell-field textarea {
@@ -569,37 +584,40 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
-  /* An action carries more padding than a control that holds a value:
-     it is pressed, not read, and a 5px target is not one. */
-  .openspec-ai-panel-controls button {
-    cursor: pointer;
-    padding: 7px 14px;
-    background: var(--primary);
+  /* An action's colour is the shell's, not Metro's (the-web-ui-wears-metro
+     design decision 4): Metro's colour classes are literal and fail AA.
+     Metro draws the button itself, its height, padding and disabled
+     state. The primary action of a form is the accent; an action that
+     stops or discards something is the danger colour. Every other button
+     is Metro's neutral one. */
+  .openspec-metro .button.primary,
+  .openspec-metro .button.alert {
     color: var(--primary-ink);
+    background: var(--primary);
     border-color: transparent;
     font-weight: 600;
   }
 
-  .openspec-ai-panel-controls button:hover:not(:disabled) {
+  .openspec-metro .button.primary:hover:not(:disabled) {
     background: var(--primary-soft);
   }
 
-  /* The focus ring sits on the accent here, so it has to be drawn
-     against the button rather than in it — a quieter palette is
-     exactly where a ring disappears into its own control. */
-  .openspec-ai-panel-controls button:focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: 2px;
-    border-color: transparent;
-  }
-
-  .openspec-ai-panel-controls button[data-testid="cancel-button"] {
+  .openspec-metro .button.alert {
     background: var(--danger);
   }
 
-  .openspec-ai-panel-controls button:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
+  .openspec-metro .button.alert:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 85%, var(--ink));
+  }
+
+  /* The focus ring sits on the fill here, so it has to be drawn against
+     the button rather than in it — a quieter palette is exactly where a
+     ring disappears into its own control. */
+  .openspec-metro .button.primary:focus-visible,
+  .openspec-metro .button.alert:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-color: transparent;
   }
 
   .openspec-ai-panel-events {
@@ -1919,13 +1937,16 @@ export const vscodeThemeCss = `
     outline-color: var(--vscode-focusBorder);
   }
 
-  .openspec-extension-app .openspec-ai-panel-controls button,
+  /* The editor's primary button colours go to the one primary action, as
+     the shell's accent does standalone. Every other button is drawn from
+     Metro's variables, which the mapping below sets from the theme. */
+  .openspec-extension-app .button.primary,
   .openspec-extension-app .openspec-editor-tabs button.is-active {
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
   }
 
-  .openspec-extension-app .openspec-ai-panel-controls button:hover,
+  .openspec-extension-app .button.primary:hover:not(:disabled),
   .openspec-extension-app .openspec-editor-tabs button.is-active:hover {
     background: var(--vscode-button-hoverBackground);
   }

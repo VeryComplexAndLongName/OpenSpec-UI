@@ -196,10 +196,10 @@ export function PermissionRequestPrompt(props: {
         Permission requested: <strong>{request.description}</strong>
       </p>
       <div className="openspec-ai-panel-controls">
-        <button type="button" data-testid="allow-permission-button" onClick={() => onResolve("allow")}>
+        <button type="button" className="button primary" data-testid="allow-permission-button" onClick={() => onResolve("allow")}>
           Allow
         </button>
-        <button type="button" data-testid="deny-permission-button" onClick={() => onResolve("deny")}>
+        <button className="button" type="button" data-testid="deny-permission-button" onClick={() => onResolve("deny")}>
           Deny
         </button>
       </div>
@@ -1151,7 +1151,7 @@ export function AiPanel({
   return (
     <div className="openspec-ai-panel">
       <div className="openspec-ai-panel-controls">
-        <button type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
+        <button className="button" type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
           Reload changes
         </button>
         <select
@@ -1200,15 +1200,15 @@ export function AiPanel({
           ))}
         </select>
         {onRefreshAgents ? (
-          <button type="button" data-testid="refresh-agents-button" onClick={onRefreshAgents}>
+          <button className="button" type="button" data-testid="refresh-agents-button" onClick={onRefreshAgents}>
             Refresh agents
           </button>
         ) : null}
-        <button type="button" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
+        <button type="button" className="button primary" data-testid="run-button" onClick={handleRun} disabled={!canRunCommand}>
           Run
         </button>
         {isRunning ? (
-          <button type="button" data-testid="cancel-run-button" onClick={handleCancel}>
+          <button type="button" className="button alert" data-testid="cancel-run-button" onClick={handleCancel}>
             Cancel
           </button>
         ) : null}

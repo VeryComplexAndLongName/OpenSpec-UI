@@ -90,7 +90,16 @@ dark theme that follows the system.
 - [x] 2.4 Record the derived copy's size, and each kept component's rule
   count.
 
-  **Build of 2026-09-15**, with native controls, the layer, no
+  **Build of 2026-09-15**, after 3.2 trimmed the kept list to `button`,
+  `input`, `select`, `textarea` and `table`:
+  - **Size.** 112,595 bytes: 732 rules, 61 light and 42 dark variables, and
+    no keyframes. 64 variables are read, 65 rules on bare elements were
+    dropped, and 21 `!important` flags were stripped.
+  - **Selectors per component:** button 606, input 291, table 53, select 45
+    and textarea 36. On native fields, where no kept class is named: input
+    252, textarea 19, select 16 and table 1.
+
+  **The build before that trim**, with native controls, the layer, no
   `!important` and no colour modifiers:
   - **Size.** 142,982 bytes: 1,013 rules, 101 light and 72 dark variables,
     and no keyframes. 65 rules on bare elements were dropped, and 25
@@ -134,9 +143,57 @@ dark theme that follows the system.
   - **Line endings.** The root `.gitattributes` keeps
     `src/metro-css.generated.ts` in LF. A CRLF checkout would break the test
     that compares the module with a fresh run.
-- [ ] 3.2 Buttons, inputs, selects, textareas, checkboxes, tables, tabs,
+- [x] 3.2 Buttons, inputs, selects, textareas, checkboxes, tables, tabs,
   dialogs, progress and badges take Metro's classes. Record per component how
   many places changed.
+
+  Done on 2026-09-15, with what the screens showed deciding three questions.
+  - **Buttons: 50 places.**
+    - `className="button"` on 36 actions: standalone-entry 17, PipelineView
+      8, ProcessesView 4, AiPanel 3, RunDialog 2, EnrolmentRequests 1,
+      TasksChecklist 1 and WorkspaceRunStatsPanel 1.
+    - Also ChangesList's Refresh, and the header's theme toggle.
+    - `primary` on the one main action of a form, 22 of them: Run, Start
+      chain, Continue, Allow, Apply, both Save settings buttons, the
+      configured path in the run dialog, Initialize, Load summary, Create
+      change, Run with Agentic Harness, Save markdown, Load templates, Insert
+      template, the three timeline loads, and Confirm enrolment.
+    - `alert` on 6 that stop or discard: the two Cancels of a running chain
+      or command, Ask to stop, Delete template, Clean old history and
+      Rollback files.
+    - The 36 were added by a one-off codemod with an explicit list of
+      primary and alert actions, and every change was reviewed in its dry
+      run.
+  - **Buttons without a class.** List rows, tree nodes, links and tabs keep
+    the shell's styling: ChangesList and ArchiveList rows, SpecsTree,
+    SpecsSearch, RequirementView, ChangeRelations, the timeline toggle, and
+    the page, editor and timeline-mode tabs. So does a Pipeline card's own
+    controls, which keeps the card's measured geometry (3.4).
+  - **Why `button` is a class, not the bare element.** The first build kept
+    Metro's bare `button` rule. The retaken pictures then showed a changes
+    row as a grey 36px button, so the rule left the build.
+  - **Fields: no class.** Inputs, selects and textareas take Metro's look
+    from its native-field rules (2.2). Metro lists no `type=number`, so the
+    shell draws that one from Metro's own input variables. A control's text
+    follows its surroundings (`--input-font-size: 1em`), so a placeholder
+    is no longer 16px beside a 12px value.
+  - **Tables: 4 places.** `table` goes on the two overview tables in
+    standalone-entry, on ProcessesView's and on ChangeChartsView's.
+  - **Not applicable, and dropped from the kept list.**
+    - `checkbox`, `tabs` and `progress` style the elements `metro.js` builds
+      around a native control. React renders none of them. The one native
+      checkbox takes Metro's look from the `input` rules.
+    - `dialog` is a fixed-position modal, and the run dialog and the stop
+      form sit in the page.
+    - No screen uses `badge`, `panel` or `card`.
+    - The copy fell to 732 rules and 112,595 bytes, and reads 64 variables
+      instead of 104.
+  - **Action colours are the shell's.** In `shellThemeCss`,
+    `.openspec-metro .button.primary` and `.button.alert` take `--primary`
+    and `--danger`, with a focus ring drawn against the fill. The old rule
+    that painted every AI panel button with the accent is gone. In
+    `vscodeThemeCss`, the editor's button colours now go to `.button.primary`
+    only.
 - [ ] 3.3 Remove each `openspec-*` rule that a Metro rule now does, rather
   than overriding it. Record which rules went.
 - [ ] 3.4 Layout, the Pipeline picture, the dense forms' two-column rows and

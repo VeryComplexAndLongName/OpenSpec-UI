@@ -50,8 +50,11 @@ that maps each token to `--vscode-*` (0023 decision 4).
 
 2. **What ships is a derived copy, built from the vendored source.**
    - **What the build step keeps.** Only the rules of the components the web
-     UI uses, and Metro's rules on the native controls those components are
-     drawn with: `button`, `input`, `select`, `textarea` and `table`.
+     UI uses, and Metro's rules on the native fields those components are
+     drawn with: `input`, `select`, `textarea` and `table`. A button takes
+     Metro's `button` class instead. The web UI also renders list rows, tree
+     nodes and links as buttons, and Metro's bare `button` rule would fill
+     each one.
    - **What it drops.** Every other rule on a bare element: `*`, `html`,
      `body`, `img`, headings and the rest.
    - **Scope.** Every selector sits under one root class.
