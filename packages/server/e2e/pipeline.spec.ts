@@ -368,7 +368,9 @@ async function readPipelineAgain(page: Page): Promise<void> {
 // reason. The stand-in holds the verify stage open, so the stop is asked
 // while a stage runs and stays pending for the card to state.
 test("starts a chain from its card, answers it there, and asks it to stop", async ({ page }) => {
-  test.setTimeout(150000);
+  // Start (up to 45 s), Continue until a stage runs (up to 90 s), then the
+  // stop and its pictures; see 4.4 of the-docs-catch-up-to-0-55.
+  test.setTimeout(240000);
   const changeName = "pipeline-run";
   const runRoot = await mkdtemp(path.join(os.tmpdir(), "openspec-ui-pipeline-run-"));
   await mkdir(path.join(runRoot, "openspec", "specs"), { recursive: true });
@@ -439,12 +441,18 @@ test("starts a chain from its card, answers it there, and asks it to stop", asyn
       await expect(continueOnCard).toBeVisible({ timeout: 3000 });
     }).toPass({ timeout: 45000 });
     await continueOnCard.click();
+    // Each pass reads the Pipeline again, which redraws the card without its
+    // controls until the live runs are read back. Three seconds per pass was
+    // shorter than that on a loaded CI runner: the card drew Stop only after
+    // the last pass had given up, twice in a row
+    // (the-docs-catch-up-to-0-55 4.4). Ten seconds per pass, and time for
+    // several.
     await expect(async () => {
       await readPipelineAgain(page);
       if (await continueOnCard.isVisible()) await continueOnCard.click();
-      await expect(continueOnCard).toBeHidden({ timeout: 3000 });
-      await expect(stopOnCard).toBeVisible({ timeout: 3000 });
-    }).toPass({ timeout: 60000 });
+      await expect(continueOnCard).toBeHidden({ timeout: 10000 });
+      await expect(stopOnCard).toBeVisible({ timeout: 10000 });
+    }).toPass({ timeout: 90000 });
 
     // 3. Stop, with a reason, through a form that passes axe while open.
     await stopOnCard.click();

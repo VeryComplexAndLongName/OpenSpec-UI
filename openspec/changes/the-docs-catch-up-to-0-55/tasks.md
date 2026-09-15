@@ -271,3 +271,22 @@ specs, and an article and teaser on the same releases.
 
   All passed. The run kept going while the owner used "Extensions: Check for
   Extension Updates" in the same VS Code, which reloads no window.
+- [ ] 4.4 CI's "Standalone browser and accessibility" passes on this change's
+  pull request.
+
+  **The first CI run on #513 failed** at ec93811, run 34916198901. "starts a
+  chain from its card, answers it there, and asks it to stop" failed the
+  same way twice, with its retry: step 2's loop gave up after 60 seconds,
+  waiting for `pipeline-stop-pipeline-run`. The other 19 tests passed.
+  - **What the trace shows.** In both attempts the DOM snapshots hold
+    `pipeline-stop-pipeline-run` once and `pipeline-ask-stop-pipeline-run`
+    never. The run was held by the host throughout, and the card offered its
+    own Stop, but only after the loop's last pass. The failure screenshot
+    shows the card RUNNING, "checking the change — said 55s ago", with Stop.
+  - **The cause.** Each pass switches tabs to read the Pipeline again, which
+    redraws the card without controls until the live runs are read back.
+    On the loaded Linux runner that took longer than the 3-second wait per
+    pass. It is not the fixture's git identity from 1.1: a run held here is
+    decided by run id alone, in `describeChangeCards`.
+  - **The fix.** The wait per pass is now 10 seconds, the loop's budget 90
+    seconds, and the test's timeout 240 seconds.
