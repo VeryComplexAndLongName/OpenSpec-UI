@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.58.2
+
+### Patch Changes
+
+- 2369d23: Artifact labels in the Changes tree read better with custom OpenSpec schemas.
+  An id that is a known term is written as that term, so `asyncapi` reads
+  AsyncAPI. A file a glob matched names its artifact and itself, such as
+  "Specs: landing-page.md".
+  
+  A spec file outside a capability folder, such as `specs/landing-page.md`, is
+  now marked "not applied on archive". OpenSpec's archive merges only
+  `specs/<capability>/spec.md` and drops such a file without a warning.
+- Updated dependencies [2369d23]
+  - @openspec-ui/core@0.90.0
+  - @openspec-ui/server@1.26.5
+  - @openspec-ui/webui@1.49.3
+
 ## 0.58.1
 
 ### Patch Changes
