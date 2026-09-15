@@ -115,10 +115,25 @@ from the body class the editor adds.
 
 Native buttons, fields, selects, textareas and checkboxes take Metro's look
 with no class of their own, from the native-control rules of decision 2. A
-class is added where it says something Metro draws differently: the primary
-action `button primary`, a destructive one `button alert`, a small one
-`small`, a table `table`, a count `badge`. Tabs keep their ARIA structure and
-take `tabs` classes.
+class is added where it says something Metro draws differently: a small
+control `small`, a table `table`, a count `badge`. Tabs keep their ARIA
+structure and take `tabs` classes.
+
+**What an action's colour is** — the primary action, a destructive one, a
+state — does not come from Metro's colour classes.
+- **They are colour utilities, not component rules,** and their values are
+  literal and `!important`:
+  `.primary{background-color:#f75553!important;color:#fff!important}`.
+- **White on that red is 3.3:1,** which fails the AA gate of ADR 0030
+  decision 6.
+- **Its `.button.primary:hover` is the same red,** so a teal button would
+  turn red under the pointer.
+
+So the build keeps none of them (decision 2), and the shell colours
+`primary` and `alert` buttons from its own tokens: 0023's measured palette
+standalone, and the editor theme in VS Code. Metro supplies a control's
+shape, size, states and neutral component colours. The accent and the
+states stay the shell's.
 
 Existing `openspec-*` classes stay for layout, which Metro does not provide.
 Because Metro sits in a layer, an `openspec-*` rule wins wherever both set a

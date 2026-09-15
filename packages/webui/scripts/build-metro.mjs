@@ -66,18 +66,18 @@ function isKeptClass(name) {
   return KEPT_COMPONENTS.some((component) => name === component || name.startsWith(`${component}-`));
 }
 
-/** The modifier classes a kept component may carry in the web UI: a colour
- * that says what an action or a state is, a size, and the states a control
- * passes through. A selector naming any other class belongs to something
- * else — a colour picker, a spinner, a tag input, a sortable column — that
- * happens to contain a button or an input, and is not carried. Measured on
- * 5.1.20, the broad rule kept 1661 rules and 221 KB. */
+/** The modifier classes a kept component may carry in the web UI: a size,
+ * and the states a control passes through. A selector naming any other class
+ * belongs to something else — a colour picker, a spinner, a tag input, a
+ * sortable column — that happens to contain a button or an input, and is not
+ * carried. Measured on 5.1.20, the broad rule kept 1661 rules and 221 KB.
+ *
+ * Metro's colour classes (`primary`, `alert`, `success`, `warning`, `info`)
+ * are not kept. They are literal colours marked `!important`, such as
+ * `.primary{background-color:#f75553!important;color:#fff!important}`, and
+ * white on that red is 3.3:1, which fails WCAG AA. An action's colour comes
+ * from the shell's tokens, or in VS Code from the editor theme. */
 export const KEPT_MODIFIERS = [
-  "primary",
-  "alert",
-  "success",
-  "warning",
-  "info",
   "small",
   "disabled",
   "active",

@@ -89,6 +89,15 @@ that maps each token to `--vscode-*` (0023 decision 4).
    - **The standalone shell** uses Metro's light palette, and its `.dark-side`
      palette when the dark theme is on. That is the operating system's
      preference, or the header toggle's remembered choice.
+     - **The accent and state colours stay the shell's tokens:** a primary or
+       destructive action, success and warning. The dark theme gains a
+       matching set.
+     - **Why.** Metro writes those colours as literal `!important` utility
+       classes. White on its primary red is 3.3:1, which decision 6's AA
+       gate refuses.
+
+     *Amended on 2026-09-15, during implementation.* That was found while
+     applying the palette.
    - **In VS Code**, a mapping layer sets Metro's variables for every
      component used from `--vscode-*`: the editor background, buttons, inputs,
      focus border, badges, and `--vscode-charts-*` for states. No literal

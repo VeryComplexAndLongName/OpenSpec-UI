@@ -55,9 +55,9 @@ dark theme that follows the system.
     unlayered rules (widths, layout) then win over Metro's scoped selectors,
     with no specificity race.
   - **`!important`.** It is stripped from every kept declaration: 55 of
-    them. Inside a layer an important declaration beats every unlayered
-    one, and Metro's primary and alert hover colours are literals written
-    that way.
+    them at first, and 25 once the colour modifiers left (2.4). Inside a
+    layer an important declaration beats every unlayered one, and Metro
+    writes literal colours that way.
   - **Where it is written down.** ADR 0030 decision 2 carries these three
     points as an amendment dated 2026-09-15. So do design decision 2 and the
     spec delta, with a scenario for a native field keeping the shell's
@@ -90,17 +90,27 @@ dark theme that follows the system.
 - [x] 2.4 Record the derived copy's size, and each kept component's rule
   count.
 
-  **Build of 2026-09-15**, with native controls, the layer and no
-  `!important`:
-  - **Size.** 147,634 bytes: 1,048 rules, 101 light and 72 dark variables,
-    and no keyframes. 65 rules on bare elements were dropped.
-  - **Earlier builds.** The narrower class rule alone gave 132,319 bytes and
-    1,024 rules. The first, broad rule gave 221,032 bytes and 1,661 rules.
-  - **Selectors per component:** button 621, input 308, tabs 94, checkbox
-    77, select 60, table 53, progress 52, textarea 51, badge 39, dialog 24,
+  **Build of 2026-09-15**, with native controls, the layer, no
+  `!important` and no colour modifiers:
+  - **Size.** 142,982 bytes: 1,013 rules, 101 light and 72 dark variables,
+    and no keyframes. 65 rules on bare elements were dropped, and 25
+    `!important` flags stripped.
+  - **Colour modifiers left the kept list.** `primary`, `alert`, `success`,
+    `warning` and `info` are Metro's colour utilities, literal and
+    `!important`: `.primary{background-color:#f75553!important;color:#fff!important}`.
+    White on that red is 3.3:1, below AA, and `.button.primary:hover` would
+    have turned a teal button red. The shell colours those classes from its
+    tokens (design decision 4, and ADR 0030 decision 5 as amended).
+  - **Earlier builds:**
+    - with the colour modifiers: 147,634 bytes, 1,048 rules and 55
+      `!important`;
+    - with the narrower class rule alone: 132,319 bytes and 1,024 rules;
+    - with the first, broad rule: 221,032 bytes and 1,661 rules.
+  - **Selectors per component:** button 611, input 293, tabs 94, checkbox
+    77, table 53, progress 52, select 45, badge 39, textarea 36, dialog 9,
     card 5 and panel 5.
   - **Selectors on native controls,** where no kept class is named: input
-    252, button 20, textarea 19, select 16 and table 1. Most of the input
+    252, textarea 19, select 16, button 10 and table 1. Most of the input
     count is the per-type lists `input[type=text],input[type=password],…`.
   - **Checks.** No selector falls outside `.openspec-metro`, and there is no
     `url(` and no `!important`.
