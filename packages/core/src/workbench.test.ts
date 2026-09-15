@@ -85,28 +85,20 @@ describe("discoverOpenSpecWorkspace", () => {
   // Both defects reported by DW, a user of the VS Code extension, on
   // 2026-09-15: a nested delta spec read as "Spec: web — missing", and the
   // project schema's ADR never appeared.
+  // The real spec-driven-with-adr from intent-driven-dev/openspec-schemas,
+  // which DW's project uses: proposal, specs, design, adr, tasks
+  // (a-schema-artifact-stays-inside-its-change 3.1).
   it("lists a change's artifacts from its project schema, naming a nested delta spec by its path", async () => {
+    const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
     const root = await temporaryRoot();
     const change = path.join(root, "openspec", "changes", "dashboard-declare-company-derivation");
-    const schemaDir = path.join(root, "openspec", "schemas", "spec-driven-with-adr");
+    await mkdir(path.join(change, "specs", "web", "dashboard-foundation"), { recursive: true });
+    const name = await installSchemaFixture(root, "spec-driven-with-adr");
     await Promise.all([
-      mkdir(path.join(change, "specs", "web", "dashboard-foundation"), { recursive: true }),
-      mkdir(schemaDir, { recursive: true }),
-    ]);
-    await Promise.all([
-      writeFile(path.join(root, "openspec", "config.yaml"), "schema: spec-driven-with-adr\n"),
-      writeFile(path.join(schemaDir, "schema.yaml"), [
-        "name: spec-driven-with-adr",
-        "artifacts:",
-        "  - { id: proposal, generates: proposal.md, template: proposal.md }",
-        "  - { id: adr, generates: adr.md, template: adr.md }",
-        "  - { id: specs, generates: \"specs/**/*.md\", template: spec.md }",
-        "  - { id: design, generates: design.md, template: design.md }",
-        "  - { id: tasks, generates: tasks.md, template: tasks.md }",
-        "",
-      ].join("\n")),
+      writeFile(path.join(root, "openspec", "config.yaml"), `schema: ${name}\n`),
       writeFile(path.join(change, "proposal.md"), "# Proposal\n"),
       writeFile(path.join(change, "adr.md"), "# ADR\n"),
+      writeFile(path.join(change, "exploration.md"), "# Exploration\n"),
       writeFile(path.join(change, "tasks.md"), "- [ ] one\n"),
       writeFile(path.join(change, "specs", "web", "dashboard-foundation", "spec.md"), "## ADDED Requirements\n"),
     ]);
@@ -116,14 +108,106 @@ describe("discoverOpenSpecWorkspace", () => {
     const artifacts = workspace.changes[0]?.artifacts ?? [];
     expect(artifacts.map((artifact) => [artifact.id, artifact.kind, artifact.label, artifact.exists])).toEqual([
       ["proposal", "proposal", "Proposal", true],
-      ["adr", "schema-artifact", "ADR", true],
       ["delta-spec:web/dashboard-foundation", "delta-spec", "web/dashboard-foundation", true],
       ["design", "design", "Design", false],
+      ["adr", "schema-artifact", "ADR", true],
       ["tasks", "tasks", "Tasks", true],
     ]);
-    expect(artifacts.some((artifact) => artifact.label === "web")).toBe(false);
+    // Only what the schema declares: DW's exploration notes are not an artifact.
+    expect(artifacts.some((artifact) => artifact.label === "web" || artifact.path.endsWith("exploration.md"))).toBe(false);
     expect(workspace.changes[0]?.schema).toMatchObject({ name: "spec-driven-with-adr", source: "project" });
     expect(workspace.changes[0]?.schema?.fallback).toBeUndefined();
+  });
+
+  it("lists event-driven's artifacts in its order, with today's labels", async () => {
+    const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
+    const root = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "order-events");
+    await mkdir(path.join(change, "specs", "orders"), { recursive: true });
+    const name = await installSchemaFixture(root, "event-driven");
+    await Promise.all([
+      writeFile(path.join(change, ".openspec.yaml"), `schema: ${name}\n`),
+      writeFile(path.join(change, "event-storming.md"), "# Event storming\n"),
+      writeFile(path.join(change, "asyncapi.yaml"), "asyncapi: 3.0.0\n"),
+      writeFile(path.join(change, "specs", "orders", "spec.md"), "## ADDED Requirements\n"),
+    ]);
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    // Labels pinned as they are; nicer ones for compound ids are a later change.
+    expect(workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.label, artifact.exists])).toEqual([
+      ["event-storming", "Event storming", true],
+      ["event-modeling", "Event modeling", false],
+      ["delta-spec:orders", "orders", true],
+      ["design", "Design", false],
+      ["asyncapi", "Asyncapi", true],
+      ["tasks", "Tasks", false],
+    ]);
+  });
+
+  it("lists minimalist's flat spec file by its path, not as a delta spec", async () => {
+    const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
+    const root = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "landing");
+    await mkdir(path.join(change, "specs", "checkout"), { recursive: true });
+    const name = await installSchemaFixture(root, "minimalist");
+    await Promise.all([
+      writeFile(path.join(change, ".openspec.yaml"), `schema: ${name}\n`),
+      writeFile(path.join(change, "specs", "checkout", "spec.md"), "## ADDED Requirements\n"),
+      writeFile(path.join(change, "specs", "landing-page.md"), "As a visitor, I want a landing page.\n"),
+      writeFile(path.join(change, "tasks.md"), "- [ ] one\n"),
+    ]);
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    expect(workspace.changes[0]?.artifacts.map((artifact) => [artifact.id, artifact.kind, artifact.label])).toEqual([
+      ["delta-spec:checkout", "delta-spec", "checkout"],
+      ["specs:specs/landing-page.md", "schema-artifact", "specs/landing-page.md"],
+      ["tasks", "tasks", "Tasks"],
+    ]);
+  });
+
+  // a-schema-artifact-stays-inside-its-change 2.3: the spec-driven-with-adr
+  // version in use from 2026-05-11 to 2026-06-22 declared `adr` as
+  // `../../../adr/*.md`.
+  it("lists no file outside the change, for a schema whose glob reaches the repository's adr/", async () => {
+    const { installSchemaFixture } = await import("./test-support/openspec-schema-fixtures.js");
+    const root = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "old-adr-schema");
+    await Promise.all([
+      mkdir(change, { recursive: true }),
+      mkdir(path.join(root, "adr"), { recursive: true }),
+    ]);
+    const name = await installSchemaFixture(root, "spec-driven-with-adr-f04aaa2");
+    await Promise.all([
+      writeFile(path.join(root, "openspec", "config.yaml"), `schema: ${name}\n`),
+      writeFile(path.join(root, "adr", "0001-first-decision.md"), "# 0001\n"),
+      writeFile(path.join(root, "adr", "0002-second-decision.md"), "# 0002\n"),
+      writeFile(path.join(change, "proposal.md"), "# Proposal\n"),
+    ]);
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    const artifacts = workspace.changes[0]?.artifacts ?? [];
+    expect(artifacts.map((artifact) => artifact.id)).toEqual(["proposal", "design", "tasks"]);
+    expect(artifacts.every((artifact) => !path.relative(change, artifact.path).startsWith(".."))).toBe(true);
+  });
+
+  it("lists nothing reached through a link inside the change that points outside it", async () => {
+    const { symlink } = await import("node:fs/promises");
+    const root = await temporaryRoot();
+    const outside = await temporaryRoot();
+    const change = path.join(root, "openspec", "changes", "linked");
+    await Promise.all([
+      mkdir(path.join(change, "specs"), { recursive: true }),
+      mkdir(path.join(outside, "elsewhere"), { recursive: true }),
+    ]);
+    await writeFile(path.join(outside, "elsewhere", "spec.md"), "## ADDED Requirements\n");
+    await symlink(outside, path.join(change, "specs", "borrowed"), process.platform === "win32" ? "junction" : "dir");
+
+    const workspace = await discoverOpenSpecWorkspace(root, NO_USER_SCHEMAS);
+
+    expect(workspace.changes[0]?.artifacts.map((artifact) => artifact.id)).toEqual(["proposal", "design", "tasks"]);
   });
 
   it("lists the spec-driven artifacts, and says why, when the change's schema is found nowhere", async () => {

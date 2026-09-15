@@ -17,8 +17,10 @@ decision this change applies.
     colliding on a nested capability.
 - **A custom schema's artifacts are not shown.** DW's project uses its own
   schema, `spec-driven-with-adr`, which adds `adr.md`. The tree lists only a
-  hard-coded Proposal, Design and Tasks, so the change's ADR, and its
-  `exploration.md`, never appear.
+  hard-coded Proposal, Design and Tasks, so the change's ADR never appears.
+  The change also holds `exploration.md`, which the schema does not declare
+  and which therefore stays unlisted. (Corrected by
+  `a-schema-artifact-stays-inside-its-change`.)
 
 ## What Changes
 
