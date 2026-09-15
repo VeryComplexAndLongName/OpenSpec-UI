@@ -230,9 +230,42 @@ dark theme that follows the system.
     toggle still works for the page; and reaching storage itself throwing.
   - **Checks.** The webui suite passes with 53 files and 486 tests, and
     typecheck and lint pass.
-- [ ] 4.2 VS Code: `vscodeThemeCss` sets every variable the generated copy
+- [x] 4.2 VS Code: `vscodeThemeCss` sets every variable the generated copy
   reads, and `dark-side` follows `vscode-dark` and `vscode-high-contrast`. A
   test asserts every read variable is set.
+
+  Done on 2026-09-15.
+  - **The mapping.** `vscodeThemeCss` gains an unlayered `.openspec-metro`
+    block that sets each of the 64 variables the trimmed copy reads from its
+    palette.
+    - Colours come from `--vscode-*` only: button and secondary button,
+      input, dropdown, checkbox, focus border, disabled foreground, list
+      selection, editor widget, panel and contrast borders, input
+      validation, and testing and charts for valid.
+    - Sizes follow the editor's density: controls 28px, small 22px, radii
+      2px, font sizes the editor's.
+    - Metro's 3px focus shadow is transparent, and the shell's focus
+      outline carries focus.
+  - **Alert.** `.button.alert` takes `--vscode-inputValidation-errorBorder`
+    behind the button foreground. `--vscode-errorForeground` is a text
+    colour, too light to sit under text.
+  - **`dark-side`.** `src/vscode-theme.ts` has `useEditorDarkTheme()`, which
+    watches the webview body's class through a `MutationObserver`.
+    `vscode-dark` and `vscode-high-contrast` count as dark, and
+    `vscode-high-contrast-light` never does. `metroRootClassName` puts
+    `dark-side` on the root of the AI panel, Harness Settings, the Pipeline
+    and the Timeline. Every variable is set by the mapping, so the dark
+    palette only decides what an unset variable would fall back to.
+  - **Tests.**
+    - `vscode-metro-mapping.test.ts` collects every `var()` the copy reads
+      from its palette, leaving out variables a component rule declares
+      for itself such as `--control-height`. It asserts that the VS Code
+      layer sets each one, and that the layer holds no hex or `rgb()`
+      colour.
+    - `vscode-theme.test.tsx` covers the four body classes, the root class,
+      and a theme switched while the webview is open.
+  - **Checks.** The webui suite passes with 55 files and 491 tests, and
+    typecheck, lint and `lint:test-budgets` pass.
 - [ ] 4.3 Live check in the Extension Development Host, with pictures, in
   Default Dark Modern, Default Light Modern, Default High Contrast and one
   third-party theme: the AI panel, Harness Settings, the Pipeline and the

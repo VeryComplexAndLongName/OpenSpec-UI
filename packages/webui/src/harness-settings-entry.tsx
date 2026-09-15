@@ -17,6 +17,7 @@ import { GlobalHarnessSettingsView } from "./components/GlobalHarnessSettingsVie
 import type { HarnessSettingsApi } from "./components/harness-settings-parts.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
+import { metroRootClassName, useEditorDarkTheme } from "./vscode-theme.js";
 
 /** Posted by a change's panel when someone asks for the global defaults.
  * The host answers by opening the global panel. */
@@ -36,8 +37,10 @@ function HarnessSettingsApp({ scope, changeName }: { scope: "global" | "change";
     writeChangeOverride: (name, config) => bridge.request("harness/write-change-override", { changeName: name, config }),
   }), [bridge]);
 
+  const editorDark = useEditorDarkTheme();
+
   return (
-    <div className="openspec-extension-app openspec-metro">
+    <div className={metroRootClassName("openspec-extension-app", editorDark)}>
       <style>{[metroCss, shellThemeCss, vscodeThemeCss].join(" ")}</style>
       <section className="openspec-shell-panel">
         {scope === "change" && changeName.length > 0 ? (

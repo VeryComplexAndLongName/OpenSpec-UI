@@ -18,6 +18,7 @@ import { OwlLogo } from "./components/OwlLogo.js";
 import type { RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
+import { metroRootClassName, useEditorDarkTheme } from "./vscode-theme.js";
 import {
   isDashboardContextMessage,
   resolveInitialDashboardContext,
@@ -159,8 +160,10 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
     setChangeDir(buildDefaultChangeDir(nextCwd));
   }
 
+  const editorDark = useEditorDarkTheme();
+
   return (
-    <div className="openspec-extension-app openspec-metro">
+    <div className={metroRootClassName("openspec-extension-app", editorDark)}>
       <style>{`${metroCss}\n${shellThemeCss}\n${vscodeThemeCss}`}</style>
       <header className="openspec-shell-headline">
         <OwlLogo />

@@ -14,6 +14,7 @@ import { createBridgeRequester } from "./bridge-request.js";
 import { PipelineView, type AskToStop, type PipelineReading, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
+import { metroRootClassName, useEditorDarkTheme } from "./vscode-theme.js";
 
 /** Posted by the host when files a reading depends on have changed. */
 export const PIPELINE_CHANGED_MESSAGE_TYPE = "openspec-ui/pipeline-changed";
@@ -102,8 +103,10 @@ function PipelineApp() {
     [vscodeApi],
   );
 
+  const editorDark = useEditorDarkTheme();
+
   return (
-    <div className="openspec-extension-app openspec-metro">
+    <div className={metroRootClassName("openspec-extension-app", editorDark)}>
       <style>{[metroCss, shellThemeCss, vscodeThemeCss].join(" ")}</style>
       <section className="openspec-shell-panel">
         <h2>Pipeline</h2>

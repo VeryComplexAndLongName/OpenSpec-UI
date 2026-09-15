@@ -1892,6 +1892,90 @@ export const vscodeThemeCss = `
     --w-sentence: 26rem;
   }
 
+  /* Every variable the derived Metro copy reads from its palette, set from
+     the editor theme (the-web-ui-wears-metro design decision 6). Unlayered,
+     so it wins over Metro's light and dark palettes in any theme, built-in
+     or not; vscode-metro-mapping.test.ts fails when Metro reads a variable
+     this block does not set. Sizes follow the editor's density rather than
+     Metro's 36px forms. No colour is written here, only the theme's own. */
+  .openspec-metro {
+    --default-background: var(--vscode-checkbox-background, var(--vscode-input-background));
+    --border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+    --control-height-normal: 28px;
+    --control-height-small: 22px;
+
+    --button-background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+    --button-color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+    --button-border-radius: 2px;
+    --button-disabled-opacity: 0.5;
+    --button-font-size: var(--vscode-font-size);
+    --button-group-active-background: var(--vscode-button-background);
+    --button-group-active-color: var(--vscode-button-foreground);
+
+    --input-background: var(--vscode-input-background);
+    --input-background-disabled: var(--vscode-input-background);
+    --input-border-color: var(--vscode-input-border, var(--vscode-contrastBorder, var(--vscode-panel-border, transparent)));
+    --input-border-color-hover: var(--vscode-input-border, var(--vscode-focusBorder));
+    --input-border-radius: 2px;
+    --input-box-shadow: transparent;
+    --input-color: var(--vscode-input-foreground);
+    --input-color-disabled: var(--vscode-disabledForeground);
+    --input-font-size: 1em;
+    --input-height: var(--control-height-normal);
+    --input-invalid-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+    --input-valid-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+    --material-input-border-color: var(--border-color);
+    --material-input-border-color-hover: var(--vscode-focusBorder);
+    --material-input-color: var(--vscode-input-foreground);
+    --material-input-placeholder-color: var(--vscode-input-placeholderForeground);
+
+    --checkbox-background-disabled: var(--vscode-input-background);
+    --checkbox-border-radius: 3px;
+    --checkbox-color: var(--vscode-checkbox-foreground, var(--vscode-foreground));
+    --checkbox-color-disabled: var(--vscode-disabledForeground);
+    --checkbox-focus-color: var(--vscode-focusBorder);
+    --checkbox-size: 18px;
+    --radio-background-disabled: var(--vscode-input-background);
+    --radio-color: var(--vscode-checkbox-foreground, var(--vscode-foreground));
+    --radio-color-disabled: var(--vscode-disabledForeground);
+    --radio-focus-color: var(--vscode-focusBorder);
+    --radio-size: 18px;
+
+    --select-border-radius: 2px;
+    --select-button-background: transparent;
+    --select-button-background-hover: transparent;
+    --select-button-color: var(--vscode-dropdown-foreground);
+    --select-button-color-hover: var(--vscode-dropdown-foreground);
+    --select-focus-color: var(--vscode-list-focusBackground, transparent);
+
+    --textarea-border-radius: 2px;
+    --textarea-color: var(--vscode-input-foreground);
+    --textarea-font-size: var(--vscode-font-size);
+
+    --table-body-font-size: var(--vscode-font-size);
+    --table-caption-font-size: var(--vscode-font-size);
+    --table-head-font-size: var(--vscode-font-size);
+    --table-border-color: var(--vscode-panel-border, var(--vscode-contrastBorder, transparent));
+    --table-color: var(--vscode-foreground);
+    --table-header-background: var(--vscode-editorWidget-background, transparent);
+    --table-header-color: var(--vscode-foreground);
+    --table-inspector-background: var(--vscode-editorWidget-background);
+    --table-inspector-border-color: var(--vscode-editorWidget-border, transparent);
+    --table-inspector-border-radius: 4px;
+    --table-inspector-color: var(--vscode-foreground);
+    --table-selected-background: var(--vscode-list-activeSelectionBackground);
+    --table-selected-color: var(--vscode-list-activeSelectionForeground);
+    --table-striped-background: var(--vscode-list-hoverBackground, transparent);
+  }
+
+  /* An action that stops or discards, in the editor's own error colour. The
+     error border is the one the theme draws behind white-on-colour text; the
+     error foreground is a text colour and too light to sit under text. */
+  .openspec-extension-app .button.alert {
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  }
+
   body {
     font-family: var(--vscode-font-family);
     font-size: var(--vscode-font-size);
