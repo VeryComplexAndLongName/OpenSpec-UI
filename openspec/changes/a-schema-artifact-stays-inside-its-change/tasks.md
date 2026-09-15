@@ -20,7 +20,16 @@ external review of that change on 2026-09-15, each checked against
     `spec-driven-with-adr` were read the same way: `f14d1d5` added it,
     `3fc8916` removed the ADR folder parameter, `f04aaa2` set
     `"../../../adr/*.md"`, and `b320db8` moved `adr.md` back inside the change.
-  - **Sizes.** 11,879, 3,758, 512 and 10,987 bytes. `LICENSE` is MIT.
+  - **Proof they are unchanged.** Each committed blob hash equals the one
+    GitHub reports for the source file:
+    - `spec-driven-with-adr`: `5e65a43`, 11,537 bytes;
+    - `event-driven`: `0e33355`, 3,655 bytes;
+    - `minimalist`: `2884be4`, 493 bytes;
+    - `spec-driven-with-adr` at `f04aaa2`: `13d8547`, 10,661 bytes;
+    - `LICENSE`: `14fac91`, 1,056 bytes, MIT.
+
+    A Windows checkout shows larger files, because `core.autocrlf` writes
+    CRLF there. The repository holds the upstream bytes.
   - **Using them.** `src/test-support/openspec-schema-fixtures.ts`
     (`installSchemaFixture`) copies one into a temporary project's
     `openspec/schemas/<name>/`.
@@ -99,12 +108,24 @@ external review of that change on 2026-09-15, each checked against
   passes.
 
   Done on 2026-09-15.
-- [ ] 5.2 `npm run verify` passes, run unpiped. Record each package's count.
+- [x] 5.2 `npm run verify` passes, run unpiped. Record each package's count.
+
+  Done on 2026-09-15. `npm run verify` exited 0, with its output written to a
+  file.
+  - **The root's script tests** report `fail 0`.
+  - **Workspace tests:**
+    - `@openspec-ui/cli`: 16 files, 161 tests;
+    - `@openspec-ui/core`: 104 files, 1,477 tests, then 2 files, 4 tests;
+    - `openspec-ui-vscode`: 28 files, 378 tests;
+    - `@openspec-ui/server`: 4 files, 100 tests;
+    - `@openspec-ui/webui`: 55 files, 491 tests.
 - [x] 5.3 A changeset: `@openspec-ui/core` patch, `openspec-ui-vscode` patch.
 
   Done: `.changeset/a-schema-artifact-stays-inside-its-change.md`.
-- [ ] 5.4 `lint:english` after `git add`, `lint:test-budgets` and
+- [x] 5.4 `lint:english` after `git add`, `lint:test-budgets` and
   `lint:source-text` pass.
 
-  `lint:test-budgets` and `lint:source-text` pass. `lint:english` is run at
-  commit.
+  Done: `lint:english` and `lint:changesets` passed with the change staged,
+  right before its commit. `lint:test-budgets` and `lint:source-text` passed
+  earlier, and the copied schemas' non-ASCII arrows pass the source-text
+  check.
