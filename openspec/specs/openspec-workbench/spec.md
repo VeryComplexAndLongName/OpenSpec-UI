@@ -22,8 +22,11 @@ order the schema declares them.
   `openspec/schemas/<name>/schema.yaml`, then the user's OpenSpec schema
   directory, then the built-in `spec-driven`.
 - **Which files.** An artifact's files SHALL be the ones its `generates` path
-  or glob matches. A declared single-file artifact with no file SHALL be
-  listed as missing.
+  or glob matches inside the change's own directory. A file outside that
+  directory SHALL NOT be listed, whether a `generates` value reaches it
+  through `..` or a link inside the change points to it. A declared
+  single-file artifact inside the change with no file SHALL be listed as
+  missing.
 - **Delta specs.** A delta spec SHALL be found at any depth under the change's
   `specs/` directory, and named by its capability path under `specs/`.
 - **No CLI process.** Discovering a change's artifacts SHALL NOT start the
@@ -55,6 +58,13 @@ built-in `spec-driven` artifacts and SHALL say why.
   schema declares it
 - **AND** the proposal, design, tasks, and delta specs the schema also declares
   are shown as before
+
+#### Scenario: A schema declares files outside the change
+
+- **WHEN** a change uses a schema whose `adr` artifact generates
+  `../../../adr/*.md`, and the repository's `adr/` holds decision records
+- **THEN** none of those records is shown among the change's artifacts
+- **AND** the change's artifacts inside its own directory are shown as before
 
 #### Scenario: A declared artifact has no file yet
 
