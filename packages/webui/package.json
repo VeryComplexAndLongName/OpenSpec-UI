@@ -23,6 +23,7 @@
     "jsdom": "^30.0.0"
   },
   "scripts": {
+    "build:metro": "node scripts/build-metro.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run"

@@ -4,28 +4,75 @@ dark theme that follows the system.
 
 ## 1. The decision
 
-- [ ] 1.1 `docs/adr/0030-the-web-ui-uses-metro-components.md`: Metro's
+- [x] 1.1 `docs/adr/0030-the-web-ui-uses-metro-components.md`: Metro's
   components without tiles, vendored and scoped, and themed by each host. It
   supersedes 0023's Metro rejection and keeps 0023's other decisions.
-- [ ] 1.2 `docs/adr/README.md` gains the row, and 0023's row says that 0030
+
+  Done, and approved by the owner on 2026-09-15 with the proposal.
+- [x] 1.2 `docs/adr/README.md` gains the row, and 0023's row says that 0030
   supersedes its Metro rejection.
 
 ## 2. Metro, vendored and derived
 
-- [ ] 2.1 `packages/webui/vendor/metro/`: `metro.css` and `LICENSE` from
+- [x] 2.1 `packages/webui/vendor/metro/`: `metro.css` and `LICENSE` from
   `@olton/metroui@5.1.20`, and a `README` naming the version and the
   SHA-256. Record the hash and where the file was taken from.
-- [ ] 2.2 `packages/webui/scripts/build-metro.mjs`: the pass of design
+
+  Done on 2026-09-15.
+  - **Source.** `npm pack @olton/metroui@5.1.20`: `lib/metro.css` and
+    `LICENSE` (MIT) from that tarball, unchanged. The owner chose to keep
+    this file in the repository rather than only the derived copy.
+  - **The file.** `metro.css` is 1,481,825 bytes, SHA-256
+    `50e237f90becdbae2f216e97d84c2d3e35ef2bde1bbd1b69d2b24ed9c762c1f1`. It
+    has no non-ASCII byte.
+  - **The project site's copy** differs by one byte: its last line ends in
+    CRLF, from `core.autocrlf` on Windows. So the root `.gitattributes`
+    marks the vendored file `-text`. Checked out on Windows, the file keeps
+    the hash above.
+- [x] 2.2 `packages/webui/scripts/build-metro.mjs`: the pass of design
   decision 2, with `css-tree` declared as a development dependency. It writes
   `src/metro-css.generated.ts`, and an npm script runs it.
-- [ ] 2.3 Tests:
+
+  Done. `css-tree ^3.2.1` is a devDependency of `@openspec-ui/webui`, and
+  `npm run build:metro -w @openspec-ui/webui` runs the script.
+  - **A narrower rule than the design's first wording.** The first rule kept
+    any rule whose selector named a kept component's class anywhere. That
+    carried other components that merely contain a button or an input: a
+    colour picker, a spinner, a tag input, a rating, sortable columns. It
+    came to 1661 rules and 221,032 bytes.
+  - **The rule now.** A selector is kept only when every class it names is a
+    kept component's or one of `KEPT_MODIFIERS`: a colour for an action or
+    state (`primary`, `alert`, `success`, `warning`, `info`), `small`, and the
+    states a control passes through.
+- [x] 2.3 Tests:
   - the vendored file's hash;
   - the generated module matches a fresh run of the script;
   - no rule on a bare element, `*`, `html` or `body` survives;
   - every selector starts with `.openspec-metro`;
   - no `url(` to another origin.
-- [ ] 2.4 Record the derived copy's size, and each kept component's rule
+
+  Done: `packages/webui/scripts/build-metro.test.mjs`, 5 tests, run by the
+  package's `vitest run`.
+  - **Environment.** They run in Vitest's node environment.
+  - **The script's `#!` line went.** Vitest failed on it when importing the
+    script, and the npm script runs the file through `node` anyway.
+  - **What counts as `*`.** A `*` inside a kept selector stays, as in
+    `.button-group>*`, `.dialog *+.dialog-content` or `*+.card`. It reaches
+    only that component's children. A selector whose only class is the root
+    fails the bare-element test, and `html` and `body` may not appear at all.
+- [x] 2.4 Record the derived copy's size, and each kept component's rule
   count.
+
+  **First build with the narrower rule, 2026-09-15:**
+  - **Size.** 132,319 bytes: 1,024 rules, 90 light and 64 dark variables,
+    and no keyframes. 86 rules on bare elements were dropped.
+  - **Selectors per component:** button 621, input 308, tabs 94, checkbox
+    77, select 60, table 53, progress 52, textarea 51, badge 39, dialog 24,
+    card 5 and panel 5.
+  - **Checks.** No selector falls outside `.openspec-metro`, none names no
+    class of its own, and no `url(`.
+
+  To be recorded again once 3.2 settles which modifiers the controls use.
 
 ## 3. The controls
 

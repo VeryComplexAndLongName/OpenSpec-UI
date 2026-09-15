@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Derives the Metro UI copy the web UI ships from the vendored, pinned
 // source (ADR 0030; the-web-ui-wears-metro design decision 2).
 //
@@ -50,6 +49,34 @@ export const KEPT_COMPONENTS = [
 
 function isKeptClass(name) {
   return KEPT_COMPONENTS.some((component) => name === component || name.startsWith(`${component}-`));
+}
+
+/** The modifier classes a kept component may carry in the web UI: a colour
+ * that says what an action or a state is, a size, and the states a control
+ * passes through. A selector naming any other class belongs to something
+ * else — a colour picker, a spinner, a tag input, a sortable column — that
+ * happens to contain a button or an input, and is not carried. Measured on
+ * 5.1.20, the broad rule kept 1661 rules and 221 KB. */
+export const KEPT_MODIFIERS = [
+  "primary",
+  "alert",
+  "success",
+  "warning",
+  "info",
+  "small",
+  "disabled",
+  "active",
+  "focused",
+  "invalid",
+  "valid",
+  "selected",
+  "checked",
+  "striped",
+  "compact",
+];
+
+function isKeptSelector(names) {
+  return names.some(isKeptClass) && names.every((name) => isKeptClass(name) || KEPT_MODIFIERS.includes(name));
 }
 
 /** Every class name a selector names, anywhere in it. */
@@ -157,7 +184,7 @@ export function deriveMetroCss(sourceText) {
         return;
       }
 
-      const kept = selectors.filter((selector) => classesOf(selector).some(isKeptClass));
+      const kept = selectors.filter((selector) => isKeptSelector(classesOf(selector)));
       if (kept.length === 0) {
         if (selectors.every((selector) => classesOf(selector).length === 0)) droppedBare += 1;
         return;
