@@ -1,0 +1,5 @@
+# The vendored Metro UI stylesheet is kept byte for byte as published, so its
+# SHA-256 can be checked on every platform. Without this, core.autocrlf on
+# Windows rewrites its line endings on checkout and the hash no longer matches.
+# See packages/webui/vendor/metro/README.md and ADR 0030.
+packages/webui/vendor/metro/metro.css -text
