@@ -271,8 +271,12 @@ specs, and an article and teaser on the same releases.
 
   All passed. The run kept going while the owner used "Extensions: Check for
   Extension Updates" in the same VS Code, which reloads no window.
-- [ ] 4.4 CI's "Standalone browser and accessibility" passes on this change's
+- [x] 4.4 CI's "Standalone browser and accessibility" passes on this change's
   pull request.
+
+  Done on 2026-09-15. At d4b35bc, run 34918752114, every check of #513
+  passed, "Standalone browser and accessibility" included. #513 merged as
+  c98e85d. The record below is of the two runs that failed before it.
 
   **The first CI run on #513 failed** at ec93811, run 34916198901. "starts a
   chain from its card, answers it there, and asks it to stop" failed the
