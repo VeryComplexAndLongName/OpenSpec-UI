@@ -1988,8 +1988,15 @@ export const vscodeThemeCss = `
      theme's button border the AI panel's "Reload changes" read as a label,
      measured in the Extension Development Host. Metro's own border takes
      the ground's colour, which is that same transparency. */
-  .openspec-extension-app .button {
-    border-color: var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
+  /* A high-contrast theme draws a button as a ground no different from the
+     page, and outlines it with the contrast border instead; in Default High
+     Contrast "Apply" read as text until that border was drawn. The primary
+     and alert selectors are named so this wins over the shell's own
+     transparent border on them. */
+  .openspec-extension-app .button,
+  .openspec-extension-app .button.primary,
+  .openspec-extension-app .button.alert {
+    border-color: var(--vscode-contrastBorder, var(--vscode-button-border, transparent));
   }
 
   /* An action that stops or discards, in the editor's own error colour. The
