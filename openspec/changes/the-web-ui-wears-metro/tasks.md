@@ -364,6 +364,13 @@ dark theme that follows the system.
   - **A second run.** That spec, with the disabled-state fix below, was
     rebuilt and run on its own: 1 passed in 15.2s. The whole-suite run
     had compiled the spec before the dark pass was added.
+  - **A race the first CI run found.** On PR #515 the dark axe pass failed
+    twice with "color-contrast", for example `#717674` text on `#349283` for
+    "Create change". Neither value is in either palette. They are blends,
+    measured part-way through the 0.2s `transition: all` on Metro's
+    buttons, which a local run finished before axe looked. The spec now
+    waits for `document.getAnimations()` to finish after the toggle, before
+    it runs axe.
   - **A fix found while looking at the dark screen.** Metro's dark palette
     draws a disabled button at 25% opacity, and a disabled field as
     near-black text on near-black. Both all but vanished. `shellThemeCss`
