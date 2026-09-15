@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-15T04:31:16.392Z",
+  "generated_at": "2026-09-15T08:54:26.000Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "a5e6d32462ed963685e0a00c33685212ba16c8d4",
+  "commit": "a116bbbf291991ab1ada2d6db80295f785bfbf1b",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.57.0",
-      "released_at": "2026-09-15T04:31:16.392Z",
-      "tag": "openspec-ui-vscode@0.57.0",
+      "version": "0.58.0",
+      "released_at": "2026-09-15T08:54:26.000Z",
+      "tag": "openspec-ui-vscode@0.58.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.57.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.58.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.57.0/openspec-ui-vscode-0.57.0.vsix",
-          "size_bytes": 6429162
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.58.0/openspec-ui-vscode-0.58.0.vsix",
+          "size_bytes": 6585672
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
+          "summary": "Changes now list the artifacts their OpenSpec schema declares."
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.26.2",
-      "released_at": "2026-09-15T04:31:16.392Z",
+      "version": "1.26.3",
+      "released_at": "2026-09-15T08:54:26.000Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +50,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
+          "summary": "Changes now list the artifacts their OpenSpec schema declares."
         }
       ]
     },
@@ -59,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.88.0",
-      "released_at": "2026-09-15T04:31:16.392Z",
+      "version": "0.89.0",
+      "released_at": "2026-09-15T08:54:26.000Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,15 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A Pipeline card opens to its tasks."
-        },
-        {
-          "kind": "minor",
-          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
-        },
-        {
-          "kind": "patch",
-          "summary": "A standing whose repository has no remote on a GitHub host gh knows says so, rather than that gh is not signed in."
+          "summary": "Changes now list the artifacts their OpenSpec schema declares."
         }
       ]
     },
@@ -88,20 +80,15 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.49.0",
-      "released_at": "2026-09-15T04:31:16.392Z",
+      "version": "1.49.1",
+      "released_at": "2026-09-15T08:54:26.000Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "The web UI now uses Metro UI 5.1 controls. Buttons, fields, selects,"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
@@ -109,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-15T04:31:16.392Z",
+      "released_at": "2026-09-15T08:54:26.000Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
