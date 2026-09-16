@@ -166,6 +166,30 @@ tab's label. The first draft had only the sentence.
     open, the summary shows the sentence, its fieldset is `aria-busy` with a
     disabled button inside, its tab keeps the spinner while Harness Settings
     is open, and all of it goes when the request is released.
+- [x] 3.17 `packages/webui/src/shown-readings.ts` exports
+  `useShownReadings(readings)`, which shows a reading only once it has lasted
+  `READING_SHOWN_AFTER_MS` (400) and stops showing it the moment it returns;
+  `standalone-entry.tsx` drives the status line, the held controls and the
+  tab spinners from it, and `.openspec-tab-spinner` is laid over the tab's
+  corner instead of taking room beside its label.
+- [x] 3.18 `packages/webui/src/shown-readings.test.tsx` asserts a reading
+  shorter than the delay is never shown, a longer one is shown and hidden at
+  once on return, and a new sentence is followed at once;
+  `shell-ui.test.ts` asserts the tab spinner takes no room.
+
+  Added on 2026-09-16 from the owner's look at the running shell: every
+  row's Review in Processes and Recovery made the screen jerk. Three things
+  moved it: the status line appearing and going for a reading of a few
+  hundred milliseconds, the spinner widening its tab, and — older than this
+  change — the Refresh button reading "Loading..." during any reading, a
+  Review included, which changed its width and moved every control after
+  it. `ProcessesView.tsx` now keeps the label "Refresh" in every state.
+  - **Checks:** `shown-readings.test.tsx` 3, `Tabs.test.tsx` 11,
+    `shell-ui.test.ts` 10 pass; webui typecheck and lint pass. Live, in
+    Chromium against this branch's server on this repository, pressing a
+    row's Review: the browser's layout-shift total was 0, Clean old history,
+    the Pipeline tab and the Review button itself moved by 0 px, the first
+    button's label stayed "Refresh", and no status line appeared.
 
 ## 4. The theme control is a switch
 
@@ -191,6 +215,16 @@ tab's label. The first draft had only the sentence.
   never finishes.
   - **Checks:** `ThemeToggle.test.tsx` 3, `standalone-theme.test.tsx` 5 and
     `shell-ui.test.ts` 10 pass; webui and server typecheck, webui lint pass.
+- [x] 4.4 `ThemeToggle.tsx` shows the switch alone, with no text beside it;
+  its name "Dark theme" moves to `aria-label`, and `ThemeToggle.test.tsx`
+  asserts the switch has that name and no visible text.
+
+  Added on 2026-09-16: the owner read the label beside the switch as
+  meaningless, since the sun or the moon on the knob already says it. With
+  no visible label WCAG 2.5.3 no longer constrains the name, and the name
+  still does not change with the theme.
+  - **Checks:** `ThemeToggle.test.tsx` 3 and `standalone-theme.test.tsx` 5
+    pass; `standalone.spec.ts` finds the switch by the same name.
 
 ## 5. Checks
 

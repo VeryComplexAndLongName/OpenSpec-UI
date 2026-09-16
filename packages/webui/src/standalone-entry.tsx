@@ -29,6 +29,7 @@ import { Tabs, TabPanel } from "./components/Tabs.js";
 import { PanelStatus } from "./components/PanelStatus.js";
 import { BusyFieldset } from "./components/BusyFieldset.js";
 import { busyTabs, tabReadings } from "./tab-readings.js";
+import { useShownReadings } from "./shown-readings.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
@@ -1429,6 +1430,9 @@ function StandaloneApp() {
     harnessReading,
     pipelineReading,
   });
+  // Shown only once a reading has lasted a moment: a quick one otherwise
+  // put a line above the tab and took it away, and the screen jerked.
+  const shownReadings = useShownReadings(readings);
 
   return (
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
@@ -1452,7 +1456,7 @@ function StandaloneApp() {
         {scheduleMessage ? <p className="openspec-shell-note">{scheduleMessage}</p> : null}
       </div>
 
-      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} busy={busyTabs(readings)} />
+      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} busy={busyTabs(shownReadings)} />
 
       <TabPanel id="run-a-command" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
@@ -1532,8 +1536,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("processes") && (
       <TabPanel id="processes" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["processes"]} testId="tab-reading-processes" />
-      <BusyFieldset busy={readings["processes"] !== null}>
+      <PanelStatus reading={shownReadings["processes"]} testId="tab-reading-processes" />
+      <BusyFieldset busy={shownReadings["processes"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
@@ -1545,8 +1549,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("diff-preview") && (
       <TabPanel id="diff-preview" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["diff-preview"]} testId="tab-reading-diff-preview" />
-      <BusyFieldset busy={readings["diff-preview"] !== null}>
+      <PanelStatus reading={shownReadings["diff-preview"]} testId="tab-reading-diff-preview" />
+      <BusyFieldset busy={shownReadings["diff-preview"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
         <p className="openspec-shell-note">What a change has changed and not yet committed, as git reports it.</p>
@@ -1596,8 +1600,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("overview") && (
       <TabPanel id="overview" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["overview"]} testId="tab-reading-overview" />
-      <BusyFieldset busy={readings["overview"] !== null}>
+      <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
+      <BusyFieldset busy={shownReadings["overview"] !== null}>
       <section className="openspec-shell-panel">
         <h2>OpenSpec view summary</h2>
         <p className="openspec-shell-note">
@@ -1762,8 +1766,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("change-editor") && (
       <TabPanel id="change-editor" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["change-editor"]} testId="tab-reading-change-editor" />
-      <BusyFieldset busy={readings["change-editor"] !== null}>
+      <PanelStatus reading={shownReadings["change-editor"]} testId="tab-reading-change-editor" />
+      <BusyFieldset busy={shownReadings["change-editor"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Change Editor</h2>
         <p className="openspec-shell-note">
@@ -1961,8 +1965,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("templates") && (
       <TabPanel id="templates" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["templates"]} testId="tab-reading-templates" />
-      <BusyFieldset busy={readings["templates"] !== null}>
+      <PanelStatus reading={shownReadings["templates"]} testId="tab-reading-templates" />
+      <BusyFieldset busy={shownReadings["templates"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Templates</h2>
         <p className="openspec-shell-note">
@@ -2087,8 +2091,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("timeline") && (
       <TabPanel id="timeline" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["timeline"]} testId="tab-reading-timeline" />
-      <BusyFieldset busy={readings["timeline"] !== null}>
+      <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
+      <BusyFieldset busy={shownReadings["timeline"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Timeline</h2>
         <p className="openspec-shell-note">
@@ -2351,8 +2355,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("harness-settings") && (
       <TabPanel id="harness-settings" activeTab={activeTab} lazy>
-      <PanelStatus reading={readings["harness-settings"]} testId="tab-reading-harness-settings" />
-      <BusyFieldset busy={readings["harness-settings"] !== null}>
+      <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
+      <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Harness Settings</h2>
         <p className="openspec-shell-note">

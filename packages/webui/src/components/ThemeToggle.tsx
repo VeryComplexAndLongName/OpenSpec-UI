@@ -1,13 +1,11 @@
 // The standalone header's theme control (a-screen-says-what-it-is-doing 4.1).
 //
 // A switch, not a button. The owner read the old button, labelled "Dark
-// theme" in both states, as a control that never changed. Its name cannot
-// follow the theme — WCAG 2.5.3 wants the visible label inside the accessible
-// name, and "Light theme" in one state would break a voice command that
-// named the other — so the state moves into the role: `role="switch"` with
-// `aria-checked`, a track whose knob slides, and a moon or a sun on the knob.
-// The label stays "Dark theme" and reads true: the switch is on when the
-// theme is dark.
+// theme" in both states, as a control that never changed, and then read the
+// label beside the switch as meaningless: the sun or the moon on the knob
+// already says it. So the switch stands alone. Its state is `role="switch"`
+// with `aria-checked`, and its name, "Dark theme", is given by `aria-label`
+// for assistive technology and does not change with the theme.
 //
 // The glyphs are drawn here rather than taken from the icon font: its subset
 // carries no sun or moon, and cutting a new subset for one control is more
@@ -39,6 +37,7 @@ export function ThemeToggle({ theme, onToggle }: { theme: ShellTheme; onToggle: 
       type="button"
       role="switch"
       aria-checked={dark}
+      aria-label="Dark theme"
       className="openspec-theme-toggle openspec-theme-switch"
       data-testid="theme-toggle"
       onClick={onToggle}
@@ -46,7 +45,6 @@ export function ThemeToggle({ theme, onToggle }: { theme: ShellTheme; onToggle: 
       <span className="openspec-theme-switch-track" aria-hidden="true">
         <span className="openspec-theme-switch-knob">{dark ? <Moon /> : <Sun />}</span>
       </span>
-      <span className="openspec-theme-switch-label">Dark theme</span>
     </button>
   );
 }

@@ -9,6 +9,9 @@ describe("ThemeToggle", () => {
 
     const light = screen.getByRole("switch", { name: "Dark theme" });
     expect(light).toHaveAttribute("aria-checked", "false");
+    // No visible words: the owner read "Dark theme" beside the switch as
+    // meaningless, and the glyph on the knob says it.
+    expect(light.textContent?.trim()).toBe("");
 
     rerender(<ThemeToggle theme="dark" onToggle={vi.fn()} />);
 

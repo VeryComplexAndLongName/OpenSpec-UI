@@ -13,9 +13,9 @@ stored, the shell SHALL follow the system preference, and SHALL NOT fail.
 Both palettes SHALL meet WCAG AA.
 
 The control SHALL state its two states in its own role rather than by
-renaming itself: its visible name SHALL NOT change with the theme, and the
+renaming itself: its accessible name SHALL NOT change with the theme, and the
 state SHALL be carried both by that role and by something a person can see
-without reading the name.
+without words. It SHALL show no text label beside itself.
 
 #### Scenario: A system set to dark
 
@@ -32,5 +32,5 @@ without reading the name.
 #### Scenario: The control in either state
 
 - **WHEN** the theme is light and again when it is dark
-- **THEN** the control's visible name is the same in both, and its state is
-  announced by its role and shown without reading that name
+- **THEN** the control's accessible name is the same in both, and its state
+  is announced by its role and shown by a glyph, with no words beside it

@@ -138,8 +138,12 @@ export function ProcessesView({
   return (
     <div data-testid="processes-view">
       <div className="openspec-ai-panel-controls">
+        {/* One label in every state. It read "Loading..." during any reading,
+            a Review included, and the change of width moved every control
+            after it: the jerk the owner reported. What is being read is
+            said by the shell's status line (a-screen-says-what-it-is-doing). */}
         <button className="button" type="button" onClick={() => void load()} disabled={loading}>
-          <Icon meaning="refresh" />{loading ? "Loading..." : "Refresh"}
+          <Icon meaning="refresh" />Refresh
         </button>
         <label className="openspec-shell-field">
           Retain days

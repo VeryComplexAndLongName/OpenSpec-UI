@@ -185,6 +185,11 @@ describe("shell themes", () => {
         }
         const bar = shellThemeCss.slice(shellThemeCss.indexOf(".openspec-panel-status-bar > span {"));
         expect(bar.slice(0, bar.indexOf("}"))).toContain("background: var(--primary)");
+        // 3.18: the tab's spinner takes no room in the row, or every tab
+        // after a busy one moves when its reading starts and ends.
+        const spinnerRules = shellThemeCss.split(".openspec-tab-spinner {").slice(1).map((rest) => rest.slice(0, rest.indexOf("}")));
+        expect(spinnerRules.some((rule) => rule.includes("position: absolute"))).toBe(true);
+        expect(spinnerRules.join("")).not.toContain("margin-left");
 
         // Every reduced-motion block, taken together: the theme switch has
         // one of its own.

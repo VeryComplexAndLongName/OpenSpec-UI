@@ -24,6 +24,9 @@ changing the label's accessible name. Where the person prefers reduced
 motion, the indicators SHALL stand still and the sentence SHALL remain. A
 tab that is not reading SHALL show none of this.
 
+A reading that returns within a moment SHALL show no indicator, and showing
+or hiding an indicator SHALL NOT move the tab row's other tabs.
+
 A run in progress is not a reading: its own controls, such as the one that
 cancels it, SHALL stay available.
 
@@ -63,6 +66,12 @@ cancels it, SHALL stay available.
   another tab before it returns
 - **THEN** the first tab's label still shows that it is reading, until the
   reading settles or fails
+
+#### Scenario: A reading that returns at once
+
+- **WHEN** the user presses a control whose reading returns within a moment,
+  such as a row's Review in Processes and Recovery
+- **THEN** no indicator appears, and nothing on the screen moves
 
 #### Scenario: A person who prefers reduced motion
 

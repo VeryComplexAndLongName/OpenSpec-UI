@@ -321,6 +321,7 @@ export const shellThemeCss = `
   /* A navigation strip, not a row of buttons: the resting tab is
      plain text and the accent marks only the one you are on. */
   .openspec-page-tabs button {
+    position: relative;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -403,11 +404,14 @@ export const shellThemeCss = `
     height: 16px;
   }
 
+  /* Laid over the tab's corner rather than beside its label: taking room
+     there moved every tab after it each time a reading started or ended. */
   .openspec-tab-spinner {
-    width: 10px;
-    height: 10px;
-    margin-left: 8px;
-    vertical-align: -1px;
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 8px;
+    height: 8px;
   }
 
   .openspec-panel-status-text {
