@@ -1,43 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-16T13:31:27.717Z",
+  "generated_at": "2026-09-16T17:35:33.438Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "90b3bd5d1721be32440563cad73862c2a6fa6347",
+  "commit": "0a685dd46de331d0127e0ef439b8d4d12d5cfa43",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.59.3",
-      "released_at": "2026-09-16T13:31:27.717Z",
-      "tag": "openspec-ui-vscode@0.59.3",
+      "version": "0.59.4",
+      "released_at": "2026-09-16T17:35:33.438Z",
+      "tag": "openspec-ui-vscode@0.59.4",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.3"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.4"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.3/openspec-ui-vscode-0.59.3.vsix",
-          "size_bytes": 6666312
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.4/openspec-ui-vscode-0.59.4.vsix",
+          "size_bytes": 6686675
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "Metro now draws the parts of a panel and a timeline that the screens name. A"
+          "summary": "The standalone shell says what it is doing — and this release is where that"
         },
         {
           "kind": "patch",
-          "summary": "The OpenSpec view summary opens in a few seconds instead of minutes. For"
-        },
-        {
-          "kind": "patch",
-          "summary": "The icons the redesigned screens promised now show. The icon stylesheet was"
+          "summary": "A Pipeline card's name no longer runs over its state. Once the icon font"
         }
       ]
     },
@@ -46,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.27.1",
-      "released_at": "2026-09-16T13:31:27.717Z",
+      "version": "1.28.0",
+      "released_at": "2026-09-16T17:35:33.438Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -57,8 +53,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The OpenSpec view summary opens in a few seconds instead of minutes. For"
+          "kind": "minor",
+          "summary": "The standalone shell says what it is doing — and this release is where that"
         }
       ]
     },
@@ -67,8 +63,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.90.1",
-      "released_at": "2026-09-16T13:31:27.717Z",
+      "version": "0.91.0",
+      "released_at": "2026-09-16T17:35:33.438Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -78,8 +74,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The OpenSpec view summary opens in a few seconds instead of minutes. For"
+          "kind": "minor",
+          "summary": "The standalone shell says what it is doing — and this release is where that"
         }
       ]
     },
@@ -88,8 +84,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.52.1",
-      "released_at": "2026-09-16T13:31:27.717Z",
+      "version": "1.53.0",
+      "released_at": "2026-09-16T17:35:33.438Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -98,12 +94,12 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "Metro now draws the parts of a panel and a timeline that the screens name. A"
+          "kind": "minor",
+          "summary": "The standalone shell says what it is doing — and this release is where that"
         },
         {
           "kind": "patch",
-          "summary": "The icons the redesigned screens promised now show. The icon stylesheet was"
+          "summary": "A Pipeline card's name no longer runs over its state. Once the icon font"
         }
       ]
     },
@@ -113,7 +109,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-16T13:31:27.717Z",
+      "released_at": "2026-09-16T17:35:33.438Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
