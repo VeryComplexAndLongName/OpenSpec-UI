@@ -92,5 +92,10 @@ The third step of ADR 0033's delivery order: the summary, as the mockup's
   `tab-reading.spec.ts`, looked for a button inside the busy fieldset, where
   Refresh no longer is, and passes on its own after the fix in 4.1.
 
-- [ ] 5.6 **Human-only.** Whether `summary-light.png` and `summary-dark.png`
+- [x] 5.6 **Human-only.** Whether `summary-light.png` and `summary-dark.png`
   match the mockup's "Summary" artboards.
+
+  Record, 2026-09-16: the owner compared the running site with the mockup —
+  the standalone server on port 4317, built from the Harness Settings branch,
+  which carries this change and the ones beneath it — rather than the
+  pictures, and found it good: "As far as I'm concerned, everything is fine."
