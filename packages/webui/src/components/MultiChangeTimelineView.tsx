@@ -1,8 +1,12 @@
 // 2.1 Presentational, transport-agnostic (props only) — the host fetches
 // timelines for a date range and passes them in. See
 // openspec/changes/add-multi-change-timeline-view/design.md.
+//
+// One picture over one axis of days (the-web-ui-screens-wear-metro 2.3): a
+// sticky column names the change, a row of dates runs along the top, and an
+// event sits in the column of the day it happened. It replaces a log-scaled
+// lane, whose position no reader could turn back into a date.
 
-import { logPosition } from "../timeline-scale.js";
 import type { ChangeTimeline } from "../change-timeline-client.js";
 
 export interface MultiChangeTimelineViewProps {
@@ -48,40 +52,88 @@ const KIND_MARKER: Record<TimelinePoint["kind"], string> = {
   archived: "■",
 };
 
+/** The day a moment falls on, as `YYYY-MM-DD` in the viewer's own zone: the
+ * axis is read in local days, so an event must land in the local column it
+ * belongs to rather than UTC's. */
+export function dayKey(value: string | number | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Every day from the start to the end of the range, inclusive. The axis is
+ * the whole range even where nothing happened, so a gap reads as a gap. */
+export function daysOf(rangeStart: string, rangeEnd: string): string[] {
+  const start = new Date(rangeStart);
+  const end = new Date(rangeEnd);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+  const days: string[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  // A year of days is 365 columns, which the scroller handles; a range
+  // wider than a decade is a mistake rather than a picture, and stops here.
+  for (let guard = 0; cursor <= last && guard < 4000; guard += 1) {
+    days.push(dayKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+function shortDay(day: string): string {
+  const [year, month, date] = day.split("-").map((part) => Number(part));
+  return new Date(year ?? 0, (month ?? 1) - 1, date ?? 1).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 export function MultiChangeTimelineView({ timelines, rangeStart, rangeEnd }: MultiChangeTimelineViewProps) {
-  const rangeStartMs = new Date(rangeStart).getTime();
-  const rangeEndMs = new Date(rangeEnd).getTime();
+  const days = daysOf(rangeStart, rangeEnd);
+  const columnOf = new Map(days.map((day, index) => [day, index + 2]));
 
   return (
     <div className="openspec-multi-timeline" data-testid="multi-change-timeline-view">
-      <div className="openspec-multi-timeline-axis">
-        <span>{new Date(rangeStart).toLocaleDateString()}</span>
-        <span>{new Date(rangeEnd).toLocaleDateString()}</span>
-      </div>
       {timelines.length === 0 ? (
         <p>No changes selected.</p>
       ) : (
-        timelines.map((timeline) => (
-          <div
-            className="openspec-multi-timeline-lane"
-            key={timeline.changeName}
-            data-testid={`multi-timeline-lane-${timeline.changeName}`}
-          >
-            <span className="openspec-multi-timeline-lane-label">{timeline.changeName}</span>
-            <div className="openspec-multi-timeline-track">
-              {pointsFor(timeline).map((point, index) => (
-                <span
-                  key={`${point.kind}-${index}-${point.date}`}
-                  className={`openspec-multi-timeline-point openspec-multi-timeline-point-${point.kind}`}
-                  style={{ left: `${logPosition(new Date(point.date).getTime(), rangeStartMs, rangeEndMs)}%` }}
-                  title={`${point.label} — ${new Date(point.date).toLocaleString()}`}
-                >
-                  {KIND_MARKER[point.kind]}
-                </span>
-              ))}
-            </div>
+        <div
+          className="openspec-multi-timeline-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Changes over time, scrolls sideways"
+        >
+          <div className="openspec-multi-timeline-grid" style={{ "--days": days.length } as React.CSSProperties}>
+            <span className="openspec-multi-timeline-corner" aria-hidden="true" />
+            {days.map((day) => (
+              <span className="openspec-multi-timeline-day" key={day} data-day={day}>
+                {shortDay(day)}
+              </span>
+            ))}
+            {timelines.map((timeline) => (
+              <div className="openspec-multi-timeline-row" key={timeline.changeName} data-testid={`multi-timeline-lane-${timeline.changeName}`}>
+                <span className="openspec-multi-timeline-lane-label">{timeline.changeName}</span>
+                {pointsFor(timeline).map((point, index) => {
+                  const day = dayKey(point.date);
+                  const column = columnOf.get(day);
+                  if (column === undefined) return null;
+                  return (
+                    <span
+                      key={`${point.kind}-${index}-${point.date}`}
+                      className={`openspec-multi-timeline-point openspec-multi-timeline-point-${point.kind}`}
+                      style={{ gridColumn: column }}
+                      data-day={day}
+                      title={`${point.label} — ${new Date(point.date).toLocaleString()}`}
+                    >
+                      {KIND_MARKER[point.kind]}
+                    </span>
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        ))
+        </div>
       )}
     </div>
   );

@@ -72,14 +72,17 @@ export function ChangesList({ changes, onSelect, states, sources, onRefresh, ref
                   <span className="openspec-change-name">{change.name}</span>
                   {standing ? (
                     // The word is always written; the colour only agrees with it.
+                    // A badge is Metro's own (the-web-ui-screens-wear-metro
+                    // 3.2); the state's colour token and class stay, so what
+                    // reads the class still finds it.
                     <span
-                      className={`openspec-change-standing openspec-change-standing--${standing.colour}`}
+                      className={`badge openspec-change-standing openspec-change-standing--${standing.colour}`}
                       data-testid={`change-${change.name}-standing`}
                     >
                       {standing.word}
                     </span>
                   ) : (
-                    <span className={`openspec-change-state openspec-change-state--${change.state}`}>
+                    <span className={`badge openspec-change-state openspec-change-state--${change.state}`}>
                       {STATE_LABEL[change.state]}
                     </span>
                   )}

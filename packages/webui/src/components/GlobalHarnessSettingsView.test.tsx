@@ -107,6 +107,26 @@ describe("GlobalHarnessSettingsView", () => {
 
     expect(await screen.findByText("Load failed: network down")).toBeInTheDocument();
   });
+
+  // the-web-ui-screens-wear-metro 1.3: the section is a Metro panel with its
+  // name in the title, and every field it holds keeps its own name.
+  it("draws the fields as a panel titled by the section, with the fields unchanged", async () => {
+    render(<GlobalHarnessSettingsView api={createApi()} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+
+    const section = screen.getByTestId("global-harness-fields");
+    expect(section).toHaveClass("panel");
+    const title = section.querySelector(".panel-title");
+    expect(title?.textContent).toContain("Global harness settings");
+    // The icon carries no accessible name of its own: the title beside it
+    // is what a screen reader reads.
+    expect(title?.querySelector("[aria-hidden='true']")).not.toBeNull();
+    expect(section.querySelector(".panel-content")).not.toBeNull();
+
+    expect(screen.getByLabelText("propose agent")).toBeInTheDocument();
+    expect(screen.getByLabelText("Global autonomy level")).toBeInTheDocument();
+    expect(saveButton()).toBeInTheDocument();
+  });
 });
 
 describe("GlobalHarnessSettingsView — a save offered when there is something to save", () => {

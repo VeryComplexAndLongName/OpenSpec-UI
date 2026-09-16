@@ -106,6 +106,13 @@ export const shellThemeCss = `
     --w-amount: 6.5rem;
     --w-name: 14rem;
     --w-sentence: 26rem;
+
+    /* The day grid's two tracks: the column that names a change, which
+       stays put while the days scroll, and one day. A day is wide enough
+       for a marker and its gridline, not for a date — the header above
+       carries the date (the-web-ui-screens-wear-metro 2.3). */
+    --multi-timeline-name: 14rem;
+    --multi-timeline-day: 2.25rem;
   }
 
   /* The standalone dark palette, chosen by the header toggle or the
@@ -489,19 +496,32 @@ export const shellThemeCss = `
 
   /* A settings view is made of sections: the named configuration, then
      the fields, each ending in the control that applies or saves it.
-     The end of a section is drawn and spaced by more than the gap
-     between two fields, so the next heading is not read as belonging
-     to the button above it. Found by the owner on 2026-09-13, when
-     Per-change override began directly under Save global config. */
+     A named section of a form is a separate object, so it is drawn as a
+     Metro panel (ADR 0032, amending 0023 decision 1) — the framework
+     draws the border, the radius and the title bar, and what stays here
+     is the rhythm between sections and the padding inside one, which
+     Metro's panel leaves to its content. The separation itself was found
+     by the owner on 2026-09-13, when Per-change override began directly
+     under Save global config. */
   .openspec-harness-section {
-    padding-bottom: 18px;
     margin-bottom: 18px;
-    border-bottom: 1px solid var(--line);
   }
 
   .openspec-harness-section:last-child {
-    border-bottom: 0;
     margin-bottom: 0;
+  }
+
+  .openspec-harness-section > .panel-content {
+    padding: 12px 16px 16px;
+  }
+
+  /* Metro's title bar gives the icon a slot of its own, as tall as the
+     bar and divided from the name by a rule. The glyph is centred in
+     it; without this it sits on the text baseline, low and left. */
+  .openspec-harness-section > .panel-title > .icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .openspec-named-configuration-description {
@@ -1344,6 +1364,98 @@ export const shellThemeCss = `
     font-size: 13px;
   }
 
+  /* A count is a figure standing beside other figures, so each is a tile
+     (the-web-ui-screens-wear-metro 3.1): a coloured block holding an icon,
+     then the label and the number. Wrapping rather than a fixed row, so a
+     narrow window stacks them instead of scrolling. */
+  .openspec-overview-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .openspec-overview-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 10rem;
+    padding: 8px 12px 8px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-overview-tile-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-sm);
+    background: var(--primary-bg);
+    color: var(--primary);
+    font-size: 16px;
+  }
+
+  .openspec-overview-tile-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .openspec-overview-tile-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+
+  .openspec-overview-tile-value {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  /* Several changes over one axis of days (the-web-ui-screens-wear-metro
+     2.3). A grid, not a lane: the first column names the change and stays
+     put while the days scroll, and an event sits in the column of the day
+     it happened, so a position can be read back as a date. */
+  .openspec-multi-timeline-scroll {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .openspec-multi-timeline-grid {
+    display: grid;
+    grid-template-columns: var(--multi-timeline-name) repeat(var(--days), var(--multi-timeline-day));
+    align-items: center;
+  }
+
+  .openspec-multi-timeline-corner,
+  .openspec-multi-timeline-lane-label {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+  }
+
+  .openspec-multi-timeline-day {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    padding: 0 2px 6px;
+    white-space: nowrap;
+  }
+
+  .openspec-multi-timeline-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    min-height: 28px;
+    border-top: 1px solid var(--line);
+  }
+
   .openspec-multi-timeline-axis {
     display: flex;
     justify-content: space-between;
@@ -1352,15 +1464,14 @@ export const shellThemeCss = `
     margin-bottom: 8px;
   }
 
-  .openspec-multi-timeline-lane {
-    margin-bottom: 18px;
-  }
-
   .openspec-multi-timeline-lane-label {
     display: block;
     font-size: 12px;
     font-weight: 600;
-    margin-bottom: 4px;
+    padding-right: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .openspec-multi-timeline-track {
@@ -1372,9 +1483,9 @@ export const shellThemeCss = `
   }
 
   .openspec-multi-timeline-point {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 12px;
     line-height: 1;
   }
@@ -1974,6 +2085,11 @@ export const vscodeThemeCss = `
     --amber-ink: var(--vscode-editor-background);
     --steel: var(--vscode-descriptionForeground);
     --steel-ink: var(--vscode-editor-background);
+
+    /* The day grid's tracks are lengths, not colours, so they are the
+       shell's values verbatim here too. */
+    --multi-timeline-name: 14rem;
+    --multi-timeline-day: 2.25rem;
 
     /* Control widths are not colours and are not the editor's to
        decide, so they are the shell's values verbatim. */

@@ -13,6 +13,7 @@ import {
   type HarnessTemplate,
 } from "@openspec-ui/core/browser";
 import type { CustomAgentsResult } from "../custom-agents-client.js";
+import { Icon } from "./Icon.js";
 import { NamedConfigurationPicker } from "./NamedConfigurationPicker.js";
 import {
   AgentSelect,
@@ -213,7 +214,12 @@ export function ChangeHarnessSettingsView(
             note="Applying one fills the fields below; nothing is saved until you save."
             testIdPrefix="change-harness"
           />
-          <section className="openspec-harness-section" data-testid="change-harness-fields">
+          <section className="panel openspec-harness-section" data-testid="change-harness-fields">
+            <div className="panel-title">
+              <span className="icon"><Icon meaning="settings" /></span>
+              {changeName}
+            </div>
+            <div className="panel-content">
             <p className="openspec-shell-note">
               What {changeName} sets for itself. A field left to inherit takes the value from the global file, and
               says which value that is.
@@ -299,6 +305,7 @@ export function ChangeHarnessSettingsView(
                 {loading ? "Working..." : "Save change settings"}
               </button>
               {dirty ? <span className="openspec-shell-note" data-testid="change-harness-unsaved">Unsaved changes</span> : null}
+            </div>
             </div>
           </section>
         </>

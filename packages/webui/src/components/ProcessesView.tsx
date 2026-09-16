@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon } from "./Icon.js";
 
 export interface ProcessSummary {
   id: string;
@@ -124,12 +125,19 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
   return (
     <div data-testid="processes-view">
       <div className="openspec-ai-panel-controls">
-        <button className="button" type="button" onClick={() => void load()} disabled={loading}>{loading ? "Loading..." : "Refresh"}</button>
+        <button className="button" type="button" onClick={() => void load()} disabled={loading}>
+          <Icon meaning="refresh" />{loading ? "Loading..." : "Refresh"}
+        </button>
         <label className="openspec-shell-field">
           Retain days
           <input type="number" min={1} value={retentionDays} onChange={(event) => setRetentionDays(Math.max(1, Number(event.target.value) || 1))} />
         </label>
-        <button className="button alert" type="button" onClick={() => void cleanup()} disabled={loading}>Clean old history</button>
+        {/* The destructive pair take `warning`, not `stop`: stopping is what
+            a run does, and these delete history that cannot come back
+            (the-web-ui-screens-wear-metro 4.1). */}
+        <button className="button alert" type="button" onClick={() => void cleanup()} disabled={loading}>
+          <Icon meaning="warning" />Clean old history
+        </button>
       </div>
       {message ? <p className="openspec-shell-note" role="status" data-testid="processes-message">{message}</p> : null}
       {processes.length === 0 ? <p className="openspec-shell-note">No persisted processes.</p> : (
@@ -141,7 +149,11 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
               <td>{process.agentId ?? "-"}</td>
               <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
               <td>{[process.state, process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
-              <td><button className="button" type="button" onClick={() => void inspect(process.id)}>Review</button></td>
+              <td>
+                <button className="button" type="button" onClick={() => void inspect(process.id)}>
+                  <Icon meaning="review" />Review
+                </button>
+              </td>
             </tr>
           ))}</tbody>
         </table>
@@ -156,7 +168,9 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
           <p>Skipped files: {details.coverage?.skippedFiles.join(", ") || "none"}</p>
           <p>Excluded directories: {details.coverage?.excludedDirectories.join(", ") || "none"}</p>
           <div className="openspec-ai-panel-controls">
-            <button className="button alert" type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>Rollback files</button>
+            <button className="button alert" type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>
+              <Icon meaning="warning" />Rollback files
+            </button>
           </div>
         </div>
       ) : null}

@@ -11,6 +11,7 @@ import { AiPanel } from "./components/AiPanel.js";
 import { OwlLogo } from "./components/OwlLogo.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
+import { Icon } from "./components/Icon.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { ArchiveList } from "./components/ArchiveList.js";
@@ -1584,10 +1585,28 @@ function StandaloneApp() {
         {overview ? (
           <div className="openspec-overview" data-testid="openspec-overview">
             <p className="openspec-overview-meta">
-              Root: <strong>{overview.root.path}</strong> ({overview.root.source}) | Changes: <strong>{overview.changes.length}</strong>
-              {" "}
-              | Specs: <strong>{overview.specs.length}</strong>
+              Root: <strong>{overview.root.path}</strong> ({overview.root.source})
             </p>
+
+            {/* the-web-ui-screens-wear-metro 3.1: a count is a figure
+                standing beside other figures, so each is a tile — an icon
+                block, then the label and the number. The icon is hidden from
+                the accessible name; the label beside it says what it is. */}
+            <ul className="openspec-overview-tiles" data-testid="overview-tiles">
+              {([
+                { meaning: "change", label: "Changes", value: overview.changes.length },
+                { meaning: "archive", label: "Archived", value: overview.archivedChangeSummaries.length },
+                { meaning: "spec", label: "Specs", value: overview.specs.length },
+              ] as const).map((tile) => (
+                <li className="openspec-overview-tile" key={tile.label} data-testid={`overview-tile-${tile.label.toLowerCase()}`}>
+                  <span className="openspec-overview-tile-icon" aria-hidden="true"><Icon meaning={tile.meaning} /></span>
+                  <span className="openspec-overview-tile-text">
+                    <span className="openspec-overview-tile-label">{tile.label}</span>
+                    <strong className="openspec-overview-tile-value">{tile.value}</strong>
+                  </span>
+                </li>
+              ))}
+            </ul>
 
             {overview.changes.length > 0 ? (
               <div className="openspec-overview-block">
