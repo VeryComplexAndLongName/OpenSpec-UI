@@ -263,3 +263,21 @@ every test passed; the page had no rule for them.
   - **Checks:** webui typecheck and lint pass; `build-metro`,
     `vscode-metro-mapping`, `shell-ui`, `GlobalHarnessSettingsView`,
     `ChangeHarnessSettingsView` and `ChangeTimelineView` pass, 76 tests.
+- [x] 7.4 `.openspec-pipeline-node-open` in `packages/webui/src/shell-ui.ts`
+  lays the Pipeline card's icon and name in one row, the name shrinking to
+  an ellipsis; `packages/server/e2e/pipeline.spec.ts` lengthens every card's
+  name and fails where a name reaches over its state line or the icon sits
+  on a line of its own.
+
+  Added on 2026-09-16 from the owner's picture of the running Pipeline:
+  "FURTHER ALONG IN SCREENS" and "RUNNING" were printed through the change
+  names. 4.2 put an `<Icon>` inside the card's open control, which is a
+  block. While the icon font was missing (until #537) the icon had no width
+  and nothing showed; once drawn, the icon took a line of its own and pushed
+  the name down over the state line of a card whose height is fixed.
+  Measured live before the fix: `the-pipeline-answers-while-a-run-works` ran
+  21–23 px into its state line at 100% and 125%. The fixture's short names
+  fit on one line in either layout, which is why the check lengthens them.
+  - **Checks:** the "cuts no line at any zoom" browser test fails with the
+    stylesheet reverted — name over state and icon on its own line on all
+    three fixture cards — and passes with the fix.
