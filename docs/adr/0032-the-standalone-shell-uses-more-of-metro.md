@@ -1,6 +1,6 @@
 # 0032: The Standalone Shell Uses More of Metro: Panels, Badges, a Timeline and Icons
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-09-16
 
