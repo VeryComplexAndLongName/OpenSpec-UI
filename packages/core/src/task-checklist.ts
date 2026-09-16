@@ -1,7 +1,7 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { isMechanicalCheckName, MECHANICAL_CHECK_NAMES, type MechanicalCheckName } from "./mechanical-checks.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
-import { discoverOpenSpecWorkspace } from "./workbench.js";
+import { discoverOpenSpecWorkspace, type OpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
 
 // See openspec/changes/tasks-tree-expand/design.md. Paths always come
 // from `discoverOpenSpecWorkspace`'s own allowlisted `artifacts[]`, never
@@ -391,7 +391,24 @@ export async function getArchivedChangeSummary(
   changeName: string,
 ): Promise<ArchivedChangeSummary> {
   const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
-  const change = workspace.archivedChanges.find((c) => c.name === changeName);
+  return summaryOf(workspace.archivedChanges.find((c) => c.name === changeName));
+}
+
+/** Every archived change's summary, from a workspace already read, in
+ * `archivedChanges` order. Takes the reading rather than a root so it
+ * cannot discover again: the overview once called
+ * `getArchivedChangeSummary` per archived change, and each call read the
+ * whole workspace — 250 readings side by side, 157 s on this repository
+ * (the-summary-reads-the-workspace-once). */
+export async function getArchivedChangeSummaries(
+  workspace: OpenSpecWorkspace,
+): Promise<Array<{ name: string } & ArchivedChangeSummary>> {
+  return Promise.all(
+    workspace.archivedChanges.map(async (change) => ({ name: change.name, ...(await summaryOf(change)) })),
+  );
+}
+
+async function summaryOf(change: WorkbenchChange | undefined): Promise<ArchivedChangeSummary> {
   const tasksArtifact = change?.artifacts.find((artifact) => artifact.id === "tasks");
   const tasksPath = tasksArtifact?.exists ? tasksArtifact.path : undefined;
 

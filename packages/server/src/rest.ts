@@ -21,7 +21,7 @@ import {
   detectAvailableAgents,
   discoverOpenSpecWorkspace,
   findBuiltInTemplate,
-  getArchivedChangeSummary,
+  getArchivedChangeSummaries,
   getChangeTimeline,
   getChangeTimelines,
   InvalidChangeNameError,
@@ -857,12 +857,9 @@ export async function handleOverviewRequest(req: IncomingMessage, res: ServerRes
       discoverOpenSpecWorkspace(cwd),
     ]);
 
-    const archivedChangeSummaries = await Promise.all(
-      workspace.archivedChanges.map(async (change) => ({
-        name: change.name,
-        ...(await getArchivedChangeSummary(cwd, change.name)),
-      })),
-    );
+    // From the reading above, not one reading per archived change
+    // (the-summary-reads-the-workspace-once).
+    const archivedChangeSummaries = await getArchivedChangeSummaries(workspace);
 
     const payload: OverviewResponse = {
       root: changesResult.root,
