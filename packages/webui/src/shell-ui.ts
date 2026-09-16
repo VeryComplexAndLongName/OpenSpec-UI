@@ -1774,10 +1774,16 @@ export const shellThemeCss = `
 
   /* The card's name is the control that opens the change. It reads as the
      card's title, not as a button, and takes the name line core counts. */
+  /* A row, so its icon and the name share the one name line. As a block the
+     icon took a line of its own once the icon font drew it, and pushed the
+     name down over the state line of a card whose height does not grow
+     (the-web-ui-screens-wear-metro 7.4). */
   .openspec-pipeline-node-open {
     flex-shrink: 0;
     align-self: stretch;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
     margin: 0;
     padding: 0;
@@ -1787,6 +1793,11 @@ export const shellThemeCss = `
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+
+  .openspec-pipeline-node-open > [class^="openspec-icon-"] {
+    flex: none;
+    font-size: calc(0.75rem * var(--pipeline-zoom, 1));
   }
 
   /* A card's controls, in the row core subtracts from its lines. */
@@ -1979,6 +1990,15 @@ export const shellThemeCss = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Inside the open control's row the name gives way to the icon and ends
+     in an ellipsis, rather than keeping its full width and wrapping below
+     it. After the rule above, which pipeline-card-style.test.ts reads as the
+     name's own. */
+  .openspec-pipeline-node-open > .openspec-pipeline-node-name {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .openspec-pipeline-node-state {

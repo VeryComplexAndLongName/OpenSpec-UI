@@ -208,6 +208,27 @@ async function cutLinesIn(page: Page): Promise<string[]> {
     }));
 }
 
+/** Every card whose name line reaches into the line below it, or whose open
+ * control's icon sits on a line apart from the name. Each name is made long
+ * first, as a real change's often is: the fixture's short names fit on one
+ * line whatever the layout, and hid the fault the owner saw on a live
+ * repository (the-web-ui-screens-wear-metro 7.4). */
+async function overlappingNamesIn(page: Page): Promise<string[]> {
+  return page.getByTestId("pipeline").evaluate((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>(".openspec-pipeline-node")).flatMap((card) => {
+      const name = card.querySelector<HTMLElement>(".openspec-pipeline-node-name");
+      const state = card.querySelector<HTMLElement>(".openspec-pipeline-node-state");
+      const icon = card.querySelector<HTMLElement>(".openspec-pipeline-node-open > [class^='openspec-icon-']");
+      if (!name || !state) return [];
+      name.textContent = `${name.textContent ?? ""}-with-a-name-long-enough-to-fill-its-card`;
+      const nameBox = name.getBoundingClientRect();
+      const faults: string[] = [];
+      if (nameBox.bottom > state.getBoundingClientRect().top + 0.5) faults.push("name over state");
+      if (icon && icon.getBoundingClientRect().bottom <= nameBox.top + 0.5) faults.push("icon on its own line");
+      return faults.map((fault) => `${card.dataset.testid ?? "a card"}: ${fault}`);
+    }));
+}
+
 async function expectNoBlockingViolations(page: Page): Promise<void> {
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -353,6 +374,8 @@ test("opens a card to its tasks, and cuts no line at any zoom", async ({ page })
   await page.getByTestId("pipeline-zoom-in").click();
   await expect(page.getByTestId("pipeline-zoom-level")).toHaveText("Zoom 150%");
   expect(await cutLinesIn(page)).toEqual([]);
+  // Last, since it lengthens the names on the page it measures.
+  expect(await overlappingNamesIn(page)).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
 
