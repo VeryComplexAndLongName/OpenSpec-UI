@@ -126,34 +126,51 @@ written, by running `build-metro.mjs` with each family added.
   specs this change touched. `npm run test:browser -w @openspec-ui/server`,
   unpiped: 20 passed (7.8m), including `pipeline.spec.ts`'s "draws the
   declared order, and passes axe".
-- [ ] 4.6 **Delegated to claude-cli. Partially done; High Contrast still
-  outstanding.** A live check in the Extension Development Host that the new
-  CSS changed nothing in the editor: open Harness Settings under the Dark
-  Modern theme and again under a high-contrast theme. Evidence to record:
-  for each theme, the computed `background-color` and `color` of one
-  `.button` and of one element carrying a new variable, read from the
-  webview, plus the screenshot path. A variable the editor layer fails to
-  set shows as `rgba(0, 0, 0, 0)`.
+- [x] 4.6 **Delegated to claude-cli.** A live check in the Extension
+  Development Host that the new CSS changed nothing in the editor: open
+  Harness Settings under the Dark Modern theme and again under a
+  high-contrast theme. Evidence to record: for each theme, the computed
+  `background-color` and `color` of one `.button` and of one element carrying
+  a new variable, read from the webview, plus the screenshot path. A variable
+  the editor layer fails to set shows as `rgba(0, 0, 0, 0)`.
 
-  Dark Modern, captured via a Playwright `_electron` launch of the built
-  extension (the same harness `editor-screenshots.spec.ts` uses), reading
-  `.button`'s computed style and a probe element styled with
-  `background: var(--panel-background); color: var(--panel-color)` inside
-  the `.openspec-metro` root:
+  Done on 2026-09-16, in two passes.
+
+  **The harness chain's pass** got Dark Modern and left High Contrast
+  outstanding, which was the right call under this repository's rule: a
+  delegated item closes only with the evidence it names.
   - `.button`: `background-color: rgb(0, 120, 212)`, `color: rgb(255, 255, 255)`.
-  - `--panel-background`/`--panel-color` probe: `background-color: rgb(32, 32, 32)`,
-    `color: rgb(204, 204, 204)`.
-  - Neither reads `rgba(0, 0, 0, 0)`, so the mapping is live in this theme.
-  - Screenshot was written to `packages/extension/.tmp-metro-check/dark-modern.png`
-    (a scratch path, deleted after this check; not a repository artifact).
+  - A probe reading `--panel-background`/`--panel-color`:
+    `rgb(32, 32, 32)` on `rgb(204, 204, 204)`.
+  - Its High Contrast attempts timed out twice waiting for the command
+    palette, and it recorded a guess: a slowdown particular to that theme.
 
-  High Contrast: the same script, run twice under "Default High Contrast",
-  timed out both times waiting for the command palette to list "OpenSpec UI:
-  Configure Harness Settings" (60s), while the identical steps under Dark
-  Modern succeeded well inside that budget — a High-Contrast-specific
-  slowdown (of extension activation or command-palette rendering) rather
-  than a mapping defect, but not confirmed either way. Left outstanding
-  rather than checked off, per this repository's rule that a delegated item
-  closes only with the evidence it names actually recorded.
+  **This session's pass** ran both themes and closes the item. It drove the
+  editor with Playwright `_electron` itself rather than through claude-cli,
+  having used the same route twice that day; the record says so rather than
+  implying a delegated run. VS Code 1.137.0 from
+  `packages/extension/.vscode-test`, the extension built from this branch,
+  one launch per theme, with a probe of each new family — `panel`, `card`,
+  `badge`, `timeline` — built inside the webview, read, and removed.
+  - **Default Dark Modern** (`vscode-dark`), matching the chain's figures:
+    the button `#0078d4` on white; `--panel-background` `#202020`,
+    `--panel-header-background` `#181818`, `--card-background` `#202020`,
+    `--badge-background` `#616161`, `--timeline-marker-color` `#0078d4`. The
+    panel drew `rgb(32, 32, 32)` with `rgb(204, 204, 204)` text, the badge
+    `rgb(97, 97, 97)` with `rgb(248, 248, 248)`.
+  - **Default High Contrast** (`vscode-high-contrast`): the button black on
+    white; `--panel-background` and `--card-background` `#0c141f`,
+    `--badge-background` and `--timeline-marker-color` `#000000`. The panel
+    took the theme's own border, `rgb(111, 195, 223)`.
+  - **Nothing resolved empty and no probe drew `rgba(0, 0, 0, 0)`:** every
+    new variable is set by the editor-theme layer in both themes.
+  - **Screenshots:** `frame-check/frame-check-dark-modern.png` and
+    `frame-check/frame-check-high-contrast.png` in the session scratchpad.
+
+  **The guess about High Contrast was wrong**, and it is worth correcting
+  here. The theme is not slow: the run typed into the command palette before
+  the extension had activated, so the text went to quick open and opened
+  `settings.json` instead. Waiting for the OpenSpec icon in the activity bar
+  and clicking it before pressing F1 made High Contrast pass in 19 seconds.
 - [ ] 4.7 **Human-only.** Whether the standalone shell looks unchanged: the
   bundles grew, and nothing a person can see should have moved.
