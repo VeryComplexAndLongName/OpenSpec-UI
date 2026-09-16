@@ -38,5 +38,6 @@ Alternatives / Consequences.
 | [0029](0029-the-pipeline-is-where-a-change-is-run.md) | The Pipeline is where a change is run | Accepted |
 | [0030](0030-the-web-ui-uses-metro-components.md) | The web UI uses Metro UI's components, scoped and themed by its host | Accepted |
 | [0031](0031-a-change-lists-what-its-schema-declares.md) | A change lists what its OpenSpec schema declares | Accepted |
+| [0032](0032-the-standalone-shell-uses-more-of-metro.md) | The standalone shell uses more of Metro: panels, badges, a timeline and icons | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
