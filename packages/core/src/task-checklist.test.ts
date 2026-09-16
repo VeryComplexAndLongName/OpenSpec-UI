@@ -14,11 +14,13 @@ import {
   TaskListChangedError,
   UnknownMechanicalCheckError,
   deleteTaskLine,
+  getArchivedChangeSummaries,
   getArchivedChangeSummary,
   delegatedAgentFor,
   isHumanOnlyTask,
   readTaskChecklist,
 } from "./task-checklist.js";
+import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 const temporaryRoots: string[] = [];
 
@@ -323,6 +325,43 @@ describe("getArchivedChangeSummary", () => {
       totalTasks: 0,
       lastModified: new Date(0).toISOString(),
     });
+  });
+});
+
+describe("getArchivedChangeSummaries", () => {
+  async function archive(root: string, name: string, tasks?: string): Promise<void> {
+    const changeDir = path.join(root, "openspec", "changes", "archive", name);
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "proposal.md"), "# Proposal\n");
+    if (tasks !== undefined) await writeFile(path.join(changeDir, "tasks.md"), tasks);
+  }
+
+  // the-summary-reads-the-workspace-once 1.2
+  it("gives every archived change the summary the single-name function gives it", async () => {
+    const root = await temporaryRoot();
+    await archive(root, "first", "- [x] One\n- [ ] Two\n");
+    await archive(root, "second");
+
+    const summaries = await getArchivedChangeSummaries(await discoverOpenSpecWorkspace(root));
+
+    expect(summaries).toEqual([
+      { name: "first", ...(await getArchivedChangeSummary(root, "first")) },
+      { name: "second", ...(await getArchivedChangeSummary(root, "second")) },
+    ]);
+  });
+
+  // the-summary-reads-the-workspace-once 1.3: the reading it is given is
+  // the only source. A function that discovered again from `root` would
+  // find nothing there and report zero tasks.
+  it("reads from the workspace it is given, not from its root again", async () => {
+    const root = await temporaryRoot();
+    await archive(root, "kept", "- [x] One\n- [x] Two\n- [ ] Three\n");
+    const workspace = await discoverOpenSpecWorkspace(root);
+
+    const summaries = await getArchivedChangeSummaries({ ...workspace, root: path.join(root, "gone") });
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({ name: "kept", completedTasks: 2, totalTasks: 3 });
   });
 });
 
