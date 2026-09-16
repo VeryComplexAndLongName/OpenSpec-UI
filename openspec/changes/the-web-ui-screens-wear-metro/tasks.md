@@ -163,15 +163,40 @@ brings in the families, the icons and the palette this change spends.
 
 ## 6. Checks
 
-- [ ] 6.1 `openspec validate the-web-ui-screens-wear-metro --strict` passes.
-- [ ] 6.2 `npm run verify` passes, run unpiped. Record each package's count.
+- [x] 6.1 `openspec validate the-web-ui-screens-wear-metro --strict` passes.
+
+  Done on 2026-09-16: "Change 'the-web-ui-screens-wear-metro' is valid".
+- [x] 6.2 `npm run verify` passes, run unpiped. Record each package's count.
   Do not pipe it: a pipe reports the pipe's exit code.
-- [ ] 6.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` patch.
-- [ ] 6.4 `lint:english` after `git add`, `lint:changesets`,
+
+  Run on 2026-09-16, output redirected to a file rather than piped, so the
+  exit code is the command's. Typecheck and lint pass in every package. Tests:
+  cli 161, core 1,478 (plus 4 in its scripts), extension 379, server 100,
+  webui 502 of 503, and the root script suites all pass.
+
+  **The one webui failure is not this change's, and verify therefore exits
+  1.** `scripts/build-metro-icons.test.mjs` › "is what the build script
+  produces from the vendored subset" fails identically on an untouched main:
+  the generated module is stored with LF and checked out on Windows with
+  CRLF, so a byte comparison against a fresh build cannot match there. On
+  the Linux runner the checkout is LF and the test passes; CI is the check
+  of record.
+- [x] 6.3 A changeset: `@openspec-ui/webui` minor, `openspec-ui-vscode` patch.
+
+  Done: `.changeset/the-web-ui-screens-wear-metro.md`, written with the code
+  rather than with the proposal.
+- [x] 6.4 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets` and `lint:source-text` pass.
-- [ ] 6.5 The whole standalone browser suite passes, including the axe WCAG AA
+
+  Done on 2026-09-16, after staging every file by name.
+- [x] 6.5 The whole standalone browser suite passes, including the axe WCAG AA
   run in both themes. Record the spec count. Run the whole suite, not the
   specs this change touched.
+
+  Done on 2026-09-16 on the tree rebased onto `cc35f56`: `npm run
+  test:browser` in `packages/server`, 20 tests in 9 spec files, 20 passed in
+  4.5 minutes. The WCAG 2.1 AA axe runs in light and in dark are the two in
+  `standalone.spec.ts`; the pipeline's axe run is in `pipeline.spec.ts`.
 - [ ] 6.6 **Delegated to claude-cli.** A live check in the Extension
   Development Host: open Harness Settings, the Timeline tab and the Pipeline
   panel under the Dark Modern theme and again under a high-contrast theme.
