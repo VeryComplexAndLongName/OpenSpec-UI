@@ -71,6 +71,8 @@ export const PAGE_HEADS: Readonly<Record<string, PageHeadContent>> = {
     tagline: "Agentic Harness",
     icon: "agent",
     title: "Harness Settings",
-    sentence: "The global defaults every change starts from: which agent runs each stage, and how autonomously a chain runs.",
+    // Where a person used to find a change's settings is said here, since
+    // that is where they will look first (a-change-is-configured-from-the-change).
+    sentence: "The defaults every change starts from. A change's own settings are in the Change Editor, under Harness.",
   },
 };

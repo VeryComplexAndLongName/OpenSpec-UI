@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { templatesForScope, type HarnessTemplate } from "@openspec-ui/core/browser";
+import { SegmentedChoice } from "./SegmentedChoice.js";
 
 // One list of named configurations, applied with one button, used by
 // both settings views and by the run dialog.
@@ -7,13 +8,18 @@ import { templatesForScope, type HarnessTemplate } from "@openspec-ui/core/brows
 // The four configurations used to be four bordered titles, each followed
 // by four paragraphs, in three places. Nothing about a bordered title said
 // it applied anything, and the list filled a screen before the first
-// setting. A select holds the choice in one line, the description beneath
-// it is the one being considered, and what applying did is said beside the
-// button that did it rather than somewhere out of view. See
+// setting. The choice is held in one line, the description beneath it is
+// the one being considered, and what applying did is said beside the button
+// that did it rather than somewhere out of view. See
 // a-change-is-configured-from-the-change.
+//
+// Drawn as ADR 0033's mockup draws it (the-harness-settings-look-like-the-
+// mockup): the configurations as segments of one control, the button beside
+// them, and the effort, purpose and what it is not for as one paragraph
+// under them, with the basis in fine print.
 
 export function NamedConfigurationPicker(
-  { scope, recommendedId, describeEffort, onApply, status, note, testIdPrefix }: {
+  { scope, recommendedId, describeEffort, onApply, status, note, testIdPrefix, applyLabel = "Apply" }: {
     /** Which configurations may be written where this picker writes.
      * `templatesForScope` is the one answer: a configuration refused on
      * save is never offered. */
@@ -30,6 +36,8 @@ export function NamedConfigurationPicker(
     /** What applying does here: fills a form, or writes a file. */
     note: string;
     testIdPrefix: string;
+    /** The button's words, which say where the configuration goes. */
+    applyLabel?: string;
   },
 ) {
   const templates = templatesForScope(scope);
@@ -49,52 +57,51 @@ export function NamedConfigurationPicker(
   if (!selected) return null;
 
   return (
-    <section className="openspec-harness-section openspec-named-configuration" data-testid={`${testIdPrefix}-named-configuration`}>
-      <label className="openspec-shell-field">
-        Named configuration
-        <select
-          aria-label="Named configuration"
-          data-testid={`${testIdPrefix}-named-configuration-select`}
+    <section className="openspec-panel openspec-named-configuration" data-testid={`${testIdPrefix}-named-configuration`}>
+      <div className="openspec-named-configuration-choose">
+        <span className="openspec-named-configuration-label" aria-hidden="true">Named configuration</span>
+        <SegmentedChoice
+          label="Named configuration"
+          testId={`${testIdPrefix}-named-configuration-choice`}
           value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-        >
-          {templates.map((template) => (
-            <option key={template.id} value={template.id}>
-              {template.id === recommendedId ? `${template.title} (recommended)` : template.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="openspec-named-configuration-description" data-testid={`${testIdPrefix}-named-configuration-description`}>
-        {/* The level first: it is what separates these configurations from
-            each other, and a description that hides its axis asks the
-            reader to apply one to find out. */}
-        <p className="openspec-shell-note">
-          <strong>Effort:</strong> {describeEffort ? describeEffort(selected) : `${selected.effortLevel} of what each agent accepts`}
-        </p>
-        <p className="openspec-shell-note">{selected.intent}</p>
-        <p className="openspec-shell-note"><strong>Not for:</strong> {selected.notFor}</p>
-        <p className="openspec-shell-note">{selected.basis}</p>
-      </div>
-      <p className="openspec-shell-note">{note}</p>
-      <div className="openspec-ai-panel-controls">
+          onChange={setSelectedId}
+          options={templates.map((template) => ({
+            value: template.id,
+            label: template.id === recommendedId ? `${template.title} (recommended)` : template.title,
+          }))}
+        />
         <button
           type="button"
-          className="button primary"
+          className="button openspec-button-quiet openspec-button-small"
           data-testid={`${testIdPrefix}-named-configuration-apply`}
           onClick={() => {
             setAppliedId(selected.id);
             onApply(selected);
           }}
         >
-          Apply
+          {applyLabel}
         </button>
-        {status && appliedId === selected.id ? (
-          <p className="openspec-shell-note" role="status" data-testid={`${testIdPrefix}-named-configuration-status`}>
-            {status}
-          </p>
-        ) : null}
       </div>
+      <div className="openspec-named-configuration-description" data-testid={`${testIdPrefix}-named-configuration-description`}>
+        {/* The level first: it is what separates these configurations from
+            each other, and a description that hides its axis asks the
+            reader to apply one to find out. */}
+        <p>
+          <strong>Effort:</strong> {describeEffort ? describeEffort(selected) : `${selected.effortLevel} of what each agent accepts`}
+          {" — "}{selected.intent}
+        </p>
+        {/* A line of its own: run on after the purpose, the owner read the
+            two as one sentence. */}
+        <p data-testid={`${testIdPrefix}-named-configuration-not-for`}>
+          <strong>Not for:</strong> {selected.notFor} {note}
+        </p>
+        <p className="openspec-named-configuration-basis">{selected.basis}</p>
+      </div>
+      {status && appliedId === selected.id ? (
+        <p className="openspec-named-configuration-status" role="status" data-testid={`${testIdPrefix}-named-configuration-status`}>
+          {status}
+        </p>
+      ) : null}
     </section>
   );
 }

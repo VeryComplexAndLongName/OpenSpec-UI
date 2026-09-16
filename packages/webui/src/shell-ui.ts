@@ -758,62 +758,6 @@ export const shellThemeCss = `
     font-size: 13px;
   }
 
-  /* Where a row is a name and a value and nothing else — a stage that
-     runs mechanically — the name takes its own column instead of a
-     line above the value. A settings pane is a two-column document,
-     and making it one is what stops the page reading as an
-     undifferentiated stack.
-
-     Styled on the class the markup already carries rather than a new
-     one: a rule written for a class nothing uses is a setting nothing
-     reads. */
-  /* The value column is minmax(0, 1fr), not 1fr. A grid track's default
-     minimum is its item's min-content width, so a select whose widest
-     option is "Claude CLI (ACP) — progress only, no permission gate
-     (detected)" — 435px — pushed the whole field 18px past its panel.
-     The sweep across every tab found it on the Change Editor; nothing
-     asserted it. */
-  .openspec-harness-settings .openspec-shell-field,
-  .openspec-named-configuration .openspec-shell-field {
-    grid-template-columns: minmax(11rem, max-content) minmax(0, 1fr);
-    gap: 4px 16px;
-    align-items: baseline;
-  }
-
-  /* One rhythm down the whole pane. Without this the stage rows pack
-     together while the fields around them are spaced, because only
-     the plain fields are siblings of each other — the stages are each
-     wrapped in a row of their own. */
-  .openspec-harness-settings .openspec-shell-field,
-  .openspec-harness-settings .openspec-harness-stage-row {
-    margin-top: 10px;
-  }
-
-  .openspec-harness-settings .openspec-harness-stage-row .openspec-shell-field {
-    margin-top: 0;
-  }
-
-  /* A settings view is made of sections: the named configuration, then
-     the fields, each ending in the control that applies or saves it.
-     A named section of a form is a separate object, so it is drawn as a
-     Metro panel (ADR 0032, amending 0023 decision 1) — the framework
-     draws the border, the radius and the title bar, and what stays here
-     is the rhythm between sections and the padding inside one, which
-     Metro's panel leaves to its content. The separation itself was found
-     by the owner on 2026-09-13, when Per-change override began directly
-     under Save global config. */
-  .openspec-harness-section {
-    margin-bottom: 18px;
-  }
-
-  .openspec-harness-section:last-child {
-    margin-bottom: 0;
-  }
-
-  .openspec-harness-section > .panel-content {
-    padding: 12px 16px 16px;
-  }
-
   /* An icon before a label (the-web-ui-screens-wear-metro 4.x) sits a
      little apart from the word, so the glyph does not touch its first
      letter. */
@@ -827,16 +771,6 @@ export const shellThemeCss = `
     margin-inline-end: 0.45em;
   }
 
-  .openspec-named-configuration-description {
-    margin: 8px 0 4px;
-    padding-left: 12px;
-    border-left: 2px solid var(--line);
-  }
-
-  .openspec-named-configuration-description .openspec-shell-note + .openspec-shell-note {
-    margin-top: 4px;
-  }
-
   /* An action inside a sentence: a real button, styled as the link it
      reads as, so it is focusable and named without looking like a
      second save control. */
@@ -848,10 +782,6 @@ export const shellThemeCss = `
     font: inherit;
     text-decoration: underline;
     cursor: pointer;
-  }
-
-  .openspec-harness-stage-row .openspec-shell-note {
-    font-size: 12px;
   }
 
   /* The shared components of ADR 0033 (the-shell-wears-the-site-frame 3.1),
@@ -1014,26 +944,6 @@ export const shellThemeCss = `
     gap: 8px;
     margin-top: 22px;
     margin-bottom: 10px;
-  }
-
-  /* In a settings section the separation is drawn as well as spaced:
-     what you are editing ends, and the control that commits it
-     begins. */
-  .openspec-harness-settings .openspec-ai-panel-controls,
-  .openspec-named-configuration .openspec-ai-panel-controls {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-  }
-
-  /* Except Apply, which belongs to the description above it. Drawn
-     under a rule of its own, with the section's rule beneath, it read as
-     a section holding one button. */
-  .openspec-harness-settings .openspec-named-configuration .openspec-ai-panel-controls,
-  .openspec-named-configuration .openspec-ai-panel-controls {
-    margin-top: 10px;
-    padding-top: 0;
-    border-top: 0;
   }
 
   .openspec-run-status {
@@ -1521,6 +1431,418 @@ export const shellThemeCss = `
   .openspec-panel-empty {
     margin: 0;
     color: var(--muted);
+  }
+
+  /* Harness Settings as ADR 0033's mockup draws it
+     (the-harness-settings-look-like-the-mockup): the named configuration,
+     the warning callout, and one panel of stage rows, a band of the
+     chain-wide settings, and a foot. A change's own settings share it. */
+  .openspec-harness-settings {
+    display: grid;
+    gap: 20px;
+  }
+
+  /* The grid's gap is the only space between the sections. A shell panel's
+     own rule for a section's top margin, meant for sections that are
+     siblings in its flow, doubled it in the Change Editor. */
+  .openspec-harness-settings > section {
+    margin-top: 0;
+  }
+
+  /* Read by a screen reader, not drawn. */
+  .openspec-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* A choice drawn as segments of one control. The radio inside each
+     segment covers it, transparent, so the browser keeps its keys, focus
+     and checked state. Each segment draws its own border, overlapping its
+     neighbour's by a pixel, so a choice too wide for its column wraps into
+     rows that still read as one control. */
+  .openspec-segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-self: flex-start;
+    padding: 1px 0 0 1px;
+    font-size: 13px;
+  }
+
+  .openspec-segment {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin: -1px 0 0 -1px;
+    padding: 6px 12px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .openspec-segment:first-child {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  }
+
+  .openspec-segment:last-child {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  .openspec-metro .openspec-segment input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .openspec-segment:hover {
+    background: var(--surface-2);
+  }
+
+  .openspec-segment:has(input:checked) {
+    z-index: 1;
+    border-color: var(--cobalt);
+    background: var(--cobalt);
+    color: var(--cobalt-ink);
+  }
+
+  .openspec-segment:has(input:focus-visible) {
+    outline: 2px solid var(--primary);
+    outline-offset: -3px;
+  }
+
+  .openspec-named-configuration {
+    padding: 14px 16px;
+  }
+
+  .openspec-named-configuration-choose {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+  }
+
+  .openspec-named-configuration-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-named-configuration-description p {
+    margin: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+
+  .openspec-named-configuration-description p + p {
+    margin-top: 4px;
+  }
+
+  .openspec-named-configuration-description strong {
+    color: var(--heading);
+  }
+
+  .openspec-named-configuration-description .openspec-named-configuration-basis {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-named-configuration-status {
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+
+  /* What the configuration cannot do, as the mockup's warning callout. */
+  .openspec-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--amber);
+    border-radius: var(--radius);
+    background: var(--warn-bg);
+    color: var(--warn);
+  }
+
+  .openspec-callout-icon {
+    margin-top: 1px;
+    font-size: 18px;
+  }
+
+  .openspec-callout-body h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--warn);
+  }
+
+  .openspec-callout-body ul {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .openspec-callout-fine {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* A panel head that leads with an icon in a cell of its own. */
+  .openspec-panel-head--icon {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0;
+  }
+
+  .openspec-panel-head-icon {
+    display: flex;
+    flex: none;
+    align-self: stretch;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    border-right: 1px solid var(--line);
+    color: var(--link);
+    font-size: 18px;
+  }
+
+  .openspec-panel-head--icon h2 {
+    padding: 12px 16px;
+  }
+
+  .openspec-panel-head--icon .openspec-panel-head-note {
+    margin-left: auto;
+    padding: 12px 16px;
+    text-align: right;
+  }
+
+  /* One row per stage: number and name, agent, model, effort, max cost. */
+  .openspec-stage-grid {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1.3fr) minmax(0, 1fr) 150px 130px;
+    gap: 0 12px;
+    align-items: center;
+    padding: 9px 16px;
+  }
+
+  .openspec-stage-head {
+    padding: 8px 16px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .openspec-harness-stage-row {
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-stage-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-stage-number {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .openspec-stage-row--mechanical {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .openspec-stage-row--mechanical .openspec-stage-name {
+    color: var(--muted);
+  }
+
+  .openspec-stage-mechanical {
+    grid-column: 2 / -1;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-stage-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .openspec-metro .openspec-stage-cell select,
+  .openspec-metro .openspec-stage-cell input,
+  .openspec-metro .openspec-harness-band input {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    font-size: 13px;
+  }
+
+  .openspec-stage-none {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* A number with its unit: a dollar sign inside the field, credits after it. */
+  .openspec-amount {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .openspec-amount-unit {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-amount--dollars .openspec-amount-unit {
+    position: absolute;
+    left: 10px;
+    z-index: 1;
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  .openspec-metro .openspec-amount--dollars input {
+    padding-left: 22px;
+  }
+
+  .openspec-harness-band .openspec-amount {
+    width: 130px;
+  }
+
+  /* What the stage rows do not show about custom agents, once per CLI. */
+  .openspec-harness-notes {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .openspec-harness-notes p {
+    margin: 0;
+  }
+
+  .openspec-harness-notes p + p {
+    margin-top: 4px;
+  }
+
+  /* The chain-wide settings, side by side under the stages. */
+  /* The autonomy level has the most segments, and the run budget one field. */
+  .openspec-harness-band {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.8fr);
+    gap: 24px;
+    padding: 18px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+
+  .openspec-harness-band-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .openspec-harness-band-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-harness-band-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .openspec-metro .badge.openspec-harness-gate {
+    position: static;
+    display: inline-block;
+    padding: 5px 9px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--steel);
+    color: var(--steel-ink);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .openspec-harness-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-harness-foot-unsaved {
+    font-size: 13px;
+    color: var(--warn);
+  }
+
+  .openspec-harness-foot-message {
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .openspec-harness-foot-file {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-harness-foot-file code {
+    font-size: 12px;
+  }
+
+  .openspec-harness-file pre {
+    margin: 0;
+    padding: 12px 16px;
+    overflow: auto;
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .openspec-panel-foot {
@@ -2685,6 +3007,53 @@ export const shellThemeCss = `
     overflow-wrap: anywhere;
   }
 
+  /* A harness settings panel narrower than its five columns — an editor
+     panel beside the code, a phone — reads each stage as a block of
+     labelled fields: the column header goes, and each cell draws its
+     column's name above its field. */
+  @media (max-width: 900px) {
+    .openspec-stage-head {
+      display: none;
+    }
+
+    .openspec-stage-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+    }
+
+    .openspec-stage-name,
+    .openspec-stage-mechanical,
+    .openspec-stage-cell--agent {
+      grid-column: 1 / -1;
+    }
+
+    .openspec-stage-cell[data-label]::before {
+      content: attr(data-label);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .openspec-harness-band {
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .openspec-panel-head--icon {
+      flex-wrap: wrap;
+    }
+
+    .openspec-panel-head--icon .openspec-panel-head-note {
+      margin-left: 0;
+      text-align: left;
+    }
+
+    .openspec-harness-foot-file {
+      flex-basis: 100%;
+      margin-left: 0;
+    }
+  }
+
   /* LAST in this layer on purpose. These selectors have the same
      specificity as the ones they override, and at equal specificity the
      later rule wins — placed earlier, the whole block did nothing.
@@ -2707,9 +3076,7 @@ export const shellThemeCss = `
       display: none;
     }
 
-    .openspec-shell-grid,
-    .openspec-harness-settings .openspec-shell-field,
-    .openspec-named-configuration .openspec-shell-field {
+    .openspec-shell-grid {
       grid-template-columns: 1fr;
     }
 

@@ -1,5 +1,5 @@
 import { HARNESS_TEMPLATES, templatesForScope } from "@openspec-ui/core/browser";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TOP_LEVEL_CONFIG_KEYS } from "@openspec-ui/core";
 import { ChangeHarnessSettingsView } from "./ChangeHarnessSettingsView.js";
@@ -30,6 +30,21 @@ function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettings
 }
 
 const saveButton = () => screen.getByRole("button", { name: "Save change settings" });
+
+/** The radios of a named choice. */
+function radios(group: string): HTMLInputElement[] {
+  return within(screen.getByRole("radiogroup", { name: group })).getAllByRole("radio") as HTMLInputElement[];
+}
+
+function choose(group: string, value: string): void {
+  const radio = radios(group).find((candidate) => candidate.value === value);
+  if (!radio) throw new Error(`${group} offers no ${value}`);
+  fireEvent.click(radio);
+}
+
+function chosen(group: string): string | undefined {
+  return radios(group).find((radio) => radio.checked)?.value;
+}
 
 async function renderLoaded(api: HarnessSettingsApi, changeName = "demo") {
   const view = render(<ChangeHarnessSettingsView api={api} changeName={changeName} />);
@@ -68,11 +83,11 @@ describe("ChangeHarnessSettingsView — knowing its change", () => {
     const { rerender } = render(<ChangeHarnessSettingsView api={api} changeName="first" />);
 
     rerender(<ChangeHarnessSettingsView api={api} changeName="second" />);
-    await waitFor(() => expect(screen.getByLabelText("Change review gate mode")).toHaveValue("agent-sufficient"));
+    await waitFor(() => expect(chosen("Change review gate mode")).toBe("agent-sufficient"));
 
     answerFirst({ reviewGate: { mode: "human-required" } });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(screen.getByLabelText("Change review gate mode")).toHaveValue("agent-sufficient");
+    expect(chosen("Change review gate mode")).toBe("agent-sufficient");
   });
 
   it("shows the reason a reading got no answer", async () => {
@@ -103,14 +118,18 @@ describe("ChangeHarnessSettingsView — what it inherits", () => {
       .map((option) => option.textContent ?? "");
     expect(texts("change propose agent")[0]).toBe("(inherit: claude-cli, from the global file)");
     expect(texts("change apply agent")[0]).toBe("(inherit: no agent set in the global file)");
-    expect(texts("Change autonomy level")[0]).toBe("(inherit: assisted, from the global file)");
-    expect(texts("Change review gate mode")[0]).toBe("(inherit: human-required, from the global file)");
+    // A choice left to inherit is chosen as "Inherit", and the note under it
+    // names the inherited value and that it comes from the global file.
+    expect(chosen("Change autonomy level")).toBe("");
+    expect(screen.getByTestId("change-autonomy-note").textContent).toBe("Assisted, from the global file: one stage at a time, a chain is refused.");
+    expect(chosen("Change review gate mode")).toBe("");
+    expect(screen.getByTestId("change-review-gate-note").textContent).toBe("human-required, from the global file.");
   });
 
   it("shows only the explicitly-set fields as set", async () => {
     await renderLoaded(createApi({ readChangeOverride: vi.fn().mockResolvedValue({ reviewGate: { mode: "agent-sufficient" } }) }));
 
-    expect(screen.getByLabelText("Change review gate mode")).toHaveValue("agent-sufficient");
+    expect(chosen("Change review gate mode")).toBe("agent-sufficient");
     // stepAgents were never set in the override — the field must show
     // inherit, not silently default to a real agent id.
     expect(screen.getByLabelText("change propose agent")).toHaveValue("");
@@ -121,7 +140,7 @@ describe("ChangeHarnessSettingsView — what it inherits", () => {
 
     expect(screen.queryByLabelText("change archive agent")).toBeNull();
     expect(screen.queryByLabelText("change git agent")).toBeNull();
-    expect(screen.getAllByText("runs mechanically — no agent")).toHaveLength(2);
+    expect(screen.getAllByText("Runs mechanically — no agent")).toHaveLength(2);
   });
 
   it("hides the effort/budget fields for a stage still inheriting its agent", async () => {
@@ -137,7 +156,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
     await renderLoaded(createApi());
 
     expect(saveButton()).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Change review gate mode"), { target: { value: "agent-sufficient" } });
+    choose("Change review gate mode", "agent-sufficient");
 
     expect(saveButton()).toBeEnabled();
     expect(screen.getByTestId("change-harness-unsaved").textContent).toBe("Unsaved changes");
@@ -147,7 +166,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
     const api = createApi();
     await renderLoaded(api);
 
-    fireEvent.change(screen.getByLabelText("Change review gate mode"), { target: { value: "agent-sufficient" } });
+    choose("Change review gate mode", "agent-sufficient");
     fireEvent.click(saveButton());
 
     await waitFor(() =>
@@ -159,10 +178,10 @@ describe("ChangeHarnessSettingsView — saving", () => {
     const api = createApi();
     await renderLoaded(api);
 
-    const levels = [...(screen.getByLabelText("Change autonomy level") as HTMLSelectElement).querySelectorAll("option")].map((o) => o.value);
+    const levels = radios("Change autonomy level").map((radio) => radio.value);
     expect(levels).toEqual(["", "assisted", "semi-autonomous", "autonomous"]);
 
-    fireEvent.change(screen.getByLabelText("Change autonomy level"), { target: { value: "autonomous" } });
+    choose("Change autonomy level", "autonomous");
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", { stepAgents: {}, autonomyLevel: "autonomous" }));
@@ -220,7 +239,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
     const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous" }) });
     await renderLoaded(api);
 
-    fireEvent.change(screen.getByLabelText("Change autonomy level"), { target: { value: "" } });
+    choose("Change autonomy level", "");
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", { stepAgents: {} }));
@@ -231,7 +250,7 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
   it("offers every configuration a change may be given", async () => {
     await renderLoaded(createApi());
 
-    const offered = [...(screen.getByLabelText("Named configuration") as HTMLSelectElement).querySelectorAll("option")].map((o) => o.value);
+    const offered = radios("Named configuration").map((radio) => radio.value);
     expect(offered).toEqual(templatesForScope("change").map((template) => template.id));
   });
 
@@ -239,8 +258,8 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
     const api = createApi();
     await renderLoaded(api);
 
-    fireEvent.change(screen.getByLabelText("Named configuration"), { target: { value: "economy" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    choose("Named configuration", "economy");
+    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
@@ -262,8 +281,8 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
 
     async function applyEconomy(api: HarnessSettingsApi) {
       await renderLoaded(api);
-      fireEvent.change(screen.getByLabelText("Named configuration"), { target: { value: "economy" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+      choose("Named configuration", "economy");
+      fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
     }
 
     it("writes an effort for each stage whose inherited agent accepts one", async () => {
@@ -307,5 +326,59 @@ describe("ChangeHarnessSettingsView — a named configuration", () => {
       expect(screen.getByTestId("change-harness-named-configuration-status").textContent)
         .toContain("None of the agents on screen takes an effort setting");
     });
+  });
+});
+
+// the-harness-settings-look-like-the-mockup 3.3
+describe("ChangeHarnessSettingsView — the mockup's settings", () => {
+  const globalWithBudget = () => ({
+    stepAgents: { propose: { agent: "claude-cli", model: "claude-opus-5" } },
+    autonomyLevel: "assisted",
+    reviewGate: { mode: "human-required" },
+    budget: { maxCostUsd: 15 },
+  });
+
+  it("says which model and run budget a change inherits, and writes neither", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue(globalWithBudget()),
+      readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: { propose: "claude-cli" } }),
+    });
+    await renderLoaded(api);
+
+    expect(screen.getByLabelText("change propose model")).toHaveAttribute("placeholder", "inherits claude-opus-5");
+    expect(screen.getByLabelText("Change run budget")).toHaveAttribute("placeholder", "inherits 15");
+    expect(screen.getByTestId("change-run-budget-note").textContent).toBe("$15, from the global file.");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Semi-autonomous" }));
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", { stepAgents: { propose: "claude-cli" }, autonomyLevel: "semi-autonomous" }),
+    );
+  });
+
+  it("saves the change's own run budget, and removes it when it is emptied", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue(globalWithBudget()),
+      readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, budget: { maxCostUsd: 40, maxStageCostUsd: 10 } }),
+    });
+    await renderLoaded(api);
+    expect(screen.getByLabelText("Change run budget")).toHaveValue(40);
+
+    fireEvent.change(screen.getByLabelText("Change run budget"), { target: { value: "" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", { stepAgents: {}, budget: { maxStageCostUsd: 10 } }));
+  });
+
+  it("discards what is unsaved by reading the change again", async () => {
+    const api = createApi();
+    await renderLoaded(api);
+
+    choose("Change review gate mode", "agent-sufficient");
+    fireEvent.click(screen.getByTestId("change-harness-discard"));
+
+    await waitFor(() => expect(chosen("Change review gate mode")).toBe(""));
+    expect(api.readChangeOverride).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("change-harness-unsaved")).toBeNull();
   });
 });

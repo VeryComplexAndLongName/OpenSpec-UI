@@ -243,18 +243,15 @@ describe("shell themes", () => {
         // directly above the heading of the next section, with nothing
         // between them, so the save read as belonging to both.
         //
-        // the-web-ui-screens-wear-metro 1.1: the section is a Metro panel
-        // now, so the border and the radius come from the framework and are
-        // not asserted here. What this owns is the rhythm — the gap between
-        // two sections stays larger than the gap between two fields — and
-        // the padding inside the panel's content, which Metro leaves to it.
-        const open = shellThemeCss.indexOf(".openspec-harness-section {");
-        expect(open).toBeGreaterThan(-1);
-        const rule = shellThemeCss.slice(open, shellThemeCss.indexOf("}", open));
-        const spacing = Number(/margin-bottom: (\d+)px/.exec(rule)?.[1]);
-        const fieldGap = Number(/\.openspec-harness-settings \.openspec-harness-stage-row \{\s*margin-top: (\d+)px/.exec(shellThemeCss)?.[1]);
-        expect(fieldGap).toBeGreaterThan(0);
-        expect(spacing).toBeGreaterThan(fieldGap);
-        expect(shellThemeCss).toContain(".openspec-harness-section > .panel-content");
+        // the-harness-settings-look-like-the-mockup: the sections — the
+        // named configuration, the callout, the settings panel — are items
+        // of the view's grid, and each stage is a row of the panel. What
+        // this owns is the rhythm: the gap between two sections stays larger
+        // than the space a stage row keeps above and below its fields.
+        const view = /\.openspec-harness-settings \{\s*display: grid;\s*gap: (\d+)px;/.exec(shellThemeCss);
+        const row = /\.openspec-stage-grid \{[^}]*padding: (\d+)px 16px;/.exec(shellThemeCss);
+        expect(view).not.toBeNull();
+        expect(row).not.toBeNull();
+        expect(Number(view![1])).toBeGreaterThan(Number(row![1]));
     });
 });

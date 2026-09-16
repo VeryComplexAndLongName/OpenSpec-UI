@@ -124,7 +124,8 @@ test.describe("standalone harness screenshots", () => {
       // "this workspace defines none" note instead of the picker.
       await expect(page.getByLabel("propose custom agent")).toBeVisible({ timeout: 15000 });
       await expect(page.getByTestId("global-harness-named-configuration-description")).toBeVisible();
-      await expect(page.getByTestId("harness-settings-change-pointer")).toBeVisible();
+      // Where a change's own settings are is the page head's sentence.
+      await expect(page.getByText("A change's own settings are in the Change Editor, under Harness.")).toBeVisible();
       // Full-page: the stage list plus autonomy/review-gate controls below
       // it are taller than one viewport, and a documentation screenshot
       // that only shows the top half would misrepresent the screen.
@@ -142,8 +143,10 @@ test.describe("standalone harness screenshots", () => {
       await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 15000 });
       await page.getByTestId("change-editor-tab-harness").click();
       await expect(page.getByTestId("change-harness-settings")).toBeVisible();
-      await expect(page.getByLabel("Change autonomy level")).toHaveValue("semi-autonomous", { timeout: 15000 });
-      await expect(page.getByLabel("Change review gate mode")).toHaveValue("");
+      await expect(page.getByRole("radiogroup", { name: "Change autonomy level" }).getByRole("radio", { name: "Semi-autonomous" }))
+        .toBeChecked({ timeout: 15000 });
+      await expect(page.getByRole("radiogroup", { name: "Change review gate mode" }).getByRole("radio", { name: /^Inherit/u }))
+        .toBeChecked();
       // The inherit option names what it resolves to. A picture of
       // "(inherit)" with no value is the screen this change replaced.
       await expect(page.getByLabel("change propose agent").locator("option").first())
@@ -171,7 +174,7 @@ test.describe("standalone harness screenshots", () => {
       // picture worth having, and a screenshot taken before it renders
       // would show the dialog mid-mount.
       await expect(page.getByTestId("run-dialog-stage-agents")).toBeVisible();
-      await expect(page.getByTestId("run-dialog-named-configuration-select")).toBeVisible();
+      await expect(page.getByTestId("run-dialog-named-configuration-choice")).toBeVisible();
       await page.getByTestId("run-dialog")
         .screenshot({ path: path.join(IMAGES_DIR, "run-dialog.png") });
       await page.getByTestId("run-dialog-path-chain").click();

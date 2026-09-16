@@ -1,5 +1,5 @@
 import { autonomyLevelsFor, templatesForScope } from "@openspec-ui/core/browser";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 // The key list is the point of the guard below, and it lives in
 // harness-config.js, which imports node:fs and so is not in the browser
@@ -34,6 +34,22 @@ function createApi(overrides: Partial<HarnessSettingsApi> = {}): HarnessSettings
 
 const saveButton = () => screen.getByRole("button", { name: "Save global settings" });
 
+/** The radios of a named choice. */
+function radios(group: string): HTMLInputElement[] {
+  return within(screen.getByRole("radiogroup", { name: group })).getAllByRole("radio") as HTMLInputElement[];
+}
+
+function choose(group: string, value: string): void {
+  const radio = radios(group).find((candidate) => candidate.value === value);
+  if (!radio) throw new Error(`${group} offers no ${value}`);
+  fireEvent.click(radio);
+}
+
+function chosen(group: string): string | undefined {
+  return radios(group).find((radio) => radio.checked)?.value;
+}
+
+
 describe("GlobalHarnessSettingsView", () => {
   it("loads and shows the global stepAgents recommendation on mount", async () => {
     const api = createApi();
@@ -49,7 +65,8 @@ describe("GlobalHarnessSettingsView", () => {
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
     fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
-    fireEvent.change(screen.getByLabelText("Global autonomy level"), { target: { value: "semi-autonomous" } });
+    choose("Global autonomy level", "semi-autonomous");
+    expect(chosen("Global autonomy level")).toBe("semi-autonomous");
     fireEvent.click(saveButton());
 
     await waitFor(() =>
@@ -77,8 +94,7 @@ describe("GlobalHarnessSettingsView", () => {
     render(<GlobalHarnessSettingsView api={createApi()} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
-    const levels = [...(screen.getByLabelText("Global autonomy level") as HTMLSelectElement).querySelectorAll("option")]
-      .map((option) => option.value);
+    const levels = radios("Global autonomy level").map((radio) => radio.value);
     expect(levels).toEqual(["assisted", "semi-autonomous"]);
     expect(screen.getByTestId("global-autonomy-note").textContent).toBe(AUTONOMOUS_IS_PER_CHANGE);
   });
@@ -89,7 +105,7 @@ describe("GlobalHarnessSettingsView", () => {
 
     expect(screen.queryByLabelText("archive agent")).toBeNull();
     expect(screen.queryByLabelText("git agent")).toBeNull();
-    expect(screen.getAllByText("runs mechanically — no agent")).toHaveLength(2);
+    expect(screen.getAllByText("Runs mechanically — no agent")).toHaveLength(2);
   });
 
   it("global stepAgents select has no inherit option (there is nothing to inherit from)", async () => {
@@ -108,25 +124,24 @@ describe("GlobalHarnessSettingsView", () => {
     expect(await screen.findByText("Load failed: network down")).toBeInTheDocument();
   });
 
-  // the-web-ui-screens-wear-metro 1.3: the section is a Metro panel with its
-  // name in the title, and every field it holds keeps its own name.
-  it("draws the fields as a panel titled by the section, with the fields unchanged", async () => {
+  // the-harness-settings-look-like-the-mockup 3.1: the section is a panel
+  // headed by an icon cell and its name, each stage a row of it, and every
+  // field it holds keeps its own name.
+  it("draws the fields as a panel headed by the section, a row per stage", async () => {
     render(<GlobalHarnessSettingsView api={createApi()} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
     const section = screen.getByTestId("global-harness-fields");
-    expect(section).toHaveClass("panel");
-    const title = section.querySelector(".panel-title");
-    // Metro's title bar lays out an `.icon` slot and a `.caption`; the name
-    // outside a caption gets none of its padding (7.2).
-    expect(title?.querySelector(".caption")?.textContent).toBe("Global harness settings");
-    // The icon carries no accessible name of its own: the title beside it
+    expect(section).toHaveClass("openspec-panel");
+    expect(within(section).getByRole("heading", { level: 2 }).textContent).toBe("Global harness settings");
+    // The icon carries no accessible name of its own: the heading beside it
     // is what a screen reader reads.
-    expect(title?.querySelector(".icon [aria-hidden='true']")).not.toBeNull();
-    expect(section.querySelector(".panel-content")).not.toBeNull();
-
-    expect(screen.getByLabelText("propose agent")).toBeInTheDocument();
-    expect(screen.getByLabelText("Global autonomy level")).toBeInTheDocument();
+    expect(section.querySelector(".openspec-panel-head-icon [aria-hidden='true']")).not.toBeNull();
+    for (const stage of ["propose", "review", "apply", "verify", "archive", "git"]) {
+      expect(within(section).getByTestId(`stage-row-${stage}`)).toBeInTheDocument();
+    }
+    expect(within(screen.getByTestId("stage-row-propose")).getByLabelText("propose agent")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Global autonomy level" })).toBeInTheDocument();
     expect(saveButton()).toBeInTheDocument();
   });
 });
@@ -236,18 +251,17 @@ describe("GlobalHarnessSettingsView — a named configuration", () => {
     render(<GlobalHarnessSettingsView api={createApi()} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
-    const offered = [...(screen.getByLabelText("Named configuration") as HTMLSelectElement).querySelectorAll("option")]
-      .map((option) => option.value);
+    const offered = radios("Named configuration").map((radio) => radio.value);
     expect(offered).toEqual(templatesForScope("global").map((template) => template.id));
   });
 
-  it("fills the form without saving, and says so beside the Apply button", async () => {
+  it("fills the form without saving, and says so beside the button that applied it", async () => {
     const api = createApi();
     render(<GlobalHarnessSettingsView api={api} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
-    fireEvent.change(screen.getByLabelText("Named configuration"), { target: { value: "economy" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    choose("Named configuration", "economy");
+    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
 
     await waitFor(() =>
       expect(screen.getByTestId("global-harness-named-configuration-status").textContent).toContain("Nothing is saved"),
@@ -321,13 +335,13 @@ describe("GlobalHarnessSettingsView — custom agents", () => {
     fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
 
     expect(screen.queryByLabelText("apply custom agent")).toBeNull();
-    expect(screen.getByTestId("custom-agent-none-apply").textContent).toContain("takes no custom agent");
+    expect(screen.getByTestId("custom-agent-none-gemini-cli").textContent).toContain("takes no custom agent (apply)");
   });
 
   it("says where definitions are read from when the workspace defines none", async () => {
     render(<GlobalHarnessSettingsView api={createApi()} />);
 
-    const empty = await screen.findByTestId("custom-agent-empty-propose");
+    const empty = await screen.findByTestId("custom-agent-empty-claude");
     expect(empty.textContent).toContain(".claude/agents");
   });
 
@@ -425,5 +439,88 @@ describe("GlobalHarnessSettingsView — says what it is reading", () => {
     answer({ stepAgents: { propose: "claude-cli" }, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
 
     await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
+  });
+});
+
+// the-harness-settings-look-like-the-mockup 3.3
+describe("GlobalHarnessSettingsView — the mockup's settings", () => {
+  it("saves a stage's model, and offers none for an agent that takes none", async () => {
+    const api = createApi();
+    render(<GlobalHarnessSettingsView api={api} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+
+    fireEvent.change(screen.getByLabelText("propose model"), { target: { value: "claude-opus-5" } });
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
+    expect(screen.queryByLabelText("apply model")).toBeNull();
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalled());
+    const saved = (api.writeGlobal as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { stepAgents: Record<string, unknown> };
+    expect(saved.stepAgents).toEqual({ propose: { agent: "claude-cli", model: "claude-opus-5" }, apply: "gemini-cli" });
+  });
+
+  it("saves the run budget as budget.maxCostUsd, keeping the budget's other ceilings", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        budget: { maxCostUsd: 25, maxTokens: 900000 },
+      }),
+    });
+    render(<GlobalHarnessSettingsView api={api} />);
+    await waitFor(() => expect(screen.getByLabelText("Global run budget")).toHaveValue(25));
+
+    fireEvent.change(screen.getByLabelText("Global run budget"), { target: { value: "15" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalled());
+    const saved = (api.writeGlobal as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(saved.budget).toEqual({ maxCostUsd: 15, maxTokens: 900000 });
+  });
+
+  it("discards what is unsaved by reading the file again", async () => {
+    const api = createApi();
+    render(<GlobalHarnessSettingsView api={api} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+    expect(screen.getByTestId("global-harness-discard")).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("propose agent"), { target: { value: "gemini-cli" } });
+    fireEvent.click(screen.getByTestId("global-harness-discard"));
+
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+    expect(api.resolveGlobal).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("global-harness-unsaved")).toBeNull();
+  });
+
+  it("says what the rows leave out once per agent, not under every stage", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli-acp", review: "claude-cli-acp", apply: "claude-cli-acp", verify: "claude-cli-acp" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      }),
+    });
+    render(<GlobalHarnessSettingsView api={api} />);
+
+    const caveat = await screen.findByTestId("agent-caveat-claude-cli-acp");
+    expect(caveat.textContent).toBe("Claude CLI (ACP): progress only, no permission gate (propose, review, apply, verify).");
+    // The select names the agent alone; the whole label stays in its title.
+    const agent = screen.getByLabelText("propose agent") as HTMLSelectElement;
+    expect(agent.selectedOptions[0]!.textContent).toBe("Claude CLI (ACP)");
+    expect(agent.title).toContain("no permission gate");
+    await waitFor(() => expect(screen.getAllByText(/No custom agents are defined for claude/u)).toHaveLength(1));
+  });
+
+  it("shows the file as Save would write it, when asked", async () => {
+    const { rerender } = render(<GlobalHarnessSettingsView api={createApi()} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+    expect(screen.queryByTestId("global-harness-file")).toBeNull();
+
+    rerender(<GlobalHarnessSettingsView api={createApi()} showFile />);
+    fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
+
+    const file = JSON.parse(screen.getByTestId("global-harness-file").querySelector("pre")!.textContent ?? "") as { stepAgents: unknown };
+    expect(file.stepAgents).toEqual({ propose: "claude-cli", apply: "gemini-cli" });
   });
 });
