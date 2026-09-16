@@ -112,7 +112,7 @@ test.describe("standalone documentation screenshots", () => {
       page.on("pageerror", (error) => pageErrors.push(error));
 
       await page.goto(`http://127.0.0.1:${address.port}/#token=${encodeURIComponent(server.accessToken)}`);
-      await expect(page.getByRole("heading", { name: "OpenSpec UI", level: 1 })).toBeVisible();
+      await expect(page.getByTestId("app-bar")).toBeVisible();
       // Filling the workspace root auto-fills the change directory, which
       // is what enables the AI panel at all.
       await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
@@ -131,7 +131,7 @@ test.describe("standalone documentation screenshots", () => {
       // the account name of whoever regenerated the picture. That is not
       // something a published document should carry, and the path says
       // nothing a reader needs, so it is masked rather than photographed.
-      await page.locator("section", { has: page.getByRole("heading", { name: "Run a command" }) })
+      await page.getByTestId("page-tab-panel-run-a-command")
         .screenshot({ path: path.join(IMAGES_DIR, "run-command.png"), mask: workspacePaths(page), maskColor: MASK_COLOR });
 
       // 2. The summary. Loading it shells out to the `openspec` CLI, the
@@ -144,7 +144,7 @@ test.describe("standalone documentation screenshots", () => {
       // taken before then shows a loaded screen with a busy control on
       // it.
       await expect(page.getByRole("button", { name: "Load summary" })).toBeEnabled({ timeout: 20000 });
-      await page.locator("section", { has: page.getByRole("heading", { name: "OpenSpec view summary" }) })
+      await page.getByTestId("page-tab-panel-overview")
         .screenshot({
           // Same reason as above: the summary's meta line prints the
           // workspace root it read. Only the path is masked — the
@@ -159,14 +159,14 @@ test.describe("standalone documentation screenshots", () => {
       // git. It waits on a line the fixture's edit added, so a tab that
       // showed anything else fails here rather than in the picture.
       await page.getByRole("tab", { name: "Diff Preview" }).click();
-      const diff = page.locator("section", { has: page.getByRole("heading", { name: "Diff preview" }) });
+      const diff = page.getByTestId("page-tab-panel-diff-preview");
       await diff.getByRole("combobox", { name: "Change to diff" }).selectOption(CHANGE_NAME);
       await expect(page.getByTestId("change-diff")).toContainText("+- [x] 1.1 Write the proposal.", { timeout: 20000 });
       await diff.screenshot({ path: path.join(IMAGES_DIR, "diff-preview.png") });
 
       // 4. The editor, with a change loaded.
       await page.getByRole("tab", { name: "Change Editor" }).click();
-      const editor = page.locator("section", { has: page.getByRole("heading", { name: "Change Editor" }) });
+      const editor = page.getByTestId("page-tab-panel-change-editor");
       await editor.getByRole("combobox", { name: "Change to edit" }).selectOption(CHANGE_NAME);
       await page.getByRole("button", { name: "Load change", exact: true }).click();
       await expect(page.getByText(`Loaded ${CHANGE_NAME}.`)).toBeVisible({ timeout: 20000 });
@@ -185,7 +185,7 @@ test.describe("standalone documentation screenshots", () => {
       await page.getByRole("tab", { name: "Templates" }).click();
       await page.getByRole("button", { name: "Load templates" }).click();
       await expect(page.getByTestId("templates-table")).toBeVisible({ timeout: 20000 });
-      await page.locator("section", { has: page.getByRole("heading", { name: "Templates" }) })
+      await page.getByTestId("page-tab-panel-templates")
         .screenshot({ path: path.join(IMAGES_DIR, "templates.png"), timeout: 20000 });
 
       // 7. Processes and recovery, after a run that was journaled. The
@@ -196,7 +196,7 @@ test.describe("standalone documentation screenshots", () => {
       await page.getByTestId("run-button").click();
       await expect(page.getByTestId("run-status-label")).toContainText("Completed", { timeout: 20000 });
       await page.getByRole("tab", { name: "Processes and Recovery" }).click();
-      const processes = page.locator("section", { has: page.getByRole("heading", { name: "Processes and recovery" }) });
+      const processes = page.getByTestId("page-tab-panel-processes");
       await expect(processes).toContainText(CHANGE_NAME, { timeout: 20000 });
       await processes.screenshot({ path: path.join(IMAGES_DIR, "processes.png") });
 

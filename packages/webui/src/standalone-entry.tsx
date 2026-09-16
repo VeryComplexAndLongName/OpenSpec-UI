@@ -8,7 +8,6 @@ import { createRoot } from "react-dom/client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
 import { AiPanel } from "./components/AiPanel.js";
-import { OwlLogo } from "./components/OwlLogo.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
@@ -34,7 +33,9 @@ import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
 import { useStandaloneTheme } from "./standalone-theme.js";
-import { ThemeToggle } from "./components/ThemeToggle.js";
+import { AppBar } from "./components/AppBar.js";
+import { PageHead } from "./components/PageHead.js";
+import { PAGE_HEADS } from "./page-heads.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
@@ -1438,14 +1439,12 @@ function StandaloneApp() {
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
       <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}`}</style>
 
-      <header className="openspec-shell-headline">
-        <OwlLogo />
-        <div>
-          <h1>OpenSpec UI</h1>
-          <p>Standalone command console for OpenSpec changes with live agent streaming.</p>
-        </div>
-        <ThemeToggle theme={theme} onToggle={toggleTheme} />
-      </header>
+      {/* The frame is the standalone shell's alone (ADR 0033 decision 3): the
+          VS Code local-server embed shows its one tab without it. */}
+      {isStandaloneHost ? <AppBar workspacePath={cwd} theme={theme} onToggleTheme={toggleTheme} /> : null}
+
+      <div className="openspec-page">
+      {isStandaloneHost && PAGE_HEADS[activeTab] ? <PageHead head={PAGE_HEADS[activeTab]} /> : null}
 
       {/* Outside the tabs, because a schedule moves a person between
           them: a sentence rendered only inside the change editor was
@@ -1460,7 +1459,6 @@ function StandaloneApp() {
 
       <TabPanel id="run-a-command" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
-        <h2>Run a command</h2>
         <div className="openspec-shell-grid">
           <label className="openspec-shell-field">
             Workspace root (cwd)
@@ -1539,8 +1537,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["processes"]} testId="tab-reading-processes" />
       <BusyFieldset busy={shownReadings["processes"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Processes and recovery</h2>
-        <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
         {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} onReadingChange={setProcessesReading} /> : <p>Enter workspace root to load processes.</p>}
       </section>
       </BusyFieldset>
@@ -1552,8 +1548,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["diff-preview"]} testId="tab-reading-diff-preview" />
       <BusyFieldset busy={shownReadings["diff-preview"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Diff preview</h2>
-        <p className="openspec-shell-note">What a change has changed and not yet committed, as git reports it.</p>
         <div className="openspec-ai-panel-controls">
           <select
             aria-label="Change to diff"
@@ -1603,10 +1597,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
       <BusyFieldset busy={shownReadings["overview"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>OpenSpec view summary</h2>
-        <p className="openspec-shell-note">
-          Parsed, visual summary of repository state. Use this as a readable companion to terminal <code>openspec view</code>.
-        </p>
         <div className="openspec-ai-panel-controls">
           <button className="button primary" type="button" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
             {overviewLoading ? "Loading..." : "Load summary"}
@@ -1769,10 +1759,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["change-editor"]} testId="tab-reading-change-editor" />
       <BusyFieldset busy={shownReadings["change-editor"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Change Editor</h2>
-        <p className="openspec-shell-note">
-          Create and edit change markdown artifacts before implementation.
-        </p>
 
         <div className="openspec-shell-grid">
           <label className="openspec-shell-field">
@@ -1968,11 +1954,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["templates"]} testId="tab-reading-templates" />
       <BusyFieldset busy={shownReadings["templates"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Templates</h2>
-        <p className="openspec-shell-note">
-          Built-in and project-level ({"openspec/templates/"}) starting points for new changes. "Customize" forks a
-          built-in template into your project, keeping a backlink to the built-in version it came from.
-        </p>
         <div className="openspec-ai-panel-controls">
           <button className="button primary" type="button" onClick={() => void handleLoadTemplates()} disabled={templatesLoading || cwd.trim().length === 0}>
             {templatesLoading ? "Loading..." : "Load templates"}
@@ -2094,11 +2075,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
       <BusyFieldset busy={shownReadings["timeline"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Timeline</h2>
-        <p className="openspec-shell-note">
-          See a change's proposal/design/spec and its tasks, positioned by
-          when git shows each was completed.
-        </p>
 
         <div className="openspec-editor-tabs">
           <button
@@ -2284,11 +2260,6 @@ function StandaloneApp() {
       {visibleTabIds.has("pipeline") && (
       <TabPanel id="pipeline" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
-        <h2>Pipeline</h2>
-        <p className="openspec-shell-note">
-          Every active change in the order it declares, what is running right now, and what can be started
-          alongside what. The same report <code>openspec-ui-cli ready</code> prints.
-        </p>
         {cwd.trim().length > 0
           ? (
             <>
@@ -2358,11 +2329,6 @@ function StandaloneApp() {
       <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
       <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
       <section className="openspec-shell-panel">
-        <h2>Harness Settings</h2>
-        <p className="openspec-shell-note">
-          The global defaults every change starts from: which agent runs each stage, and how autonomously a chain
-          runs.
-        </p>
         {/* Said where a person used to find a change's settings, since
             that is where they will look first. See
             a-change-is-configured-from-the-change. */}
@@ -2375,9 +2341,13 @@ function StandaloneApp() {
       </TabPanel>
       )}
 
+      </div>
+
       {isStandaloneHost ? (
-        <footer className="openspec-shell-version-footer" data-testid="version-footer">
-          core {versions?.core ?? "…"} · server {versions?.server ?? "…"} · webui {__OPENSPEC_UI_WEBUI_VERSION__}
+        <footer className="openspec-app-footer" data-testid="version-footer">
+          <div className="openspec-app-footer-inner">
+            <span>core {versions?.core ?? "…"} · server {versions?.server ?? "…"} · webui {__OPENSPEC_UI_WEBUI_VERSION__}</span>
+          </div>
         </footer>
       ) : null}
     </div>

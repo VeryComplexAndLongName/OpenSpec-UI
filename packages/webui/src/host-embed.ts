@@ -13,15 +13,15 @@ import type { TabDefinition } from "./components/Tabs.js";
 export const VSCODE_LOCAL_SERVER_EMBED_SIGNAL = "vscode-local-server";
 
 export const ALL_TABS: readonly TabDefinition[] = [
-  { id: "run-a-command", label: "Run a Command" },
-  { id: "processes", label: "Processes and Recovery" },
-  { id: "diff-preview", label: "Diff Preview" },
-  { id: "overview", label: "OpenSpec view summary" },
-  { id: "change-editor", label: "Change Editor" },
-  { id: "templates", label: "Templates" },
-  { id: "timeline", label: "Timeline" },
-  { id: "pipeline", label: "Pipeline" },
-  { id: "harness-settings", label: "Harness Settings" },
+  { id: "run-a-command", label: "Run a Command", short: "Run" },
+  { id: "processes", label: "Processes and Recovery", short: "Processes" },
+  { id: "diff-preview", label: "Diff Preview", short: "Diff" },
+  { id: "overview", label: "OpenSpec view summary", short: "Summary" },
+  { id: "change-editor", label: "Change Editor", short: "Editor" },
+  { id: "templates", label: "Templates", short: "Templates" },
+  { id: "timeline", label: "Timeline", short: "Timeline" },
+  { id: "pipeline", label: "Pipeline", short: "Pipeline" },
+  { id: "harness-settings", label: "Harness Settings", short: "Harness" },
 ];
 
 export const ALLOWED_TABS_VSCODE_EMBED: readonly string[] = ["run-a-command"];
