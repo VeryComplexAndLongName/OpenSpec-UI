@@ -27,6 +27,7 @@ import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
+import { metroIconsCss } from "./metro-icons.generated.js";
 import { useStandaloneTheme } from "./standalone-theme.js";
 import { ThemeToggle } from "./components/ThemeToggle.js";
 import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
@@ -1373,7 +1374,7 @@ function StandaloneApp() {
 
   return (
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
-      <style>{`${metroCss}\n${shellThemeCss}`}</style>
+      <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}`}</style>
 
       <header className="openspec-shell-headline">
         <OwlLogo />

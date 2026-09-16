@@ -524,6 +524,19 @@ export const shellThemeCss = `
     justify-content: center;
   }
 
+  /* An icon before a label (the-web-ui-screens-wear-metro 4.x) sits a
+     little apart from the word, so the glyph does not touch its first
+     letter. */
+  [class^="openspec-icon-"],
+  [class*=" openspec-icon-"] {
+    display: inline-block;
+    line-height: 1;
+  }
+
+  .button > [class^="openspec-icon-"] {
+    margin-inline-end: 0.45em;
+  }
+
   .openspec-named-configuration-description {
     margin: 8px 0 4px;
     padding-left: 12px;
