@@ -160,6 +160,24 @@ brings in the families, the icons and the palette this change spends.
   since long before ADR 0032. A check that starts red teaches nothing; it
   belongs to a change that also clears the backlog it names, and is recorded
   here rather than smuggled in green with an allow-list.
+- [x] 5.4 Every entry that embeds `metroCss` — `standalone-entry.tsx`,
+  `extension-entry.tsx`, `harness-settings-entry.tsx`, `pipeline-entry.tsx`,
+  `timeline-entry.tsx` — also embeds `metroIconsCss`, and
+  `packages/webui/src/icons.test.ts` fails when one does not.
+
+  Added on 2026-09-16, after the owner opened the running shell and saw no
+  icons at all. `the-web-ui-wears-more-metro` generated the icon stylesheet
+  but only its test imported it, so every `Icon` rendered as an empty span of
+  zero width, read in the browser as `content: none` in the page's own
+  font. Nothing failed: the markup, the accessible names and the axe runs
+  were all correct, which is why the new test reads the entries themselves.
+  It fails with `standalone-entry.tsx` reverted and passes with the fix.
+  `shell-ui.ts` also sets an icon inline-block and keeps it 0.45em from the
+  word it precedes in a button.
+  - **Checks:** webui typecheck and lint pass; `icons` and `shell-ui` pass,
+    12 tests. Live, in Chromium against the rebuilt standalone server: the
+    Harness Settings cog is 16px wide in the `openspec-metro-icons` family,
+    and Processes shows its refresh and warning glyphs.
 
 ## 6. Checks
 

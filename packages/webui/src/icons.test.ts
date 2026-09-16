@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
 import { ICONS } from "./icons.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
+
+/** The entry check reads every `*-entry.tsx` from disk, so its duration
+ * follows the machine's. Measured on 2026-09-16 on a developer machine:
+ * 29 ms for the whole file, reading five entries. The ceiling leaves room
+ * for a slow CI disk without hiding a hang. */
+const READ_TIMEOUT_MS = 10_000;
+vi.setConfig({ testTimeout: READ_TIMEOUT_MS });
 
 /** Every glyph name the generated stylesheet carries a `::before` rule for. */
 function glyphsInGeneratedCss(css: string): string[] {
@@ -24,5 +34,26 @@ describe("the meaning-to-glyph map", () => {
     const unnamed = glyphsInGeneratedCss(metroIconsCss).filter((glyph) => !named.has(glyph));
 
     expect(unnamed).toEqual([]);
+  });
+});
+
+describe("every entry that draws Metro", () => {
+  it("also carries the icon stylesheet", () => {
+    // The icon classes are Metro-shaped but live in their own generated
+    // module. An entry that embeds metroCss without metroIconsCss renders
+    // every Icon as an empty, zero-width span, and nothing else fails: the
+    // markup, the names and the axe run are all still right. That is how
+    // the standalone shell shipped with no visible icons.
+    const src = path.dirname(fileURLToPath(import.meta.url));
+    const entries = readdirSync(src).filter((name) => name.endsWith("-entry.tsx"));
+    const withoutIcons = entries.filter((name) => {
+      const text = readFileSync(path.join(src, name), "utf8");
+      return text.includes("${metroCss}") || text.includes("[metroCss,")
+        ? !text.includes("metroIconsCss}") && !text.includes("metroIconsCss,")
+        : false;
+    });
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(withoutIcons).toEqual([]);
   });
 });
