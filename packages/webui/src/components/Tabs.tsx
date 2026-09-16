@@ -25,9 +25,14 @@ export interface TabsProps {
   tabs: readonly TabDefinition[];
   activeTab: string;
   onSelect: (id: string) => void;
+  /** Tabs with a reading outstanding. Each draws a small spinner after its
+   * label, whichever tab is open, so a tab left while it reads still shows
+   * it is busy (a-screen-says-what-it-is-doing). The spinner is hidden from
+   * assistive technology and does not change the tab's name. */
+  busy?: ReadonlySet<string>;
 }
 
-export function Tabs({ tabs, activeTab, onSelect }: TabsProps) {
+export function Tabs({ tabs, activeTab, onSelect, busy }: TabsProps) {
   return (
     <div className="openspec-page-tabs" role="tablist">
       {tabs.map((tab) => (
@@ -41,6 +46,9 @@ export function Tabs({ tabs, activeTab, onSelect }: TabsProps) {
           onClick={() => onSelect(tab.id)}
         >
           {tab.label}
+          {busy?.has(tab.id)
+            ? <span className="openspec-tab-spinner" aria-hidden="true" data-testid={`page-tab-spinner-${tab.id}`} />
+            : null}
         </button>
       ))}
     </div>

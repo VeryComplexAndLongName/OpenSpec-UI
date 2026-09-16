@@ -410,3 +410,20 @@ describe("autonomy level options", () => {
     }
   });
 });
+
+// a-screen-says-what-it-is-doing 3.14
+describe("GlobalHarnessSettingsView — says what it is reading", () => {
+  it("reports its reading while the settings load, and null once they have", async () => {
+    type Resolved = Awaited<ReturnType<HarnessSettingsApi["resolveGlobal"]>>;
+    let answer: (value: Resolved) => void = () => undefined;
+    const api = createApi({ resolveGlobal: vi.fn(() => new Promise<Resolved>((resolve) => { answer = resolve; })) });
+    const onReadingChange = vi.fn();
+    render(<GlobalHarnessSettingsView api={api} onReadingChange={onReadingChange} />);
+
+    await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith("Reading the harness settings…"));
+
+    answer({ stepAgents: { propose: "claude-cli" }, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+
+    await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
+  });
+});

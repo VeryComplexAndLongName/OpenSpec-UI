@@ -18,9 +18,11 @@
 // thing. See every-screenshot-is-taken-by-a-spec.
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { execFile } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
 import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
@@ -52,6 +54,17 @@ test.describe("standalone documentation screenshots", () => {
   test("captures the command runner, the summary, the diff, the editor, the templates and the processes", async ({ page }) => {
     test.setTimeout(120000);
     workspaceRoot = await createLifecycleWorkspace(CHANGE_NAME);
+    // Committed as created, so the two files written below are the change's
+    // uncommitted work, which Diff Preview then shows from git
+    // (a-screen-says-what-it-is-doing). Until then that tab rendered a
+    // two-line sample, and this picture was of the sample.
+    const git = (args: string[]) => promisify(execFile)("git", [
+      "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false",
+      ...args,
+    ], { cwd: workspaceRoot });
+    await git(["init", "-q"]);
+    await git(["add", "."]);
+    await git(["commit", "-q", "-m", "fixture"]);
     // `openspec show --type change` refuses a proposal with no "What
     // Changes" section, and the command runner's picture is of a
     // *completed* command. The fixture carries the sections the real CLI
@@ -142,11 +155,13 @@ test.describe("standalone documentation screenshots", () => {
           maskColor: MASK_COLOR,
         });
 
-      // 3. The diff preview. Its content is the panel's own fixture, so
-      // this waits on the rendered diff rather than on a load.
+      // 3. The diff preview: the change's own uncommitted edits, read from
+      // git. It waits on a line the fixture's edit added, so a tab that
+      // showed anything else fails here rather than in the picture.
       await page.getByRole("tab", { name: "Diff Preview" }).click();
       const diff = page.locator("section", { has: page.getByRole("heading", { name: "Diff preview" }) });
-      await expect(diff).toContainText("task one", { timeout: 15000 });
+      await diff.getByRole("combobox", { name: "Change to diff" }).selectOption(CHANGE_NAME);
+      await expect(page.getByTestId("change-diff")).toContainText("+- [x] 1.1 Write the proposal.", { timeout: 20000 });
       await diff.screenshot({ path: path.join(IMAGES_DIR, "diff-preview.png") });
 
       // 4. The editor, with a change loaded.

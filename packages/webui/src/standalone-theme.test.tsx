@@ -66,7 +66,7 @@ describe("the standalone theme", () => {
     render(<Shell env={env} />);
     expect(shellTheme()).toBe("dark");
     expect(env.documentElement()?.getAttribute(THEME_ATTRIBUTE)).toBe("dark");
-    expect(screen.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("switch", { name: "Dark theme" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("keeps a stored choice over the system preference", () => {

@@ -175,6 +175,33 @@ describe("shell themes", () => {
         expect(failing).toEqual([]);
     });
 
+    it("draws a reading tab from tokens, and stills it for a person who asks for less motion", () => {
+        // a-screen-says-what-it-is-doing 3.10. The colour check above
+        // already refuses a literal anywhere in the rules; this names the
+        // reading rules, so their removal fails here rather than in a
+        // picture, and checks each animated one stops under reduced motion.
+        for (const selector of [".openspec-panel-status {", ".openspec-panel-status-bar > span {", ".openspec-tab-spinner {", ".openspec-busy-fieldset {"]) {
+            expect(shellThemeCss).toContain(selector);
+        }
+        const bar = shellThemeCss.slice(shellThemeCss.indexOf(".openspec-panel-status-bar > span {"));
+        expect(bar.slice(0, bar.indexOf("}"))).toContain("background: var(--primary)");
+        // 3.18: the tab's spinner takes no room in the row, or every tab
+        // after a busy one moves when its reading starts and ends.
+        const spinnerRules = shellThemeCss.split(".openspec-tab-spinner {").slice(1).map((rest) => rest.slice(0, rest.indexOf("}")));
+        expect(spinnerRules.some((rule) => rule.includes("position: absolute"))).toBe(true);
+        expect(spinnerRules.join("")).not.toContain("margin-left");
+
+        // Every reduced-motion block, taken together: the theme switch has
+        // one of its own.
+        const block = shellThemeCss.split("@media (prefers-reduced-motion: reduce)").slice(1)
+            .map((rest) => rest.slice(0, rest.indexOf("}\n  }") + 1))
+            .join("\n");
+        for (const animated of [".openspec-panel-status-bar > span", ".openspec-panel-status-spinner", ".openspec-tab-spinner"]) {
+            expect(block).toContain(animated);
+        }
+        expect(block).toContain("animation: none");
+    });
+
     it("separates a settings section by more than what separates its fields", () => {
         // a-change-is-configured-from-the-change. "Save Global config" sat
         // directly above the heading of the next section, with nothing

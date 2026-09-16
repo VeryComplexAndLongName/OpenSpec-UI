@@ -58,41 +58,54 @@ export interface ProcessesApi {
   cleanup(cutoff: string): Promise<{ removed: number; retained: number }>;
 }
 
-export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; changeProgress?: Record<string, ChangeProgress> }) {
+export function ProcessesView({
+  api,
+  changeProgress,
+  onReadingChange,
+}: {
+  api: ProcessesApi;
+  changeProgress?: Record<string, ChangeProgress>;
+  /** What this view is reading or doing, or `null` once it has settled, for
+   * the shell's status line and tab spinner (a-screen-says-what-it-is-doing). */
+  onReadingChange?: (reading: string | null) => void;
+}) {
   const [processes, setProcesses] = useState<ProcessSummary[]>([]);
   const [details, setDetails] = useState<ProcessDetails | null>(null);
   const [retentionDays, setRetentionDays] = useState(30);
   const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const loading = reading !== null;
+
+  useEffect(() => { onReadingChange?.(reading); }, [reading, onReadingChange]);
 
   async function load() {
-    setLoading(true);
+    setReading("Reading persisted runs…");
     try {
       setProcesses(await api.list());
     } catch (error) {
       setMessage(`Load failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setLoading(false);
+      setReading(null);
     }
   }
 
   useEffect(() => { void load(); }, [api]);
 
   async function inspect(processId: string) {
-    setLoading(true);
+    setReading("Reading the run's details…");
     try {
       setDetails(await api.details(processId));
       setMessage(null);
     } catch (error) {
       setMessage(`Details failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setLoading(false);
+      setReading(null);
     }
   }
 
   async function rollback() {
     if (!details) return;
-    setLoading(true);
+    setReading("Rolling the run's files back…");
     try {
       const result = await api.rollback(details.process.id);
       setMessage(result.conflicts.length > 0
@@ -103,12 +116,12 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
     } catch (error) {
       setMessage(`Rollback failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setLoading(false);
+      setReading(null);
     }
   }
 
   async function cleanup() {
-    setLoading(true);
+    setReading("Removing old history…");
     try {
       const cutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString();
       const result = await api.cleanup(cutoff);
@@ -118,15 +131,19 @@ export function ProcessesView({ api, changeProgress }: { api: ProcessesApi; chan
     } catch (error) {
       setMessage(`Cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setLoading(false);
+      setReading(null);
     }
   }
 
   return (
     <div data-testid="processes-view">
       <div className="openspec-ai-panel-controls">
+        {/* One label in every state. It read "Loading..." during any reading,
+            a Review included, and the change of width moved every control
+            after it: the jerk the owner reported. What is being read is
+            said by the shell's status line (a-screen-says-what-it-is-doing). */}
         <button className="button" type="button" onClick={() => void load()} disabled={loading}>
-          <Icon meaning="refresh" />{loading ? "Loading..." : "Refresh"}
+          <Icon meaning="refresh" />Refresh
         </button>
         <label className="openspec-shell-field">
           Retain days

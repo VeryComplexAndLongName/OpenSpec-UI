@@ -42,7 +42,15 @@ function snapshotOf(config: HarnessConfig | null, forms: StageForms, autonomyLev
   return JSON.stringify(globalConfigToSave(config, forms, autonomyLevel));
 }
 
-export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) {
+export function GlobalHarnessSettingsView({
+  api,
+  onReadingChange,
+}: {
+  api: HarnessSettingsApi;
+  /** What this view is reading or saving, or `null` once it has settled, for
+   * the shell's status line and tab spinner (a-screen-says-what-it-is-doing). */
+  onReadingChange?: (reading: string | null) => void;
+}) {
   const [config, setConfig] = useState<HarnessConfig | null>(null);
   const [forms, setForms] = useState<StageForms>(stageFormsFrom(undefined));
   const [autonomyLevel, setAutonomyLevel] = useState<HarnessAutonomyLevel>("assisted");
@@ -51,7 +59,8 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
   const [customAgents, setCustomAgents] = useState<CustomAgentsResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [reading, setReading] = useState<string | null>(null);
+  const loading = reading !== null;
   /** What was last loaded or saved, in the shape a save would write. The
    * save is offered only when the form differs from it. */
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
@@ -74,8 +83,10 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
 
   const dirty = savedSnapshot !== null && snapshotOf(config, forms, autonomyLevel) !== savedSnapshot;
 
+  useEffect(() => { onReadingChange?.(reading); }, [reading, onReadingChange]);
+
   async function load() {
-    setLoading(true);
+    setReading("Reading the harness settings…");
     try {
       const loaded = await api.resolveGlobal();
       const loadedForms = stageFormsFrom(loaded.stepAgents);
@@ -87,7 +98,7 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
     } catch (error) {
       setMessage(describeFailure("Load", error));
     } finally {
-      setLoading(false);
+      setReading(null);
     }
   }
 
@@ -126,14 +137,14 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
   };
 
   async function save() {
-    setLoading(true);
+    setReading("Saving the harness settings…");
     try {
       await api.writeGlobal(globalConfigToSave(config, forms, autonomyLevel));
       await load();
       setMessage("Saved.");
     } catch (error) {
       setMessage(describeFailure("Save", error));
-      setLoading(false);
+      setReading(null);
     }
   }
 

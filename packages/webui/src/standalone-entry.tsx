@@ -11,6 +11,7 @@ import { AiPanel } from "./components/AiPanel.js";
 import { OwlLogo } from "./components/OwlLogo.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
+import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
 import { Icon } from "./components/Icon.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
@@ -25,6 +26,10 @@ import { loadChangeLastRuns } from "./change-last-runs-client.js";
 import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-client.js";
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
 import { Tabs, TabPanel } from "./components/Tabs.js";
+import { PanelStatus } from "./components/PanelStatus.js";
+import { BusyFieldset } from "./components/BusyFieldset.js";
+import { busyTabs, tabReadings } from "./tab-readings.js";
+import { useShownReadings } from "./shown-readings.js";
 import { buildDefaultChangeDir, shellThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
@@ -271,6 +276,14 @@ function StandaloneApp() {
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  // Diff Preview: the chosen change and what git said about it
+  // (a-screen-says-what-it-is-doing). `diffReading` counts readings, so a
+  // reply for a change since left behind sets nothing.
+  const [diffChangeName, setDiffChangeName] = useState("");
+  const [diffAnswer, setDiffAnswer] = useState<ChangeDiffAnswer | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const diffReading = useRef(0);
   const [editorChangeName, setEditorChangeName] = useState("");
   const [editorFiles, setEditorFiles] = useState<ChangeEditorFiles>(EMPTY_EDITOR_FILES);
   const [editorRevision, setEditorRevision] = useState("");
@@ -351,6 +364,12 @@ function StandaloneApp() {
   // agentic-harness/design.md). Still a real, useful repo-wide default.
   const [stepAgents, setStepAgents] = useState<HarnessStepAgents | undefined>(undefined);
   const [versions, setVersions] = useState<WorkbenchVersions | null>(null);
+  // What the three views that keep their loading inside are reading
+  // (a-screen-says-what-it-is-doing). React keeps a state setter stable, so
+  // each is passed as the view's callback directly.
+  const [processesReading, setProcessesReading] = useState<string | null>(null);
+  const [harnessReading, setHarnessReading] = useState<string | null>(null);
+  const [pipelineReading, setPipelineReading] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
     async function request<T>(pathname: string, body: Record<string, unknown>): Promise<T> {
@@ -513,6 +532,26 @@ function StandaloneApp() {
   function handleCwdChange(nextCwd: string) {
     setCwd(nextCwd);
     setChangeDir(buildDefaultChangeDir(nextCwd));
+  }
+
+  async function loadDiff(changeName: string) {
+    const reading = ++diffReading.current;
+    setDiffChangeName(changeName);
+    setDiffAnswer(null);
+    setDiffError(null);
+    if (changeName.length === 0) {
+      setDiffLoading(false);
+      return;
+    }
+    setDiffLoading(true);
+    try {
+      const answer = await loadChangeDiff(apiFetch, cwd, changeName);
+      if (reading === diffReading.current) setDiffAnswer(answer);
+    } catch (error) {
+      if (reading === diffReading.current) setDiffError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (reading === diffReading.current) setDiffLoading(false);
+    }
   }
 
   async function handleLoadOverview() {
@@ -1372,6 +1411,29 @@ function StandaloneApp() {
 
   const canInitialize = Boolean(overview?.initialization?.canInitialize);
 
+  // Which tab is reading, and what it says: a sentence, a spinner on the
+  // tab, and its controls held (a-screen-says-what-it-is-doing).
+  const readings = tabReadings({
+    overviewLoading,
+    overviewRead: overview !== null,
+    diffLoading,
+    diffChangeName,
+    editorLoading,
+    editorChangeName,
+    templatesLoading,
+    timelineLoading,
+    timelineSelection,
+    comparisonLoading: multiLoading,
+    comparisonCount: multiSelection.length,
+    sprintReportLoading,
+    processesReading,
+    harnessReading,
+    pipelineReading,
+  });
+  // Shown only once a reading has lasted a moment: a quick one otherwise
+  // put a line above the tab and took it away, and the screen jerked.
+  const shownReadings = useShownReadings(readings);
+
   return (
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
       <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}`}</style>
@@ -1394,7 +1456,7 @@ function StandaloneApp() {
         {scheduleMessage ? <p className="openspec-shell-note">{scheduleMessage}</p> : null}
       </div>
 
-      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
+      <Tabs tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} busy={busyTabs(shownReadings)} />
 
       <TabPanel id="run-a-command" activeTab={activeTab} lazy>
       <section className="openspec-shell-panel">
@@ -1474,34 +1536,72 @@ function StandaloneApp() {
 
       {visibleTabIds.has("processes") && (
       <TabPanel id="processes" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["processes"]} testId="tab-reading-processes" />
+      <BusyFieldset busy={shownReadings["processes"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Processes and recovery</h2>
         <p className="openspec-shell-note">Review persisted runs, checkpoint coverage, rollback conflicts, and retained history.</p>
-        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} /> : <p>Enter workspace root to load processes.</p>}
+        {cwd.trim().length > 0 ? <ProcessesView api={processesApi} changeProgress={changeProgress} onReadingChange={setProcessesReading} /> : <p>Enter workspace root to load processes.</p>}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
       {visibleTabIds.has("diff-preview") && (
       <TabPanel id="diff-preview" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["diff-preview"]} testId="tab-reading-diff-preview" />
+      <BusyFieldset busy={shownReadings["diff-preview"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Diff preview</h2>
-        <p>
-          Standalone-only rendering (see <code>shared-ui</code> design — extension delegates this to{" "}
-          <code>vscode.diff</code>).
-        </p>
-        <ChangeDiff
-          before={"- [ ] task one\n- [ ] task two\n"}
-          after={"- [x] task one\n- [ ] task two\n"}
-          beforeLabel="before"
-          afterLabel="after"
-        />
+        <p className="openspec-shell-note">What a change has changed and not yet committed, as git reports it.</p>
+        <div className="openspec-ai-panel-controls">
+          <select
+            aria-label="Change to diff"
+            data-testid="change-diff-picker"
+            value={diffChangeName}
+            onChange={(e) => void loadDiff(e.target.value)}
+            disabled={(overview?.changes.length ?? 0) === 0}
+          >
+            <option value="">Select change</option>
+            {(overview?.changes ?? []).map((change) => (
+              <option key={change.name} value={change.name}>{change.name}</option>
+            ))}
+          </select>
+          <button className="button"
+            type="button"
+            onClick={() => void loadDiff(diffChangeName)}
+            disabled={diffLoading || diffChangeName.length === 0}
+          >
+            <Icon meaning="refresh" />Refresh
+          </button>
+        </div>
+        {diffError ? <p className="openspec-shell-note" data-testid="change-diff-error">{diffError}</p> : null}
+        {diffAnswer ? (
+          diffAnswer.diff.length === 0 ? (
+            <p className="openspec-shell-note" data-testid="change-diff-empty">This change has nothing uncommitted.</p>
+          ) : (
+            <>
+              <p className="openspec-shell-note" data-testid="change-diff-files">
+                {diffAnswer.files.length === 1 ? "1 file" : `${diffAnswer.files.length} files`} changed
+              </p>
+              {diffAnswer.truncated ? (
+                <p className="openspec-shell-note" data-testid="change-diff-truncated">
+                  The diff was cut to its first {Math.round(diffAnswer.maxBytes / 1000)} KB; the rest is not shown.
+                </p>
+              ) : null}
+              <ChangeDiff unified={diffAnswer.diff} />
+            </>
+          )
+        ) : null}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
       {visibleTabIds.has("overview") && (
       <TabPanel id="overview" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
+      <BusyFieldset busy={shownReadings["overview"] !== null}>
       <section className="openspec-shell-panel">
         <h2>OpenSpec view summary</h2>
         <p className="openspec-shell-note">
@@ -1660,11 +1760,14 @@ function StandaloneApp() {
           </div>
         ) : null}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
       {visibleTabIds.has("change-editor") && (
       <TabPanel id="change-editor" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["change-editor"]} testId="tab-reading-change-editor" />
+      <BusyFieldset busy={shownReadings["change-editor"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Change Editor</h2>
         <p className="openspec-shell-note">
@@ -1856,11 +1959,14 @@ function StandaloneApp() {
         </>
         )}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
       {visibleTabIds.has("templates") && (
       <TabPanel id="templates" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["templates"]} testId="tab-reading-templates" />
+      <BusyFieldset busy={shownReadings["templates"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Templates</h2>
         <p className="openspec-shell-note">
@@ -1979,11 +2085,14 @@ function StandaloneApp() {
 
         {templateActionMessage ? <p className="openspec-shell-note">{templateActionMessage}</p> : null}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
       {visibleTabIds.has("timeline") && (
       <TabPanel id="timeline" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
+      <BusyFieldset busy={shownReadings["timeline"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Timeline</h2>
         <p className="openspec-shell-note">
@@ -2168,6 +2277,7 @@ function StandaloneApp() {
           </Fragment>
         )}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 
@@ -2196,6 +2306,7 @@ function StandaloneApp() {
                 copyText={pipelineCopyText}
                 viewState={pipelineViewState}
                 onAskToStop={pipelineAskToStop}
+                onReadingChange={setPipelineReading}
               />
               {runOpenedFrom === "pipeline" && runHarnessMessage
                 ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
@@ -2244,6 +2355,8 @@ function StandaloneApp() {
 
       {visibleTabIds.has("harness-settings") && (
       <TabPanel id="harness-settings" activeTab={activeTab} lazy>
+      <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
+      <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
       <section className="openspec-shell-panel">
         <h2>Harness Settings</h2>
         <p className="openspec-shell-note">
@@ -2256,8 +2369,9 @@ function StandaloneApp() {
         <p className="openspec-shell-note" data-testid="harness-settings-change-pointer">
           A change's own settings are in the Change Editor, under Harness.
         </p>
-        {cwd.trim().length > 0 ? <GlobalHarnessSettingsView api={harnessSettingsApi} /> : <p>Enter workspace root to configure the harness.</p>}
+        {cwd.trim().length > 0 ? <GlobalHarnessSettingsView api={harnessSettingsApi} onReadingChange={setHarnessReading} /> : <p>Enter workspace root to configure the harness.</p>}
       </section>
+      </BusyFieldset>
       </TabPanel>
       )}
 

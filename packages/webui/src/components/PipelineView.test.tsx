@@ -1069,3 +1069,23 @@ describe("PipelineView", () => {
     expect(screen.queryByTestId("hint-list")).toBeNull();
   });
 });
+
+// a-screen-says-what-it-is-doing 3.14
+describe("PipelineView — says it is reading, once", () => {
+  it("reports its first reading and then null, and not again when it reads again", async () => {
+    const load = vi.fn(async () => report(change("alpha")));
+    const onReadingChange = vi.fn();
+    render(<PipelineView isActive load={load} refresh={async () => "refs read"} onReadingChange={onReadingChange} />);
+
+    expect(onReadingChange).toHaveBeenCalledWith("Reading what is running…");
+    await screen.findByTestId("pipeline-node-alpha");
+    await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
+    const callsAfterFirst = onReadingChange.mock.calls.length;
+
+    fireEvent.click(screen.getByTestId("pipeline-refresh"));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await screen.findByTestId("pipeline-refs");
+
+    expect(onReadingChange.mock.calls.length).toBe(callsAfterFirst);
+  });
+});

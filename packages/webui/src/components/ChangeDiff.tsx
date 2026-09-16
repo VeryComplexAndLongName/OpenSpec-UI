@@ -1,37 +1,39 @@
-// 2.2 Diff between versions of an archived change — uses this component's
-// own rendering ONLY where the host does not provide a native diff
-// (standalone). For the VS Code extension, this component is not used at
-// all — it delegates to `vscode.diff` (see design.md, "Decisions").
-
-import { diffLines } from "diff";
+// A change's uncommitted work as a unified diff, the text git itself
+// produced (a-screen-says-what-it-is-doing). Standalone only: the VS Code
+// extension delegates diffs to `vscode.diff` and does not use this.
+//
+// It used to take `before` and `after` and diff them in the browser, and the
+// Diff Preview tab passed it two literal strings — a sample that never showed
+// anything of the person's own. Git has already decided what changed; this
+// only colours each line by its first character.
 
 export interface ChangeDiffProps {
-  before: string;
-  after: string;
-  beforeLabel?: string;
-  afterLabel?: string;
+  unified: string;
 }
 
-export function ChangeDiff({ before, after, beforeLabel = "before", afterLabel = "after" }: ChangeDiffProps) {
-  const parts = diffLines(before, after);
+type LineKind = "added" | "removed" | "unchanged" | "meta" | "hunk";
+
+const META_PREFIXES = ["diff --git ", "index ", "new file mode ", "deleted file mode ", "--- ", "+++ ", "Binary files ", "\\ "];
+
+function kindOf(line: string): LineKind {
+  if (META_PREFIXES.some((prefix) => line.startsWith(prefix))) return "meta";
+  if (line.startsWith("@@")) return "hunk";
+  if (line.startsWith("+")) return "added";
+  if (line.startsWith("-")) return "removed";
+  return "unchanged";
+}
+
+export function ChangeDiff({ unified }: ChangeDiffProps) {
+  const lines = unified.length === 0 ? [] : unified.replace(/\r?\n$/u, "").split(/\r?\n/u);
 
   return (
     <div className="openspec-diff" data-testid="change-diff">
-      <div className="openspec-diff-header">
-        <span>{beforeLabel}</span>
-        <span>{afterLabel}</span>
-      </div>
       <pre className="openspec-diff-body">
-        {parts.map((part, index) => {
-          const marker = part.added ? "+" : part.removed ? "-" : " ";
-          const kind = part.added ? "added" : part.removed ? "removed" : "unchanged";
-          const lines = part.value.replace(/\n$/, "").split("\n");
-          return lines.map((line, lineIndex) => (
-            <div key={`${index}-${lineIndex}`} className={`openspec-diff-line openspec-diff-line--${kind}`}>
-              {marker} {line}
-            </div>
-          ));
-        })}
+        {lines.map((line, index) => (
+          <div key={index} className={`openspec-diff-line openspec-diff-line--${kindOf(line)}`}>
+            {line}
+          </div>
+        ))}
       </pre>
     </div>
   );

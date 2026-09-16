@@ -4,7 +4,9 @@
 // substituted with a fake one, so this test does not require real CLI
 // agents (see tasks.md 3.1 for a separate live smoke test with a real agent).
 
+import { execFile } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -52,6 +54,7 @@ import {
 } from "@openspec-ui/core";
 
 const SERVER_VERSION: string = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
+const execFileAsync = promisify(execFile);
 import { createServer, type OpenSpecUiServer } from "./server.js";
 
 const statusChangeMock = vi.fn();
@@ -519,6 +522,66 @@ describe("server — REST /api/status", () => {
 
     expect(response.status).toBe(404);
   });
+
+  // a-screen-says-what-it-is-doing 1.8. Real git processes in a temporary
+  // repository, as core's change-diff.test.ts, so a ceiling of their own:
+  // every-varying-check-has-a-budget, measured 2026-09-16 at about 1.3 s a
+  // repository there.
+  it("answers a change's uncommitted diff through /api/change-diff", async () => {
+    const cwd = await createTempWorkspace();
+    const git = (args: string[]) => execFileAsync("git", [
+      "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false",
+      ...args,
+    ], { cwd });
+    const changeDir = path.join(cwd, "openspec", "changes", "my-change");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(path.join(changeDir, "tasks.md"), "- [ ] 1.1 One\n");
+    await git(["init", "-q"]);
+    await git(["add", "."]);
+    await git(["commit", "-q", "-m", "change"]);
+    await writeFile(path.join(changeDir, "tasks.md"), "- [x] 1.1 One\n");
+
+    const response = await fetch(`${baseUrl}/api/change-diff`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "my-change" }),
+    });
+    const body = (await response.json()) as { diff: string; files: string[]; truncated: boolean };
+
+    expect(response.status).toBe(200);
+    expect(body.diff).toContain("+- [x] 1.1 One");
+    expect(body.files).toEqual(["openspec/changes/my-change/tasks.md"]);
+    expect(body.truncated).toBe(false);
+  }, 30_000);
+
+  it("refuses a change-diff request for a name that is not an active change (404)", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec", "changes"), { recursive: true });
+
+    const response = await fetch(`${baseUrl}/api/change-diff`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "does-not-exist" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(((await response.json()) as { error: string }).error).toBe('"does-not-exist" is not an active change of this workspace.');
+  });
+
+  it("says a workspace is not a repository rather than answering an empty diff (409)", async () => {
+    const cwd = await createTempWorkspace();
+    await mkdir(path.join(cwd, "openspec", "changes", "my-change"), { recursive: true });
+    await writeFile(path.join(cwd, "openspec", "changes", "my-change", "tasks.md"), "- [ ] 1.1 One\n");
+
+    const response = await fetch(`${baseUrl}/api/change-diff`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, changeName: "my-change" }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: string }).error).toBe("This workspace is not a git repository, so there is no diff to show.");
+  }, 20_000);
 
   // every-varying-check-has-a-budget:
   // measured 2026-09-05 at 229ms test time (5.40s wall) idle and 7.30s
