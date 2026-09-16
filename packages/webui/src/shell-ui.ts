@@ -522,6 +522,7 @@ export const shellThemeCss = `
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-inline-end: 0.5em;
   }
 
   /* An icon before a label (the-web-ui-screens-wear-metro 4.x) sits a
