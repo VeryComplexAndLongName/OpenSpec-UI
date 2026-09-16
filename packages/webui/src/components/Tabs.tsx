@@ -18,7 +18,12 @@ import { useEffect, useState, type ReactNode } from "react";
 
 export interface TabDefinition {
   id: string;
+  /** The tab's full name, which stays its accessible name. */
   label: string;
+  /** What the tab row shows, so all nine fit one row
+   * (the-shell-wears-the-site-frame). A leading or whole word of `label`, so
+   * the visible label stays part of the name (WCAG 2.5.3). */
+  short?: string;
 }
 
 export interface TabsProps {
@@ -42,10 +47,11 @@ export function Tabs({ tabs, activeTab, onSelect, busy }: TabsProps) {
           role="tab"
           aria-selected={tab.id === activeTab}
           data-testid={`page-tab-${tab.id}`}
+          aria-label={tab.short !== undefined ? tab.label : undefined}
           className={tab.id === activeTab ? "is-active" : ""}
           onClick={() => onSelect(tab.id)}
         >
-          {tab.label}
+          {tab.short ?? tab.label}
           {busy?.has(tab.id)
             ? <span className="openspec-tab-spinner" aria-hidden="true" data-testid={`page-tab-spinner-${tab.id}`} />
             : null}

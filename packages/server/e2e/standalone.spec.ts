@@ -45,11 +45,12 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   page.on("pageerror", (error) => pageErrors.push(error));
 
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
-  await expect(page.getByRole("heading", { name: "OpenSpec UI", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("app-bar")).toBeVisible();
 
-  // The owl marks the page: decorative in the headline, and the tab's
-  // icon, both carried inline. See the-owl-marks-the-app.
-  const owl = page.locator(".openspec-shell-headline img.openspec-shell-logo");
+  // The owl marks the page: decorative in the application bar, and the
+  // tab's icon, both carried inline. See the-owl-marks-the-app, and
+  // the-shell-wears-the-site-frame for the bar it moved into.
+  const owl = page.getByTestId("app-bar").locator("img.openspec-shell-logo");
   await expect(owl).toBeVisible();
   await expect(owl).toHaveAttribute("alt", "");
   expect(await owl.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
@@ -67,7 +68,7 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME, { timeout: 15000 });
 
   await page.getByRole("tab", { name: "Change Editor" }).click();
-  await page.locator("section", { has: page.getByRole("heading", { name: "Change Editor" }) })
+  await page.getByTestId("page-tab-panel-change-editor")
     .getByRole("combobox")
     .selectOption(CHANGE_NAME);
   await page.getByRole("button", { name: "Load change", exact: true }).click();

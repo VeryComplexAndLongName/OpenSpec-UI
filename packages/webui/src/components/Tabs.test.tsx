@@ -17,6 +17,19 @@ describe("Tabs", () => {
     expect(screen.getByTestId("page-tab-processes")).toHaveClass("is-active");
   });
 
+  // the-shell-wears-the-site-frame 2.8
+  it("shows a tab's short label and keeps its full name, of which the short label is a part", () => {
+    render(<Tabs tabs={computeVisibleTabs("")} activeTab="overview" onSelect={vi.fn()} />);
+
+    const summary = screen.getByRole("tab", { name: "OpenSpec view summary" });
+    expect(summary).toHaveTextContent(/^Summary$/u);
+    for (const tab of computeVisibleTabs("")) {
+      const shown = tab.short ?? tab.label;
+      expect(tab.label.toLowerCase().split(/\s+/u), tab.id).toEqual(expect.arrayContaining(shown.toLowerCase().split(/\s+/u)));
+      expect(screen.getByTestId(`page-tab-${tab.id}`)).toHaveTextContent(shown);
+    }
+  });
+
   // a-screen-says-what-it-is-doing 3.8
   it("draws a spinner on a busy tab only, and leaves every tab's name as it was", () => {
     const { rerender } = render(<Tabs tabs={tabs} activeTab="run-a-command" onSelect={vi.fn()} />);

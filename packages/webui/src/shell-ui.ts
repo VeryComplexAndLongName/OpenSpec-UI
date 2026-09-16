@@ -23,58 +23,68 @@ export const shellThemeCss = `
   :root {
     color-scheme: light;
 
-    /* grounds, lightest surface last: the page sits UNDER its panels */
-    --bg: #eef0f3;
-    --bg-accent: #e6e9ee;
+    /* The project site's palette (ADR 0033), under the names the rules
+       already read. grounds, lightest surface last: the page sits UNDER
+       its panels. */
+    --bg: #f4f5f7;
+    --bg-accent: #eef0f3;
     --surface: #ffffff;
-    --surface-2: #f5f7f9;
-    --surface-3: #e9ecf0;
+    --surface-2: #f7f9fc;
+    --surface-3: #eef0f3;
 
-    /* text. --muted is set from the contrast requirement, not from
-       taste: 6.0:1 on --surface, where the browser suite's axe run
-       covers WCAG AA and a quieter palette fails first. */
-    --ink: #1b1f24;
-    --muted: #5a6470;
+    /* text. Titles are darker than body text on the site, so they have a
+       token of their own. --muted is the site's subtle grey #767c86
+       darkened until it passes AA on the darkest ground it sits on, the
+       footer: 5.45:1 on --surface, 4.99:1 on --bg, 4.56:1 on the footer.
+       The site's own value fails at 3.85:1 on its page. */
+    --ink: #3c4048;
+    --heading: #16181d;
+    --muted: #646a74;
 
-    /* One accent. Both steps carry white text, so both are measured
-       against it: --primary 7.1:1, --primary-soft 5.5:1. The soft
-       step was #2b8677 first and axe caught it at 4.39:1 — a hover
-       state is a state the checker evaluates, and "it is only the
-       hover" is how a palette fails AA in the one place nobody
-       screenshots. */
-    --primary: #0e6357;
-    --primary-soft: #14766a;
-    --primary-bg: #e7f1ef;
+    /* A link and a tagline. Apart from --primary, which also fills a
+       button: the site's #0a6ebd, one step darker, since it read 4.42:1
+       on the footer. */
+    --link: #0963ad;
+
+    /* The accent fills a primary control and marks focus. Both steps
+       carry white text: --primary 6.19:1, --primary-soft 7.51:1. */
+    --primary: #0050ef;
+    --primary-soft: #0046d1;
+    --primary-bg: #e8effd;
     --primary-ink: #ffffff;
 
-    /* semantic, deliberately not the accent */
+    /* The underline of the tab you are on, the site's red, in both themes. */
+    --tab-accent: #ce352c;
+
+    /* semantic, deliberately not the accent. --warn and --warn-bg are the
+       site's notice. */
     --good: #16704a;
     --good-bg: #e6f2ea;
-    --warn: #7d5412;
-    --warn-bg: #f5edda;
+    --warn: #8a5a00;
+    --warn-bg: #fff4dc;
     --bad: #a02b2b;
     --bad-bg: #fbeaea;
     --danger: var(--bad);
 
     /* edges. --line separates, --line-strong is for an edge that has
        to hold its own against a filled surface. */
-    --line: #d7dbe1;
-    --line-strong: #bcc3cc;
+    --line: #e1e4e8;
+    --line-strong: #d5d9df;
 
-    /* Hues for a filled block that holds a label — a badge, a timeline
-       marker (the-web-ui-wears-more-metro 3.1) — each declared with the ink
-       that passes WCAG AA on it, since a hue is never used with any other.
+    /* Hues for a filled block that holds a label — a badge, a tile's icon
+       (the-web-ui-wears-more-metro 3.1) — each declared with the ink that
+       passes WCAG AA on it, since a hue is never used with any other.
        shell-ui.test.ts computes every pair's contrast from these tokens
        directly, so a hue added later is checked too.
 
-       White reads on cobalt, indigo and crimson (8.3:1, 9.9:1, 5.0:1); the
-       rest are too light for it (2.8:1 down to 1.5:1) and pair with dark
-       ink instead. Theme-invariant: a badge's colour states what it means
-       regardless of whether the page around it is light or dark, so the
-       dark palette below repeats these unchanged. */
-    --cobalt: #0048ad;
+       Cobalt, indigo, steel and emerald are the site's tile colours and all
+       carry white: 6.19:1, 6.87:1, 4.68:1, 4.53:1. Crimson carries white at
+       5.0:1; the lighter hues pair with dark ink. Theme-invariant: a badge's
+       colour states what it means whether the page around it is light or
+       dark, so the dark palette below repeats these unchanged. */
+    --cobalt: #0050ef;
     --cobalt-ink: #ffffff;
-    --indigo: #6500a8;
+    --indigo: #6a00ff;
     --indigo-ink: #ffffff;
     --crimson: #dd0e37;
     --crimson-ink: #ffffff;
@@ -84,12 +94,12 @@ export const shellThemeCss = `
     --orange-ink: #1b1f24;
     --teal: #1ac7c7;
     --teal-ink: #1b1f24;
-    --emerald: #51c878;
-    --emerald-ink: #1b1f24;
+    --emerald: #008a00;
+    --emerald-ink: #ffffff;
     --amber: #ffc929;
     --amber-ink: #1b1f24;
-    --steel: #7d92a6;
-    --steel-ink: #1b1f24;
+    --steel: #647687;
+    --steel-ink: #ffffff;
 
     /* A radius that softens a corner rather than announcing a card,
        and ONE shadow, spent only on what genuinely overlays — see ADR
@@ -127,35 +137,44 @@ export const shellThemeCss = `
   :root[data-openspec-theme="dark"] {
     color-scheme: dark;
 
-    --bg: #15181d;
-    --bg-accent: #1b1f25;
-    --surface: #1e2228;
-    --surface-2: #252a31;
-    --surface-3: #2d333b;
+    /* The site's html.dark-side palette (ADR 0033). */
+    --bg: #17181b;
+    --bg-accent: #1b1c1f;
+    --surface: #1e1f22;
+    --surface-2: #232428;
+    --surface-3: #2b2d30;
 
-    --ink: #e6e9ee;
-    --muted: #a3acb8;
+    --ink: #c0c4cc;
+    --heading: #ffffff;
+    --muted: #9da2ab;
+    --link: #60c3ff;
 
-    --primary: #4fb3a3;
-    --primary-soft: #6cc5b6;
-    --primary-bg: #1d3530;
+    /* Light on a dark ground, so its text turns dark: 9.58:1. The mockup's
+       dark buttons are cobalt with white text, but --primary is also a text
+       colour — a focus ring, an active label — and cobalt on this surface
+       is 3.4:1 (the-shell-wears-the-site-frame design.md). */
+    --primary: #60c3ff;
+    --primary-soft: #8fd4ff;
+    --primary-bg: #1c2b36;
     --primary-ink: #0b1411;
 
-    --good: #5fc98f;
-    --good-bg: #183225;
-    --warn: #e0b35c;
-    --warn-bg: #36290f;
-    --bad: #f08080;
+    --tab-accent: #ce352c;
+
+    --good: #6ede9f;
+    --good-bg: #173226;
+    --warn: #f0b43c;
+    --warn-bg: #2e2410;
+    --bad: #ff8a80;
     --bad-bg: #3a1c1c;
 
-    --line: #353b44;
-    --line-strong: #4a525d;
+    --line: #2b2d30;
+    --line-strong: #34363b;
 
     /* Theme-invariant (3.1's comment above): same hues, same ink, in
        either theme. */
-    --cobalt: #0048ad;
+    --cobalt: #0050ef;
     --cobalt-ink: #ffffff;
-    --indigo: #6500a8;
+    --indigo: #6a00ff;
     --indigo-ink: #ffffff;
     --crimson: #dd0e37;
     --crimson-ink: #ffffff;
@@ -165,12 +184,12 @@ export const shellThemeCss = `
     --orange-ink: #1b1f24;
     --teal: #1ac7c7;
     --teal-ink: #1b1f24;
-    --emerald: #51c878;
-    --emerald-ink: #1b1f24;
+    --emerald: #008a00;
+    --emerald-ink: #ffffff;
     --amber: #ffc929;
     --amber-ink: #1b1f24;
-    --steel: #7d92a6;
-    --steel-ink: #1b1f24;
+    --steel: #647687;
+    --steel-ink: #ffffff;
 
     --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
@@ -199,13 +218,122 @@ export const shellThemeCss = `
     box-sizing: border-box;
   }
 
-  .openspec-standalone-app,
   .openspec-extension-app {
     max-width: 980px;
     margin: 22px auto;
     padding: 18px;
     display: grid;
     gap: 14px;
+  }
+
+  /* The standalone shell is a page the width of the window: the bar across
+     the top and the footer span it, and the content sits in a 1180-pixel
+     column between them (the-shell-wears-the-site-frame, ADR 0033). */
+  .openspec-standalone-app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .openspec-page {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 20px 0;
+    display: grid;
+    gap: 20px;
+    align-content: start;
+  }
+
+  .openspec-app-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-app-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 1180px;
+    height: 56px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .openspec-app-bar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: auto;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-app-bar-brand .openspec-shell-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .openspec-app-bar-path {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-app-bar .openspec-theme-toggle {
+    margin-left: 0;
+  }
+
+  .openspec-page-head-tagline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--link);
+  }
+
+  .openspec-page-head h1 {
+    margin: 6px 0 4px;
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1.2;
+    color: var(--heading);
+  }
+
+  .openspec-page-head-sentence {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* The page grows to push the footer to the bottom of a short screen. */
+  .openspec-standalone-app > .openspec-page {
+    flex: 1 0 auto;
+  }
+
+  .openspec-app-footer {
+    margin-top: 28px;
+    background: var(--bg-accent);
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-app-footer-inner {
+    display: flex;
+    align-items: center;
+    max-width: 1180px;
+    min-height: 56px;
+    margin: 0 auto;
+    padding: 0 20px;
+    font-size: 13px;
+    color: var(--muted);
   }
 
   /* A heading is not a card. It gets a rule under it and nothing
@@ -311,37 +439,41 @@ export const shellThemeCss = `
     }
   }
 
+  /* One row of tabs over a rule, the one you are on underlined in the
+     site's red (the-shell-wears-the-site-frame, ADR 0033). It still wraps
+     on a narrow window rather than scrolling sideways. */
   .openspec-page-tabs {
     display: flex;
-    gap: 6px;
     flex-wrap: wrap;
-    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
   }
 
-  /* A navigation strip, not a row of buttons: the resting tab is
-     plain text and the accent marks only the one you are on. */
   .openspec-page-tabs button {
     position: relative;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
+    margin-bottom: -1px;
+    padding: 8px 16px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
     background: transparent;
-    color: var(--muted);
-    padding: 6px 10px;
+    color: var(--ink);
     font: inherit;
-    font-weight: 500;
+    font-size: 14px;
     cursor: pointer;
   }
 
   .openspec-page-tabs button:hover {
-    background: var(--surface-2);
-    color: var(--ink);
+    color: var(--heading);
+  }
+
+  .openspec-page-tabs button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
   }
 
   .openspec-page-tabs button.is-active {
-    background: var(--primary-bg);
-    color: var(--primary);
-    border-color: var(--line);
-    font-weight: 600;
+    border-bottom-color: var(--tab-accent);
+    color: var(--heading);
   }
 
   .openspec-page-tab-panel {
@@ -722,13 +854,121 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
-  .openspec-shell-version-footer {
-    margin-top: 24px;
-    padding-top: 12px;
+  /* The shared components of ADR 0033 (the-shell-wears-the-site-frame 3.1),
+     drawn from tokens only, for the screens redrawn after the frame. */
+  .openspec-panel {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-panel-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-panel-body {
+    padding: 16px;
+  }
+
+  .openspec-panel-fine {
+    margin: 0;
+    padding: 10px 16px 12px;
     border-top: 1px solid var(--line);
-    color: var(--muted);
     font-size: 12px;
-    text-align: center;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+
+  .openspec-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--ink);
+  }
+
+  .openspec-table th {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--muted);
+  }
+
+  .openspec-table td {
+    padding: 11px 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-table tbody tr:hover td {
+    background: var(--surface-2);
+  }
+
+  .openspec-segmented {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+  }
+
+  .openspec-segmented > button {
+    padding: 6px 12px;
+    border: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .openspec-segmented > button + button {
+    border-left: 1px solid var(--line-strong);
+  }
+
+  .openspec-segmented > button:hover {
+    background: var(--surface-3);
+    color: var(--heading);
+  }
+
+  .openspec-segmented > button[aria-pressed="true"] {
+    background: var(--primary);
+    color: var(--primary-ink);
+  }
+
+  .openspec-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--warn);
+    border-radius: var(--radius);
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 13px;
+    line-height: 1.55;
   }
 
   .openspec-ai-panel {
@@ -1546,53 +1786,75 @@ export const shellThemeCss = `
      (the-web-ui-screens-wear-metro 3.1): a coloured block holding an icon,
      then the label and the number. Wrapping rather than a fixed row, so a
      narrow window stacks them instead of scrolling. */
+  /* The site's KPI tile (the-shell-wears-the-site-frame 3.2): a coloured
+     block the height of the tile holding the icon, then the label and a
+     large figure. Each tile takes the next of the site's hues. */
   .openspec-overview-tiles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 16px;
     margin: 0 0 16px;
     padding: 0;
     list-style: none;
   }
 
-  .openspec-overview-tile {
+  .openspec-overview-tile,
+  .openspec-tile {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 10rem;
-    padding: 8px 12px 8px 8px;
+    align-items: stretch;
+    min-height: 96px;
+    overflow: hidden;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
   }
 
-  .openspec-overview-tile-icon {
+  .openspec-overview-tile-icon,
+  .openspec-tile-icon {
     display: flex;
+    flex: none;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: var(--radius-sm);
-    background: var(--primary-bg);
-    color: var(--primary);
-    font-size: 16px;
+    width: 84px;
+    background: var(--cobalt);
+    color: var(--cobalt-ink);
+    font-size: 34px;
   }
 
-  .openspec-overview-tile-text {
+  .openspec-overview-tile:nth-child(2) .openspec-overview-tile-icon { background: var(--steel); color: var(--steel-ink); }
+  .openspec-overview-tile:nth-child(3) .openspec-overview-tile-icon { background: var(--indigo); color: var(--indigo-ink); }
+  .openspec-overview-tile:nth-child(4) .openspec-overview-tile-icon { background: var(--emerald); color: var(--emerald-ink); }
+
+  .openspec-overview-tile-text,
+  .openspec-tile-text {
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 14px;
   }
 
-  .openspec-overview-tile-label {
-    font-size: 11px;
+  .openspec-overview-tile-label,
+  .openspec-tile-label {
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--muted);
   }
 
-  .openspec-overview-tile-value {
-    font-size: 18px;
-    line-height: 1.2;
+  .openspec-overview-tile-value,
+  .openspec-tile-value {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .openspec-tile-note {
+    font-size: 12px;
+    color: var(--muted);
   }
 
   /* Several changes over one axis of days (the-web-ui-screens-wear-metro
@@ -2259,6 +2521,12 @@ export const vscodeThemeCss = `
     --bad-bg: var(--vscode-inputValidation-errorBackground, transparent);
     --line-strong: var(--vscode-contrastBorder, var(--vscode-input-border, var(--vscode-panel-border, transparent)));
     --radius-sm: 2px;
+    /* the-shell-wears-the-site-frame 1.3: a title in the editor's own
+       foreground, a link in its link colour, and the current tab's mark in
+       the colour VS Code marks its own active tab with. */
+    --heading: var(--vscode-foreground, var(--vscode-editor-foreground));
+    --link: var(--vscode-textLink-foreground, var(--vscode-foreground));
+    --tab-accent: var(--vscode-tab-activeBorderTop, var(--vscode-focusBorder));
 
     /* The hue-and-ink pairs declared in shellThemeCss (3.1), mapped to the
        editor's own chart colours rather than repainted with ours (ADR 0023

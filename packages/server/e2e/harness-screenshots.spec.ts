@@ -134,7 +134,7 @@ test.describe("standalone harness screenshots", () => {
       // 2. The change's own settings, in the Change Editor, where the
       // change is. Loaded from the file written above, with no name typed.
       await page.getByRole("tab", { name: "Change Editor" }).click();
-      await page.locator("section", { has: page.getByRole("heading", { name: "Change Editor" }) })
+      await page.getByTestId("page-tab-panel-change-editor")
         .getByRole("combobox")
         .first()
         .selectOption(CHANGE_NAME);

@@ -246,7 +246,7 @@ test("draws the declared order, and passes axe", async ({ page }) => {
 
   await writeRunInOtherDirectory();
   await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
-  await expect(page.getByRole("heading", { name: "OpenSpec UI", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("app-bar")).toBeVisible();
   await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
 
   await page.getByRole("tab", { name: "Pipeline" }).click();

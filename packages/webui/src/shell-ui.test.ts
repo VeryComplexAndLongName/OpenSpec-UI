@@ -155,6 +155,42 @@ describe("shell themes", () => {
         expect(shellThemeCss).not.toMatch(/(?<![a-z-])width: var\(--w-name\)/);
     });
 
+    it("declares the site's heading, link and tab accent in every layer, and a muted text that passes AA", () => {
+        // the-shell-wears-the-site-frame 1.4. The site's own subtle grey
+        // read 3.85:1 on its page; the shell's --muted has to pass on the
+        // page and on a panel, in both themes.
+        for (const token of ["--heading", "--link", "--tab-accent"]) {
+            expect(rootTokens(shellThemeCss)).toContain(token);
+            expect(darkTokens(shellThemeCss)).toContain(token);
+            expect(rootTokens(vscodeThemeCss)).toContain(token);
+        }
+        const lightOpen = shellThemeCss.indexOf("{", shellThemeCss.indexOf(":root"));
+        const light = colorTokensOf(shellThemeCss.slice(lightOpen + 1, shellThemeCss.indexOf("}", lightOpen)));
+        const darkOpen = shellThemeCss.indexOf("{", shellThemeCss.indexOf(DARK_PALETTE));
+        const dark = colorTokensOf(shellThemeCss.slice(darkOpen + 1, shellThemeCss.indexOf("}", darkOpen)));
+        for (const palette of [light, dark]) {
+            for (const ground of ["--bg", "--surface"]) {
+                expect(contrastRatio(palette.get("--muted") as string, palette.get(ground) as string)).toBeGreaterThanOrEqual(4.5);
+                expect(contrastRatio(palette.get("--link") as string, palette.get(ground) as string)).toBeGreaterThanOrEqual(4.5);
+            }
+        }
+    });
+
+    it("draws the frame and the shared components, from tokens", () => {
+        // the-shell-wears-the-site-frame 2.7 and 3.3. The literal-colour test
+        // above covers every rule; this names the ones ADR 0033's screens
+        // compose, so a removed one fails here rather than in a picture.
+        for (const selector of [
+            ".openspec-app-bar {", ".openspec-page {", ".openspec-page-head h1 {", ".openspec-page-tabs button.is-active {", ".openspec-app-footer {",
+            ".openspec-panel {", ".openspec-panel-head {", ".openspec-panel-body {", ".openspec-panel-fine {",
+            ".openspec-table {", ".openspec-segmented {", ".openspec-controls {", ".openspec-notice {",
+        ]) {
+            expect(shellThemeCss, selector).toContain(selector);
+        }
+        const active = shellThemeCss.slice(shellThemeCss.indexOf(".openspec-page-tabs button.is-active {"));
+        expect(active.slice(0, active.indexOf("}"))).toContain("border-bottom-color: var(--tab-accent)");
+    });
+
     it("meets WCAG AA on every declared hue-and-ink pair, in both themes", () => {
         // the-web-ui-wears-more-metro 3.1/3.2. A hue-and-ink pair is read
         // out of the stylesheet by naming convention (`--x` and `--x-ink`),
