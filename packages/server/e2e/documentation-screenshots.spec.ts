@@ -137,13 +137,13 @@ test.describe("standalone documentation screenshots", () => {
       // 2. The summary. Loading it shells out to the `openspec` CLI, the
       // same call standalone.spec.ts waits 15s for on a loaded runner.
       await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
-      await page.getByRole("button", { name: "Load summary" }).click();
+      await page.getByTestId("summary-refresh").click();
       await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME, { timeout: 20000 });
       // Waited for after the content arrives: the button says "Loading..."
       // until the last of the three CLI calls returns, and a picture
       // taken before then shows a loaded screen with a busy control on
       // it.
-      await expect(page.getByRole("button", { name: "Load summary" })).toBeEnabled({ timeout: 20000 });
+      await expect(page.getByTestId("summary-refresh")).toBeEnabled({ timeout: 20000 });
       await page.getByTestId("page-tab-panel-overview")
         .screenshot({
           // Same reason as above: the summary's meta line prints the
@@ -151,7 +151,7 @@ test.describe("standalone documentation screenshots", () => {
           // counts beside it are what the line is for — and it is the
           // first `strong` in that paragraph.
           path: path.join(IMAGES_DIR, "view-summary.png"),
-          mask: [page.getByTestId("openspec-overview").locator("p.openspec-overview-meta strong").first()],
+          mask: [page.getByTestId("openspec-overview").locator(".openspec-overview-meta strong").first()],
           maskColor: MASK_COLOR,
         });
 

@@ -10,22 +10,28 @@ const changes: ChangeSummary[] = [
 ];
 
 describe("ChangesList", () => {
+  // the-summary-looks-like-the-mockup 2.3: "done / total" beside a bar named
+  // by its percentage, as the mockup's rows draw progress.
   it("renders each change with its derived state label and progress", () => {
     render(<ChangesList changes={changes} />);
 
     expect(screen.getByTestId("change-execution-core")).toHaveTextContent("Implemented");
-    expect(screen.getByTestId("change-execution-core")).toHaveTextContent("20/20 (100%)");
+    expect(screen.getByTestId("change-execution-core")).toHaveTextContent("20 / 20");
     expect(screen.getByTestId("change-shared-ui")).toHaveTextContent("In progress");
-    expect(screen.getByTestId("change-shared-ui")).toHaveTextContent("4/17 (24%)");
+    expect(screen.getByTestId("change-shared-ui")).toHaveTextContent("4 / 17");
     expect(screen.getByTestId("change-vscode-extension")).toHaveTextContent("Draft");
-    expect(screen.getByTestId("change-vscode-extension")).toHaveTextContent("0/16 (0%)");
+    expect(screen.getByTestId("change-vscode-extension")).toHaveTextContent("0 / 16");
+    expect(screen.getByRole("img", { name: "24% done" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "100% done" })).toBeInTheDocument();
   });
 
-  it("renders lastModified when present", () => {
+  it("renders lastModified when present, as a day with the full time kept", () => {
     render(<ChangesList changes={changes} />);
 
     const time = screen.getByTestId("change-execution-core").querySelector("time");
     expect(time).toHaveAttribute("datetime", "2026-08-03T08:35:35.471Z");
+    expect(time).toHaveAttribute("title", "2026-08-03T08:35:35.471Z");
+    expect(time?.textContent).toMatch(/^\d{1,2} Aug$/u);
     expect(screen.getByTestId("change-shared-ui").querySelector("time")).not.toBeInTheDocument();
   });
 

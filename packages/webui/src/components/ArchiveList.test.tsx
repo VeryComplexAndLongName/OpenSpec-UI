@@ -47,12 +47,19 @@ describe("ArchiveList", () => {
     expect(items).toHaveLength(2);
   });
 
-  it("renders task progress with a percentage", () => {
+  // the-summary-looks-like-the-mockup 2.3: "done / total" and the day the
+  // change was archived, as the "Recently archived" panel draws them — no
+  // bar, which in a half-width panel ran into the day.
+  it("renders task progress as done / total with no bar, and the day", () => {
     const partial: ChangeSummary[] = [
-      { name: "shared-ui", state: "archived", completedTasks: 4, totalTasks: 17, lastModified: "2026-08-01T00:00:00.000Z" },
+      { name: "2026-09-16-shared-ui", state: "archived", completedTasks: 4, totalTasks: 17, lastModified: "2026-08-01T00:00:00.000Z" },
     ];
     render(<ArchiveList changes={partial} />);
-    expect(screen.getByTestId("archive-shared-ui")).toHaveTextContent("4/17 (24%)");
+    expect(screen.getByTestId("archive-2026-09-16-shared-ui")).toHaveTextContent(/^shared-ui/u);
+    expect(screen.getByTitle("2026-09-16-shared-ui")).toBeInTheDocument();
+    expect(screen.getByTestId("archive-2026-09-16-shared-ui")).toHaveTextContent("4 / 17");
+    expect(screen.getByTestId("archive-2026-09-16-shared-ui")).toHaveTextContent("16 Sep");
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("wraps the list in a height-bounded, scrollable container", () => {
