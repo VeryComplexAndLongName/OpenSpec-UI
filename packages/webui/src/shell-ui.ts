@@ -1800,13 +1800,6 @@ export const shellThemeCss = `
     font-size: calc(0.75rem * var(--pipeline-zoom, 1));
   }
 
-  /* Inside the row the name gives way to the icon and ends in an ellipsis,
-     rather than keeping its full width and wrapping below it. */
-  .openspec-pipeline-node-open > .openspec-pipeline-node-name {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
   /* A card's controls, in the row core subtracts from its lines. */
   .openspec-pipeline-node-controls {
     display: flex;
@@ -1997,6 +1990,15 @@ export const shellThemeCss = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Inside the open control's row the name gives way to the icon and ends
+     in an ellipsis, rather than keeping its full width and wrapping below
+     it. After the rule above, which pipeline-card-style.test.ts reads as the
+     name's own. */
+  .openspec-pipeline-node-open > .openspec-pipeline-node-name {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .openspec-pipeline-node-state {
