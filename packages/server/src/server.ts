@@ -20,6 +20,7 @@ import {
 import {
   handleAgentsDetectRequest,
   handleArchiveTasksTemplateRequest,
+  handleChangeDiffRequest,
   handleChangeEditorCreateRequest,
   handleChangeEditorReadRequest,
   handleChangeEditorSaveRequest,
@@ -212,6 +213,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-editor/archive-tasks-template") {
       void handleArchiveTasksTemplateRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-diff") {
+      void handleChangeDiffRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-timeline") {

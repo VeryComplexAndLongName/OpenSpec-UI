@@ -24,6 +24,7 @@ import {
   getArchivedChangeSummaries,
   getChangeTimeline,
   getChangeTimelines,
+  readChangeDiff,
   InvalidChangeNameError,
   InvalidHarnessConfigError,
   initOpenSpec,
@@ -569,6 +570,41 @@ export async function handleArchiveTasksTemplateRequest(req: IncomingMessage, re
     }
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read archived tasks template: ${message}` });
+  }
+}
+
+/** A change's uncommitted work, as git reports it, for Diff Preview
+ * (a-screen-says-what-it-is-doing). Read in core; a refusal carries core's
+ * own sentence, which the tab shows as it is. */
+export async function handleChangeDiffRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isChangeEditorReadRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain cwd and valid changeName" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const result = await readChangeDiff(parsed.cwd, parsed.changeName);
+    if (result.kind === "not-active") {
+      sendJson(res, 404, { error: result.message });
+      return;
+    }
+    if (result.kind === "not-a-repository") {
+      sendJson(res, 409, { error: result.message });
+      return;
+    }
+    sendJson(res, 200, { diff: result.diff, files: result.files, truncated: result.truncated, maxBytes: result.maxBytes });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read the change's diff: ${message}` });
   }
 }
 

@@ -246,6 +246,71 @@ export const shellThemeCss = `
     flex: none;
   }
 
+  /* The theme control is a switch (a-screen-says-what-it-is-doing 4.2): the
+     knob slides to the right when the theme is dark, and carries a sun or a
+     moon, so the state is seen without reading the unchanged label. */
+  .openspec-theme-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .openspec-theme-switch:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .openspec-theme-switch-track {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    border: 1px solid var(--line-strong);
+    border-radius: 11px;
+    background: var(--surface-2);
+    box-sizing: border-box;
+    transition: background-color 0.2s ease;
+  }
+
+  .openspec-theme-switch[aria-checked="true"] .openspec-theme-switch-track {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .openspec-theme-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    transition: transform 0.2s ease;
+  }
+
+  .openspec-theme-switch[aria-checked="true"] .openspec-theme-switch-knob {
+    transform: translateX(18px);
+    color: var(--primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .openspec-theme-switch-track,
+    .openspec-theme-switch-knob {
+      transition: none;
+    }
+  }
+
   .openspec-page-tabs {
     display: flex;
     gap: 6px;
@@ -285,6 +350,104 @@ export const shellThemeCss = `
 
   .openspec-page-tab-panel[hidden] {
     display: none;
+  }
+
+  /* A tab that is reading (a-screen-says-what-it-is-doing): a moving bar, a
+     spinner, the sentence and, past three seconds, the elapsed seconds. The
+     third screen of the redesign mockup the owner approved. */
+  .openspec-panel-status {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+
+  .openspec-panel-status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    overflow: hidden;
+    background: var(--line);
+  }
+
+  .openspec-panel-status-bar > span {
+    position: absolute;
+    top: 0;
+    left: -35%;
+    width: 35%;
+    height: 100%;
+    background: var(--primary);
+    animation: openspec-reading-slide 1.4s ease-in-out infinite;
+  }
+
+  .openspec-panel-status-spinner,
+  .openspec-tab-spinner {
+    display: inline-block;
+    flex: none;
+    box-sizing: border-box;
+    border: 2px solid var(--line);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: openspec-reading-spin 0.9s linear infinite;
+  }
+
+  .openspec-panel-status-spinner {
+    width: 16px;
+    height: 16px;
+  }
+
+  .openspec-tab-spinner {
+    width: 10px;
+    height: 10px;
+    margin-left: 8px;
+    vertical-align: -1px;
+  }
+
+  .openspec-panel-status-text {
+    margin: 0;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .openspec-panel-status-elapsed {
+    margin-left: auto;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Holds a tab's controls while it reads, and otherwise lays nothing out. */
+  .openspec-busy-fieldset {
+    display: contents;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  @keyframes openspec-reading-slide {
+    from { left: -35%; }
+    to { left: 100%; }
+  }
+
+  @keyframes openspec-reading-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Still for a person who asks for less motion: the sentence alone says the
+     tab is reading. */
+  @media (prefers-reduced-motion: reduce) {
+    .openspec-panel-status-bar > span,
+    .openspec-panel-status-spinner,
+    .openspec-tab-spinner {
+      animation: none;
+    }
   }
 
   /* Border and fill separate a panel. No shadow: it does not overlay
@@ -1010,13 +1173,20 @@ export const shellThemeCss = `
   .openspec-diff-body {
     margin: 0;
     padding: 10px;
+    max-height: 70vh;
+    overflow: auto;
     background: var(--surface);
     font-family: Consolas, "Courier New", monospace;
     font-size: 12px;
   }
 
+  .openspec-diff-line { white-space: pre; }
   .openspec-diff-line--added { color: var(--good); }
   .openspec-diff-line--removed { color: var(--bad); }
+  /* A file's header lines and a hunk's range: what the lines below belong
+     to, not a change of their own (a-screen-says-what-it-is-doing 2.2). */
+  .openspec-diff-line--meta { color: var(--muted); font-weight: 600; }
+  .openspec-diff-line--hunk { color: var(--muted); }
 
   .openspec-overview {
     display: grid;

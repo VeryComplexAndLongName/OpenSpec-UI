@@ -50,6 +50,7 @@ export * from "./delegated-item-run.js";
 export * from "./scheduled-runs.js";
 export * from "./scheduled-runs-file.js";
 export * from "./change-timeline.js";
+export * from "./change-diff.js";
 export * from "./change-charts.js";
 export * from "./task-checklist-counts.js";
 export * from "./audit-runs.js";

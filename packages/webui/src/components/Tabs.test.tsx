@@ -17,6 +17,19 @@ describe("Tabs", () => {
     expect(screen.getByTestId("page-tab-processes")).toHaveClass("is-active");
   });
 
+  // a-screen-says-what-it-is-doing 3.8
+  it("draws a spinner on a busy tab only, and leaves every tab's name as it was", () => {
+    const { rerender } = render(<Tabs tabs={tabs} activeTab="run-a-command" onSelect={vi.fn()} />);
+    const namesBefore = screen.getAllByRole("tab").map((tab) => tab.textContent);
+
+    rerender(<Tabs tabs={tabs} activeTab="run-a-command" onSelect={vi.fn()} busy={new Set(["processes"])} />);
+
+    expect(screen.getByTestId("page-tab-spinner-processes")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("page-tab-spinner-run-a-command")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Processes and Recovery" })).toBe(screen.getByTestId("page-tab-processes"));
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(namesBefore);
+  });
+
   it("calls onSelect with the clicked tab id", () => {
     const onSelect = vi.fn();
     render(<Tabs tabs={tabs} activeTab="run-a-command" onSelect={onSelect} />);

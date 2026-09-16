@@ -135,7 +135,15 @@ export interface PipelineViewProps {
   /** Asks a run held elsewhere to stop, through the signed channel, with the
    * host's own key. Absent, no card offers it. */
   onAskToStop?: (request: AskToStop) => void;
+  /** `PIPELINE_FIRST_READING` until the first report returns, then `null`
+   * for good: the shell draws a spinner on the tab while it is anything
+   * else (a-screen-says-what-it-is-doing). A later poll does not report,
+   * or the tab would blink every ten seconds. */
+  onReadingChange?: (reading: string | null) => void;
 }
+
+/** What the Pipeline says while its first report has not returned. */
+export const PIPELINE_FIRST_READING = "Reading what is running…";
 
 /** The zoom steps the picture offers, as factors of its unit. */
 export const PIPELINE_ZOOM_STEPS: readonly number[] = [0.75, 0.9, 1, 1.25, 1.5];
@@ -316,6 +324,7 @@ export function PipelineView({
   copyText,
   viewState,
   onAskToStop,
+  onReadingChange,
 }: PipelineViewProps) {
   const local = usePolledReading(load, isActive, PIPELINE_POLL_INTERVAL_MS, { name: "readiness", subscribe });
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -371,6 +380,10 @@ export function PipelineView({
   }
 
   const report = local.value;
+  // Only the first reading: once a report has arrived it stays on screen
+  // through every later poll, so there is nothing to wait for.
+  const firstReading = report === undefined && local.error === undefined ? PIPELINE_FIRST_READING : null;
+  useEffect(() => { onReadingChange?.(firstReading); }, [firstReading, onReadingChange]);
   const here = others.value?.directories.find((directory) => directory.isThis);
   const labels = new Map((others.value?.directories ?? []).map((directory) => [directory.path, directory.label]));
   // One card per change, derived in core from the three readings; this
@@ -449,7 +462,7 @@ export function PipelineView({
         : null}
       {report === undefined
         ? (local.error === undefined
-          ? <p className="openspec-shell-note" data-testid="pipeline-loading">Reading what is running…</p>
+          ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
           : null)
         : (
           <>

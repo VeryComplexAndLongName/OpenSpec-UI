@@ -104,3 +104,21 @@ describe("ProcessesView", () => {
     expect(await screen.findByText("Waiting for: a CI run to finish")).toBeInTheDocument();
   });
 });
+// a-screen-says-what-it-is-doing 3.14
+describe("ProcessesView — says what it is reading", () => {
+  it("reports its reading while the list loads, and null once it has returned", async () => {
+    type Listed = Awaited<ReturnType<ProcessesApi["list"]>>;
+    let answer: (value: Listed) => void = () => undefined;
+    const api: ProcessesApi = { ...createApi(), list: vi.fn(() => new Promise<Listed>((resolve) => { answer = resolve; })) };
+    const onReadingChange = vi.fn();
+    render(<ProcessesView api={api} onReadingChange={onReadingChange} />);
+
+    await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith("Reading persisted runs…"));
+    expect(screen.getByRole("button", { name: "Clean old history" })).toBeDisabled();
+
+    answer([]);
+
+    await waitFor(() => expect(onReadingChange).toHaveBeenLastCalledWith(null));
+    expect(screen.getByRole("button", { name: "Clean old history" })).toBeEnabled();
+  });
+});

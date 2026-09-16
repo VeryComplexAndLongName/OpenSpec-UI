@@ -26,9 +26,15 @@ older than the Metro work.
   `POST /api/change-diff`, returns what git reports for a chosen change's own
   folder, and the tab lets a person pick among the active changes. A change
   with nothing uncommitted says so in words.
-- **A tab that fetches on its first mount says it is working.** One shared
-  line, `role="status"`, from the moment the panel mounts until its first
-  reading settles or fails.
+- **A tab that is reading says so, visibly, and holds its controls.** While a
+  tab reads — on opening, or from one of its own buttons — it shows a moving
+  bar and a spinner beside one `role="status"` sentence naming what it
+  reads, with the seconds elapsed once the wait is noticeable; its controls
+  are disabled; and its label in the tab row carries a small spinner, so a
+  tab left while it reads still shows it is busy. The owner reviewed this as
+  the third screen of the redesign mockup on 2026-09-16 and approved it; an
+  earlier draft of this change had rejected a spinner, and that decision is
+  reversed below.
 - **The theme control becomes a switch.** Its visible label stays "Dark
   theme", its state is carried by `role="switch"` and `aria-checked`, and an
   icon changes with it, so the two states are visible as well as announced.
@@ -51,10 +57,15 @@ None.
 - **`packages/server`**: `src/rest.ts` gains `handleChangeDiffRequest`, and
   `src/server.ts` routes `POST /api/change-diff` to it, token-gated like
   every other route.
-- **`packages/core`**: nothing new. `GitWrapper.diff(pathspec)` already
-  returns what the route needs.
+- **`packages/core`**: `src/change-diff.ts` (new), `readChangeDiff`. A
+  plain `git diff` shows only unstaged edits, so a change's new files and
+  staged work need their own reading.
 - **`packages/webui`**: `src/change-diff-client.ts` (new),
   `src/components/ChangeDiff.tsx` (renders a unified diff),
-  `src/components/PanelStatus.tsx` (new), `src/components/ThemeToggle.tsx`,
-  and the tabs in `src/standalone-entry.tsx`.
+  `src/tab-readings.ts` (new), `src/components/PanelStatus.tsx` (new),
+  `src/components/BusyFieldset.tsx` (new), `src/components/Tabs.tsx`,
+  `src/components/ProcessesView.tsx`,
+  `src/components/GlobalHarnessSettingsView.tsx`,
+  `src/components/PipelineView.tsx`, `src/components/ThemeToggle.tsx`,
+  `src/shell-ui.ts`, and the tabs in `src/standalone-entry.tsx`.
 - **`packages/extension`**: nothing but the bundles it rebuilds.

@@ -13,10 +13,19 @@ SHALL keep its mounted state for the rest of the session (including its
 in-progress state), matching the behavior of a tab that was never
 deferred.
 
-A tab whose content starts a reading when it mounts SHALL say so, from the
-moment it mounts until that reading settles or fails. The sentence SHALL name
-what is being read, and SHALL be exposed as a status message rather than
-taking focus. A tab that starts no reading SHALL say nothing.
+A tab that is reading — on opening, or from one of its own controls, or
+because the list it offers has not yet been read — SHALL say so until that
+reading settles or fails. It SHALL show a moving indicator and one sentence
+naming what is being read, exposed as a status message rather than taking
+focus, and SHALL show how long the reading has taken once it passes a few
+seconds. Its controls SHALL be unavailable while it reads. Its label in the
+tab row SHALL show that it is reading, whichever tab is open, without
+changing the label's accessible name. Where the person prefers reduced
+motion, the indicators SHALL stand still and the sentence SHALL remain. A
+tab that is not reading SHALL show none of this.
+
+A run in progress is not a reading: its own controls, such as the one that
+cancels it, SHALL stay available.
 
 #### Scenario: User switches from Change Editor to Run a Command
 
@@ -43,8 +52,28 @@ taking focus. A tab that starts no reading SHALL say nothing.
 
 - **WHEN** the user opens a tab that reads on mount and the reading has not
   returned
-- **THEN** the tab shows one status message naming what it is reading, and
-  the message goes when the reading settles or fails
+- **THEN** the tab shows a moving indicator and one status message naming
+  what it is reading, its controls are unavailable, and its label in the
+  tab row shows it is reading
+- **AND** all of that goes when the reading settles or fails
+
+#### Scenario: A tab left while it reads
+
+- **WHEN** the user opens a tab whose reading is slow and switches to
+  another tab before it returns
+- **THEN** the first tab's label still shows that it is reading, until the
+  reading settles or fails
+
+#### Scenario: A person who prefers reduced motion
+
+- **WHEN** a tab reads for a person whose system asks for reduced motion
+- **THEN** the indicators do not move, and the sentence still names the
+  reading
+
+#### Scenario: A run in progress
+
+- **WHEN** a command is running in Run a Command
+- **THEN** that tab's control to cancel the run stays available
 
 ## ADDED Requirements
 
