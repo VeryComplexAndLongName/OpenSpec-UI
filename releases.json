@@ -1,35 +1,43 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-15T16:13:34.569Z",
+  "generated_at": "2026-09-16T09:48:22.976Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "83912d5ee11da111531bac1a6509bf590305b81f",
+  "commit": "2cdf607a77bcbf8a9d27902f120541d51184e0a5",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.58.2",
-      "released_at": "2026-09-15T16:13:34.569Z",
-      "tag": "openspec-ui-vscode@0.58.2",
+      "version": "0.59.0",
+      "released_at": "2026-09-16T09:48:22.976Z",
+      "tag": "openspec-ui-vscode@0.59.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.58.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.58.2/openspec-ui-vscode-0.58.2.vsix",
-          "size_bytes": 6588812
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.0/openspec-ui-vscode-0.59.0.vsix",
+          "size_bytes": 6614571
         }
       ],
       "changes": [
         {
+          "kind": "minor",
+          "summary": "The Pipeline panel keeps answering while the Agentic Harness runs a chain."
+        },
+        {
           "kind": "patch",
-          "summary": "Artifact labels in the Changes tree read better with custom OpenSpec schemas."
+          "summary": "The web UI's screens use what ADR 0032 brought in. Harness Settings is a set"
+        },
+        {
+          "kind": "patch",
+          "summary": "The web UI's copy of Metro UI now carries panels, cards, badges and Metro's"
         }
       ]
     },
@@ -39,7 +47,7 @@
       "package": "@openspec-ui/server",
       "public": true,
       "version": "1.26.5",
-      "released_at": "2026-09-15T16:13:34.569Z",
+      "released_at": "2026-09-16T09:48:22.976Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -55,7 +63,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.90.0",
-      "released_at": "2026-09-15T16:13:34.569Z",
+      "released_at": "2026-09-16T09:48:22.976Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -75,15 +83,28 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.49.3",
-      "released_at": "2026-09-15T16:13:34.569Z",
+      "version": "1.50.0",
+      "released_at": "2026-09-16T09:48:22.976Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline panel keeps answering while the Agentic Harness runs a chain."
+        },
+        {
+          "kind": "minor",
+          "summary": "The web UI's screens use what ADR 0032 brought in. Harness Settings is a set"
+        },
+        {
+          "kind": "minor",
+          "summary": "The web UI's copy of Metro UI now carries panels, cards, badges and Metro's"
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -91,7 +112,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-15T16:13:34.569Z",
+      "released_at": "2026-09-16T09:48:22.976Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
