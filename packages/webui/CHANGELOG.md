@@ -1,5 +1,21 @@
 # @openspec-ui/webui
 
+## 1.52.1
+
+### Patch Changes
+
+- a359373: Metro now draws the parts of a panel and a timeline that the screens name. A
+  panel's title has its icon slot and its caption padding, so an icon no longer
+  touches the border, and a timeline has its time and text columns. The derived
+  Metro copy had dropped those rules, so the screens looked as they did before.
+- 5a84e07: The icons the redesigned screens promised now show. The icon stylesheet was
+  generated but never carried into the page, so every icon rendered as an
+  empty, zero-width span — in the standalone shell and in every webview. Each
+  screen that draws Metro now carries it, and an icon keeps a small gap from
+  the word beside it.
+- Updated dependencies [69e1644]
+  - @openspec-ui/core@0.90.1
+
 ## 1.52.0
 
 ### Minor Changes

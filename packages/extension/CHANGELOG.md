@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.59.3
+
+### Patch Changes
+
+- a359373: Metro now draws the parts of a panel and a timeline that the screens name. A
+  panel's title has its icon slot and its caption padding, so an icon no longer
+  touches the border, and a timeline has its time and text columns. The derived
+  Metro copy had dropped those rules, so the screens looked as they did before.
+- 69e1644: The OpenSpec view summary opens in a few seconds instead of minutes. For
+  every archived change it used to read the whole workspace again, all at once:
+  on a repository with 250 archived changes that step took 157 seconds, held
+  several cores and could run out of file handles. It now summarises every
+  archived change from the one reading the request already made, in about
+  100 ms there, with the same counts.
+- 5a84e07: The icons the redesigned screens promised now show. The icon stylesheet was
+  generated but never carried into the page, so every icon rendered as an
+  empty, zero-width span — in the standalone shell and in every webview. Each
+  screen that draws Metro now carries it, and an icon keeps a small gap from
+  the word beside it.
+- Updated dependencies [a359373]
+- Updated dependencies [69e1644]
+- Updated dependencies [5a84e07]
+  - @openspec-ui/webui@1.52.1
+  - @openspec-ui/core@0.90.1
+  - @openspec-ui/server@1.27.1
+
 ## 0.59.2
 
 ### Patch Changes
