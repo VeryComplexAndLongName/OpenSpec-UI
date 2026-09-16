@@ -1,5 +1,30 @@
 # @openspec-ui/webui
 
+## 1.50.0
+
+### Minor Changes
+
+- 324ed92: The Pipeline panel keeps answering while the Agentic Harness runs a chain.
+  With the optional local server enabled, the panel now shows the standalone
+  shell's Pipeline tab, so the cards are read by the server's process instead of
+  the editor's, which is busy running the chain. Opening a change from a card
+  still opens it in the editor, and Stop still goes through the same signed
+  route. With the server disabled, the panel works exactly as before.
+- 902599d: The web UI's screens use what ADR 0032 brought in. Harness Settings is a set
+  of panels, each with its name and an icon in the title. A change's history
+  reads as a timeline, and several changes read as one picture over a single
+  axis of days rather than a log-scaled lane. The summary shows tiles with an
+  icon, a change's state word is a badge, and repeated actions carry an icon
+  before their label.
+- 902599d: The web UI's copy of Metro UI now carries panels, cards, badges and Metro's
+  timeline, with every one of their variables mapped to the editor's own theme
+  for the VS Code panels (ADR 0032). Icons ship as a subset of the pinned Metro
+  icon set, inlined in the stylesheet, so a host that refuses another origin
+  still draws them, and a screen names what it means rather than a glyph.
+  
+  A hue that holds a label now declares the ink used on it, and a test computes
+  the contrast of every pair. No screen changes yet; the screens follow.
+
 ## 1.49.3
 
 ### Patch Changes
