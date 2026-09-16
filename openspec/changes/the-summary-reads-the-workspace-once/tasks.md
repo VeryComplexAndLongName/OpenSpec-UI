@@ -34,8 +34,11 @@
 
 ## 3. Checks
 
-- [ ] 3.1 `openspec validate the-summary-reads-the-workspace-once --strict`
+- [x] 3.1 `openspec validate the-summary-reads-the-workspace-once --strict`
   passes.
+
+  Done on 2026-09-16: "Change 'the-summary-reads-the-workspace-once' is
+  valid".
 - [x] 3.2 The overview's archived-summary step, timed on this repository
   before and after. Record both figures. Before: 156,919 ms for 250 archived
   changes, measured on 2026-09-16.
@@ -57,9 +60,25 @@
   `openspec-ui-vscode` patch.
 
   Done: `.changeset/the-summary-reads-the-workspace-once.md`.
-- [ ] 3.5 `lint:english` after `git add`, `lint:changesets`,
+- [x] 3.5 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets` and `lint:source-text` pass.
-- [ ] 3.6 The whole standalone browser suite passes. Record the count.
-- [ ] 3.7 A live check against the standalone server started on this
+
+  Done on 2026-09-16, after staging every file by name.
+- [x] 3.6 The whole standalone browser suite passes. Record the count.
+
+  Done on 2026-09-16: `npm run test:browser` in `packages/server`, 20 passed
+  in 4.8 minutes.
+- [x] 3.7 A live check against the standalone server started on this
   repository: open the OpenSpec view summary and record how long it takes to
   show its tiles.
+
+  Done on 2026-09-16 with Chromium against `npm run start -- C:\Prog\OpenSpec-UI
+  4317`: the tiles read Changes 3, Archived 250, Specs 16, and appeared 5,815
+  ms after the tab was clicked. Before this change the same tab had shown no
+  tiles after 25 s, with the server out of file handles.
+
+  Where the rest goes, timed on its own the same day: `listChanges` 1,793–2,226
+  ms and `listSpecs` 1,815–1,846 ms, each an OpenSpec CLI process, run side by
+  side with discovery (508–575 ms); the summaries 51–66 ms. The other reads
+  the tab starts when it opens make up the difference. The CLI listings are
+  not this change's to shorten.
