@@ -908,7 +908,7 @@ export const shellThemeCss = `
   }
 
   .openspec-table td {
-    padding: 11px 16px;
+    padding: 8px 16px;
     border-top: 1px solid var(--line);
   }
 
@@ -1448,53 +1448,323 @@ export const shellThemeCss = `
     font-size: 15px;
   }
 
-  /* Changes/Archive lists: always sit inside a bounded, scrollable
-     container (see openspec/changes/virtualize-change-lists/design.md)
-     so the search input above them never scrolls out of view, and so
-     windowed rendering above the size threshold has a fixed viewport to
-     window against. Row height matches useVirtualList's itemHeight
-     estimate (40px) so the estimated and real layout agree. */
-  .openspec-changes-list-scroll,
-  .openspec-archive-list-scroll {
-    border: 1px solid var(--line);
-    border-radius: 10px;
+  /* The summary as ADR 0033's mockup lays it out
+     (the-summary-looks-like-the-mockup): panels on the page, not inside one. */
+  .openspec-summary,
+  .openspec-overview {
+    display: grid;
+    gap: 20px;
   }
 
-  .openspec-changes-list li,
-  .openspec-archive-list li {
-    list-style: none;
-    height: 40px;
-    box-sizing: border-box;
+  /* The tiles are one row of the summary's grid, spaced by its gap alone. */
+  .openspec-summary .openspec-overview-tiles {
+    margin: 0;
   }
 
-  .openspec-changes-list li button,
-  .openspec-archive-list li button {
-    width: 100%;
-    height: 100%;
+  /* The schedule's announcement region stays in the page for a screen
+     reader, and takes no room while it has nothing to say: an empty grid
+     item still costs the page a gap, which pushed the tabs away from the
+     head. */
+  .openspec-page > [data-testid="schedule-status"]:empty {
+    margin-top: -20px;
+  }
+
+  .openspec-summary-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+
+  .openspec-page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .openspec-page-head-action {
+    flex: none;
+  }
+
+  /* A secondary action as the site draws one: white, a grey border, the
+     heading's ink. Metro's own grey fill is what made every button on the
+     page look like the next. */
+  .openspec-metro .button.openspec-button-quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--heading);
+  }
+
+  .openspec-metro .button.openspec-button-quiet:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+
+  .openspec-metro .button.openspec-button-small {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .openspec-panel-head-note {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* A panel with nothing to list says so, instead of a header over no rows. */
+  .openspec-panel-empty {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .openspec-panel-foot {
     display: flex;
     align-items: center;
-    gap: 10px;
-    text-align: left;
+    justify-content: space-between;
+    gap: 16px;
   }
 
-  /* Where a change stands (a-change-says-where-it-stands). The word is
-     always written; the colour is a border and a light tint that agree
-     with it, and the text keeps the theme's own colour. */
-  .openspec-change-standing {
-    padding: 1px 8px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: 12px;
+  .openspec-link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--link);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .openspec-link-button:hover {
+    text-decoration: underline;
+  }
+
+  .openspec-cell-number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
-  .openspec-change-standing-lines {
-    flex: 1 1 auto;
+  .openspec-table th.openspec-cell-number {
+    text-align: right;
+  }
+
+  .openspec-cell-muted {
+    color: var(--muted);
+  }
+
+  /* A search box in a panel's head, with its magnifier. */
+  .openspec-search {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: min(280px, 100%);
+    color: var(--muted);
+  }
+
+  /* Above the input, which is drawn after it and would paint over it. */
+  .openspec-search svg {
+    position: absolute;
+    left: 10px;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .openspec-metro .openspec-search input[type="search"] {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px 0 30px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--heading);
+    font-size: 13px;
+  }
+
+  .openspec-archive-list-search {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Rows as the mockup's tables draw them: a column header, then one row per
+     item, each a button with no browser fill. Changes/Archive lists sit in a
+     bounded, scrollable container (virtualize-change-lists) whose row height
+     matches useVirtualList's estimate: 44px, or 60px with a standing's
+     lines under the name. */
+  .openspec-change-columns {
+    display: grid;
+    /* The state column holds a standing's word too, and "Further along in
+       <branch>" is far longer than the mockup's "In progress". */
+    grid-template-columns: minmax(0, 1fr) 220px 220px 90px;
+    align-items: center;
+  }
+
+  .openspec-archive-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 100px 100px;
+    align-items: center;
+  }
+
+  .openspec-rows-head {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .openspec-rows-head > span {
+    padding: 8px 16px;
+  }
+
+  .openspec-row-end {
+    text-align: right;
+  }
+
+  .openspec-rows {
+    margin: 0;
+    padding: 0;
+  }
+
+  .openspec-rows li {
+    list-style: none;
+    height: 44px;
+    box-sizing: border-box;
+  }
+
+  .openspec-rows li.openspec-row--tall {
+    height: 60px;
+  }
+
+  .openspec-rows .openspec-row {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .openspec-rows .openspec-row:hover {
+    background: var(--surface-2);
+  }
+
+  .openspec-rows .openspec-row:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
+  .openspec-row > span {
+    padding: 0 16px;
     min-width: 0;
+  }
+
+  .openspec-row-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .openspec-row-name > span:first-child {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-row-day {
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* The full archive is the "Recently archived" table opened out, and writes
+     its names as that table does. */
+  .openspec-archive-list .openspec-row-name > span:first-child {
+    font-weight: 400;
+    color: var(--ink);
+  }
+
+  .openspec-row-tasks {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .openspec-progress {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 120px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--surface-3);
+  }
+
+  .openspec-progress > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--primary);
+  }
+
+  .openspec-change-progress {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* A state as the site draws a badge: a small solid block, the word in
+     capitals, in the hue that says it. The word is always written; the colour
+     only agrees with it. */
+  .openspec-row-state .badge,
+  .openspec-change-state,
+  .openspec-change-standing {
+    position: static;
+    display: inline-block;
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--steel);
+    color: var(--steel-ink);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* A word longer than its column is cut inside the badge, and read whole
+     from its title, rather than drawn over the next column. */
+  .openspec-row-state .badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    box-sizing: border-box;
+  }
+
+  /* As specific as the row's badge rule above, so the hue is not lost to its
+     steel. */
+  .openspec-change-state.openspec-change-state--in-progress { background: var(--cobalt); color: var(--cobalt-ink); }
+  .openspec-change-state.openspec-change-state--implemented { background: var(--emerald); color: var(--emerald-ink); }
+
+  .openspec-change-standing-lines {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
   }
 
   .openspec-change-standing-block {
@@ -1504,11 +1774,19 @@ export const shellThemeCss = `
     margin: 8px 0;
   }
 
+  /* The run dialog's standing block keeps a border and a light tint. */
   .openspec-change-standing--settled { border-color: var(--good); background: var(--good-bg); }
   .openspec-change-standing--ahead { border-color: var(--warn); background: var(--warn-bg); }
   .openspec-change-standing--now { border-color: var(--primary); background: var(--primary-bg); }
   .openspec-change-standing--failed { border-color: var(--bad); background: var(--bad-bg); }
   .openspec-change-standing--deleted { border-color: var(--line-strong); background: var(--surface-3); }
+
+  /* The summary's badge is solid, in the hue that agrees with its word. */
+  .openspec-change-standing.openspec-change-standing--settled { background: var(--emerald); color: var(--emerald-ink); }
+  .openspec-change-standing.openspec-change-standing--ahead { background: var(--amber); color: var(--amber-ink); }
+  .openspec-change-standing.openspec-change-standing--now { background: var(--cobalt); color: var(--cobalt-ink); }
+  .openspec-change-standing.openspec-change-standing--failed { background: var(--crimson); color: var(--crimson-ink); }
+  .openspec-change-standing.openspec-change-standing--deleted { background: var(--steel); color: var(--steel-ink); }
 
   .openspec-overview-table {
     width: 100%;
@@ -2416,6 +2694,19 @@ export const shellThemeCss = `
      scrolled sideways by 274px at 400px wide, found by sweeping every
      tab after the restyle and never checked before. */
   @media (max-width: 720px) {
+    .openspec-summary-pair {
+      grid-template-columns: 1fr;
+    }
+
+    .openspec-change-columns {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .openspec-change-columns > :nth-child(3),
+    .openspec-change-columns > :nth-child(4) {
+      display: none;
+    }
+
     .openspec-shell-grid,
     .openspec-harness-settings .openspec-shell-field,
     .openspec-named-configuration .openspec-shell-field {

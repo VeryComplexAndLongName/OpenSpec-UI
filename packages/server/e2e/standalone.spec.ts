@@ -59,7 +59,7 @@ test("loads, edits, and saves an accessible standalone change", async ({ page })
   await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
 
   await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
-  await page.getByRole("button", { name: "Load summary" }).click();
+  await page.getByTestId("summary-refresh").click();
   // Overview loading shells out to the `openspec` CLI (listChanges +
   // listSpecs); this flow triggers it up to three times (tab navigation's
   // extra steps mean more elapsed wall-clock time for a spawn to be slow),

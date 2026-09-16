@@ -47,10 +47,12 @@ test("says what the summary is reading, holds its controls and marks its tab, un
 
   const status = page.getByTestId("tab-reading-overview");
   await expect(status.getByRole("status")).toHaveText(OVERVIEW_READING);
-  // The fieldset that holds the tab's controls, and a control inside it.
+  // The fieldset that holds the tab's controls, and the tab's own Refresh,
+  // which sits in the page head since the-summary-looks-like-the-mockup and
+  // holds itself while the overview is read.
   const controls = page.getByTestId("page-tab-panel-overview").getByRole("group").first();
   await expect(controls).toHaveAttribute("aria-busy", "true");
-  await expect(controls.getByRole("button").first()).toBeDisabled();
+  await expect(page.getByTestId("summary-refresh")).toBeDisabled();
   await expect(page.getByTestId("page-tab-spinner-overview")).toBeVisible();
   // Its label is unchanged: the spinner is hidden from assistive technology.
   await expect(page.getByRole("tab", { name: "OpenSpec view summary" })).toBeVisible();
@@ -66,5 +68,5 @@ test("says what the summary is reading, holds its controls and marks its tab, un
   await expect(page.getByTestId("tab-reading-overview")).toHaveCount(0);
   await expect(page.getByTestId("openspec-overview")).toContainText(CHANGE_NAME, { timeout: 30_000 });
   await expect(controls).toHaveAttribute("aria-busy", "false");
-  await expect(page.getByRole("button", { name: "Load summary" })).toBeEnabled();
+  await expect(page.getByTestId("summary-refresh")).toBeEnabled();
 });

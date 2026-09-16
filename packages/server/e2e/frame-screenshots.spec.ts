@@ -1,7 +1,8 @@
 // The standalone frame, captured for comparison with ADR 0033's approved
 // mockup (the-shell-wears-the-site-frame 4.2): the application bar, the page
 // head, the tab row and the footer around the summary tab, at the mockup's
-// 1280 pixels, in the light theme and in the dark.
+// 1280 pixels, in the light theme and in the dark; then the whole summary
+// page in both (the-summary-looks-like-the-mockup 4.2).
 //
 // Regenerate with (from packages/server):
 // `npm run test:browser -- frame-screenshots.spec.ts`.
@@ -36,7 +37,7 @@ test.afterAll(async () => {
 /** The lines that print the fixture's temporary directory, which sits under
  * the home of whoever regenerated the picture. */
 function workspacePaths(page: Page) {
-  return [page.getByTestId("app-bar-workspace"), page.getByTestId("openspec-overview").locator("p.openspec-overview-meta strong").first()];
+  return [page.getByTestId("app-bar-workspace"), page.getByTestId("openspec-overview").locator(".openspec-overview-meta strong").first()];
 }
 
 test("captures the frame around the summary, in the light theme and in the dark", async ({ page }) => {
@@ -51,7 +52,7 @@ test("captures the frame around the summary, in the light theme and in the dark"
   // The content arrives before the last of the overview's readings returns:
   // a picture taken then shows the reading line and every control held.
   await expect(page.getByTestId("tab-reading-overview")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByRole("button", { name: "Load summary" })).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByTestId("summary-refresh")).toBeEnabled({ timeout: 30_000 });
   await expect(page.getByRole("tab", { name: "OpenSpec view summary" })).toHaveText("Summary");
 
   const theme = page.getByRole("switch", { name: "Dark theme" });
@@ -65,4 +66,14 @@ test("captures the frame around the summary, in the light theme and in the dark"
     .filter((animation) => animation instanceof CSSTransition)
     .map((animation) => animation.finished)));
   await page.screenshot({ path: path.join(IMAGES_DIR, "frame-dark.png"), mask: workspacePaths(page), maskColor: MASK_COLOR });
+
+  // The whole summary, for comparison with the mockup's "Summary" artboards
+  // (the-summary-looks-like-the-mockup 4.2).
+  await page.screenshot({ path: path.join(IMAGES_DIR, "summary-dark.png"), fullPage: true, mask: workspacePaths(page), maskColor: MASK_COLOR });
+  await theme.click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-openspec-theme", "dark");
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((animation) => animation instanceof CSSTransition)
+    .map((animation) => animation.finished)));
+  await page.screenshot({ path: path.join(IMAGES_DIR, "summary-light.png"), fullPage: true, mask: workspacePaths(page), maskColor: MASK_COLOR });
 });

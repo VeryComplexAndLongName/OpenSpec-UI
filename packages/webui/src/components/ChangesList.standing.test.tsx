@@ -30,6 +30,24 @@ describe("ChangesList — where each change stands", () => {
     expect(screen.getByTestId("change-beta-standing").className).toContain("openspec-change-standing--none");
   });
 
+  // A word longer than the state column is cut in the badge; its title keeps
+  // it whole.
+  it("keeps a standing's whole word in the badge's title", () => {
+    render(<ChangesList changes={changes} states={states} />);
+
+    expect(screen.getByTestId("change-alpha-standing")).toHaveAttribute("title", "Archived on main");
+  });
+
+  // the-summary-looks-like-the-mockup 2.3: a row with a standing keeps its
+  // progress, and the footnote it is given sits at the panel's foot.
+  it("keeps each row's progress beside its word, and prints the footnote at the foot", () => {
+    render(<ChangesList changes={changes} states={states} footnote="Workspace read from here." />);
+
+    expect(screen.getByTestId("change-alpha")).toHaveTextContent("1 / 4");
+    expect(screen.getByRole("img", { name: "25% done" })).toBeInTheDocument();
+    expect(screen.getByTestId("summary-changes").querySelector(".openspec-panel-foot")).toHaveTextContent("Workspace read from here.");
+  });
+
   it("says which main was read, when refs were last fetched, and that the fetch failed", () => {
     const sources = "Main read from origin/main. Refs last fetched 2026-09-14 00:30 UTC. The fetch at 2026-09-14 00:45 UTC failed: could not resolve host.";
     render(<ChangesList changes={changes} states={states} sources={sources} />);

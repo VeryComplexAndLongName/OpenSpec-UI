@@ -14,9 +14,19 @@ import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
 import { Icon } from "./components/Icon.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
 import { ChangesList } from "./components/ChangesList.js";
-import { ArchiveList } from "./components/ArchiveList.js";
+import { RecentlyArchivedPanel, SpecsPanel } from "./components/SummaryPanels.js";
+import { summaryFigures, type SummaryTile } from "./summary-figures.js";
+import type { IconMeaning } from "./icons.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
 import { PipelineView, type AskToStop, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+
+/** The icon each of the summary's tiles carries. */
+const SUMMARY_TILE_ICONS: Record<SummaryTile["key"], IconMeaning> = {
+  changes: "change",
+  archived: "archive",
+  specs: "spec",
+  waiting: "ok",
+};
 
 /** Where the standalone shell keeps what a viewer left the Pipeline as. */
 const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
@@ -1444,7 +1454,16 @@ function StandaloneApp() {
       {isStandaloneHost ? <AppBar workspacePath={cwd} theme={theme} onToggleTheme={toggleTheme} /> : null}
 
       <div className="openspec-page">
-      {isStandaloneHost && PAGE_HEADS[activeTab] ? <PageHead head={PAGE_HEADS[activeTab]} /> : null}
+      {isStandaloneHost && PAGE_HEADS[activeTab] ? (
+        <PageHead
+          head={PAGE_HEADS[activeTab]}
+          action={activeTab === "overview" ? (
+            <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
+              <Icon meaning="refresh" />Refresh
+            </button>
+          ) : undefined}
+        />
+      ) : null}
 
       {/* Outside the tabs, because a schedule moves a person between
           them: a sentence rendered only inside the change editor was
@@ -1596,18 +1615,57 @@ function StandaloneApp() {
       <TabPanel id="overview" activeTab={activeTab} lazy>
       <PanelStatus reading={shownReadings["overview"]} testId="tab-reading-overview" />
       <BusyFieldset busy={shownReadings["overview"] !== null}>
-      <section className="openspec-shell-panel">
-        <div className="openspec-ai-panel-controls">
-          <button className="button primary" type="button" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
-            {overviewLoading ? "Loading..." : "Load summary"}
-          </button>
-        </div>
+      <div className="openspec-summary">
+        {overviewError ? <p className="openspec-notice openspec-overview-error">Failed to load summary: {overviewError}</p> : null}
 
-        {overviewError ? <p className="openspec-overview-error">Failed to load summary: {overviewError}</p> : null}
+        {overview ? (() => {
+          // What the mockup's summary shows, worked out in one place
+          // (the-summary-looks-like-the-mockup).
+          const figures = summaryFigures(overview, humanOnly?.status === "loaded" ? humanOnly.inbox.items : null);
+          return (
+            <div className="openspec-overview" data-testid="openspec-overview">
+              <ul className="openspec-overview-tiles" data-testid="overview-tiles">
+                {figures.tiles.map((tile) => (
+                  <li className="openspec-overview-tile" key={tile.key} data-testid={`overview-tile-${tile.key}`}>
+                    <span className="openspec-overview-tile-icon" aria-hidden="true"><Icon meaning={SUMMARY_TILE_ICONS[tile.key]} /></span>
+                    <span className="openspec-overview-tile-text">
+                      <span className="openspec-overview-tile-label">{tile.label}</span>
+                      <strong className="openspec-overview-tile-value">{tile.value}</strong>
+                      <span className="openspec-tile-note">{tile.note}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <ChangesList
+                changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                {...(standings
+                  ? {
+                    states: new Map(standings.standings.map((standing) => [standing.changeName, describeChangeState({ standing })])),
+                    sources: describeStandingSources(standings.sources),
+                  }
+                  : {})}
+                onRefresh={() => void refreshStandings()}
+                refreshing={standingsRefreshing}
+                {...(standingsError ? { refreshError: standingsError } : {})}
+                footnote={<span className="openspec-overview-meta">Workspace read from <strong>{overview.root.path}</strong> ({overview.root.source}).</span>}
+              />
+
+              <div className="openspec-summary-pair">
+                <SpecsPanel top={figures.topSpecs} all={overview.specs} />
+                <RecentlyArchivedPanel
+                  recent={figures.recentlyArchived}
+                  all={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
+                />
+              </div>
+            </div>
+          );
+        })() : null}
 
         {humanOnly ? (
-          <div className="openspec-overview-block" data-testid="human-only-inbox">
-            <h3>Waiting on somebody</h3>
+          <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
+            <div className="openspec-panel-head"><h2>Waiting on somebody</h2></div>
+            <div className="openspec-panel-body">
             <p
               className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
               data-testid="human-only-inbox-basis"
@@ -1670,86 +1728,10 @@ function StandaloneApp() {
                 onConfirm={(keyId) => void confirmEnrolment(keyId)}
               />
             ) : null}
-          </div>
+            </div>
+          </section>
         ) : null}
-
-        {overview ? (
-          <div className="openspec-overview" data-testid="openspec-overview">
-            <p className="openspec-overview-meta">
-              Root: <strong>{overview.root.path}</strong> ({overview.root.source})
-            </p>
-
-            {/* the-web-ui-screens-wear-metro 3.1: a count is a figure
-                standing beside other figures, so each is a tile — an icon
-                block, then the label and the number. The icon is hidden from
-                the accessible name; the label beside it says what it is. */}
-            <ul className="openspec-overview-tiles" data-testid="overview-tiles">
-              {([
-                { meaning: "change", label: "Changes", value: overview.changes.length },
-                { meaning: "archive", label: "Archived", value: overview.archivedChangeSummaries.length },
-                { meaning: "spec", label: "Specs", value: overview.specs.length },
-              ] as const).map((tile) => (
-                <li className="openspec-overview-tile" key={tile.label} data-testid={`overview-tile-${tile.label.toLowerCase()}`}>
-                  <span className="openspec-overview-tile-icon" aria-hidden="true"><Icon meaning={tile.meaning} /></span>
-                  <span className="openspec-overview-tile-text">
-                    <span className="openspec-overview-tile-label">{tile.label}</span>
-                    <strong className="openspec-overview-tile-value">{tile.value}</strong>
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {overview.changes.length > 0 ? (
-              <div className="openspec-overview-block">
-                <h3>Changes</h3>
-                <ChangesList
-                  changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
-                  {...(standings
-                    ? {
-                      states: new Map(standings.standings.map((standing) => [standing.changeName, describeChangeState({ standing })])),
-                      sources: describeStandingSources(standings.sources),
-                    }
-                    : {})}
-                  onRefresh={() => void refreshStandings()}
-                  refreshing={standingsRefreshing}
-                  {...(standingsError ? { refreshError: standingsError } : {})}
-                />
-              </div>
-            ) : null}
-
-            {overview.archivedChangeSummaries.length > 0 ? (
-              <div className="openspec-overview-block">
-                <h3>Archive</h3>
-                <ArchiveList
-                  changes={overview.archivedChangeSummaries.map((change) => toChangeSummary(change, "archived"))}
-                />
-              </div>
-            ) : null}
-
-            {overview.specs.length > 0 ? (
-              <div className="openspec-overview-block">
-                <h3>Specs</h3>
-                <table className="table openspec-overview-table">
-                  <thead>
-                    <tr>
-                      <th>Spec</th>
-                      <th>Requirements</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {overview.specs.map((spec) => (
-                      <tr key={spec.id}>
-                        <td>{spec.id}</td>
-                        <td>{spec.requirementCount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+      </div>
       </BusyFieldset>
       </TabPanel>
       )}

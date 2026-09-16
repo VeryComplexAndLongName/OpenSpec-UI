@@ -121,6 +121,11 @@ https://claude.ai/artifact/AXRHtMxhY2EsznHoAPo19L.
     `standalone.spec.ts` looked for the owl in `.openspec-shell-headline`,
     which the application bar replaced; it now looks in the bar. Every
     standalone picture is taken again, since each carries the new palette.
-- [ ] 5.6 **Human-only.** Whether `frame-light.png` and `frame-dark.png`
+- [x] 5.6 **Human-only.** Whether `frame-light.png` and `frame-dark.png`
   match the mockup's frame — the application bar, the page head, the tab row
   and the footer — in each theme.
+
+  Record, 2026-09-16: the owner compared the running site with the mockup —
+  the standalone server on port 4317, built from the Harness Settings branch,
+  which carries this change and the ones beneath it — rather than the
+  pictures, and found it good: "As far as I'm concerned, everything is fine."
