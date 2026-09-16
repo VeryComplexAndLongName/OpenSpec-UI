@@ -1,0 +1,7 @@
+{
+  "autonomyLevel": "semi-autonomous",
+  "checkpoints": { "requireConfirmationBetweenSteps": true },
+  "taskAgents": {
+    "4.6": { "agent": "claude-cli" }
+  }
+}
