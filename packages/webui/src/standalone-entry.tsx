@@ -1662,75 +1662,75 @@ function StandaloneApp() {
           );
         })() : null}
 
-        {humanOnly ? (
-          <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
-            <div className="openspec-panel-head"><h2>Waiting on somebody</h2></div>
-            <div className="openspec-panel-body">
-            <p
-              className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
-              data-testid="human-only-inbox-basis"
-            >
-              {describeHumanOnlyInboxState(humanOnly)}
-            </p>
-            {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
-              <ul className="openspec-shell-note">
-                {humanOnly.inbox.items.map((item) => {
-                  const key = `${item.changeName}:${item.lineNumber}`;
-                  // The control exists only where it can do something:
-                  // an item waiting on a person is offered no run, and
-                  // neither is one naming an id this build does not
-                  // carry. See a-delegated-item-runs-its-agent.
-                  const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
-                  const outcome = delegatedOutcomes[key];
-                  return (
-                    <li key={key} data-testid={`waiting-row-${key}`}>
-                      <strong>{item.changeName}</strong>{` — ${item.text}`}
-                      {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
-                      {runnable ? (
-                        <>
-                          {" "}
-                          <button className="button"
-                            type="button"
-                            data-testid={`run-delegated-${key}`}
-                            disabled={runningDelegated !== null}
-                            onClick={() => void runDelegatedItem(item)}
-                          >
-                            {runningDelegated === key
-                              ? "Running..."
-                              : `Run ${item.waitingOn.kind === "agent" ? item.waitingOn.agent : ""}`}
-                          </button>
-                        </>
-                      ) : null}
-                      {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
-                      {outcome ? (
-                        <div data-testid={`delegated-outcome-${key}`}>
-                          {outcome.message}
-                          {outcome.lastStderr ? (
-                            // The whole tail, one click away; the message
-                            // already quotes its last line.
-                            <details className="openspec-delegated-stderr" data-testid={`delegated-stderr-${key}`}>
-                              <summary>What the agent last said</summary>
-                              <pre>{outcome.lastStderr}</pre>
-                            </details>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-            {humanOnly.status === "loaded" ? (
-              <EnrolmentRequests
-                requests={humanOnly.inbox.enrolments ?? []}
-                confirming={confirmingEnrolment}
-                outcomes={enrolmentOutcomes}
-                onConfirm={(keyId) => void confirmEnrolment(keyId)}
-              />
-            ) : null}
-            </div>
-          </section>
-        ) : null}
+        {humanOnly ? (
+          <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
+            <div className="openspec-panel-head"><h2>Waiting on somebody</h2></div>
+            <div className="openspec-panel-body">
+            <p
+              className={humanOnly.status === "failed" ? "openspec-overview-error" : "openspec-shell-note"}
+              data-testid="human-only-inbox-basis"
+            >
+              {describeHumanOnlyInboxState(humanOnly)}
+            </p>
+            {humanOnly.status === "loaded" && humanOnly.inbox.items.length > 0 ? (
+              <ul className="openspec-shell-note">
+                {humanOnly.inbox.items.map((item) => {
+                  const key = `${item.changeName}:${item.lineNumber}`;
+                  // The control exists only where it can do something:
+                  // an item waiting on a person is offered no run, and
+                  // neither is one naming an id this build does not
+                  // carry. See a-delegated-item-runs-its-agent.
+                  const runnable = item.waitingOn.kind === "agent" && item.waitingOn.known;
+                  const outcome = delegatedOutcomes[key];
+                  return (
+                    <li key={key} data-testid={`waiting-row-${key}`}>
+                      <strong>{item.changeName}</strong>{` — ${item.text}`}
+                      {` (waiting on ${describeWaitingOn(item.waitingOn)})`}
+                      {runnable ? (
+                        <>
+                          {" "}
+                          <button className="button"
+                            type="button"
+                            data-testid={`run-delegated-${key}`}
+                            disabled={runningDelegated !== null}
+                            onClick={() => void runDelegatedItem(item)}
+                          >
+                            {runningDelegated === key
+                              ? "Running..."
+                              : `Run ${item.waitingOn.kind === "agent" ? item.waitingOn.agent : ""}`}
+                          </button>
+                        </>
+                      ) : null}
+                      {item.reply ? <DelegatedReply reply={item.reply} testId={`delegated-reply-${key}`} /> : null}
+                      {outcome ? (
+                        <div data-testid={`delegated-outcome-${key}`}>
+                          {outcome.message}
+                          {outcome.lastStderr ? (
+                            // The whole tail, one click away; the message
+                            // already quotes its last line.
+                            <details className="openspec-delegated-stderr" data-testid={`delegated-stderr-${key}`}>
+                              <summary>What the agent last said</summary>
+                              <pre>{outcome.lastStderr}</pre>
+                            </details>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {humanOnly.status === "loaded" ? (
+              <EnrolmentRequests
+                requests={humanOnly.inbox.enrolments ?? []}
+                confirming={confirmingEnrolment}
+                outcomes={enrolmentOutcomes}
+                onConfirm={(keyId) => void confirmEnrolment(keyId)}
+              />
+            ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
       </BusyFieldset>
       </TabPanel>
