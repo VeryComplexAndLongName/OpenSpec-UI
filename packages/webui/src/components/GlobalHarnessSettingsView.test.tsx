@@ -117,10 +117,12 @@ describe("GlobalHarnessSettingsView", () => {
     const section = screen.getByTestId("global-harness-fields");
     expect(section).toHaveClass("panel");
     const title = section.querySelector(".panel-title");
-    expect(title?.textContent).toContain("Global harness settings");
+    // Metro's title bar lays out an `.icon` slot and a `.caption`; the name
+    // outside a caption gets none of its padding (7.2).
+    expect(title?.querySelector(".caption")?.textContent).toBe("Global harness settings");
     // The icon carries no accessible name of its own: the title beside it
     // is what a screen reader reads.
-    expect(title?.querySelector("[aria-hidden='true']")).not.toBeNull();
+    expect(title?.querySelector(".icon [aria-hidden='true']")).not.toBeNull();
     expect(section.querySelector(".panel-content")).not.toBeNull();
 
     expect(screen.getByLabelText("propose agent")).toBeInTheDocument();

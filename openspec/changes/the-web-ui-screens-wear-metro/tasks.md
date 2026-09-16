@@ -225,3 +225,41 @@ brings in the families, the icons and the palette this change spends.
 - [ ] 6.7 **Human-only.** Whether the redesigned screens read well: whether a
   section's icon helps or decorates, whether the summary tiles are worth their
   space, and whether the multi-change grid is readable at a year's width.
+
+## 7. Metro draws the parts it names
+
+Added on 2026-09-16 after the owner's reading of the live shell: "it looks as
+it did before, only with icons", and the panel's icon touched its border.
+The derived copy kept a rule only when every class in it was a kept
+component's or a modifier, so `.panel .panel-title .icon`,
+`.panel .panel-title .caption`, `.timeline li .time`, `.timeline li .data`
+and `.timeline li.no-marker` were all dropped. The markup named them and
+every test passed; the page had no rule for them.
+
+- [x] 7.1 `packages/webui/scripts/build-metro.mjs` gains `KEPT_PARTS` — panel:
+  `icon`, `caption`; timeline: `time`, `data`, `no-marker` — kept only in a
+  selector that also names its own component, and
+  `packages/webui/src/metro-css.generated.ts` is rebuilt.
+
+  Done: 799 rules, 121,582 bytes (+1,194). `.badge .icon` and a bare `.icon`
+  stay out. `packages/webui/scripts/build-metro.test.mjs` reads the copy for
+  the three part rules and fails on a part outside its component; its byte
+  ceiling moves to 121,582 with the measurement beside it.
+- [x] 7.2 `GlobalHarnessSettingsView.tsx` and `ChangeHarnessSettingsView.tsx`
+  put the section's name in `<span className="caption">`, and `shell-ui.ts`
+  drops its own centring and margin on the icon slot, which only hid the
+  missing rule.
+
+  Done. `GlobalHarnessSettingsView.test.tsx` reads the name from `.caption`
+  and the hidden glyph from `.icon`. Live, in Chromium against the rebuilt
+  standalone server: the title bar is 42px, the icon slot 42×42 at its left
+  edge, the caption starting at 42px.
+- [x] 7.3 The VS Code layer in `shell-ui.ts` sets the four variables the
+  parts read: `--panel-header-icon-background`, `--panel-header-icon-color`,
+  `--timeline-color`, `--timeline-time-color`.
+
+  Done; `vscode-metro-mapping.test.ts` named exactly these four until they
+  were set.
+  - **Checks:** webui typecheck and lint pass; `build-metro`,
+    `vscode-metro-mapping`, `shell-ui`, `GlobalHarnessSettingsView`,
+    `ChangeHarnessSettingsView` and `ChangeTimelineView` pass, 76 tests.

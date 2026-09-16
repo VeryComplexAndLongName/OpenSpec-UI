@@ -151,7 +151,7 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
       <section className="panel openspec-harness-section" data-testid="global-harness-fields">
         <div className="panel-title">
           <span className="icon"><Icon meaning="settings" /></span>
-          Global harness settings
+          <span className="caption">Global harness settings</span>
         </div>
         <div className="panel-content">
         <p className="openspec-shell-note">
