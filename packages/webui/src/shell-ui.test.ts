@@ -175,17 +175,23 @@ describe("shell themes", () => {
         expect(failing).toEqual([]);
     });
 
-    it("ends a settings section with a rule and more space than separates its fields", () => {
+    it("separates a settings section by more than what separates its fields", () => {
         // a-change-is-configured-from-the-change. "Save Global config" sat
         // directly above the heading of the next section, with nothing
         // between them, so the save read as belonging to both.
+        //
+        // the-web-ui-screens-wear-metro 1.1: the section is a Metro panel
+        // now, so the border and the radius come from the framework and are
+        // not asserted here. What this owns is the rhythm — the gap between
+        // two sections stays larger than the gap between two fields — and
+        // the padding inside the panel's content, which Metro leaves to it.
         const open = shellThemeCss.indexOf(".openspec-harness-section {");
         expect(open).toBeGreaterThan(-1);
         const rule = shellThemeCss.slice(open, shellThemeCss.indexOf("}", open));
-        expect(rule).toContain("border-bottom: 1px solid var(--line)");
         const spacing = Number(/margin-bottom: (\d+)px/.exec(rule)?.[1]);
         const fieldGap = Number(/\.openspec-harness-settings \.openspec-harness-stage-row \{\s*margin-top: (\d+)px/.exec(shellThemeCss)?.[1]);
         expect(fieldGap).toBeGreaterThan(0);
         expect(spacing).toBeGreaterThan(fieldGap);
+        expect(shellThemeCss).toContain(".openspec-harness-section > .panel-content");
     });
 });

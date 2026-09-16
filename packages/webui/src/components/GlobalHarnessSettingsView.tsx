@@ -9,6 +9,7 @@ import {
   type HarnessTemplate,
 } from "@openspec-ui/core/browser";
 import type { CustomAgentsResult } from "../custom-agents-client.js";
+import { Icon } from "./Icon.js";
 import { NamedConfigurationPicker } from "./NamedConfigurationPicker.js";
 import {
   AgentSelect,
@@ -147,7 +148,12 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
         note="Applying one fills the fields below; nothing is saved until you save."
         testIdPrefix="global-harness"
       />
-      <section className="openspec-harness-section" data-testid="global-harness-fields">
+      <section className="panel openspec-harness-section" data-testid="global-harness-fields">
+        <div className="panel-title">
+          <span className="icon"><Icon meaning="settings" /></span>
+          Global harness settings
+        </div>
+        <div className="panel-content">
         <p className="openspec-shell-note">
           Applies to every change that does not set its own. Recommends an agent per stage — never enforces one.
         </p>
@@ -218,6 +224,7 @@ export function GlobalHarnessSettingsView({ api }: { api: HarnessSettingsApi }) 
           {dirty ? <span className="openspec-shell-note" data-testid="global-harness-unsaved">Unsaved changes</span> : null}
         </div>
         {config ? null : <p className="openspec-shell-note">No global config yet — using documented defaults.</p>}
+        </div>
       </section>
     </div>
   );

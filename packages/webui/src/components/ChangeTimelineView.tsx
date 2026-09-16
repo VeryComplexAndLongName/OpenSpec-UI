@@ -47,9 +47,17 @@ function TaskRow({
   const [expanded, setExpanded] = useState(false);
   const stale = isTaskStale(task, staleThresholdDays, now);
 
+  // Metro's timeline draws the rail, the dot and the tick from the `li`
+  // itself; the date goes in `.time` and the task in `.data`. A task whose
+  // date is unknown asks Metro for no dot (`no-marker`), because the dot is
+  // what says "this happened, then" (ADR 0032).
   return (
     <li
-      className={`openspec-timeline-task${stale ? " openspec-timeline-task-stale" : ""}`}
+      className={[
+        "openspec-timeline-task",
+        stale ? "openspec-timeline-task-stale" : "",
+        task.date ? "" : "no-marker",
+      ].filter(Boolean).join(" ")}
       data-testid={`timeline-task-${task.lineNumber}`}
     >
       <button
@@ -62,9 +70,9 @@ function TaskRow({
           {stale ? "⚠" : task.date ? "●" : task.done ? "○" : "◌"}
         </span>
         {task.date ? (
-          <time className="openspec-timeline-task-date" dateTime={task.date}>{formatDate(task.date)}</time>
+          <time className="time openspec-timeline-task-date" dateTime={task.date}>{formatDate(task.date)}</time>
         ) : (
-          <span className="openspec-timeline-task-date openspec-timeline-task-pending">
+          <span className="time openspec-timeline-task-date openspec-timeline-task-pending">
             {task.done
               ? "done, date unknown"
               : stale
@@ -72,7 +80,7 @@ function TaskRow({
                 : "pending"}
           </span>
         )}
-        <span className="openspec-timeline-task-text">{task.text}</span>
+        <span className="data openspec-timeline-task-text">{task.text}</span>
       </button>
       {expanded && <p className="openspec-timeline-task-detail">{task.text}</p>}
     </li>
@@ -126,7 +134,7 @@ export function ChangeTimelineView({
         {timeline.tasks.length === 0 ? (
           <p>No tasks found.</p>
         ) : (
-          <ul data-testid="change-timeline-tasks">
+          <ul className="timeline" data-testid="change-timeline-tasks">
             {sortedTasks(timeline.tasks).map((task) => (
               <TaskRow key={task.lineNumber} task={task} staleThresholdDays={staleThresholdDays} now={now} />
             ))}

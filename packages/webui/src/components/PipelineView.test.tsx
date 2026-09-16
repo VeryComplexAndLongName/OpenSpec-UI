@@ -24,6 +24,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// the-web-ui-screens-wear-metro 4.3: a card's controls gained an icon before
+// the word. Each carries its own aria-label, so the name a test, a screen
+// reader or a voice command uses is exactly what it was.
+
 function change(changeName: string, overrides: Partial<ChangeReadiness> = {}): ChangeReadiness {
   return {
     changeName,
@@ -780,6 +784,29 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
 
     fireEvent.click(await screen.findByRole("button", { name: "Start alpha" }));
     expect(onStart).toHaveBeenCalledWith("alpha");
+  });
+
+  // the-web-ui-screens-wear-metro 4.3.
+  it("keeps every control's accessible name after the icons arrived, and the icons add nothing to it", async () => {
+    renderCard({ record: null });
+
+    const start = await screen.findByRole("button", { name: "Start alpha" });
+    expect(start.textContent).toBe("Start");
+    expect(start.querySelector("[aria-hidden='true']")).not.toBeNull();
+
+    // The card's own open control names the change, and the icon before it
+    // leaves that name alone.
+    const open = screen.getByTestId("pipeline-node-alpha-open");
+    expect(open).toHaveAccessibleName("alpha");
+    expect(open.querySelector("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("keeps Stop named as it was, with an icon that is not part of the name", async () => {
+    renderCard({ held: [heldRun()] });
+
+    const stop = await screen.findByRole("button", { name: "Stop alpha" });
+    expect(stop.textContent).toBe("Stop");
+    expect(stop.querySelector("[aria-hidden='true']")).not.toBeNull();
   });
 });
 

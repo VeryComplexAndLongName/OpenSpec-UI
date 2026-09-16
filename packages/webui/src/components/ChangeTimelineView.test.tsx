@@ -95,6 +95,42 @@ describe("ChangeTimelineView", () => {
     expect(pendingTask).toHaveTextContent("stale");
   });
 
+  // the-web-ui-screens-wear-metro 2.2: the list is Metro's timeline now, and
+  // neither the stale marker nor the expanded detail was lost in the move.
+  it("draws the tasks as a Metro timeline, with the date and the text in its own slots", () => {
+    render(<ChangeTimelineView timeline={timeline} />);
+
+    const list = screen.getByTestId("change-timeline-tasks");
+    expect(list).toHaveClass("timeline");
+
+    const dated = screen.getByTestId("timeline-task-1");
+    expect(dated.querySelector(".time")).not.toBeNull();
+    expect(dated.querySelector(".data")?.textContent).toBe("first task, checked earlier");
+    // A dated task gets Metro's dot; one with no date asks for none, because
+    // the dot is what says "this happened, then".
+    expect(dated.className).not.toContain("no-marker");
+    expect(screen.getByTestId("timeline-task-2").className).toContain("no-marker");
+  });
+
+  it("keeps the stale marker and the expanded detail on a Metro timeline row", () => {
+    render(
+      <ChangeTimelineView
+        timeline={timeline}
+        staleThresholdDays={14}
+        now={new Date("2026-02-01T00:00:00.000Z")}
+      />,
+    );
+
+    const pending = screen.getByTestId("timeline-task-2");
+    expect(pending.className).toContain("openspec-timeline-task-stale");
+    expect(pending.querySelector(".openspec-timeline-task-marker")?.textContent).toBe("⚠");
+
+    const toggle = pending.querySelector("button");
+    if (!toggle) throw new Error("task toggle button not found");
+    fireEvent.click(toggle);
+    expect(pending.querySelectorAll("p")).toHaveLength(1);
+  });
+
   it("does not flag a pending task touched recently", () => {
     render(
       <ChangeTimelineView

@@ -61,6 +61,20 @@ describe("ChangesList", () => {
     expect(items[0]).toHaveTextContent("vscode-extension");
   });
 
+  // the-web-ui-screens-wear-metro 3.3: the state word is a Metro badge now.
+  // It still reads as text, and still carries the class the filter and the
+  // stylesheet find it by.
+  it("draws the state word as a badge, keeping its text and its state class", () => {
+    render(<ChangesList changes={changes} />);
+
+    const row = screen.getByTestId("change-vscode-extension");
+    const state = row.querySelector(".openspec-change-state");
+    expect(state).not.toBeNull();
+    expect(state).toHaveClass("badge");
+    expect(state).toHaveClass("openspec-change-state--draft");
+    expect(state?.textContent).toBe("Draft");
+  });
+
   it("wraps the list in a height-bounded, scrollable container", () => {
     render(<ChangesList changes={changes} />);
 

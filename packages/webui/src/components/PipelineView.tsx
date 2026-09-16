@@ -49,6 +49,7 @@ import {
   type WorktreeSurvey,
 } from "@openspec-ui/core/browser";
 import { HintList } from "./HintList.js";
+import { Icon } from "./Icon.js";
 
 /** How often the picture re-reads while it is being looked at.
  *
@@ -818,6 +819,7 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle 
           data-testid={`${testId}-open`}
           onClick={() => onOpenChange?.(change.changeName)}
         >
+          <Icon meaning="open" />
           <span className="openspec-pipeline-node-name">{change.changeName}</span>
         </button>
         {rows.length > 0
@@ -865,7 +867,10 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     if (handlers.onStart !== undefined && (card.state === "ready" || card.state === "failed" || card.state === "stopped")) {
       const start = handlers.onStart;
       buttons.push(
-        <button key="start" type="button" data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}>Start</button>,
+        // Every control here carries its own `aria-label`, so an icon before
+        // the word cannot move the name a test or a voice command uses
+        // (the-web-ui-screens-wear-metro 4.2).
+        <button key="start" type="button" data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start</button>,
       );
     }
     return buttons;
@@ -880,7 +885,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     if (!run.ownedHere && run.stoppableByMe && handlers.canAskToStop && run.stopAskedAt === undefined && run.stopRequested === null) {
       const instanceId = run.instanceId;
       buttons.push(
-        <button key="ask-stop" type="button" data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}>Stop</button>,
+        <button key="ask-stop" type="button" data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop</button>,
       );
     }
     // Answered where it was started: the card names the folder, and offers
@@ -916,7 +921,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     );
   }
   buttons.push(
-    <button key="stop" type="button" data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}>Stop</button>,
+    <button key="stop" type="button" data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop</button>,
   );
   return buttons;
 }

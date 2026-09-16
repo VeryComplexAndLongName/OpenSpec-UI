@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MultiChangeTimelineView } from "./MultiChangeTimelineView.js";
+import { MultiChangeTimelineView, dayKey, daysOf } from "./MultiChangeTimelineView.js";
 import type { ChangeTimeline } from "../change-timeline-client.js";
 
 const rangeStart = "2026-01-01T00:00:00.000Z";
@@ -48,8 +48,13 @@ const timelineB: ChangeTimeline = {
   tasks: [{ lineNumber: 0, text: "pending task", done: false, date: null, lastTouchedDate: null }],
 };
 
+/** The grid column a point was placed in, as the component set it. */
+function columnOf(element: Element | null | undefined): string {
+  return (element as HTMLElement | null | undefined)?.style.gridColumn ?? "";
+}
+
 describe("MultiChangeTimelineView", () => {
-  it("renders one lane per timeline", () => {
+  it("renders one row per timeline", () => {
     render(<MultiChangeTimelineView timelines={[timelineA, timelineB]} rangeStart={rangeStart} rangeEnd={rangeEnd} />);
 
     expect(screen.getByTestId("multi-timeline-lane-change-a")).toBeInTheDocument();
@@ -74,10 +79,15 @@ describe("MultiChangeTimelineView", () => {
     expect(lane.querySelectorAll(".openspec-multi-timeline-point-archived")).toHaveLength(0);
   });
 
-  it("positions the range start and end labels", () => {
-    render(<MultiChangeTimelineView timelines={[timelineA]} rangeStart={rangeStart} rangeEnd={rangeEnd} />);
-    expect(screen.getByText(new Date(rangeStart).toLocaleDateString())).toBeInTheDocument();
-    expect(screen.getByText(new Date(rangeEnd).toLocaleDateString())).toBeInTheDocument();
+  it("runs a column for every day of the range", () => {
+    const { container } = render(
+      <MultiChangeTimelineView timelines={[timelineA]} rangeStart={rangeStart} rangeEnd={rangeEnd} />,
+    );
+
+    const days = container.querySelectorAll(".openspec-multi-timeline-day");
+    expect(days).toHaveLength(daysOf(rangeStart, rangeEnd).length);
+    expect(days[0]?.getAttribute("data-day")).toBe(dayKey(rangeStart));
+    expect(days[days.length - 1]?.getAttribute("data-day")).toBe(dayKey(rangeEnd));
   });
 
   it("shows a message when no changes are selected", () => {
@@ -86,11 +96,47 @@ describe("MultiChangeTimelineView", () => {
   });
 });
 
+// the-web-ui-screens-wear-metro 2.4: a position on this picture is a date,
+// which is what the log-scaled lane it replaces could not say.
+describe("MultiChangeTimelineView — an event sits in the column of its day", () => {
+  it("puts an event in the column of the day it happened", () => {
+    const { container } = render(
+      <MultiChangeTimelineView timelines={[timelineA]} rangeStart={rangeStart} rangeEnd={rangeEnd} />,
+    );
+
+    const task = container.querySelector(".openspec-multi-timeline-point-task");
+    const taskDay = dayKey("2026-01-02T12:00:00.000Z");
+    const expected = daysOf(rangeStart, rangeEnd).indexOf(taskDay) + 2;
+
+    expect(task?.getAttribute("data-day")).toBe(taskDay);
+    expect(columnOf(task)).toBe(String(expected));
+  });
+
+  it("gives two changes with the same date the same column", () => {
+    const sameDay: ChangeTimeline = { ...timelineB, changeName: "change-c", createdDate: timelineA.createdDate };
+    const { container } = render(
+      <MultiChangeTimelineView timelines={[timelineA, sameDay]} rangeStart={rangeStart} rangeEnd={rangeEnd} />,
+    );
+
+    const [first, second] = [...container.querySelectorAll(".openspec-multi-timeline-point-created")];
+    expect(columnOf(first)).toBe(columnOf(second));
+    expect(columnOf(first)).not.toBe("");
+  });
+
+  it("leaves out an event that falls outside the range", () => {
+    const outside: ChangeTimeline = { ...timelineB, createdDate: "2025-12-01T00:00:00.000Z" };
+    render(<MultiChangeTimelineView timelines={[outside]} rangeStart={rangeStart} rangeEnd={rangeEnd} />);
+
+    const lane = screen.getByTestId("multi-timeline-lane-change-b");
+    expect(lane.querySelectorAll(".openspec-multi-timeline-point")).toHaveLength(0);
+  });
+});
+
 describe("MultiChangeTimelineView — when a change was archived", () => {
   // charts-over-what-happened. The end-of-day anchor existed because the
-  // only archiving date available was a calendar date read off the
-  // folder name; a commit carries a time of day, so it plots where it
-  // happened.
+  // only archiving date available was a calendar date read off the folder
+  // name. On a day grid both land in the same column, which is the point:
+  // the picture answers "which day", and the tooltip keeps the time.
 
   function archivedAt(date: string | null, source: "git-commit" | "folder-name"): ChangeTimeline {
     return {
@@ -111,32 +157,22 @@ describe("MultiChangeTimelineView — when a change was archived", () => {
     };
   }
 
-  /** Where the one point on the lane sits, as the component placed it. */
-  function pointPosition(timeline: ChangeTimeline): string {
+  function archivedPoint(timeline: ChangeTimeline): HTMLElement {
     const { container } = render(
       <MultiChangeTimelineView timelines={[timeline]} rangeStart={rangeStart} rangeEnd={rangeEnd} />,
     );
-    const point = container.querySelector(".openspec-multi-timeline-point-archived") as HTMLElement;
-    return point.style.left;
+    return container.querySelector(".openspec-multi-timeline-point-archived") as HTMLElement;
   }
 
-  it("plots the archiving where the commit that did it happened", () => {
-    const fromCommit = pointPosition(archivedAt("2026-01-03T06:00:00.000Z", "git-commit"));
-    const fromFolderName = pointPosition(archivedAt("2026-01-03T00:00:00.000Z", "folder-name"));
+  it("puts a commit-timed archiving in that day's column", () => {
+    const point = archivedPoint(archivedAt("2026-01-03T06:00:00.000Z", "git-commit"));
 
-    // Six in the morning is not the end of that day, and the lane shows
-    // the difference now.
-    expect(fromCommit).not.toBe(fromFolderName);
+    expect(point.getAttribute("data-day")).toBe(dayKey("2026-01-03T06:00:00.000Z"));
   });
 
-  it("keeps the end-of-day anchor where only the folder name answered", () => {
-    // Midnight would plot archiving before that same day's task ticks,
-    // which is the case the anchor was written for.
-    const fromFolderName = pointPosition(archivedAt("2026-01-03T00:00:00.000Z", "folder-name"));
-    const endOfDay = pointPosition({
-      ...archivedAt("2026-01-03T23:59:59.999Z", "git-commit"),
-    });
+  it("keeps the time of day in the title, which the column cannot carry", () => {
+    const point = archivedPoint(archivedAt("2026-01-03T06:00:00.000Z", "git-commit"));
 
-    expect(fromFolderName).toBe(endOfDay);
+    expect(point.getAttribute("title")).toContain(new Date("2026-01-03T06:00:00.000Z").toLocaleString());
   });
 });
