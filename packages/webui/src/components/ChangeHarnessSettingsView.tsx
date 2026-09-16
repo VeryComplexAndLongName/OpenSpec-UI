@@ -217,7 +217,7 @@ export function ChangeHarnessSettingsView(
           <section className="panel openspec-harness-section" data-testid="change-harness-fields">
             <div className="panel-title">
               <span className="icon"><Icon meaning="settings" /></span>
-              {changeName}
+              <span className="caption">{changeName}</span>
             </div>
             <div className="panel-content">
             <p className="openspec-shell-note">

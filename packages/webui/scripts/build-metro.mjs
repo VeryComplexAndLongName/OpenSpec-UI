@@ -105,6 +105,25 @@ export const KEPT_MODIFIERS = [
   "compact",
 ];
 
+/** The inner parts Metro draws inside a kept component under a plain class
+ * name, kept only in a selector that also names that component:
+ * `.panel .panel-title .icon` is kept, a bare `.icon` or `.badge .icon` is
+ * not. Without them a panel's title had no icon slot and no caption padding,
+ * and a timeline had no `.time` or `.data` column, so the screens that
+ * adopted those families looked as they did before (the-web-ui-screens-wear-
+ * metro 7.1). Only the parts a screen renders are listed. */
+export const KEPT_PARTS = {
+  panel: ["icon", "caption"],
+  timeline: ["time", "data", "no-marker"],
+};
+
+function isPartOfNamedComponent(name, classes) {
+  return Object.entries(KEPT_PARTS).some(
+    ([component, parts]) =>
+      parts.includes(name) && classes.some((other) => other === component || other.startsWith(`${component}-`)),
+  );
+}
+
 /** The class names and element names a selector names, anywhere in it. */
 function namesOf(selector) {
   const classes = [];
@@ -120,7 +139,8 @@ function namesOf(selector) {
 
 /**
  * A selector is kept when it names a kept component's class or a kept native
- * element, and every class it names is a kept component's or a kept modifier.
+ * element, and every class it names is a kept component's, a kept modifier,
+ * or one of `KEPT_PARTS` beside its own component.
  *
  * - **Beside a kept class,** any element is allowed: `.table td`,
  *   `.button-group>*`. It reaches only that component's own children.
@@ -131,7 +151,9 @@ function namesOf(selector) {
 function isKeptSelector(selector) {
   const { classes, elements } = namesOf(selector);
   if (elements.includes("html") || elements.includes("body")) return false;
-  if (!classes.every((name) => isKeptClass(name) || KEPT_MODIFIERS.includes(name))) return false;
+  if (!classes.every((name) => isKeptClass(name) || KEPT_MODIFIERS.includes(name) || isPartOfNamedComponent(name, classes))) {
+    return false;
+  }
   if (classes.some(isKeptClass)) return true;
   return elements.length > 0 && elements.every((name) => KEPT_ELEMENTS.includes(name));
 }

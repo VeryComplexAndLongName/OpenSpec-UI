@@ -515,16 +515,6 @@ export const shellThemeCss = `
     padding: 12px 16px 16px;
   }
 
-  /* Metro's title bar gives the icon a slot of its own, as tall as the
-     bar and divided from the name by a rule. The glyph is centred in
-     it; without this it sits on the text baseline, low and left. */
-  .openspec-harness-section > .panel-title > .icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-inline-end: 0.5em;
-  }
-
   /* An icon before a label (the-web-ui-screens-wear-metro 4.x) sits a
      little apart from the word, so the glyph does not touch its first
      letter. */
@@ -2197,6 +2187,8 @@ export const vscodeThemeCss = `
     --panel-border-radius: 2px;
     --panel-header-background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
     --panel-header-color: var(--vscode-foreground);
+    --panel-header-icon-background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
+    --panel-header-icon-color: var(--vscode-icon-foreground, var(--vscode-foreground));
 
     --card-background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
     --card-color: var(--vscode-foreground);
@@ -2212,6 +2204,8 @@ export const vscodeThemeCss = `
     --badge-border-radius: 2px;
 
     --timeline-marker-color: var(--vscode-button-background);
+    --timeline-color: var(--vscode-foreground);
+    --timeline-time-color: var(--vscode-descriptionForeground);
   }
 
   /* A neutral button keeps an edge where the theme draws one. Default Dark

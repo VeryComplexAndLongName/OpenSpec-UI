@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   KEPT_COMPONENTS,
   KEPT_ELEMENTS,
+  KEPT_PARTS,
   LAYER,
   OUTPUT,
   ROOT_CLASS,
@@ -115,6 +116,28 @@ describe("the derived Metro UI copy", () => {
     expect(globals).toEqual([]);
   }, PARSE_TIMEOUT_MS);
 
+  it("carries the inner parts a kept component draws, and only beside it", () => {
+    // A panel title with no `.icon` slot and no `.caption` padding, and a
+    // timeline with no `.time` column, look exactly as the shell did before
+    // they were adopted, while every markup test still passes. That is how
+    // the-web-ui-screens-wear-metro shipped; this reads the copy itself.
+    const selectors = selectorsOf(shippedCss()).map((selector) => csstree.generate(selector));
+    for (const part of [
+      `.${ROOT_CLASS} .panel .panel-title .icon`,
+      `.${ROOT_CLASS} .panel .panel-title .caption`,
+      `.${ROOT_CLASS} .timeline li .time`,
+    ]) {
+      expect(selectors.some((selector) => selector.replace(/\s*>\s*/g, " ") === part), part).toBe(true);
+    }
+    const partsElsewhere = selectors.filter((selector) => {
+      const classes = [...selector.matchAll(/\.([\w-]+)/g)].map((match) => match[1]);
+      return Object.entries(KEPT_PARTS).some(([component, parts]) =>
+        classes.some((name) => parts.includes(name))
+        && !classes.some((name) => name === component || name.startsWith(`${component}-`)));
+    });
+    expect(partsElsewhere).toEqual([]);
+  }, PARSE_TIMEOUT_MS);
+
   it("marks nothing !important, so the layer alone decides precedence", () => {
     // Inside a layer an `!important` declaration beats every unlayered one:
     // Metro's literal hover colours would override the VS Code theme mapping.
@@ -132,7 +155,9 @@ describe("the derived Metro UI copy", () => {
     // with panel, card, badge and timeline added derives 120,388 bytes. A
     // family added later moves this number, and the failure message says by
     // how much, so growth is read in review rather than discovered later.
-    const CEILING_BYTES = 120_388;
+    // KEPT_PARTS (panel icon and caption, timeline time, data and no-marker)
+    // added 1,194 bytes on 2026-09-16: 121,582.
+    const CEILING_BYTES = 121_582;
     const bytes = Buffer.byteLength(shippedCss(), "utf8");
     expect(bytes, `derived Metro copy is ${bytes} bytes, ceiling is ${CEILING_BYTES}`).toBeLessThanOrEqual(CEILING_BYTES);
   });
