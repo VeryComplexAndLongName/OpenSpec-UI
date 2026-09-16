@@ -172,5 +172,7 @@ written, by running `build-metro.mjs` with each family added.
   the extension had activated, so the text went to quick open and opened
   `settings.json` instead. Waiting for the OpenSpec icon in the activity bar
   and clicking it before pressing F1 made High Contrast pass in 19 seconds.
-- [ ] 4.7 **Human-only.** Whether the standalone shell looks unchanged: the
+- [x] 4.7 **Human-only.** Whether the standalone shell looks unchanged: the
   bundles grew, and nothing a person can see should have moved.
+
+  The owner looked on 2026-09-16 and confirmed it: nothing changed.
