@@ -380,6 +380,9 @@ function StandaloneApp() {
   // each is passed as the view's callback directly.
   const [processesReading, setProcessesReading] = useState<string | null>(null);
   const [harnessReading, setHarnessReading] = useState<string | null>(null);
+  /** Whether Harness Settings shows the file Save would write, from its page
+   * head's action (the-harness-settings-look-like-the-mockup). */
+  const [harnessFileShown, setHarnessFileShown] = useState(false);
   const [pipelineReading, setPipelineReading] = useState<string | null>(null);
   const transport = useMemo(() => new FetchTransport({ baseUrl: window.location.origin, accessToken }), []);
   const processesApi = useMemo<ProcessesApi>(() => {
@@ -1461,6 +1464,17 @@ function StandaloneApp() {
             <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
               <Icon meaning="refresh" />Refresh
             </button>
+          ) : activeTab === "harness-settings" ? (
+            <button
+              className="button openspec-button-quiet"
+              type="button"
+              data-testid="harness-settings-file"
+              aria-pressed={harnessFileShown}
+              onClick={() => setHarnessFileShown((shown) => !shown)}
+              disabled={cwd.trim().length === 0}
+            >
+              <Icon meaning="open" />agent-harness.json
+            </button>
           ) : undefined}
         />
       ) : null}
@@ -2310,15 +2324,18 @@ function StandaloneApp() {
       <TabPanel id="harness-settings" activeTab={activeTab} lazy>
       <PanelStatus reading={shownReadings["harness-settings"]} testId="tab-reading-harness-settings" />
       <BusyFieldset busy={shownReadings["harness-settings"] !== null}>
-      <section className="openspec-shell-panel">
-        {/* Said where a person used to find a change's settings, since
-            that is where they will look first. See
-            a-change-is-configured-from-the-change. */}
+      {/* Said where a person used to find a change's settings, since that
+          is where they will look first (a-change-is-configured-from-the-
+          change): in the page head's sentence where there is a page head,
+          and here where there is none. */}
+      {isStandaloneHost ? null : (
         <p className="openspec-shell-note" data-testid="harness-settings-change-pointer">
           A change's own settings are in the Change Editor, under Harness.
         </p>
-        {cwd.trim().length > 0 ? <GlobalHarnessSettingsView api={harnessSettingsApi} onReadingChange={setHarnessReading} /> : <p>Enter workspace root to configure the harness.</p>}
-      </section>
+      )}
+      {cwd.trim().length > 0
+        ? <GlobalHarnessSettingsView api={harnessSettingsApi} onReadingChange={setHarnessReading} showFile={harnessFileShown} />
+        : <p className="openspec-shell-note">Enter workspace root to configure the harness.</p>}
       </BusyFieldset>
       </TabPanel>
       )}

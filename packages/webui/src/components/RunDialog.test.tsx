@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RunPlan } from "@openspec-ui/core/browser";
 import { RunDialog } from "./RunDialog.js";
@@ -114,7 +114,8 @@ describe("RunDialog — advising, not just picking a path", () => {
   // beside the button rather than above the dialog.
 
   const recommended = { id: "balanced", title: "Balanced" };
-  const select = () => screen.getByLabelText("Named configuration") as HTMLSelectElement;
+  const radios = () => within(screen.getByRole("radiogroup", { name: "Named configuration" })).getAllByRole("radio") as HTMLInputElement[];
+  const choose = (value: string) => fireEvent.click(radios().find((radio) => radio.value === value)!);
 
   it("says every ceiling can act, rather than rendering nothing", () => {
     render(<RunDialog {...baseProps()} />);
@@ -126,7 +127,7 @@ describe("RunDialog — advising, not just picking a path", () => {
   it("offers the named configurations in one list, with what the chosen one is for and when it is wrong", () => {
     render(<RunDialog {...baseProps()} />);
 
-    expect(select()).toBeTruthy();
+    expect(radios().length).toBeGreaterThan(0);
     expect(screen.getByTestId("run-dialog-named-configuration-description").textContent).toContain("Not for:");
     expect(screen.queryByTestId("run-dialog-templates")).toBeNull();
   });
@@ -134,15 +135,15 @@ describe("RunDialog — advising, not just picking a path", () => {
   it("chooses and marks the recommended configuration", () => {
     render(<RunDialog {...baseProps()} plan={plan({ advice: { template: recommended as never, grounds: ["20 tasks still open"] } })} />);
 
-    expect(select()).toHaveValue("balanced");
-    expect(select().querySelector("option[value='balanced']")?.textContent).toContain("(recommended)");
+    expect(radios().find((radio) => radio.checked)?.value).toBe("balanced");
+    expect(radios().find((radio) => radio.value === "balanced")?.closest("label")?.textContent).toContain("(recommended)");
   });
 
   it("applies the configuration that was chosen", () => {
     const props = baseProps();
     render(<RunDialog {...props} />);
 
-    fireEvent.change(select(), { target: { value: "economy" } });
+    choose("economy");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
     expect(props.onApplyTemplate).toHaveBeenCalledWith(expect.objectContaining({ id: "economy" }));
@@ -152,7 +153,7 @@ describe("RunDialog — advising, not just picking a path", () => {
     const props = baseProps();
     const { rerender } = render(<RunDialog {...props} />);
 
-    fireEvent.change(select(), { target: { value: "economy" } });
+    choose("economy");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     rerender(<RunDialog {...props} appliedNote='Applied "Economy" to openspec/changes/demo/harness.json.' />);
 
@@ -163,14 +164,14 @@ describe("RunDialog — advising, not just picking a path", () => {
   it("offers only the configurations a change may be given, most effort first", () => {
     render(<RunDialog {...baseProps()} />);
 
-    expect([...select().querySelectorAll("option")].map((option) => option.value))
+    expect(radios().map((radio) => radio.value))
       .toEqual(["thorough", "careful", "balanced", "economy"]);
   });
 
   it("says what the chosen configuration would set for the agents this change uses", () => {
     render(<RunDialog {...baseProps()} plan={plan({ stageAgents: [{ stage: "apply", agent: "codex-cli" }] })} />);
 
-    fireEvent.change(select(), { target: { value: "thorough" } });
+    choose("thorough");
 
     expect(screen.getByTestId("run-dialog-named-configuration-description").textContent).toContain("codex-cli high");
   });

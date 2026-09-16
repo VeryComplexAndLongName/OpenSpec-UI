@@ -2,13 +2,15 @@
 // mockup (the-shell-wears-the-site-frame 4.2): the application bar, the page
 // head, the tab row and the footer around the summary tab, at the mockup's
 // 1280 pixels, in the light theme and in the dark; then the whole summary
-// page in both (the-summary-looks-like-the-mockup 4.2).
+// page in both (the-summary-looks-like-the-mockup 4.2); then Harness Settings
+// in both, on a global file set as the mockup's artboard sets it
+// (the-harness-settings-look-like-the-mockup 4.2).
 //
 // Regenerate with (from packages/server):
 // `npm run test:browser -- frame-screenshots.spec.ts`.
 
 import { expect, test, type Page } from "@playwright/test";
-import { rm } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
@@ -24,6 +26,23 @@ let baseUrl: string;
 
 test.beforeAll(async () => {
   workspaceRoot = await createLifecycleWorkspace(CHANGE_NAME);
+  // The stages, models, efforts and run budget the mockup's Harness Settings
+  // artboard shows.
+  const stage = (model: string, effort: string) => ({ agent: "claude-cli-acp", model, effort });
+  await writeFile(
+    path.join(workspaceRoot, "openspec", "agent-harness.json"),
+    `${JSON.stringify({
+      stepAgents: {
+        propose: stage("claude-opus-5", "high"),
+        review: stage("claude-opus-5", "high"),
+        apply: stage("claude-sonnet-5", "medium"),
+        verify: stage("claude-opus-5", "high"),
+      },
+      autonomyLevel: "assisted",
+      budget: { maxCostUsd: 15 },
+    }, null, 2)}\n`,
+    "utf8",
+  );
   server = createServer({ workspaceRoot, host: "127.0.0.1", port: 0 });
   const address = await server.listen();
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -76,4 +95,37 @@ test("captures the frame around the summary, in the light theme and in the dark"
     .filter((animation) => animation instanceof CSSTransition)
     .map((animation) => animation.finished)));
   await page.screenshot({ path: path.join(IMAGES_DIR, "summary-light.png"), fullPage: true, mask: workspacePaths(page), maskColor: MASK_COLOR });
+});
+
+test("captures Harness Settings, in the light theme and in the dark", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+
+  await expect(page.getByTestId("app-bar")).toBeVisible();
+  await page.getByRole("tab", { name: "Harness Settings" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Harness Settings");
+  await expect(page.getByLabel("verify model")).toHaveValue("claude-opus-5", { timeout: 30_000 });
+  await expect(page.getByTestId("tab-reading-harness-settings")).toHaveCount(0, { timeout: 30_000 });
+  // The definitions arrive over their own route; the note about them is part
+  // of the picture.
+  await expect(page.getByTestId("custom-agent-empty-claude")).toBeVisible({ timeout: 30_000 });
+  // Other tabs read in the background and mark their labels while they do;
+  // the mockup's tab row has no such marks.
+  await expect(page.locator(".openspec-tab-spinner")).toHaveCount(0, { timeout: 60_000 });
+
+  // The note names the directories definitions are read from, under the
+  // home of whoever regenerated the picture.
+  const paths = () => [page.getByTestId("app-bar-workspace"), page.getByTestId("custom-agent-empty-claude")];
+  const theme = page.getByRole("switch", { name: "Dark theme" });
+  if ((await theme.getAttribute("aria-checked")) === "true") await theme.click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-openspec-theme", "dark");
+  await page.screenshot({ path: path.join(IMAGES_DIR, "harness-settings-light.png"), fullPage: true, mask: paths(), maskColor: MASK_COLOR });
+
+  await theme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-openspec-theme", "dark");
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((animation) => animation instanceof CSSTransition)
+    .map((animation) => animation.finished)));
+  await page.screenshot({ path: path.join(IMAGES_DIR, "harness-settings-dark.png"), fullPage: true, mask: paths(), maskColor: MASK_COLOR });
 });
