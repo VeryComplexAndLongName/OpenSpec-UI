@@ -104,6 +104,11 @@ mockup's "Harness Settings" artboard draws it
 
 - [ ] 5.6 The editor's harness panels are seen at a narrow width, in the
   extension's screenshot spec or live, with each stage readable.
-- [ ] 5.7 **Human-only.** Whether `harness-settings-light.png` and
+- [x] 5.7 **Human-only.** Whether `harness-settings-light.png` and
   `harness-settings-dark.png` match the mockup's "Harness Settings"
   artboards.
+
+  Record, 2026-09-16: the owner compared the running site with the mockup —
+  the standalone server on port 4317, built from the Harness Settings branch,
+  which carries this change and the ones beneath it — rather than the
+  pictures, and found it good: "As far as I'm concerned, everything is fine."
