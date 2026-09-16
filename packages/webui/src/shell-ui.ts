@@ -61,6 +61,36 @@ export const shellThemeCss = `
     --line: #d7dbe1;
     --line-strong: #bcc3cc;
 
+    /* Hues for a filled block that holds a label — a badge, a timeline
+       marker (the-web-ui-wears-more-metro 3.1) — each declared with the ink
+       that passes WCAG AA on it, since a hue is never used with any other.
+       shell-ui.test.ts computes every pair's contrast from these tokens
+       directly, so a hue added later is checked too.
+
+       White reads on cobalt, indigo and crimson (8.3:1, 9.9:1, 5.0:1); the
+       rest are too light for it (2.8:1 down to 1.5:1) and pair with dark
+       ink instead. Theme-invariant: a badge's colour states what it means
+       regardless of whether the page around it is light or dark, so the
+       dark palette below repeats these unchanged. */
+    --cobalt: #0048ad;
+    --cobalt-ink: #ffffff;
+    --indigo: #6500a8;
+    --indigo-ink: #ffffff;
+    --crimson: #dd0e37;
+    --crimson-ink: #ffffff;
+    --green: #00b300;
+    --green-ink: #1b1f24;
+    --orange: #ffa600;
+    --orange-ink: #1b1f24;
+    --teal: #1ac7c7;
+    --teal-ink: #1b1f24;
+    --emerald: #51c878;
+    --emerald-ink: #1b1f24;
+    --amber: #ffc929;
+    --amber-ink: #1b1f24;
+    --steel: #7d92a6;
+    --steel-ink: #1b1f24;
+
     /* A radius that softens a corner rather than announcing a card,
        and ONE shadow, spent only on what genuinely overlays — see ADR
        0023 decision 2. Border and fill do the separating. */
@@ -113,6 +143,27 @@ export const shellThemeCss = `
 
     --line: #353b44;
     --line-strong: #4a525d;
+
+    /* Theme-invariant (3.1's comment above): same hues, same ink, in
+       either theme. */
+    --cobalt: #0048ad;
+    --cobalt-ink: #ffffff;
+    --indigo: #6500a8;
+    --indigo-ink: #ffffff;
+    --crimson: #dd0e37;
+    --crimson-ink: #ffffff;
+    --green: #00b300;
+    --green-ink: #1b1f24;
+    --orange: #ffa600;
+    --orange-ink: #1b1f24;
+    --teal: #1ac7c7;
+    --teal-ink: #1b1f24;
+    --emerald: #51c878;
+    --emerald-ink: #1b1f24;
+    --amber: #ffc929;
+    --amber-ink: #1b1f24;
+    --steel: #7d92a6;
+    --steel-ink: #1b1f24;
 
     --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
@@ -1900,6 +1951,30 @@ export const vscodeThemeCss = `
     --line-strong: var(--vscode-contrastBorder, var(--vscode-input-border, var(--vscode-panel-border, transparent)));
     --radius-sm: 2px;
 
+    /* The hue-and-ink pairs declared in shellThemeCss (3.1), mapped to the
+       editor's own chart colours rather than repainted with ours (ADR 0023
+       decision 4). No screen draws one of these yet, so no picture proves
+       the pairing; each ink is the colour VS Code itself puts text on for
+       that kind of fill. */
+    --cobalt: var(--vscode-charts-blue, var(--vscode-button-background));
+    --cobalt-ink: var(--vscode-button-foreground);
+    --indigo: var(--vscode-charts-purple, var(--vscode-button-background));
+    --indigo-ink: var(--vscode-button-foreground);
+    --crimson: var(--vscode-charts-red, var(--vscode-errorForeground));
+    --crimson-ink: var(--vscode-button-foreground);
+    --green: var(--vscode-charts-green, var(--vscode-testing-iconPassed));
+    --green-ink: var(--vscode-editor-background);
+    --orange: var(--vscode-charts-orange, var(--vscode-charts-yellow));
+    --orange-ink: var(--vscode-editor-background);
+    --teal: var(--vscode-charts-blue);
+    --teal-ink: var(--vscode-editor-background);
+    --emerald: var(--vscode-charts-green);
+    --emerald-ink: var(--vscode-editor-background);
+    --amber: var(--vscode-charts-yellow);
+    --amber-ink: var(--vscode-editor-background);
+    --steel: var(--vscode-descriptionForeground);
+    --steel-ink: var(--vscode-editor-background);
+
     /* Control widths are not colours and are not the editor's to
        decide, so they are the shell's values verbatim. */
     --w-amount: 6.5rem;
@@ -1981,6 +2056,32 @@ export const vscodeThemeCss = `
     --table-selected-background: var(--vscode-list-activeSelectionBackground);
     --table-selected-color: var(--vscode-list-activeSelectionForeground);
     --table-striped-background: var(--vscode-list-hoverBackground, transparent);
+
+    /* panel, card, badge and timeline (the-web-ui-wears-more-metro 1.4): the
+       18 variables the derived copy reads for the four families this change
+       adds. No screen draws one yet, but vscode-metro-mapping.test.ts checks
+       the mapping is complete before a screen depends on it. */
+    --panel-background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+    --panel-color: var(--vscode-foreground);
+    --panel-border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+    --panel-border-radius: 2px;
+    --panel-header-background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
+    --panel-header-color: var(--vscode-foreground);
+
+    --card-background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --card-color: var(--vscode-foreground);
+    --card-border-radius: 2px;
+    --card-header-background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
+    --card-header-color: var(--vscode-foreground);
+    --card-footer-background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --card-footer-color: var(--vscode-foreground);
+    --card-button-border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+
+    --badge-background: var(--vscode-badge-background);
+    --badge-color: var(--vscode-badge-foreground);
+    --badge-border-radius: 2px;
+
+    --timeline-marker-color: var(--vscode-button-background);
   }
 
   /* A neutral button keeps an edge where the theme draws one. Default Dark

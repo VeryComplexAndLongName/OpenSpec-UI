@@ -22,6 +22,44 @@ function darkTokens(css: string): string[] {
     return [...block.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1] as string);
 }
 
+/** The colour tokens a block declares, by name, as written (`#rrggbb` etc). */
+function colorTokensOf(block: string): Map<string, string> {
+    return new Map(
+        [...block.matchAll(/(--[a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g)].map((match) => [match[1] as string, match[2] as string]),
+    );
+}
+
+/** WCAG relative luminance of a `#rrggbb` (or `#rgb`) colour. */
+function relativeLuminance(hex: string): number {
+    const full = hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex;
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(full.slice(i, i + 2), 16) / 255) as [number, number, number];
+    const linear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/** WCAG contrast ratio between two `#rrggbb` colours. */
+function contrastRatio(a: string, b: string): number {
+    const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [number, number];
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Every hue-and-ink pair a block declares: a token `--x` together with a
+ * `--x-ink` naming the ink used on it (the-web-ui-wears-more-metro 3.1). Read
+ * from the stylesheet itself, not from a list written beside it, so a pair
+ * added later is picked up here too. */
+function hueInkPairsOf(block: string): Array<{ hue: string; hueColor: string; inkColor: string }> {
+    const tokens = colorTokensOf(block);
+    const pairs: Array<{ hue: string; hueColor: string; inkColor: string }> = [];
+    for (const [name, inkColor] of tokens) {
+        if (!name.endsWith("-ink")) continue;
+        const hue = name.slice(0, -"-ink".length);
+        const hueColor = tokens.get(hue);
+        if (hueColor === undefined) continue;
+        pairs.push({ hue, hueColor, inkColor });
+    }
+    return pairs;
+}
+
 /** Everything after the `:root` block — the rules themselves. The dark
  * palette is a palette too, so it is cut out as well. */
 function rulesAfterRoot(css: string): string {
@@ -115,6 +153,26 @@ describe("shell themes", () => {
         // width that clipped it. `min-width` contains the substring,
         // so the check has to exclude the prefixed forms.
         expect(shellThemeCss).not.toMatch(/(?<![a-z-])width: var\(--w-name\)/);
+    });
+
+    it("meets WCAG AA on every declared hue-and-ink pair, in both themes", () => {
+        // the-web-ui-wears-more-metro 3.1/3.2. A hue-and-ink pair is read
+        // out of the stylesheet by naming convention (`--x` and `--x-ink`),
+        // not from a list kept beside it, so a pair added later is checked
+        // here without editing this test.
+        const lightOpen = shellThemeCss.indexOf("{", shellThemeCss.indexOf(":root"));
+        const lightBlock = shellThemeCss.slice(lightOpen + 1, shellThemeCss.indexOf("}", lightOpen));
+        const darkOpen = shellThemeCss.indexOf("{", shellThemeCss.indexOf(DARK_PALETTE));
+        const darkBlock = shellThemeCss.slice(darkOpen + 1, shellThemeCss.indexOf("}", darkOpen));
+
+        const pairs = [...hueInkPairsOf(lightBlock), ...hueInkPairsOf(darkBlock)];
+        expect(pairs.length).toBeGreaterThan(0);
+
+        const failing = pairs
+            .map(({ hue, hueColor, inkColor }) => ({ hue, ratio: contrastRatio(hueColor, inkColor) }))
+            .filter(({ ratio }) => ratio < 4.5);
+
+        expect(failing).toEqual([]);
     });
 
     it("ends a settings section with a rule and more space than separates its fields", () => {

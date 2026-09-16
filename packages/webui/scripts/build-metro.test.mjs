@@ -126,4 +126,14 @@ describe("the derived Metro UI copy", () => {
     expect(css).not.toMatch(/url\(\s*["']?(https?:)?\/\//i);
     expect(css).not.toMatch(/@import/i);
   });
+
+  it("stays under the stated byte ceiling", () => {
+    // the-web-ui-wears-more-metro design.md's measured table: KEPT_COMPONENTS
+    // with panel, card, badge and timeline added derives 120,388 bytes. A
+    // family added later moves this number, and the failure message says by
+    // how much, so growth is read in review rather than discovered later.
+    const CEILING_BYTES = 120_388;
+    const bytes = Buffer.byteLength(shippedCss(), "utf8");
+    expect(bytes, `derived Metro copy is ${bytes} bytes, ceiling is ${CEILING_BYTES}`).toBeLessThanOrEqual(CEILING_BYTES);
+  });
 });
