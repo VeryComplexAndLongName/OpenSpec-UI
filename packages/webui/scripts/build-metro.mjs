@@ -43,16 +43,28 @@ export const LAYER = "metro";
  * (`button`, `button-group`). Adding a control of a new kind starts here.
  *
  * Measured against the web UI on 2026-09-15, the design's first list also
- * named `checkbox`, `tabs`, `dialog`, `progress`, `badge`, `panel` and `card`.
- * None of them is carried:
- * - `checkbox`, `tabs` and `progress` style the elements metro.js builds
- *   around a native control, which React does not render. A native checkbox
- *   takes Metro's look from the `input` rules.
- * - `dialog` is a fixed-position modal, while the run dialog and the stop
- *   form sit in the page.
- * - No screen uses `badge`, `panel` or `card`, and the shell's own panels
- *   already draw that arrangement (ADR 0030 decision 4). */
-export const KEPT_COMPONENTS = ["button", "input", "select", "textarea", "table"];
+ * named `checkbox`, `tabs`, `dialog` and `progress`. None of them is
+ * carried: they style the elements metro.js builds around a native
+ * control, which React does not render, or (`dialog`) a fixed-position
+ * modal, while the run dialog and the stop form sit in the page.
+ *
+ * `panel`, `card`, `badge` and `timeline` join in the-web-ui-wears-more-metro
+ * (design.md's byte table): no screen adopts one there, but the frame that
+ * lets a later screen change land as a test-checked diff is worth carrying
+ * ahead of the screen that spends it. `accordion` is measured at 134 bytes
+ * and is not carried: no screen uses one, and a native `<details>` covers
+ * the only place that might. */
+export const KEPT_COMPONENTS = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "table",
+  "panel",
+  "card",
+  "badge",
+  "timeline",
+];
 
 /** The native elements Metro styles with no class and no metro.js. Its
  * `.input`, `.select` and `.textarea` classes are for the wrappers metro.js

@@ -24,6 +24,7 @@
   },
   "scripts": {
     "build:metro": "node scripts/build-metro.mjs",
+    "build:metro-icons": "node scripts/build-metro-icons.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run"
