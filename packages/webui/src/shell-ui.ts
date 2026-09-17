@@ -2296,90 +2296,296 @@ export const shellThemeCss = `
     padding: 2px 12px 2px 0;
     text-align: left;
   }
-  .openspec-timeline-header dl {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 16px;
-    margin: 4px 0 0;
-  }
-
-  .openspec-timeline-header dt {
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .openspec-timeline-header dd {
-    margin: 0 16px 0 4px;
-    font-size: 12px;
-  }
-
-  .openspec-timeline-artifact {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 12px 16px;
-  }
-
-  .openspec-timeline-tasks ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  /* One change's history as ADR 0033's mockup draws it
+     (the-change-timeline-looks-like-the-mockup): the toolbar, then the rail
+     of moments beside a Tasks tile and the dates, then what the rail cannot
+     place. Tokens only, so both themes and the editor's draw it. */
+  .openspec-timeline-screen {
     display: grid;
-    gap: 4px;
+    gap: 20px;
   }
 
-  .openspec-timeline-task-toggle {
+  /* Metro draws a select as wide as its row; the mockup's picker is one
+     control of the toolbar's row. */
+  .openspec-timeline-toolbar .openspec-timeline-picker {
+    flex: 0 1 360px;
+    width: 360px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .openspec-timeline-stale {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
-    text-align: left;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface-2);
-    color: var(--ink);
-    padding: 6px 10px;
-    cursor: pointer;
-  }
-
-  .openspec-timeline-task-marker {
-    color: var(--primary);
-    flex-shrink: 0;
-  }
-
-  .openspec-timeline-task-date {
+    margin-left: auto;
+    font-size: 13px;
     color: var(--muted);
+  }
+
+  .openspec-timeline-stale input {
+    width: 64px;
+  }
+
+  .openspec-change-timeline {
+    display: grid;
+    gap: 20px;
+  }
+
+  .openspec-change-timeline-heading h2 {
+    margin: 0 0 4px;
+    font-size: 24px;
+    font-weight: 300;
+    color: var(--heading);
+    overflow-wrap: anywhere;
+  }
+
+  .openspec-change-timeline-heading p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-change-timeline-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .openspec-change-timeline-side {
+    display: grid;
+    gap: 20px;
+  }
+
+  /* The rail: a line down the left, a dot at each moment, the time above
+     what happened. The last moment's line stops at its dot. */
+  .openspec-change-timeline-rail {
+    margin: 0;
+    padding: 20px 24px 8px 32px;
+    list-style: none;
+  }
+
+  .openspec-change-timeline-moment {
+    position: relative;
+    padding: 0 0 22px 24px;
+  }
+
+  .openspec-change-timeline-moment::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: var(--line-strong);
+  }
+
+  .openspec-change-timeline-moment:last-child::before {
+    display: none;
+  }
+
+  .openspec-change-timeline-moment::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: -5px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--cobalt);
+    box-shadow: 0 0 0 3px var(--surface);
+  }
+
+  .openspec-change-timeline-moment--proposed::after { background: var(--steel); }
+  .openspec-change-timeline-moment--archived::after { background: var(--emerald); }
+
+  .openspec-change-timeline-when {
+    display: block;
+    margin-top: -2px;
     font-size: 12px;
-    white-space: nowrap;
-    flex-shrink: 0;
+    color: var(--muted);
   }
 
-  .openspec-timeline-task-pending {
-    font-style: italic;
+  .openspec-change-timeline-what {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin-top: 3px;
+    font-size: 14px;
+    color: var(--heading);
+    overflow-wrap: anywhere;
   }
 
-  .openspec-timeline-task-stale .openspec-timeline-task-toggle {
-    border-color: var(--danger);
+  .openspec-change-timeline-task {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 10px;
+    min-width: 0;
+    max-width: 100%;
   }
 
-  .openspec-timeline-task-stale .openspec-timeline-task-marker,
-  .openspec-timeline-task-stale .openspec-timeline-task-date {
-    color: var(--danger);
-  }
-
-  .openspec-timeline-task-text {
+  .openspec-change-timeline-title {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .openspec-timeline-task-detail {
-    margin: 4px 0 0 10px;
-    padding: 8px 10px;
-    background: var(--surface);
+  .openspec-change-timeline-number {
+    flex: none;
+    min-width: 28px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .openspec-change-timeline .badge.openspec-change-timeline-badge {
+    position: static;
+    display: inline-block;
+    padding: 2px 7px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--steel);
+    color: var(--steel-ink);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .openspec-change-timeline .badge.openspec-change-timeline-badge--archived { background: var(--emerald); color: var(--emerald-ink); }
+  .openspec-change-timeline .badge.openspec-change-timeline-badge--stale { background: var(--amber); color: var(--amber-ink); }
+
+  .openspec-change-timeline-group-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 3px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--heading);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .openspec-change-timeline-chevron {
+    color: var(--muted);
+  }
+
+  .openspec-change-timeline-group {
+    display: flex;
+    flex-direction: column;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 13px;
+    color: var(--ink);
+  }
+
+  .openspec-change-timeline-group > li {
+    padding: 7px 10px;
+  }
+
+  .openspec-change-timeline-group > li + li {
+    border-top: 1px solid var(--line);
+  }
+
+  /* The tile takes the site's green once every task is done. */
+  .openspec-change-timeline-tile--done .openspec-tile-icon {
+    background: var(--emerald);
+    color: var(--emerald-ink);
+  }
+
+  .openspec-change-timeline-dates {
+    margin: 0;
+    padding: 4px 0;
+  }
+
+  .openspec-change-timeline-dates > div {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 16px;
+  }
+
+  .openspec-change-timeline-dates dt {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-change-timeline-dates dd {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+  }
+
+  .openspec-change-timeline-date {
+    font-size: 14px;
+    color: var(--heading);
+  }
+
+  .openspec-change-timeline-source {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-change-timeline-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .openspec-change-timeline-list > li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+  }
+
+  .openspec-change-timeline-list > li + li {
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-change-timeline-document + .openspec-change-timeline-document {
+    border-top: 1px solid var(--line);
+  }
+
+  .openspec-change-timeline-document > summary {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--heading);
+    cursor: pointer;
+  }
+
+  .openspec-change-timeline-document-body {
+    padding: 0 16px 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  /* The editor's panel is usually half a window: one column there. */
+  @media (max-width: 760px) {
+    .openspec-change-timeline-columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .openspec-timeline-stale {
+      margin-left: 0;
+    }
   }
 
   /* A count is a figure standing beside other figures, so each is a tile
