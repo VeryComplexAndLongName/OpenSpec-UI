@@ -124,6 +124,10 @@ describe("HarnessSettingsPanel — a panel of its own", () => {
     // A script CSP without 'unsafe-inline': the page runs only its bundle.
     expect(html).toContain("script-src vscode-webview:;");
     expect(html).not.toContain("script-src vscode-webview: 'unsafe-inline'");
+    // The icons are a data: font inside the stylesheet; without this the
+    // gear beside "Global harness settings" is an empty box
+    // (an-editor-panel-draws-its-icons).
+    expect(html).toContain("font-src data:;");
   });
 
   it("renders the global panel with the global scope and no change", () => {
