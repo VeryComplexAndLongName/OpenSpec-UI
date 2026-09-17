@@ -1,147 +1,168 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ChangeTimelineView } from "./ChangeTimelineView.js";
-import type { ChangeTimeline } from "../change-timeline-client.js";
+import type { ChangeTimeline, ChangeTimelineTask } from "../change-timeline-client.js";
 
+// the-change-timeline-looks-like-the-mockup 2.4: the mockup's one-change
+// screen. What is derived is timeline-moments.test.ts's; this asserts what is
+// drawn from it.
+
+const ZONE = "Europe/Moscow";
+
+function task(lineNumber: number, text: string, partial: Partial<ChangeTimelineTask> = {}): ChangeTimelineTask {
+  return { lineNumber, text, done: true, date: null, lastTouchedDate: null, ...partial };
+}
+
+const SQUASHED = "2026-09-13T20:16:00.000Z";
+
+/** An archived change: five tasks in one commit, one on its own, one done
+ * with no date, and one still open. */
 const timeline: ChangeTimeline = {
-  changeName: "my-change",
+  changeName: "2026-09-14-a-run-says-which-task-it-is-on",
   archived: true,
   dates: {
-    proposed: { date: null, day: null, source: "none" },
-    firstWorked: { date: null, day: null, source: "none" },
-    lastWorked: { date: null, day: null, source: "none" },
-    archived: { date: null, day: null, source: "none" },
+    proposed: { date: "2026-09-13T15:40:00.000Z", day: "2026-09-13", source: "git-commit" },
+    firstWorked: { date: SQUASHED, day: "2026-09-13", source: "git-blame" },
+    lastWorked: { date: "2026-09-14T01:47:00.000Z", day: "2026-09-14", source: "git-blame" },
+    archived: { date: "2026-09-14T01:47:00.000Z", day: "2026-09-14", source: "git-commit" },
   },
-  createdDate: "2026-01-01T00:00:00.000Z",
-  archivedDate: "2026-01-03",
+  createdDate: "2026-09-13T15:40:00.000Z",
+  archivedDate: "2026-09-14",
   proposal: "## Why\n\nBecause reasons.\n",
   design: "## Context\n\nSome context.\n",
   specs: [{ specId: "execution-core", content: "## ADDED Requirements\n" }],
   tasks: [
-    {
-      lineNumber: 0,
-      text: "second task, checked later",
-      done: true,
-      date: "2026-01-03T00:00:00.000Z",
-      lastTouchedDate: "2026-01-03T00:00:00.000Z",
-    },
-    {
-      lineNumber: 1,
-      text: "first task, checked earlier",
-      done: true,
-      date: "2026-01-02T00:00:00.000Z",
-      lastTouchedDate: "2026-01-02T00:00:00.000Z",
-    },
-    {
-      lineNumber: 2,
-      text: "still pending",
-      done: false,
-      date: null,
-      lastTouchedDate: "2026-01-10T00:00:00.000Z",
-    },
+    task(1, "1.1 commandInstruction in the shared agent instructions", { date: SQUASHED }),
+    task(2, "1.2 shared.test.ts pins the instruction", { date: SQUASHED }),
+    task(3, "2.1 A new file, task-marker.ts, exports a pure parser", { date: SQUASHED }),
+    task(4, "2.2 The parser reads a number", { date: SQUASHED }),
+    task(5, "2.3 The parser reads a guess", { date: SQUASHED }),
+    task(8, "6.2 Run `npm run verify` unpiped, after the last edit", { date: "2026-09-13T21:13:00.000Z", continued: "and with the lints." }),
+    task(9, "6.3 Recorded without a commit"),
+    task(10, "6.7 Whether the card reads well", { done: false, lastTouchedDate: "2026-09-01T00:00:00.000Z" }),
   ],
 };
 
-describe("ChangeTimelineView", () => {
-  it("renders the change name and both dates for an archived change", () => {
-    render(<ChangeTimelineView timeline={timeline} />);
-    const view = screen.getByTestId("change-timeline-view");
-    expect(view).toHaveTextContent("my-change");
-    expect(view).toHaveTextContent("2026-01-03");
+function draw(props: Partial<Parameters<typeof ChangeTimelineView>[0]> = {}) {
+  return render(<ChangeTimelineView timeline={timeline} timeZone={ZONE} now={new Date("2026-09-17T12:00:00.000Z")} {...props} />);
+}
+
+describe("ChangeTimelineView — Tasks over time", () => {
+  it("places the proposal, each moment and the archive on the rail, oldest first, in local times", () => {
+    draw();
+    const rail = within(screen.getByTestId("change-timeline-moments"));
+    expect(rail.getByText("times are local")).toBeInTheDocument();
+    const moments = screen.getByTestId("change-timeline-tasks").querySelectorAll(":scope > li");
+    expect([...moments].map((moment) => moment.querySelector("time")?.textContent)).toEqual([
+      "Sun 13 Sep, 18:40",
+      "Sun 13 Sep, 23:16",
+      "Mon 14 Sep, 00:13",
+      "Mon 14 Sep, 04:47",
+    ]);
+    expect(moments[0]).toHaveTextContent("Proposedproposal.md first committed");
+    // The whole sentence, wrapped lines and all, without its Markdown marks,
+    // and the same on hover where one line cuts it.
+    expect(moments[2]).toHaveTextContent("6.2Run npm run verify unpiped, after the last edit and with the lints.");
+    expect(within(moments[2] as HTMLElement).getByTitle("Run npm run verify unpiped, after the last edit and with the lints.")).toBeInTheDocument();
+    expect(moments[3]).toHaveTextContent("Archivedmoved to archive/2026-09-14-a-run-says-which-task-it-is-on");
   });
 
-  it("renders proposal, design, and spec content", () => {
-    render(<ChangeTimelineView timeline={timeline} />);
-    const view = screen.getByTestId("change-timeline-view");
-    expect(view).toHaveTextContent("Because reasons.");
-    expect(view).toHaveTextContent("Some context.");
-    expect(view).toHaveTextContent("execution-core");
+  it("draws tasks ticked in one commit as one moment with its first three, and opens it whole", () => {
+    draw();
+    expect(screen.getByTestId("timeline-group-toggle-1")).toHaveTextContent("5 tasks ticked in one commit");
+    const group = screen.getByTestId("timeline-group-1");
+    expect(group.querySelectorAll("[data-testid^='timeline-task-']")).toHaveLength(3);
+    expect(screen.getByTestId("timeline-group-more-1")).toHaveTextContent("and 2 more");
+
+    fireEvent.click(screen.getByTestId("timeline-group-more-1"));
+    expect(screen.getByTestId("timeline-group-1").querySelectorAll("[data-testid^='timeline-task-']")).toHaveLength(5);
+    expect(screen.queryByTestId("timeline-group-more-1")).toBeNull();
   });
 
-  it("orders tasks oldest-dated first, then pending", () => {
-    render(<ChangeTimelineView timeline={timeline} />);
-    const items = screen.getByTestId("change-timeline-tasks").querySelectorAll("li");
-    expect(items).toHaveLength(3);
-    expect(items[0]).toHaveTextContent("first task, checked earlier");
-    expect(items[1]).toHaveTextContent("second task, checked later");
-    expect(items[2]).toHaveTextContent("still pending");
-  });
-
-  it("expands a task's full text on click", () => {
-    render(<ChangeTimelineView timeline={timeline} />);
-    const toggle = screen.getByTestId("timeline-task-2").querySelector("button");
-    if (!toggle) throw new Error("task toggle button not found");
-
-    expect(screen.getByTestId("timeline-task-2").querySelectorAll("p")).toHaveLength(0);
+  it("closes a moment's list and opens it again", () => {
+    draw();
+    const toggle = screen.getByTestId("timeline-group-toggle-1");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(toggle);
-    expect(screen.getByTestId("timeline-task-2").querySelectorAll("p")).toHaveLength(1);
-  });
-
-  it("shows nothing for an empty task list", () => {
-    render(<ChangeTimelineView timeline={{ ...timeline, tasks: [] }} />);
-    expect(screen.getByText("No tasks found.")).toBeInTheDocument();
-  });
-
-  it("flags a pending task as stale once it has sat untouched past the threshold", () => {
-    render(
-      <ChangeTimelineView
-        timeline={timeline}
-        staleThresholdDays={14}
-        now={new Date("2026-02-01T00:00:00.000Z")} // 22 days after the pending task's lastTouchedDate
-      />,
-    );
-    const pendingTask = screen.getByTestId("timeline-task-2");
-    expect(pendingTask.className).toContain("openspec-timeline-task-stale");
-    expect(pendingTask).toHaveTextContent("stale");
-  });
-
-  // the-web-ui-screens-wear-metro 2.2: the list is Metro's timeline now, and
-  // neither the stale marker nor the expanded detail was lost in the move.
-  it("draws the tasks as a Metro timeline, with the date and the text in its own slots", () => {
-    render(<ChangeTimelineView timeline={timeline} />);
-
-    const list = screen.getByTestId("change-timeline-tasks");
-    expect(list).toHaveClass("timeline");
-
-    const dated = screen.getByTestId("timeline-task-1");
-    expect(dated.querySelector(".time")).not.toBeNull();
-    expect(dated.querySelector(".data")?.textContent).toBe("first task, checked earlier");
-    // A dated task gets Metro's dot; one with no date asks for none, because
-    // the dot is what says "this happened, then".
-    expect(dated.className).not.toContain("no-marker");
-    expect(screen.getByTestId("timeline-task-2").className).toContain("no-marker");
-  });
-
-  it("keeps the stale marker and the expanded detail on a Metro timeline row", () => {
-    render(
-      <ChangeTimelineView
-        timeline={timeline}
-        staleThresholdDays={14}
-        now={new Date("2026-02-01T00:00:00.000Z")}
-      />,
-    );
-
-    const pending = screen.getByTestId("timeline-task-2");
-    expect(pending.className).toContain("openspec-timeline-task-stale");
-    expect(pending.querySelector(".openspec-timeline-task-marker")?.textContent).toBe("⚠");
-
-    const toggle = pending.querySelector("button");
-    if (!toggle) throw new Error("task toggle button not found");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("timeline-group-1")).toBeNull();
     fireEvent.click(toggle);
-    expect(pending.querySelectorAll("p")).toHaveLength(1);
+    expect(screen.getByTestId("timeline-group-1")).toBeInTheDocument();
   });
 
-  it("does not flag a pending task touched recently", () => {
-    render(
-      <ChangeTimelineView
-        timeline={timeline}
-        staleThresholdDays={14}
-        now={new Date("2026-01-11T00:00:00.000Z")} // 1 day after the pending task's lastTouchedDate
-      />,
-    );
-    const pendingTask = screen.getByTestId("timeline-task-2");
-    expect(pendingTask.className).not.toContain("openspec-timeline-task-stale");
-    expect(pendingTask).toHaveTextContent("pending");
-    expect(pendingTask).not.toHaveTextContent("stale");
+  it("says so when git gives the change no times", () => {
+    const none = { date: null, day: null, source: "none" as const };
+    draw({ timeline: { ...timeline, archived: false, dates: { proposed: none, firstWorked: none, lastWorked: none, archived: none }, tasks: [] } });
+    expect(screen.getByTestId("change-timeline-moments")).toHaveTextContent("Git gives this change no times yet.");
+  });
+});
+
+describe("ChangeTimelineView — the tile and the dates", () => {
+  it("gives done of total and the span from proposal to archive", () => {
+    draw();
+    const tile = screen.getByTestId("change-timeline-tile");
+    expect(tile).toHaveTextContent("Tasks");
+    expect(tile).toHaveTextContent("7 / 8");
+    expect(tile).toHaveTextContent("proposed to archived in 10 h 07 min");
+    expect(tile).not.toHaveClass("openspec-change-timeline-tile--done");
+  });
+
+  it("gives each date with where it was read from, and why tasks share a moment", () => {
+    draw();
+    expect(screen.getByTestId("timeline-date-proposed")).toHaveTextContent("Sun 13 Sep, 18:40from a git commit");
+    expect(screen.getByTestId("timeline-date-last-worked")).toHaveTextContent("Mon 14 Sep, 04:47from git blame on tasks.md");
+    expect(screen.getByTestId("timeline-date-archived")).toHaveTextContent("from a git commit");
+    expect(screen.getByTestId("change-timeline-shared-note")).toHaveTextContent("which is why 5 share one moment");
+  });
+
+  it("has no shared-moment note when every moment holds one task", () => {
+    draw({ timeline: { ...timeline, tasks: timeline.tasks.slice(5) } });
+    expect(screen.queryByTestId("change-timeline-shared-note")).toBeNull();
+  });
+});
+
+describe("ChangeTimelineView — what the rail cannot place", () => {
+  it("lists open tasks, marks one stale by the threshold, and lists done tasks with no date", () => {
+    draw({ staleThresholdDays: 14 });
+    const open = screen.getByTestId("change-timeline-open");
+    expect(open).toHaveTextContent("6.7Whether the card reads well");
+    expect(within(open).getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByTestId("change-timeline-undated")).toHaveTextContent("6.3Recorded without a commit");
+  });
+
+  it("follows the threshold it is given", () => {
+    draw({ staleThresholdDays: 30 });
+    expect(within(screen.getByTestId("change-timeline-open")).queryByText("Stale")).toBeNull();
+  });
+
+  it("keeps the proposal, design and specs, closed until asked for", () => {
+    draw();
+    const proposal = screen.getByTestId("timeline-document-proposal");
+    expect(proposal.tagName).toBe("DETAILS");
+    expect(proposal).not.toHaveAttribute("open");
+    expect(proposal).toHaveTextContent("Because reasons.");
+    expect(screen.getByTestId("timeline-document-design")).toHaveTextContent("Some context.");
+    expect(screen.getByTestId("timeline-document-spec-execution-core")).toHaveTextContent("Spec: execution-core");
+  });
+
+  it("draws no section with nothing to list", () => {
+    draw({ timeline: { ...timeline, proposal: "", design: "", specs: [], tasks: timeline.tasks.slice(0, 6) } });
+    expect(screen.queryByTestId("change-timeline-open")).toBeNull();
+    expect(screen.queryByTestId("change-timeline-undated")).toBeNull();
+    expect(screen.queryByTestId("change-timeline-documents")).toBeNull();
+    expect(screen.getByTestId("change-timeline-tile")).toHaveClass("openspec-change-timeline-tile--done");
+  });
+});
+
+describe("ChangeTimelineView — the heading", () => {
+  it("names the change only when asked, without its archive prefix", () => {
+    const { unmount } = draw();
+    expect(screen.queryByTestId("change-timeline-heading")).toBeNull();
+    unmount();
+
+    draw({ heading: true });
+    const heading = screen.getByTestId("change-timeline-heading");
+    expect(within(heading).getByRole("heading", { level: 2 })).toHaveTextContent("a-run-says-which-task-it-is-on");
+    expect(heading).toHaveTextContent("Archived · each task placed when git shows it was ticked");
   });
 });

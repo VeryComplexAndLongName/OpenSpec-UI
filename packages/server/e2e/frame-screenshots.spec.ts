@@ -4,7 +4,8 @@
 // 1280 pixels, in the light theme and in the dark; then the whole summary
 // page in both (the-summary-looks-like-the-mockup 4.2); then Harness Settings
 // in both, on a global file set as the mockup's artboard sets it
-// (the-harness-settings-look-like-the-mockup 4.2).
+// (the-harness-settings-look-like-the-mockup 4.2); then the Timeline's one
+// change in both (the-change-timeline-looks-like-the-mockup 5.1).
 //
 // Regenerate with (from packages/server):
 // `npm run test:browser -- frame-screenshots.spec.ts`.
@@ -15,6 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
+import { createTimelineWorkspace, TIMELINE_ARCHIVE_FOLDER, TIMELINE_CHANGE } from "./fixtures/create-timeline-workspace.js";
 
 const CHANGE_NAME = "frame-fixture";
 const IMAGES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "images", "standalone");
@@ -128,4 +130,68 @@ test("captures Harness Settings, in the light theme and in the dark", async ({ p
     .filter((animation) => animation instanceof CSSTransition)
     .map((animation) => animation.finished)));
   await page.screenshot({ path: path.join(IMAGES_DIR, "harness-settings-dark.png"), fullPage: true, mask: paths(), maskColor: MASK_COLOR });
+});
+
+// The Timeline's one-change screen, for comparison with the mockup's
+// "Timeline: one change" artboard: a change with a history git can read, in
+// the zone the artboard's times are in.
+test.describe("the Timeline's one change", () => {
+  test.use({ timezoneId: "Europe/Moscow" });
+  let timelineServer: OpenSpecUiServer;
+  let timelineRoot: string;
+  let timelineUrl: string;
+
+  test.beforeAll(async () => {
+    timelineRoot = await createTimelineWorkspace();
+    timelineServer = createServer({ workspaceRoot: timelineRoot, host: "127.0.0.1", port: 0 });
+    const address = await timelineServer.listen();
+    timelineUrl = `http://127.0.0.1:${address.port}`;
+  });
+
+  test.afterAll(async () => {
+    await timelineServer.close();
+    await rm(timelineRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  test("captures one change's timeline, in the light theme and in the dark", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${timelineUrl}/#token=${encodeURIComponent(timelineServer.accessToken)}`);
+
+    await expect(page.getByTestId("app-bar")).toBeVisible();
+    await page.getByRole("tab", { name: "Timeline" }).click();
+    const picker = page.getByTestId("timeline-change-picker");
+    await expect(picker).toBeEnabled({ timeout: 30_000 });
+    await expect(picker.locator("option", { hasText: `${TIMELINE_CHANGE} · archived` })).toHaveCount(1);
+    // Choosing loads it: there is no button to press.
+    await picker.selectOption(`archived:${TIMELINE_ARCHIVE_FOLDER}`);
+
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(TIMELINE_CHANGE, { timeout: 30_000 });
+    await expect(page.getByTestId("change-timeline-tile")).toContainText("7 / 7");
+    await expect(page.getByTestId("change-timeline-tile")).toContainText("proposed to archived in 10 h 07 min");
+    await expect(page.getByTestId("timeline-group-toggle-1")).toHaveText("5 tasks ticked in one commit");
+    await expect(page.getByTestId("change-timeline-tasks").locator(":scope > li").first().locator("time")).toHaveText("Sun 13 Sep, 18:40");
+    await expect(page.getByTestId("timeline-date-proposed")).toContainText("from a git commit");
+    await expect(page.getByTestId("tab-reading-timeline")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.locator(".openspec-tab-spinner")).toHaveCount(0, { timeout: 60_000 });
+
+    const masks = () => [page.getByTestId("app-bar-workspace")];
+    const theme = page.getByRole("switch", { name: "Dark theme" });
+    if ((await theme.getAttribute("aria-checked")) === "true") await theme.click();
+    await expect(page.locator("html")).not.toHaveAttribute("data-openspec-theme", "dark");
+    await page.screenshot({ path: path.join(IMAGES_DIR, "timeline-change-light.png"), fullPage: true, mask: masks(), maskColor: MASK_COLOR });
+
+    await theme.click();
+    await expect(page.locator("html")).toHaveAttribute("data-openspec-theme", "dark");
+    await page.evaluate(() => Promise.all(document.getAnimations()
+      .filter((animation) => animation instanceof CSSTransition)
+      .map((animation) => animation.finished)));
+    await page.screenshot({ path: path.join(IMAGES_DIR, "timeline-change-dark.png"), fullPage: true, mask: masks(), maskColor: MASK_COLOR });
+
+    // Choosing again puts the change shown away at once, and the page head
+    // stops naming it.
+    await picker.selectOption("");
+    await expect(page.getByTestId("change-timeline-view")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Timeline");
+  });
 });

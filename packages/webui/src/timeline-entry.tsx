@@ -46,7 +46,9 @@ function TimelineApp({
     <div className={metroRootClassName("openspec-extension-app", editorDark)}>
       <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}\n${vscodeThemeCss}`}</style>
       {timeline ? (
-        <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} />
+        // The panel has no page head, so the view names the change itself
+        // (the-change-timeline-looks-like-the-mockup 4.1).
+        <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} heading />
       ) : multi ? (
         <>
           <MultiChangeTimelineView timelines={multi.timelines} rangeStart={multi.rangeStart} rangeEnd={multi.rangeEnd} />

@@ -106,6 +106,7 @@ import {
   describeHumanOnlyInboxState,
   describeStandingSources,
   describeWaitingOn,
+  withoutArchivePrefix,
   type ChangeStandings,
   type DescribedChangeState,
 } from "@openspec-ui/core/browser";
@@ -345,6 +346,9 @@ function StandaloneApp() {
   const [timeline, setTimeline] = useState<ChangeTimeline | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
+  /** Counts timeline readings, so a change chosen after another is not
+   * replaced by the first one's answer arriving late. */
+  const timelineReading = useRef(0);
   const [timelineMode, setTimelineMode] = useState<"single" | "multi" | "sprint">("single");
   const [sprintReportLoading, setSprintReportLoading] = useState(false);
   const [sprintReportMessage, setSprintReportMessage] = useState<string | null>(null);
@@ -1026,28 +1030,32 @@ function StandaloneApp() {
     return () => clearInterval(timer);
   }, [cwd, overview, runDispatch]);
 
-  async function loadTimeline() {
+  /** Reads the chosen change's timeline. Choosing a change calls this; there
+   * is no button to press (the-change-timeline-looks-like-the-mockup). */
+  async function loadTimeline(selection: string) {
     if (cwd.trim().length === 0) {
       setTimelineMessage("Enter workspace root first.");
       return;
     }
-    const [prefix, ...rest] = timelineSelection.split(":");
+    const [prefix, ...rest] = selection.split(":");
     const changeName = rest.join(":");
     if (!changeName || (prefix !== "active" && prefix !== "archived")) {
       setTimelineMessage("Select a change first.");
       return;
     }
+    const reading = ++timelineReading.current;
     setTimelineLoading(true);
     setTimelineMessage(null);
     try {
       const loaded = await loadChangeTimeline(apiFetch, cwd, changeName, prefix === "archived");
-      setTimeline(loaded);
+      if (reading === timelineReading.current) setTimeline(loaded);
     } catch (error) {
+      if (reading !== timelineReading.current) return;
       const message = error instanceof Error ? error.message : String(error);
       setTimelineMessage(`Load failed: ${message}`);
       setTimeline(null);
     } finally {
-      setTimelineLoading(false);
+      if (reading === timelineReading.current) setTimelineLoading(false);
     }
   }
 
@@ -1462,6 +1470,16 @@ function StandaloneApp() {
   // Shown only once a reading has lasted a moment: a quick one otherwise
   // put a line above the tab and took it away, and the screen jerked.
   const shownReadings = useShownReadings(readings);
+  // While one change's timeline is shown, the page head names it, as the
+  // mockup's artboard does (the-change-timeline-looks-like-the-mockup).
+  const pageHead = activeTab === "timeline" && timelineMode === "single" && timeline
+    ? {
+      tagline: "Timeline",
+      icon: "timeline" as const,
+      title: withoutArchivePrefix(timeline.changeName),
+      sentence: `${timeline.archived ? "Archived" : "Active"} · each task placed when git shows it was ticked`,
+    }
+    : PAGE_HEADS[activeTab];
 
   return (
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
@@ -1472,9 +1490,9 @@ function StandaloneApp() {
       {isStandaloneHost ? <AppBar workspacePath={cwd} theme={theme} onToggleTheme={toggleTheme} /> : null}
 
       <div className="openspec-page">
-      {isStandaloneHost && PAGE_HEADS[activeTab] ? (
+      {isStandaloneHost && pageHead ? (
         <PageHead
-          head={PAGE_HEADS[activeTab]}
+          head={pageHead}
           action={activeTab === "overview" ? (
             <button className="button openspec-button-quiet" type="button" data-testid="summary-refresh" onClick={handleLoadOverview} disabled={overviewLoading || cwd.trim().length === 0}>
               <Icon meaning="refresh" />Refresh
@@ -2085,39 +2103,34 @@ function StandaloneApp() {
       <TabPanel id="timeline" activeTab={activeTab} lazy>
       <PanelStatus reading={shownReadings["timeline"]} testId="tab-reading-timeline" />
       <BusyFieldset busy={shownReadings["timeline"] !== null}>
-      <section className="openspec-shell-panel">
-
-        <div className="openspec-editor-tabs">
-          <button
-            type="button"
-            className={timelineMode === "single" ? "is-active" : ""}
-            onClick={() => setTimelineMode("single")}
-          >
-            Single change
-          </button>
-          <button
-            type="button"
-            className={timelineMode === "multi" ? "is-active" : ""}
-            onClick={() => setTimelineMode("multi")}
-          >
-            Compare changes
-          </button>
-          <button
-            type="button"
-            className={timelineMode === "sprint" ? "is-active" : ""}
-            onClick={() => setTimelineMode("sprint")}
-          >
-            Sprint report
-          </button>
-        </div>
-
-        {timelineMode === "single" ? (
-          <Fragment>
-            <div className="openspec-ai-panel-controls">
+      <div className="openspec-timeline-screen">
+        {/* The mockup's toolbar (the-change-timeline-looks-like-the-mockup):
+            the modes as one segmented control, then, for one change, the
+            picker that loads what it is given and the stale threshold. */}
+        <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">
+          <div className="openspec-segmented" role="group" aria-label="Timeline mode">
+            <button type="button" aria-pressed={timelineMode === "single"} onClick={() => setTimelineMode("single")}>One change</button>
+            <button type="button" aria-pressed={timelineMode === "multi"} onClick={() => setTimelineMode("multi")}>Compare changes</button>
+            <button type="button" aria-pressed={timelineMode === "sprint"} onClick={() => setTimelineMode("sprint")}>Sprint report</button>
+          </div>
+          {timelineMode === "single" ? (
+            <Fragment>
               <select
+                className="openspec-timeline-picker"
                 aria-label="Change to show a timeline for"
+                data-testid="timeline-change-picker"
                 value={timelineSelection}
-                onChange={(e) => setTimelineSelection(e.target.value)}
+                onChange={(e) => {
+                  setTimelineSelection(e.target.value);
+                  // The change shown goes at once. Left up while the next one
+                  // is read, it sat under a picker naming another change, with
+                  // its own name in the page head (found by 6.6's live check).
+                  timelineReading.current += 1;
+                  setTimeline(null);
+                  setTimelineMessage(null);
+                  if (e.target.value) void loadTimeline(e.target.value);
+                  else setTimelineLoading(false);
+                }}
                 disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
               >
                 <option value="">Select change</option>
@@ -2125,18 +2138,12 @@ function StandaloneApp() {
                   <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
                 ))}
                 {(overview?.archivedChanges ?? []).map((name) => (
-                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
+                  <option key={`archived:${name}`} value={`archived:${name}`}>{`${withoutArchivePrefix(name)} · archived`}</option>
                 ))}
               </select>
-              <button className="button primary"
-                type="button"
-                onClick={() => void loadTimeline()}
-                disabled={timelineLoading || timelineSelection.trim().length === 0}
-              >
-                {timelineLoading ? "Loading..." : "Load timeline"}
-              </button>
-              <label className="openspec-shell-field">
-                Stale after (days)
+              {timelineMessage ? <span className="openspec-shell-note" data-testid="timeline-message">{timelineMessage}</span> : null}
+              <label className="openspec-timeline-stale">
+                Stale after
                 <input
                   type="number"
                   aria-label="Stale task threshold in days"
@@ -2144,13 +2151,17 @@ function StandaloneApp() {
                   value={staleThresholdDays}
                   onChange={(e) => setStaleThresholdDays(Number(e.target.value) || DEFAULT_STALE_TASK_THRESHOLD_DAYS)}
                 />
+                days
               </label>
-            </div>
+            </Fragment>
+          ) : null}
+        </div>
 
-            {timelineMessage ? <p className="openspec-shell-note">{timelineMessage}</p> : null}
-            {timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null}
-          </Fragment>
-        ) : timelineMode === "multi" ? (
+        {timelineMode === "single" ? (
+          timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null
+        ) : (
+      <section className="openspec-shell-panel">
+        {timelineMode === "multi" ? (
           <Fragment>
             <div className="openspec-shell-grid">
               <label className="openspec-shell-field">
@@ -2264,6 +2275,8 @@ function StandaloneApp() {
           </Fragment>
         )}
       </section>
+        )}
+      </div>
       </BusyFieldset>
       </TabPanel>
       )}

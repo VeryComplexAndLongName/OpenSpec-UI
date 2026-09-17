@@ -95,6 +95,43 @@ describe("readTaskChecklist", () => {
     expect(items[0]).not.toHaveProperty("section");
   });
 
+  // the-change-timeline-looks-like-the-mockup: a task's sentence runs on
+  // over the indented lines tasks.md wraps it onto, and stops before a
+  // record written under it after a blank line.
+  it("carries the lines a task is wrapped onto, and none it does not continue", async () => {
+    const root = await temporaryRoot();
+    const changeDir = path.join(root, "openspec", "changes", "wrapped");
+    await mkdir(changeDir, { recursive: true });
+    await writeFile(
+      path.join(changeDir, "tasks.md"),
+      [
+        "## 1. Checks",
+        "",
+        "- [x] 1.1 `npm run verify` passes, run unpiped. Record each",
+        "  package's count.",
+        "",
+        "  Done: every package passes.",
+        "- [ ] 1.2 Fits its line",
+        "  - a nested note is not the sentence",
+        "- [ ] 1.3 Wrapped over",
+        "\ttwo more",
+        "  lines",
+        "## 2. Next",
+        "  not a task's line",
+        "",
+      ].join("\r\n"),
+    );
+
+    const items = await readTaskChecklist(root, "wrapped", false);
+
+    expect(items.map((item) => [item.text, item.continued])).toEqual([
+      ["1.1 `npm run verify` passes, run unpiped. Record each", "package's count."],
+      ["1.2 Fits its line", undefined],
+      ["1.3 Wrapped over", "two more lines"],
+    ]);
+    expect(items[1]).not.toHaveProperty("continued");
+  });
+
   it("reads archived changes from openspec/changes/archive/<name>/", async () => {
     const root = await temporaryRoot();
     const changeDir = path.join(

@@ -47,7 +47,19 @@ export interface TaskChecklistItem {
    * as `1.` removed. Absent for a task before any heading
    * (a-card-opens-to-its-tasks). */
   section?: string;
+  /** The rest of the task's sentence, where `tasks.md` wraps it: the
+   * indented lines straight after the checkbox line, up to a blank line,
+   * a list item or a heading, joined with single spaces. Absent for a task
+   * that fits its line. A record written under a task after a blank line
+   * is not part of it. `text` stays the checkbox line alone, which is what
+   * every marker and declaration is read from
+   * (the-change-timeline-looks-like-the-mockup). */
+  continued?: string;
 }
+
+/** A line that carries on the item above it: indented, and not the start
+ * of a list item of its own. */
+const CONTINUATION_LINE_RE = /^[ \t]+(?![-*+][ \t])\S/;
 
 /** A second-level heading, which is where `tasks.md` starts a section. */
 const SECTION_HEADING_RE = /^##[ \t]+(.*?)[ \t]*$/;
@@ -250,15 +262,26 @@ export async function tasksFilePath(
 function parseChecklist(content: string): TaskChecklistItem[] {
   const items: TaskChecklistItem[] = [];
   let section: string | undefined;
+  /** The item the lines being read still carry on, until one does not. */
+  let continuing: TaskChecklistItem | undefined;
   content.split(/\r?\n/).forEach((line, lineNumber) => {
     const heading = SECTION_HEADING_RE.exec(line);
     if (heading) {
+      continuing = undefined;
       const title = (heading[1] ?? "").replace(SECTION_NUMBER_RE, "").trim();
       section = title.length > 0 ? title : undefined;
       return;
     }
     const match = line.match(TASK_CHECKBOX_LINE_RE);
-    if (!match) return;
+    if (!match) {
+      if (continuing !== undefined && CONTINUATION_LINE_RE.test(line)) {
+        const more = line.trim();
+        continuing.continued = continuing.continued === undefined ? more : `${continuing.continued} ${more}`;
+      } else {
+        continuing = undefined;
+      }
+      return;
+    }
     const text = (match[2] ?? "").trim();
     const done = (match[1] ?? "").toLowerCase() === "x";
     const check = parseTaskCheckDeclaration(text);
@@ -275,6 +298,7 @@ function parseChecklist(content: string): TaskChecklistItem[] {
       else if (HUMAN_ONLY_ANYWHERE_RE.test(text)) item.humanOnly = true;
     }
     items.push(item);
+    continuing = item;
   });
   return items;
 }
