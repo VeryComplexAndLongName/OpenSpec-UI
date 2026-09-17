@@ -46,7 +46,7 @@ import { useStandaloneTheme } from "./standalone-theme.js";
 import { AppBar } from "./components/AppBar.js";
 import { PageHead } from "./components/PageHead.js";
 import { PAGE_HEADS } from "./page-heads.js";
-import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, initialTab, readEmbedSignal } from "./host-embed.js";
+import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, embedTheme, initialTab, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
@@ -280,7 +280,8 @@ async function loadWorkspaceRoot(): Promise<string> {
 }
 
 function StandaloneApp() {
-  const { theme, toggle: toggleTheme } = useStandaloneTheme();
+  // Framed by the editor, the editor's light or dark comes with the address.
+  const { theme, toggle: toggleTheme } = useStandaloneTheme(undefined, embedTheme(window.location.search));
   const [activeTab, setActiveTab] = useState<string>(() => initialTab(window.location.search, visibleTabs));
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));

@@ -10,6 +10,7 @@ import {
   type ChangeCardInputs,
 } from "./change-card.js";
 import type { ChangeReadiness } from "./change-readiness-facts.js";
+import type { ChangeStanding } from "./change-standing-facts.js";
 import type { LastRun } from "./last-runs-facts.js";
 import { describeDirectoryRuns, type SurveyedChange, type SurveyedDirectory, type SurveyedRun } from "./worktree-survey-facts.js";
 
@@ -81,6 +82,7 @@ function cardOf(options: {
   liveRunIds?: string[];
   myLabel?: string;
   stopsAsked?: Map<string, string>;
+  standings?: ChangeStanding[];
 } = {}): ChangeCard {
   const inputs: ChangeCardInputs = {
     report: { changes: [readiness(options.run)] },
@@ -89,6 +91,9 @@ function cardOf(options: {
     ...(options.liveRunIds !== undefined ? { liveRunIds: options.liveRunIds } : {}),
     ...(options.myLabel !== undefined ? { myLabel: options.myLabel } : {}),
     ...(options.stopsAsked !== undefined ? { stopsAsked: options.stopsAsked } : {}),
+    ...(options.standings !== undefined
+      ? { standings: { readAt: NOW.toISOString(), standings: options.standings, sources: { fetch: { attempted: false }, pullRequests: { read: true } } } }
+      : {}),
     now: NOW,
   };
   const [card] = describeChangeCards(inputs);
@@ -260,6 +265,38 @@ describe("describeChangeCards — what a card is read from", () => {
       "2 of 3 tasks done",
       "in demo-worktree, on branch demo",
     ]);
+  });
+
+  // the-pipeline-answers-while-a-run-works 5.6: the standings reading is
+  // slower than the survey, and was a reading behind while apply ran.
+  it("takes the word's runs from the survey, not from a standings reading taken before the run", () => {
+    const before: ChangeStanding = {
+      changeName: "demo",
+      here: { label: "repo", path: "C:/repo", counts: { done: 1, total: 3 }, runs: [] },
+      elsewhere: [{ label: "spare", path: "/wt/spare", runs: [] }],
+    };
+    const card = cardOf({
+      run: { state: "running", worktreePath: "/repo" },
+      directories: [directory({ runs: [run()] }), directory({ path: "/wt/spare", label: "spare", isMain: false, isThis: false, runs: [run({ instanceId: "i2", workingDirectory: "/wt/spare" })] })],
+      standings: [before],
+    });
+
+    expect(describeChangeCard(card, NOW)).toMatchObject({ stateWords: "Running", lines: expect.arrayContaining(["running apply — said 30s ago"]) });
+    expect(card.stateFacts.standing.here?.runs).toEqual([{ instanceId: "i1", stage: "apply", waiting: false }]);
+    expect(card.stateFacts.standing.elsewhere[0]?.runs).toEqual([{ instanceId: "i2", stage: "apply", waiting: false }]);
+    // What else the standing read still stands.
+    expect(card.stateFacts.standing.here?.counts).toEqual({ done: 1, total: 3 });
+  });
+
+  it("keeps a copy's runs where the survey does not list its directory", () => {
+    const standing: ChangeStanding = {
+      changeName: "demo",
+      here: { label: "repo", path: "/repo", runs: [] },
+      elsewhere: [{ label: "gone", path: "/wt/gone", runs: [{ instanceId: "i9", stage: "verify", waiting: true }] }],
+    };
+    const card = cardOf({ standings: [standing] });
+    expect(card.stateFacts.standing.elsewhere[0]?.runs).toEqual([{ instanceId: "i9", stage: "verify", waiting: true }]);
+    expect(describeChangeCard(card, NOW).stateWords).toBe("Waiting in gone");
   });
 
   it("ignores a run of another change in the same directory", () => {

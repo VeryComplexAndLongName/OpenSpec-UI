@@ -28,6 +28,7 @@ import {
   type LiveRuns,
   type WorktreeSurvey,
 } from "@openspec-ui/core";
+import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./embedded-page.js";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
 import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
@@ -241,8 +242,15 @@ export class PipelinePanel {
       this.embedOrigin = new URL(localServerUrl).origin;
       panel.webview.html = this.getLocalServerHtml(localServerUrl);
       const messages = panel.webview.onDidReceiveMessage((message: unknown) => void this.handleMessage(panel, message));
+      // The framed page takes the editor's light or dark from its address, so
+      // a theme switch loads it again in the new one. The cards are read
+      // afresh; a run is not affected.
+      const theme = vscode.window.onDidChangeActiveColorTheme(() => {
+        panel.webview.html = this.getLocalServerHtml(localServerUrl);
+      });
       panel.onDidDispose(() => {
         messages.dispose();
+        theme.dispose();
         this.embedOrigin = undefined;
         this.panel = undefined;
       });
@@ -509,19 +517,22 @@ export class PipelinePanel {
     const iframeUrl = new URL(baseUrl);
     iframeUrl.searchParams.set("embed", "vscode-local-server");
     iframeUrl.searchParams.set("tab", "pipeline");
+    iframeUrl.searchParams.set(EMBED_THEME_PARAMETER, editorThemeName());
     const iframeSrc = iframeUrl.toString();
     const serverOrigin = iframeUrl.origin;
     // A nonce, not a blanket 'unsafe-inline', authorizes only this one
-    // inline script — see timeline-panel.ts for the same pattern.
+    // inline script and this one stylesheet — see timeline-panel.ts for the
+    // same pattern, and embedded-page.ts for why the style needs it.
     const nonce = randomBytes(16).toString("base64");
-    const csp = `default-src 'none'; frame-src ${baseUrl}; script-src 'nonce-${nonce}';`;
+    const fill = frameFillingStyle(nonce);
+    const csp = `default-src 'none'; frame-src ${baseUrl}; script-src 'nonce-${nonce}'; ${fill.directive}`;
     return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <title>${PIPELINE_PANEL_TITLE}</title>
-    <style>html, body, iframe { height: 100%; width: 100%; margin: 0; border: 0; }</style>
+    ${fill.element}
   </head>
   <body>
     <iframe src="${iframeSrc}"></iframe>

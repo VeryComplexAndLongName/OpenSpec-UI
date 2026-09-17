@@ -13,12 +13,13 @@
 import type { AgentStatusStopRequest, AgentStatusWaiting } from "./agent-status.js";
 import type { EnrolledPerson, RecordSignature } from "./signature-facts.js";
 import type { ChangeReadinessReport } from "./change-readiness-facts.js";
-import type { ChangeStanding, ChangeStandings } from "./change-standing-facts.js";
+import type { ChangeStanding, ChangeStandings, StandingCopy } from "./change-standing-facts.js";
 import { describeChangeState, type ChangeStateFacts } from "./change-state-word.js";
 import type { LastRun, LastRunsReport } from "./last-runs-facts.js";
 import {
   describeTaskInHand,
   describeWaiting,
+  standingRunsOf,
   type SurveyedDirectory,
   type SurveyedRun,
   type SurveyedTask,
@@ -181,7 +182,7 @@ export function describeChangeCards({ report, survey, lastRuns, standings, liveR
     else state = "ready";
 
     const stateFacts: ChangeStateFacts = {
-      standing: standingOf(name, standings, where, progress, runs),
+      standing: standingOf(name, standings, survey, where, progress, runs),
       // Where a run's own record is surveyed, the record says whether it
       // works or waits; a lease saying "running" would otherwise outrank a
       // record saying it waits.
@@ -297,12 +298,13 @@ function cardRun(
 function standingOf(
   changeName: string,
   standings: ChangeStandings | undefined,
+  survey: WorktreeSurvey | undefined,
   where: ChangeCardWhere,
   progress: ChangeCardProgress | undefined,
   runs: readonly SurveyedRun[],
 ): ChangeStanding {
   const read = standings?.standings.find((standing) => standing.changeName === changeName);
-  if (read !== undefined) return read;
+  if (read !== undefined) return withSurveyedRuns(read, survey);
   return {
     changeName,
     here: {
@@ -313,6 +315,28 @@ function standingOf(
       runs: runs.map((run) => ({ instanceId: run.instanceId, stage: run.stage, waiting: run.waiting !== null })),
     },
     elsewhere: [],
+  };
+}
+
+/** A read standing whose copies take their live runs from the survey the
+ * card's own run line comes from. The standings reading surveys the
+ * directories too, but it may fetch and ask `gh` first, so its runs can be
+ * a reading behind: a card said Ready above its own "running apply" for as
+ * long as a loaded machine took to read standings again
+ * (the-pipeline-answers-while-a-run-works 5.6). This checkout's copy is the
+ * survey's own directory whatever its path is spelled as; a copy elsewhere
+ * the survey does not list keeps what the standing read. */
+function withSurveyedRuns(standing: ChangeStanding, survey: WorktreeSurvey | undefined): ChangeStanding {
+  if (survey === undefined) return standing;
+  const current = (copy: StandingCopy, directory: SurveyedDirectory | undefined): StandingCopy =>
+    directory === undefined ? copy : { ...copy, runs: standingRunsOf(directory.runs, standing.changeName) };
+  return {
+    ...standing,
+    ...(standing.here !== undefined
+      ? { here: current(standing.here, survey.directories.find((directory) => directory.isThis)) }
+      : {}),
+    elsewhere: standing.elsewhere.map((copy) =>
+      current(copy, survey.directories.find((directory) => !directory.isThis && directory.path === copy.path))),
   };
 }
 

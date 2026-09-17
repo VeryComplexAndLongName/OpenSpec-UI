@@ -260,8 +260,22 @@ describe("AiPanel local-server embed", () => {
         aiPanel.reveal();
 
         expect(panel.webview.html).toContain(
-            'src="http://127.0.0.1:4317/?embed=vscode-local-server#token=abc123"',
+            'src="http://127.0.0.1:4317/?embed=vscode-local-server&theme=dark#token=abc123"',
         );
+    });
+
+    // the-pipeline-answers-while-a-run-works 5.7, found live in the Pipeline
+    // panel and the same here: the stylesheet that fills the tab with the
+    // iframe was refused under `default-src 'none'`.
+    it("allows the stylesheet that fills the tab, by a nonce", () => {
+        const panel = createPanelFixture();
+        const aiPanel = createAiPanel({ getLocalServerUrl: () => "http://127.0.0.1:4317/#token=abc123" });
+
+        aiPanel.reveal();
+
+        const nonce = /style-src 'nonce-([^']+)'/u.exec(panel.webview.html)?.[1];
+        expect(nonce).toBeDefined();
+        expect(panel.webview.html).toContain(`<style nonce="${nonce}">`);
     });
 
     it("uses the message-bridge HTML (no iframe) when no local server is running", () => {

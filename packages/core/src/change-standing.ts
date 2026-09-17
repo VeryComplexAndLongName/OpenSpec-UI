@@ -19,6 +19,7 @@ import {
 import { listPullRequestsByBranch, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { surveyWorktrees, type SurveyedDirectory, type WorktreeSurvey } from "./worktree-survey.js";
+import { standingRunsOf } from "./worktree-survey-facts.js";
 
 export * from "./change-standing-facts.js";
 
@@ -81,9 +82,7 @@ function copyOf(directory: SurveyedDirectory, changeName: string): StandingCopy 
     path: directory.path,
     ...(directory.branch !== undefined ? { branch: directory.branch } : {}),
     ...(change.tasksUnreadable === undefined ? { counts: { done: change.tasksDone, total: change.tasksTotal } } : {}),
-    runs: directory.runs
-      .filter((run) => run.changeName === changeName && !run.gone && run.signature !== "does-not-check-out")
-      .map((run) => ({ instanceId: run.instanceId, stage: run.stage, waiting: run.waiting !== null })),
+    runs: standingRunsOf(directory.runs, changeName),
   };
 }
 

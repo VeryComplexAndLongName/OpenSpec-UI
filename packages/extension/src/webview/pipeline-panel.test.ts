@@ -511,9 +511,39 @@ describe("PipelinePanel — the optional local server", () => {
     pipeline.show();
 
     const html = created[0]!.webview.html;
-    expect(html).toContain('<iframe src="http://127.0.0.1:4999/?token=abc&embed=vscode-local-server&tab=pipeline"');
+    expect(html).toContain('<iframe src="http://127.0.0.1:4999/?token=abc&embed=vscode-local-server&tab=pipeline&theme=dark"');
     expect(html).toContain("frame-src http://127.0.0.1:4999/?token=abc;");
     expect(watchers).toHaveLength(0);
+  });
+
+  // 5.7, found live: the stylesheet that fills the tab with the iframe was
+  // refused under `default-src 'none'`, leaving a 300 by 150 box.
+  it("allows the stylesheet that fills the tab, by the document's nonce", () => {
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+
+    pipeline.show();
+
+    const html = created[0]!.webview.html;
+    const nonce = /script-src 'nonce-([^']+)'/u.exec(html)?.[1];
+    expect(nonce).toBeDefined();
+    expect(html).toContain(`style-src 'nonce-${nonce}';`);
+    expect(html).toContain(`<style nonce="${nonce}">html, body, iframe { height: 100%; width: 100%;`);
+  });
+
+  it("names the editor's light theme in the framed page's address, and draws it again when the theme changes", () => {
+    vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Light };
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+    try {
+      pipeline.show();
+      expect(created[0]!.webview.html).toContain("&theme=light");
+
+      vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Dark };
+      const onThemeChange = vscodeMock.window.onDidChangeActiveColorTheme.mock.calls.at(-1)?.[0];
+      onThemeChange?.({ kind: vscodeMock.ColorThemeKind.Dark });
+      expect(created[0]!.webview.html).toContain("&theme=dark");
+    } finally {
+      vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Dark };
+    }
   });
 
   it("renders today's bundle and bridge, unchanged, when no local server URL is given", () => {

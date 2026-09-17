@@ -35,6 +35,16 @@ export function computeVisibleTabs(embedSignal: string): readonly TabDefinition[
   return ALL_TABS.filter((tab) => ALLOWED_TABS_VSCODE_EMBED.includes(tab.id));
 }
 
+/** The light or dark a framing editor names with `theme=`, or `undefined`
+ * when it names neither. A page served by the local server cannot read the
+ * editor's colours, and without this it followed the operating system: a
+ * dark editor framed a light Pipeline
+ * (the-pipeline-answers-while-a-run-works 5.7). */
+export function embedTheme(search: string): "light" | "dark" | undefined {
+  const named = new URLSearchParams(search).get("theme");
+  return named === "light" || named === "dark" ? named : undefined;
+}
+
 /** The tab a `tab=` URL parameter names, when it is among `visibleTabs`;
  * the first visible tab otherwise (an absent, unknown, or hidden name). */
 export function initialTab(search: string, visibleTabs: readonly TabDefinition[]): string {

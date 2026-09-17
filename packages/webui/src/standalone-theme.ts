@@ -68,7 +68,9 @@ function systemPrefersDark(environment: ThemeEnvironment): boolean {
   }
 }
 
-export function useStandaloneTheme(environment: ThemeEnvironment = browserThemeEnvironment): {
+/** `named` is a theme the page was told to use — a framing editor's, from the
+ * address — and wins over a stored choice and the system alike. */
+export function useStandaloneTheme(environment: ThemeEnvironment = browserThemeEnvironment, named?: ShellTheme): {
   theme: ShellTheme;
   toggle: () => void;
 } {
@@ -88,7 +90,7 @@ export function useStandaloneTheme(environment: ThemeEnvironment = browserThemeE
     return () => query.removeEventListener("change", onChange);
   }, [environment]);
 
-  const theme = resolveTheme(stored, systemDark);
+  const theme = named ?? resolveTheme(stored, systemDark);
 
   useEffect(() => {
     environment.documentElement()?.setAttribute(THEME_ATTRIBUTE, theme);

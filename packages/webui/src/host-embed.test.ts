@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_TABS, ALLOWED_TABS_VSCODE_EMBED, computeVisibleTabs, initialTab, readEmbedSignal } from "./host-embed.js";
+import { ALL_TABS, ALLOWED_TABS_VSCODE_EMBED, computeVisibleTabs, embedTheme, initialTab, readEmbedSignal } from "./host-embed.js";
 
 describe("readEmbedSignal", () => {
   it("reads the embed query parameter", () => {
@@ -49,5 +49,18 @@ describe("initialTab", () => {
 
   it("returns the first visible tab when no `tab=` parameter is present", () => {
     expect(initialTab("", embeddedTabs)).toBe("run-a-command");
+  });
+});
+
+// the-pipeline-answers-while-a-run-works 5.7
+describe("embedTheme", () => {
+  it("reads the light or dark a framing editor names", () => {
+    expect(embedTheme("?embed=vscode-local-server&tab=pipeline&theme=dark")).toBe("dark");
+    expect(embedTheme("?theme=light")).toBe("light");
+  });
+
+  it("names nothing for an absent or unknown theme", () => {
+    expect(embedTheme("")).toBeUndefined();
+    expect(embedTheme("?theme=solarized")).toBeUndefined();
   });
 });
