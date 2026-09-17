@@ -352,3 +352,84 @@ the server does not already serve.
 - **WHEN** the page has loaded
 - **THEN** the document names an icon, and that icon is the owl
 
+### Requirement: The standalone shell wears the project site's frame
+
+The standalone shell SHALL frame every tab as ADR 0033's approved mockup
+does: an application bar carrying the product's mark and name, the workspace
+path and the theme control; a page head naming the open tab in its one
+level-one heading, with a tagline and the sentence that says what the tab is
+for; one row of tabs; and a footer carrying the versions.
+
+Each tab SHALL show a short label and SHALL keep its full name as its
+accessible name, and the short label SHALL be part of that name.
+
+The frame's colours SHALL come from named tokens, in a light and a dark
+palette, and every pair of text and ground it draws SHALL meet WCAG AA.
+
+The VS Code webviews SHALL NOT take the frame, and SHALL keep taking every
+colour from the editor's theme.
+
+#### Scenario: A tab is opened
+
+- **WHEN** the user opens any tab of the standalone shell
+- **THEN** the page head's level-one heading names that tab, and the tab's
+  short label is underlined in the tab row
+
+#### Scenario: A tab found by its name
+
+- **WHEN** assistive technology or a test looks a tab up by its full name,
+  such as "OpenSpec view summary"
+- **THEN** it finds the tab whose visible label is "Summary"
+
+#### Scenario: Both themes
+
+- **WHEN** the frame is drawn in the light theme and in the dark theme
+- **THEN** every text in it meets WCAG AA against the ground it sits on
+
+#### Scenario: VS Code
+
+- **WHEN** a VS Code webview renders a component the shell shares
+- **THEN** it shows no application bar, page head or footer, and its colours
+  come from the editor's theme
+
+### Requirement: The OpenSpec view summary is laid out as ADR 0033's mockup
+
+The standalone shell's OpenSpec view summary SHALL present, in this order:
+four tiles — the active changes, the archived changes with the latest day
+one was archived, the specs with their total requirements, and the items
+waiting on a person — each with its figure and a note; a panel of the active
+changes, each row giving the change's name, its state as a word, its task
+progress as a bar with the done and total counts, and the day it was last
+modified; and, side by side, the specs with the most requirements and the
+most recently archived changes, each able to show its full list.
+
+Dates on the summary SHALL be shown as days a person reads, with the full
+timestamp still available. Nothing the summary offered before — the full
+archive and its search, every spec, the waiting list with its run controls
+and enrolment requests, where the workspace was read from — SHALL be removed.
+
+#### Scenario: A workspace with active and archived changes
+
+- **WHEN** the summary has read a workspace with active changes, archived
+  changes and specs
+- **THEN** it shows the four tiles, the changes panel, and the specs and
+  recently archived panels side by side
+
+#### Scenario: The full archive
+
+- **WHEN** the person asks for all archived changes
+- **THEN** every archived change is listed, with the search it had before
+
+#### Scenario: A change's row
+
+- **WHEN** a change has done 25 of 27 tasks and was last modified on 16
+  September
+- **THEN** its row shows a bar, "25 / 27" and "16 Sep"
+
+#### Scenario: A workspace with no specs and nothing archived
+
+- **WHEN** the summary has read a workspace with no specs and no archived
+  changes
+- **THEN** the specs panel says there are no specs and the recently archived
+  panel says nothing is archived, neither drawing a table with no rows
+
