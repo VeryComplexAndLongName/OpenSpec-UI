@@ -433,7 +433,8 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
   other change in the same pass.
 - This repository's own CI (`.github/workflows/quality.yml`,
   `openspec-validate` job) runs it against `openspec/changes/` on every
-  push/PR, as the real merge gate.
+  pull request, as the real merge gate; `main`'s ruleset requires it on a
+  branch that is up to date with `main`.
 
 ### `doctor` — what would stop a run here
 
