@@ -967,6 +967,11 @@ Where the pull request reading failed, the reason SHALL name the cause
 that `gh` gave. A refusal because no remote is on a GitHub host `gh` knows
 SHALL NOT be stated as `gh` being signed out.
 
+While the Changes list is shown, it SHALL read which runs are live again on
+the interval the Pipeline reads the survey of working directories. It SHALL
+lay those runs over the standings it holds by the same core function a
+Pipeline card uses, and SHALL NOT read refs or pull requests again to do so.
+
 #### Scenario: A change archived on main
 
 - **WHEN** a change is active in this checkout and archived on the main
@@ -992,6 +997,18 @@ SHALL NOT be stated as `gh` being signed out.
   repository is on a GitHub host it knows, and `gh` is signed in
 - **THEN** the list says pull requests were not read because no remote is on
   a GitHub host `gh` knows, and does not say `gh` is not signed in
+
+#### Scenario: A run starts while the list is shown
+
+- **WHEN** the Changes list is shown, and a run starts on a change after the
+  list read its standings
+- **THEN** within one survey interval the change's entry says Running, and
+  its standing is not read again
+
+#### Scenario: The survey cannot be read
+
+- **WHEN** the list reads the survey again and the reading fails
+- **THEN** every entry keeps the word it had
 
 ### Requirement: Every surface shows a change the same way
 
@@ -1058,11 +1075,24 @@ already takes.
 A host SHALL render what that function returns, and SHALL NOT derive any
 part of it itself.
 
+Where two of those readings each say which runs are live on a change, a card
+SHALL take its state word and its run lines from the same one of them, so
+that the word never says a change is idle beneath a line that says its run is
+working.
+
 #### Scenario: Two hosts, one change
 
 - **WHEN** both hosts show the Pipeline for the same workspace at the same
   moment
 - **THEN** each change's card states the same words in both
+
+#### Scenario: One reading is a reading behind
+
+- **WHEN** a run has started on a change, the survey of working directories
+  has read its record, and the reading of where each change stands was taken
+  before the run started
+- **THEN** the card says Running above the run's activity line, and still
+  states everything else that reading of where the change stands says
 
 ### Requirement: A card states its change's state as one word from a closed set
 
