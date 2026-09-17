@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { Hint } from "@openspec-ui/core/browser";
 import { HintList } from "./HintList.js";
 
@@ -44,5 +44,17 @@ describe("HintList", () => {
     // This capability writes nothing and starts nothing. A button here
     // would make it the kind of thing that does.
     expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  // the-pipeline-cards-wear-metro 2.6: a host that can copy offers Copy, and
+  // Copy copies the command's text and nothing else.
+  it("offers Copy beside a command where the host can copy, and copies only its text", () => {
+    const copyText = vi.fn(async () => undefined);
+    render(<HintList hints={[HINT]} copyText={copyText} />);
+    const copy = screen.getByRole("button", { name: `Copy ${HINT.commands[0] as string}` });
+    fireEvent.click(copy);
+    expect(copyText).toHaveBeenCalledWith(HINT.commands[0]);
+    expect(screen.getAllByRole("button")).toEqual([copy]);
+    expect(screen.getByText("1 hint")).toBeTruthy();
   });
 });

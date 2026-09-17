@@ -1,69 +1,106 @@
-// What fits on a Pipeline card — the-pipeline-shows-what-it-has-read.
+// What fits on a Pipeline card — the-pipeline-shows-what-it-has-read, and
+// how tall a card is — the-pipeline-cards-wear-metro.
 //
-// A card has a fixed size in `rem` (ADR 0025), so how many lines of text
-// it draws whole is arithmetic over the same `rem` the stylesheet uses,
-// not a measurement taken after drawing: the reason ADR 0025 derives a
-// node's position applies to its text as well. The stylesheet is written
-// from these numbers (`packages/webui/src/shell-ui.ts`), and a test holds
-// the two together.
+// A card's size is in `rem` (ADR 0025), so how tall it is and how many lines
+// it draws whole are arithmetic over the same `rem` the stylesheet uses, not
+// a measurement taken after drawing: the reason ADR 0025 derives a node's
+// position applies to its text as well. The stylesheet is written from these
+// numbers (`packages/webui/src/shell-ui.ts`), and a test holds the two
+// together.
 //
 // Browser-safe: no Node imports.
 
-import { NODE_HEIGHT } from "./change-layout.js";
-
 /** Every vertical length on a card, in `rem`. */
 export const PIPELINE_CARD_REM = {
-  /** Padding above and below the text. */
-  paddingBlock: 0.25,
   /** The border's width at the top and at the bottom. */
   borderBlock: 0.0625,
-  /** The change's name: one line, never shrunk. */
-  nameLine: 1.125,
-  /** The state word, on a card that carries one. */
-  stateLine: 0.875,
-  /** One line of detail. */
-  detailLine: 0.875,
-  /** The row of controls on a card whose run this host can answer or stop,
-   * or that can be started (a-change-is-run-from-its-card). */
-  controlsLine: 1.25,
-  /** One task row on an open card: its number, state word and text on one
-   * line (a-card-opens-to-its-tasks). */
-  taskRow: 1,
-  /** One section heading on an open card. */
-  sectionRow: 1.25,
+  /** Room above the heading row. */
+  headTop: 0.75,
+  /** The heading row: the change's name, and the control that shows its
+   * tasks. One line, never shrunk. */
+  nameLine: 1.75,
+  /** The state row: its gap above, then the badge. */
+  stateGap: 0.375,
+  stateLine: 1.25,
+  /** The progress row: its gap above, then the bar and its count. */
+  progressGap: 0.75,
+  progressLine: 1.125,
+  /** A waiting run's question: its gap above, then a box holding one line. */
+  calloutGap: 0.75,
+  calloutBox: 2.5,
+  /** The facts: their gap above, then one line each. */
+  detailsGap: 0.75,
+  detailLine: 1.5,
+  /** An open card's rows: their gap above, the list's border at top and
+   * bottom, then one row per task and one per section heading
+   * (a-card-opens-to-its-tasks). */
+  tasksGap: 0.75,
+  tasksBorder: 0.0625,
+  taskRow: 1.75,
+  sectionRow: 1.75,
+  /** The footer of controls: its gap above, its top border, its padding
+   * above and below the row of buttons (a-change-is-run-from-its-card). */
+  controlsGap: 0.75,
+  controlsBorder: 0.0625,
+  controlsPadding: 0.5,
+  controlsLine: 1.875,
+  /** Room below the last row of a card with no footer. */
+  bottom: 0.875,
 } as const;
 
-/** How tall a card is while it lists its tasks, in layout units: the closed
- * height plus one row per task and one per section heading. Derived, never
- * measured (ADR 0025), so the column below it moves by exactly this much
- * more than a closed card would take. */
-export function pipelineOpenCardHeight(taskCount: number, sectionCount: number): number {
-  return NODE_HEIGHT
-    + Math.max(0, taskCount) * PIPELINE_CARD_REM.taskRow
-    + Math.max(0, sectionCount) * PIPELINE_CARD_REM.sectionRow;
+/** How many facts a card draws; the rest stay on the card for assistive
+ * technology and in its title, and the last drawn line counts them. */
+export const PIPELINE_CARD_DETAIL_LINES = 4;
+
+/** What a card holds, as far as its height is concerned. */
+export interface PipelineCardParts {
+  /** A badge row: every card of this checkout has one, and a card of
+   * another working directory has one while a run there is working. */
+  hasState: boolean;
+  /** A progress bar: a card whose change has a task list. */
+  hasProgress: boolean;
+  /** A waiting run's question. */
+  hasCallout: boolean;
+  /** How many facts the card has; it draws at most
+   * `PIPELINE_CARD_DETAIL_LINES` of them. */
+  detailLines: number;
+  /** A footer of controls. */
+  hasControls: boolean;
+  /** While the card lists its tasks: how many rows and section headings. */
+  open?: { rows: number; sections: number };
 }
 
-/** How many detail lines a card of `height` layout units holds whole,
- * where one unit is one `rem` (ADR 0025's `--u`). A card that carries a
- * state word spends a line on it, and a card with controls spends their
- * row. Never negative. */
-export function pipelineCardDetailLines(height: number, options: { hasState: boolean; hasControls?: boolean }): number {
-  const chrome = 2 * PIPELINE_CARD_REM.paddingBlock
-    + 2 * PIPELINE_CARD_REM.borderBlock
-    + PIPELINE_CARD_REM.nameLine
-    + (options.hasState ? PIPELINE_CARD_REM.stateLine : 0)
-    + (options.hasControls ? PIPELINE_CARD_REM.controlsLine : 0);
-  const room = height - chrome;
-  // A hair of tolerance, so a room that is an exact multiple of a line is
-  // not cut a line short by floating point.
-  return Math.max(0, Math.floor(room / PIPELINE_CARD_REM.detailLine + 1e-9));
+/** How tall a card is, in layout units (one unit is one `rem`), from what it
+ * holds. Derived, never measured (ADR 0025), so a column stacks its cards by
+ * exactly the room each takes. */
+export function pipelineCardHeight(parts: PipelineCardParts): number {
+  const r = PIPELINE_CARD_REM;
+  let height = 2 * r.borderBlock + r.headTop + r.nameLine;
+  if (parts.hasState) height += r.stateGap + r.stateLine;
+  if (parts.hasProgress) height += r.progressGap + r.progressLine;
+  if (parts.hasCallout) height += r.calloutGap + r.calloutBox;
+  const lines = fitPipelineCardDetails(parts.detailLines).drawn;
+  if (lines > 0) height += r.detailsGap + lines * r.detailLine;
+  if (parts.open !== undefined && parts.open.rows + parts.open.sections > 0) {
+    height += r.tasksGap + 2 * r.tasksBorder
+      + Math.max(0, parts.open.rows) * r.taskRow
+      + Math.max(0, parts.open.sections) * r.sectionRow;
+  }
+  height += parts.hasControls
+    ? r.controlsGap + r.controlsBorder + 2 * r.controlsPadding + r.controlsLine
+    : r.bottom;
+  return height;
 }
 
-/** How a card's detail lines divide: the first `drawn` are drawn, and the
- * `beyond` after them stay on the card for assistive technology and in
- * its title. The last drawn line carries the count of the rest, so no
- * line is spent saying there is more. */
-export function fitPipelineCardDetails(lineCount: number, budget: number): { drawn: number; beyond: number } {
+/** Where a line between cards meets a card, below its top: the middle of its
+ * heading row, whatever the card holds under it (a-card-opens-to-its-tasks). */
+export const PIPELINE_CARD_HEAD = PIPELINE_CARD_REM.borderBlock + PIPELINE_CARD_REM.headTop + PIPELINE_CARD_REM.nameLine / 2;
+
+/** How a card's facts divide: the first `drawn` are drawn, and the `beyond`
+ * after them stay on the card for assistive technology and in its title.
+ * The last drawn line carries the count of the rest, so no line is spent
+ * saying there is more. */
+export function fitPipelineCardDetails(lineCount: number, budget: number = PIPELINE_CARD_DETAIL_LINES): { drawn: number; beyond: number } {
   const drawn = Math.max(0, Math.min(lineCount, budget));
-  return { drawn, beyond: lineCount - drawn };
+  return { drawn, beyond: Math.max(0, lineCount - drawn) };
 }

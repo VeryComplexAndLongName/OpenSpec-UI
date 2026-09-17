@@ -341,21 +341,55 @@ const ENDED_WORD: Record<LastRun["outcome"], string> = {
   cancelled: "stopped",
 };
 
+/** What kind of fact a card states, so a view can mark it
+ * (the-pipeline-cards-wear-metro). The mark is decoration; the words state
+ * the fact. */
+export type CardDetailKind =
+  | "task"
+  | "waiting"
+  | "activity"
+  | "whose"
+  | "stop"
+  | "tasks"
+  | "last-run"
+  | "where"
+  | "waiting-on"
+  | "alongside"
+  | "collision"
+  | "worktree";
+
+export interface CardDetail {
+  kind: CardDetailKind;
+  text: string;
+}
+
 export interface DescribedChangeCard {
   /** The state word, from `describeChangeState`. */
   stateWords: string;
   /** What else the card says, in order, each only where there is something
    * to say. */
   lines: string[];
+  /** The same facts with their kinds, for a card that draws its progress
+   * as a bar: there the "N of M tasks done" fact is the bar's count, and its
+   * `tasks` detail says only what a person or another agent must close, and
+   * is absent where nothing is (the-pipeline-cards-wear-metro). */
+  details: CardDetail[];
+  /** The stage a card's run is at, drawn beside its state word. */
+  note?: string;
 }
 
 /** A card's state word and lines. */
 export function describeChangeCard(card: ChangeCard, now: Date): DescribedChangeCard {
   const lines: string[] = [];
+  const details: CardDetail[] = [];
+  const say = (kind: CardDetailKind, text: string) => {
+    lines.push(text);
+    details.push({ kind, text });
+  };
   const { run, progress, lastRun, where } = card;
 
   if (run?.task !== undefined) {
-    lines.push(run.task.source === "guess"
+    say("task", run.task.source === "guess"
       ? `probably task ${run.task.number}: ${run.task.text}`
       : describeTaskInHand({ number: run.task.number, text: run.task.text, source: run.task.source }));
   }
@@ -364,16 +398,16 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
     if (run.waiting !== null) {
       // A run held elsewhere is answered where it was started, not here
       // (a-change-is-run-from-its-card).
-      lines.push(`${describeWaiting(run.waiting)}, in ${where.label}${run.ownedHere ? "" : " — answered where it was started"}`);
+      say("waiting", `${describeWaiting(run.waiting)}, in ${where.label}${run.ownedHere ? "" : " — answered where it was started"}`);
     } else {
       const age = ageFrom(run.activityAt, now);
-      lines.push(age !== undefined ? `${run.activity} — said ${age}` : run.activity);
+      say("activity", age !== undefined ? `${run.activity} — said ${age}` : run.activity);
     }
     // A run held elsewhere and not the person's own says whose it is, as far
     // as its signature shows, since the card offers nothing to stop it
     // (a-run-elsewhere-can-be-asked-to-stop).
     if (!run.ownedHere && !run.stoppableByMe) {
-      lines.push(run.signature === "verified" && run.person !== undefined ? `${run.person.label}'s run, verified` : "not verified");
+      say("whose", run.signature === "verified" && run.person !== undefined ? `${run.person.label}'s run, verified` : "not verified");
     }
     // A request this host sent, until the run's record shows it heard one.
     // Never that the run refused: a refusal is the run's to say.
@@ -381,7 +415,7 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
       const asked = Date.parse(run.stopAskedAt);
       const age = ageFrom(run.stopAskedAt, now);
       if (Number.isFinite(asked) && age !== undefined) {
-        lines.push(now.getTime() - asked <= STOP_REQUEST_READ_WITHIN_MS
+        say("stop", now.getTime() - asked <= STOP_REQUEST_READ_WITHIN_MS
           ? `stop requested ${age}; waiting for the run to read it`
           : `stop requested ${age}; the run has not read the request`);
       }
@@ -389,10 +423,11 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
   }
 
   if (progress !== undefined && progress.total > 0) {
-    let text = `${progress.done} of ${progress.total} tasks done`;
-    if (progress.forPerson > 0) text += `; ${progress.forPerson} only a person can close`;
-    if (progress.delegated > 0) text += `; ${progress.delegated} delegated`;
-    lines.push(text);
+    const others: string[] = [];
+    if (progress.forPerson > 0) others.push(`${progress.forPerson} only a person can close`);
+    if (progress.delegated > 0) others.push(`${progress.delegated} delegated`);
+    lines.push([`${progress.done} of ${progress.total} tasks done`, ...others].join("; "));
+    if (others.length > 0) details.push({ kind: "tasks", text: others.join("; ") });
   }
 
   if (lastRun !== undefined) {
@@ -401,14 +436,19 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
     let text = `last run ${ENDED_WORD[lastRun.outcome]}${at}${age !== undefined ? ` ${age}` : ""}`;
     if (lastRun.costUsd !== undefined) text += `, $${lastRun.costUsd.toFixed(2)}`;
     if (lastRun.outcome === "cancelled" && lastRun.reason !== undefined) text += ` — ${lastRun.reason}`;
-    lines.push(text);
+    say("last-run", text);
   }
 
   // This checkout is where the whole picture was read, and says so above
   // it; only a card read from elsewhere names where.
   if (where.ownWorktree) {
-    lines.push(`in ${where.label}${where.branch !== undefined ? `, on branch ${where.branch}` : ""}`);
+    say("where", `in ${where.label}${where.branch !== undefined ? `, on branch ${where.branch}` : ""}`);
   }
 
-  return { stateWords: describeChangeState(card.stateFacts).word, lines };
+  return {
+    stateWords: describeChangeState(card.stateFacts).word,
+    lines,
+    details,
+    ...(run?.stage !== undefined && run.stage !== null ? { note: run.stage } : {}),
+  };
 }

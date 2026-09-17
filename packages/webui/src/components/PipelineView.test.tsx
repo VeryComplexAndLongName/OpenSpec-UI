@@ -8,7 +8,7 @@ import type {
   SurveyedRun,
   WorktreeSurvey,
 } from "@openspec-ui/core/browser";
-import { NODE_HEIGHT, pipelineOpenCardHeight, STOP_REQUEST_READ_WITHIN_MS } from "@openspec-ui/core/browser";
+import { PIPELINE_CARD_REM, STOP_REQUEST_READ_WITHIN_MS } from "@openspec-ui/core/browser";
 import {
   PIPELINE_BACKSTOP_INTERVAL_MS,
   PIPELINE_CLOCK_INTERVAL_MS,
@@ -124,13 +124,12 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
   }));
   const yOf = (name: string) => Number(screen.getByTestId(`pipeline-node-${name}`).style.getPropertyValue("--y"));
 
-  it("lists an open card's rows under their sections, moves the card below by its extra height, and explains the rail", async () => {
+  it("lists an open card's rows under their sections, each tagged, and moves the card below by exactly the rows' height", async () => {
     render(<PipelineView isActive load={load} survey={surveyed} />);
 
     const toggle = await screen.findByRole("button", { name: "Show tasks of alpha" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByTestId("pipeline-node-alpha-tasks")).not.toBeVisible();
-    expect(screen.queryByTestId("pipeline-legend")).toBeNull();
     const before = yOf("beta");
 
     fireEvent.click(toggle);
@@ -139,19 +138,22 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
     expect(toggle).toHaveAccessibleName("Hide tasks of alpha");
     const list = screen.getByTestId("pipeline-node-alpha-tasks");
     expect(list).toBeVisible();
-    expect(within(list).getAllByRole("listitem").map((row) => row.getAttribute("data-word"))).toEqual(["done", "open", "only a person can close it"]);
+    const listed = within(list).getAllByRole("listitem");
+    expect(listed.map((row) => row.getAttribute("data-word"))).toEqual(["done", "open", "only a person can close it"]);
     expect(list).toHaveTextContent("Reading");
     expect(list).toHaveTextContent("Looking");
-    // A rail joins each row to the row listed next, across a heading too,
-    // and the last row has none (found by 6.5's look).
-    const listed = within(list).getAllByRole("listitem");
-    expect(listed[0]?.querySelector(".openspec-pipeline-task-rail:not(.openspec-pipeline-task-rail--across)")).not.toBeNull();
-    expect(listed[1]?.querySelector(".openspec-pipeline-task-rail--across")).not.toBeNull();
-    expect(listed[2]?.querySelector(".openspec-pipeline-task-rail")).toBeNull();
-    // The marker the word already says is not said twice.
-    expect(within(list).getAllByRole("listitem")[2]).toHaveTextContent("only a person can close itlook at it");
-    expect(yOf("beta")).toBe(before + pipelineOpenCardHeight(3, 2) - NODE_HEIGHT);
-    expect(screen.getByTestId("pipeline-legend")).toHaveTextContent("A thin line inside a card means listed next in tasks.md.");
+    // the-pipeline-cards-wear-metro 2.3: a short tag is drawn, and the whole
+    // word stays on the row; the marker the word already says is not said
+    // twice.
+    expect(listed.map((row) => row.querySelector("[aria-hidden='true']")?.textContent)).toEqual(["Done", "Open", "A person"]);
+    expect(listed[2]).toHaveTextContent("look at it");
+    expect(listed[2]).toHaveTextContent("only a person can close it");
+    expect(listed[2]?.textContent).not.toContain("Human-only");
+    // No thin line between rows, and so nothing for a legend to explain.
+    expect(list.querySelector(".openspec-pipeline-task-rail")).toBeNull();
+    expect(screen.queryByTestId("pipeline-legend")).toBeNull();
+    const r = PIPELINE_CARD_REM;
+    expect(yOf("beta")).toBe(before + r.tasksGap + 2 * r.tasksBorder + 3 * r.taskRow + 2 * r.sectionRow);
   });
 
   it("zooms by one factor on the picture, and moves no layout unit", async () => {
@@ -342,7 +344,7 @@ describe("PipelineView — other working directories", () => {
   it("names the branch this picture was read from, even with nothing in the queue", async () => {
     render(<PipelineView isActive load={async () => report()} survey={async () => survey(directory({ branch: "stale-branch" }))} />);
 
-    expect(await screen.findByTestId("pipeline-reading-branch")).toHaveTextContent("Read from branch stale-branch in repo.");
+    expect(await screen.findByTestId("pipeline-reading-branch")).toHaveTextContent("Read from branch stale-branch in repo");
     expect(await screen.findByTestId("pipeline-empty")).toHaveTextContent("No active changes on branch stale-branch.");
   });
 
@@ -632,8 +634,16 @@ describe("PipelineView — a card says what its change is doing", () => {
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("Failed at verify"));
     const node = screen.getByTestId("pipeline-node-alpha");
     expect(node).toHaveAttribute("data-state", "failed");
-    expect(node).toHaveTextContent("1 of 3 tasks done; 1 only a person can close");
+    // the-pipeline-cards-wear-metro 2.2: the count is the bar's, in words for
+    // everyone and as "1 / 3 tasks" for the eye; what a person must close is
+    // a fact of its own.
+    expect(node).toHaveTextContent("1 of 3 tasks done");
+    expect(node.querySelector(".openspec-pipeline-node-count")).toHaveTextContent("1 / 3 tasks");
+    expect(node.querySelector(".openspec-pipeline-node-bar > span")).toHaveStyle({ width: "33%" });
+    expect(node).toHaveTextContent("1 only a person can close");
     expect(node).toHaveTextContent("last run failed at verify 2 hours ago, $0.84");
+    expect(node.querySelector(".openspec-pipeline-node-state")).toHaveAttribute("data-state", "failed");
+    expect(node.querySelector("[data-kind='last-run'] svg[aria-hidden='true']")).not.toBeNull();
   });
 
   // 6.3
@@ -644,7 +654,7 @@ describe("PipelineView — a card says what its change is doing", () => {
         isActive
         load={async () => report(change("alpha", {
           worktreePath: "/w/alpha",
-          blockedFrom: ["beta", "gamma"].map((changeName) => ({ changeName, collisions })),
+          blockedFrom: ["beta", "gamma", "delta", "epsilon"].map((changeName) => ({ changeName, collisions })),
         }))}
         survey={async () => survey(alphaHere())}
         lastRuns={async () => ({
@@ -655,7 +665,7 @@ describe("PipelineView — a card says what its change is doing", () => {
 
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("last run completed at apply"));
     const node = screen.getByTestId("pipeline-node-alpha");
-    const lines = ["1 of 3 tasks done; 1 only a person can close", "last run completed at apply 5 minutes ago", "not with beta", "not with gamma"];
+    const lines = ["1 only a person can close", "last run completed at apply 5 minutes ago", "not with beta", "not with gamma", "not with delta", "not with epsilon"];
     expect(node.querySelectorAll(".openspec-pipeline-node-detail--beyond").length).toBeGreaterThan(0);
     for (const line of lines) {
       expect(node).toHaveTextContent(line);
@@ -823,19 +833,18 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(onStart).toHaveBeenCalledWith("alpha");
   });
 
-  // the-web-ui-screens-wear-metro 4.3.
-  it("keeps every control's accessible name after the icons arrived, and the icons add nothing to it", async () => {
+  // the-web-ui-screens-wear-metro 4.3, the-pipeline-cards-wear-metro 2.4.
+  it("keeps every control's accessible name after the icons arrived, and draws Start as the forward control", async () => {
     renderCard({ record: null });
 
     const start = await screen.findByRole("button", { name: "Start alpha" });
     expect(start.textContent).toBe("Start");
     expect(start.querySelector("[aria-hidden='true']")).not.toBeNull();
+    expect(start).toHaveClass("openspec-pipeline-button--forward");
 
-    // The card's own open control names the change, and the icon before it
-    // leaves that name alone.
+    // The card's own open control is its heading, and names the change.
     const open = screen.getByTestId("pipeline-node-alpha-open");
     expect(open).toHaveAccessibleName("alpha");
-    expect(open.querySelector("[aria-hidden='true']")).not.toBeNull();
   });
 
   it("keeps Stop named as it was, with an icon that is not part of the name", async () => {
@@ -844,6 +853,25 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     const stop = await screen.findByRole("button", { name: "Stop alpha" });
     expect(stop.textContent).toBe("Stop");
     expect(stop.querySelector("[aria-hidden='true']")).not.toBeNull();
+    expect(stop).toHaveClass("openspec-pipeline-button--stop");
+    // A run this host started says so in its footer.
+    expect(screen.getByTestId("pipeline-node-alpha-controls")).toHaveTextContent("started here");
+  });
+
+  // the-pipeline-cards-wear-metro 2.1: a waiting run's question is a callout,
+  // and the card is taller by exactly that.
+  it("says what a held run waits on in a callout above the facts, and draws Continue as the forward control", async () => {
+    renderCard({
+      record: { waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } },
+      held: [heldRun({ waiting: true })],
+    });
+
+    const continueButton = await screen.findByRole("button", { name: "Continue alpha to verify" });
+    expect(continueButton).toHaveClass("openspec-pipeline-button--forward");
+    const node = screen.getByTestId("pipeline-node-alpha");
+    await waitFor(() => expect(node.querySelector(".openspec-pipeline-node-callout")).toHaveTextContent("waiting to continue to verify, in repo"));
+    expect(node.querySelector(".openspec-pipeline-node-details [data-kind='waiting']")).toBeNull();
+    expect(node.querySelector(".openspec-pipeline-node-note")).toHaveTextContent("apply");
   });
 });
 
@@ -1017,15 +1045,16 @@ describe("PipelineView", () => {
     expect(node).toHaveAttribute("title", expect.stringContaining("not with beta"));
   });
 
-  // the-pipeline-shows-what-it-has-read 2.4, 3.3
-  it("draws only the lines a card holds, keeps the rest on the card, and counts them on the last drawn line", async () => {
+  // the-pipeline-shows-what-it-has-read 2.4, 3.3; the-pipeline-cards-wear-metro 1.1
+  it("draws only the facts a card draws, keeps the rest on the card, and counts them on the last drawn line", async () => {
     const collisions = [{ kind: "overlapping-files" as const, files: ["a.ts"] }];
+    const others = ["beta", "gamma", "delta", "epsilon", "zeta", "eta"];
     render(
       <PipelineView
         isActive
         load={async () => report(change("alpha", {
           worktreePath: "/w/alpha",
-          blockedFrom: ["beta", "gamma", "delta", "epsilon"].map((changeName) => ({ changeName, collisions })),
+          blockedFrom: others.map((changeName) => ({ changeName, collisions })),
         }))}
       />,
     );
@@ -1035,11 +1064,15 @@ describe("PipelineView", () => {
     const drawn = details.filter((detail) => !detail.classList.contains("openspec-pipeline-node-detail--beyond"));
     const beyond = details.filter((detail) => detail.classList.contains("openspec-pipeline-node-detail--beyond"));
 
-    expect(drawn).toHaveLength(2);
+    expect(drawn).toHaveLength(4);
     expect(beyond).toHaveLength(2);
-    expect(drawn[1]?.querySelector(".openspec-pipeline-node-more")).toHaveTextContent("+2");
+    expect(drawn[3]?.querySelector(".openspec-pipeline-node-more")).toHaveTextContent("+2");
+    // The card's height holds exactly the four it draws.
+    const r = PIPELINE_CARD_REM;
+    const quiet = 2 * r.borderBlock + r.headTop + r.nameLine + r.stateGap + r.stateLine + r.bottom;
+    expect(Number(node.style.getPropertyValue("--h"))).toBe(quiet + r.detailsGap + 4 * r.detailLine);
     // Every line is still on the card, and in its title.
-    for (const other of ["beta", "gamma", "delta", "epsilon"]) {
+    for (const other of others) {
       expect(node).toHaveTextContent(`not with ${other}`);
       expect(node).toHaveAttribute("title", expect.stringContaining(`not with ${other}`));
     }

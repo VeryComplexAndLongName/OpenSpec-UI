@@ -1,63 +1,64 @@
 import { describe, expect, it } from "vitest";
 import { NODE_HEIGHT } from "./change-layout.js";
-import { PIPELINE_CARD_REM, fitPipelineCardDetails, pipelineCardDetailLines, pipelineOpenCardHeight } from "./pipeline-card.js";
+import {
+  PIPELINE_CARD_DETAIL_LINES,
+  PIPELINE_CARD_HEAD,
+  PIPELINE_CARD_REM,
+  fitPipelineCardDetails,
+  pipelineCardHeight,
+} from "./pipeline-card.js";
 
-// the-pipeline-shows-what-it-has-read 2.1, 3.1: a card's lines are derived
-// from its size, never measured.
+// the-pipeline-cards-wear-metro 1.1: a card's height is derived from what it
+// holds, never measured.
 
-const CHROME_WITHOUT_STATE = 2 * PIPELINE_CARD_REM.paddingBlock
-  + 2 * PIPELINE_CARD_REM.borderBlock
-  + PIPELINE_CARD_REM.nameLine;
+const r = PIPELINE_CARD_REM;
+const QUIET = { hasState: true, hasProgress: true, hasCallout: false, detailLines: 0, hasControls: false };
 
-describe("pipelineCardDetailLines", () => {
-  it("holds two detail lines on a layout card that carries a state, and three on one that does not", () => {
-    expect(pipelineCardDetailLines(NODE_HEIGHT, { hasState: true })).toBe(2);
-    expect(pipelineCardDetailLines(NODE_HEIGHT, { hasState: false })).toBe(3);
+describe("pipelineCardHeight", () => {
+  it("makes a card with only its heading, badge and bar the layout's smallest card", () => {
+    expect(pipelineCardHeight(QUIET)).toBe(NODE_HEIGHT);
+    expect(NODE_HEIGHT).toBe(2 * r.borderBlock + r.headTop + r.nameLine + r.stateGap + r.stateLine + r.progressGap + r.progressLine + r.bottom);
   });
 
-  // a-change-is-run-from-its-card 5.2–5.8
-  it("spends the row of controls on a card that carries them, and nothing on one that does not", () => {
-    const withoutControls = pipelineCardDetailLines(NODE_HEIGHT, { hasState: true });
-    const withControls = pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: true });
-    const roomWithoutControls = NODE_HEIGHT - CHROME_WITHOUT_STATE - PIPELINE_CARD_REM.stateLine;
-
-    expect(withControls).toBe(Math.floor((roomWithoutControls - PIPELINE_CARD_REM.controlsLine) / PIPELINE_CARD_REM.detailLine + 1e-9));
-    expect(withControls).toBeLessThan(withoutControls);
-    expect(withControls).toBeGreaterThanOrEqual(1);
-    expect(pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: false })).toBe(withoutControls);
+  it("adds each part it holds by exactly that part's lengths", () => {
+    const base = pipelineCardHeight(QUIET);
+    expect(pipelineCardHeight({ ...QUIET, hasCallout: true }) - base).toBe(r.calloutGap + r.calloutBox);
+    expect(pipelineCardHeight({ ...QUIET, detailLines: 2 }) - base).toBe(r.detailsGap + 2 * r.detailLine);
+    expect(pipelineCardHeight({ ...QUIET, hasControls: true }) - base)
+      .toBe(r.controlsGap + r.controlsBorder + 2 * r.controlsPadding + r.controlsLine - r.bottom);
+    expect(pipelineCardHeight({ ...QUIET, hasState: false, hasProgress: false }))
+      .toBe(base - r.stateGap - r.stateLine - r.progressGap - r.progressLine);
   });
 
-  it("holds none when the chrome fills the card, and never a negative count", () => {
-    expect(pipelineCardDetailLines(CHROME_WITHOUT_STATE, { hasState: false })).toBe(0);
-    expect(pipelineCardDetailLines(1, { hasState: true })).toBe(0);
+  it("draws at most the card's number of facts, however many it has", () => {
+    expect(pipelineCardHeight({ ...QUIET, detailLines: 9 })).toBe(pipelineCardHeight({ ...QUIET, detailLines: PIPELINE_CARD_DETAIL_LINES }));
+    expect(pipelineCardHeight({ ...QUIET, detailLines: -1 })).toBe(pipelineCardHeight(QUIET));
   });
 
-  it("counts a room that is an exact multiple of a line as exactly that many lines", () => {
-    const height = CHROME_WITHOUT_STATE + 4 * PIPELINE_CARD_REM.detailLine;
-    expect(pipelineCardDetailLines(height, { hasState: false })).toBe(4);
-    expect(pipelineCardDetailLines(height - 0.01, { hasState: false })).toBe(3);
+  // a-card-opens-to-its-tasks 2.5, kept: one row per task and one per heading.
+  it("adds an open card's list border, one row per task and one per section, and nothing for an empty list", () => {
+    const base = pipelineCardHeight(QUIET);
+    expect(pipelineCardHeight({ ...QUIET, open: { rows: 3, sections: 1 } }) - base)
+      .toBe(r.tasksGap + 2 * r.tasksBorder + 3 * r.taskRow + r.sectionRow);
+    expect(pipelineCardHeight({ ...QUIET, open: { rows: 0, sections: 0 } })).toBe(base);
   });
 });
 
-// a-card-opens-to-its-tasks 2.5: an open card's height is derived from its
-// rows.
-describe("pipelineOpenCardHeight", () => {
-  it("is the closed height for a card with no tasks", () => {
-    expect(pipelineOpenCardHeight(0, 0)).toBe(NODE_HEIGHT);
-  });
-
-  it("adds exactly one row per task and one per section", () => {
-    expect(pipelineOpenCardHeight(3, 1)).toBe(NODE_HEIGHT + 3 * PIPELINE_CARD_REM.taskRow + PIPELINE_CARD_REM.sectionRow);
+describe("PIPELINE_CARD_HEAD", () => {
+  it("is the middle of the heading row, below the border and the room above it", () => {
+    expect(PIPELINE_CARD_HEAD).toBe(r.borderBlock + r.headTop + r.nameLine / 2);
   });
 });
 
 describe("fitPipelineCardDetails", () => {
-  it("draws every line that fits and leaves nothing beyond", () => {
+  it("draws every line up to the budget and leaves nothing beyond", () => {
     expect(fitPipelineCardDetails(2, 3)).toEqual({ drawn: 2, beyond: 0 });
+    expect(fitPipelineCardDetails(3)).toEqual({ drawn: 3, beyond: 0 });
   });
 
-  it("leaves the lines past the budget beyond, counted", () => {
+  it("leaves the lines past the budget beyond, counted, with the card's own number by default", () => {
     expect(fitPipelineCardDetails(5, 2)).toEqual({ drawn: 2, beyond: 3 });
+    expect(fitPipelineCardDetails(PIPELINE_CARD_DETAIL_LINES + 2)).toEqual({ drawn: PIPELINE_CARD_DETAIL_LINES, beyond: 2 });
   });
 
   it("draws nothing on a card with no room, and leaves every line beyond", () => {

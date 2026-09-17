@@ -2,10 +2,15 @@
 // the repository beneath it — ADR 0026.
 //
 // This file draws; it decides nothing. Where each node goes, where each
-// edge turns, and how wide the whole thing is were all worked out by
-// `layoutChanges` in core, from the report the host read. Nothing here
-// is measured: one unit is one `em` for both the cards and the SVG, so
-// the two line up without either being asked where the other ended up.
+// edge turns, how tall each card is and how wide the whole thing is were all
+// worked out in core: `layoutChanges` from the report the host read, and
+// `pipelineCardHeight` from what each card holds. Nothing is measured: one
+// unit is one `rem` for both the cards and the SVG, so the two line up
+// without either being asked where the other ended up.
+//
+// A card is the site's card (the-pipeline-cards-wear-metro): its name as a
+// heading, its state in a coloured badge that still carries the word, a bar
+// for its tasks, its facts marked by kind, and its controls in a footer.
 //
 // The same DOM is the narrow view. Below 720px the cards stop being
 // positioned and the lanes they are grouped in become headed lists —
@@ -20,19 +25,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  NODE_HEIGHT,
+  COLUMN_GAP,
+  LANE_HEADING,
+  NODE_WIDTH,
   describeChangeCard,
   describeChangeCards,
   describeCollision,
   describeDirectoryRuns,
+  describeLane,
   describeRun,
   describeTaskRows,
   fitPipelineCardDetails,
   layoutChanges,
-  pipelineCardDetailLines,
-  pipelineOpenCardHeight,
+  pipelineCardHeight,
   runsShownOnCards,
   STOP_REQUEST_READ_WITHIN_MS,
+  type CardDetail,
   type ChangeCard,
   type ChangeLayout,
   type ChangeLayoutEdge,
@@ -40,6 +48,7 @@ import {
   type ChangeReadiness,
   type ChangeReadinessReport,
   type ChangeStandings,
+  type DescribedChangeCard,
   type LastRunsReport,
   type LiveRun,
   type SurveyedChange,
@@ -50,6 +59,17 @@ import {
 } from "@openspec-ui/core/browser";
 import { HintList } from "./HintList.js";
 import { Icon } from "./Icon.js";
+import {
+  ChevronIcon,
+  CheckIcon,
+  CopyIcon,
+  CrossIcon,
+  DetailIcon,
+  ForwardIcon,
+  MinusIcon,
+  PlusIcon,
+  RefreshIcon,
+} from "./pipeline-icons.js";
 
 /** How often the picture re-reads while it is being looked at.
  *
@@ -126,7 +146,8 @@ export interface PipelineViewProps {
   onRunControl?: (control: RunControl) => void;
   /** Starts a change: the host opens its run dialog. Absent, no Start. */
   onStart?: (changeName: string) => void;
-  /** Copies text — a run's folder — for a host that allows it. */
+  /** Copies text — a run's folder, a hint's command — for a host that
+   * allows it. */
   copyText?: (text: string) => Promise<void>;
   /** Keeps the zoom and the open cards for this viewer, where the host can.
    * A reader or writer that throws leaves the default zoom and every card
@@ -211,19 +232,10 @@ function taskGroups<T extends SurveyedTask>(rows: readonly T[]): Array<{ section
   return groups;
 }
 
-/** The height core derives for each open card with rows to list. */
-function openHeights(
-  names: readonly string[],
-  tasksOf: (name: string) => readonly SurveyedTask[] | undefined,
-  isOpen: (name: string) => boolean,
-): Map<string, number> {
-  const heights = new Map<string, number>();
-  for (const name of names) {
-    const tasks = tasksOf(name);
-    if (tasks === undefined || tasks.length === 0 || !isOpen(name)) continue;
-    heights.set(name, pipelineOpenCardHeight(tasks.length, taskGroups(tasks).filter((group) => group.section !== undefined).length));
-  }
-  return heights;
+/** What an open card lists, for its height: its rows and its headings. */
+function openParts(rows: readonly SurveyedTask[], open: boolean): { rows: number; sections: number } | undefined {
+  if (!open || rows.length === 0) return undefined;
+  return { rows: rows.length, sections: taskGroups(rows).filter((group) => group.section !== undefined).length };
 }
 
 /** A request to stop a run held elsewhere, as a card sends it. */
@@ -429,11 +441,10 @@ export function PipelineView({
         .filter((change) => change.changeName !== directory.belongsTo && (change.tasks?.length ?? 0) > 0)
         .map((change) => openKey(directory.path, change.changeName))),
   ];
-  // One legend for the tab, above every picture, where any of them draws a
-  // line: an edge between cards, or an open card's rail. Said once: the
-  // first capture put the same three lines above every directory.
-  const showLegend = open.size > 0
-    || (report !== undefined && drawsAnEdge(report.changes))
+  // One legend for the tab, above the picture, where any picture draws a
+  // line between cards. Said once: the first capture put the same lines
+  // above every directory.
+  const showLegend = (report !== undefined && drawsAnEdge(report.changes))
     || (others.value?.directories ?? []).some((directory) => !directory.isThis
       && directory.readable
       && drawsAnEdge(directory.changes.filter((change) => change.changeName !== directory.belongsTo)));
@@ -447,57 +458,86 @@ export function PipelineView({
     // The zoom is one factor on everything the picture draws, cards, text
     // and lines alike; no layout unit changes with it.
     <div data-testid="pipeline" className="openspec-pipeline" style={{ "--pipeline-zoom": zoom } as Record<string, number>}>
-      {here ? <Reading directory={here} now={now} onCards={onCards} /> : null}
-      <div className="openspec-ai-panel-controls" data-testid="pipeline-view-controls">
-        <button className="button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>Open all</button>
-        <button className="button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>Close all</button>
-        <button className="button" type="button" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>Zoom out</button>
-        <span className="openspec-shell-note" data-testid="pipeline-zoom-level">{`Zoom ${Math.round(zoom * 100)}%`}</span>
-        <button className="button" type="button" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>Zoom in</button>
-        <button className="button" type="button" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>Reset zoom</button>
+      <div className="openspec-pipeline-toolbar" data-testid="pipeline-view-controls">
+        <div className="openspec-pipeline-toolbar-text">
+          {here ? (
+            <p className="openspec-pipeline-toolbar-reading" data-testid="pipeline-reading-branch">
+              Read from <strong>{branchPhrase(here)}</strong> in {here.label}
+            </p>
+          ) : null}
+          <p className="openspec-pipeline-toolbar-note" data-testid="pipeline-read-at">
+            {/* A reading, not a subscription: between two of them a run can
+                start and finish, so this never presents itself as live. */}
+            Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
+            {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
+          </p>
+          {here ? (
+            <ul className="openspec-pipeline-toolbar-runs" data-testid="pipeline-reading-runs">
+              {describeDirectoryRuns(here, now, onCards).map((line, index) => <li key={index}>{line}</li>)}
+            </ul>
+          ) : null}
+        </div>
+        <div className="openspec-pipeline-toolbar-actions">
+          <button className="openspec-pipeline-button" type="button" data-testid="pipeline-open-all" onClick={() => setOpen(new Set(openableKeys()))}>
+            <ChevronIcon up={false} />Open all
+          </button>
+          <button className="openspec-pipeline-button" type="button" data-testid="pipeline-close-all" disabled={open.size === 0} onClick={() => setOpen(new Set())}>
+            <ChevronIcon up />Close all
+          </button>
+          <div className="openspec-pipeline-zoom" role="group" aria-label="Zoom">
+            <button type="button" aria-label="Zoom out" data-testid="pipeline-zoom-out" disabled={zoomIndex <= 0} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex - 1] ?? zoom)}>
+              <MinusIcon />
+            </button>
+            {/* The level is the control that resets it. */}
+            <button type="button" aria-label="Reset zoom" data-testid="pipeline-zoom-reset" disabled={zoom === DEFAULT_ZOOM} onClick={() => setZoom(DEFAULT_ZOOM)}>
+              <span data-testid="pipeline-zoom-level"><span className="openspec-visually-hidden">Zoom </span>{`${Math.round(zoom * 100)}%`}</span>
+            </button>
+            <button type="button" aria-label="Zoom in" data-testid="pipeline-zoom-in" disabled={zoomIndex >= PIPELINE_ZOOM_STEPS.length - 1} onClick={() => setZoom(PIPELINE_ZOOM_STEPS[zoomIndex + 1] ?? zoom)}>
+              <PlusIcon />
+            </button>
+          </div>
+          {refresh ? (
+            <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
+              <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          ) : null}
+        </div>
       </div>
-      {showLegend ? <Legend testId="pipeline-legend" /> : null}
-      {local.error !== undefined
-        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
+      {refs ? <p className="openspec-shell-note" data-testid="pipeline-refs">{refs}</p> : null}
+      {refreshError !== undefined
+        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
-      {report === undefined
-        ? (local.error === undefined
-          ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
-          : null)
-        : (
-          <>
-            {report.changes.length === 0
+
+      <section className="openspec-panel openspec-pipeline-panel" aria-label="Changes in this checkout">
+        <div className="openspec-panel-head">
+          <h2>Changes in this checkout</h2>
+          <span className="openspec-panel-head-note">a column starts after the ones before it</span>
+        </div>
+        <div className="openspec-pipeline-panel-body">
+          {showLegend ? <Legend testId="pipeline-legend" /> : null}
+          {local.error !== undefined
+            ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
+            : null}
+          {report === undefined
+            ? (local.error === undefined
+              ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
+              : null)
+            : report.changes.length === 0
               // Names the branch it read where the survey says which: an
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
               : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} />}
-            {/* From the report this already read: no second fetch, and no
-                suggestion computed here — `buildHints` derived them in core
-                before the payload was sent. */}
-            <HintList hints={report.hints} />
-          </>
-        )}
+        </div>
+      </section>
+
+      {/* From the report this already read: no second fetch, and no
+          suggestion computed here — `buildHints` derived them in core
+          before the payload was sent. */}
+      {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
       {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
-        : null}
-      <p className="openspec-shell-note" data-testid="pipeline-read-at">
-        {/* A reading, not a subscription: between two of them a run can
-            start and finish, so this never presents itself as live. */}
-        Last read {local.readAt ? local.readAt.toLocaleTimeString() : "not yet"}
-        {survey ? `; other working directories ${others.readAt ? others.readAt.toLocaleTimeString() : "not yet"}` : ""}.
-      </p>
-      {refresh ? (
-        <div className="openspec-ai-panel-controls">
-          <button className="button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-          {refs ? <span className="openspec-shell-note" data-testid="pipeline-refs">{refs}</span> : null}
-        </div>
-      ) : null}
-      {refreshError !== undefined
-        ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
       {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
         <StopReasonForm
@@ -537,21 +577,6 @@ function branchPhrase(directory: SurveyedDirectory): string {
   return "no branch";
 }
 
-/** Which branch this picture was read from, and what this directory's own
- * runs say they are doing — less the runs a card below already shows. */
-function Reading({ directory, now, onCards }: { directory: SurveyedDirectory; now: Date; onCards: ReadonlySet<string> }) {
-  return (
-    <div className="openspec-pipeline-reading" data-testid="pipeline-reading">
-      <p className="openspec-shell-note" data-testid="pipeline-reading-branch">
-        Read from {branchPhrase(directory)} in {directory.label}.
-      </p>
-      <ul className="openspec-shell-note" data-testid="pipeline-reading-runs">
-        {describeDirectoryRuns(directory, now, onCards).map((line, index) => <li key={index}>{line}</li>)}
-      </ul>
-    </div>
-  );
-}
-
 /** For each change here, the labels of the other directories that hold a
  * change of the same name. */
 function alsoInHere(here: SurveyedDirectory | undefined, labels: Map<string, string>): Map<string, string[]> {
@@ -561,6 +586,47 @@ function alsoInHere(here: SurveyedDirectory | undefined, labels: Map<string, str
     if (change.alsoIn.length > 0) result.set(change.changeName, change.alsoIn.map((other) => labels.get(other) ?? other));
   }
   return result;
+}
+
+/** Everything a card of this checkout draws, worked out before the picture
+ * is laid out, so its height can be derived from it. */
+interface LocalCardModel {
+  change: ChangeReadiness;
+  card: ChangeCard;
+  described: DescribedChangeCard;
+  /** A waiting run's question, drawn above the facts. */
+  callout?: string;
+  details: CardDetail[];
+  buttons: ReactNode[];
+  /** The run this card shows was started by this host. */
+  startedHere: boolean;
+  rows: TaskRow[];
+  title: string;
+}
+
+function localCardModel(change: ChangeReadiness, card: ChangeCard, now: Date, alsoIn: string[] | undefined, controls: CardControlHandlers): LocalCardModel {
+  const described = describeChangeCard(card, now);
+  const waiting = described.details.find((detail) => detail.kind === "waiting");
+  // The card's own facts first — what the change is doing — then what
+  // readiness says about starting it beside the others.
+  const readiness = describeChange(change);
+  const also: CardDetail[] = alsoIn && alsoIn.length > 0 ? [{ kind: "where", text: `also in ${alsoIn.join(", ")}` }] : [];
+  return {
+    change,
+    card,
+    described,
+    ...(waiting !== undefined ? { callout: waiting.text } : {}),
+    details: [...described.details.filter((detail) => detail !== waiting), ...readiness, ...also],
+    buttons: cardControls(card, controls),
+    startedHere: card.run?.ownedHere === true,
+    rows: card.tasks ?? [],
+    // The whole of the text, for a reader whose card cut a line.
+    title: `${change.changeName} — ${[described.stateWords, ...described.lines, ...readiness.map((detail) => detail.text), ...also.map((detail) => detail.text)].join(" ")}`,
+  };
+}
+
+function hasProgress(card: ChangeCard): boolean {
+  return card.progress !== undefined && card.progress.total > 0;
 }
 
 function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards }: {
@@ -574,13 +640,26 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   directory: string;
   openCards: OpenCards;
 }) {
-  // An open card is as tall as its rows, and only the cards below it in its
-  // column move; nothing is measured (a-card-opens-to-its-tasks).
-  const heights = openHeights(
-    report.changes.map((change) => change.changeName),
-    (name) => cards.get(name)?.tasks,
-    (name) => openCards.isOpen(directory, name),
-  );
+  // Every card's height is derived from what it holds, and a column stacks
+  // by those heights: only the cards below a card that grows move, and
+  // nothing is measured (the-pipeline-cards-wear-metro).
+  const models = new Map<string, LocalCardModel>();
+  const heights = new Map<string, number>();
+  for (const change of report.changes) {
+    const card = cards.get(change.changeName);
+    if (card === undefined) continue;
+    const model = localCardModel(change, card, now, alsoIn.get(change.changeName), controls);
+    models.set(change.changeName, model);
+    const openRows = openParts(model.rows, openCards.isOpen(directory, change.changeName));
+    heights.set(change.changeName, pipelineCardHeight({
+      hasState: true,
+      hasProgress: hasProgress(card),
+      hasCallout: model.callout !== undefined,
+      detailLines: model.details.length,
+      hasControls: model.buttons.length > 0,
+      ...(openRows !== undefined ? { open: openRows } : {}),
+    }));
+  }
   const layout = layoutChanges(report, { heights });
   return (
     <>
@@ -592,16 +671,13 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
         renderNode={(node) => {
           // Every change of the report has a card: they are derived from it.
           const name = node.change.changeName;
-          const card = cards.get(name);
-          return card === undefined ? null : (
+          const model = models.get(name);
+          return model === undefined ? null : (
             <Node
               key={name}
               node={node}
-              card={card}
-              now={now}
+              model={model}
               onOpenChange={onOpenChange}
-              alsoIn={alsoIn.get(name)}
-              controls={controls}
               open={openCards.isOpen(directory, name)}
               onToggle={() => openCards.toggle(directory, name)}
             />
@@ -622,9 +698,8 @@ function drawsAnEdge(changes: ReadonlyArray<{ changeName: string; blockers: read
 /** What a picture's lines mean, said where there is a line to explain. */
 function Legend({ testId }: { testId: string }) {
   return (
-    <ul className="openspec-shell-note openspec-pipeline-legend" data-testid={testId}>
-      <li><span className="openspec-pipeline-legend-edge" aria-hidden="true" />A solid line from one card to another means the second waits for the first.</li>
-      <li><span className="openspec-pipeline-legend-rail" aria-hidden="true" />A thin line inside a card means listed next in tasks.md.</li>
+    <ul className="openspec-pipeline-legend" data-testid={testId}>
+      <li><span className="openspec-pipeline-legend-edge" aria-hidden="true" />A line from one card to another means the second waits for the first.</li>
       <li>A collision is written on the card, and never drawn.</li>
     </ul>
   );
@@ -648,7 +723,7 @@ function TasksToggle({ name, open, listId, testId, onToggle }: {
       aria-label={`${open ? "Hide" : "Show"} tasks of ${name}`}
       onClick={onToggle}
     >
-      {open ? "Hide tasks" : "Show tasks"}
+      <ChevronIcon up={open} />
     </button>
   );
 }
@@ -657,9 +732,20 @@ function TasksToggle({ name, open, listId, testId, onToggle }: {
  * `**Delegated to claude-cli**:` at the start of its text. */
 const MARKER_LEAD_RE = /^\*\*[^*]+\*\*:?\s*/u;
 
-/** An open card's tasks, in the task list's order, under their headings.
- * Kept in the page while the card is closed, and hidden, so the control
- * that shows it always names an element. */
+/** The tag a row draws for its word: the word itself where it fits a tag,
+ * shortened where it does not. The whole word stays on the row. */
+function taskTag(row: TaskRow): { text: string; tone: "done" | "hand" | "next" | "open" | "person" | "agent" } {
+  if (row.word === "done") return { text: "Done", tone: "done" };
+  if (row.word === "in hand") return { text: "In hand", tone: "hand" };
+  if (row.word === "probably next") return { text: "Probably next", tone: "next" };
+  if (row.word === "only a person can close it") return { text: "A person", tone: "person" };
+  if (row.word.startsWith("delegated to ")) return { text: row.word.slice("delegated to ".length), tone: "agent" };
+  return { text: "Open", tone: "open" };
+}
+
+/** An open card's tasks, in the task list's order, under their headings,
+ * as rows of a bordered list. Kept in the page while the card is closed,
+ * and hidden, so the control that shows it always names an element. */
 function TaskList({ id, rows, open, testId }: { id: string; rows: readonly TaskRow[]; open: boolean; testId: string }) {
   const groups = taskGroups(rows);
   return (
@@ -671,25 +757,16 @@ function TaskList({ id, rows, open, testId }: { id: string; rows: readonly TaskR
             {group.rows.map((row, index) => {
               const text = row.closedBy === "agent" ? row.text : row.text.replace(MARKER_LEAD_RE, "");
               const inHand = row.word === "in hand" || row.word === "probably next";
+              const tag = taskTag(row);
+              const classes = ["openspec-pipeline-task", inHand ? "openspec-pipeline-task--in-hand" : "", row.done ? "openspec-pipeline-task--done" : ""].filter(Boolean).join(" ");
               return (
-                <li
-                  key={index}
-                  className={inHand ? "openspec-pipeline-task openspec-pipeline-task--in-hand" : "openspec-pipeline-task"}
-                  data-word={row.word}
-                  title={`${row.number !== undefined ? `${row.number} ` : ""}${row.word}: ${text}`}
-                >
-                  {/* The rail runs to the row listed next, across the next
-                      section's heading when this row ends a section: a
-                      rail that stopped there read as two separate tracks
-                      (found by 6.5's look). */}
-                  {index < group.rows.length - 1
-                    ? <span className="openspec-pipeline-task-rail" aria-hidden="true" />
-                    : groupIndex < groups.length - 1
-                      ? <span className="openspec-pipeline-task-rail openspec-pipeline-task-rail--across" aria-hidden="true" />
-                      : null}
-                  {row.number !== undefined ? <span className="openspec-pipeline-task-number">{row.number}</span> : null}
-                  <span className="openspec-pipeline-task-word">{row.word}</span>
+                <li key={index} className={classes} data-word={row.word} title={`${row.number !== undefined ? `${row.number} ` : ""}${row.word}: ${text}`}>
+                  <span className="openspec-pipeline-task-number">{row.number ?? ""}</span>
                   <span className="openspec-pipeline-task-text">{text}</span>
+                  <span className={`openspec-pipeline-task-tag openspec-pipeline-task-tag--${tag.tone}`}>
+                    <span aria-hidden="true">{tag.text}</span>
+                    <span className="openspec-visually-hidden">{row.word}</span>
+                  </span>
                 </li>
               );
             })}
@@ -742,8 +819,14 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
             {/* Numbered rather than named: the repository states an
                 order, not stages, and a heading that invented stage names
                 would be inventing something. Each card says what it
-                waits on. */}
-            <Heading className="openspec-pipeline-lane-heading">Step {column + 1}</Heading>
+                waits on. Placed by the same units as the cards, in the
+                strip core leaves above them. */}
+            <Heading
+              className="openspec-pipeline-lane-heading"
+              style={{ "--x": column * (NODE_WIDTH + COLUMN_GAP), "--w": NODE_WIDTH, "--h": LANE_HEADING } as Record<string, number>}
+            >
+              {describeLane(column)}
+            </Heading>
             {nodes.map(renderNode)}
           </div>
         ))}
@@ -786,27 +869,30 @@ function Edges({ edges, width, height, testIdPrefix }: {
   );
 }
 
-function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle }: {
+/** A card's bar for its tasks, with the count beside it. The bar is drawn
+ * for the eye; the words say the same for everyone. */
+function Progress({ done, total }: { done: number; total: number }) {
+  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="openspec-pipeline-node-progress" data-complete={total > 0 && done === total ? "true" : "false"}>
+      <span className="openspec-pipeline-node-bar" aria-hidden="true">
+        <span style={{ width: `${percent}%` }} />
+      </span>
+      <span className="openspec-pipeline-node-count" aria-hidden="true">{`${done} / ${total} tasks`}</span>
+      <span className="openspec-visually-hidden">{`${done} of ${total} tasks done`}</span>
+    </div>
+  );
+}
+
+function Node({ node, model, onOpenChange, open, onToggle }: {
   node: ChangeLayoutNode;
-  card: ChangeCard;
-  now: Date;
+  model: LocalCardModel;
   onOpenChange?: (name: string) => void;
-  alsoIn?: string[];
-  controls: CardControlHandlers;
   open: boolean;
   onToggle: () => void;
 }) {
   const { change } = node;
-  // The card's own lines first — what the change is doing — then what
-  // readiness says about starting it beside the others.
-  const described = describeChangeCard(card, now);
-  const detail = [
-    ...described.lines,
-    ...describeChange(node),
-    ...(alsoIn && alsoIn.length > 0 ? [`also in ${alsoIn.join(", ")}`] : []),
-  ];
-  const buttons = cardControls(card, controls);
-  const rows = card.tasks ?? [];
+  const { card, described, rows } = model;
   const testId = `pipeline-node-${change.changeName}`;
   return (
     // A group, not one button: a card holds controls of its own, and a
@@ -820,10 +906,9 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle 
       data-state={card.state}
       data-open={open && rows.length > 0 ? "true" : "false"}
       // The coordinates core returned, in units the stylesheet turns into
-      // `em`. In the narrow view the stylesheet ignores them.
+      // `rem`. In the narrow view the stylesheet ignores them.
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
-      // The whole of the text, for a reader whose card clipped it.
-      title={`${change.changeName} — ${detail.join(" ")}`}
+      title={model.title}
     >
       <div className="openspec-pipeline-node-head">
         <button
@@ -832,7 +917,6 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle 
           data-testid={`${testId}-open`}
           onClick={() => onOpenChange?.(change.changeName)}
         >
-          <Icon meaning="open" />
           <span className="openspec-pipeline-node-name">{change.changeName}</span>
         </button>
         {rows.length > 0
@@ -841,16 +925,22 @@ function Node({ node, card, now, onOpenChange, alsoIn, controls, open, onToggle 
       </div>
       {/* The state as a word, not only as a colour — two hues a reader
           cannot tell apart must still be two states. */}
-      <span className="openspec-pipeline-node-state">{described.stateWords}</span>
-      {/* The lines a closed card holds, open or not: opening a card adds its
+      <div className="openspec-pipeline-node-state-row">
+        <span className="openspec-pipeline-node-state" data-state={card.state}>{described.stateWords}</span>
+        {described.note !== undefined ? <span className="openspec-pipeline-node-note">{described.note}</span> : null}
+      </div>
+      {card.progress !== undefined && hasProgress(card) ? <Progress done={card.progress.done} total={card.progress.total} /> : null}
+      {model.callout !== undefined ? <p className="openspec-pipeline-node-callout">{model.callout}</p> : null}
+      {/* The facts a closed card holds, open or not: opening a card adds its
           rows and changes nothing it says. */}
-      <CardDetails lines={detail} budget={pipelineCardDetailLines(NODE_HEIGHT, { hasState: true, hasControls: buttons.length > 0 })} />
-      {buttons.length > 0 ? (
+      <CardDetails details={model.details} />
+      {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
+      {model.buttons.length > 0 ? (
         <div className="openspec-pipeline-node-controls" data-testid={`${testId}-controls`}>
-          {buttons}
+          {model.buttons}
+          {model.startedHere ? <span className="openspec-pipeline-node-started">started here</span> : null}
         </div>
       ) : null}
-      {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
     </div>
   );
 }
@@ -870,11 +960,16 @@ interface CardControlHandlers {
 /** The buttons a card offers, from its facts alone. Answer, Stop and Stop
  * now only for a run this host holds; for a run held elsewhere, only its
  * folder to copy (a-change-is-run-from-its-card 5.2–5.8). Every button's
- * accessible name includes the change's name. */
+ * accessible name includes the change's name. The button that moves the
+ * change forward is drawn as the primary one, a stop as a stopping one
+ * (the-pipeline-cards-wear-metro). */
 function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode[] {
   const name = card.changeName;
   const buttons: ReactNode[] = [];
   const run = card.run;
+  const forward = "openspec-pipeline-button openspec-pipeline-button--forward";
+  const stopping = "openspec-pipeline-button openspec-pipeline-button--stop";
+  const plain = "openspec-pipeline-button";
 
   if (run === undefined) {
     if (handlers.onStart !== undefined && (card.state === "ready" || card.state === "failed" || card.state === "stopped")) {
@@ -883,7 +978,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
         // Every control here carries its own `aria-label`, so an icon before
         // the word cannot move the name a test or a voice command uses
         // (the-web-ui-screens-wear-metro 4.2).
-        <button key="start" type="button" data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start</button>,
+        <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start</button>,
       );
     }
     return buttons;
@@ -898,7 +993,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     if (!run.ownedHere && run.stoppableByMe && handlers.canAskToStop && run.stopAskedAt === undefined && run.stopRequested === null) {
       const instanceId = run.instanceId;
       buttons.push(
-        <button key="ask-stop" type="button" data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop</button>,
+        <button key="ask-stop" type="button" className={stopping} data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop</button>,
       );
     }
     // Answered where it was started: the card names the folder, and offers
@@ -906,7 +1001,7 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
     if (!run.ownedHere && handlers.copyText !== undefined && run.workingDirectory !== "") {
       const copy = handlers.copyText;
       buttons.push(
-        <button key="copy" type="button" data-testid={`pipeline-copy-path-${name}`} aria-label={`Copy folder path of ${name}`} onClick={() => void copy(run.workingDirectory)}>Copy folder path</button>,
+        <button key="copy" type="button" className={plain} data-testid={`pipeline-copy-path-${name}`} aria-label={`Copy folder path of ${name}`} onClick={() => void copy(run.workingDirectory)}><CopyIcon />Copy folder path</button>,
       );
     }
     return buttons;
@@ -916,25 +1011,25 @@ function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNod
   const runId = held.runId;
   if (held.stopRequested !== null) {
     buttons.push(
-      <button key="stop-now" type="button" data-testid={`pipeline-stop-now-${name}`} aria-label={`Stop ${name} now`} onClick={() => send({ changeName: name, runId, kind: "cancel" })}>Stop now</button>,
+      <button key="stop-now" type="button" className={stopping} data-testid={`pipeline-stop-now-${name}`} aria-label={`Stop ${name} now`} onClick={() => send({ changeName: name, runId, kind: "cancel" })}><Icon meaning="stop" />Stop now</button>,
     );
     return buttons;
   }
   if (run.waiting?.kind === "checkpoint") {
     const next = run.waiting.nextStage;
     buttons.push(
-      <button key="continue" type="button" data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}>{`Continue to ${next}`}</button>,
+      <button key="continue" type="button" className={forward} data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}><ForwardIcon />{`Continue to ${next}`}</button>,
     );
   }
   if (run.waiting?.kind === "permission" && held.permissionRequestId !== null) {
     const requestId = held.permissionRequestId;
     buttons.push(
-      <button key="allow" type="button" data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}>Allow</button>,
-      <button key="deny" type="button" data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}>Deny</button>,
+      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />Allow</button>,
+      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
     );
   }
   buttons.push(
-    <button key="stop" type="button" data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop</button>,
+    <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop</button>,
   );
   return buttons;
 }
@@ -987,36 +1082,37 @@ function StopReasonForm({ changeName, onAsk, onCancel }: {
         />
       </label>
       {refused ? <p className="openspec-shell-error" role="alert">A stop needs a reason.</p> : null}
-      <div className="openspec-ai-panel-controls">
-        <button type="submit" className="button alert" data-testid="pipeline-ask-to-stop">Ask to stop</button>
-        <button className="button" type="button" onClick={onCancel}>Cancel</button>
+      <div className="openspec-pipeline-stop-form-actions">
+        <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--stop" data-testid="pipeline-ask-to-stop">Ask to stop</button>
+        <button className="openspec-pipeline-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
 }
 
-/** A card's detail lines (the-pipeline-shows-what-it-has-read). As many
- * as the card holds whole are drawn, each on one line; the rest stay in
- * the DOM and in the card's accessible name, visually hidden — a fixed
- * card must not be able to remove a fact the change is required to state
- * — and the last drawn line counts them. The card's title has every
- * line. */
-function CardDetails({ lines, budget }: { lines: string[]; budget: number }) {
-  const { drawn, beyond } = fitPipelineCardDetails(lines.length, budget);
-  const count = <span className="openspec-pipeline-node-more" aria-hidden="true">{`+${beyond}`}</span>;
+/** A card's facts (the-pipeline-shows-what-it-has-read), each marked by its
+ * kind (the-pipeline-cards-wear-metro). As many as a card draws are drawn,
+ * each on one line; the rest stay in the DOM and in the card's accessible
+ * name, visually hidden — a card must not be able to remove a fact the
+ * change is required to state — and the last drawn line counts them. The
+ * card's title has every line. */
+function CardDetails({ details }: { details: readonly CardDetail[] }) {
+  if (details.length === 0) return null;
+  const { drawn, beyond } = fitPipelineCardDetails(details.length);
   return (
-    <>
-      {drawn === 0 && beyond > 0 ? count : null}
-      {lines.map((line, index) => (
-        <span
+    <ul className="openspec-pipeline-node-details">
+      {details.map((detail, index) => (
+        <li
           key={index}
           className={index < drawn ? "openspec-pipeline-node-detail" : "openspec-pipeline-node-detail openspec-pipeline-node-detail--beyond"}
+          data-kind={detail.kind}
         >
-          <span className="openspec-pipeline-node-detail-text">{line}</span>
-          {beyond > 0 && index === drawn - 1 ? count : null}
-        </span>
+          <DetailIcon kind={detail.kind} />
+          <span className="openspec-pipeline-node-detail-text">{detail.text}</span>
+          {beyond > 0 && index === drawn - 1 ? <span className="openspec-pipeline-node-more" aria-hidden="true">{`+${beyond}`}</span> : null}
+        </li>
       ))}
-    </>
+    </ul>
   );
 }
 
@@ -1024,31 +1120,30 @@ function CardDetails({ lines, budget }: { lines: string[]; budget: number }) {
  * it. Sentences rather than fields: the terminal's `ready` says the same
  * things the same way, and two surfaces wording one fact differently is
  * two facts as far as a reader is concerned. */
-function describeChange(node: ChangeLayoutNode): string[] {
-  const { change } = node;
-  const lines: string[] = [];
+function describeChange(change: ChangeReadiness): CardDetail[] {
+  const details: CardDetail[] = [];
 
   if (change.run.state === "running") {
-    lines.push(`in ${change.run.worktreePath}`);
+    details.push({ kind: "where", text: `in ${change.run.worktreePath}` });
     // "git author", never "user": self-declared, and nothing is gated on
     // it (a-lease-says-who). A run that recorded none claims nothing.
     // Only a lease records an author; a run known only by its status
     // record claims nobody (a-change-is-running-when-its-run-says-so).
-    if (change.run.holder?.author) lines.push(`git author ${change.run.holder.author}`);
+    if (change.run.holder?.author) details.push({ kind: "whose", text: `git author ${change.run.holder.author}` });
   }
 
-  if (change.run.state === "blocked") lines.push(`waiting on ${change.run.blockedBy.join(", ")}`);
+  if (change.run.state === "blocked") details.push({ kind: "waiting-on", text: `waiting on ${change.run.blockedBy.join(", ")}` });
 
   if (change.run.state === "ready") {
-    if (change.needsWorktree) lines.push(`no working directory of its own — ${change.needsWorktree}`);
-    else if (change.canJoin.length > 0) lines.push(`can start alongside ${change.canJoin.join(", ")}`);
-    else if (change.blockedFrom.length === 0) lines.push("nothing else can start alongside it");
+    if (change.needsWorktree) details.push({ kind: "worktree", text: `no working directory of its own — ${change.needsWorktree}` });
+    else if (change.canJoin.length > 0) details.push({ kind: "alongside", text: `can start alongside ${change.canJoin.join(", ")}` });
+    else if (change.blockedFrom.length === 0) details.push({ kind: "alongside", text: "nothing else can start alongside it" });
     for (const other of change.blockedFrom) {
-      lines.push(`not with ${other.changeName} — ${other.collisions.map(describeCollision).join("; ")}`);
+      details.push({ kind: "collision", text: `not with ${other.changeName} — ${other.collisions.map(describeCollision).join("; ")}` });
     }
   }
 
-  return lines;
+  return details;
 }
 
 /** Every working directory other than this one, each in its own
@@ -1063,25 +1158,30 @@ function OtherDirectories({ survey, labels, now, onCards, openCards }: {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
   return (
-    <div className="openspec-pipeline-others" data-testid="pipeline-others">
-      <h3 className="openspec-pipeline-others-heading">Other working directories</h3>
-      <p className="openspec-shell-note">
-        Read here and never acted on: nothing below can be opened, run or changed from this checkout.
-      </p>
-      {others.map((directory, index) => (
-        <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} />
-      ))}
-      {survey.runsElsewhere.length > 0 ? (
-        <div data-testid="pipeline-runs-elsewhere">
-          <p className="openspec-shell-note">
-            Runs reporting from a directory that is no longer a working directory of this repository:
-          </p>
-          <ul className="openspec-shell-note">
-            {survey.runsElsewhere.map((run) => <li key={run.instanceId}>{`${run.workingDirectory} — ${describeRun(run, now)}`}</li>)}
-          </ul>
-        </div>
-      ) : null}
-    </div>
+    <section className="openspec-panel openspec-pipeline-others" data-testid="pipeline-others" aria-label="Other working directories">
+      <div className="openspec-panel-head">
+        <h2 className="openspec-pipeline-others-heading">Other working directories</h2>
+        <span className="openspec-panel-head-note">read here and never acted on</span>
+      </div>
+      <div className="openspec-pipeline-panel-body">
+        <p className="openspec-shell-note">
+          Nothing below can be opened, run or changed from this checkout.
+        </p>
+        {others.map((directory, index) => (
+          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} />
+        ))}
+        {survey.runsElsewhere.length > 0 ? (
+          <div data-testid="pipeline-runs-elsewhere">
+            <p className="openspec-shell-note">
+              Runs reporting from a directory that is no longer a working directory of this repository:
+            </p>
+            <ul className="openspec-shell-note">
+              {survey.runsElsewhere.map((run) => <li key={run.instanceId}>{`${run.workingDirectory} — ${describeRun(run, now)}`}</li>)}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -1096,8 +1196,10 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards }: {
   const testId = `pipeline-directory-${index}`;
   return (
     <section className="openspec-pipeline-directory" data-testid={testId} aria-label={`Working directory ${directory.label}`}>
-      <h4 className="openspec-pipeline-directory-label">{directory.label}</h4>
-      <p className="openspec-shell-note" data-testid={`${testId}-where`}>{`${branchPhrase(directory)} — ${directory.path}`}</p>
+      <div className="openspec-pipeline-directory-title">
+        <h3 className="openspec-pipeline-directory-label">{directory.label}</h3>
+        <span className="openspec-pipeline-directory-where" data-testid={`${testId}-where`}>{`${branchPhrase(directory)} · ${directory.path}`}</span>
+      </div>
       {directory.belongsTo ? (
         // A change is one card, wherever it is worked (ADR 0029): this
         // directory's copy of it is the card above, not a second card here.
@@ -1117,7 +1219,7 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards }: {
           {directory.authorDiffers ? ", a different git author from this checkout's" : ""}.
         </p>
       ) : null}
-      <ul className="openspec-shell-note" data-testid={`${testId}-runs`}>
+      <ul className="openspec-shell-note openspec-pipeline-directory-runs" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
       {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} /> : null}
@@ -1139,6 +1241,15 @@ function asLayoutInput(change: SurveyedChange): ChangeReadiness {
   };
 }
 
+/** The facts a card of another working directory states. */
+function foreignDetails(change: SurveyedChange | undefined, blockers: readonly string[], labels: Map<string, string>): CardDetail[] {
+  return [
+    ...(change?.tasksUnreadable ? [{ kind: "tasks" as const, text: `tasks could not be read: ${change.tasksUnreadable}` }] : []),
+    ...(blockers.length > 0 ? [{ kind: "waiting-on" as const, text: `waiting on ${blockers.join(", ")}` }] : []),
+    ...(change && change.alsoIn.length > 0 ? [{ kind: "where" as const, text: `also in ${change.alsoIn.map((other) => labels.get(other) ?? other).join(", ")}` }] : []),
+  ];
+}
+
 function ForeignChanges({ directory, testId, labels, openCards }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
   testId: string;
@@ -1155,11 +1266,18 @@ function ForeignChanges({ directory, testId, labels, openCards }: {
     );
   }
   const byName = new Map(changes.map((change) => [change.changeName, change]));
-  const heights = openHeights(
-    changes.map((change) => change.changeName),
-    (name) => byName.get(name)?.tasks,
-    (name) => openCards.isOpen(directory.path, name),
-  );
+  const heights = new Map<string, number>();
+  for (const change of changes) {
+    const openRows = openParts(change.tasks ?? [], openCards.isOpen(directory.path, change.changeName));
+    heights.set(change.changeName, pipelineCardHeight({
+      hasState: false,
+      hasProgress: !change.tasksUnreadable && change.tasksTotal > 0,
+      hasCallout: false,
+      detailLines: foreignDetails(change, change.blockers, labels).length,
+      hasControls: false,
+      ...(openRows !== undefined ? { open: openRows } : {}),
+    }));
+  }
   const layout = layoutChanges({ changes: changes.map(asLayoutInput) }, { heights });
   return (
     <>
@@ -1200,13 +1318,8 @@ function ForeignNode({ node, change, labels, testId, open, onToggle }: {
   // there is what its list says.
   const rows = change?.tasks !== undefined ? describeTaskRows(change.tasks, undefined) : [];
   const name = node.change.changeName;
-  const lines = [
-    change?.tasksUnreadable
-      ? `tasks could not be read: ${change.tasksUnreadable}`
-      : `${change?.tasksDone ?? 0} of ${change?.tasksTotal ?? 0} tasks done`,
-    ...(node.change.blockers.length > 0 ? [`waiting on ${node.change.blockers.join(", ")}`] : []),
-    ...(change && change.alsoIn.length > 0 ? [`also in ${change.alsoIn.map((other) => labels.get(other) ?? other).join(", ")}`] : []),
-  ];
+  const details = foreignDetails(change, node.change.blockers, labels);
+  const counted = change !== undefined && !change.tasksUnreadable && change.tasksTotal > 0;
   return (
     <div
       className="openspec-pipeline-node openspec-pipeline-node--foreign"
@@ -1214,7 +1327,7 @@ function ForeignNode({ node, change, labels, testId, open, onToggle }: {
       data-state="foreign"
       data-open={open && rows.length > 0 ? "true" : "false"}
       style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
-      title={`${name} — ${lines.join(" ")}`}
+      title={`${name} — ${[...(counted ? [`${change.tasksDone} of ${change.tasksTotal} tasks done`] : []), ...details.map((detail) => detail.text)].join(" ")}`}
     >
       <div className="openspec-pipeline-node-head">
         <span className="openspec-pipeline-node-name">{name}</span>
@@ -1222,7 +1335,8 @@ function ForeignNode({ node, change, labels, testId, open, onToggle }: {
           ? <TasksToggle name={name} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
           : null}
       </div>
-      <CardDetails lines={lines} budget={pipelineCardDetailLines(NODE_HEIGHT, { hasState: false })} />
+      {counted ? <Progress done={change.tasksDone} total={change.tasksTotal} /> : null}
+      <CardDetails details={details} />
       {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
     </div>
   );

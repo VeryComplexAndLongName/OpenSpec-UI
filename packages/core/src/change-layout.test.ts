@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   COLUMN_GAP,
+  LANE_HEADING,
   NODE_HEIGHT,
   NODE_WIDTH,
   ROW_GAP,
+  describeLane,
   layoutChanges,
   type ChangeLayoutEdge,
 } from "./change-layout.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness.js";
+import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
 function change(changeName: string, overrides: Partial<ChangeReadiness> = {}): ChangeReadiness {
   return {
@@ -142,7 +145,7 @@ describe("layoutChanges", () => {
     const layout = layoutChanges(report(running));
 
     expect(layout.nodes).toEqual([
-      { change: running, column: 0, row: 0, x: 0, y: 0, width: NODE_WIDTH, height: NODE_HEIGHT },
+      { change: running, column: 0, row: 0, x: 0, y: LANE_HEADING, width: NODE_WIDTH, height: NODE_HEIGHT },
     ]);
   });
 
@@ -154,16 +157,33 @@ describe("layoutChanges", () => {
     ));
 
     const at = (name: string) => layout.nodes.find((node) => node.change.changeName === name);
-    expect(at("root")).toMatchObject({ x: 0, y: 0 });
-    expect(at("alpha")).toMatchObject({ x: NODE_WIDTH + COLUMN_GAP, y: 0 });
-    expect(at("beta")).toMatchObject({ x: NODE_WIDTH + COLUMN_GAP, y: NODE_HEIGHT + ROW_GAP });
+    expect(at("root")).toMatchObject({ x: 0, y: LANE_HEADING });
+    expect(at("alpha")).toMatchObject({ x: NODE_WIDTH + COLUMN_GAP, y: LANE_HEADING });
+    expect(at("beta")).toMatchObject({ x: NODE_WIDTH + COLUMN_GAP, y: LANE_HEADING + NODE_HEIGHT + ROW_GAP });
+  });
+
+  // the-pipeline-cards-wear-metro 1.2: each column is headed, above its cards.
+  it("heads each column by its place in the order, in the strip above the cards", () => {
+    expect([0, 1, 2].map(describeLane)).toEqual(["Step 1 · can start now", "Step 2 · after step 1", "Step 3 · after step 2"]);
+    const layout = layoutChanges(report(change("only")));
+    expect(Math.min(...layout.nodes.map((node) => node.y))).toBe(LANE_HEADING);
+  });
+
+  it("stacks cards of different heights by exactly their heights, a smaller card included", () => {
+    const layout = layoutChanges(report(change("alpha"), change("beta"), change("gamma")), {
+      heights: new Map([["alpha", 12.5], ["beta", 5.375]]),
+    });
+    const y = (name: string) => layout.nodes.find((node) => node.change.changeName === name)?.y;
+    expect(y("beta")).toBe(LANE_HEADING + 12.5 + ROW_GAP);
+    expect(y("gamma")).toBe(LANE_HEADING + 12.5 + ROW_GAP + 5.375 + ROW_GAP);
+    expect(layout.height).toBe(LANE_HEADING + 12.5 + ROW_GAP + 5.375 + ROW_GAP + NODE_HEIGHT);
   });
 
   it("runs an edge between neighbours out of one card and into the next", () => {
     const layout = layoutChanges(report(change("first"), change("second", { blockers: ["first"] })));
 
     const [edge] = layout.edges;
-    const middle = NODE_HEIGHT / 2;
+    const middle = LANE_HEADING + PIPELINE_CARD_HEAD;
     // Same row, so the turn in the gap collapses and the line is
     // straight — the corners that are not turns are not reported.
     expect(edge?.points).toEqual([
@@ -183,7 +203,7 @@ describe("layoutChanges", () => {
     ));
 
     const detour = layout.edges.find((edge) => edge.from === "root" && edge.to === "last");
-    const rowBottom = NODE_HEIGHT;
+    const rowBottom = LANE_HEADING + NODE_HEIGHT;
     expect(detour).toBeDefined();
     // It leaves the row band entirely rather than crossing the card in
     // the column between.
@@ -251,7 +271,7 @@ describe("layoutChanges", () => {
     const open = layoutChanges(changes, { heights: new Map([["alpha", NODE_HEIGHT + extra]]) });
 
     const node = (layout: ReturnType<typeof layoutChanges>, name: string) => layout.nodes.find((candidate) => candidate.change.changeName === name);
-    expect(node(open, "alpha")).toMatchObject({ y: 0, height: NODE_HEIGHT + extra });
+    expect(node(open, "alpha")).toMatchObject({ y: LANE_HEADING, height: NODE_HEIGHT + extra });
     expect(node(open, "beta")?.y).toBe((node(closed, "beta")?.y ?? Number.NaN) + extra);
     expect(node(open, "gamma")?.y).toBe((node(closed, "gamma")?.y ?? Number.NaN) + extra);
     expect(node(open, "next")?.y).toBe(node(closed, "next")?.y);
@@ -266,8 +286,8 @@ describe("layoutChanges", () => {
     );
 
     expect(layout.edges[0]?.points).toEqual([
-      { x: NODE_WIDTH, y: NODE_HEIGHT / 2 },
-      { x: NODE_WIDTH + COLUMN_GAP, y: NODE_HEIGHT / 2 },
+      { x: NODE_WIDTH, y: LANE_HEADING + PIPELINE_CARD_HEAD },
+      { x: NODE_WIDTH + COLUMN_GAP, y: LANE_HEADING + PIPELINE_CARD_HEAD },
     ]);
   });
 

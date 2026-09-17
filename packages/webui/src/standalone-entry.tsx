@@ -2290,7 +2290,9 @@ function StandaloneApp() {
 
       {visibleTabIds.has("pipeline") && (
       <TabPanel id="pipeline" activeTab={activeTab} lazy>
-      <section className="openspec-shell-panel">
+      {/* No panel around it: the Pipeline is laid out in panels of its own
+          (the-pipeline-cards-wear-metro). */}
+      <div className="openspec-pipeline-tab">
         {cwd.trim().length > 0
           ? (
             <>
@@ -2351,7 +2353,7 @@ function StandaloneApp() {
             </>
           )
           : <p>Enter workspace root to see the pipeline.</p>}
-      </section>
+      </div>
       </TabPanel>
       )}
 
