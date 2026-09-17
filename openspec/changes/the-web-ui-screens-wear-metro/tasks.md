@@ -226,6 +226,11 @@ brings in the families, the icons and the palette this change spends.
   section's icon helps or decorates, whether the summary tiles are worth their
   space, and whether the multi-change grid is readable at a year's width.
 
+  Answered in part by the owner on 2026-09-17. Icons: the tabs (Run,
+  Processes, Diff and the rest) carry none. Summary tiles: "I like them. We
+  keep them." The multi-change grid is not answered yet: it is Timeline's
+  Compare changes over a year's range, which the owner had not found.
+
 ## 7. Metro draws the parts it names
 
 Added on 2026-09-16 after the owner's reading of the live shell: "it looks as

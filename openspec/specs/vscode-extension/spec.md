@@ -123,6 +123,16 @@ shell rendering its full section set inside this embed; native VS Code UI
 (diff editor, tree views, native file editing) remains the source of truth
 for the areas the embed does not show.
 
+The embed SHALL carry a closed set of the shell's screens, and the URL SHALL
+say which of them the embedding panel wants. A screen the set does not carry
+SHALL NOT be shown in the embed, whatever the URL asks for.
+
+The URL SHALL also say whether the editor's colour theme is light or dark,
+and the embedded shell SHALL draw in that theme rather than in the one the
+operating system prefers or a browser session remembers.
+
+The embedded shell SHALL fill the panel, and only the shell SHALL scroll.
+
 #### Scenario: Local-server mode webview panel is created
 
 - **WHEN** `AiPanel` builds the iframe HTML for the optional local-server
@@ -136,6 +146,30 @@ for the areas the embed does not show.
   server)
 - **THEN** no embed signal is relevant, since this mode does not load the
   standalone shell at all
+
+#### Scenario: A panel asks for its own screen
+
+- **WHEN** a panel embeds the shell and its URL names a screen the embed
+  carries
+- **THEN** the embedded shell opens on that screen
+
+#### Scenario: A URL asks for a screen the embed does not carry
+
+- **WHEN** the URL names a screen outside the embed's set
+- **THEN** the embedded shell opens on the first screen it does carry, and
+  shows no other
+
+#### Scenario: A dark editor on a light system
+
+- **WHEN** a panel embeds the shell while the editor's theme is dark and the
+  operating system prefers light
+- **THEN** the embedded shell is drawn dark
+
+#### Scenario: The embed fills its panel
+
+- **WHEN** a panel embeds the shell
+- **THEN** the shell takes the panel's whole width and height, and the panel
+  shows no scroll bar of its own
 
 ### Requirement: Changes and Archive trees expand to individual tasks, with reveal and scoped delete
 
@@ -701,7 +735,11 @@ The extension SHALL offer a command that opens the Pipeline in an editor
 panel, rendered by the same shared component the standalone shell uses.
 
 The panel SHALL get its readings from direct calls to the core package
-over the message bridge. It SHALL NOT start a local server to get them.
+over the message bridge, unless the optional local server is already running,
+in which case it MAY embed the shell's Pipeline screen and let that server's
+process take the readings. The panel SHALL NOT start a local server to get
+them. Where it embeds the shell, it SHALL frame the shell again when the
+editor's theme changes between light and dark.
 
 The readiness payload SHALL be assembled by the same core function that
 the standalone server uses, so that hints are on or off for the same
@@ -725,6 +763,25 @@ A window SHALL have at most one such panel.
 - **WHEN** the workspace configuration turns hints off
 - **THEN** the editor's Pipeline shows no hints, as the standalone shell
   shows none
+
+#### Scenario: A run is working in this editor
+
+- **WHEN** the optional local server is running and a chain is running in the
+  extension host
+- **THEN** the panel's cards are drawn from readings the server's process
+  took, and the panel reports no unanswered reading
+
+#### Scenario: The optional server is off
+
+- **WHEN** the optional local server is not running
+- **THEN** the panel reads over the message bridge as before, and starts no
+  server
+
+#### Scenario: The editor's theme changes while the Pipeline is open
+
+- **WHEN** the panel embeds the shell and the editor's theme changes from
+  dark to light
+- **THEN** the embedded Pipeline is drawn light
 
 ### Requirement: The editor's Pipeline re-reads when what it reads changes
 
@@ -756,11 +813,15 @@ Nothing SHALL be watched or re-read while the panel is hidden or closed.
 ### Requirement: A change opened from the editor's Pipeline is revealed where it is worked on
 
 Opening a change from the editor's Pipeline SHALL reveal that change in
-the Changes tree and open its proposal.
+the Changes tree and open its proposal. That SHALL hold whether the panel
+reads over the message bridge or embeds the shell.
 
 The panel SHALL send only the change's name. The host SHALL open nothing
 for a name that is not an active change of its own workspace, and SHALL
 say so.
+
+Where the panel embeds the shell, the host SHALL accept the name only from
+the embedded page's own origin, and SHALL ignore a message from any other.
 
 #### Scenario: An active change
 
@@ -772,6 +833,12 @@ say so.
 
 - **WHEN** the name sent is not an active change of the workspace
 - **THEN** nothing opens, and the editor says the change is not active
+
+#### Scenario: A message from another origin
+
+- **WHEN** a message naming a change arrives from an origin other than the
+  embedded page's
+- **THEN** nothing opens
 
 ### Requirement: A change's harness settings open in a panel of their own
 
@@ -819,12 +886,38 @@ While the Changes view is visible, the extension SHALL read standings again
 on the `openspec/**` watcher's events. It SHALL fetch refs, without touching
 any working tree, at most once per fetch interval.
 
+While the Changes view is visible, the extension SHALL also read which runs
+are live again whenever a run's status record is written, renewed or
+removed. That reading SHALL come from the status records alone: it SHALL NOT
+run git, fetch refs or ask `gh`. The runs SHALL be laid over the standings
+the tree holds by the same core function a Pipeline card uses, and an item
+SHALL be drawn again only where its word, colour or badge changed.
+
 #### Scenario: A change running in another worktree
 
 - **WHEN** a status record says a run in another working directory is on a
   change
 - **THEN** that change's item says it is running there, and names the
   directory
+
+#### Scenario: A run starts on a change
+
+- **WHEN** the Changes view is visible, and a run starts on a change and
+  writes its status record before it ticks any task
+- **THEN** within a few seconds the change's item says Running, with no
+  Refresh, and no git command runs for it
+
+#### Scenario: A run ends without touching the change
+
+- **WHEN** a run on a change is stopped before it ticks any task, and its
+  status record is removed
+- **THEN** within a few seconds the change's item no longer says Running
+
+#### Scenario: A running run renews its record
+
+- **WHEN** a run's status record is rewritten with nothing on it changed but
+  its heartbeat
+- **THEN** no item is drawn again, and no git command runs
 
 #### Scenario: Refreshing the Changes tree
 

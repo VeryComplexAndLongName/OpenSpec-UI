@@ -149,5 +149,19 @@ whole of a chain's `apply`.
     run pressed Stop without giving a reason, so nothing stopped; the record
     it left was removed by hand before the next run.
 
-- [ ] 4.7 **Human-only.** Whether the Changes tree now follows a run the
+- [x] 4.7 **Human-only.** Whether the Changes tree now follows a run the
   owner starts, without a Refresh.
+
+  Done on 2026-09-17 by Claude, at the owner's request, against the released
+  `openspec-ui-vscode` 0.60.1: its vsix from the GitHub release, installed
+  into a fresh extensions folder of VS Code 1.137.0, with no development
+  path and the editor's own Git extension on. The same throwaway workspace
+  and chain as 4.6; the chain started from its Pipeline card, and the
+  Pipeline was closed.
+  - **Before the start:** "slow-change draft — Ready".
+  - **The run starts:** the record appeared 7.4 seconds after Start; the row
+    said "slow-change draft — Running" 1.4 seconds after that, with no
+    Refresh.
+  - **Thirty seconds later:** still "slow-change draft — Running".
+  - **Stopped now from the card:** the record went 1.0 second later, and the
+    row said "slow-change draft — Ready" 0.9 seconds after that.

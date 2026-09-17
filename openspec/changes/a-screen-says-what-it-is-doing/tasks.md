@@ -268,6 +268,9 @@ tab's label. The first draft had only the sentence.
   shown for the empty change, the text of the `role="status"` node caught
   while a reading was outstanding, whether a control of that tab was
   disabled at that moment, and the screenshot paths.
-- [ ] 5.7 **Human-only.** Whether the theme switch reads as a switch, and
+- [x] 5.7 **Human-only.** Whether the theme switch reads as a switch, and
   whether the waiting sentence answers the question a person actually has
   while looking at a slow tab.
+
+  Done on 2026-09-17 by the owner: "The theme switch is visible as a
+  switch." And of the slow tabs they had seen: "they answer that question."
