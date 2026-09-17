@@ -2314,6 +2314,103 @@ export const shellThemeCss = `
     max-width: 100%;
   }
 
+  /* The Timeline's change picker (the-timeline-finds-a-change): a search
+     field with its matches listed under it. */
+  .openspec-change-picker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    color: var(--muted);
+  }
+
+  .openspec-change-picker > svg {
+    position: absolute;
+    left: 10px;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .openspec-metro .openspec-change-picker input[role="combobox"],
+  .openspec-change-picker input[role="combobox"] {
+    width: 100%;
+    height: 34px;
+    margin: 0;
+    padding: 0 10px 0 30px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--heading);
+    font: inherit;
+    font-size: 14px;
+  }
+
+  .openspec-change-picker input[role="combobox"]:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--primary-bg);
+  }
+
+  .openspec-change-picker-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .openspec-change-picker-list {
+    max-height: 320px;
+    margin: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .openspec-change-picker-option {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .openspec-change-picker-option[aria-selected="true"] {
+    background: var(--primary-bg);
+    color: var(--heading);
+  }
+
+  .openspec-change-picker-option--chosen .openspec-change-picker-name {
+    font-weight: 600;
+  }
+
+  .openspec-change-picker-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .openspec-change-picker-kind {
+    flex: none;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .openspec-change-picker-count {
+    margin: 0;
+    padding: 6px 12px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
   .openspec-timeline-stale {
     display: flex;
     align-items: center;

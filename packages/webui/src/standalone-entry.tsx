@@ -13,6 +13,7 @@ import { ChangeDiff } from "./components/ChangeDiff.js";
 import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
 import { Icon } from "./components/Icon.js";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
+import { ChangePicker, type ChangePickerOption } from "./components/ChangePicker.js";
 import { ChangesList } from "./components/ChangesList.js";
 import { RecentlyArchivedPanel, SpecsPanel } from "./components/SummaryPanels.js";
 import { summaryFigures, type SummaryTile } from "./summary-figures.js";
@@ -1480,6 +1481,17 @@ function StandaloneApp() {
       sentence: `${timeline.archived ? "Archived" : "Active"} · each task placed when git shows it was ticked`,
     }
     : PAGE_HEADS[activeTab];
+  // Active changes first, then the archive newest first, where a change
+  // looked for is most likely to be; the folder's date is searchable too.
+  const timelinePickerOptions: ChangePickerOption[] = [
+    ...(overview?.changes ?? []).map((change) => ({ value: `active:${change.name}`, name: change.name, archived: false })),
+    ...[...(overview?.archivedChanges ?? [])].reverse().map((folder) => ({
+      value: `archived:${folder}`,
+      name: withoutArchivePrefix(folder),
+      archived: true,
+      keywords: folder,
+    })),
+  ];
 
   return (
     <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
@@ -2115,32 +2127,27 @@ function StandaloneApp() {
           </div>
           {timelineMode === "single" ? (
             <Fragment>
-              <select
-                className="openspec-timeline-picker"
-                aria-label="Change to show a timeline for"
-                data-testid="timeline-change-picker"
+              {/* Found by typing part of its name: a list of hundreds of
+                  archived changes could not be searched by eye
+                  (the-timeline-finds-a-change). */}
+              <ChangePicker
+                label="Change to show a timeline for"
+                placeholder="Find a change by name"
+                testId="timeline-change-picker"
+                options={timelinePickerOptions}
                 value={timelineSelection}
-                onChange={(e) => {
-                  setTimelineSelection(e.target.value);
+                onChange={(selection) => {
+                  setTimelineSelection(selection);
                   // The change shown goes at once. Left up while the next one
                   // is read, it sat under a picker naming another change, with
                   // its own name in the page head (found by 6.6's live check).
                   timelineReading.current += 1;
                   setTimeline(null);
                   setTimelineMessage(null);
-                  if (e.target.value) void loadTimeline(e.target.value);
-                  else setTimelineLoading(false);
+                  void loadTimeline(selection);
                 }}
-                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
-              >
-                <option value="">Select change</option>
-                {(overview?.changes ?? []).map((change) => (
-                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
-                ))}
-                {(overview?.archivedChanges ?? []).map((name) => (
-                  <option key={`archived:${name}`} value={`archived:${name}`}>{`${withoutArchivePrefix(name)} · archived`}</option>
-                ))}
-              </select>
+                disabled={timelinePickerOptions.length === 0}
+              />
               {timelineMessage ? <span className="openspec-shell-note" data-testid="timeline-message">{timelineMessage}</span> : null}
               <label className="openspec-timeline-stale">
                 Stale after
