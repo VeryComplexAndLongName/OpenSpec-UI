@@ -84,12 +84,31 @@
   change and branch; a second standings reading in the same process took
   1.1 to 1.7 s. The readiness report, which draws the cards, and the survey
   now return in under a second.
-- [ ] 3.3 `npm run verify` passes, run unpiped. Record each package's count.
+- [x] 3.3 `npm run verify` passes, run unpiped. Record each package's count.
+
+  Done on 2026-09-17, on the branch rebased onto `main` 9f61699: typecheck
+  and lint pass in every package. Tests: `@openspec-ui/cli` 161 in 16
+  files; `@openspec-ui/core` 1502 in 108 files and 4 in 2 git-subprocess
+  files; `openspec-ui-vscode` 399 in 30 files; `@openspec-ui/server` 103 in
+  4 files; `@openspec-ui/webui` 588 of 589 in 69 files. The one failure is
+  `scripts/build-metro-icons.test.mjs`, which compares the generated icon
+  stylesheet with the checked-out one and fails on Windows only, where the
+  checkout has CRLF line ends, as on `main`.
+
 - [x] 3.4 A changeset, written with the implementation: `@openspec-ui/core`
   patch, `openspec-ui-vscode` patch.
-- [ ] 3.5 `lint:english` after `git add`, `lint:changesets`,
+- [x] 3.5 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets`, `lint:source-text` and `lint:screenshots` pass.
-- [ ] 3.6 The whole standalone browser suite passes. Record the count.
+
+  Done: all pass after staging, inside 3.3's verify; `lint:screenshots`
+  counts 36 pictures, all captured, and this change adds none.
+
+- [x] 3.6 The whole standalone browser suite passes. Record the count.
+
+  Done on 2026-09-17: `npm run test:browser -w @openspec-ui/server`, all 24
+  tests in one run, 24 passed in 5.4 minutes. The pictures the tests rewrote
+  were put back; this change adds or changes none.
+
 - [x] 3.7 **Delegated to claude-cli.** Live: the Extension Development Host
   built from this branch, with this repository open and the OpenSpec view
   showing, opens the Pipeline command's panel and draws its cards with no
