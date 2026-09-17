@@ -346,10 +346,11 @@ block, delay, or affect the outcome of the archive operation.
 The system SHALL offer a context-menu command, on both active and
 archived change tree items, that computes that change's timeline
 directly (via a direct `execution-core` import — no HTTP, no message
-bridge round trip) and opens it in a webview showing the change's
-proposal/design/spec content followed by its tasks positioned by
-best-effort completion date. Opening timelines for different changes
-SHALL each open in their own tab, not replace one another.
+bridge round trip) and opens it in a webview showing the same view of the
+change the standalone Timeline tab shows for one change, under the
+change's name. Where the webview is narrow, the view SHALL keep every part
+in one column. Opening timelines for different changes SHALL each open in
+their own tab, not replace one another.
 
 #### Scenario: User invokes the command on an active change
 
@@ -359,9 +360,10 @@ SHALL each open in their own tab, not replace one another.
 
 #### Scenario: User invokes the command on an archived change
 
-- **WHEN** the user invokes "Show Change Timeline" on an archived
-  change tree item
-- **THEN** the opened webview includes the change's archived date
+- **WHEN** the user invokes "Show Change Timeline" on an archived change
+  tree item
+- **THEN** the opened webview includes the change's archived date and
+  where it was read from
 
 #### Scenario: User opens timelines for two different changes
 
@@ -747,6 +749,10 @@ configuration in both hosts.
 
 A window SHALL have at most one such panel.
 
+The extension's views SHALL NOT keep the panel's readings from answering
+within the bridge's wait: a view SHALL read only the changes it shows, and
+no view SHALL read a workspace once for every change it names.
+
 #### Scenario: Opening the Pipeline
 
 - **WHEN** the command is run in a workspace with active changes
@@ -782,6 +788,14 @@ A window SHALL have at most one such panel.
 - **WHEN** the panel embeds the shell and the editor's theme changes from
   dark to light
 - **THEN** the embedded Pipeline is drawn light
+
+#### Scenario: A repository with hundreds of archived changes
+
+- **WHEN** the command is run with the OpenSpec view showing, in a
+  repository with hundreds of archived changes, several working directories
+  and a process history naming dozens of changes
+- **THEN** the panel draws its cards, and no reading reports that the host
+  did not reply in time
 
 ### Requirement: The editor's Pipeline re-reads when what it reads changes
 
