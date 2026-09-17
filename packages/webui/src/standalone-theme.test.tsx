@@ -49,8 +49,8 @@ function environment(system: ReturnType<typeof fakeSystem>, storage: ThemeEnviro
   return { storage, matchMedia: system.matchMedia, documentElement: () => root };
 }
 
-function Shell({ env }: { env: ThemeEnvironment }) {
-  const { theme, toggle } = useStandaloneTheme(env);
+function Shell({ env, named }: { env: ThemeEnvironment; named?: "light" | "dark" }) {
+  const { theme, toggle } = useStandaloneTheme(env, named);
   return (
     <div data-testid="shell" data-theme={theme}>
       <ThemeToggle theme={theme} onToggle={toggle} />
@@ -99,6 +99,16 @@ describe("the standalone theme", () => {
 
     expect(() => fireEvent.click(screen.getByTestId("theme-toggle"))).not.toThrow();
     expect(shellTheme()).toBe("light");
+  });
+
+  // the-pipeline-answers-while-a-run-works 5.7: framed by a dark editor on a
+  // light system, the page is dark.
+  it("takes a theme it is told over a stored choice and the system", () => {
+    const storage = memoryStorage({ [THEME_STORAGE_KEY]: "light" });
+    const env = environment(fakeSystem(false), () => storage);
+    render(<Shell env={env} named="dark" />);
+    expect(shellTheme()).toBe("dark");
+    expect(env.documentElement()?.getAttribute(THEME_ATTRIBUTE)).toBe("dark");
   });
 
   it("follows the system when reaching storage throws", () => {

@@ -270,10 +270,13 @@ request there ends the run with a stated reason instead of waiting.
 ## Settings
 
 - `openspec-ui.transport.localServer.enabled`: use the optional standalone
-  REST/WS shell inside the dashboard. The default extension path imports core
-  directly and uses an in-process message bridge. Because the optional
-  localhost shell is a cross-origin iframe, it retains the standalone palette
-  instead of inheriting VS Code theme variables.
+  REST/WS shell inside the dashboard, for both the AI panel and the Pipeline
+  panel. The default extension path imports core directly and uses an
+  in-process message bridge. Because the optional localhost shell is a
+  cross-origin iframe, it retains the standalone palette instead of
+  inheriting VS Code theme variables. With this on, the Pipeline panel's
+  cards are read by the server's own process instead of the editor's, so
+  they keep answering while a harness chain runs in this editor.
 - `openspec-ui.checkpointRetentionDays`: days to keep process/checkpoint
   history before it's pruned, once, on the next window reload. Defaults to
   `0`, which keeps everything forever — unchanged from every prior version.

@@ -18,13 +18,18 @@ vi.setConfig({ testTimeout: 10000 });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/** Every policy a panel source builds for a page that runs a script bundle. */
+/** Every policy a panel source builds for a page that runs the extension's
+ * own bundle — a script from `webview.cspSource`. A page that frames the
+ * local server's shell carries no bundle and no stylesheet of ours (the
+ * framed page brings its own), even when it runs an inline relay script
+ * under a nonce, so it is not one of these
+ * (the-pipeline-answers-while-a-run-works). */
 function bundlePolicies(): Array<{ file: string; policy: string }> {
   const found: Array<{ file: string; policy: string }> = [];
   for (const file of readdirSync(HERE).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))) {
     const text = readFileSync(path.join(HERE, file), "utf8");
     for (const match of text.matchAll(/const csp = `([^`]*)`;/gu)) {
-      if (match[1]!.includes("script-src")) found.push({ file, policy: match[1]! });
+      if (match[1]!.includes("script-src ${webview.cspSource}")) found.push({ file, policy: match[1]! });
     }
   }
   return found;

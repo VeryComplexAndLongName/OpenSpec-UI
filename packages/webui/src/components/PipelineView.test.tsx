@@ -298,6 +298,43 @@ describe("PipelineView — asking a run elsewhere to stop", () => {
     expect(await screen.findByText(/not verified/u)).toBeInTheDocument();
     expect(screen.queryByTestId("pipeline-ask-stop-alpha")).toBeNull();
   });
+
+  // the-pipeline-answers-while-a-run-works 3.4: the embedded page (VS
+  // Code's local server, or a plain standalone tab — PipelineView draws
+  // the same picture either way) posts Stop straight to the server's own
+  // /api/runs/ask-to-stop; the embedding panel is never asked to forward
+  // one of its own.
+  it("posts Stop to /api/runs/ask-to-stop, and to nothing else", async () => {
+    const { askRunToStop } = await import("../live-runs-client.js");
+    const request = vi.fn(async (_pathname: string, _init: RequestInit) => new Response(JSON.stringify({ messageId: "message-1" }), { status: 200 }));
+    const onAskToStop = vi.fn((ask: { instanceId: string; reason: string }) => {
+      void askRunToStop(request, "/repo", ask.instanceId, ask.reason);
+    });
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({
+          changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }],
+          runs: [run({ changeName: "alpha", instanceId: "run-b", runId: "chain-b", workingDirectory: "/wt/repo/b", signature: "verified", person: { keyId: "key-1", label: "Ada" } })],
+        }))}
+        liveRuns={async () => ({ runs: [], myLabel: "Ada" })}
+        onAskToStop={onAskToStop}
+        copyText={async () => undefined}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop alpha" }));
+    const form = screen.getByRole("dialog", { name: "Ask alpha to stop" });
+    fireEvent.change(within(form).getByTestId("pipeline-stop-reason"), { target: { value: "live check" } });
+    fireEvent.click(within(form).getByTestId("pipeline-ask-to-stop"));
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls[0]?.[0]).toBe("/api/runs/ask-to-stop");
+    expect(request.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      body: JSON.stringify({ cwd: "/repo", instanceId: "run-b", reason: "live check" }),
+    }));
+  });
 });
 
 describe("PipelineView — other working directories", () => {

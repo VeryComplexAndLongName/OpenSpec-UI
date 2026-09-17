@@ -510,7 +510,7 @@
         "openspec-ui.transport.localServer.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Run an optional local REST/WS server (same package as the standalone tool) and point the AI panel webview at it instead of the default in-process message bridge."
+          "description": "Run an optional local REST/WS server (same package as the standalone tool) and point the AI panel and Pipeline panel webviews at it instead of the default in-process message bridge. With this on, the Pipeline panel's readings come from the server's own process, so its cards keep answering while a harness chain runs in this editor."
         },
         "openspec-ui.checkpointRetentionDays": {
           "type": "number",

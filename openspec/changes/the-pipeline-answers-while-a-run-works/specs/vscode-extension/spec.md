@@ -14,6 +14,12 @@ The embed SHALL carry a closed set of the shell's screens, and the URL SHALL
 say which of them the embedding panel wants. A screen the set does not carry
 SHALL NOT be shown in the embed, whatever the URL asks for.
 
+The URL SHALL also say whether the editor's colour theme is light or dark,
+and the embedded shell SHALL draw in that theme rather than in the one the
+operating system prefers or a browser session remembers.
+
+The embedded shell SHALL fill the panel, and only the shell SHALL scroll.
+
 #### Scenario: Local-server mode webview panel is created
 
 - **WHEN** `AiPanel` builds the iframe HTML for the optional local-server
@@ -40,6 +46,18 @@ SHALL NOT be shown in the embed, whatever the URL asks for.
 - **THEN** the embedded shell opens on the first screen it does carry, and
   shows no other
 
+#### Scenario: A dark editor on a light system
+
+- **WHEN** a panel embeds the shell while the editor's theme is dark and the
+  operating system prefers light
+- **THEN** the embedded shell is drawn dark
+
+#### Scenario: The embed fills its panel
+
+- **WHEN** a panel embeds the shell
+- **THEN** the shell takes the panel's whole width and height, and the panel
+  shows no scroll bar of its own
+
 ### Requirement: The Pipeline is shown in the editor
 
 The extension SHALL offer a command that opens the Pipeline in an editor
@@ -49,7 +67,8 @@ The panel SHALL get its readings from direct calls to the core package
 over the message bridge, unless the optional local server is already running,
 in which case it MAY embed the shell's Pipeline screen and let that server's
 process take the readings. The panel SHALL NOT start a local server to get
-them.
+them. Where it embeds the shell, it SHALL frame the shell again when the
+editor's theme changes between light and dark.
 
 The readiness payload SHALL be assembled by the same core function that
 the standalone server uses, so that hints are on or off for the same
@@ -86,6 +105,12 @@ A window SHALL have at most one such panel.
 - **WHEN** the optional local server is not running
 - **THEN** the panel reads over the message bridge as before, and starts no
   server
+
+#### Scenario: The editor's theme changes while the Pipeline is open
+
+- **WHEN** the panel embeds the shell and the editor's theme changes from
+  dark to light
+- **THEN** the embedded Pipeline is drawn light
 
 ### Requirement: A change opened from the editor's Pipeline is revealed where it is worked on
 

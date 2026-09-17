@@ -23,7 +23,9 @@ import {
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
+import { randomBytes } from "node:crypto";
 import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
+import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./embedded-page.js";
 import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
@@ -685,15 +687,20 @@ export class AiPanel {
   private getLocalServerHtml(baseUrl: string): string {
     const iframeUrl = new URL(baseUrl);
     iframeUrl.searchParams.set("embed", "vscode-local-server");
+    // The editor's light or dark, taken when the panel is drawn; see
+    // embedded-page.ts. Not redrawn on a theme switch here, as the Pipeline
+    // panel is: this page can hold a run dialog someone is filling in.
+    iframeUrl.searchParams.set(EMBED_THEME_PARAMETER, editorThemeName());
     const iframeSrc = iframeUrl.toString();
-    const csp = `default-src 'none'; frame-src ${baseUrl};`;
+    const fill = frameFillingStyle(randomBytes(16).toString("base64"));
+    const csp = `default-src 'none'; frame-src ${baseUrl}; ${fill.directive}`;
     return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
     <title>OpenSpec UI</title>
-    <style>html, body, iframe { height: 100%; width: 100%; margin: 0; border: 0; }</style>
+    ${fill.element}
   </head>
   <body>
     <iframe src="${iframeSrc}"></iframe>

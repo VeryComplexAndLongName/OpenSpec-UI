@@ -113,6 +113,7 @@ function createPipelinePanel(overrides: {
   liveRuns?: { list: () => unknown[]; get?: (runId: string) => unknown };
   runChange?: (changeName: string) => Promise<void>;
   sendRunControl?: (control: unknown) => void;
+  getLocalServerUrl?: () => string | undefined;
 } = {}) {
   const readers = {
     readiness: vi.fn(async () => ({ changes: [] })),
@@ -152,6 +153,7 @@ function createPipelinePanel(overrides: {
     ...(overrides.liveRuns ? { liveRuns: overrides.liveRuns as never } : {}),
     ...(overrides.runChange ? { runChange: overrides.runChange } : {}),
     ...(overrides.sendRunControl ? { sendRunControl: overrides.sendRunControl } : {}),
+    ...(overrides.getLocalServerUrl ? { getLocalServerUrl: overrides.getLocalServerUrl } : {}),
   });
   return { pipeline, readers, revealChange };
 }
@@ -498,5 +500,106 @@ describe("PipelinePanel — opening a change", () => {
     expect(revealChange).not.toHaveBeenCalled();
     expect(vscodeMock.workspace.openTextDocument).not.toHaveBeenCalled();
     expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledOnce();
+  });
+});
+
+// the-pipeline-answers-while-a-run-works.
+describe("PipelinePanel — the optional local server", () => {
+  it("embeds the server's own Pipeline tab, under a CSP scoped to that address, and starts no watchers", () => {
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+
+    pipeline.show();
+
+    const html = created[0]!.webview.html;
+    expect(html).toContain('<iframe src="http://127.0.0.1:4999/?token=abc&embed=vscode-local-server&tab=pipeline&theme=dark"');
+    expect(html).toContain("frame-src http://127.0.0.1:4999/?token=abc;");
+    expect(watchers).toHaveLength(0);
+  });
+
+  // 5.7, found live: the stylesheet that fills the tab with the iframe was
+  // refused under `default-src 'none'`, leaving a 300 by 150 box.
+  it("allows the stylesheet that fills the tab, by the document's nonce", () => {
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+
+    pipeline.show();
+
+    const html = created[0]!.webview.html;
+    const nonce = /script-src 'nonce-([^']+)'/u.exec(html)?.[1];
+    expect(nonce).toBeDefined();
+    expect(html).toContain(`style-src 'nonce-${nonce}';`);
+    expect(html).toContain(`<style nonce="${nonce}">html, body, iframe { height: 100%; width: 100%;`);
+  });
+
+  it("names the editor's light theme in the framed page's address, and draws it again when the theme changes", () => {
+    vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Light };
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+    try {
+      pipeline.show();
+      expect(created[0]!.webview.html).toContain("&theme=light");
+
+      vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Dark };
+      const onThemeChange = vscodeMock.window.onDidChangeActiveColorTheme.mock.calls.at(-1)?.[0];
+      onThemeChange?.({ kind: vscodeMock.ColorThemeKind.Dark });
+      expect(created[0]!.webview.html).toContain("&theme=dark");
+    } finally {
+      vscodeMock.window.activeColorTheme = { kind: vscodeMock.ColorThemeKind.Dark };
+    }
+  });
+
+  it("renders today's bundle and bridge, unchanged, when no local server URL is given", () => {
+    const { pipeline, readers } = createPipelinePanel({ getLocalServerUrl: () => undefined });
+
+    pipeline.show();
+
+    const html = created[0]!.webview.html;
+    expect(html).toContain("pipeline.js");
+    expect(html).not.toContain("<iframe");
+    expect(readers.readiness).not.toHaveBeenCalled();
+  });
+
+  it("never starts the local server itself", () => {
+    const getLocalServerUrl = vi.fn(() => "http://127.0.0.1:4999/");
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl });
+
+    pipeline.show();
+
+    // The dependency is only ever asked for the URL of a server already
+    // running — nothing here starts one.
+    expect(getLocalServerUrl).toHaveBeenCalled();
+  });
+
+  it("reveals an active change from the embedded page's own origin, the same as the bridge path", async () => {
+    const { pipeline, revealChange } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/" });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "alpha", origin: "http://127.0.0.1:4999" });
+
+    expect(revealChange).toHaveBeenCalledWith(ACTIVE_CHANGE);
+  });
+
+  // 3.3: a message from another origin is ignored, and one from the
+  // server's origin reaches revealChange.
+  it("ignores an open-change message from any origin but the local server's own", async () => {
+    const { pipeline, revealChange } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/" });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "alpha", origin: "http://evil.example" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "alpha" });
+
+    expect(revealChange).not.toHaveBeenCalled();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "alpha", origin: "http://127.0.0.1:4999" });
+
+    expect(revealChange).toHaveBeenCalledWith(ACTIVE_CHANGE);
+  });
+
+  it("carries the server's own origin into the outer document's relay script, for it to check before ever posting", () => {
+    const { pipeline } = createPipelinePanel({ getLocalServerUrl: () => "http://127.0.0.1:4999/?token=abc" });
+
+    pipeline.show();
+
+    const html = created[0]!.webview.html;
+    expect(html).toContain('event.origin !== "http://127.0.0.1:4999"');
+    expect(html).toContain("acquireVsCodeApi()");
   });
 });

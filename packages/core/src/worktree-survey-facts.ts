@@ -8,6 +8,7 @@
 // openspec/changes/what-the-others-are-doing.
 
 import type { AgentStatusStopRequest, AgentStatusWaiting } from "./agent-status.js";
+import type { StandingRun } from "./change-standing-facts.js";
 // A leaf with no imports of its own, so the browser can have its wording.
 import { describeSignature, type EnrolledPerson, type RecordSignature } from "./signature-facts.js";
 import type { TaskInHand } from "./task-marker.js";
@@ -181,6 +182,14 @@ function ageOf(at: string, measuredMs: number, now: Date | undefined): number {
 export function describeTaskInHand(task: TaskInHand): string {
   const whose = task.source === "agent" ? "by its own account" : "the task it was given";
   return `on task ${task.number}: ${task.text}, ${whose}`;
+}
+
+/** The live runs a directory's records name on one change, as a standing
+ * counts them: none gone, and none whose record does not check out. */
+export function standingRunsOf(runs: readonly SurveyedRun[], changeName: string): StandingRun[] {
+  return runs
+    .filter((run) => run.changeName === changeName && !run.gone && run.signature !== "does-not-check-out")
+    .map((run) => ({ instanceId: run.instanceId, stage: run.stage, waiting: run.waiting !== null }));
 }
 
 /** What a waiting run is waiting on. */

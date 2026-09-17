@@ -19,6 +19,13 @@ export enum ViewColumn {
   Beside = -2,
 }
 
+export enum ColorThemeKind {
+  Light = 1,
+  Dark = 2,
+  HighContrast = 3,
+  HighContrastLight = 4,
+}
+
 export enum TextEditorRevealType {
   Default = 0,
   InCenter = 1,
@@ -96,6 +103,7 @@ export function createVscodeMock() {
     TreeItemCollapsibleState,
     ProgressLocation,
     ViewColumn,
+    ColorThemeKind,
     TextEditorRevealType,
     Selection,
     EventEmitter,
@@ -129,6 +137,8 @@ export function createVscodeMock() {
       registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
       createWebviewPanel: vi.fn(),
       createTerminal: vi.fn(() => ({ show: vi.fn(), sendText: vi.fn(), dispose: vi.fn() })),
+      activeColorTheme: { kind: ColorThemeKind.Dark } as { kind: ColorThemeKind },
+      onDidChangeActiveColorTheme: vi.fn((_listener?: (theme: { kind: ColorThemeKind }) => void) => ({ dispose: vi.fn() })),
     },
     workspace: {
       workspaceFolders: undefined as { uri: Uri }[] | undefined,

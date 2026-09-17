@@ -75,6 +75,41 @@ The existing refusals stay where they are: the panel already refuses a name
 that is not an active change, and one that tries to escape the changes
 directory.
 
+### The panel names the editor's theme, and lets its stylesheet in
+
+Found in the live check (tasks 5.7): a page served over http from the local
+server cannot read the editor's colours, and chose light or dark from the
+operating system, so a dark editor showed a light Pipeline. The iframe's URL
+now carries `theme=light` or `theme=dark`, from the editor's active colour
+theme, and the shell takes a theme it is told over a stored choice and the
+system. The Pipeline panel frames the page again when the editor's theme
+changes. The AI panel names the theme too, but does not frame its page again:
+that would drop a run a person is watching.
+
+The same check found the iframe at the browser's default 300 by 150 pixels.
+The outer document's inline stylesheet had been refused: `default-src 'none'`
+with no `style-src`. Both panels now allow it by a nonce, and the stylesheet
+makes the iframe a block and the outer document unscrollable, so the only
+scroll bar is the shell's. Both live in `embedded-page.ts`, which both panels
+import.
+
+Rejected: forwarding the editor's colour variables into the page. The shell
+draws its own palette in both hosts; light or dark is the one fact it needs.
+
+### A card's word reads the runs its lines read
+
+Also found in the live check (tasks 5.6): with the server on, a card said
+Ready above its own "running apply" line for as long as a loaded machine took
+to read standings again. The standings reading surveys every directory too,
+but it may fetch and ask `gh` first, so its runs are a reading behind the
+survey's. `describeChangeCards` now gives each standing's copies the runs of
+the survey the card's run line comes from, and keeps the rest of what the
+standing read. The filter both use, `standingRunsOf`, lives in
+`worktree-survey-facts.ts`.
+
+Rejected: reading standings as often as the survey. It is the slow reading by
+design, and the panel would go back to waiting on it.
+
 ### Stop stays the server's route
 
 The card's Stop already goes to `/api/runs/ask-to-stop` in the browser, and
