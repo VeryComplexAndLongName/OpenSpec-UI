@@ -162,9 +162,17 @@ test.describe("the Timeline's one change", () => {
     await page.getByRole("tab", { name: "Timeline" }).click();
     const picker = page.getByTestId("timeline-change-picker");
     await expect(picker).toBeEnabled({ timeout: 30_000 });
-    await expect(picker.locator("option", { hasText: `${TIMELINE_CHANGE} · archived` })).toHaveCount(1);
-    // Choosing loads it: there is no button to press.
-    await picker.selectOption(`archived:${TIMELINE_ARCHIVE_FOLDER}`);
+    const option = page.getByTestId(`change-picker-option-archived:${TIMELINE_ARCHIVE_FOLDER}`);
+    // Found by typing part of its name (the-timeline-finds-a-change), and
+    // loaded on choosing: there is no button to press.
+    await picker.click();
+    await picker.fill("no such change");
+    await expect(page.getByTestId("change-picker-count")).toHaveText("No change matches.");
+    await picker.fill("which task");
+    await expect(option).toHaveText(`${TIMELINE_CHANGE}archived`);
+    await option.click();
+    await expect(picker).toHaveValue(`${TIMELINE_CHANGE} · archived`);
+    await picker.blur();
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(TIMELINE_CHANGE, { timeout: 30_000 });
     await expect(page.getByTestId("change-timeline-tile")).toContainText("7 / 7");
@@ -189,9 +197,19 @@ test.describe("the Timeline's one change", () => {
     await page.screenshot({ path: path.join(IMAGES_DIR, "timeline-change-dark.png"), fullPage: true, mask: masks(), maskColor: MASK_COLOR });
 
     // Choosing again puts the change shown away at once, and the page head
-    // stops naming it.
-    await picker.selectOption("");
+    // stops naming it, while the next reading is held back here.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route("**/api/change-timeline", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await picker.click();
+    await picker.fill(TIMELINE_CHANGE);
+    await option.click();
     await expect(page.getByTestId("change-timeline-view")).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Timeline");
+    release();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(TIMELINE_CHANGE, { timeout: 30_000 });
   });
 });
