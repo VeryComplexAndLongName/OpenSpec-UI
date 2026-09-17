@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.59.6
+
+### Patch Changes
+
+- 7bbf30e: Icons draw in the editor's panels. The Harness Settings, Pipeline, Timeline and AI panels refused the icon font their stylesheet carries, because their Content Security Policy allowed no font source, so every icon — the gear beside "Global harness settings" among them — was an empty box. Each panel now allows `data:` fonts, and nothing else.
+
 ## 0.59.5
 
 ### Patch Changes
