@@ -6,6 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+# Which event runs what (a-merged-commit-is-checked-once). A change is
+# checked once, on its pull request:
+#
+# - A pull request, other than the version pull request, runs the checks:
+#   `quality`, `openspec-validate`, `extension-integration`, `browser-e2e`,
+#   and the dependency audit and review.
+# - The version pull request (`changeset-release/main`) changes versions,
+#   changelogs, the lockfile and deleted changesets, which the integration
+#   and browser suites cannot exercise. It runs `version-pr` — install,
+#   build, package — with the audit and review; the suites report skipped.
+# - A push to `main` runs the release path only: `version-packages`,
+#   `release-extension`, `release-manifest`. It does not repeat the checks.
+#   The `main` ruleset requires them to pass on a branch that is up to date
+#   with `main`, so what lands is what they ran on. Before 2026-09-17 each
+#   change paid for four full runs: its pull request, its merge, the version
+#   pull request, and that merge.
+#
 # One release path at a time. The jobs gated on a push to `main` create a
 # pull request, a tag and a release, and push to the publishing branch —
 # state outside the run. Two runs racing for it failed twice in one
@@ -35,6 +52,10 @@ env:
 jobs:
   quality:
     name: Typecheck, lint, test, and build
+    # A pull request's check, not the version pull request's, and not a
+    # push's: see "Which event runs what" above. The three jobs that need
+    # this one carry the same condition.
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,7 +70,7 @@ jobs:
       - run: npm run build
 
   # Deliberately declares no `needs`, and nothing declares `needs` on it:
-  # every other job in this workflow gates on `quality`, so while the
+  # a pull request's other checks gate on `quality`, so while the
   # audit lived there as its last step, an outage at npm's advisory
   # service skipped the merge gate, the integration suite and the browser
   # suite on pull requests that had nothing to do with dependencies.
@@ -58,6 +79,9 @@ jobs:
   # job limit, with `npm run verify` and `npm run build` already green.
   dependency-audit:
     name: Dependency audit
+    # Every pull request, the version pull request included: its lockfile
+    # changes there. Not a push, which repeats a pull request's answer.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -95,6 +119,7 @@ jobs:
   openspec-validate:
     name: OpenSpec change validation (merge gate)
     needs: quality
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     # 10, not 5, because `npm ci` dominates this job and its cost varies
     # by more than the old budget's margin. Measured on a run that
@@ -120,6 +145,7 @@ jobs:
   extension-integration:
     name: Extension integration and package
     needs: quality
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -139,9 +165,32 @@ jobs:
           path: packages/extension/*.vsix
           if-no-files-found: error
 
+  # The version pull request's own check. Its diff is versions, changelogs,
+  # the lockfile and deleted changesets: `npm ci` fails when the lockfile
+  # does not describe the manifests, the build and the package show the
+  # version that will be released still builds and packs. The budget is the
+  # other install-dominated jobs' 10 minutes, since `npm ci` is its dominant
+  # step too (see openspec-validate's measurement).
+  version-pr:
+    name: Version pull request installs, builds and packages
+    if: github.event_name == 'pull_request' && github.head_ref == 'changeset-release/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package --workspace openspec-ui-vscode
+
   version-packages:
     name: Version pending changesets
-    needs: quality
+    # No `needs`: the checks ran on the pull request that brought this
+    # commit, and the ruleset required them up to date with `main`.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -184,7 +233,8 @@ jobs:
 
   release-extension:
     name: Tag and release VS Code extension
-    needs: [quality, extension-integration]
+    # No `needs`, as for version-packages. This job packages the VSIX itself,
+    # and a package that fails fails the release.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -227,7 +277,7 @@ jobs:
   # established after an npm outage took the whole pipeline down.
   release-manifest:
     name: Publish release manifest
-    needs: [quality, release-extension]
+    needs: release-extension
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -443,6 +493,7 @@ jobs:
   browser-e2e:
     name: Standalone browser and accessibility
     needs: quality
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
