@@ -102,8 +102,13 @@ mockup's "Harness Settings" artboard draws it
   `lint:test-budgets`, `lint:source-text` and `lint:screenshots` pass. The
   whole standalone browser suite, after the last edit: 23 of 23 passed.
 
-- [ ] 5.6 The editor's harness panels are seen at a narrow width, in the
+- [x] 5.6 The editor's harness panels are seen at a narrow width, in the
   extension's screenshot spec or live, with each stage readable.
+
+  Record, 2026-09-17: the owner, with openspec-ui-vscode 0.59.6 installed,
+  narrowed the editor's Harness Settings panel to a tenth of the screen and
+  reported: "Everything is OK."
+
 - [x] 5.7 **Human-only.** Whether `harness-settings-light.png` and
   `harness-settings-dark.png` match the mockup's "Harness Settings"
   artboards.
