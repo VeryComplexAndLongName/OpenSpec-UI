@@ -18,7 +18,8 @@ import { RecentlyArchivedPanel, SpecsPanel } from "./components/SummaryPanels.js
 import { summaryFigures, type SummaryTile } from "./summary-figures.js";
 import type { IconMeaning } from "./icons.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
-import { PipelineView, type AskToStop, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, SURVEY_POLL_INTERVAL_MS, type AskToStop, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+import { useStandingStates } from "./standing-states.js";
 
 /** The icon each of the summary's tiles carries. */
 const SUMMARY_TILE_ICONS: Record<SummaryTile["key"], IconMeaning> = {
@@ -819,6 +820,9 @@ function StandaloneApp() {
   const [standings, setStandings] = useState<ChangeStandings | null>(null);
   const [standingsRefreshing, setStandingsRefreshing] = useState(false);
   const [standingsError, setStandingsError] = useState<string | undefined>(undefined);
+  /** Each change's word on the Changes list, with the runs read again while
+   * the summary is shown (the-changes-views-see-a-run-start). */
+  const standingStates = useStandingStates(standings, activeTab === "overview", pipelineSurvey, SURVEY_POLL_INTERVAL_MS);
   const [runStanding, setRunStanding] = useState<DescribedChangeState | undefined>(undefined);
   /** What the last run of each delegated item reported, keyed the way
    * its row is. Shown beside the row it was started from: an outcome
@@ -1664,9 +1668,9 @@ function StandaloneApp() {
 
               <ChangesList
                 changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
-                {...(standings
+                {...(standings && standingStates
                   ? {
-                    states: new Map(standings.standings.map((standing) => [standing.changeName, describeChangeState({ standing })])),
+                    states: standingStates,
                     sources: describeStandingSources(standings.sources),
                   }
                   : {})}

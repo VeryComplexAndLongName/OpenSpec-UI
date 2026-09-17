@@ -8,7 +8,7 @@
 // openspec/changes/what-the-others-are-doing.
 
 import type { AgentStatusStopRequest, AgentStatusWaiting } from "./agent-status.js";
-import type { StandingRun } from "./change-standing-facts.js";
+import type { ChangeStanding, StandingCopy, StandingRun } from "./change-standing-facts.js";
 // A leaf with no imports of its own, so the browser can have its wording.
 import { describeSignature, type EnrolledPerson, type RecordSignature } from "./signature-facts.js";
 import type { TaskInHand } from "./task-marker.js";
@@ -190,6 +190,32 @@ export function standingRunsOf(runs: readonly SurveyedRun[], changeName: string)
   return runs
     .filter((run) => run.changeName === changeName && !run.gone && run.signature !== "does-not-check-out")
     .map((run) => ({ instanceId: run.instanceId, stage: run.stage, waiting: run.waiting !== null }));
+}
+
+/** A read standing whose copies take their live runs from `survey`. The
+ * standings reading surveys the directories too, but it may fetch and ask
+ * `gh` first, so its runs can be a reading behind: a card said Ready above
+ * its own "running apply" for as long as a loaded machine took to read
+ * standings again (the-pipeline-answers-while-a-run-works 5.6). A Pipeline
+ * card, the editor's Changes tree and the standalone Changes list all lay
+ * runs over standings with this, and nothing else
+ * (the-changes-views-see-a-run-start).
+ *
+ * This checkout's copy is the survey's own directory whatever its path is
+ * spelled as; a copy elsewhere the survey does not list keeps what the
+ * standing read. Everything else the standing read stands. */
+export function withSurveyedRuns(standing: ChangeStanding, survey: WorktreeSurvey | undefined): ChangeStanding {
+  if (survey === undefined) return standing;
+  const current = (copy: StandingCopy, directory: SurveyedDirectory | undefined): StandingCopy =>
+    directory === undefined ? copy : { ...copy, runs: standingRunsOf(directory.runs, standing.changeName) };
+  return {
+    ...standing,
+    ...(standing.here !== undefined
+      ? { here: current(standing.here, survey.directories.find((directory) => directory.isThis)) }
+      : {}),
+    elsewhere: standing.elsewhere.map((copy) =>
+      current(copy, survey.directories.find((directory) => !directory.isThis && directory.path === copy.path))),
+  };
 }
 
 /** What a waiting run is waiting on. */
