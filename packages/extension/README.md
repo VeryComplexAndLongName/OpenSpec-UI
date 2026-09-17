@@ -50,6 +50,10 @@ same word every surface uses. The words are:
 
 Hovering a change shows where each part of that word was read from.
 
+The word follows a run: it says Running within a few seconds of a run
+starting on the change, and stops saying it when the run ends, with no
+Refresh. Only the run records are read for that, never git.
+
 ![Changes tree with each change's state and its standing word, such as in-progress — Ready](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/changes-standings.png)
 
 **OpenSpec UI: Open Pipeline**, also in the Changes view's title bar,

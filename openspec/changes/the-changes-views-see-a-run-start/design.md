@@ -93,11 +93,17 @@ its other triggers, as the Pipeline panel does.
 
 ### The standalone list re-reads the survey on the Pipeline's interval
 
-While the Changes tab is active and standings are held,
-`standalone-entry.tsx` reads `loadWorktreeSurvey` every
-`SURVEY_POLL_INTERVAL_MS`. The list's states come from
-`describeChangeState({ standing: withSurveyedRuns(standing, survey) })`. A
-survey that fails leaves the words as they were.
+While the summary tab, where the Changes list is, is active and standings are
+held, `useStandingStates` in `standing-states.ts` reads the Pipeline's survey
+reader at once and then every `SURVEY_POLL_INTERVAL_MS`. The list's states
+come from `describeChangeState({ standing: withSurveyedRuns(standing,
+survey) })`. A survey that fails leaves the words as they were.
+
+A survey asked for before the standings were read is not laid over them:
+the standings' own runs are as fresh, and a Refresh would otherwise be
+undone by an older survey landing after it. The comparison is between the
+browser's clock and the server's, which on the local server are one
+machine's.
 
 Rejected: reading standings on that interval. That is the slow reading, with
 `gh` in it, every thirty seconds.

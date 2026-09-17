@@ -31,6 +31,8 @@ export {
   describeRun,
   describeTaskInHand,
   describeWaiting,
+  standingRunsOf,
+  withSurveyedRuns,
   type SurveyedChange,
   type SurveyedDirectory,
   type SurveyedRun,

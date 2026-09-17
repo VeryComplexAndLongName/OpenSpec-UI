@@ -281,22 +281,9 @@ describe("describeChangeCards — what a card is read from", () => {
       standings: [before],
     });
 
+    // How the runs are laid over the standing is `withSurveyedRuns`'s, and
+    // tested beside it (the-changes-views-see-a-run-start 1.2).
     expect(describeChangeCard(card, NOW)).toMatchObject({ stateWords: "Running", lines: expect.arrayContaining(["running apply — said 30s ago"]) });
-    expect(card.stateFacts.standing.here?.runs).toEqual([{ instanceId: "i1", stage: "apply", waiting: false }]);
-    expect(card.stateFacts.standing.elsewhere[0]?.runs).toEqual([{ instanceId: "i2", stage: "apply", waiting: false }]);
-    // What else the standing read still stands.
-    expect(card.stateFacts.standing.here?.counts).toEqual({ done: 1, total: 3 });
-  });
-
-  it("keeps a copy's runs where the survey does not list its directory", () => {
-    const standing: ChangeStanding = {
-      changeName: "demo",
-      here: { label: "repo", path: "/repo", runs: [] },
-      elsewhere: [{ label: "gone", path: "/wt/gone", runs: [{ instanceId: "i9", stage: "verify", waiting: true }] }],
-    };
-    const card = cardOf({ standings: [standing] });
-    expect(card.stateFacts.standing.elsewhere[0]?.runs).toEqual([{ instanceId: "i9", stage: "verify", waiting: true }]);
-    expect(describeChangeCard(card, NOW).stateWords).toBe("Waiting in gone");
   });
 
   it("ignores a run of another change in the same directory", () => {

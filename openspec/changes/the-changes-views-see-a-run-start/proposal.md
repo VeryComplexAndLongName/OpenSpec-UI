@@ -68,7 +68,9 @@ None.
   `src/tree/changes-view-follower.ts` (the standing timer and a watcher on
   the status directory while the Changes view is visible, moved out of
   `src/extension.ts`), and their tests.
-- **`packages/webui`**: `src/standalone-entry.tsx` (re-reading the survey
-  while the Changes tab is shown), and a test.
+- **`packages/webui`**: a new `src/standing-states.ts` (re-reading the survey
+  while the summary, where the Changes list is, is shown), its use in
+  `src/standalone-entry.tsx`, and a test.
+- **`packages/extension/README.md`**: the standing word follows a run.
 - **Unchanged**: the standings reading and its shape, the server's routes,
   the fetch interval, and the Refresh commands.

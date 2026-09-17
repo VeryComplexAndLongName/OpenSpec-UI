@@ -5,12 +5,17 @@ import {
   discoverOpenSpecWorkspace,
   readChangeStandings,
   readTaskChecklist,
+  refreshSurveyRuns,
   STANDING_FETCH_INTERVAL_MS,
+  surveyWorktrees,
+  withSurveyedRuns,
+  type ChangeStandings,
   type ChangeState,
   type DescribedChangeState,
   type RepoSetupActionId,
   type RepoSetupFacts,
   type WorkbenchArtifact,
+  type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { readRepoSetupFacts } from "../repo-setup-facts.js";
 import { changeUri, type ChangeStandingDecorations } from "./change-standing-decorations.js";
@@ -373,19 +378,55 @@ export function getWorkbenchParent(element: WorkbenchTreeItem): WorkbenchTreeIte
  * older than the fetch interval. */
 export type StandingFetchMode = "now" | "interval";
 
+/** One reading of where each change stands, with the survey of working
+ * directories it was read from, so the runs can later be read again over
+ * that survey alone (the-changes-views-see-a-run-start). */
+export interface StandingsReading {
+  standings: ChangeStandings;
+  survey: WorktreeSurvey;
+}
+
 export interface ChangesTreeOptions {
-  /** Where each change stands, as its state word. Test seam; production reads
-   * core's standings. */
-  readStates?: (workspaceRoot: string, fetch: StandingFetchMode) => Promise<ReadonlyMap<string, DescribedChangeState>>;
+  /** Where each change stands, and the survey the reading took. Test seam;
+   * production reads core's standings. */
+  readStandings?: (workspaceRoot: string, fetch: StandingFetchMode) => Promise<StandingsReading>;
+  /** `survey` with its runs read again from the status records, without git.
+   * Test seam; production calls core's `refreshSurveyRuns`. */
+  readRuns?: (survey: WorktreeSurvey) => Promise<WorktreeSurvey>;
   /** Given each reading, so the rows' colours agree with their words. */
   decorations?: Pick<ChangeStandingDecorations, "update">;
 }
 
-async function readStatesFromCore(workspaceRoot: string, fetch: StandingFetchMode): Promise<ReadonlyMap<string, DescribedChangeState>> {
-  const reading = await readChangeStandings(workspaceRoot, {
+async function readStandingsFromCore(workspaceRoot: string, fetch: StandingFetchMode): Promise<StandingsReading> {
+  // The survey the reading takes is kept, so a status record's event can lay
+  // fresh runs over it without listing git worktrees again.
+  let survey: WorktreeSurvey | undefined;
+  const standings = await readChangeStandings(workspaceRoot, {
     fetch: fetch === "now" ? "now" : { ifOlderThan: STANDING_FETCH_INTERVAL_MS },
+    survey: async (root) => (survey = await surveyWorktrees({ workspaceRoot: root })),
   });
-  return new Map(reading.standings.map((standing) => [standing.changeName, describeChangeState({ standing })]));
+  if (survey === undefined) throw new Error("the standings were read without a survey");
+  return { standings, survey };
+}
+
+/** Records are not swept here: a tree reading removes no files. */
+function readRunsFromCore(survey: WorktreeSurvey): Promise<WorktreeSurvey> {
+  return refreshSurveyRuns(survey);
+}
+
+/** Each change's word, from its standing with the survey's runs laid over
+ * it, as a Pipeline card lays them. */
+function describeReading(reading: StandingsReading): ReadonlyMap<string, DescribedChangeState> {
+  return new Map(reading.standings.standings.map((standing) => [
+    standing.changeName,
+    describeChangeState({ standing: withSurveyedRuns(standing, reading.survey) }),
+  ]));
+}
+
+/** Whether two readings say the same for every change: its word, colour,
+ * badge and lines. The states are plain data, in the reading's order. */
+function sameStates(left: ReadonlyMap<string, DescribedChangeState>, right: ReadonlyMap<string, DescribedChangeState>): boolean {
+  return JSON.stringify([...left]) === JSON.stringify([...right]);
 }
 
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
@@ -394,10 +435,16 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   /** The words last read. The tree draws with these at once, and draws again
    * when a new reading lands, so a fetch never holds the tree back. */
   private states: ReadonlyMap<string, DescribedChangeState> | undefined;
+  /** The last standings reading, with the survey its runs were last laid
+   * from. */
+  private held: StandingsReading | undefined;
   private stale = true;
   private fetchNext: StandingFetchMode = "interval";
   private reading: Promise<void> | undefined;
   private queued: StandingFetchMode | undefined;
+  private runsReading: Promise<void> | undefined;
+  private runsQueued = false;
+  private recordsChangedDuringReading = false;
 
   constructor(private readonly workspaceRoot: string, private readonly options: ChangesTreeOptions = {}) { }
 
@@ -409,6 +456,55 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     this.onDidChangeTreeDataEmitter.fire();
   }
 
+  /** Reads which runs are live again, from the status records alone, over
+   * the survey the last standings reading took: no git, no fetch, no `gh`.
+   * The tree is drawn again only where a change's word, colour, badge or
+   * lines changed, so a heartbeat's rewrite draws nothing. With no reading
+   * held yet, reads standings (the-changes-views-see-a-run-start). */
+  refreshRuns(): void {
+    // A standings reading under way surveyed before this event, so its runs
+    // may already be old when it lands.
+    if (this.reading !== undefined) this.recordsChangedDuringReading = true;
+    const held = this.held;
+    if (held === undefined) {
+      this.refresh();
+      return;
+    }
+    if (this.runsReading !== undefined) {
+      this.runsQueued = true;
+      return;
+    }
+    this.runsReading = (this.options.readRuns ?? readRunsFromCore)(held.survey)
+      .then((survey) => {
+        // A standings reading landed meanwhile: lay the runs over that one
+        // instead, on the next pass.
+        if (this.held !== held) {
+          this.runsQueued = true;
+          return;
+        }
+        const reading = { standings: held.standings, survey };
+        this.held = reading;
+        const states = describeReading(reading);
+        if (this.states !== undefined && sameStates(this.states, states)) return;
+        this.show(states);
+      })
+      // Best-effort, as a standings reading is: the words stay as they were.
+      .catch(() => undefined)
+      .finally(() => {
+        this.runsReading = undefined;
+        if (this.runsQueued) {
+          this.runsQueued = false;
+          this.refreshRuns();
+        }
+      });
+  }
+
+  private show(states: ReadonlyMap<string, DescribedChangeState>): void {
+    this.states = states;
+    this.options.decorations?.update(states);
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
   /** One reading at a time. A reading asked for while one is under way runs
    * after it, and a fetch asked for is never dropped. */
   private readStates(fetch: StandingFetchMode): void {
@@ -416,20 +512,26 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       this.queued = this.queued === "now" || fetch === "now" ? "now" : "interval";
       return;
     }
-    this.reading = (this.options.readStates ?? readStatesFromCore)(this.workspaceRoot, fetch)
-      .then((states) => {
-        this.states = states;
-        this.options.decorations?.update(states);
-        this.onDidChangeTreeDataEmitter.fire();
+    this.recordsChangedDuringReading = false;
+    this.reading = (this.options.readStandings ?? readStandingsFromCore)(this.workspaceRoot, fetch)
+      .then((reading) => {
+        this.held = reading;
+        this.show(describeReading(reading));
       })
       // Best-effort: a tree whose standings cannot be read lists every change
       // as it always has.
       .catch(() => undefined)
       .finally(() => {
         this.reading = undefined;
+        // A record changed after this reading surveyed: its runs are read
+        // again, or a run that ended meanwhile would read as running until
+        // the next event.
+        const rereadRuns = this.recordsChangedDuringReading;
+        this.recordsChangedDuringReading = false;
         const next = this.queued;
         this.queued = undefined;
         if (next !== undefined) this.readStates(next);
+        else if (rereadRuns) this.refreshRuns();
       });
   }
 
