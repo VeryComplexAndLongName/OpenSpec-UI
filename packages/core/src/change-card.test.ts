@@ -407,3 +407,45 @@ describe("describeChangeCard — the lines", () => {
     expect(describeChangeCard(card, NOW).lines).toEqual([]);
   });
 });
+
+// the-pipeline-cards-wear-metro 1.3: each fact with its kind, the count left
+// to the bar, and the run's stage beside the badge.
+describe("describeChangeCard — the details", () => {
+  it("gives every fact its kind, in the lines' order, leaving the done count to the bar", () => {
+    const card = cardOf({
+      directories: [directory({
+        changes: [change({ tasksForPerson: 1, tasksDelegated: 1, nextOpenTask: { number: "2.4", text: "Write the tests" } })],
+        runs: [run()],
+      })],
+      last: lastRun({ costUsd: 0.84 }),
+    });
+    const described = describeChangeCard(card, NOW);
+    expect(described.details).toEqual([
+      { kind: "task", text: "probably task 2.4: Write the tests" },
+      { kind: "activity", text: "running apply — said 30s ago" },
+      { kind: "whose", text: "not verified" },
+      { kind: "tasks", text: "1 only a person can close; 1 delegated" },
+      { kind: "last-run", text: "last run failed at verify 2 hours ago, $0.84" },
+    ]);
+    expect(described.lines).toContain("1 of 3 tasks done; 1 only a person can close; 1 delegated");
+    expect(described.note).toBe("apply");
+  });
+
+  it("gives no tasks detail where only the count is left, a waiting kind to a waiting run, and no note without a run", () => {
+    const quiet = describeChangeCard(cardOf({ directories: [directory({ changes: [change()] })] }), NOW);
+    expect(quiet.details).toEqual([]);
+    expect(quiet.note).toBeUndefined();
+
+    const waiting = describeChangeCard(cardOf({ directories: [directory({ runs: [run({ waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } })] })] }), NOW);
+    expect(waiting.details[0]).toEqual({ kind: "waiting", text: "waiting to continue to verify, in repo — answered where it was started" });
+  });
+
+  it("names where the facts were read as a where detail, for a change with its own worktree", () => {
+    const worktree = directory({
+      path: "/wt/demo", label: "demo-worktree", isMain: false, isThis: false, branch: "demo", belongsTo: "demo",
+      changes: [change({ tasksDone: 2, tasksTotal: 3 })],
+    });
+    const card = cardOf({ directories: [directory({ changes: [change()] }), worktree] });
+    expect(describeChangeCard(card, NOW).details).toEqual([{ kind: "where", text: "in demo-worktree, on branch demo" }]);
+  });
+});

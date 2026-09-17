@@ -11,22 +11,33 @@
 // arranges was derived once, by `readChangeReadiness`.
 
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
+import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
 /** The picture's units. Abstract, not pixels: the view renders one unit
- * as one `em`, so the whole drawing scales with the reader's font size
+ * as one `rem`, so the whole drawing scales with the reader's font size
  * and no part of it is ever measured (ADR 0025).
  *
- * A card is wide enough for a change name of this project's usual length
- * and tall enough for the name plus two lines about it. Longer text is
- * truncated on the element rather than allowed to resize the card: a
- * card that grew would move its neighbours, and the coordinates here
- * would no longer be where anything is. */
-export const NODE_WIDTH = 16;
-export const NODE_HEIGHT = 5;
+ * A card is wide enough for a change name of this project's usual length,
+ * with three columns inside the shell's width (the-pipeline-cards-wear-metro).
+ * Its height is what it holds, derived by `pipelineCardHeight` and passed in
+ * `heights`; `NODE_HEIGHT` is the smallest card of this checkout, a heading,
+ * a badge and a bar. Longer text is truncated on the element rather than
+ * allowed to resize the card: a card that grew would move its neighbours,
+ * and the coordinates here would no longer be where anything is. */
+export const NODE_WIDTH = 21;
+export const NODE_HEIGHT = 7;
 /** Room between cards. The horizontal gap is where edges turn, so it is
  * the wider of the two. */
-export const COLUMN_GAP = 6;
-export const ROW_GAP = 1.5;
+export const COLUMN_GAP = 3.5;
+export const ROW_GAP = 1;
+/** The strip above the cards where each column's heading is drawn. */
+export const LANE_HEADING = 2;
+
+/** A column's heading: its place in the order, and what that place means.
+ * Numbered rather than named: the repository states an order, not stages. */
+export function describeLane(column: number): string {
+  return column === 0 ? "Step 1 · can start now" : `Step ${column + 1} · after step ${column}`;
+}
 
 export interface ChangeLayoutNode {
   change: ChangeReadiness;
@@ -80,9 +91,9 @@ export interface ChangeLayout {
 }
 
 export interface ChangeLayoutOptions {
-  /** A height, in units, for a card drawn taller than `NODE_HEIGHT`: an
-   * open card listing its tasks (a-card-opens-to-its-tasks). A change not
-   * named here is `NODE_HEIGHT` tall. */
+  /** Each card's height, in units, as `pipelineCardHeight` derives it from
+   * what the card holds (the-pipeline-cards-wear-metro). A change not named
+   * here is `NODE_HEIGHT` tall. */
   heights?: ReadonlyMap<string, number>;
 }
 
@@ -119,10 +130,11 @@ export function layoutChanges(report: ChangeReadinessReport, options: ChangeLayo
   const placed = new Map<string, ChangeLayoutNode>();
   columns.forEach((names, column) => {
     // Each card starts below the one above it, however tall that one is,
-    // so opening a card moves only the cards beneath it in its column.
-    let y = 0;
+    // so opening a card moves only the cards beneath it in its column. The
+    // first starts below the column's heading.
+    let y = LANE_HEADING;
     names.forEach((name, row) => {
-      const height = Math.max(NODE_HEIGHT, options.heights?.get(name) ?? NODE_HEIGHT);
+      const height = options.heights?.get(name) ?? NODE_HEIGHT;
       const node: ChangeLayoutNode = {
         change: byName.get(name) as ChangeReadiness,
         column,
@@ -213,12 +225,12 @@ function aroundTheOutside(
   ]);
 }
 
-/** Where an edge meets a card: the middle of a closed card's height, which
- * on an open card is its head, where its name is. An edge that met the
- * middle of an open card would point at one of its tasks, and no relation
- * is between tasks (a-card-opens-to-its-tasks). */
+/** Where an edge meets a card: its head, the middle of the row its name is
+ * on, however much the card holds below it. An edge that met the middle of
+ * a tall card would point at one of its facts or tasks, and no relation is
+ * between those (a-card-opens-to-its-tasks, the-pipeline-cards-wear-metro). */
 function headOf(node: ChangeLayoutNode): number {
-  return node.y + NODE_HEIGHT / 2;
+  return node.y + PIPELINE_CARD_HEAD;
 }
 
 /** Keeps only the places the line actually turns.

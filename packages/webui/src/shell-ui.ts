@@ -1,5 +1,11 @@
 import { PIPELINE_CARD_REM } from "@openspec-ui/core/browser";
 
+/** A length on a Pipeline card, in rem, times the picture's zoom, as core
+ * counts it (the-pipeline-cards-wear-metro). */
+function Z(rem: number): string {
+  return `calc(${rem}rem * var(--pipeline-zoom, 1))`;
+}
+
 export function buildDefaultChangeDir(cwd: string): string {
   const trimmed = cwd.trim();
   if (!trimmed) return "";
@@ -100,6 +106,8 @@ export const shellThemeCss = `
     --amber-ink: #1b1f24;
     --steel: #647687;
     --steel-ink: #ffffff;
+    --mauve: #76608a;
+    --mauve-ink: #ffffff;
 
     /* A radius that softens a corner rather than announcing a card,
        and ONE shadow, spent only on what genuinely overlays — see ADR
@@ -190,6 +198,8 @@ export const shellThemeCss = `
     --amber-ink: #1b1f24;
     --steel: #647687;
     --steel-ink: #ffffff;
+    --mauve: #76608a;
+    --mauve-ink: #ffffff;
 
     --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
@@ -2852,16 +2862,151 @@ export const shellThemeCss = `
     .openspec-extension-app { margin: 10px auto; padding: 10px; }
   }
 
-  /* The pipeline picture. Every position here came from core: the
-     element carries --pipeline-w/h and each card carries --x/--y/--w/--h,
-     all in the layout's abstract units, and this turns a unit into a
-     length. Nothing is measured (ADR 0025).
+  /* The Pipeline as the site draws it (the-pipeline-cards-wear-metro): a
+     toolbar, then panels, then cards. Every position and every card height
+     here came from core: the picture carries --pipeline-w/h, each card
+     carries --x/--y/--w/--h, and each lane heading --x/--w/--h, all in the
+     layout's units, and this turns a unit into a length. Every vertical
+     length inside a card is one core adds up (PIPELINE_CARD_REM), so what a
+     card holds fits it exactly. Nothing is measured (ADR 0025).
 
      A unit is a rem and deliberately not an em. A custom property holds
      a token, not a computed length, so --u set to 1em would resolve
      against the font-size of whichever element used it — and the shell
      fixes body font-size at 14px anyway, so an em would not follow the
      reader's browser setting at all. A rem does. */
+  .openspec-pipeline > .openspec-panel,
+  .openspec-pipeline > .openspec-pipeline-stop-form {
+    margin-bottom: 20px;
+  }
+
+  .openspec-pipeline-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-pipeline-toolbar-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .openspec-pipeline-toolbar-reading {
+    margin: 0;
+    font-size: 13px;
+    color: var(--heading);
+  }
+
+  .openspec-pipeline-toolbar-reading strong { font-weight: 600; }
+
+  .openspec-pipeline-toolbar-note,
+  .openspec-pipeline-toolbar-runs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  /* The site's buttons. A button that moves a change forward is filled,
+     a stopping one is outlined in the site's warning red, the rest are
+     outlined grey. The words say what each does; the look only agrees. */
+  .openspec-pipeline .openspec-pipeline-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--heading);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .openspec-pipeline .openspec-pipeline-button:hover:not(:disabled) { border-color: var(--muted); }
+  .openspec-pipeline .openspec-pipeline-button:disabled { opacity: 0.55; cursor: default; }
+
+  .openspec-pipeline .openspec-pipeline-button--forward {
+    border-color: var(--cobalt);
+    background: var(--cobalt);
+    color: var(--cobalt-ink);
+    font-weight: 600;
+  }
+
+  .openspec-pipeline .openspec-pipeline-button--forward:hover:not(:disabled) { border-color: var(--cobalt); }
+
+  .openspec-pipeline .openspec-pipeline-button--stop {
+    border-color: var(--bad);
+    color: var(--bad);
+    font-weight: 600;
+  }
+
+  .openspec-pipeline .openspec-pipeline-button--stop:hover:not(:disabled) { border-color: var(--bad); }
+
+  .openspec-pipeline-button [class^="openspec-icon-"],
+  .openspec-pipeline-glyph {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .openspec-pipeline-zoom {
+    display: inline-flex;
+    align-items: stretch;
+    height: 30px;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+  }
+
+  .openspec-pipeline .openspec-pipeline-zoom button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    margin: 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 0;
+    background: var(--surface);
+    color: var(--heading);
+    font: inherit;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .openspec-pipeline .openspec-pipeline-zoom button + button { border-left: 1px solid var(--line-strong); }
+  .openspec-pipeline .openspec-pipeline-zoom button:disabled { cursor: default; color: var(--muted); }
+  /* The level is always read, whether or not it can be reset. */
+  .openspec-pipeline .openspec-pipeline-zoom button[data-testid="pipeline-zoom-reset"]:disabled { color: var(--heading); }
+
+  .openspec-pipeline-panel-body { padding: 12px 16px 16px; }
+
   .openspec-pipeline-scroll {
     overflow-x: auto;
     /* Its own container, so the page body never scrolls sideways — the
@@ -2877,14 +3022,34 @@ export const shellThemeCss = `
     position: relative;
     width: calc(var(--u) * var(--pipeline-w));
     height: calc(var(--u) * var(--pipeline-h));
-    margin: 12px 0;
+    margin: 4px 0;
   }
 
-  /* No box of its own: in the wide view a lane exists only to group,
-     and its cards are placed by coordinate. It becomes a real container
-     at phone width, at the bottom of this file. */
+  /* No box of its own: in the wide view a lane exists only to group, and
+     its heading and cards are placed by coordinate. It becomes a real
+     container at phone width, at the bottom of this file. */
   .openspec-pipeline-lane { display: contents; }
-  .openspec-pipeline-lane-heading { display: none; }
+
+  /* Written under the view, so a panel's own heading margins, which the
+     shell sets for every heading inside a panel, do not move it out of the
+     strip core leaves for it. */
+  .openspec-pipeline .openspec-pipeline-lane-heading {
+    position: absolute;
+    top: 0;
+    left: calc(var(--u) * var(--x));
+    width: calc(var(--u) * var(--w));
+    height: calc(var(--u) * var(--h));
+    margin: 0;
+    overflow: hidden;
+    font-size: ${Z(0.6875)};
+    font-weight: 600;
+    line-height: calc(var(--u) * var(--h));
+    letter-spacing: 0.06em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--muted);
+  }
 
   .openspec-pipeline-edges {
     position: absolute;
@@ -2908,287 +3073,234 @@ export const shellThemeCss = `
     top: calc(var(--u) * var(--y));
     width: calc(var(--u) * var(--w));
     height: calc(var(--u) * var(--h));
+    box-sizing: border-box;
     /* Sets no font-size of its own, on purpose: --u is a token, and a
        card that changed its font-size would still be fine with rem but
        would silently break the moment anybody made the unit an em. Its
-       lines set their own sizes, in rem. */
+       rows set their own sizes, in rem. */
     font-family: inherit;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    /* Fixed size, so text beyond it is clipped rather than allowed to
-       move the card's neighbours away from the coordinates core gave.
-       What fits is decided before drawing: every vertical length on a
-       card is one core counts its lines by (PIPELINE_CARD_REM,
-       the-pipeline-shows-what-it-has-read), so a card draws whole lines
-       and never half of one. The text stays in the DOM: a card must not
-       be able to remove a fact the change is required to state. */
+    align-items: stretch;
+    /* Its size is what it holds, so nothing is left over and nothing
+       spills: text beyond a line's width ends in an ellipsis, and a card
+       never moves its neighbours away from the coordinates core gave.
+       The text stays in the DOM: a card must not be able to remove a fact
+       the change is required to state. */
     overflow: hidden;
     text-align: left;
-    padding: calc(${PIPELINE_CARD_REM.paddingBlock}rem * var(--pipeline-zoom, 1)) 8px;
+    padding: ${Z(PIPELINE_CARD_REM.headTop)} ${Z(0.875)} 0;
     border: 1px solid var(--line-strong);
-    border-top-width: calc(${PIPELINE_CARD_REM.borderBlock}rem * var(--pipeline-zoom, 1));
-    border-bottom-width: calc(${PIPELINE_CARD_REM.borderBlock}rem * var(--pipeline-zoom, 1));
-    border-left-width: 4px;
+    border-top-width: ${Z(PIPELINE_CARD_REM.borderBlock)};
+    border-bottom-width: ${Z(PIPELINE_CARD_REM.borderBlock)};
     border-radius: var(--radius);
     background: var(--surface);
     color: var(--ink);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
   }
 
-  .openspec-pipeline-node:hover { border-color: var(--primary-soft); }
+  /* A card waiting on somebody is edged in the badge's amber too. */
+  .openspec-pipeline-node[data-state="waiting"] { border-color: var(--amber); }
 
-  /* The card's name is the control that opens the change. It reads as the
-     card's title, not as a button, and takes the name line core counts. */
-  /* A row, so its icon and the name share the one name line. As a block the
-     icon took a line of its own once the icon font drew it, and pushed the
-     name down over the state line of a card whose height does not grow
-     (the-web-ui-screens-wear-metro 7.4). */
-  .openspec-pipeline-node-open {
-    flex-shrink: 0;
-    align-self: stretch;
+  /* The card's heading row: its name, which opens the change, and where it
+     has tasks, the control that shows them. */
+  .openspec-pipeline-node-head {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: ${Z(0.5)};
+    flex-shrink: 0;
     min-width: 0;
+    height: ${Z(PIPELINE_CARD_REM.nameLine)};
+  }
+
+  .openspec-pipeline .openspec-pipeline-node-open {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+    height: 100%;
     margin: 0;
     padding: 0;
     border: 0;
     background: none;
-    color: inherit;
+    color: var(--heading);
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
 
-  .openspec-pipeline-node-open > [class^="openspec-icon-"] {
-    flex: none;
-    font-size: calc(0.75rem * var(--pipeline-zoom, 1));
-  }
+  .openspec-pipeline-node-open:hover .openspec-pipeline-node-name { text-decoration: underline; }
 
-  /* A card's controls, in the row core subtracts from its lines. */
-  .openspec-pipeline-node-controls {
-    display: flex;
-    flex-shrink: 0;
-    align-self: stretch;
-    gap: 4px;
-    height: calc(${PIPELINE_CARD_REM.controlsLine}rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.controlsLine}rem * var(--pipeline-zoom, 1));
-    margin-top: auto;
-    overflow: hidden;
-  }
-
-  .openspec-pipeline-node-controls button {
-    font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
-    line-height: 1;
-    padding: 0 6px;
-    white-space: nowrap;
-  }
-
-  /* The card's first line: its name, and where it has tasks, the control
-     that shows them. One line, the name line core counts. */
-  .openspec-pipeline-node-head {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-    align-self: stretch;
-    min-width: 0;
-    height: calc(${PIPELINE_CARD_REM.nameLine}rem * var(--pipeline-zoom, 1));
-  }
-
-  /* The name takes the line, and gives up width to the control beside it.
-     Written by position, so the name's own rule stays its first. */
-  .openspec-pipeline-node-head > button:first-child,
-  .openspec-pipeline-node-head > span:first-child { flex: 1 1 auto; min-width: 0; }
-
-  .openspec-pipeline-node-disclosure {
-    flex: 0 0 auto;
-    font-size: calc(0.625rem * var(--pipeline-zoom, 1));
-    line-height: 1;
-    padding: 1px 4px;
-    white-space: nowrap;
-  }
-
-  /* An open card's tasks (a-card-opens-to-its-tasks). Each heading and
-     each row is one line of the height core adds for it, so an open card
-     draws every row whole, and the cards below it move by exactly that. */
-  .openspec-pipeline-node-tasks {
-    flex-shrink: 0;
-    align-self: stretch;
-    min-width: 0;
-  }
-
-  .openspec-pipeline-task-section {
-    margin: 0;
-    /* The rows' gutter, which a rail runs in across the heading. */
-    padding-left: 10px;
-    height: calc(${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
-    font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
+  .openspec-pipeline-node-name {
+    font-size: ${Z(0.875)};
+    line-height: ${Z(PIPELINE_CARD_REM.nameLine)};
     font-weight: 600;
+    color: var(--heading);
+    /* The part a reader scans for gets the room, and never shrinks. */
+    flex-shrink: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .openspec-pipeline-tasks { margin: 0; padding: 0; list-style: none; }
-
-  .openspec-pipeline-task {
-    position: relative;
-    display: flex;
-    gap: 4px;
-    min-width: 0;
-    padding-left: 10px;
-    height: calc(${PIPELINE_CARD_REM.taskRow}rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.taskRow}rem * var(--pipeline-zoom, 1));
-    font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  /* The row a run is on, or is probably next: said in its word, and set
-     apart by weight, never by colour alone. */
-  .openspec-pipeline-task--in-hand { color: var(--ink); font-weight: 700; }
-
-  /* The thin rail from a row to the row listed after it. It never leaves
-     the card, and is hidden from assistive technology: the list's own
-     order already says next. */
-  .openspec-pipeline-task-rail {
-    position: absolute;
-    left: 3px;
-    top: 50%;
-    height: 100%;
-    border-left: 1px solid var(--line-strong);
-  }
-
-  /* From a section's last row, through the next section's heading, to
-     that section's first row: the heading is one section row tall. */
-  .openspec-pipeline-task-rail--across {
-    height: calc(100% + ${PIPELINE_CARD_REM.sectionRow}rem * var(--pipeline-zoom, 1));
-  }
-
-  .openspec-pipeline-task-number,
-  .openspec-pipeline-task-word { flex: 0 0 auto; }
-  .openspec-pipeline-task-word { font-style: italic; }
-
-  .openspec-pipeline-task-text {
+  /* Inside its control, and on a card of another directory, the name gives
+     way to the tasks control and ends in an ellipsis. After the rule
+     above, which pipeline-card-style.test.ts reads as the name's own. */
+  .openspec-pipeline-node-open > .openspec-pipeline-node-name,
+  .openspec-pipeline-node-head > .openspec-pipeline-node-name {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  .openspec-pipeline .openspec-pipeline-node-disclosure {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: ${Z(PIPELINE_CARD_REM.nameLine)};
+    height: ${Z(PIPELINE_CARD_REM.nameLine)};
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .openspec-pipeline .openspec-pipeline-node-disclosure[aria-expanded="true"] { background: var(--surface-3); }
+
+  /* The state row: the badge that carries the word, and the run's stage. */
+  .openspec-pipeline-node-state-row {
+    display: flex;
+    align-items: center;
+    gap: ${Z(0.5)};
+    flex-shrink: 0;
+    min-width: 0;
+    height: ${Z(PIPELINE_CARD_REM.stateLine)};
+    margin-top: ${Z(PIPELINE_CARD_REM.stateGap)};
+  }
+
+  /* The state as a word first; the hue only agrees with it. Every hue is
+     one of the badge tokens, each with the ink that passes on it. */
+  .openspec-pipeline-node-state {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 ${Z(0.5)};
+    border-radius: 3px;
+    background: var(--steel);
+    color: var(--steel-ink);
+    font-size: ${Z(0.6875)};
+    font-weight: 600;
+    line-height: ${Z(PIPELINE_CARD_REM.stateLine)};
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .openspec-pipeline-node-state[data-state="running"] { background: var(--cobalt); color: var(--cobalt-ink); }
+  .openspec-pipeline-node-state[data-state="waiting"] { background: var(--amber); color: var(--amber-ink); }
+  .openspec-pipeline-node-state[data-state="failed"],
+  .openspec-pipeline-node-state[data-state="stopped"] { background: var(--crimson); color: var(--crimson-ink); }
+  .openspec-pipeline-node-state[data-state="blocked"] { background: var(--mauve); color: var(--mauve-ink); }
+  .openspec-pipeline-node-state[data-state="done"] { background: var(--emerald); color: var(--emerald-ink); }
+
+  .openspec-pipeline-node-note {
+    min-width: 0;
+    overflow: hidden;
+    font-size: ${Z(0.75)};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  /* The bar and its count. */
+  .openspec-pipeline-node-progress {
+    display: flex;
+    align-items: center;
+    gap: ${Z(0.625)};
+    flex-shrink: 0;
+    height: ${Z(PIPELINE_CARD_REM.progressLine)};
+    margin-top: ${Z(PIPELINE_CARD_REM.progressGap)};
+  }
+
+  .openspec-pipeline-node-bar {
+    display: block;
+    flex: 1 1 auto;
+    height: ${Z(0.375)};
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--surface-3);
+  }
+
+  .openspec-pipeline-node-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--cobalt);
+  }
+
+  .openspec-pipeline-node-progress[data-complete="true"] .openspec-pipeline-node-bar > span { background: var(--emerald); }
+
+  .openspec-pipeline-node-count {
+    flex: none;
+    font-size: ${Z(0.75)};
+    font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
 
-  /* What the picture's lines mean, above a picture that has one. */
-  .openspec-pipeline-legend { margin: 8px 0 0; padding-left: 0; list-style: none; }
-  .openspec-pipeline-legend li { display: flex; align-items: center; gap: 6px; }
-  .openspec-pipeline-legend-edge { flex: 0 0 24px; border-top: 2px solid var(--line-strong); }
-  .openspec-pipeline-legend-rail { flex: 0 0 1px; height: 12px; border-left: 1px solid var(--line-strong); }
-
-  .openspec-pipeline-stop-form {
-    margin: 12px 0;
-    padding: 8px 12px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    background: var(--surface);
-  }
-
-  .openspec-pipeline-stop-form label { display: grid; gap: 4px; }
-
-  /* The run a card's Start opened: its dialog, then its chain, beneath the
-     picture where Start was pressed. */
-  .openspec-pipeline-run-layer {
-    margin: 12px 0;
-    padding: 8px 12px;
-    border: 1px solid var(--primary);
-    border-radius: var(--radius);
-    background: var(--surface);
-  }
-
-  /* State is carried by the word inside the card first; these only
-     agree with it. A reader who cannot tell two hues apart has already
-     been told which state this is. */
-  .openspec-pipeline-node[data-state="running"] {
-    background: var(--primary-bg);
-    border-left-color: var(--primary);
-  }
-
-  .openspec-pipeline-node[data-state="blocked"] {
-    background: var(--warn-bg);
-    border-left-color: var(--warn);
-  }
-
-  /* The states a card says since a-card-says-what-its-change-is-doing,
-     each with a state-word token of its own. The word still differs in
-     every case, and the edge's style differs where two states share a
-     hue: waiting is dashed, a stop is dotted. */
-  .openspec-pipeline-node[data-state="waiting"] {
-    --pipeline-state-ink: var(--primary);
-    background: var(--primary-bg);
-    border-left-color: var(--primary);
-    border-left-style: dashed;
-  }
-
-  .openspec-pipeline-node[data-state="failed"] {
-    --pipeline-state-ink: var(--bad);
-    background: var(--bad-bg);
-    border-left-color: var(--bad);
-  }
-
-  .openspec-pipeline-node[data-state="stopped"] {
-    --pipeline-state-ink: var(--bad);
-    border-left-color: var(--bad);
-    border-left-style: dotted;
-  }
-
-  .openspec-pipeline-node[data-state="done"] {
-    border-left-color: var(--good);
-  }
-
-  .openspec-pipeline-node-name {
-    font-size: calc(0.8125rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.nameLine}rem * var(--pipeline-zoom, 1));
-    font-weight: 600;
-    /* The part a reader scans for gets the room, and never shrinks. */
+  /* What a waiting run asks, in the site's notice. */
+  .openspec-pipeline-node-callout {
     flex-shrink: 0;
-    align-self: stretch;
-    white-space: nowrap;
+    box-sizing: border-box;
+    height: ${Z(PIPELINE_CARD_REM.calloutBox)};
+    margin: ${Z(PIPELINE_CARD_REM.calloutGap)} 0 0;
+    padding: 0 ${Z(0.75)};
     overflow: hidden;
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--warn-bg);
+    color: var(--heading);
+    font-size: ${Z(0.8125)};
+    line-height: calc(${PIPELINE_CARD_REM.calloutBox}rem * var(--pipeline-zoom, 1) - 2px);
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  /* Inside the open control's row the name gives way to the icon and ends
-     in an ellipsis, rather than keeping its full width and wrapping below
-     it. After the rule above, which pipeline-card-style.test.ts reads as the
-     name's own. */
-  .openspec-pipeline-node-open > .openspec-pipeline-node-name {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .openspec-pipeline-node-state {
-    font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.stateLine}rem * var(--pipeline-zoom, 1));
+  /* The facts, one line each with the mark of its kind, cut with an
+     ellipsis at the card's width: a wrapped line would make the card's
+     height depend on the text and the font, which nothing knows without
+     measuring. Every fact is whole in the card's title. */
+  .openspec-pipeline-node-details {
     flex-shrink: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--pipeline-state-ink, var(--muted));
+    margin: ${Z(PIPELINE_CARD_REM.detailsGap)} 0 0;
+    padding: 0;
+    list-style: none;
   }
 
-  /* One line each, cut with an ellipsis at the card's width: a wrapped
-     line would make how many lines fit depend on the text and the font,
-     which nothing knows without measuring. Every line is whole in the
-     card's title. */
   .openspec-pipeline-node-detail {
-    font-size: calc(0.6875rem * var(--pipeline-zoom, 1));
-    line-height: calc(${PIPELINE_CARD_REM.detailLine}rem * var(--pipeline-zoom, 1));
-    flex-shrink: 0;
-    align-self: stretch;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: ${Z(0.5)};
     min-width: 0;
+    height: ${Z(PIPELINE_CARD_REM.detailLine)};
+    font-size: ${Z(0.8125)};
+    line-height: ${Z(PIPELINE_CARD_REM.detailLine)};
+    color: var(--ink);
+  }
+
+  .openspec-pipeline-node-detail-icon {
+    flex: none;
+    width: ${Z(0.875)};
+    height: ${Z(0.875)};
     color: var(--muted);
   }
+
+  .openspec-pipeline-node-detail[data-kind="collision"] .openspec-pipeline-node-detail-icon,
+  .openspec-pipeline-node-detail[data-kind="worktree"] .openspec-pipeline-node-detail-icon { color: var(--warn); }
+  .openspec-pipeline-node[data-state="failed"] .openspec-pipeline-node-detail[data-kind="last-run"] .openspec-pipeline-node-detail-icon { color: var(--bad); }
 
   .openspec-pipeline-node-detail-text {
     flex: 1 1 auto;
@@ -3198,7 +3310,7 @@ export const shellThemeCss = `
     text-overflow: ellipsis;
   }
 
-  /* How many more lines the card holds for its title and for assistive
+  /* How many more facts the card holds for its title and for assistive
      technology, on the last line it draws. */
   .openspec-pipeline-node-more {
     flex: 0 0 auto;
@@ -3206,13 +3318,15 @@ export const shellThemeCss = `
     border-radius: var(--radius-sm);
     background: var(--surface-3);
     color: var(--ink);
+    font-size: ${Z(0.6875)};
     font-weight: 600;
+    line-height: 1.5;
   }
 
-  /* Past the card's budget: kept for assistive technology and the title,
-     not drawn. The usual visually-hidden treatment rather than
-     display: none, which would take the text out of the card's
-     accessible name as well. */
+  /* Past the card's number of facts: kept for assistive technology and the
+     title, not drawn. The usual visually-hidden treatment rather than
+     display: none, which would take the text out of the card's accessible
+     name as well. */
   .openspec-pipeline-node-detail--beyond {
     position: absolute;
     width: 1px;
@@ -3225,53 +3339,254 @@ export const shellThemeCss = `
     border: 0;
   }
 
+  /* An open card's tasks (a-card-opens-to-its-tasks), as rows of a
+     bordered list. Each heading and each row is the height core adds for
+     it, border included, so an open card draws every row whole. */
+  .openspec-pipeline-node-tasks {
+    flex-shrink: 0;
+    min-width: 0;
+    margin-top: ${Z(PIPELINE_CARD_REM.tasksGap)};
+    border: ${Z(PIPELINE_CARD_REM.tasksBorder)} solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+
+  .openspec-pipeline-node-tasks[hidden] { display: none; }
+
+  .openspec-pipeline-task-section {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 8px;
+    height: ${Z(PIPELINE_CARD_REM.sectionRow)};
+    line-height: ${Z(PIPELINE_CARD_REM.sectionRow)};
+    border-top: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: ${Z(0.6875)};
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .openspec-pipeline-tasks { margin: 0; padding: 0; list-style: none; }
+
+  .openspec-pipeline-task {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: ${Z(2)} minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 8px;
+    height: ${Z(PIPELINE_CARD_REM.taskRow)};
+    line-height: ${Z(PIPELINE_CARD_REM.taskRow)};
+    border-top: 1px solid var(--line);
+    font-size: ${Z(0.75)};
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* The list's own border closes its first row. */
+  .openspec-pipeline-node-tasks > div:first-child > :first-child,
+  .openspec-pipeline-node-tasks > div:first-child > ol:first-child > li:first-child { border-top: 0; }
+
+  /* The row a run is on, or is probably next: said in its tag, and set
+     apart by weight and ground, never by colour alone. */
+  .openspec-pipeline-task--in-hand { background: var(--primary-bg); font-weight: 600; color: var(--heading); }
+  .openspec-pipeline-task--done .openspec-pipeline-task-text { color: var(--muted); text-decoration: line-through; }
+
+  .openspec-pipeline-task-number {
+    overflow: hidden;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+  }
+
+  .openspec-pipeline-task-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .openspec-pipeline-task-tag {
+    padding: 0 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    font-size: ${Z(0.625)};
+    font-weight: 600;
+    line-height: 1.6;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .openspec-pipeline-task-tag--done { border-color: var(--emerald); background: var(--emerald); color: var(--emerald-ink); }
+  .openspec-pipeline-task-tag--hand { border-color: var(--cobalt); background: var(--cobalt); color: var(--cobalt-ink); }
+  .openspec-pipeline-task-tag--next { border-color: var(--primary); color: var(--heading); }
+  .openspec-pipeline-task-tag--open { color: var(--muted); }
+  .openspec-pipeline-task-tag--person { border-color: var(--warn); color: var(--warn); }
+  .openspec-pipeline-task-tag--agent { border-color: var(--mauve); color: var(--heading); text-transform: none; }
+
+  /* The footer of controls: a hairline, then the buttons, the height core
+     adds for it. The margin pushes it to the card's foot. */
+  .openspec-pipeline-node-controls {
+    display: flex;
+    align-items: center;
+    gap: ${Z(0.5)};
+    flex-shrink: 0;
+    box-sizing: border-box;
+    height: ${Z(PIPELINE_CARD_REM.controlsBorder + 2 * PIPELINE_CARD_REM.controlsPadding + PIPELINE_CARD_REM.controlsLine)};
+    margin: auto ${Z(-0.875)} 0;
+    padding: 0 ${Z(0.875)};
+    overflow: hidden;
+    border-top: ${Z(PIPELINE_CARD_REM.controlsBorder)} solid var(--line);
+  }
+
+  .openspec-pipeline .openspec-pipeline-node-controls .openspec-pipeline-button {
+    height: ${Z(PIPELINE_CARD_REM.controlsLine)};
+    padding: 0 ${Z(0.75)};
+    font-size: ${Z(0.8125)};
+    line-height: ${Z(PIPELINE_CARD_REM.controlsLine)};
+  }
+
+  .openspec-pipeline-node-started {
+    margin-left: auto;
+    overflow: hidden;
+    font-size: ${Z(0.75)};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  /* What a picture's lines mean, above a picture that has one. */
+  .openspec-pipeline-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-legend li { display: flex; align-items: center; gap: 6px; }
+  .openspec-pipeline-legend-edge { flex: 0 0 24px; border-top: 2px solid var(--line-strong); }
+
+  .openspec-pipeline-stop-form {
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .openspec-pipeline-stop-form label { display: grid; gap: 4px; color: var(--heading); }
+  .openspec-pipeline-stop-form-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+  /* The run a card's Start opened: its dialog, then its chain, beneath the
+     picture where Start was pressed. */
+  .openspec-pipeline-run-layer {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
   .openspec-pipeline-cycles {
     border: 1px solid var(--warn);
     background: var(--warn-bg);
     border-radius: var(--radius);
     padding: 8px 12px;
-    margin: 12px 0;
+    margin: 0 0 12px;
   }
 
   .openspec-pipeline-cycles ul { margin: 4px 0 0; padding-left: 20px; }
 
-  /* Which branch the picture was read from, and what this directory's
-     runs say. */
-  .openspec-pipeline-reading { margin: 8px 0; }
-  .openspec-pipeline-reading ul,
-  .openspec-pipeline-directory ul { margin: 2px 0 6px; padding-left: 20px; }
+  /* Every other working directory, in a panel of its own. Its cards are not
+     controls and carry no handler; their dashed edge only agrees. */
+  .openspec-pipeline-others-heading { margin: 0; }
 
-  /* Every other working directory, beneath this one. Recessed, and the
-     recess only agrees with a fact the markup already states: those
-     cards are not controls and carry no handler. */
-  .openspec-pipeline-others {
-    margin-top: 24px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line-strong);
-  }
-  .openspec-pipeline-others-heading { margin: 0 0 4px; font-size: 14px; }
   .openspec-pipeline-directory {
-    margin: 12px 0;
-    padding: 8px 12px;
-    border: 1px dashed var(--line-strong);
-    border-radius: var(--radius);
+    margin: 12px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
   }
-  .openspec-pipeline-directory-label { margin: 0 0 2px; font-size: 13px; }
-  /* A foreign card sizes its lines by the same rem as a local one, so a
-     div and a button hold the same lines in the same height. */
-  .openspec-pipeline-node--foreign { cursor: default; border-style: dashed; }
-  .openspec-pipeline-node--foreign:hover { border-color: var(--line-strong); }
+
+  .openspec-pipeline-directory-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+  }
+
+  .openspec-pipeline-directory-label { margin: 0; font-size: 14px; font-weight: 600; color: var(--heading); }
+  .openspec-pipeline-directory-where { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .openspec-pipeline-directory-runs { margin: 4px 0; padding-left: 18px; }
+
+  .openspec-pipeline-node--foreign { cursor: default; border-style: dashed; box-shadow: none; }
+
   /* A different git author is said in words first; this agrees. */
   .openspec-pipeline-directory-holder[data-author-differs="true"] {
     border-left: 4px solid var(--warn);
     padding-left: 6px;
   }
 
-  .openspec-hints { margin-top: 16px; }
-  .openspec-hints h3 { margin: 0 0 8px; font-size: 14px; }
+  /* What the repository suggests, in a panel: a notice tile, what and why,
+     and each command with Copy where the host can copy. */
   .openspec-hints-list { margin: 0; padding: 0; list-style: none; }
-  .openspec-hint { margin-bottom: 12px; }
-  .openspec-hint .openspec-shell-note { margin: 2px 0 6px; }
+
+  .openspec-hint {
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .openspec-hint + .openspec-hint { border-top: 1px solid var(--line); }
+
+  .openspec-hint-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--amber);
+    color: var(--amber-ink);
+  }
+
+  .openspec-hint-icon svg { width: 18px; height: 18px; }
+
+  .openspec-hint-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .openspec-hint-text strong { font-size: 14px; font-weight: 600; color: var(--heading); }
+  .openspec-hint .openspec-shell-note { margin: 0; }
+
+  .openspec-hint-command-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .openspec-hint-command-row .openspec-hint-command {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--heading);
+  }
 
   /* What a stopped delegated run's agent last said, beneath its outcome.
      Pre-formatted as the agent wrote it, wrapped so a long line does not
@@ -3404,13 +3719,13 @@ export const shellThemeCss = `
 
     .openspec-pipeline-lane { display: block; margin-bottom: 16px; }
 
-    .openspec-pipeline-lane-heading {
-      display: block;
+    .openspec-pipeline .openspec-pipeline-lane-heading {
+      position: static;
+      width: auto;
+      height: auto;
       margin: 0 0 6px;
-      font-size: 0.9em;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--muted);
+      line-height: 1.4;
+      white-space: normal;
     }
 
     .openspec-pipeline-node {
@@ -3421,8 +3736,12 @@ export const shellThemeCss = `
          is no longer holding a coordinate for anything else. */
       overflow: visible;
       margin-bottom: 8px;
+      padding-bottom: 12px;
     }
 
+    .openspec-pipeline-node-head,
+    .openspec-pipeline-node-state-row,
+    .openspec-pipeline-node-detail { height: auto; min-height: 1.5rem; }
     .openspec-pipeline-node-name { white-space: normal; }
 
     /* Room to run on: every line is drawn, wrapped, and none is left
@@ -3438,14 +3757,35 @@ export const shellThemeCss = `
     }
     .openspec-pipeline-node-detail-text { white-space: normal; }
     .openspec-pipeline-node-more { display: none; }
+    .openspec-pipeline-node-callout {
+      height: auto;
+      padding: 8px 12px;
+      line-height: 1.4;
+      white-space: normal;
+    }
     /* Room to run on: controls wrap rather than being cut. */
-    .openspec-pipeline-node-controls { height: auto; flex-wrap: wrap; }
+    .openspec-pipeline-node-controls {
+      height: auto;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      margin-bottom: -12px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
     /* An open card lists its rows in its lane, each wrapped, with no fixed
        height (a-card-opens-to-its-tasks). */
-    .openspec-pipeline-node-head { height: auto; }
     .openspec-pipeline-task,
-    .openspec-pipeline-task-section { height: auto; white-space: normal; }
+    .openspec-pipeline-task-section {
+      height: auto;
+      line-height: 1.4;
+      padding-top: 4px;
+      padding-bottom: 4px;
+      white-space: normal;
+    }
+
+    .openspec-pipeline-toolbar-actions { margin-left: 0; }
   }
+
 `;
 
 export const vscodeThemeCss = `
@@ -3512,6 +3852,8 @@ export const vscodeThemeCss = `
     --amber-ink: var(--vscode-editor-background);
     --steel: var(--vscode-descriptionForeground);
     --steel-ink: var(--vscode-editor-background);
+    --mauve: var(--vscode-charts-purple, var(--vscode-button-background));
+    --mauve-ink: var(--vscode-button-foreground);
 
     /* The day grid's tracks are lengths, not colours, so they are the
        shell's values verbatim here too. */

@@ -351,7 +351,10 @@ test("opens a card to its tasks, and cuts no line at any zoom", async ({ page })
   await expect(tasks).toBeVisible();
   await expect(tasks).toContainText("Tasks");
   await expect(tasks).toContainText("Fixture");
-  await expect(page.getByTestId("pipeline-legend")).toContainText("listed next in tasks.md");
+  // the-pipeline-cards-wear-metro: the legend explains the line between cards,
+  // and no line is drawn between an open card's rows.
+  await expect(page.getByTestId("pipeline-legend")).toContainText("the second waits for the first");
+  await expect(tasks.locator(".openspec-pipeline-task-rail")).toHaveCount(0);
   await expect.poll(async () => (await below.boundingBox())?.y ?? 0).toBeGreaterThan(belowBefore?.y ?? 0);
   // A card in another column does not move.
   expect((await blocked.boundingBox())?.y).toBe(blockedBefore?.y);
@@ -536,7 +539,7 @@ test("becomes headed lanes at phone width, with no lines", async ({ page }) => {
   await expect(page.getByTestId("pipeline-edges")).toBeHidden();
   // Scoped to this directory's picture: every other working directory's
   // picture has a first step of its own.
-  await expect(page.getByTestId("pipeline-picture").getByRole("heading", { name: "Step 1" })).toBeVisible();
+  await expect(page.getByTestId("pipeline-picture").getByRole("heading", { name: "Step 1 · can start now" })).toBeVisible();
 
   // a-card-opens-to-its-tasks 3.7: an open card lists its rows in its
   // lane, with no fixed height, so none of them is cut.
