@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-17T06:09:41.572Z",
+  "generated_at": "2026-09-17T09:36:49.634Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "fc8ad4bcbebf2ece531397789d552f8b22a3b9ec",
+  "commit": "d8e22a9226dc0b46bb26e7abc319d0a22e2d4781",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.59.6",
-      "released_at": "2026-09-17T06:09:41.572Z",
-      "tag": "openspec-ui-vscode@0.59.6",
+      "version": "0.60.0",
+      "released_at": "2026-09-17T09:36:49.634Z",
+      "tag": "openspec-ui-vscode@0.60.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.6"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.6/openspec-ui-vscode-0.59.6.vsix",
-          "size_bytes": 6748112
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.0/openspec-ui-vscode-0.60.0.vsix",
+          "size_bytes": 6756257
         }
       ],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "Icons draw in the editor's panels. The Harness Settings, Pipeline, Timeline and AI panels refused the icon font their stylesheet carries, because their Content Security Policy allowed no font source, so every icon — the gear beside \"Global harness settings\" among them — was an empty box. Each panel now allows `data:` fonts, and nothing else."
+          "kind": "minor",
+          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.28.0",
-      "released_at": "2026-09-17T06:09:41.572Z",
+      "version": "1.28.1",
+      "released_at": "2026-09-17T09:36:49.634Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,20 +47,15 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "The standalone shell says what it is doing — and this release is where that"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.91.0",
-      "released_at": "2026-09-17T06:09:41.572Z",
+      "version": "0.91.1",
+      "released_at": "2026-09-17T09:36:49.634Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +65,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The standalone shell says what it is doing — and this release is where that"
+          "kind": "patch",
+          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
         }
       ]
     },
@@ -80,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.54.0",
-      "released_at": "2026-09-17T06:09:41.572Z",
+      "version": "1.55.0",
+      "released_at": "2026-09-17T09:36:49.634Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,15 +86,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Harness Settings is laid out as ADR 0033's mockup: the named configurations as a segmented choice with \"Apply to the form\" beside them, what the configuration cannot do as a warning callout, and one panel with a row per stage — agent, model, effort and max cost — the autonomy level, review gate and run budget side by side under the stages, and Save and Discard at its foot. A stage's model and the run budget (`budget.maxCostUsd`) can now be set in the view, Discard reads the file again, and the page head's \"agent-harness.json\" shows the file as Save would write it. A change's own settings use the same layout, and a narrow panel reads each stage as a block of labelled fields."
-        },
-        {
-          "kind": "minor",
-          "summary": "The standalone shell wears the project site's frame (ADR 0033). A bar across"
-        },
-        {
-          "kind": "minor",
-          "summary": "The standalone OpenSpec view summary is laid out as ADR 0033's mockup: four tiles with a figure and a note each, a Changes panel whose rows give the name, the state as a solid badge, task progress as a bar with \"done / total\", and the day, and the specs with the most requirements beside the most recently archived changes, each opening to its full list. Refresh is the page head's action, days read as \"16 Sep\" with the full timestamp kept in the title, and a panel with nothing to list says so."
+          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
         }
       ]
     },
@@ -109,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-17T06:09:41.572Z",
+      "released_at": "2026-09-17T09:36:49.634Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
