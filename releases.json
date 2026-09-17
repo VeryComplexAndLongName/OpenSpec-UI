@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-17T05:43:26.850Z",
+  "generated_at": "2026-09-17T06:09:41.572Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "0be80d583dfe3eb99cb850bdc1572ab639807b4e",
+  "commit": "fc8ad4bcbebf2ece531397789d552f8b22a3b9ec",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.59.5",
-      "released_at": "2026-09-17T05:43:26.850Z",
-      "tag": "openspec-ui-vscode@0.59.5",
+      "version": "0.59.6",
+      "released_at": "2026-09-17T06:09:41.572Z",
+      "tag": "openspec-ui-vscode@0.59.6",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.5"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.59.6"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.5/openspec-ui-vscode-0.59.5.vsix",
-          "size_bytes": 6747416
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.59.6/openspec-ui-vscode-0.59.6.vsix",
+          "size_bytes": 6748112
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "The standalone shell wears the project site's frame (ADR 0033). A bar across"
+          "summary": "Icons draw in the editor's panels. The Harness Settings, Pipeline, Timeline and AI panels refused the icon font their stylesheet carries, because their Content Security Policy allowed no font source, so every icon — the gear beside \"Global harness settings\" among them — was an empty box. Each panel now allows `data:` fonts, and nothing else."
         }
       ]
     },
@@ -39,7 +39,7 @@
       "package": "@openspec-ui/server",
       "public": true,
       "version": "1.28.0",
-      "released_at": "2026-09-17T05:43:26.850Z",
+      "released_at": "2026-09-17T06:09:41.572Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -60,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.91.0",
-      "released_at": "2026-09-17T05:43:26.850Z",
+      "released_at": "2026-09-17T06:09:41.572Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -81,7 +81,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.54.0",
-      "released_at": "2026-09-17T05:43:26.850Z",
+      "released_at": "2026-09-17T06:09:41.572Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -109,7 +109,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-17T05:43:26.850Z",
+      "released_at": "2026-09-17T06:09:41.572Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
