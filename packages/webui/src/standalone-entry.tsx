@@ -46,7 +46,7 @@ import { useStandaloneTheme } from "./standalone-theme.js";
 import { AppBar } from "./components/AppBar.js";
 import { PageHead } from "./components/PageHead.js";
 import { PAGE_HEADS } from "./page-heads.js";
-import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
+import { VSCODE_LOCAL_SERVER_EMBED_SIGNAL, computeVisibleTabs, initialTab, readEmbedSignal } from "./host-embed.js";
 import { renderMarkdown } from "./markdown.js";
 import {
   ChangeEditorSaveConflictError,
@@ -281,7 +281,7 @@ async function loadWorkspaceRoot(): Promise<string> {
 
 function StandaloneApp() {
   const { theme, toggle: toggleTheme } = useStandaloneTheme();
-  const [activeTab, setActiveTab] = useState<string>("run-a-command");
+  const [activeTab, setActiveTab] = useState<string>(() => initialTab(window.location.search, visibleTabs));
   const [cwd, setCwd] = useState(() => readStoredValue(STORAGE_KEYS.cwd));
   const [changeDir, setChangeDir] = useState(() => readStoredValue(STORAGE_KEYS.changeDir));
   const [overview, setOverview] = useState<OpenSpecOverview | null>(null);
@@ -474,7 +474,17 @@ function StandaloneApp() {
 
   // `loadChangeEditor` is a hoisted declaration further down and reads
   // `cwd` itself, so `cwd` is the only thing this has to be rebuilt for.
+  //
+  // Embedded in the VS Code Pipeline panel (the-pipeline-answers-while-a-
+  // run-works), the shell shows no Change Editor tab to switch to — the
+  // host has its own editor and tree for that. There, opening a card posts
+  // `openspec-ui/open-change` to the embedding panel instead, which relays
+  // it (after checking its own origin) to `revealChange`.
   const openChangeInEditor = useCallback((changeName: string) => {
+    if (!isStandaloneHost) {
+      window.parent.postMessage({ type: "openspec-ui/open-change", changeName }, "*");
+      return;
+    }
     setActiveTab("change-editor");
     void loadChangeEditor(changeName);
   }, [cwd]);

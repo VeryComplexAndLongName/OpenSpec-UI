@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_TABS, ALLOWED_TABS_VSCODE_EMBED, computeVisibleTabs, readEmbedSignal } from "./host-embed.js";
+import { ALL_TABS, ALLOWED_TABS_VSCODE_EMBED, computeVisibleTabs, initialTab, readEmbedSignal } from "./host-embed.js";
 
 describe("readEmbedSignal", () => {
   it("reads the embed query parameter", () => {
@@ -17,12 +17,37 @@ describe("computeVisibleTabs", () => {
     expect(computeVisibleTabs("")).toEqual(ALL_TABS);
   });
 
-  it("returns only the allowed subset for the VS Code local-server embed", () => {
+  it("returns only the allowed subset for the VS Code local-server embed, in ALL_TABS order", () => {
     const visible = computeVisibleTabs("vscode-local-server");
+    expect(visible.map((tab) => tab.id)).toEqual(["run-a-command", "pipeline"]);
     expect(visible.map((tab) => tab.id)).toEqual([...ALLOWED_TABS_VSCODE_EMBED]);
+  });
+
+  it("returns all nine tabs for a plain browser tab", () => {
+    expect(computeVisibleTabs("").map((tab) => tab.id)).toHaveLength(9);
   });
 
   it("treats any other embed value as a plain standalone tab", () => {
     expect(computeVisibleTabs("something-else")).toEqual(ALL_TABS);
+  });
+});
+
+describe("initialTab", () => {
+  const embeddedTabs = computeVisibleTabs("vscode-local-server");
+
+  it("returns the tab named by `tab=` when it is visible", () => {
+    expect(initialTab("?tab=pipeline", embeddedTabs)).toBe("pipeline");
+  });
+
+  it("returns the first visible tab when `tab=` names a hidden tab", () => {
+    expect(initialTab("?tab=templates", embeddedTabs)).toBe("run-a-command");
+  });
+
+  it("returns the first visible tab when `tab=` names an unknown tab", () => {
+    expect(initialTab("?tab=does-not-exist", embeddedTabs)).toBe("run-a-command");
+  });
+
+  it("returns the first visible tab when no `tab=` parameter is present", () => {
+    expect(initialTab("", embeddedTabs)).toBe("run-a-command");
   });
 });

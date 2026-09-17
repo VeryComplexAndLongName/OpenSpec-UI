@@ -470,6 +470,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   const pipelinePanel = new PipelinePanel({
     extensionUri: context.extensionUri,
     getWorkspaceRoot,
+    getLocalServerUrl: () => optionalServer?.launchUrl,
     liveRuns,
     // A card's Start opens the change's run dialog, the one way in to run
     // (a-change-is-run-from-its-card).

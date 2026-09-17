@@ -24,7 +24,7 @@ export const ALL_TABS: readonly TabDefinition[] = [
   { id: "harness-settings", label: "Harness Settings", short: "Harness" },
 ];
 
-export const ALLOWED_TABS_VSCODE_EMBED: readonly string[] = ["run-a-command"];
+export const ALLOWED_TABS_VSCODE_EMBED: readonly string[] = ["run-a-command", "pipeline"];
 
 export function readEmbedSignal(search: string): string {
   return new URLSearchParams(search).get("embed") ?? "";
@@ -33,4 +33,12 @@ export function readEmbedSignal(search: string): string {
 export function computeVisibleTabs(embedSignal: string): readonly TabDefinition[] {
   if (embedSignal !== VSCODE_LOCAL_SERVER_EMBED_SIGNAL) return ALL_TABS;
   return ALL_TABS.filter((tab) => ALLOWED_TABS_VSCODE_EMBED.includes(tab.id));
+}
+
+/** The tab a `tab=` URL parameter names, when it is among `visibleTabs`;
+ * the first visible tab otherwise (an absent, unknown, or hidden name). */
+export function initialTab(search: string, visibleTabs: readonly TabDefinition[]): string {
+  const requested = new URLSearchParams(search).get("tab");
+  if (requested !== null && visibleTabs.some((tab) => tab.id === requested)) return requested;
+  return visibleTabs[0]?.id ?? "";
 }

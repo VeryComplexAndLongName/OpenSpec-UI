@@ -7,6 +7,7 @@
 // the view does not list git worktrees on a timer while nothing changes.
 
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import {
   askLiveRunToStop,
@@ -163,6 +164,12 @@ export interface PipelinePanelDeps {
   readers?: Partial<PipelineReaders>;
   /** Test seam for the survey's age. */
   now?: () => number;
+  /** If the optional local server is enabled and running — returns its base
+   * URL (`http://127.0.0.1:<port>`); otherwise `undefined`. With a URL, the
+   * panel embeds that server's own Pipeline tab instead of reading over the
+   * message bridge (the-pipeline-answers-while-a-run-works). The panel never
+   * starts the server itself. */
+  getLocalServerUrl?: () => string | undefined;
 }
 
 interface PipelineRequest {
@@ -190,6 +197,12 @@ export class PipelinePanel {
   private lastSurvey: { value: WorktreeSurvey; at: number } | undefined;
   private changesChangedSinceSurvey = false;
   private recordsChangedSinceSurvey = false;
+  /** The local server's own origin, set only while the panel embeds it. An
+   * `openspec-ui/open-change` message is honoured only when it carries this
+   * same origin (the-pipeline-answers-while-a-run-works) — `undefined` in
+   * bridge mode, where the message channel itself is the only origin there
+   * is. */
+  private embedOrigin: string | undefined;
   private readonly testMessageListeners = new Set<(message: unknown) => void>();
 
   constructor(private readonly deps: PipelinePanelDeps) {
@@ -216,6 +229,25 @@ export class PipelinePanel {
       },
     );
     this.panel = panel;
+    const localServerUrl = this.deps.getLocalServerUrl?.();
+    if (localServerUrl) {
+      // The server's own process takes the readings; this panel reads
+      // nothing and starts no watchers of its own
+      // (the-pipeline-answers-while-a-run-works). The outer document's own
+      // relay script (in getLocalServerHtml) forwards
+      // `openspec-ui/open-change` here with the embedded page's `origin`
+      // attached; `handleMessage()` below accepts it only when that origin
+      // is this one.
+      this.embedOrigin = new URL(localServerUrl).origin;
+      panel.webview.html = this.getLocalServerHtml(localServerUrl);
+      const messages = panel.webview.onDidReceiveMessage((message: unknown) => void this.handleMessage(panel, message));
+      panel.onDidDispose(() => {
+        messages.dispose();
+        this.embedOrigin = undefined;
+        this.panel = undefined;
+      });
+      return;
+    }
     panel.webview.html = this.getHtml(panel.webview);
     const messages = panel.webview.onDidReceiveMessage((message: unknown) => void this.handleMessage(panel, message));
     const visibility = panel.onDidChangeViewState((event) => {
@@ -284,7 +316,12 @@ export class PipelinePanel {
 
   private async handleMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === OPEN_CHANGE_MESSAGE_TYPE) {
-      await this.openChange((message as { changeName?: unknown }).changeName);
+      const { changeName, origin } = message as { changeName?: unknown; origin?: unknown };
+      // In embed mode, only a message carrying this embed's own origin is
+      // honoured — one from any other origin is ignored, whatever change
+      // name it names (the-pipeline-answers-while-a-run-works).
+      if (this.embedOrigin !== undefined && origin !== this.embedOrigin) return;
+      await this.openChange(changeName);
       return;
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CHANGE_MESSAGE_TYPE) {
@@ -452,6 +489,52 @@ export class PipelinePanel {
     await this.deps.revealChange(change);
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(change.path, "proposal.md")));
     await vscode.window.showTextDocument(document, { preview: false });
+  }
+
+  /** Embeds the local server's own Pipeline tab, the way `AiPanel`'s
+   * optional-local-server mode embeds its Run a Command tab. CSP is scoped
+   * to that exact localhost address. Built via `URL`, not string
+   * concatenation, so `tab=pipeline` lands correctly ahead of the
+   * `#token=...` fragment already present in `baseUrl`.
+   *
+   * The outer document also carries a small relay script: the embedded
+   * page posts `openspec-ui/open-change` to `window.parent`
+   * (a-change-opened-from-the-editor's-pipeline), and this script is what
+   * receives that `message` event, checks its `origin` against the local
+   * server's own origin, and only then hands it to the extension host via
+   * `acquireVsCodeApi().postMessage()` — the same channel `handleMessage()`
+   * already answers `openspec-ui/open-change` on in bridge mode. A message
+   * from any other origin is dropped here and never reaches the host. */
+  private getLocalServerHtml(baseUrl: string): string {
+    const iframeUrl = new URL(baseUrl);
+    iframeUrl.searchParams.set("embed", "vscode-local-server");
+    iframeUrl.searchParams.set("tab", "pipeline");
+    const iframeSrc = iframeUrl.toString();
+    const serverOrigin = iframeUrl.origin;
+    // A nonce, not a blanket 'unsafe-inline', authorizes only this one
+    // inline script — see timeline-panel.ts for the same pattern.
+    const nonce = randomBytes(16).toString("base64");
+    const csp = `default-src 'none'; frame-src ${baseUrl}; script-src 'nonce-${nonce}';`;
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="${csp}" />
+    <title>${PIPELINE_PANEL_TITLE}</title>
+    <style>html, body, iframe { height: 100%; width: 100%; margin: 0; border: 0; }</style>
+  </head>
+  <body>
+    <iframe src="${iframeSrc}"></iframe>
+    <script nonce="${nonce}">
+      const vscodeApi = acquireVsCodeApi();
+      window.addEventListener("message", (event) => {
+        if (event.origin !== ${JSON.stringify(serverOrigin)}) return;
+        if (!event.data || event.data.type !== ${JSON.stringify(OPEN_CHANGE_MESSAGE_TYPE)}) return;
+        vscodeApi.postMessage({ ...event.data, origin: event.origin });
+      });
+    </script>
+  </body>
+</html>`;
   }
 
   private getHtml(webview: vscode.Webview): string {
