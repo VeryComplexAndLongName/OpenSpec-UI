@@ -1,5 +1,21 @@
 # @openspec-ui/webui
 
+## 1.54.0
+
+### Minor Changes
+
+- 3e8f341: Harness Settings is laid out as ADR 0033's mockup: the named configurations as a segmented choice with "Apply to the form" beside them, what the configuration cannot do as a warning callout, and one panel with a row per stage — agent, model, effort and max cost — the autonomy level, review gate and run budget side by side under the stages, and Save and Discard at its foot. A stage's model and the run budget (`budget.maxCostUsd`) can now be set in the view, Discard reads the file again, and the page head's "agent-harness.json" shows the file as Save would write it. A change's own settings use the same layout, and a narrow panel reads each stage as a block of labelled fields.
+- 8c649d5: The standalone shell wears the project site's frame (ADR 0033). A bar across
+  the top carries the owl, the name, the workspace and the theme switch; a page
+  head names the open tab under a tagline; the nine tabs fit one row with short
+  labels — Run, Processes, Diff, Summary, Editor, Templates, Timeline,
+  Pipeline, Harness — the current one underlined in red; the page is 1180
+  pixels wide, with a footer carrying the versions. The palette is the site's,
+  in light and dark, and the summary's tiles take its KPI shape and colours.
+  Each tab keeps its full name for assistive technology. In VS Code the
+  webviews keep the editor's colours and take no part of the frame.
+- 94313ec: The standalone OpenSpec view summary is laid out as ADR 0033's mockup: four tiles with a figure and a note each, a Changes panel whose rows give the name, the state as a solid badge, task progress as a bar with "done / total", and the day, and the specs with the most requirements beside the most recently archived changes, each opening to its full list. Refresh is the page head's action, days read as "16 Sep" with the full timestamp kept in the title, and a panel with nothing to list says so.
+
 ## 1.53.0
 
 ### Minor Changes
