@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-17T09:36:49.634Z",
+  "generated_at": "2026-09-17T11:00:06.678Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "d8e22a9226dc0b46bb26e7abc319d0a22e2d4781",
+  "commit": "dce7ef3d74d91ecea3633c2d779c005423093dde",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.60.0",
-      "released_at": "2026-09-17T09:36:49.634Z",
-      "tag": "openspec-ui-vscode@0.60.0",
+      "version": "0.60.1",
+      "released_at": "2026-09-17T11:00:06.678Z",
+      "tag": "openspec-ui-vscode@0.60.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.0/openspec-ui-vscode-0.60.0.vsix",
-          "size_bytes": 6756257
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.1/openspec-ui-vscode-0.60.1.vsix",
+          "size_bytes": 6762727
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
+          "kind": "patch",
+          "summary": "The editor's Changes tree says Running while a run works on a change. It"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.28.1",
-      "released_at": "2026-09-17T09:36:49.634Z",
+      "version": "1.28.2",
+      "released_at": "2026-09-17T11:00:06.678Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,8 +54,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.91.1",
-      "released_at": "2026-09-17T09:36:49.634Z",
+      "version": "0.91.2",
+      "released_at": "2026-09-17T11:00:06.678Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -66,7 +66,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
+          "summary": "The editor's Changes tree says Running while a run works on a change. It"
         }
       ]
     },
@@ -75,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.55.0",
-      "released_at": "2026-09-17T09:36:49.634Z",
+      "version": "1.55.1",
+      "released_at": "2026-09-17T11:00:06.678Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -85,8 +85,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The Pipeline panel keeps answering while an Agentic Harness chain runs in"
+          "kind": "patch",
+          "summary": "The editor's Changes tree says Running while a run works on a change. It"
         }
       ]
     },
@@ -96,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-17T09:36:49.634Z",
+      "released_at": "2026-09-17T11:00:06.678Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
