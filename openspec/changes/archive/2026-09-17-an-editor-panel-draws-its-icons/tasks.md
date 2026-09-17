@@ -46,5 +46,12 @@ in VS Code, while the site shows it.
   CI and is untouched here. `lint:english` (after `git add`),
   `lint:changesets`, `lint:test-budgets` and `lint:source-text` pass.
 
-- [ ] 3.5 **Human-only.** With the release carrying this change installed,
+- [x] 3.5 **Human-only.** With the release carrying this change installed,
   the gear beside "Global harness settings" is drawn in VS Code.
+
+  Record, 2026-09-17: the owner installed openspec-ui-vscode 0.59.6, the
+  release carrying this change, and reported: "The icons are in place.
+  Everything is as on the web site." Before it, with 0.59.5 installed, they
+  had reported no icons on the buttons or in the panel; that build's
+  `extension.js` carried no `font-src`, while its four panel bundles carried
+  the icon font.

@@ -172,8 +172,16 @@ describe("untilStopBoundary", () => {
     expect(b.calls.ended).toBe(0);
 
     await writeTasks(dir, 1, 1);
-    await vi.advanceTimersByTimeAsync(2_000);
-    await vi.waitFor(() => expect(b.calls.ended).toBe(1));
+    // Each check moves the clock a whole interval. A tick that fires while
+    // the previous tick's read is still on the disk wakes nothing, and the
+    // next tick is two seconds of fake time away; waitFor's own advance of
+    // 50ms a check never reached it within its one real second, which is how
+    // this failed on a loaded CI runner on 2026-09-17
+    // (the-stop-boundary-test-moves-its-clock).
+    await vi.waitFor(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(b.calls.ended).toBe(1);
+    }, { timeout: 10_000 });
     source.push("end");
     await b.run;
   });
