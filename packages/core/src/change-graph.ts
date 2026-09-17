@@ -158,8 +158,14 @@ async function directories(root: string, relative: string): Promise<string[]> {
 }
 
 /** Every change a workspace knows about, active or archived, keyed by the
- * id a relation would name. */
-export async function readChangeGraph(root: string): Promise<ChangeGraph> {
+ * id a relation would name.
+ *
+ * `changes: "active"` leaves the archived ones out, unread. A caller that
+ * only asks which active change waits on which active change — the
+ * Pipeline's survey and readiness report — read 256 archived
+ * `.openspec.yaml` files per working directory for nothing
+ * (the-pipeline-reads-each-workspace-once). */
+export async function readChangeGraph(root: string, options: { changes?: "active" | "all" } = {}): Promise<ChangeGraph> {
   const nodes: ChangeGraph = new Map();
 
   for (const name of await directories(root, CHANGES_DIR)) {
@@ -174,7 +180,7 @@ export async function readChangeGraph(root: string): Promise<ChangeGraph> {
       errors: [],
     });
   }
-  for (const name of await directories(root, ARCHIVE_DIR)) {
+  for (const name of options.changes === "active" ? [] : await directories(root, ARCHIVE_DIR)) {
     const id = name.replace(ARCHIVE_PREFIX, "");
     // An active change of the same id wins: it is the one being worked
     // on, and its metadata is the one an author edits.

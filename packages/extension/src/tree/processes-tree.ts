@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
-import { readTaskChecklist, type WorkbenchProcess, type WorkbenchProcessScheduler } from "@openspec-ui/core";
+import {
+  readChangesNamed,
+  readTaskChecklistOf,
+  type WorkbenchChange,
+  type WorkbenchProcess,
+  type WorkbenchProcessScheduler,
+} from "@openspec-ui/core";
 
 function iconForState(state: WorkbenchProcess["state"]): string {
   switch (state) {
@@ -99,13 +105,18 @@ export class ProcessesTreeProvider implements vscode.TreeDataProvider<ProcessTre
     const processes = this.scheduler.list().reverse();
     const changeNames = [...new Set(processes.map((process) => process.changeName).filter((name): name is string => Boolean(name)))];
     const percentByChange = new Map<string, string | undefined>();
+    // One reading of just the changes the processes name. Asked per change,
+    // each lookup read the whole workspace, and 49 changes in the process
+    // history meant 49 readings of 256 archived changes at once: the
+    // extension host ran out of file handles (EMFILE) and the Pipeline
+    // panel's readings timed out behind them
+    // (the-pipeline-reads-each-workspace-once).
+    const changes = await readChangesNamed(this.workspaceRoot, changeNames).catch(() => new Map<string, WorkbenchChange>());
     await Promise.all(
       changeNames.map(async (changeName) => {
-        // Active first (the common case for a running/recent process);
-        // archived changes can still have rollback-eligible processes.
-        const items = await readTaskChecklist(this.workspaceRoot, changeName, false)
-          .then((active) => (active.length > 0 ? active : readTaskChecklist(this.workspaceRoot, changeName, true)))
-          .catch(() => []);
+        // An archived change can still have rollback-eligible processes, so
+        // its percent is shown too.
+        const { items } = await readTaskChecklistOf(changes.get(changeName)).catch(() => ({ items: [] }));
         const completedTasks = items.filter((item) => item.done).length;
         percentByChange.set(changeName, formatPercent(completedTasks, items.length));
       }),

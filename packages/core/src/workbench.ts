@@ -1,5 +1,6 @@
 import { access, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { mapBounded } from "./bounded-map.js";
 import { readChangeState, type ChangeState } from "./change-state.js";
 import {
   assertValidChangeName,
@@ -258,38 +259,76 @@ export async function listChangeArtifacts(
   return discoverChangeArtifacts(resolved, projectRoot, new Map(), options.schemaEnvironment ?? {});
 }
 
+/** How many changes one reading of a workspace reads at a time. */
+export const CHANGES_READ_AT_ONCE = 16;
+
 async function discoverChanges(
   changesRoot: string,
   archived: boolean,
   projectRoot: string,
   cache: SchemaCache,
   environment: SchemaEnvironment,
+  only?: ReadonlySet<string>,
 ): Promise<WorkbenchChange[]> {
   const root = archived ? path.join(changesRoot, "archive") : changesRoot;
-  const names = (await directoryNames(root)).filter((name) => archived || name !== "archive");
-  return Promise.all(
-    names.map(async (name) => {
-      const changePath = path.join(root, name);
-      const [state, discovered] = await Promise.all([
-        readChangeState(changePath),
-        discoverChangeArtifacts(changePath, projectRoot, cache, environment),
-      ]);
-      return {
-        name,
-        path: changePath,
-        state,
-        archived,
-        artifacts: discovered.artifacts,
-        schema: discovered.schema,
-      };
-    }),
-  );
+  const names = (await directoryNames(root))
+    .filter((name) => archived || name !== "archive")
+    .filter((name) => only === undefined || only.has(name));
+  // A few changes at a time, not all of them: every change opens several
+  // files, and 256 archived changes started together took every file handle
+  // the editor's extension host had (the-pipeline-reads-each-workspace-once).
+  return mapBounded(names, CHANGES_READ_AT_ONCE, async (name) => {
+    const changePath = path.join(root, name);
+    const [state, discovered] = await Promise.all([
+      readChangeState(changePath),
+      discoverChangeArtifacts(changePath, projectRoot, cache, environment),
+    ]);
+    return {
+      name,
+      path: changePath,
+      state,
+      archived,
+      artifacts: discovered.artifacts,
+      schema: discovered.schema,
+    };
+  });
 }
 
 export interface DiscoverOpenSpecWorkspaceOptions {
   /** Where the user's OpenSpec schema directory is; tests point it away
    * from the machine's own. */
   schemaEnvironment?: SchemaEnvironment;
+  /** Which changes to read: the active ones, the archived ones, or both
+   * (the default). The list not read is empty. A caller that looks for one
+   * active change need not read every archived one: on this repository the
+   * archive is 256 changes and most of a whole reading's 0.8 s, and the
+   * Pipeline's survey paid it twice per change per working directory
+   * (the-pipeline-reads-each-workspace-once). */
+  changes?: "active" | "archived" | "all";
+  /** Reads only the changes whose directory has one of these names; the
+   * rest of each list is left out. The directories are listed first, so a
+   * name that is not there costs nothing. */
+  names?: readonly string[];
+}
+
+/** The changes of a workspace with these names, by name: the active change
+ * where one has the name, otherwise the archived one. Only the named
+ * directories are read. A process history names dozens of changes, most of
+ * them long archived under a dated folder name no process used; asked one by
+ * one, each missing name read the whole archive
+ * (the-pipeline-reads-each-workspace-once). */
+export async function readChangesNamed(
+  root: string,
+  names: readonly string[],
+  options: Pick<DiscoverOpenSpecWorkspaceOptions, "schemaEnvironment"> = {},
+): Promise<Map<string, WorkbenchChange>> {
+  const found = new Map<string, WorkbenchChange>();
+  if (names.length === 0) return found;
+  const workspace = await discoverOpenSpecWorkspace(root, { ...options, names });
+  for (const change of [...workspace.changes, ...workspace.archivedChanges]) {
+    if (!found.has(change.name)) found.set(change.name, change);
+  }
+  return found;
 }
 
 export async function discoverOpenSpecWorkspace(
@@ -311,9 +350,11 @@ export async function discoverOpenSpecWorkspace(
     exists(archiveRoot),
     exists(specsRoot),
   ]);
+  const which = options.changes ?? "all";
+  const only = options.names === undefined ? undefined : new Set(options.names);
   const [changes, archivedChanges] = await Promise.all([
-    discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment),
-    discoverChanges(changesRoot, true, resolvedRoot, schemaCache, environment),
+    which === "archived" ? [] : discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment, only),
+    which === "active" ? [] : discoverChanges(changesRoot, true, resolvedRoot, schemaCache, environment, only),
   ]);
 
   return {

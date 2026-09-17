@@ -17,7 +17,7 @@ import { AGENT_REGISTRY } from "./agents/registry.js";
 import { readChangeHarnessConfig } from "./harness-config.js";
 import { normalizeStepAgent, type HarnessStepAgent, type HarnessTaskAgents } from "./harness-step-agent.js";
 import type { UnmatchedTaskAgent, WaitingOn } from "./human-only-inbox-view.js";
-import { readTaskChecklist, taskNumberOf, type TaskChecklistItem } from "./task-checklist.js";
+import { readTaskChecklistOf, taskNumberOf, type TaskChecklistItem } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 /** What one open task's agent resolved to, and from which statement. */
@@ -163,11 +163,11 @@ export async function resolveDelegatedItems(
   workspaceRoot: string,
   changeName: string,
 ): Promise<DelegatedItems> {
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active" });
   const change = workspace.changes.find((candidate) => candidate.name === changeName);
   const changeDir = change?.path ?? "";
 
-  const tasks = await readTaskChecklist(workspaceRoot, changeName, false);
+  const { items: tasks } = await readTaskChecklistOf(change);
   const taskAgents = await readTaskAgents(workspaceRoot, changeName);
   const { byLine, unmatched } = assignTaskAgents(tasks, taskAgents);
 

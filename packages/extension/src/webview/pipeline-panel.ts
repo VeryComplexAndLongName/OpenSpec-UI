@@ -143,7 +143,7 @@ const DEFAULT_READERS: PipelineReaders = {
   refreshRuns: (survey) => refreshSurveyRuns(survey, { sweepStatuses: true }),
   statusDirectory: (workspaceRoot) => resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
   findActiveChange: async (workspaceRoot, changeName) =>
-    (await discoverOpenSpecWorkspace(workspaceRoot)).changes.find((change) => change.name === changeName),
+    (await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active" })).changes.find((change) => change.name === changeName),
   myLabel: (statusDirectory) => myRosterLabel(statusDirectory),
   askLiveRun: (options) => askLiveRunToStop(options),
 };

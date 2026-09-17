@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteChange, discoverOpenSpecWorkspace, labelForSchemaArtifact, unarchiveChange } from "./workbench.js";
+import { deleteChange, discoverOpenSpecWorkspace, labelForSchemaArtifact, readChangesNamed, unarchiveChange } from "./workbench.js";
 
 // every-varying-check-has-a-budget:
 // measured 2026-09-05 at 0.2s idle and 0.6s under deliberate 8-worker CPU
@@ -35,6 +35,42 @@ describe("labelForSchemaArtifact", () => {
 });
 
 describe("discoverOpenSpecWorkspace", () => {
+  // the-pipeline-reads-each-workspace-once 1.1: a caller that needs one list
+  // reads only that list, and the other is empty.
+  it("reads only the active changes, or only the archived ones, when asked", async () => {
+    const root = await temporaryRoot();
+    await Promise.all([
+      mkdir(path.join(root, "openspec", "changes", "active-change"), { recursive: true }),
+      mkdir(path.join(root, "openspec", "changes", "archive", "2026-09-01-old-change"), { recursive: true }),
+    ]);
+
+    const all = await discoverOpenSpecWorkspace(root);
+    const active = await discoverOpenSpecWorkspace(root, { changes: "active" });
+    const archived = await discoverOpenSpecWorkspace(root, { changes: "archived" });
+
+    expect([all.changes.map((c) => c.name), all.archivedChanges.map((c) => c.name)]).toEqual([["active-change"], ["2026-09-01-old-change"]]);
+    expect([active.changes.map((c) => c.name), active.archivedChanges]).toEqual([["active-change"], []]);
+    expect([archived.changes, archived.archivedChanges.map((c) => c.name)]).toEqual([[], ["2026-09-01-old-change"]]);
+    expect(active.archiveExists).toBe(true);
+  });
+
+  // the-pipeline-reads-each-workspace-once 1.7: only the named directories
+  // are read, and a name found in both lists is the active change.
+  it("reads only the changes it is given the names of, and prefers the active one", async () => {
+    const root = await temporaryRoot();
+    await Promise.all(["alpha", "beta", "archive/2026-09-01-old", "archive/beta", "archive/2026-09-02-other"].map((name) =>
+      mkdir(path.join(root, "openspec", "changes", ...name.split("/")), { recursive: true })));
+
+    const named = await discoverOpenSpecWorkspace(root, { names: ["beta", "2026-09-01-old", "missing"] });
+    expect([named.changes.map((c) => c.name), named.archivedChanges.map((c) => c.name)]).toEqual([["beta"], ["2026-09-01-old", "beta"]]);
+
+    const found = await readChangesNamed(root, ["beta", "2026-09-01-old", "missing"]);
+    expect([...found.keys()].sort()).toEqual(["2026-09-01-old", "beta"]);
+    expect(found.get("beta")?.archived).toBe(false);
+    expect(found.get("2026-09-01-old")?.archived).toBe(true);
+    expect(await readChangesNamed(root, [])).toEqual(new Map());
+  });
+
   it("reports an uninitialized workspace and missing collections", async () => {
     const root = await temporaryRoot();
 

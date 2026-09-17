@@ -204,7 +204,7 @@ export async function listChangeWorktrees(options: {
 
   let activeChanges = new Set<string>();
   try {
-    const workspace = await discoverOpenSpecWorkspace(mainPath ?? options.repositoryRoot);
+    const workspace = await discoverOpenSpecWorkspace(mainPath ?? options.repositoryRoot, { changes: "active" });
     activeChanges = new Set(workspace.changes.map((change: { name: string }) => change.name));
   } catch {
     // A listing that cannot read the active changes still lists the

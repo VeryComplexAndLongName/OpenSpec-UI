@@ -107,6 +107,19 @@ describe("readChangeGraph", () => {
     expect(violations[0]?.reason).toContain("never-created");
   });
 
+  // the-pipeline-reads-each-workspace-once 1.8.
+  it("leaves the archived changes out, unread, when asked for the active ones", async () => {
+    const root = await repoWith({
+      later: `${BASE}blocked_by:\n  - earlier\n  - done-long-ago\n`,
+      earlier: BASE,
+      "archive/2026-09-02-done-long-ago": BASE,
+    });
+    const graph = await readChangeGraph(root, { changes: "active" });
+    expect([...graph.keys()].sort()).toEqual(["earlier", "later"]);
+    expect(graph.get("later")?.blockedBy).toEqual(["earlier", "done-long-ago"]);
+    expect([...(await readChangeGraph(root)).keys()].sort()).toEqual(["done-long-ago", "earlier", "later"]);
+  });
+
   it("passes a change that states no relation", async () => {
     // The relation is optional. An absent one is not a defect, and a
     // check that demanded one would push authors into inventing them.

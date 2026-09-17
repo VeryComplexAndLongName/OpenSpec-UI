@@ -36,7 +36,7 @@ import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import { followChangesView } from "./tree/changes-view-follower.js";
 import { ChangeStandingDecorations } from "./tree/change-standing-decorations.js";
 import { ChangeTreeItem } from "./tree/changes-tree.js";
-import { ArchiveTreeProvider } from "./tree/archive-tree.js";
+import { ArchiveTreeProvider, isUnderArchive } from "./tree/archive-tree.js";
 import { SpecsTreeProvider } from "./tree/specs-tree.js";
 import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
@@ -290,9 +290,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(workspaceRoot, "openspec/**"),
     );
-    const refreshTrees = () => {
+    const refreshTrees = (uri: vscode.Uri) => {
       changesTree?.refresh();
-      archiveTree?.refresh();
+      // The archive is read again only for an event inside it. A run ticks
+      // tasks.md in an active change many times, and each tick read every
+      // archived change again (the-pipeline-reads-each-workspace-once).
+      // Archiving a change creates its folder there, so that still counts.
+      if (isUnderArchive(workspaceRoot, uri)) archiveTree?.refresh();
       specsTree?.refresh();
       templatesTree?.refresh();
       changeGraphTree?.refresh();

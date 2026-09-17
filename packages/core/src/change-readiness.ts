@@ -17,7 +17,7 @@ import { readChangeGraph, type ChangeGraph } from "./change-graph.js";
 import { listChangeWorktrees, type ChangeWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { pathKey } from "./path-key.js";
-import { discoverOpenSpecWorkspace } from "./workbench.js";
+import { discoverOpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot } from "./worktree-root.js";
 import type { ChangeCollision, ChangeReadiness, ChangeReadinessReport, ChangeRunState } from "./change-readiness-facts.js";
@@ -41,12 +41,12 @@ export {
  * collision that is knowable before either has been started. A change with
  * no delta collides with nobody over a capability, which is what an empty
  * list already means here. */
-async function capabilitiesOf(workspaceRoot: string, changeName: string): Promise<string[]> {
-  const { listChangeArtifacts } = await import("./workbench.js");
-  const { artifacts } = await listChangeArtifacts(path.join(workspaceRoot, "openspec", "changes", changeName), {
-    projectRoot: workspaceRoot,
-  });
-  return artifacts
+function capabilitiesOf(change: WorkbenchChange | undefined): string[] {
+  // From the reading of the workspace the report already took, which listed
+  // every active change's artifacts against the same project root; listing
+  // them again per change read each change's schema a second time
+  // (the-pipeline-reads-each-workspace-once).
+  return (change?.artifacts ?? [])
     .filter((artifact) => artifact.kind === "delta-spec" && artifact.exists)
     .map((artifact) => artifact.label)
     .sort();
@@ -142,10 +142,15 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
   const base = options.base ?? "main";
   const git = options.git ?? createGitWrapper({ cwd: workspaceRoot });
 
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
-  const active = workspace.changes.map((change: { name: string }) => change.name).sort();
+  // Active changes only: the report is about what can run, and the archive
+  // is most of a whole reading's cost.
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active" });
+  const byName = new Map(workspace.changes.map((change) => [change.name, change]));
+  const active = [...byName.keys()].sort();
   const activeSet = new Set(active);
-  const graph = await readChangeGraph(workspaceRoot);
+  // Relations among active changes only: an archived blocker is met, and no
+  // collision is computed with an archived change.
+  const graph = await readChangeGraph(workspaceRoot, { changes: "active" });
 
   let worktrees: ChangeWorktree[] = [];
   try {
@@ -178,7 +183,7 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
 
   for (const changeName of active) {
     const worktree = worktreeByChange.get(changeName);
-    const capabilities = await capabilitiesOf(workspaceRoot, changeName);
+    const capabilities = capabilitiesOf(byName.get(changeName));
     if (worktree) filesByChange.set(changeName, await changedFilesOf(git, worktree, base));
 
     // Unmet, meaning the named change is still active. A blocker that

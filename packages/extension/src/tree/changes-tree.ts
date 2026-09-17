@@ -565,7 +565,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       this.fetchNext = "interval";
       this.readStates(fetch);
     }
-    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
+    // Active changes only: this view lists no archived one, and reading the
+    // archive on every file event was most of each redraw's cost
+    // (the-pipeline-reads-each-workspace-once).
+    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot, { changes: "active" });
     const items: WorkbenchTreeItem[] = [];
     items.push(
       new ArtifactTreeItem(
