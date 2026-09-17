@@ -4,7 +4,8 @@
 // Two git calls, both against the repository this host owns: one `git
 // worktree list`, and this checkout's configured identity. Everything
 // after that is a filesystem read — the names under each directory's
-// `openspec/changes`, each `tasks.md`, each lease, each
+// `openspec/changes`, one reading of its active changes and each `tasks.md`
+// that reading found, each lease, each
 // `.openspec-ui/worker.json`, and the status records every directory's
 // runs share. No git is run in a directory this host does not own, and
 // collisions are not computed for one: a git invocation per directory per
@@ -17,7 +18,8 @@ import { readChangeGraph } from "./change-graph.js";
 import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
 import { pathKey } from "./path-key.js";
-import { readTaskChecklist, taskNumberOf, tasksFilePath, type TaskChecklistItem } from "./task-checklist.js";
+import { readTaskChecklist, readTaskChecklistOf, taskNumberOf, type TaskChecklistItem } from "./task-checklist.js";
+import { discoverOpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
 import { taskInHand } from "./task-marker.js";
 import { readWorkspaceLeaseHolder } from "./workspace-lease.js";
 import { resolveWorktreeRoot, type WorktreeRootSources } from "./worktree-root.js";
@@ -166,7 +168,8 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
 
   let blockedBy = new Map<string, string[]>();
   try {
-    const graph = await readChangeGraph(directory);
+    // Only blockers that are active here are kept, so the archive is not read.
+    const graph = await readChangeGraph(directory, { changes: "active" });
     blockedBy = new Map([...graph].map(([id, node]) => [id, node.blockedBy]));
   } catch {
     // A picture without its relations still shows every change, which is
@@ -174,13 +177,24 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
     blockedBy = new Map();
   }
 
+  // One reading of the directory's active changes, and every task list read
+  // from it. Asked per change, each list read the whole workspace twice,
+  // archive and all: 39 s for a survey of this repository's three working
+  // directories (the-pipeline-reads-each-workspace-once).
+  let discovered: Map<string, WorkbenchChange> | Error;
+  try {
+    discovered = new Map((await discoverOpenSpecWorkspace(directory, { changes: "active" })).changes.map((change) => [change.name, change]));
+  } catch (error) {
+    discovered = error instanceof Error ? error : new Error(String(error));
+  }
+
   const changes: SurveyedChange[] = [];
   for (const changeName of names) {
     const blockers = (blockedBy.get(changeName) ?? []).filter((name) => active.has(name) && name !== changeName);
     try {
-      const items = await readTaskChecklist(directory, changeName, false);
+      if (discovered instanceof Error) throw discovered;
+      const { items, tasksPath } = await readTaskChecklistOf(discovered.get(changeName));
       taskLists.set(changeName, items);
-      const tasksPath = await tasksFilePath(directory, changeName, false);
       changes.push({
         changeName,
         tasksDone: items.filter((item) => item.done).length,

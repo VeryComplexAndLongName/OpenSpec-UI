@@ -11,7 +11,7 @@ vi.mock("@openspec-ui/core", () => ({
   readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
 }));
 
-const { ArchiveTreeProvider } = await import("./archive-tree.js");
+const { ArchiveTreeProvider, isUnderArchive } = await import("./archive-tree.js");
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -35,6 +35,8 @@ describe("ArchiveTreeProvider", () => {
     const items = await provider.getChildren();
 
     expect(items).toHaveLength(2);
+    // The archived list only (the-pipeline-reads-each-workspace-once).
+    expect(discoverOpenSpecWorkspaceMock).toHaveBeenCalledWith("/workspace/repo", { changes: "archived" });
     expect(items.map((i) => i.label)).toEqual(["old-change-1", "old-change-2"]);
     expect(items[0]?.description).toBe("archived");
     expect(items.map((i) => i.id)).toEqual(["change:archived:old-change-1", "change:archived:old-change-2"]);
@@ -80,6 +82,17 @@ describe("ArchiveTreeProvider", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.label).toBe("No archived changes");
     expect(items[0]?.description).toContain("first archive");
+  });
+
+  // the-pipeline-reads-each-workspace-once 2.4: only an event inside the
+  // archive makes the view read the archive again.
+  it("tells an event inside the archive from one anywhere else", () => {
+    const root = "/workspace/repo";
+    expect(isUnderArchive(root, { fsPath: "/workspace/repo/openspec/changes/archive" })).toBe(true);
+    expect(isUnderArchive(root, { fsPath: "/workspace/repo/openspec/changes/archive/2026-09-17-done/tasks.md" })).toBe(true);
+    expect(isUnderArchive(root, { fsPath: "/workspace/repo/openspec/changes/active-change/tasks.md" })).toBe(false);
+    expect(isUnderArchive(root, { fsPath: "/workspace/repo/openspec/changes/archive-notes/tasks.md" })).toBe(false);
+    expect(isUnderArchive(root, { fsPath: "/workspace/other/openspec/changes/archive/x" })).toBe(false);
   });
 
   describe("getParent", () => {

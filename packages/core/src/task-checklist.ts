@@ -237,11 +237,31 @@ async function findTasksArtifactPath(
   changeName: string,
   archived: boolean,
 ): Promise<string | undefined> {
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  // Only the list the change is looked for in: reading the other one found
+  // nothing and cost most of the reading (the-pipeline-reads-each-workspace-once).
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: archived ? "archived" : "active" });
   const list = archived ? workspace.archivedChanges : workspace.changes;
-  const change = list.find((c) => c.name === changeName);
+  return tasksPathOf(list.find((c) => c.name === changeName));
+}
+
+/** Where a discovered change's `tasks.md` is, from its artifacts, or
+ * `undefined` when it has none. */
+function tasksPathOf(change: WorkbenchChange | undefined): string | undefined {
   const tasksArtifact = change?.artifacts.find((artifact) => artifact.id === "tasks");
   return tasksArtifact?.exists ? tasksArtifact.path : undefined;
+}
+
+/** A change's task list from a workspace already read, and where it was read
+ * from, with no discovery of its own. A caller reading every change of a
+ * directory discovers the directory once and reads each list through this
+ * (the-pipeline-reads-each-workspace-once). `tasksPath` is absent, and the
+ * list empty, for a change with no `tasks.md`. */
+export async function readTaskChecklistOf(
+  change: WorkbenchChange | undefined,
+): Promise<{ items: TaskChecklistItem[]; tasksPath?: string }> {
+  const tasksPath = tasksPathOf(change);
+  if (tasksPath === undefined) return { items: [] };
+  return { items: parseChecklist(await readFile(tasksPath, "utf8")), tasksPath };
 }
 
 /** Where a change's `tasks.md` is, or `undefined` when it has none.

@@ -30,7 +30,7 @@ import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-item
 import { readEnrolmentRequests } from "./enrolment.js";
 import { auditLogPath, FileAuditLog, type AuditEntry } from "./security.js";
 import type { EnrolmentRequest } from "./signature-facts.js";
-import { readTaskChecklist, taskNumberOf } from "./task-checklist.js";
+import { readTaskChecklistOf, taskNumberOf } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 // The shape and the sentence live in `human-only-inbox-view.ts`, a leaf
@@ -91,13 +91,15 @@ function latestReplies(entries: readonly AuditEntry[]): Map<string, ItemReply> {
 }
 
 export async function collectHumanOnlyInbox(workspaceRoot: string, options: HumanOnlyInboxOptions = {}): Promise<HumanOnlyInbox> {
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  // The active changes, read once, and each task list from that reading
+  // (the-pipeline-reads-each-workspace-once).
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active" });
   const items: HumanOnlyItem[] = [];
   const unmatchedTaskAgents: UnmatchedTaskAgent[] = [];
   const unreadableTaskAgents: UnreadableTaskAgentsConfig[] = [];
 
   for (const change of workspace.changes) {
-    const tasks = await readTaskChecklist(workspaceRoot, change.name, false);
+    const { items: tasks } = await readTaskChecklistOf(change);
     // One change's unreadable `harness.json` degrades that change, not
     // the inbox. Letting it throw would hide what every other change is
     // waiting on behind a single broken file — a failure swallowing an

@@ -1,3 +1,4 @@
+import path from "node:path";
 import * as vscode from "vscode";
 import { discoverOpenSpecWorkspace } from "@openspec-ui/core";
 import {
@@ -9,6 +10,14 @@ import {
   getWorkbenchParent,
   type WorkbenchTreeItem,
 } from "./changes-tree.js";
+
+/** Whether a file event is inside `openspec/changes/archive`, the archive
+ * itself included: the only events that can change what the Archive view
+ * lists (the-pipeline-reads-each-workspace-once). */
+export function isUnderArchive(workspaceRoot: string, uri: { fsPath: string }): boolean {
+  const relative = path.relative(path.join(workspaceRoot, "openspec", "changes", "archive"), uri.fsPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
 
 export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -36,7 +45,7 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
       return getTasksArtifactChildren(this.workspaceRoot, element);
     }
     if (element) return [];
-    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot);
+    const workspace = await discoverOpenSpecWorkspace(this.workspaceRoot, { changes: "archived" });
     if (workspace.archivedChanges.length === 0) {
       return [
         new EmptyTreeItem(

@@ -4,14 +4,30 @@ import { createVscodeMock } from "../test-utils/vscode-mock.js";
 const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
-const readTaskChecklistMock = vi.fn();
+const readChangesNamedMock = vi.fn();
+const readTaskChecklistOfMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
     ...actual,
-    readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
+    readChangesNamed: (...args: unknown[]) => readChangesNamedMock(...args),
+    readTaskChecklistOf: (...args: unknown[]) => readTaskChecklistOfMock(...args),
   };
 });
+
+/** A discovered change, as core would give it. */
+function change(name: string, archived = false) {
+  return { name, path: `/workspace/repo/openspec/changes/${name}`, state: "in-progress", archived, artifacts: [] };
+}
+
+/** The changes a reading finds, active and archived, by name. */
+function workspaceWith(active: string[], archived: string[]) {
+  readChangesNamedMock.mockImplementation(async (_root: string, names: string[]) => new Map(
+    [...active.map((name) => change(name)), ...archived.map((name) => change(name, true))]
+      .filter((found) => names.includes(found.name))
+      .map((found) => [found.name, found]),
+  ));
+}
 
 const { ProcessTreeItem, ProcessesTreeProvider } = await import("./processes-tree.js");
 
@@ -117,46 +133,58 @@ describe("ProcessTreeItem", () => {
 });
 
 describe("ProcessesTreeProvider", () => {
-  it("computes percent-complete per change from readTaskChecklist, not the process's own progress field", async () => {
-    readTaskChecklistMock.mockResolvedValue([
-      { lineNumber: 0, text: "a", done: true },
-      { lineNumber: 1, text: "b", done: true },
-      { lineNumber: 2, text: "c", done: false },
-      { lineNumber: 3, text: "d", done: false },
-    ]);
+  it("computes percent-complete per change from its task list, not the process's own progress field", async () => {
+    workspaceWith(["demo"], []);
+    readTaskChecklistOfMock.mockResolvedValue({
+      items: [
+        { lineNumber: 0, text: "a", done: true },
+        { lineNumber: 1, text: "b", done: true },
+        { lineNumber: 2, text: "c", done: false },
+        { lineNumber: 3, text: "d", done: false },
+      ],
+    });
     const scheduler = { list: () => [process("implement", "running", { changeName: "demo" })], onDidChange: () => () => undefined };
 
     const provider = new ProcessesTreeProvider(scheduler as never, "/workspace/repo");
     const [item] = await provider.getChildren();
 
-    expect(readTaskChecklistMock).toHaveBeenCalledWith("/workspace/repo", "demo", false);
+    expect(readTaskChecklistOfMock).toHaveBeenCalledWith(expect.objectContaining({ name: "demo", archived: false }));
     expect(item?.description).toContain("50%");
   });
 
-  it("falls back to the archived checklist when the change has no active tasks.md", async () => {
-    readTaskChecklistMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { lineNumber: 0, text: "a", done: true },
-        { lineNumber: 1, text: "b", done: false },
-      ]);
+  it("finds a change that is not active among the archived ones", async () => {
+    workspaceWith([], ["old-change"]);
+    readTaskChecklistOfMock.mockResolvedValue({ items: [{ lineNumber: 0, text: "a", done: true }, { lineNumber: 1, text: "b", done: false }] });
     const scheduler = { list: () => [process("archive", "completed", { changeName: "old-change" })], onDidChange: () => () => undefined };
 
     const provider = new ProcessesTreeProvider(scheduler as never, "/workspace/repo");
     const [item] = await provider.getChildren();
 
-    expect(readTaskChecklistMock).toHaveBeenNthCalledWith(1, "/workspace/repo", "old-change", false);
-    expect(readTaskChecklistMock).toHaveBeenNthCalledWith(2, "/workspace/repo", "old-change", true);
+    expect(readTaskChecklistOfMock).toHaveBeenCalledWith(expect.objectContaining({ name: "old-change", archived: true }));
     expect(item?.description).toContain("50%");
   });
 
+  // the-pipeline-reads-each-workspace-once 2.2: 49 changes in the process
+  // history made 49 readings of the whole archive at once.
+  it("reads the changes the processes name in one reading, each name once", async () => {
+    workspaceWith(["one", "two"], ["gone"]);
+    readTaskChecklistOfMock.mockResolvedValue({ items: [] });
+    const processes = ["one", "two", "one", "gone", "never-existed"].map((name, index) => ({ ...process("implement", "completed", { changeName: name }), id: `p${index}` }));
+
+    await new ProcessesTreeProvider({ list: () => processes, onDidChange: () => () => undefined } as never, "/workspace/repo").getChildren();
+
+    expect(readChangesNamedMock).toHaveBeenCalledTimes(1);
+    expect([...(readChangesNamedMock.mock.calls[0]?.[1] as string[])].sort()).toEqual(["gone", "never-existed", "one", "two"]);
+  });
+
   it("omits percent for a process with no changeName", async () => {
+    readChangesNamedMock.mockResolvedValue(new Map());
+    readTaskChecklistOfMock.mockResolvedValue({ items: [] });
     const scheduler = { list: () => [process("status", "completed")], onDidChange: () => () => undefined };
 
     const provider = new ProcessesTreeProvider(scheduler as never, "/workspace/repo");
     const [item] = await provider.getChildren();
 
-    expect(readTaskChecklistMock).not.toHaveBeenCalled();
     expect(item?.description).not.toMatch(/%/);
   });
 });
