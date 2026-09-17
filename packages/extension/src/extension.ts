@@ -22,7 +22,6 @@ import {
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
   runDelegatedItem,
-  STANDING_FETCH_INTERVAL_MS,
   shortDelegatedItemOutcome,
 } from "@openspec-ui/core";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
@@ -34,6 +33,7 @@ import { sendPipelineRunControl } from "./pipeline-run-control.js";
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
+import { followChangesView } from "./tree/changes-view-follower.js";
 import { ChangeStandingDecorations } from "./tree/change-standing-decorations.js";
 import { ChangeTreeItem } from "./tree/changes-tree.js";
 import { ArchiveTreeProvider } from "./tree/archive-tree.js";
@@ -305,17 +305,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       watcher.onDidDelete(refreshTrees),
     );
     // While the Changes view is visible, standings are read again once per
-    // fetch interval, which fetches refs when they have grown that old.
-    let standingTimer: ReturnType<typeof setInterval> | undefined;
-    const followChangesVisibility = (visible: boolean) => {
-      if (standingTimer !== undefined) clearInterval(standingTimer);
-      standingTimer = visible ? setInterval(() => changesTree?.refresh(), STANDING_FETCH_INTERVAL_MS) : undefined;
-    };
-    followChangesVisibility(changesTreeView.visible);
-    context.subscriptions.push(
-      changesTreeView.onDidChangeVisibility((event) => followChangesVisibility(event.visible)),
-      { dispose: () => followChangesVisibility(false) },
-    );
+    // fetch interval, and the runs whenever a run's status record changes
+    // (the-changes-views-see-a-run-start).
+    context.subscriptions.push(followChangesView({ workspaceRoot, view: changesTreeView, tree: changesTree }));
 
     optionalServer = new OptionalServerManager(
       workspaceRoot,
