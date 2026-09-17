@@ -1,5 +1,20 @@
 # @openspec-ui/webui
 
+## 1.57.0
+
+### Minor Changes
+
+- 3e1f91a: The Timeline tab's change is found by typing part of its name. The picker is
+  a search field: as you type, it lists the active and archived changes whose
+  name holds every word, recent ones first, and a change is chosen with the
+  arrow keys and Enter or with a click. An archived change's date matches too,
+  and at most 100 matches are drawn, with a count of the rest.
+
+### Patch Changes
+
+- Updated dependencies [87d2236]
+  - @openspec-ui/core@0.92.1
+
 ## 1.56.0
 
 ### Minor Changes

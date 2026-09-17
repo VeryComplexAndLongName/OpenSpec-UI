@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.60.3
+
+### Patch Changes
+
+- 87d2236: The editor's Pipeline answers on a repository with hundreds of archived
+  changes, and the OpenSpec views no longer fail with "EMFILE: too many open
+  files". The Processes view read the whole workspace twice for every change
+  its process history named, all at once; it now reads just those changes,
+  once. A survey of the working directories read the archive for every task
+  list and took 39 seconds on this repository; it now reads each directory's
+  active changes once, in under a second. The Changes view reads only active
+  changes, the Archive view only archived ones and only when the archive
+  changes, and one reading of a workspace takes 16 changes at a time.
+- 3e1f91a: The Timeline tab's change is found by typing part of its name. The picker is
+  a search field: as you type, it lists the active and archived changes whose
+  name holds every word, recent ones first, and a change is chosen with the
+  arrow keys and Enter or with a click. An archived change's date matches too,
+  and at most 100 matches are drawn, with a count of the rest.
+- Updated dependencies [87d2236]
+- Updated dependencies [3e1f91a]
+  - @openspec-ui/core@0.92.1
+  - @openspec-ui/webui@1.57.0
+  - @openspec-ui/server@1.28.4
+
 ## 0.60.2
 
 ### Patch Changes
