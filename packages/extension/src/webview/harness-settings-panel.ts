@@ -16,6 +16,7 @@ import {
   REQUEST_MESSAGE_TYPE,
   RESPONSE_MESSAGE_TYPE,
 } from "./harness-requests.js";
+import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
 /** Posted by a change's panel when someone asks for the global defaults. */
 export const EDIT_GLOBAL_HARNESS_MESSAGE_TYPE = "openspec-ui/edit-global-harness";
@@ -108,7 +109,7 @@ export class HarnessSettingsPanel {
 
   private getHtml(webview: vscode.Webview, changeName: string | undefined): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "harness-settings.js"));
-    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
+    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; ${ICON_FONT_SOURCE}`;
     const scope = changeName === undefined ? "global" : "change";
     const name = escapeHtmlAttribute(changeName ?? "");
     const title = escapeHtmlAttribute(changeName === undefined ? GLOBAL_HARNESS_PANEL_TITLE : changeHarnessPanelTitle(changeName));

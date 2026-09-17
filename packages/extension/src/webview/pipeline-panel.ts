@@ -28,6 +28,7 @@ import {
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
+import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
 export const PIPELINE_PANEL_TITLE = "OpenSpec UI: Pipeline";
 
@@ -455,7 +456,7 @@ export class PipelinePanel {
 
   private getHtml(webview: vscode.Webview): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "pipeline.js"));
-    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline';`;
+    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; ${ICON_FONT_SOURCE}`;
     return `<!doctype html>
 <html>
   <head>

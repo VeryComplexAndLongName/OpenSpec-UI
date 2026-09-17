@@ -7,6 +7,7 @@
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import type { ChangeTimeline } from "@openspec-ui/core";
+import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
 interface MultiChangeTimelinePayload {
   timelines: ChangeTimeline[];
@@ -61,7 +62,7 @@ export class TimelineWebviewPanel {
     // matched `webview.cspSource` and ran fine, so the page rendered
     // its "no timeline data" fallback rather than failing loudly).
     const nonce = randomBytes(16).toString("base64");
-    const csp = `default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline';`;
+    const csp = `default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline'; ${ICON_FONT_SOURCE}`;
     // `<` -> `<` prevents an embedded `</script>` sequence (e.g. inside
     // markdown content) from closing the script tag early.
     const assignments = Object.entries(globals)

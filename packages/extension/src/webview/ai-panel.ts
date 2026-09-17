@@ -24,6 +24,7 @@ import {
 } from "@openspec-ui/core";
 import type { RunController } from "../run-controller.js";
 import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
+import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
 const COMMAND_MESSAGE_TYPE = "openspec-ui/command";
 const RUN_CHOICE_MESSAGE_TYPE = "openspec-ui/run-choice";
@@ -634,7 +635,7 @@ export class AiPanel {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.deps.extensionUri, "dist", "webview.js"));
     // `img-src data:` is for the headline's owl, which the bundle carries
     // as a data URI. See the-owl-marks-the-app.
-    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src data:;`;
+    const csp = `default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src data:; ${ICON_FONT_SOURCE}`;
     const cwd = escapeHtmlAttribute(panelContext?.cwd ?? "");
     const changeDir = escapeHtmlAttribute(panelContext?.changeDir ?? "");
     // Unlike detectedAgents/stepAgents (delivered as a follow-up message
