@@ -513,7 +513,7 @@ read through the shared core module rather than parsed again.
 
 That presentation SHALL be separate from the list where changes are
 acted on. A relation graph shows a change once per parent, and a working
-list must show it once — duplicated rows carrying Archive or Rollback
+list must show it once - duplicated rows carrying Archive or Rollback
 would offer the same destructive action several times for one change.
 
 A change waiting on another that has not yet landed SHALL be presented as
@@ -523,11 +523,24 @@ file.
 From a change, a reader SHALL be able to reach what that change follows,
 without first locating it in the graph.
 
+A reader SHALL be able to add and remove a change's stated relations from
+the row that shows them, choosing the kind of relation and the change it
+names from lists rather than typing an id. Editing the metadata file by
+hand was the only way to state a relation, and the mistakes it invites -
+an id that matches no change, a cycle - were caught only by the lint gate,
+after the author had moved on.
+
+Those edits SHALL go through core, which owns the file and the refusal.
+The presentation SHALL show a refusal in words the reader can act on,
+naming the changes in a cycle and the id that matches nothing.
+
+An archived change's relations SHALL be drawn and never edited.
+
 #### Scenario: Reading the graph
 
 - **WHEN** the relation view is opened
 - **THEN** it shows changes under the ones they follow, marking archived
-  ones, and offers no action that mutates a change
+  ones, and offers no action that mutates a change's contents or lifecycle
 
 #### Scenario: A change with more than one parent
 
@@ -550,6 +563,31 @@ without first locating it in the graph.
 
 - **WHEN** changes are listed for work
 - **THEN** each appears once, with its actions, as before
+
+#### Scenario: Stating a relation from the row
+
+- **WHEN** a reader adds a relation on a change's row, picking the kind
+  and the change it names
+- **THEN** the change's metadata states it and both views are drawn again,
+  with the waiting-on word where the relation was a blocking one
+
+#### Scenario: Taking one back
+
+- **WHEN** a reader removes a relation from the row that shows it
+- **THEN** only the relations that change actually states are offered, and
+  the chosen one is gone from the metadata and from the views
+
+#### Scenario: An edit the gate would fail
+
+- **WHEN** an edit names a change the workspace does not have, or would
+  close a cycle
+- **THEN** it is refused before anything is written, in words naming the
+  id or the changes in the cycle
+
+#### Scenario: An archived row
+
+- **WHEN** the row acted on is an archived change
+- **THEN** no relation edit is offered on it
 
 ### Requirement: A repository's own checks can be run from the editor
 
@@ -1014,4 +1052,98 @@ webview.
 
 - **WHEN** reading the workspace's dates throws
 - **THEN** the extension shows an error message and does not open a webview
+
+### Requirement: The Archive, Specs and Change Graph views can be narrowed
+
+Each of the Archive, Specs and Change Graph views SHALL offer a filter: a
+command in its title bar that asks for text and narrows the view to the
+rows that match, and a command that clears it, offered only while a filter
+is set.
+
+A view holding hundreds of rows cannot be read by scrolling. This
+repository's archive holds 269 changes; the reader who reported it keeps a
+roadmap whose numbers do not appear in the names, so finding one change
+means reading the list.
+
+A narrowed view SHALL say what it is narrowed by and how many rows it is
+showing of how many, so an empty view and an emptied one are never the same
+sight.
+
+The predicate SHALL be the one the standalone lists use, from core, so a
+word that finds a change in one host finds it in the other.
+
+#### Scenario: Narrowing a view
+
+- **WHEN** the reader runs the filter command on the Archive, Specs or
+  Change Graph view and types part of a name
+- **THEN** the view shows the rows that match, says what it is filtered by,
+  and says how many of how many it is showing
+
+#### Scenario: Clearing it
+
+- **WHEN** a filter is set and the reader runs the clear command
+- **THEN** every row is shown again and the message goes
+
+#### Scenario: Nothing matches
+
+- **WHEN** a filter matches no row
+- **THEN** the view says so with the text it was given, rather than looking
+  like a view with nothing in it
+
+### Requirement: The Change Graph folds a branch whose every change has landed
+
+The Change Graph SHALL fold away a root and everything that follows it
+where every change in that branch is archived, and SHALL state how many
+such branches it is hiding. One action SHALL show them again.
+
+A graph that keeps drawing finished clusters buries the part being decided
+now. Two of them were named in the report that asked for this.
+
+A change that is archived SHALL still be drawn where a change that is not
+follows it: what a live change follows is the reason it exists. The same
+holds where a change that is not archived is waiting on one in a finished
+branch: a row saying what it waits on needs that change in the view to
+point at.
+
+The count SHALL cover only branches the view was drawing. A change that
+states no relation is not in this view at all, so counting it as hidden
+would promise rows that showing them could never produce.
+
+Where a filter matches a change inside a folded branch, that branch SHALL
+be shown for that reading.
+
+#### Scenario: A finished cluster
+
+- **WHEN** a root and every change that follows it are archived
+- **THEN** the view does not draw them, and says how many branches it is
+  hiding
+
+#### Scenario: Showing them again
+
+- **WHEN** the reader acts on that row
+- **THEN** the folded branches are drawn, and the view says nothing is
+  hidden
+
+#### Scenario: A live change that follows an archived one
+
+- **WHEN** an archived change is followed by a change that is not archived
+- **THEN** both are drawn, folded away by nothing
+
+#### Scenario: A finished branch something is waiting on
+
+- **WHEN** every change in a branch is archived and a change that is not
+  archived is blocked by one of them
+- **THEN** that branch is drawn rather than folded
+
+#### Scenario: What the count covers
+
+- **WHEN** the workspace holds archived changes that state no relation
+- **THEN** they are not counted as hidden, since the view was not drawing
+  them
+
+#### Scenario: A filter reaching into a folded branch
+
+- **WHEN** a filter matches a change in a folded branch
+- **THEN** that branch is shown for that reading, with the filter's message
+  saying what was found
 
