@@ -6,10 +6,14 @@ vi.mock("vscode", () => vscodeMock);
 
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const readTaskChecklistMock = vi.fn();
-vi.mock("@openspec-ui/core", () => ({
-  discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
-  readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
-}));
+vi.mock("@openspec-ui/core", async () => {
+  const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+  return {
+    ...actual,
+    discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
+    readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
+  };
+});
 
 const { ArchiveTreeProvider, isUnderArchive } = await import("./archive-tree.js");
 
@@ -122,5 +126,55 @@ describe("ArchiveTreeProvider", () => {
       expect((provider.getParent(proposal!) as { state?: string }).state).toBe("archived");
       expect(provider.getParent(proposal!)?.description).toBe("archived");
     });
+  });
+});
+
+describe("ArchiveTreeProvider, narrowed", () => {
+  const threeChanges = {
+    archiveExists: true,
+    archivedChanges: [
+      { name: "the-pipeline-cards-wear-metro", path: "/archive/a", state: "archived", artifacts: [] },
+      { name: "the-timeline-compares-changes", path: "/archive/b", state: "archived", artifacts: [] },
+      { name: "a-change-says-where-it-stands", path: "/archive/c", state: "archived", artifacts: [] },
+    ],
+  };
+
+  it("keeps the rows a word finds, and says what it is filtered by", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue(threeChanges);
+    const provider = new ArchiveTreeProvider("/workspace/repo");
+    provider.filter.set("the");
+
+    const items = await provider.getChildren();
+
+    expect(items.map((item) => item.label)).toEqual([
+      "the-pipeline-cards-wear-metro",
+      "the-timeline-compares-changes",
+    ]);
+    expect(provider.filter.message).toBe('Filtered by "the" - showing 2 of 3');
+  });
+
+  it("says so where nothing matches, rather than looking like an empty archive", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue(threeChanges);
+    const provider = new ArchiveTreeProvider("/workspace/repo");
+    provider.filter.set("nothing-here");
+
+    const items = await provider.getChildren();
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.label).toBe('Nothing matches "nothing-here"');
+    expect(provider.filter.message).toBe('Nothing matches "nothing-here"');
+  });
+
+  it("shows everything again once the filter is cleared, and says nothing", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue(threeChanges);
+    const provider = new ArchiveTreeProvider("/workspace/repo");
+    provider.filter.set("metro");
+    await provider.getChildren();
+
+    provider.filter.clear();
+    const items = await provider.getChildren();
+
+    expect(items).toHaveLength(3);
+    expect(provider.filter.message).toBeUndefined();
   });
 });

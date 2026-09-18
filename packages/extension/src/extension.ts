@@ -31,7 +31,8 @@ import { RunCompletionNotifier, describeRunCompletion } from "./run-notification
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
 import { sendPipelineRunControl } from "./pipeline-run-control.js";
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
-import type { RevealableTreeView, TreeSelectionView } from "./commands.js";
+import type { RevealableTreeView, TreeSelectionView, ViewFilters } from "./commands.js";
+import type { ViewFilterState } from "./tree/view-filter-state.js";
 import { ChangesTreeProvider } from "./tree/changes-tree.js";
 import { followChangesView } from "./tree/changes-view-follower.js";
 import { ChangeStandingDecorations } from "./tree/change-standing-decorations.js";
@@ -234,6 +235,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   let archiveView: RevealableTreeView<ChangeTreeItem> | undefined;
   let templatesView: TreeSelectionView | undefined;
   let changeGraphView: RevealableTreeView<GraphTreeNode> | undefined;
+  let filters: ViewFilters | undefined;
   if (workspaceRoot) {
     // Each change's state word colours its row through a file decoration
     // (a-change-says-where-it-stands).
@@ -256,6 +258,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // read from — no mutating command gains a graph entry (design.md,
     // "the graph moves to createTreeView, and what that reverses").
     const changeGraphTreeView = vscode.window.createTreeView("openspecUiChangeGraph", { treeDataProvider: changeGraphTree });
+    // Was `registerTreeDataProvider`: a filtered view has to say what it
+    // is filtered by, and `message` lives only on the handle
+    // `createTreeView` returns
+    // (the-views-are-searched-and-landed-relations-fold).
+    const specsTreeView = vscode.window.createTreeView("openspecUiSpecs", { treeDataProvider: specsTree });
+    // What a narrowed view says above its rows. Written whenever the view
+    // finishes counting, so the counts are the rows actually drawn.
+    const sayWhatIsFiltered = (view: vscode.TreeView<unknown>, provider: { filter: ViewFilterState }) => {
+      provider.filter.onCounted = () => { view.message = provider.filter.message; };
+    };
+    sayWhatIsFiltered(archiveTreeView as unknown as vscode.TreeView<unknown>, archiveTree);
+    sayWhatIsFiltered(specsTreeView as unknown as vscode.TreeView<unknown>, specsTree);
+    sayWhatIsFiltered(changeGraphTreeView as unknown as vscode.TreeView<unknown>, changeGraphTree);
+    filters = {
+      archive: { filter: archiveTree.filter, refresh: () => archiveTree?.refresh() },
+      specs: { filter: specsTree.filter, refresh: () => specsTree?.refresh() },
+      changeGraph: {
+        filter: changeGraphTree.filter,
+        refresh: () => changeGraphTree?.refresh(),
+        get landedShown() { return changeGraphTree?.landedShown ?? false; },
+        setShowLanded: (shown: boolean) => changeGraphTree?.setShowLanded(shown),
+      },
+    };
     changesView = changesTreeView;
     archiveView = archiveTreeView;
     templatesView = templatesTreeView;
@@ -265,7 +290,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       archiveTreeView,
       templatesTreeView,
       changeGraphTreeView,
-      vscode.window.registerTreeDataProvider("openspecUiSpecs", specsTree),
+      specsTreeView,
       // Read-only, same reasoning as the graph above: no command reads
       // this view's selection, since selecting a row only reveals it in
       // Changes and never mutates it (design.md, "nothing in the inbox
@@ -517,6 +542,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     archiveView,
     templatesView,
     changeGraphView,
+    filters,
     // Undefined without an open workspace, where there is nowhere for an
     // audit log to live — the same real case `chain-runner-audit-deps.ts`
     // treats as absent rather than as a reader over nothing.

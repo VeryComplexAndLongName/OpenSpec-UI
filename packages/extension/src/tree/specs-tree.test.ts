@@ -5,9 +5,10 @@ const vscodeMock = createVscodeMock();
 vi.mock("vscode", () => vscodeMock);
 
 const listSpecsMock = vi.fn();
-vi.mock("@openspec-ui/core", () => ({
-  listSpecs: (...args: unknown[]) => listSpecsMock(...args),
-}));
+vi.mock("@openspec-ui/core", async () => {
+  const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
+  return { ...actual, listSpecs: (...args: unknown[]) => listSpecsMock(...args) };
+});
 
 const { SpecsTreeProvider } = await import("./specs-tree.js");
 
@@ -60,5 +61,50 @@ describe("SpecsTreeProvider", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.label).toBe("No canonical specs");
     expect(items[0]?.description).toContain("archived");
+  });
+});
+
+describe("SpecsTreeProvider, narrowed", () => {
+  const specs = {
+    specs: [
+      { id: "execution-core", requirementCount: 6 },
+      { id: "shared-ui", requirementCount: 1 },
+      { id: "vscode-extension", requirementCount: 12 },
+    ],
+    root: { path: "/workspace/repo", source: "nearest" },
+  };
+
+  it("keeps the specs a word finds, and counts what it shows", async () => {
+    listSpecsMock.mockResolvedValue(specs);
+    const provider = new SpecsTreeProvider("/workspace/repo");
+    provider.filter.set("core");
+
+    const items = await provider.getChildren();
+
+    expect(items.map((item) => item.label)).toEqual(["execution-core"]);
+    expect(provider.filter.message).toBe('Filtered by "core" - showing 1 of 3');
+  });
+
+  it("finds a spec by what its row says as well as by its id", async () => {
+    listSpecsMock.mockResolvedValue(specs);
+    const provider = new SpecsTreeProvider("/workspace/repo");
+    provider.filter.set("12 requirements");
+
+    const items = await provider.getChildren();
+
+    expect(items.map((item) => item.label)).toEqual(["vscode-extension"]);
+  });
+
+  it("says so where nothing matches, and shows everything once cleared", async () => {
+    listSpecsMock.mockResolvedValue(specs);
+    const provider = new SpecsTreeProvider("/workspace/repo");
+    provider.filter.set("absent");
+
+    const narrowed = await provider.getChildren();
+    expect(narrowed[0]?.label).toBe('Nothing matches "absent"');
+
+    provider.filter.clear();
+    expect(await provider.getChildren()).toHaveLength(3);
+    expect(provider.filter.message).toBeUndefined();
   });
 });

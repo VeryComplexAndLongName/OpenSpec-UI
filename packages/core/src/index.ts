@@ -9,6 +9,7 @@ export * from "./audit-message.js";
 export * from "./change-state.js";
 export * from "./change-standing.js";
 export * from "./change-graph.js";
+export * from "./view-filter.js";
 export * from "./successor-check.js";
 export * from "./spec-delta-check.js";
 export * from "./change-editor-store.js";

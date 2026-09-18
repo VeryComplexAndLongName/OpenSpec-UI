@@ -223,6 +223,10 @@ export * from "./pipeline-card.js";
 // a-hint-says-what-can-run-together.
 export * from "./hints.js";
 export * from "./change-layout.js";
+// What a reader can find, and which branch of the declared order has
+// landed: one rule for every list and tree in both hosts
+// (the-views-are-searched-and-landed-relations-fold).
+export * from "./view-filter.js";
 // Which days the Timeline's comparison covers and where each change's bar
 // sits on them — derived, never measured (the-timeline-compares-changes).
 export * from "./change-comparison.js";

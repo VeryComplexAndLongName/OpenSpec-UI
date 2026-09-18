@@ -1,6 +1,7 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import { discoverOpenSpecWorkspace } from "@openspec-ui/core";
+import { ViewFilterState } from "./view-filter-state.js";
 import {
   ChangeTreeItem,
   EmptyTreeItem,
@@ -22,6 +23,9 @@ export function isUnderArchive(workspaceRoot: string, uri: { fsPath: string }): 
 export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
+  /** What this view is narrowed by; 269 archived changes cannot be read by
+   * scrolling (the-views-are-searched-and-landed-relations-fold). */
+  readonly filter = new ViewFilterState();
 
   constructor(private readonly workspaceRoot: string) { }
 
@@ -54,7 +58,12 @@ export class ArchiveTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
         ),
       ];
     }
-    return workspace.archivedChanges.map(
+    const shown = workspace.archivedChanges.filter((change) => this.filter.matches([change.name, change.state]));
+    this.filter.counted(shown.length, workspace.archivedChanges.length);
+    if (shown.length === 0) {
+      return [new EmptyTreeItem(`Nothing matches "${this.filter.text}"`, "Clear the filter to see every archived change")];
+    }
+    return shown.map(
       (change) => new ChangeTreeItem(change.name, change.path, change.state, change.artifacts, true, undefined, change.schema),
     );
   }
