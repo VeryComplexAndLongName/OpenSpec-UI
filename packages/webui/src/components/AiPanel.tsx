@@ -1148,9 +1148,11 @@ export function AiPanel({
     setResolvedPermissionRequestIds((prev) => new Set(prev).add(requestId));
   }
 
+  const shownEvents = collapsedEvents.filter(isShownInEventLog);
+
   return (
     <div className="openspec-ai-panel">
-      <div className="openspec-ai-panel-controls">
+      <div className="openspec-controls openspec-ai-panel-controls">
         <button className="button" type="button" data-testid="load-changes-button" onClick={handleLoadChanges} disabled={isRunning}>
           Reload changes
         </button>
@@ -1224,17 +1226,19 @@ export function AiPanel({
         />
       ) : null}
       {collapsedEvents.length > 0 ? (
-        <section className="openspec-run-insights" data-testid="run-insights">
-          <h3>Run analysis</h3>
-          <p className="openspec-run-insights-meta">
-            Steps: <strong>{runInsights.steps.length}</strong> | Warnings: <strong>{runInsights.warnings.length}</strong>
-            {runInsights.terminal ? (
-              <>
-                {" "}
-                | Result: <strong>{runInsights.terminal}</strong>
-              </>
-            ) : null}
-          </p>
+        <section className="openspec-panel openspec-run-insights" data-testid="run-insights">
+          <div className="openspec-panel-head">
+            <h2>Run analysis</h2>
+            <span className="openspec-panel-head-note openspec-run-insights-meta">
+              Steps: <strong>{runInsights.steps.length}</strong> | Warnings: <strong>{runInsights.warnings.length}</strong>
+              {runInsights.terminal ? (
+                <>
+                  {" "}
+                  | Result: <strong>{runInsights.terminal}</strong>
+                </>
+              ) : null}
+            </span>
+          </div>
           {runInsights.steps.length > 0 ? (
             <ol className="openspec-run-insights-steps" data-testid="run-insights-steps">
               {runInsights.steps.map((step, index) => (
@@ -1259,13 +1263,24 @@ export function AiPanel({
           ) : null}
         </section>
       ) : null}
-      <ul className="openspec-ai-panel-events" data-testid="event-log">
-        {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
-          <li key={index} data-testid={`event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
-            {renderEventBody(event, index)}
-          </li>
-        ))}
-      </ul>
+      <section className="openspec-panel openspec-ai-panel-log">
+        <div className="openspec-panel-head">
+          <h2>What the run said</h2>
+          {shownEvents.length > 0 ? (
+            <span className="openspec-panel-head-note">{shownEvents.length === 1 ? "1 line" : `${shownEvents.length} lines`}</span>
+          ) : null}
+        </div>
+        {shownEvents.length === 0 ? (
+          <p className="openspec-panel-body openspec-panel-empty">Nothing has run here yet.</p>
+        ) : null}
+        <ul className="openspec-ai-panel-events" data-testid="event-log">
+          {shownEvents.map((event, index) => (
+            <li key={index} data-testid={`event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
+              {renderEventBody(event, index)}
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

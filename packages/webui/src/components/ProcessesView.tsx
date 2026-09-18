@@ -136,8 +136,11 @@ export function ProcessesView({
   }
 
   return (
-    <div data-testid="processes-view">
-      <div className="openspec-ai-panel-controls">
+    <div className="openspec-processes-screen" data-testid="processes-view">
+      {/* The shared components (the-remaining-tabs-wear-metro): the tab's
+          controls in one toolbar, the runs in a panel that says how many,
+          and the one being reviewed in a panel of its own. */}
+      <div className="openspec-controls">
         {/* One label in every state. It read "Loading..." during any reading,
             a Review included, and the change of width moved every control
             after it: the jerk the owner reported. What is being read is
@@ -155,41 +158,75 @@ export function ProcessesView({
         <button className="button alert" type="button" onClick={() => void cleanup()} disabled={loading}>
           <Icon meaning="warning" />Clean old history
         </button>
+        {message ? <span className="openspec-shell-note" role="status" data-testid="processes-message">{message}</span> : null}
       </div>
-      {message ? <p className="openspec-shell-note" role="status" data-testid="processes-message">{message}</p> : null}
-      {processes.length === 0 ? <p className="openspec-shell-note">No persisted processes.</p> : (
-        <table className="table openspec-overview-table">
-          <thead><tr><th>Operation</th><th>Change</th><th>Agent</th><th>Progress</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
-          <tbody>{processes.map((process) => (
-            <tr key={process.id}>
-              <td>{process.operation}</td><td>{process.changeName ?? "-"}</td>
-              <td>{process.agentId ?? "-"}</td>
-              <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
-              <td>{[process.state, process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}</td><td>{process.createdAt}</td>
-              <td>
-                <button className="button" type="button" onClick={() => void inspect(process.id)}>
-                  <Icon meaning="review" />Review
-                </button>
-              </td>
-            </tr>
-          ))}</tbody>
-        </table>
-      )}
+
+      <section className="openspec-panel">
+        <div className="openspec-panel-head">
+          <h2>Persisted runs</h2>
+          {processes.length > 0 ? (
+            <span className="openspec-panel-head-note">{processes.length === 1 ? "1 run" : `${processes.length} runs`}</span>
+          ) : null}
+        </div>
+        {processes.length === 0 ? <p className="openspec-panel-body openspec-panel-empty">No persisted processes.</p> : (
+          <table className="table openspec-table">
+            <thead><tr><th>Operation</th><th>Change</th><th>Agent</th><th>Progress</th><th>State</th><th>Created</th><th>Action</th></tr></thead>
+            <tbody>{processes.map((process) => (
+              <tr key={process.id}>
+                <td>{process.operation}</td><td>{process.changeName ?? "-"}</td>
+                <td>{process.agentId ?? "-"}</td>
+                <td>{formatPercent(process.changeName ? changeProgress?.[process.changeName] : undefined)}</td>
+                <td>
+                  {/* The state as a badge, as every other list of rows
+                      carries one; what waits and what it cost stay beside
+                      it as words. */}
+                  <span className="badge openspec-process-state">{process.state}</span>
+                  {[process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).length > 0 ? (
+                    <span className="openspec-process-state-note">
+                      {[process.waitingFor, formatCostUsd(process.usage?.costUsd)].filter(Boolean).join(" · ")}
+                    </span>
+                  ) : null}
+                </td><td>{process.createdAt}</td>
+                <td>
+                  <button className="button" type="button" onClick={() => void inspect(process.id)}>
+                    <Icon meaning="review" />Review
+                  </button>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </section>
+
       {details ? (
-        <div className="openspec-process-details">
-          <h3>{details.process.operation}: {details.process.state}</h3>
-          <p>{details.process.waitingFor ? `Waiting for: ${details.process.waitingFor}` : details.process.summary ?? details.process.error ?? "No summary"}</p>
-          <h4>Changed files</h4>
-          <ul>{(details.delta ?? []).map((item) => <li key={item.path}>{item.kind}: {item.path}</li>)}</ul>
-          <h4>Checkpoint coverage</h4>
-          <p>Skipped files: {details.coverage?.skippedFiles.join(", ") || "none"}</p>
-          <p>Excluded directories: {details.coverage?.excludedDirectories.join(", ") || "none"}</p>
-          <div className="openspec-ai-panel-controls">
+        <section className="openspec-panel openspec-process-details">
+          <div className="openspec-panel-head">
+            <h2>{details.process.operation}</h2>
+            <span className="openspec-panel-head-note">
+              <span className="badge openspec-process-state">{details.process.state}</span>
+            </span>
+          </div>
+          <div className="openspec-panel-body">
+            <p>{details.process.waitingFor ? `Waiting for: ${details.process.waitingFor}` : details.process.summary ?? details.process.error ?? "No summary"}</p>
+          </div>
+          {(details.delta ?? []).length > 0 ? (
+            <table className="table openspec-table">
+              <thead><tr><th scope="col">Changed file</th><th scope="col">How</th></tr></thead>
+              <tbody>{(details.delta ?? []).map((item) => (
+                <tr key={item.path}><td>{item.path}</td><td>{item.kind}</td></tr>
+              ))}</tbody>
+            </table>
+          ) : <p className="openspec-panel-body openspec-panel-empty">No file was changed.</p>}
+          <p className="openspec-panel-fine">
+            {`Checkpoint coverage. Skipped files: ${details.coverage?.skippedFiles.join(", ") || "none"}. `}
+            {`Excluded directories: ${details.coverage?.excludedDirectories.join(", ") || "none"}.`}
+          </p>
+          <div className="openspec-panel-foot">
             <button className="button alert" type="button" onClick={() => void rollback()} disabled={loading || !details.canRollback}>
               <Icon meaning="warning" />Rollback files
             </button>
           </div>
-        </div>
+        </section>
       ) : null}
     </div>
   );

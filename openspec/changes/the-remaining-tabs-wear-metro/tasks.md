@@ -8,120 +8,198 @@ handles do not"). A task that has to change one says so.
 
 ## 1. Run a Command
 
-- [ ] 1.1 `packages/webui/src/standalone-entry.tsx`'s Run tab becomes one
+- [x] 1.1 `packages/webui/src/standalone-entry.tsx`'s Run tab becomes one
   `openspec-controls` toolbar — the workspace root, the OpenSpec root and
   Initialize — above an `openspec-panel` for the run itself, replacing the
   two nested `openspec-shell-panel`s.
-- [ ] 1.2 The tab's tip and its sync error become `openspec-panel-fine`
+- [x] 1.2 The tab's tip and its sync error become `openspec-panel-fine`
   inside that panel rather than loose `openspec-shell-note` paragraphs.
-- [ ] 1.3 `packages/webui/src/components/AiPanel.tsx` puts its command,
+- [x] 1.3 `packages/webui/src/components/AiPanel.tsx` puts its command,
   agent and change pickers in one `openspec-controls` row and keeps every
   picker a `select` with its current label (`AiPanel.test.tsx` and the
   browser specs pick options by name).
-- [ ] 1.4 `AiPanel.tsx`'s "Run analysis" block becomes an
+- [x] 1.4 `AiPanel.tsx`'s "Run analysis" block becomes an
   `openspec-panel` whose head carries that name, and its status and data
   cards become `openspec-tile`s.
-- [ ] 1.5 `AiPanel.tsx`'s event log becomes an `openspec-panel` with the
+- [x] 1.5 `AiPanel.tsx`'s event log becomes an `openspec-panel` with the
   count as its head note, and its empty state `openspec-panel-empty`.
-- [ ] 1.6 `packages/webui/src/components/AiPanel.test.tsx` passes unchanged
+- [x] 1.6 `packages/webui/src/components/AiPanel.test.tsx` passes unchanged
   except where it reads a class this change moves; any such assertion moves
   to the new class in the same commit.
 
+  Done: the tab is a panel for where the work happens, a panel for
+  initializing a workspace that is not, and the run below them; the tip and
+  the sync error are that first panel's `openspec-panel-fine`. `AiPanel`
+  keeps every picker a `select` with its label, draws "Run analysis" as a
+  panel whose head note carries its figures, and puts the event log in a
+  panel that says how many lines it holds and says so when nothing has run.
+  `AiPanel.test.tsx` passes unchanged, 54 of 54.
+
 ## 2. Processes and Recovery
 
-- [ ] 2.1 `packages/webui/src/components/ProcessesView.tsx` draws one
+- [x] 2.1 `packages/webui/src/components/ProcessesView.tsx` draws one
   `openspec-panel` for the persisted runs, with the count as its head note
   and Refresh, the retain-days field and Forget in one `openspec-controls`
   row.
-- [ ] 2.2 Its table becomes `openspec-table`, and a run's state becomes a
+- [x] 2.2 Its table becomes `openspec-table`, and a run's state becomes a
   `badge` whose word is the one the row shows today.
-- [ ] 2.3 The details block becomes a second `openspec-panel` headed by the
+- [x] 2.3 The details block becomes a second `openspec-panel` headed by the
   run it describes, with the changed files as a table rather than a bare
   list, and its `h3`/`h4` headings go.
-- [ ] 2.4 "No persisted processes." becomes the panel's own
+- [x] 2.4 "No persisted processes." becomes the panel's own
   `openspec-panel-empty`.
-- [ ] 2.5 `packages/webui/src/components/ProcessesView.test.tsx` passes with
+- [x] 2.5 `packages/webui/src/components/ProcessesView.test.tsx` passes with
   no change to what it queries; where it reads a cell by text, the same text
   is in the table.
 
+  Done: one toolbar, a panel of persisted runs with the count as its head
+  note, the table in `openspec-table`, the state as a badge with what it
+  waits on and what it cost beside it, the reviewed run in its own panel
+  with its changed files as a table, and the empty case in the panel.
+  `ProcessesView.test.tsx` passes 8 of 8; three assertions moved with the
+  markup, since the state is a badge now and the changed files are two
+  cells rather than one "kind: path" line.
+
 ## 3. Diff Preview
 
-- [ ] 3.1 `standalone-entry.tsx`'s Diff tab puts its picker and Refresh in
+- [x] 3.1 `standalone-entry.tsx`'s Diff tab puts its picker and Refresh in
   an `openspec-controls` row and the diff in an `openspec-panel` whose head
   carries the change's name and whose note carries "N files changed".
-- [ ] 3.2 "This change has nothing uncommitted." becomes
+- [x] 3.2 "This change has nothing uncommitted." becomes
   `openspec-panel-empty`, and the truncation note becomes
   `openspec-panel-fine`.
-- [ ] 3.3 The files the answer already carries are listed as an
+- [x] 3.3 The files the answer already carries are listed as an
   `openspec-table` above the diff, one row per file.
-- [ ] 3.4 `packages/webui/src/components/ChangeDiff.tsx` keeps its
+- [x] 3.4 `packages/webui/src/components/ChangeDiff.tsx` keeps its
   `.openspec-diff-line--*` classes, since `ChangeDiff.test.tsx` reads them,
   and its body sits inside the panel body.
 
+  Done: the picker and Refresh in `openspec-controls`, the diff in a panel
+  headed by the change with "N files changed" as its note, the empty and the
+  truncation in the panel's own words, and the files the answer already
+  carried listed in an `openspec-table` above the diff. `ChangeDiff` keeps
+  its line classes, which its test reads.
+
 ## 4. Change Editor
 
-- [ ] 4.1 `standalone-entry.tsx`'s Change Editor puts Create, the change
+- [x] 4.1 `standalone-entry.tsx`'s Change Editor puts Create, the change
   picker, Load and Run with Agentic Harness in one `openspec-controls`
   toolbar, replacing the first `openspec-ai-panel-controls` row.
-- [ ] 4.2 Its document strip becomes `openspec-segmented` with
+- [x] 4.2 Its document strip becomes `openspec-segmented` with
   `aria-pressed`, replacing `openspec-editor-tabs` and its `.is-active`;
   `shell-ui.ts` loses the rules for that strip once nothing wears it.
-- [ ] 4.3 The editor and its preview sit in one `openspec-panel` whose head
+- [x] 4.3 The editor and its preview sit in one `openspec-panel` whose head
   names the document being edited and whose foot carries Save; "Preview"
   stops being a note used as a heading.
-- [ ] 4.4 The archived-template row keeps its own `openspec-controls` inside
+- [x] 4.4 The archived-template row keeps its own `openspec-controls` inside
   the panel section it belongs to.
-- [ ] 4.5 `packages/webui/src/components/RunDialog.tsx` replaces its
+- [x] 4.5 `packages/webui/src/components/RunDialog.tsx` replaces its
   `openspec-shell-panel` and `h3` with an `openspec-panel` and its head,
   keeping `role="dialog"`, its focus behaviour and every `run-dialog-*`
   testid.
-- [ ] 4.6 `packages/webui/src/components/HarnessChainPanel.tsx` puts its
+- [x] 4.6 `packages/webui/src/components/HarnessChainPanel.tsx` puts its
   controls in `openspec-controls` and its event log in an
   `openspec-panel`, keeping `start-chain-button` and `chain-event-log`.
-- [ ] 4.7 `RunDialog.test.tsx`, `RunDialog.standing.test.tsx` and
+- [x] 4.7 `RunDialog.test.tsx`, `RunDialog.standing.test.tsx` and
   `HarnessChainPanel.test.tsx` pass unchanged.
+
+  Done: a panel for creating a change with Create in its foot, one toolbar
+  for choosing, loading and running, the documents behind
+  `openspec-segmented` with `aria-pressed`, and the editor in a panel whose
+  head names the document and whose foot carries Save. The run dialog is an
+  `openspec-panel` with its head, keeping its dialog role, its focus and
+  every testid; the chain panel's controls are `openspec-controls`.
+  `RunDialog.test.tsx`, `RunDialog.standing.test.tsx` and
+  `HarnessChainPanel.test.tsx` pass unchanged, 50 of 50.
 
 ## 5. Templates
 
-- [ ] 5.1 `standalone-entry.tsx`'s Templates tab puts Load templates in an
+- [x] 5.1 `standalone-entry.tsx`'s Templates tab puts Load templates in an
   `openspec-controls` row and draws one `openspec-panel` per category, each
   headed by the category, replacing the `colspan` sub-header row.
-- [ ] 5.2 Each table becomes `openspec-table`, and a template's origin and
+- [x] 5.2 Each table becomes `openspec-table`, and a template's origin and
   its customized mark become badges.
-- [ ] 5.3 The selected template becomes its own `openspec-panel` headed by
+- [x] 5.3 The selected template becomes its own `openspec-panel` headed by
   its title, with its variables in the body and Insert into change in its
   foot.
-- [ ] 5.4 Before anything is loaded the tab draws a panel saying so, rather
+- [x] 5.4 Before anything is loaded the tab draws a panel saying so, rather
   than nothing.
-- [ ] 5.5 The `templates-table` testid stays on a table, so
+- [x] 5.5 The `templates-table` testid stays on a table, so
   `documentation-screenshots.spec.ts` still finds it.
+
+  Done, with one departure from 5.1: the catalog stays one table with the
+  category as a column rather than a panel per category, because
+  `templates-table` has to name exactly one table for
+  `documentation-screenshots.spec.ts`, and a category that is already a
+  column needs no heading pretending to be a row. The `colspan` sub-header
+  is gone either way. The origin and the customized mark are badges, the
+  chosen template is its own panel with Insert in its foot, and the tab says
+  what it offers before anything is loaded.
 
 ## 6. The editor keeps its colours
 
-- [ ] 6.1 `packages/webui/src/shell-ui.ts`'s `.openspec-extension-app`
+- [x] 6.1 `packages/webui/src/shell-ui.ts`'s `.openspec-extension-app`
   override list moves to every class this change renames, in the ordinary
   block and in the `forced-colors` block.
-- [ ] 6.2 `packages/webui/src/vscode-metro-mapping.test.ts` and
+- [x] 6.2 `packages/webui/src/vscode-metro-mapping.test.ts` and
   `shell-ui.test.ts` pass, including the token and colour-literal gates.
-- [ ] 6.3 `packages/webui/src/extension-entry.tsx` draws the AI panel's
+- [x] 6.3 `packages/webui/src/extension-entry.tsx` draws the AI panel's
   markup with the same containers as the tab, so the editor and the shell
   differ only in colour.
 
+  Done: the editor layer names `.openspec-panel` and `.openspec-table`
+  beside the classes it already named, in the ordinary block and under
+  `forced-colors`, and its primary-button rule follows the segmented
+  control's `aria-pressed` rather than the strip's `.is-active`.
+  `vscode-metro-mapping.test.ts` and `shell-ui.test.ts` pass, 14 of 14.
+  `extension-entry.tsx` draws the same panel with the same head as the tab.
+
 ## 7. The pictures and the checks
 
-- [ ] 7.1 `packages/server/e2e/documentation-screenshots.spec.ts` reaches
+- [x] 7.1 `packages/server/e2e/documentation-screenshots.spec.ts` reaches
   the harness row by a testid on the row rather than by
   `page.locator("div", { has: ... }).last()`, and the row carries it.
-- [ ] 7.2 That spec's six pictures under `docs/images/standalone/` are
+- [x] 7.2 That spec's six pictures under `docs/images/standalone/` are
   retaken and staged.
-- [ ] 7.3 `npm run typecheck && npm run lint && npm run test`, run unpiped.
+- [x] 7.3 `npm run typecheck && npm run lint && npm run test`, run unpiped.
   Record each package's count.
-- [ ] 7.4 A changeset written with the implementation: `@openspec-ui/webui`
+- [x] 7.4 A changeset written with the implementation: `@openspec-ui/webui`
   minor, `openspec-ui-vscode` patch.
-- [ ] 7.5 `lint:english` after `git add`, `lint:changesets`,
+- [x] 7.5 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets`, `lint:source-text` and `lint:screenshots` pass.
-- [ ] 7.6 The whole standalone browser suite passes, not only the specs this
+
+  Done: all five pass after staging, and `lint:screenshots` counts 38
+  pictures, all captured.
+- [x] 7.6 The whole standalone browser suite passes, not only the specs this
   change touches. Record the count.
+
+  Done on 2026-09-18.
+
+  7.1 and 7.2: the capture reaches the row by `change-editor-toolbar`, and
+  the pictures `run-command.png`, `processes.png`, `diff-preview.png`,
+  `change-editor.png`, `templates.png`, `run-with-harness.png`,
+  `run-dialog.png`, `harness-change-override.png` and
+  `harness-checkpoint.png` are retaken. The pictures the other specs
+  rewrote were put back.
+
+  7.3: `npm run verify`, run unpiped into a log. Typecheck and lint pass in
+  every package. Tests: `@openspec-ui/cli` 161 in 16 files;
+  `@openspec-ui/core` 1532 in 110 files and 3 of 4 in the git-subprocess
+  project; `openspec-ui-vscode` 404 in 30 files; `@openspec-ui/server` 106
+  in 4 files; `@openspec-ui/webui` 597 of 598 in 70 files. Two failures,
+  neither this change's: `git.push.test.ts` is the MSYS shell flake, which
+  passes alone (1 of 1, rerun immediately after), and
+  `scripts/build-metro-icons.test.mjs` is the Windows CRLF comparison that
+  fails the same way on `main`.
+
+  7.6: `npm run test:browser -w @openspec-ui/server`, the whole suite in one
+  run: 25 tests in 11 spec files, 25 passed in 7.4 minutes. The first run
+  found one real break -
+  `lifecycle-recovery-and-rollback.spec.ts` read `.openspec-process-details
+  h3` and a "modified: path" line, both of which this change replaced with
+  a panel head and a table; its assertions moved with the markup. Two other
+  failures in that run were load flakes and passed alone (the pipeline's
+  order test and the dropped-connection test).
 - [ ] 7.7 **Delegated to claude-cli.** A live check in the Extension
   Development Host: the AI panel under Default Dark Modern and a
   high-contrast theme. Evidence to record: the computed `background-color`

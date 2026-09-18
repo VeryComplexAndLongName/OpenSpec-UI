@@ -173,26 +173,35 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
           <p>VS Code webview runner for OpenSpec commands.</p>
         </div>
       </header>
-      <section className="openspec-shell-panel">
-        <div className="openspec-shell-grid">
-          <label className="openspec-shell-field">
-            Workspace root (cwd)
-            <input
-              type="text"
-              value={cwd}
-              onChange={(e) => handleCwdChange(e.target.value)}
-              placeholder="C:\\path\\to\\repo"
-            />
-          </label>
-          <label className="openspec-shell-field">
-            Change directory
-            <input
-              type="text"
-              value={changeDir}
-              onChange={(e) => setChangeDir(e.target.value)}
-              placeholder="C:\\path\\to\\repo\\openspec\\changes"
-            />
-          </label>
+      {/* The same containers the tab uses, so the editor and the shell
+          differ in colour and in nothing else
+          (the-remaining-tabs-wear-metro 6.3). */}
+      <section className="openspec-panel">
+        <div className="openspec-panel-head">
+          <h2>Where the work happens</h2>
+          <span className="openspec-panel-head-note">the workspace every command runs in</span>
+        </div>
+        <div className="openspec-panel-body">
+          <div className="openspec-shell-grid">
+            <label className="openspec-shell-field">
+              Workspace root (cwd)
+              <input
+                type="text"
+                value={cwd}
+                onChange={(e) => handleCwdChange(e.target.value)}
+                placeholder="C:\\path\\to\\repo"
+              />
+            </label>
+            <label className="openspec-shell-field">
+              Change directory
+              <input
+                type="text"
+                value={changeDir}
+                onChange={(e) => setChangeDir(e.target.value)}
+                placeholder="C:\\path\\to\\repo\\openspec\\changes"
+              />
+            </label>
+          </div>
         </div>
       </section>
       {cwd.trim().length > 0 && changeDir.trim().length > 0 ? (
