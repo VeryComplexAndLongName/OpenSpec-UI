@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "dependencies": {
     "@openspec-ui/core": "*",
-    "@tanstack/react-virtual": "^3.14.11",
+    "@tanstack/react-virtual": "^3.14.13",
     "diff": "^9.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
@@ -19,7 +19,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "css-tree": "^3.2.1",
-    "happy-dom": "^20.14.0",
+    "happy-dom": "^20.14.5",
     "jsdom": "^30.0.0"
   },
   "scripts": {
