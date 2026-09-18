@@ -43,6 +43,7 @@ import {
   runTimestampsByChange,
   readChangeGraph,
   getChangeTimelines,
+  readChangeSpans,
   initOpenSpec,
   listBootstrapProjectTypes,
   listChanges,
@@ -71,7 +72,6 @@ import {
   type DetectedAgent,
   type StartProcessOptions,
   type WorkbenchProcessScheduler,
-  type ChangeTimeline,
   type Command,
   type HarnessAutonomyLevel,
   type HarnessConfig,
@@ -955,6 +955,9 @@ async function pickChange(workspaceRoot: string): Promise<{ name: string; change
   return { name: pick.label, changeDir: path.join(workspaceRoot, "openspec", "changes", pick.label) };
 }
 
+/** The changes to report on, picked one by one. Only the sprint report
+ * asks this now: the comparison draws the whole workspace
+ * (the-timeline-compares-changes). */
 async function pickChangesForTimeline(
   workspaceRoot: string,
 ): Promise<Array<{ changeName: string; archived: boolean }> | undefined> {
@@ -975,40 +978,10 @@ async function pickChangesForTimeline(
   return picks.map((pick) => ({ changeName: pick.label, archived: pick.archived }));
 }
 
-/** The date-range axis for the multi-change view is derived from the
- * selected changes' own data (earliest/latest of every created/task/
- * archived date) rather than asking the user to type ISO dates — no
- * native date picker exists in VS Code's own prompt UI, and the data's
- * own extent is a reasonable default range. Falls back to a 1-day
- * window around now if no change carries any determinable date. */
-function computeDefaultRange(timelines: ChangeTimeline[]): { rangeStart: string; rangeEnd: string } {
-  const dates: string[] = [];
-  for (const timeline of timelines) {
-    if (timeline.createdDate) dates.push(timeline.createdDate);
-    // Archiving is chronologically last, but archivedDate has no
-    // time-of-day (parsed from the folder name) — end-of-day avoids it
-    // sorting before that same day's actual created/task timestamps.
-    if (timeline.archived && timeline.archivedDate) dates.push(`${timeline.archivedDate}T23:59:59.999Z`);
-    for (const task of timeline.tasks) {
-      if (task.date) dates.push(task.date);
-    }
-  }
-  if (dates.length === 0) {
-    const now = Date.now();
-    return {
-      rangeStart: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
-      rangeEnd: new Date(now + 12 * 60 * 60 * 1000).toISOString(),
-    };
-  }
-  const sorted = [...dates].sort();
-  return { rangeStart: sorted[0] as string, rangeEnd: sorted[sorted.length - 1] as string };
-}
-
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** VS Code has no native date picker, so the sprint range is two
- * validated `showInputBox` prompts rather than the auto-derived range
- * `computeDefaultRange` uses elsewhere — this command needs a real
+ * validated `showInputBox` prompts — this command needs a real
  * user-specified sprint boundary, not a default. Returns full-day ISO
  * bounds (start of `start`, end of `end`) so a task completed anywhere
  * during either boundary date is included. */
@@ -2044,20 +2017,35 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
         return;
       }
-      const entries = await pickChangesForTimeline(workspaceRoot);
-      if (!entries) return;
       try {
-        // The audit log read once for the whole request, as the run
-        // statistics already read it, so a run recorded before anyone
-        // ticked a box is evidence of when work started here too. It
-        // was accepted by the single-change function and passable from
-        // no host at all. See a-date-is-one-day-in-every-source.
-        const auditTimestampsByChange = runTimestampsByChange(
-          deps.readAuditEntries ? await deps.readAuditEntries() : [],
-        );
-        const timelines = await getChangeTimelines(workspaceRoot, entries, { auditTimestampsByChange });
-        const { rangeStart, rangeEnd } = computeDefaultRange(timelines);
-        timelinePanel.showMulti({ timelines, rangeStart, rangeEnd });
+        // Every change, with no quick pick in front of it: picking from a
+        // list of 264 is the work the screen exists to do, and the answer
+        // the editor gives must be the browser's answer
+        // (the-timeline-compares-changes).
+        const spans = await readChangeSpans(workspaceRoot);
+        timelinePanel.showComparison(spans, {
+          readTimelines: async (entries) => {
+            // The audit log read once per request, as the run statistics
+            // already read it, so a run recorded before anyone ticked a
+            // box is evidence of when work started here too. See
+            // a-date-is-one-day-in-every-source.
+            const auditTimestampsByChange = runTimestampsByChange(
+              deps.readAuditEntries ? await deps.readAuditEntries() : [],
+            );
+            return getChangeTimelines(workspaceRoot, entries, { auditTimestampsByChange });
+          },
+          openTimeline: async (changeName, archived) => {
+            try {
+              const timeline = await getChangeTimeline(workspaceRoot, changeName, archived);
+              const staleThresholdDays = vscode.workspace
+                .getConfiguration("openspec-ui")
+                .get<number>("staleTaskThresholdDays", DEFAULT_STALE_TASK_THRESHOLD_DAYS);
+              timelinePanel.show(changeName, timeline, staleThresholdDays);
+            } catch (error) {
+              await showCommandError("show change timeline", error);
+            }
+          },
+        });
       } catch (error) {
         await showCommandError("show change comparison", error);
       }

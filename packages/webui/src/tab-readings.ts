@@ -32,8 +32,10 @@ export interface ShellReadingState {
   timelineLoading: boolean;
   /** `active:<name>` or `archived:<name>`, as the Timeline's picker holds it. */
   timelineSelection: string;
+  /** The comparison is reading when every change was proposed and
+   * archived — one pass over the workspace, not a history per change
+   * (the-timeline-compares-changes). */
   comparisonLoading: boolean;
-  comparisonCount: number;
   sprintReportLoading: boolean;
   /** What the three views that keep their loading state inside report. */
   processesReading: string | null;
@@ -65,7 +67,7 @@ export function tabReadings(state: ShellReadingState): Record<ShellTabId, string
     timeline: state.timelineLoading && timelineChange.length > 0
       ? `Reading ${timelineChange}'s history from git…`
       : state.comparisonLoading
-        ? `Reading the history of ${state.comparisonCount} ${state.comparisonCount === 1 ? "change" : "changes"} from git…`
+        ? "Reading when every change was proposed and archived…"
         : state.sprintReportLoading
           ? "Building the sprint report from git…"
           : waitingForChanges,

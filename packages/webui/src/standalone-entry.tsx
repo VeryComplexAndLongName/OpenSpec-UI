@@ -58,10 +58,9 @@ import {
   saveChangeEditorDocument,
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
-import { loadChangeTimeline, loadChangeTimelines, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
+import { loadChangeSpans, loadChangeTimeline, loadChangeTimelines, type ChangeSpan, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
 import { fetchSprintReportPdf } from "./sprint-report-client.js";
-import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
-import { ChangeChartsView } from "./components/ChangeChartsView.js";
+import { ChangeComparisonView } from "./components/ChangeComparisonView.js";
 import {
   customizeTemplate as customizeTemplateApi,
   deleteProjectTemplate as deleteProjectTemplateApi,
@@ -102,13 +101,18 @@ import {
 } from "./run-with-harness-dispatch.js";
 import { fireDueSchedule, type ScheduleFiringHost } from "./scheduled-run-firing.js";
 import {
+  comparisonRows,
+  comparisonWindow,
+  DEFAULT_COMPARISON_PERIOD,
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   describeChangeState,
+  describeComparison,
   describeHumanOnlyInboxState,
   describeStandingSources,
   describeWaitingOn,
   withoutArchivePrefix,
   type ChangeStandings,
+  type ComparisonPeriodId,
   type DescribedChangeState,
 } from "@openspec-ui/core/browser";
 import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
@@ -357,9 +361,25 @@ function StandaloneApp() {
   const [multiRangeStart, setMultiRangeStart] = useState("");
   const [multiRangeEnd, setMultiRangeEnd] = useState("");
   const [multiSelection, setMultiSelection] = useState<string[]>([]);
-  const [multiTimelines, setMultiTimelines] = useState<ChangeTimeline[]>([]);
-  const [multiLoading, setMultiLoading] = useState(false);
-  const [multiMessage, setMultiMessage] = useState<string | null>(null);
+  /* The comparison (the-timeline-compares-changes): the spans read in one
+     pass, the toolbar's period and filter, and the histories its charts
+     rest on, kept by change so a period changed twice reads nothing
+     twice. */
+  const [spans, setSpans] = useState<ChangeSpan[] | null>(null);
+  const [spansLoading, setSpansLoading] = useState(false);
+  const [spansMessage, setSpansMessage] = useState<string | null>(null);
+  const [comparisonNow, setComparisonNow] = useState(() => Date.now());
+  const [comparisonPeriod, setComparisonPeriod] = useState<ComparisonPeriodId>(DEFAULT_COMPARISON_PERIOD);
+  const [comparisonFilter, setComparisonFilter] = useState("");
+  const [comparisonCharts, setComparisonCharts] = useState<ChangeTimeline[]>([]);
+  const [comparisonChartsReading, setComparisonChartsReading] = useState(0);
+  const [comparisonChartsError, setComparisonChartsError] = useState<string | null>(null);
+  /** The histories already read, by `archived:name`, read inside an effect
+   * that must not re-run each time one arrives. */
+  const comparisonHeld = useRef<Map<string, ChangeTimeline>>(new Map());
+  /** Counts chart readings, so a period changed while one is in flight is
+   * not overwritten by its answer, as `timelineReading` does above. */
+  const comparisonReading = useRef(0);
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
@@ -1067,32 +1087,44 @@ function StandaloneApp() {
     return { changeName, archived: prefix === "archived" };
   }
 
-  async function loadMultiTimelines() {
+  /** Reads when every change was proposed and archived, in one pass. The
+   * comparison draws from this alone; the histories its charts rest on
+   * follow (the-timeline-compares-changes). */
+  async function loadSpans() {
     if (cwd.trim().length === 0) {
-      setMultiMessage("Enter workspace root first.");
+      setSpansMessage("Enter workspace root first.");
       return;
     }
-    if (multiRangeStart.trim().length === 0 || multiRangeEnd.trim().length === 0) {
-      setMultiMessage("Select a date range first.");
-      return;
-    }
-    const entries = multiSelection.map(decodeSelection).filter((entry): entry is ChangeTimelineEntry => Boolean(entry));
-    if (entries.length === 0) {
-      setMultiMessage("Select at least one change first.");
-      return;
-    }
-    setMultiLoading(true);
-    setMultiMessage(null);
+    setSpansLoading(true);
+    setSpansMessage(null);
     try {
-      const loaded = await loadChangeTimelines(apiFetch, cwd, entries);
-      setMultiTimelines(loaded);
+      const read = await loadChangeSpans(apiFetch, cwd);
+      setSpans(read.spans);
+      // Now is read with the dates, so the dashed line and an active
+      // change's bar end at the same instant.
+      setComparisonNow(Date.now());
+      comparisonHeld.current = new Map();
+      setComparisonCharts([]);
+      setComparisonChartsError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setMultiMessage(`Load failed: ${message}`);
-      setMultiTimelines([]);
+      setSpansMessage(`Read failed: ${message}`);
+      setSpans(null);
     } finally {
-      setMultiLoading(false);
+      setSpansLoading(false);
     }
+  }
+
+  /** Opens one change's own timeline from its row in the comparison, as
+   * choosing it in the picker would. */
+  function openTimelineOf(changeName: string, archived: boolean) {
+    const selection = `${archived ? "archived" : "active"}:${changeName}`;
+    setTimelineMode("single");
+    setTimelineSelection(selection);
+    timelineReading.current += 1;
+    setTimeline(null);
+    setTimelineMessage(null);
+    void loadTimeline(selection);
   }
 
   async function downloadSprintReport() {
@@ -1461,8 +1493,7 @@ function StandaloneApp() {
     templatesLoading,
     timelineLoading,
     timelineSelection,
-    comparisonLoading: multiLoading,
-    comparisonCount: multiSelection.length,
+    comparisonLoading: spansLoading,
     sprintReportLoading,
     processesReading,
     harnessReading,
@@ -1471,8 +1502,73 @@ function StandaloneApp() {
   // Shown only once a reading has lasted a moment: a quick one otherwise
   // put a line above the tab and took it away, and the screen jerked.
   const shownReadings = useShownReadings(readings);
+  // The comparison's days and rows, derived by core from the spans the
+  // host read (the-timeline-compares-changes). `comparisonAll` is the rows
+  // before the filter, for "3 of 25 match".
+  const comparisonDays = useMemo(
+    () => comparisonWindow(comparisonPeriod, spans ?? [], comparisonNow),
+    [comparisonPeriod, spans, comparisonNow],
+  );
+  const comparisonAll = useMemo(
+    () => comparisonRows(spans ?? [], comparisonDays, comparisonNow),
+    [spans, comparisonDays, comparisonNow],
+  );
+  const comparisonShown = useMemo(
+    () => comparisonRows(spans ?? [], comparisonDays, comparisonNow, comparisonFilter),
+    [spans, comparisonDays, comparisonNow, comparisonFilter],
+  );
+  /** The rows on screen, as the entries their histories are asked for by.
+   * Joined into a string as well, so the effect below re-runs when the rows
+   * change rather than each time the array is rebuilt. */
+  const comparisonWanted = comparisonShown.map((row) => `${row.active ? "active" : "archived"}:${row.changeName}`);
+  const comparisonWantedKey = comparisonWanted.join("|");
+
+  // The spans, once the comparison is on screen and again for another
+  // workspace. One pass, and nothing is asked of the reader first.
+  useEffect(() => {
+    if (activeTab !== "timeline" || timelineMode !== "multi" || cwd.trim().length === 0) return;
+    void loadSpans();
+  }, [activeTab, timelineMode, cwd]);
+
+  // The histories the charts rest on, for the rows on screen and only for
+  // those not read already. The grid is drawn from the spans meanwhile.
+  useEffect(() => {
+    if (activeTab !== "timeline" || timelineMode !== "multi" || cwd.trim().length === 0) return;
+    const held = () => comparisonWanted
+      .map((key) => comparisonHeld.current.get(key))
+      .filter((timelineHeld): timelineHeld is ChangeTimeline => timelineHeld !== undefined);
+    const missing = comparisonWanted
+      .filter((key) => !comparisonHeld.current.has(key))
+      .map(decodeSelection)
+      .filter((entry): entry is ChangeTimelineEntry => Boolean(entry));
+    if (missing.length === 0) {
+      setComparisonCharts(held());
+      return;
+    }
+    const reading = ++comparisonReading.current;
+    setComparisonChartsReading(missing.length);
+    void loadChangeTimelines(apiFetch, cwd, missing)
+      .then((loaded) => {
+        if (reading !== comparisonReading.current) return;
+        for (const read of loaded) {
+          comparisonHeld.current.set(`${read.archived ? "archived" : "active"}:${read.changeName}`, read);
+        }
+        setComparisonCharts(held());
+        setComparisonChartsError(null);
+      })
+      .catch((error: unknown) => {
+        if (reading !== comparisonReading.current) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setComparisonChartsError(`The charts could not be read: ${message}`);
+      })
+      .finally(() => {
+        if (reading === comparisonReading.current) setComparisonChartsReading(0);
+      });
+  }, [comparisonWantedKey, activeTab, timelineMode, cwd]);
+
   // While one change's timeline is shown, the page head names it, as the
-  // mockup's artboard does (the-change-timeline-looks-like-the-mockup).
+  // mockup's artboard does (the-change-timeline-looks-like-the-mockup);
+  // over the comparison it says what the grid covers.
   const pageHead = activeTab === "timeline" && timelineMode === "single" && timeline
     ? {
       tagline: "Timeline",
@@ -1480,7 +1576,25 @@ function StandaloneApp() {
       title: withoutArchivePrefix(timeline.changeName),
       sentence: `${timeline.archived ? "Archived" : "Active"} · each task placed when git shows it was ticked`,
     }
-    : PAGE_HEADS[activeTab];
+    : activeTab === "timeline" && timelineMode === "multi" && spans
+      ? {
+        tagline: "Timeline",
+        icon: "timeline" as const,
+        title: "Compare changes",
+        sentence: describeComparison(comparisonShown, comparisonDays, comparisonNow),
+      }
+      : PAGE_HEADS[activeTab];
+
+  /** The Timeline's three modes, drawn in whichever toolbar the mode has:
+   * its own for one change and the sprint report, the comparison's own for
+   * the comparison, which keeps the screen to one row of controls. */
+  const timelineModes = (
+    <div className="openspec-segmented" role="group" aria-label="Timeline mode">
+      <button type="button" aria-pressed={timelineMode === "single"} onClick={() => setTimelineMode("single")}>One change</button>
+      <button type="button" aria-pressed={timelineMode === "multi"} onClick={() => setTimelineMode("multi")}>Compare changes</button>
+      <button type="button" aria-pressed={timelineMode === "sprint"} onClick={() => setTimelineMode("sprint")}>Sprint report</button>
+    </div>
+  );
   // Active changes first, then the archive newest first, where a change
   // looked for is most likely to be; the folder's date is searchable too.
   const timelinePickerOptions: ChangePickerOption[] = [
@@ -2118,13 +2232,12 @@ function StandaloneApp() {
       <div className="openspec-timeline-screen">
         {/* The mockup's toolbar (the-change-timeline-looks-like-the-mockup):
             the modes as one segmented control, then, for one change, the
-            picker that loads what it is given and the stale threshold. */}
+            picker that loads what it is given and the stale threshold. The
+            comparison carries the same control in its own toolbar row, so
+            the screen keeps one row of controls (the-timeline-compares-changes). */}
+        {timelineMode === "multi" ? null : (
         <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">
-          <div className="openspec-segmented" role="group" aria-label="Timeline mode">
-            <button type="button" aria-pressed={timelineMode === "single"} onClick={() => setTimelineMode("single")}>One change</button>
-            <button type="button" aria-pressed={timelineMode === "multi"} onClick={() => setTimelineMode("multi")}>Compare changes</button>
-            <button type="button" aria-pressed={timelineMode === "sprint"} onClick={() => setTimelineMode("sprint")}>Sprint report</button>
-          </div>
+          {timelineModes}
           {timelineMode === "single" ? (
             <Fragment>
               {/* Found by typing part of its name: a list of hundreds of
@@ -2163,73 +2276,40 @@ function StandaloneApp() {
             </Fragment>
           ) : null}
         </div>
+        )}
 
         {timelineMode === "single" ? (
           timeline ? <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} /> : null
+        ) : timelineMode === "multi" ? (
+          /* Every change on a grid of days, read in one pass
+             (the-timeline-compares-changes). Nothing is asked for first. */
+          spans ? (
+            <ChangeComparisonView
+              leading={timelineModes}
+              window={comparisonDays}
+              rows={comparisonShown}
+              total={comparisonAll.length}
+              period={comparisonPeriod}
+              onPeriod={setComparisonPeriod}
+              filter={comparisonFilter}
+              onFilter={setComparisonFilter}
+              now={comparisonNow}
+              onOpen={openTimelineOf}
+              timelines={comparisonCharts}
+              readingCharts={comparisonChartsReading > 0
+                ? `Reading the history of ${comparisonChartsReading} ${comparisonChartsReading === 1 ? "change" : "changes"} from git…`
+                : null}
+              chartsError={comparisonChartsError}
+            />
+          ) : (
+            <Fragment>
+              <div className="openspec-controls openspec-timeline-toolbar" data-testid="timeline-toolbar">{timelineModes}</div>
+              {spansMessage ? <p className="openspec-shell-note" data-testid="comparison-message">{spansMessage}</p> : null}
+            </Fragment>
+          )
         ) : (
       <section className="openspec-shell-panel">
-        {timelineMode === "multi" ? (
-          <Fragment>
-            <div className="openspec-shell-grid">
-              <label className="openspec-shell-field">
-                Range start
-                <input
-                  type="date"
-                  aria-label="Timeline range start"
-                  value={multiRangeStart}
-                  onChange={(e) => setMultiRangeStart(e.target.value)}
-                />
-              </label>
-              <label className="openspec-shell-field">
-                Range end
-                <input
-                  type="date"
-                  aria-label="Timeline range end"
-                  value={multiRangeEnd}
-                  onChange={(e) => setMultiRangeEnd(e.target.value)}
-                />
-              </label>
-            </div>
-            <label className="openspec-shell-field">
-              Changes to compare
-              <select
-                aria-label="Changes to compare"
-                multiple
-                value={multiSelection}
-                onChange={(e) => setMultiSelection(Array.from(e.target.selectedOptions, (o) => o.value))}
-                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
-              >
-                {(overview?.changes ?? []).map((change) => (
-                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
-                ))}
-                {(overview?.archivedChanges ?? []).map((name) => (
-                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
-                ))}
-              </select>
-            </label>
-            <div className="openspec-ai-panel-controls">
-              <button className="button primary"
-                type="button"
-                onClick={() => void loadMultiTimelines()}
-                disabled={multiLoading || multiSelection.length === 0}
-              >
-                {multiLoading ? "Loading..." : "Load comparison"}
-              </button>
-            </div>
-
-            {multiMessage ? <p className="openspec-shell-note">{multiMessage}</p> : null}
-            {multiTimelines.length > 0 && multiRangeStart && multiRangeEnd ? (
-              <Fragment>
-                <MultiChangeTimelineView
-                  timelines={multiTimelines}
-                  rangeStart={new Date(multiRangeStart).toISOString()}
-                  rangeEnd={new Date(multiRangeEnd).toISOString()}
-                />
-                <ChangeChartsView timelines={multiTimelines} />
-              </Fragment>
-            ) : null}
-          </Fragment>
-        ) : (
+        {(
           <Fragment>
             <div className="openspec-shell-grid">
               <label className="openspec-shell-field">

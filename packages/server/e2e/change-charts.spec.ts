@@ -45,19 +45,14 @@ test.describe("standalone change charts", () => {
       await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
 
       await page.getByRole("tab", { name: "Timeline" }).click();
+      // The comparison draws the whole workspace and then reads the
+      // histories its charts rest on; "All" puts every change on the grid
+      // (the-timeline-compares-changes).
       await page.getByRole("button", { name: "Compare changes" }).click();
-      await page.getByLabel("Timeline range start").fill("2026-03-01");
-      await page.getByLabel("Timeline range end").fill("2026-03-06");
-      await page.getByLabel("Changes to compare").selectOption([
-        "archived:2026-03-02-first-change",
-        "archived:2026-03-02-second-change",
-        "archived:2026-03-03-third-change",
-        "archived:2026-03-05-slow-change",
-        "active:still-open",
-      ]);
-      await page.getByRole("button", { name: "Load comparison" }).click();
+      await expect(page.getByTestId("change-comparison-view")).toBeVisible({ timeout: 60000 });
+      await page.getByRole("button", { name: "All" }).click();
 
-      await expect(page.getByTestId("change-charts")).toBeVisible({ timeout: 20000 });
+      await expect(page.getByTestId("change-charts")).toBeVisible({ timeout: 60000 });
       // Four days: two archived on the 2nd, one on the 3rd, none on the
       // 4th, one on the 5th. The quiet day is a bar of zero, not a
       // missing column.
@@ -98,8 +93,8 @@ test.describe("standalone change charts", () => {
       await expect(workNote).not.toContainText("this repository");
 
       // Scoped to the charts themselves: a full-page capture here is
-      // mostly the range pickers and the lanes above them, which the
-      // timeline's own image already shows.
+      // mostly the grid above them, which the comparison's own pictures
+      // already show.
       await page.getByTestId("change-charts").screenshot({ path: path.join(IMAGES_DIR, "change-charts.png") });
     } finally {
       await server.close();

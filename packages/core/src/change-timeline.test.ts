@@ -15,6 +15,22 @@ import {
 } from "./change-timeline.js";
 import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
+/** Every discovery this file's reads made, with the question each asked.
+ * The mock below delegates to the real one, so nothing here changes what
+ * a reading returns — see the test that reads it. */
+const discoveries: Array<{ root: string; options: unknown }> = [];
+
+vi.mock("./workbench.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./workbench.js")>();
+  return {
+    ...original,
+    discoverOpenSpecWorkspace: (root: string, options?: unknown) => {
+      discoveries.push({ root, options });
+      return original.discoverOpenSpecWorkspace(root, options as never);
+    },
+  };
+});
+
 // Measured baseline on 2026-09-02 before this optimization: this file
 // passed 14/14 in 14.7s and 16.1s on two idle runs. One repository-
 // building test spawned 3 git processes for init/config plus 2 per
@@ -421,6 +437,31 @@ describe("getChangeTimeline — when the work happened", () => {
 });
 
 describe("getChangeTimeline", () => {
+  // the-timeline-compares-changes 1.7. Reading the whole workspace here
+  // cost 585 ms per change, and the comparison's charts ask for 264 of
+  // them. The mock delegates to the real discovery, so what this asserts
+  // is which question was asked, not a stand-in for the answer.
+  it("asks the workspace for the one change it was given, from that list only", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "wanted-change", "- [x] first\n");
+    await writeChangeFiles(root, "other-change", "- [ ] first\n");
+    await commitAll(root, "create two changes", "2026-01-01T00:00:00Z");
+
+    discoveries.length = 0;
+    const timeline = await getChangeTimeline(root, "wanted-change", false);
+
+    expect(discoveries).not.toHaveLength(0);
+    for (const discovery of discoveries) {
+      expect(discovery.options).toMatchObject({ changes: "active", names: ["wanted-change"] });
+    }
+    // And the timeline it returns is the one it always returned.
+    expect(timeline.changeName).toBe("wanted-change");
+    expect(timeline.proposal).toContain("Because.");
+    expect(timeline.tasks).toHaveLength(1);
+    expect(timeline.createdDate).toBe("2026-01-01T00:00:00.000Z");
+  });
+
   it("merges task dates, created date, and markdown content for an active change", async () => {
     const root = await temporaryRoot();
     await initRepo(root);

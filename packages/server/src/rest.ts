@@ -25,6 +25,7 @@ import {
   getChangeTimeline,
   getChangeTimelines,
   readChangeDiff,
+  readChangeSpans,
   InvalidChangeNameError,
   InvalidHarnessConfigError,
   initOpenSpec,
@@ -502,6 +503,32 @@ export async function handleChangeTimelinesRequest(req: IncomingMessage, res: Se
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to read change timelines: ${message}` });
+  }
+}
+
+/** Every change's proposed and archived dates and task counts, in one
+ * pass — what the Timeline's comparison draws before it has any history
+ * (the-timeline-compares-changes). */
+export async function handleChangeSpansRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+
+  if (!isObjectRecord(parsed) || !isNonEmptyString(parsed.cwd)) {
+    sendJson(res, 400, { error: "body must contain cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await readChangeSpans(parsed.cwd));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendJson(res, 500, { error: `failed to read change spans: ${message}` });
   }
 }
 

@@ -179,10 +179,18 @@ being dropped from a screen that claims to compare the workspace.
 
 ### The screen is one component, driven by two hosts
 
-`packages/webui/src/components/ChangeComparisonView.tsx` takes the spans,
-the period, the filter, `now`, and callbacks for opening a change and for
-the charts' timelines. The standalone tab and the editor's webview both
-draw it, as they both draw `ChangeTimelineView`.
+`packages/webui/src/components/ChangeComparisonView.tsx` takes the window
+and the rows core derived, the period and the filter with their handlers,
+`now`, the histories its charts have, and a callback for opening a change.
+The standalone tab and the editor's webview both draw it, as they both draw
+`ChangeTimelineView`.
+
+It takes the derived rows rather than the spans because its host needs the
+same rows anyway — to ask for their histories — and deriving them twice
+from one set of inputs is two answers waiting to differ. It also takes a
+`leading` slot for controls that belong to the host: the standalone shell
+puts the Timeline's three modes there, so the screen keeps the one toolbar
+row the artboard draws, and the editor's panel passes nothing.
 
 `MultiChangeTimelineView.tsx`, its test, its tokens and its styles go with
 it: the grid of markers is what this screen replaces, and keeping both
@@ -221,7 +229,8 @@ for two messages from it:
 
 - `read-timelines` with the entries the charts need, answered with
   `timelines` carrying `getChangeTimelines`' result, or `timelines-failed`
-  carrying the message.
+  carrying the message. The webview keeps what it is sent, so a period
+  changed twice asks for nothing twice.
 - `open-timeline` with a change's name, which opens that change's own
   timeline panel.
 
