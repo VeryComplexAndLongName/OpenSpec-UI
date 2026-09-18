@@ -795,23 +795,32 @@ failed.
 
 ### Requirement: A card shows only whole lines of its text
 
-A closed card SHALL draw only the lines of its text that fit whole, and
-SHALL NOT draw part of a line.
+A card SHALL draw only the lines of its text that fit whole, and SHALL NOT
+draw part of a line.
 
-Which lines fit SHALL be derived from the card's size, not measured after
-drawing.
+A card's size SHALL be derived from what it holds, not measured after
+drawing: its state, its progress, a waiting run's question, the facts it
+draws, up to a fixed number, its controls, and, while it is open, its task
+rows and headings.
 
-Lines that do not fit SHALL remain available on the card to assistive
-technology and in its full text, and the card SHALL show that there is
-more.
+Facts past that number SHALL remain available on the card to assistive
+technology and in its full text, and the card SHALL show how many more there
+are.
 
 An open card SHALL be tall enough to draw every one of its task rows whole.
 
 #### Scenario: More text than room
 
-- **WHEN** a closed card's text has more lines than its size holds
-- **THEN** the card draws the lines that fit whole, shows that there is
-  more, and keeps every line available
+- **WHEN** a card has more facts than the number a card draws
+- **THEN** the card draws that many whole, shows how many more there are,
+  and keeps every fact available
+
+#### Scenario: A busy card and a quiet one
+
+- **WHEN** one card has a waiting run, four facts and controls, and another
+  has only its state and progress
+- **THEN** the first is taller than the second, and each draws every line
+  whole
 
 #### Scenario: An open card with many tasks
 
@@ -1218,6 +1227,9 @@ and SHALL NOT state a cost that was not reported.
 A card SHALL name the working directory and the branch its facts were read
 from.
 
+Each fact a card states SHALL be marked by its kind, and the mark SHALL be
+decoration: the words SHALL state the fact on their own.
+
 #### Scenario: A run whose agent reported no cost
 
 - **WHEN** the change's latest run recorded no usage
@@ -1286,7 +1298,9 @@ section headings.
 
 Each task SHALL state, in words, one of: done, in hand, probably next,
 open, only a person can close it, or delegated to a named agent. At most
-one task SHALL be in hand or probably next.
+one task SHALL be in hand or probably next. Where a row draws a shorter tag
+for its word, such as "A person" or the agent's name, the whole word SHALL
+remain available on the row to assistive technology and in its full text.
 
 Opening a card SHALL NOT change what any card says.
 
@@ -1302,38 +1316,16 @@ Opening a card SHALL NOT change what any card says.
 - **WHEN** a task is marked as delegated to an agent
 - **THEN** its row names that agent
 
-### Requirement: A line inside a card means listed next, and a legend says so
-
-A thin line inside a card SHALL join each task to the task listed after it,
-and SHALL mean only that.
-
-The line between cards SHALL continue to mean a declared order and nothing
-else.
-
-Where the picture shows either kind of line, a legend SHALL state what each
-kind means, and SHALL state that a collision is written on the card and not
-drawn.
-
-No line SHALL be drawn between two tasks for any reason other than their
-order in the list.
-
-#### Scenario: A picture with an open card
-
-- **WHEN** a card is open
-- **THEN** the legend states what the thin line and the line between cards
-  mean
-
 ### Requirement: An open card's size is derived, not measured
 
-An open card's height SHALL be derived from the number of its task rows and
-section headings, in the same units as its position, and SHALL NOT be
-measured after drawing.
+Every card's height SHALL be derived from what it holds, open or closed, in
+the same units as its position, and SHALL NOT be measured after drawing.
 
 Each column SHALL place its cards one below another by their heights.
 Opening a card SHALL move only the cards below it in its own column.
 
-A line between cards SHALL meet a card at the card's head, which opening
-the card does not move.
+A line between cards SHALL meet a card at the card's head, which neither
+opening the card nor what the card holds moves.
 
 #### Scenario: Opening a card in a column of three
 
@@ -1495,4 +1487,46 @@ label, and SHALL be hidden from the accessible name.
 
 - **WHEN** a screen reader reads a control that carries an icon
 - **THEN** it reads the label, and the icon adds nothing to it
+
+### Requirement: A card's state, progress and next step stand out
+
+A card SHALL show its state word in a badge whose colour agrees with the
+word, and SHALL NOT convey the state by colour alone. It SHALL show how many
+of its change's tasks are done as a bar beside the count.
+
+A card's controls SHALL be told apart by what they do: the control that moves
+the change forward SHALL look different from a control that stops a run, and
+both from a control that only copies. A control's accessible name SHALL NOT
+change with its look.
+
+Each column of the picture SHALL be headed by its place in the order.
+
+#### Scenario: A failed change beside a running one
+
+- **WHEN** one change's last run failed and another's run is working
+- **THEN** each card's badge carries its word, "Failed at verify" and
+  "Running", in different colours, and each bar shows its tasks done
+
+#### Scenario: A run waiting at a checkpoint on this host
+
+- **WHEN** a run this host started waits to continue to verify
+- **THEN** the card says so in a callout, "Continue to verify" is drawn as
+  the forward control, and Stop is drawn as a stopping control
+
+#### Scenario: Two columns
+
+- **WHEN** one change waits on another
+- **THEN** the first column is headed as the one that can start now, and the
+  second as the one after it
+
+### Requirement: A legend says what a line between cards means
+
+Where the picture draws a line between two cards, a legend SHALL state that
+the line means the second card waits for the first, and that a collision is
+written on the card and not drawn.
+
+#### Scenario: A picture with a declared order
+
+- **WHEN** a change is blocked by another in the picture
+- **THEN** the legend states what the line between them means
 

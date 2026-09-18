@@ -377,34 +377,6 @@ their own tab, not replace one another.
 - **THEN** the extension shows an error message and does not open a
   webview
 
-### Requirement: A global command compares several changes on a shared timeline
-
-The system SHALL offer a Command Palette command, not tied to any
-single tree item, that lets the user select multiple active and/or
-archived changes and shows them as parallel lanes on a shared,
-log-scaled time axis derived from the selected changes' own data. The
-axis SHALL use a logarithmic scale from the range start, chosen because
-it spreads a dense cluster of near-simultaneous changes into readable
-detail rather than compressing it further.
-
-#### Scenario: User selects changes across active and archived
-
-- **WHEN** the user invokes "Show Change Comparison Timeline" and
-  selects both active and archived changes
-- **THEN** a webview opens showing one lane per selected change, points
-  positioned by their best-effort dates
-
-#### Scenario: User selects no changes
-
-- **WHEN** the user cancels the selection without picking any change
-- **THEN** no webview opens
-
-#### Scenario: The comparison computation fails
-
-- **WHEN** fetching the selected changes' timelines throws
-- **THEN** the extension shows an error message and does not open a
-  webview
-
 ### Requirement: The Change Timeline webview flags stale pending tasks
 
 The system SHALL flag, in the Change Timeline webview, any pending task
@@ -998,4 +970,48 @@ is loaded. It SHALL NOT allow fonts from any other source.
 - **WHEN** a webview that runs a bundle is added without allowing `data:`
   fonts
 - **THEN** the extension's tests fail and name its source file
+
+### Requirement: A global command compares every change on a grid of days
+
+The system SHALL offer a Command Palette command, not tied to any single
+tree item, that opens a webview comparing every change of the workspace on
+a grid whose columns are days — the same screen the standalone shell draws,
+with the editor's own colours.
+
+The command SHALL NOT ask which changes to compare. Picking from a list of
+every change in the workspace is the work the screen exists to do, and the
+editor's answer to "how did this project's changes run" must be the
+browser's answer, not a different one.
+
+The webview SHALL be able to ask the extension host for the histories of
+the changes it is showing, so its charts rest on the same data the
+one-change timeline does, and SHALL state a failed request rather than
+leaving the charts blank. A row SHALL open that change's own timeline
+panel.
+
+Where reading the workspace fails, the extension SHALL say so and open no
+webview.
+
+#### Scenario: Opening the comparison
+
+- **WHEN** the user invokes "Show Change Comparison Timeline"
+- **THEN** a webview opens with every active and archived change drawn as a
+  bar from proposed to archived, with no selection asked for first
+
+#### Scenario: Opening a change from its row
+
+- **WHEN** the user activates a row in the comparison
+- **THEN** that change's own timeline panel opens
+
+#### Scenario: The charts cannot be read
+
+- **WHEN** the webview asks for the histories behind its charts and the
+  read fails
+- **THEN** the webview says the charts could not be read, and the grid
+  stays as it is
+
+#### Scenario: The workspace cannot be read
+
+- **WHEN** reading the workspace's dates throws
+- **THEN** the extension shows an error message and does not open a webview
 
