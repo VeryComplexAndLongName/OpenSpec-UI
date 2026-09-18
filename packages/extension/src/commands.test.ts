@@ -56,6 +56,8 @@ const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
 const editChangeRelationMock = vi.fn();
+const readWorkspaceLeftoversMock = vi.fn();
+const removeWorkingDirectoryMock = vi.fn();
 const resolveCheckScriptsMock = vi.fn();
 const runMechanicalCheckMock = vi.fn();
 class TemplateAlreadyExistsError extends Error { }
@@ -135,6 +137,8 @@ vi.mock("@openspec-ui/core", () => ({
   readChangeGraph: (...args: unknown[]) => readChangeGraphMock(...args),
   CHANGE_RELATION_KEYS: ["follows", "supersedes", "blocked_by"],
   editChangeRelation: (...args: unknown[]) => editChangeRelationMock(...args),
+  readWorkspaceLeftovers: (...args: unknown[]) => readWorkspaceLeftoversMock(...args),
+  removeWorkingDirectory: (...args: unknown[]) => removeWorkingDirectoryMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   resolveCheckScripts: (...args: unknown[]) => resolveCheckScriptsMock(...args),
   runMechanicalCheck: (...args: unknown[]) => runMechanicalCheckMock(...args),
@@ -174,6 +178,7 @@ vi.mock("./webview/timeline-panel.js", () => ({
 }));
 
 const { createRunChoiceHandler, registerCommands } = await import("./commands.js");
+const { LeftoverTreeItem } = await import("./tree/changes-tree.js");
 const { RunController } = await import("./run-controller.js");
 
 afterEach(() => {
@@ -267,6 +272,8 @@ describe("registerCommands", () => {
         "openspec-ui.rollbackChange",
         "openspec-ui.addRelation",
         "openspec-ui.removeRelation",
+        "openspec-ui.removeLeftover",
+        "openspec-ui.removeWorkingDirectory",
       ]),
     );
   });
@@ -2862,5 +2869,69 @@ describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
     expect(editChangeRelationMock).toHaveBeenCalledWith("/workspace/repo", {
       change: "second", key: "follows", add: "first",
     });
+  });
+});
+
+describe("the leftover commands (the-workspace-clears-what-it-left-behind)", () => {
+  it("says what to select rather than guessing, with nothing selected", async () => {
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.removeLeftover")?.();
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("select a directory with no documents"),
+    );
+    expect(readWorkspaceLeftoversMock).not.toHaveBeenCalled();
+  });
+
+  it("names what the directory holds before removing it, and removes it once answered", async () => {
+    readWorkspaceLeftoversMock.mockResolvedValue([
+      { name: "my-idea", path: "/workspace/repo/openspec/changes/my-idea", files: ["harness.json"], onlyProductFiles: true },
+    ]);
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Remove");
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.removeLeftover")?.(
+      new LeftoverTreeItem("my-idea", "/workspace/repo/openspec/changes/my-idea", ["harness.json"], false),
+    );
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("It holds harness.json"),
+      { modal: true },
+      "Remove",
+    );
+    expect(vscodeMock.workspace.fs.delete).toHaveBeenCalled();
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("removes nothing where the question is answered with anything else", async () => {
+    readWorkspaceLeftoversMock.mockResolvedValue([
+      { name: "my-idea", path: "/workspace/repo/openspec/changes/my-idea", files: [], onlyProductFiles: false },
+    ]);
+    vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.removeLeftover")?.(
+      new LeftoverTreeItem("my-idea", "/workspace/repo/openspec/changes/my-idea", [], false),
+    );
+
+    expect(vscodeMock.workspace.fs.delete).not.toHaveBeenCalled();
+  });
+
+  it("shows core's refusal where a working directory is not clean", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue("Remove");
+    removeWorkingDirectoryMock.mockResolvedValue({ ok: false, path: "/wt/change-b", reason: "the working tree is not clean" });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.removeWorkingDirectory")?.("/wt/change-b");
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenLastCalledWith(
+      expect.stringContaining("not clean"),
+    );
+    expect(deps.refreshTrees).not.toHaveBeenCalled();
   });
 });

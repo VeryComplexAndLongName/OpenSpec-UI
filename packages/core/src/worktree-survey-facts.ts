@@ -133,6 +133,15 @@ interface SurveyedDirectoryBase {
    * this product started reports here — never that nobody is in it: a
    * person editing, or an agent started some other way, writes no record. */
   runs: SurveyedRun[];
+  /** Why this directory has nothing left to do, where that is so: its
+   * branch merged into the default branch, or no ref of that name is
+   * left at all. Absent while anything holds it - work in the tree, a run
+   * recorded against it, or a branch still going
+   * (the-workspace-clears-what-it-left-behind). Never a removal: a
+   * directory whose branch merged can still hold somebody's uncommitted
+   * work, so this is what a press is offered beside, not what a sweep
+   * acts on. */
+  finishedWith?: { reason: "merged" | "branch-gone"; branch: string };
 }
 
 export type SurveyedDirectory =

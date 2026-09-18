@@ -51,8 +51,20 @@ export interface WorktreeSurveyOptions {
   /** The directory the survey is taken from. */
   workspaceRoot: string;
   /** Test seam: a wrapper whose calls a test can count. Production builds
-   * one on the repository. */
-  git?: Pick<GitWrapper, "worktreeList" | "configuredIdentity">;
+   * one on the repository. `listRefs` and `mergeBase` are optional: a
+   * survey without them reads every directory as before and says of none
+   * that it is finished with, rather than failing. */
+  git?: Pick<GitWrapper, "worktreeList" | "configuredIdentity">
+  & Partial<Pick<GitWrapper, "listRefs" | "mergeBase">>;
+  /** Whether a directory's tree is clean. Production runs `git status`
+   * in it - the one place this product runs git in a directory it does
+   * not own, and only for a directory whose branch has already been read
+   * as merged or gone, so the cost follows the finished directories
+   * rather than all of them
+   * (the-workspace-clears-what-it-left-behind). */
+  isClean?: (directoryPath: string) => Promise<boolean>;
+  /** The remote whose refs say whether a branch is still going. */
+  remote?: string;
   /** Test seam for where the worktree root, and so the status directory,
    * is read from. */
   rootSources?: WorktreeRootSources;
@@ -399,12 +411,72 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
     reports,
     (directoryPath, changeName) => taskLists.get(taskListKey(directoryPath, changeName)),
   );
+  await markFinishedDirectories(attached.directories, git, options);
   return {
     directories: attached.directories,
     runsElsewhere: attached.runsElsewhere,
     ...(runsUnreadable !== undefined ? { runsUnreadable } : {}),
     ...(thisAuthor !== undefined ? { thisAuthor } : {}),
   };
+}
+
+/** Says of each directory whether it has nothing left to do.
+ *
+ * All three have to hold: the branch is merged into the default branch or
+ * no ref of that name is left, no run is recorded against the directory,
+ * and its tree is clean. The refs are this repository's own, read once;
+ * only the directories that pass the first two are asked whether their
+ * tree is clean, because that is a git invocation in a directory this
+ * host does not own. The main working directory is never marked: it is
+ * where the default branch lives. */
+async function markFinishedDirectories(
+  directories: SurveyedDirectory[],
+  git: Pick<GitWrapper, "worktreeList" | "configuredIdentity"> & Partial<Pick<GitWrapper, "listRefs" | "mergeBase">>,
+  options: WorktreeSurveyOptions,
+): Promise<void> {
+  const candidates = directories.filter(
+    (directory) => !directory.isMain && directory.branch !== undefined && directory.runs.length === 0,
+  );
+  if (candidates.length === 0 || git.listRefs === undefined || git.mergeBase === undefined) return;
+
+  const remote = options.remote ?? "origin";
+  let refs: Map<string, string>;
+  try {
+    refs = new Map((await git.listRefs(["refs/heads", `refs/remotes/${remote}`])).map((ref) => [ref.name, ref.commit]));
+  } catch {
+    return;
+  }
+  const mainCommit = refs.get(`refs/remotes/${remote}/main`) ?? refs.get("refs/heads/main");
+
+  const isClean = options.isClean ?? (async (directoryPath: string) => {
+    try {
+      return (await createGitWrapper({ cwd: directoryPath }).status()).isClean;
+    } catch {
+      return false;
+    }
+  });
+
+  for (const directory of candidates) {
+    const branch = directory.branch as string;
+    const localCommit = refs.get(`refs/heads/${branch}`);
+    const remoteCommit = refs.get(`refs/remotes/${remote}/${branch}`);
+    let reason: "merged" | "branch-gone" | undefined;
+    if (localCommit === undefined && remoteCommit === undefined) {
+      // Nothing of that name is left anywhere, which is what a branch
+      // deleted after its pull request merged looks like from here.
+      reason = "branch-gone";
+    } else if (mainCommit !== undefined) {
+      const tip = remoteCommit ?? localCommit as string;
+      try {
+        if (await git.mergeBase(mainCommit, tip) === tip) reason = "merged";
+      } catch {
+        reason = undefined;
+      }
+    }
+    if (reason === undefined) continue;
+    if (!await isClean(directory.path)) continue;
+    directory.finishedWith = { reason, branch };
+  }
 }
 
 /** Options for re-reading a survey's runs. `git` is accepted so a test can

@@ -446,3 +446,49 @@ describe("ChangesTreeProvider", () => {
     });
   });
 });
+
+describe("ChangesTreeProvider - what the sweep left to say", () => {
+  it("says what it cleared, and shows what it will not clear with what that holds", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      initialized: true,
+      configExists: true,
+      configPath: "/workspace/repo/openspec/config.yaml",
+      changes: [],
+      archivedChanges: [],
+    });
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    provider.setLeftovers({
+      cleared: ["left-behind", "also-left"],
+      kept: [{
+        name: "my-idea",
+        path: "/workspace/repo/openspec/changes/my-idea",
+        files: ["notes.txt"],
+        archived: false,
+      }],
+    });
+
+    const items = await provider.getChildren();
+    const labels = items.map((item) => String(item.label));
+
+    expect(labels).toContain("Cleared 2 directories the archive left behind");
+    expect(labels).toContain("my-idea");
+    const kept = items.find((item) => String(item.label) === "my-idea");
+    expect(kept?.description).toBe("notes.txt");
+    expect(kept?.contextValue).toBe("openspec-ui.leftover");
+  });
+
+  it("says nothing where the sweep found nothing", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      initialized: true,
+      configExists: true,
+      configPath: "/workspace/repo/openspec/config.yaml",
+      changes: [],
+      archivedChanges: [],
+    });
+    const provider = new ChangesTreeProvider("/workspace/repo");
+
+    const labels = (await provider.getChildren()).map((item) => String(item.label));
+
+    expect(labels.some((label) => label.startsWith("Cleared"))).toBe(false);
+  });
+});

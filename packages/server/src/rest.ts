@@ -5,7 +5,7 @@
 // openspec/changes/standalone-app/design.md, "Decisions").
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -51,6 +51,9 @@ import {
   readPipelineReadiness,
   readLastRuns,
   surveyWorktrees,
+  clearWorkspaceLeftovers,
+  readWorkspaceLeftovers,
+  removeWorkingDirectory,
   runDelegatedItem,
   customAgentDirectories,
   findCustomAgents,
@@ -1423,6 +1426,120 @@ export async function handleWorktreeSurveyRequest(
     // it is where records of runs that will never write again are removed
     // (a-stale-status-is-swept). No timer of its own.
     sendJson(res, 200, await surveyWorktrees({ workspaceRoot: parsed.cwd, sweepStatuses: true }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** What a workspace was left holding, swept first.
+ *
+ * The reading is where the sweep runs, as the survey's is where stale
+ * status records are swept: a host that asks what is there is the host
+ * that would have had to ask for the clearing too
+ * (the-workspace-clears-what-it-left-behind). */
+export async function handleWorkspaceLeftoversRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const sweep = await clearWorkspaceLeftovers(parsed.cwd);
+    const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd });
+    sendJson(res, 200, {
+      cleared: sweep.removed,
+      kept: sweep.kept,
+      failures: sweep.failures,
+      finishedWith: survey.directories
+        .filter((directory) => directory.finishedWith !== undefined)
+        .map((directory) => ({
+          path: directory.path,
+          label: directory.label,
+          branch: directory.finishedWith?.branch,
+          reason: directory.finishedWith?.reason,
+        })),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+interface RemoveLeftoverRequest {
+  cwd: string;
+  /** A leftover directory's name under `openspec/changes/`. */
+  name?: string;
+  /** A working directory's path, as the survey reports it. */
+  path?: string;
+}
+
+function isRemoveLeftoverRequest(value: unknown): value is RemoveLeftoverRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.cwd !== "string" || record.cwd.trim().length === 0) return false;
+  const named = typeof record.name === "string" && record.name.trim().length > 0;
+  const pathGiven = typeof record.path === "string" && record.path.trim().length > 0;
+  return named !== pathGiven;
+}
+
+/** Removes one leftover, or one working directory, because somebody
+ * pressed for it.
+ *
+ * A named leftover has to be one the reading reports: a name that is a
+ * change, or one this workspace does not have, is refused rather than
+ * removed, so the route cannot be asked to delete a change. */
+export async function handleRemoveLeftoverRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isRemoveLeftoverRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a cwd and exactly one of name or path" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    if (parsed.name !== undefined) {
+      const leftover = (await readWorkspaceLeftovers(parsed.cwd)).find((one) => one.name === parsed.name);
+      if (!leftover) {
+        sendJson(res, 400, { error: `${parsed.name} is not a leftover of this workspace` });
+        return;
+      }
+      await rm(leftover.path, { recursive: true, force: true });
+      sendJson(res, 200, { removed: leftover.path });
+      return;
+    }
+    const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd });
+    const directory = survey.directories.find((one) => one.path === parsed.path);
+    if (!directory || directory.isMain) {
+      sendJson(res, 400, { error: `${parsed.path} is not a working directory this workspace may remove` });
+      return;
+    }
+    const result = await removeWorkingDirectory(directory.path);
+    if (!result.ok) {
+      sendJson(res, 409, { error: result.reason });
+      return;
+    }
+    sendJson(res, 200, { removed: result.path, linksRemoved: result.linksRemoved });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }

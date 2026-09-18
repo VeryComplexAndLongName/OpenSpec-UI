@@ -629,3 +629,96 @@ describe("surveyWorktrees — the task a run is on (a-run-says-which-task-it-is-
     expect(refreshed.directories[0]?.runs[0]?.task).toEqual({ number: "1.1", text: "Task 1", source: "agent" });
   });
 });
+
+describe("surveyWorktrees - a directory with nothing left to do", () => {
+  /** Refs as this checkout holds them, plus the merge base answer: a tip
+   * that is an ancestor of main is merged. */
+  function refsGit(
+    worktrees: Array<{ path: string; branch?: string }>,
+    refs: Record<string, string>,
+    merged: string[],
+  ) {
+    return {
+      worktreeList: async () => worktrees,
+      configuredIdentity: async () => "someone@example.com",
+      listRefs: async () => Object.entries(refs).map(([name, commit]) => ({ name, commit })),
+      mergeBase: async (_left: string, right: string) => (merged.includes(right) ? right : "0000000"),
+    };
+  }
+
+  it("says a directory is finished with where its branch merged and its tree is clean", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "change-b");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b");
+    const git = refsGit(
+      [{ path: main, branch: "main" }, { path: second, branch: "change-b" }],
+      { "refs/remotes/origin/main": "main-commit", "refs/remotes/origin/change-b": "b-commit" },
+      ["b-commit"],
+    );
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => true });
+
+    expect(survey.directories.map((directory) => directory.finishedWith)).toEqual([
+      undefined,
+      { reason: "merged", branch: "change-b" },
+    ]);
+  });
+
+  it("says nothing of a directory whose tree is not clean", async () => {
+    // A branch that merged can still hold somebody's uncommitted work,
+    // and there is no undo for removing it.
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "change-b");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b");
+    const git = refsGit(
+      [{ path: main, branch: "main" }, { path: second, branch: "change-b" }],
+      { "refs/remotes/origin/main": "main-commit", "refs/remotes/origin/change-b": "b-commit" },
+      ["b-commit"],
+    );
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => false });
+
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+
+  it("calls a directory whose branch is gone from everywhere finished with", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "change-b");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b");
+    const git = refsGit(
+      [{ path: main, branch: "main" }, { path: second, branch: "change-b" }],
+      { "refs/remotes/origin/main": "main-commit" },
+      [],
+    );
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => true });
+
+    expect(survey.directories[1]?.finishedWith).toEqual({ reason: "branch-gone", branch: "change-b" });
+  });
+
+  it("says nothing of a directory a run is recorded against", async () => {
+    const { main, worktreeRoot, rootSources } = await repository();
+    const second = path.join(worktreeRoot, "repo", "change-b");
+    await makeChange(main, "change-a");
+    await makeChange(second, "change-b");
+    await writeStatus(agentStatusDirectory(worktreeRoot, main), {
+      instanceId: "run-b",
+      workingDirectory: second,
+      changeName: "change-b",
+      activity: "Bash: npm test",
+    });
+    const git = refsGit(
+      [{ path: main, branch: "main" }, { path: second, branch: "change-b" }],
+      { "refs/remotes/origin/main": "main-commit", "refs/remotes/origin/change-b": "b-commit" },
+      ["b-commit"],
+    );
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources, isClean: async () => true });
+
+    expect(survey.directories[1]?.runs.length).toBeGreaterThan(0);
+    expect(survey.directories[1]?.finishedWith).toBeUndefined();
+  });
+});

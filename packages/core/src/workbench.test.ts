@@ -15,6 +15,16 @@ vi.setConfig({ testTimeout: 60_000 });
 
 const temporaryRoots: string[] = [];
 
+/** A change directory with a document in it. A directory carrying none
+ * is a leftover rather than a change since
+ * the-workspace-clears-what-it-left-behind, and these fixtures stand for
+ * real changes. */
+async function changeDirectory(root: string, ...names: string[]): Promise<void> {
+  const directory = path.join(root, "openspec", "changes", ...names);
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "proposal.md"), "## Why\n\nA fixture.\n", "utf8");
+}
+
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "openspec-workbench-"));
   temporaryRoots.push(root);
@@ -35,13 +45,30 @@ describe("labelForSchemaArtifact", () => {
 });
 
 describe("discoverOpenSpecWorkspace", () => {
+  // the-workspace-clears-what-it-left-behind 1.6: archiving leaves a
+  // directory behind whenever the product wrote a file the CLI does not
+  // move, and it was listed as a change with no tasks and no state.
+  it("leaves a directory with no document out, and keeps one holding only tasks.md", async () => {
+    const root = await temporaryRoot();
+    const leftover = path.join(root, "openspec", "changes", "left-behind");
+    await mkdir(leftover, { recursive: true });
+    await writeFile(path.join(leftover, "harness.json"), "{}", "utf8");
+    const tasksOnly = path.join(root, "openspec", "changes", "tasks-only");
+    await mkdir(tasksOnly, { recursive: true });
+    await writeFile(path.join(tasksOnly, "tasks.md"), "- [ ] 1.1 Something", "utf8");
+
+    const workspace = await discoverOpenSpecWorkspace(root);
+
+    expect(workspace.changes.map((change) => change.name)).toEqual(["tasks-only"]);
+  });
+
   // the-pipeline-reads-each-workspace-once 1.1: a caller that needs one list
   // reads only that list, and the other is empty.
   it("reads only the active changes, or only the archived ones, when asked", async () => {
     const root = await temporaryRoot();
     await Promise.all([
-      mkdir(path.join(root, "openspec", "changes", "active-change"), { recursive: true }),
-      mkdir(path.join(root, "openspec", "changes", "archive", "2026-09-01-old-change"), { recursive: true }),
+      changeDirectory(root, "active-change"),
+      changeDirectory(root, "archive", "2026-09-01-old-change"),
     ]);
 
     const all = await discoverOpenSpecWorkspace(root);
@@ -59,7 +86,7 @@ describe("discoverOpenSpecWorkspace", () => {
   it("reads only the changes it is given the names of, and prefers the active one", async () => {
     const root = await temporaryRoot();
     await Promise.all(["alpha", "beta", "archive/2026-09-01-old", "archive/beta", "archive/2026-09-02-other"].map((name) =>
-      mkdir(path.join(root, "openspec", "changes", ...name.split("/")), { recursive: true })));
+      changeDirectory(root, ...name.split("/"))));
 
     const named = await discoverOpenSpecWorkspace(root, { names: ["beta", "2026-09-01-old", "missing"] });
     expect([named.changes.map((c) => c.name), named.archivedChanges.map((c) => c.name)]).toEqual([["beta"], ["2026-09-01-old", "beta"]]);
@@ -303,8 +330,8 @@ describe("change lifecycle filesystem operations", () => {
 
   it("deletes only the selected active or archived change", async () => {
     const root = await temporaryRoot();
-    await mkdir(path.join(root, "openspec", "changes", "keep"), { recursive: true });
-    await mkdir(path.join(root, "openspec", "changes", "remove"), { recursive: true });
+    await changeDirectory(root, "keep");
+    await changeDirectory(root, "remove");
 
     await deleteChange(root, "remove", "active");
 

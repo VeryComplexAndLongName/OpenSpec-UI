@@ -826,6 +826,68 @@ export const shellThemeCss = `
     padding: 16px;
   }
 
+  /* What the workspace was left holding: one group per kind, each row a
+     name, what it holds and the press that removes it. Tokens only
+     (the-workspace-clears-what-it-left-behind). */
+  .openspec-leftovers-group {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-leftovers-group:last-child {
+    border-bottom: 0;
+  }
+
+  .openspec-leftovers-group h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+  }
+
+  .openspec-leftovers-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .openspec-leftovers-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    font-size: 13px;
+  }
+
+  .openspec-leftovers-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .openspec-leftovers-note {
+    color: var(--muted);
+  }
+
+  .openspec-leftovers-list button {
+    margin-left: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+  }
+
+  .openspec-leftovers-list button:hover {
+    border-color: var(--link);
+    color: var(--link);
+  }
+
   .openspec-panel-fine {
     margin: 0;
     padding: 10px 16px 12px;

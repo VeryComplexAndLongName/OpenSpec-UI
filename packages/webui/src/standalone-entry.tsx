@@ -38,6 +38,8 @@ const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
  * four times (the-timeline-compares-changes). */
 const CHARTS_ASKED_AFTER_MS = 600;
 import { loadChangeReadiness } from "./change-readiness-client.js";
+import { loadWorkspaceLeftovers, removeWorkspaceLeftover, type WorkspaceLeftoverReading } from "./change-leftovers-client.js";
+import { LeftoverList } from "./components/LeftoverList.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
 import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-client.js";
 import { loadWorktreeSurvey } from "./worktree-survey-client.js";
@@ -618,6 +620,30 @@ function StandaloneApp() {
     await loadOverviewFor(cwd);
   }
 
+  /** What the workspace was left holding, read beside the summary. The
+   * reading sweeps first, so what the product itself left behind is gone
+   * by the time the Summary draws and is named there rather than left to
+   * be noticed (the-workspace-clears-what-it-left-behind). A failure is
+   * its own line, not the summary's.  */
+  async function readLeftoversFor(root: string) {
+    try {
+      setLeftovers(await loadWorkspaceLeftovers(apiFetch, root));
+      setLeftoversError(undefined);
+    } catch (error) {
+      setLeftovers(undefined);
+      setLeftoversError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleRemoveLeftover(target: { name: string } | { path: string }) {
+    try {
+      await removeWorkspaceLeftover(apiFetch, cwd, target);
+      await readLeftoversFor(cwd);
+    } catch (error) {
+      setLeftoversError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   /** What readiness says about each change, for the Changes list's words.
    * A reading that fails leaves the words without it rather than taking
    * the summary down with it: the same trade the standings reading makes. */
@@ -683,6 +709,7 @@ function StandaloneApp() {
           .catch((error: unknown) => setStandingsError(error instanceof Error ? error.message : String(error)));
         void readReadinessFor(root);
       }
+      void readLeftoversFor(root);
       // Read beside the summary, and its failure is its own: a workspace
       // whose task files cannot be read still has a summary worth
       // showing, and losing that to this would be a worse trade.
@@ -866,6 +893,10 @@ function StandaloneApp() {
    * change read Ready, whatever the declared order said - reported by DW
    * (a-blocked-change-says-so-where-it-is-listed). */
   const [changeReadiness, setChangeReadiness] = useState<ChangeReadinessReport | null>(null);
+  /** What the workspace was left holding, and why the reading failed
+   * where it did (the-workspace-clears-what-it-left-behind). */
+  const [leftovers, setLeftovers] = useState<WorkspaceLeftoverReading | undefined>(undefined);
+  const [leftoversError, setLeftoversError] = useState<string | undefined>(undefined);
   const [standingsRefreshing, setStandingsRefreshing] = useState(false);
   const [standingsError, setStandingsError] = useState<string | undefined>(undefined);
   /** Each change's word on the Changes list, with the runs read again while
@@ -1909,6 +1940,8 @@ function StandaloneApp() {
             </div>
           );
         })() : null}
+
+        <LeftoverList reading={leftovers} error={leftoversError} onRemove={(target) => void handleRemoveLeftover(target)} />
 
         {humanOnly ? (
           <section className="openspec-panel openspec-overview-block" data-testid="human-only-inbox">
