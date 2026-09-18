@@ -1,6 +1,7 @@
 import { access, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { mapBounded } from "./bounded-map.js";
+import { holdsChangeDocuments } from "./workspace-leftovers.js";
 import { readChangeState, type ChangeState } from "./change-state.js";
 import {
   assertValidChangeName,
@@ -104,11 +105,13 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function directoryNames(directoryPath: string): Promise<string[]> {
+/** The directories under a path, or - with `files` - everything under
+ * it, which is what deciding whether a directory holds a document needs. */
+async function directoryNames(directoryPath: string, options: { files?: boolean } = {}): Promise<string[]> {
   try {
     const entries = await readdir(directoryPath, { withFileTypes: true });
     return entries
-      .filter((entry) => entry.isDirectory())
+      .filter((entry) => options.files === true || entry.isDirectory())
       .map((entry) => entry.name)
       .sort((left, right) => left.localeCompare(right));
   } catch {
@@ -271,9 +274,17 @@ async function discoverChanges(
   only?: ReadonlySet<string>,
 ): Promise<WorkbenchChange[]> {
   const root = archived ? path.join(changesRoot, "archive") : changesRoot;
-  const names = (await directoryNames(root))
+  const named = (await directoryNames(root))
     .filter((name) => archived || name !== "archive")
     .filter((name) => only === undefined || only.has(name));
+  // A directory carrying no document is not a change, whatever else it
+  // holds: archiving leaves one behind whenever the product wrote a file
+  // the CLI does not move, and it was listed beside real work with no
+  // tasks and no state (the-workspace-clears-what-it-left-behind). The
+  // rule is `workspace-leftovers.ts`'s, read rather than restated.
+  const names = (await mapBounded(named, CHANGES_READ_AT_ONCE, async (name) => (
+    holdsChangeDocuments(await directoryNames(path.join(root, name), { files: true })) ? name : undefined
+  ))).filter((name): name is string => name !== undefined);
   // A few changes at a time, not all of them: every change opens several
   // files, and 256 archived changes started together took every file handle
   // the editor's extension host had (the-pipeline-reads-each-workspace-once).

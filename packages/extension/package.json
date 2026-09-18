@@ -204,6 +204,16 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "openspec-ui.removeLeftover",
+        "title": "OpenSpec UI: Remove This Leftover Directory",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openspec-ui.removeWorkingDirectory",
+        "title": "OpenSpec UI: Remove This Working Directory",
+        "icon": "$(trash)"
+      },
+      {
         "command": "openspec-ui.addRelation",
         "title": "OpenSpec UI: Add Relation",
         "icon": "$(link)"
@@ -453,6 +463,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "openspec-ui.removeLeftover",
+          "when": "viewItem == openspec-ui.leftover",
+          "group": "inline"
+        },
         {
           "command": "openspec-ui.addRelation",
           "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",

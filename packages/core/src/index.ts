@@ -12,6 +12,9 @@ export * from "./change-graph.js";
 // The filesystem half of the relation: reading is change-graph.js, and
 // this writes it back. Not in browser.js - it reads and writes files.
 export * from "./change-relations-file.js";
+// The filesystem side of what a workspace was left holding; the words
+// for it are in the browser leaf.
+export * from "./workspace-leftovers.js";
 export * from "./view-filter.js";
 export * from "./successor-check.js";
 export * from "./spec-delta-check.js";

@@ -8,6 +8,8 @@ import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import {
   CHECK_SCRIPT_NAMES,
   FileAuditLog,
+  LEFTOVER_SWEEP_INTERVAL_MS,
+  clearWorkspaceLeftovers,
   HarnessChainRunner,
   LiveRuns,
   WorkbenchProcessScheduler,
@@ -271,6 +273,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     sayWhatIsFiltered(archiveTreeView as unknown as vscode.TreeView<unknown>, archiveTree);
     sayWhatIsFiltered(specsTreeView as unknown as vscode.TreeView<unknown>, specsTree);
     sayWhatIsFiltered(changeGraphTreeView as unknown as vscode.TreeView<unknown>, changeGraphTree);
+    // What this product left behind, swept on activation and on core's
+    // interval, and said in the Changes view: a directory with no
+    // documents was listed there as a change with no tasks
+    // (the-workspace-clears-what-it-left-behind). The sweep removes only
+    // an archived change's own leavings; everything else is shown.
+    const sweepLeftovers = async () => {
+      if (!workspaceRoot || !changesTree) return;
+      try {
+        const sweep = await clearWorkspaceLeftovers(workspaceRoot);
+        changesTree.setLeftovers({
+          cleared: sweep.removed.map((one) => one.name),
+          kept: sweep.kept.map((one) => ({
+            name: one.name,
+            path: one.path,
+            files: one.files,
+            archived: one.archivedAs !== undefined,
+          })),
+        });
+        for (const failure of sweep.failures) {
+          outputChannel.appendLine(`OpenSpec UI: could not clear ${failure.path} (${failure.reason})`);
+        }
+      } catch (error) {
+        outputChannel.appendLine(`OpenSpec UI: the leftover sweep failed (${error instanceof Error ? error.message : String(error)})`);
+      }
+    };
+    void sweepLeftovers();
+    const sweepTimer = setInterval(() => { void sweepLeftovers(); }, LEFTOVER_SWEEP_INTERVAL_MS);
+    context.subscriptions.push({ dispose: () => clearInterval(sweepTimer) });
+
     filters = {
       archive: { filter: archiveTree.filter, refresh: () => archiveTree?.refresh() },
       specs: { filter: specsTree.filter, refresh: () => specsTree?.refresh() },

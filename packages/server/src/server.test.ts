@@ -1307,6 +1307,75 @@ describe("server — REST /api/status", () => {
     expect(Array.isArray(body.runsElsewhere)).toBe(true);
   });
 
+  // the-workspace-clears-what-it-left-behind 3.3: the reading sweeps
+  // first, and says what it cleared, what it kept and why.
+  it("clears an archived change's leavings and names what it kept", async () => {
+    const cwd = await createTempWorkspace();
+    const changes = path.join(cwd, "openspec", "changes");
+    await mkdir(path.join(changes, "left-behind"), { recursive: true });
+    await writeFile(path.join(changes, "left-behind", "harness.json"), "{}", "utf8");
+    await mkdir(path.join(changes, "archive", "2026-09-10-left-behind"), { recursive: true });
+    await writeFile(path.join(changes, "archive", "2026-09-10-left-behind", "proposal.md"), "## Why\n", "utf8");
+    await mkdir(path.join(changes, "my-idea"), { recursive: true });
+    await writeFile(path.join(changes, "my-idea", "harness.json"), "{}", "utf8");
+
+    const response = await fetch(`${baseUrl}/api/workspace-leftovers`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as {
+      cleared: Array<{ name: string }>;
+      kept: Array<{ name: string }>;
+      failures: unknown[];
+      finishedWith: unknown[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.cleared.map((one) => one.name)).toEqual(["left-behind"]);
+    expect(body.kept.map((one) => one.name)).toEqual(["my-idea"]);
+    expect(body.failures).toEqual([]);
+    expect(Array.isArray(body.finishedWith)).toBe(true);
+  });
+
+  it("refuses to remove a directory that is not a leftover", async () => {
+    const cwd = await createTempWorkspace();
+    const changes = path.join(cwd, "openspec", "changes");
+    await mkdir(path.join(changes, "real-work"), { recursive: true });
+    await writeFile(path.join(changes, "real-work", "tasks.md"), "- [ ] 1.1 Something\n", "utf8");
+
+    const response = await fetch(`${baseUrl}/api/workspace-leftovers/remove`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, name: "real-work" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json() as { error: string }).error).toContain("not a leftover");
+  });
+
+  it("refuses a leftover request for a cwd outside the workspace", async () => {
+    // A workspace boundary of its own, as the neighbouring routes are
+    // held to: this one removes directories.
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+    });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/api/workspace-leftovers`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/outside/repo" }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
   it("rejects a worktree survey request that names no workspace", async () => {
     const response = await fetch(`${baseUrl}/api/worktree-survey`, {
       method: "POST",

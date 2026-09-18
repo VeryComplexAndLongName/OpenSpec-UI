@@ -282,6 +282,48 @@ export class SchemaFallbackTreeItem extends vscode.TreeItem {
   }
 }
 
+/** What the sweep cleared, said once and then only while it is news.
+ * A directory that went without being asked for is stated rather than
+ * left to be noticed (the-workspace-clears-what-it-left-behind). */
+export class LeftoversClearedTreeItem extends vscode.TreeItem {
+  constructor(public readonly names: string[]) {
+    super(
+      names.length === 1
+        ? `Cleared 1 directory the archive left behind`
+        : `Cleared ${names.length} directories the archive left behind`,
+      vscode.TreeItemCollapsibleState.None,
+    );
+    this.id = "leftovers-cleared";
+    this.description = names.join(", ");
+    this.tooltip = `Each held only files this product wrote, and its change is archived: ${names.join(", ")}`;
+    this.contextValue = "openspec-ui.leftoversCleared";
+    this.iconPath = new vscode.ThemeIcon("check");
+  }
+}
+
+/** A directory with no documents that the product will not clear by
+ * itself: it holds something the product did not write, or nothing of its
+ * name is archived. Shown with what it holds, and offering the removal as
+ * a press. */
+export class LeftoverTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly leftoverName: string,
+    public readonly leftoverPath: string,
+    files: string[],
+    archived: boolean,
+  ) {
+    super(leftoverName, vscode.TreeItemCollapsibleState.None);
+    this.id = `leftover:${leftoverName}`;
+    this.description = files.length === 0 ? "empty directory" : files.join(", ");
+    this.tooltip = archived
+      ? "No document in it, and it holds a file this product did not write"
+      : "No document in it, and no change of this name is archived - it may be a change you have not written yet";
+    this.contextValue = "openspec-ui.leftover";
+    this.iconPath = new vscode.ThemeIcon("question");
+    this.resourceUri = vscode.Uri.file(leftoverPath);
+  }
+}
+
 export type WorkbenchTreeItem =
   | ChangeTreeItem
   | ArtifactTreeItem
@@ -291,7 +333,9 @@ export type WorkbenchTreeItem =
   | TaskTreeItem
   | RepoBootstrapRootTreeItem
   | RepoBootstrapActionTreeItem
-  | HarnessSettingsRootTreeItem;
+  | HarnessSettingsRootTreeItem
+  | LeftoversClearedTreeItem
+  | LeftoverTreeItem;
 
 /** Shared by `ChangesTreeProvider` and `ArchiveTreeProvider` — both trees
  * expand a `ChangeTreeItem` the same way: its artifacts, with the
@@ -463,8 +507,26 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   private runsReading: Promise<void> | undefined;
   private runsQueued = false;
   private recordsChangedDuringReading = false;
+  /** What the last sweep cleared and what it left where it is. Set by the
+   * host, which runs the sweep; the view only says what happened
+   * (the-workspace-clears-what-it-left-behind). */
+  private leftovers: { cleared: string[]; kept: Array<{ name: string; path: string; files: string[]; archived: boolean }> } = {
+    cleared: [],
+    kept: [],
+  };
 
   constructor(private readonly workspaceRoot: string, private readonly options: ChangesTreeOptions = {}) { }
+
+  /** What the sweep found, for the rows above the changes. Drawing
+   * follows, since a directory that went while the view was open should
+   * not wait for the next file event to be said. */
+  setLeftovers(reading: {
+    cleared: string[];
+    kept: Array<{ name: string; path: string; files: string[]; archived: boolean }>;
+  }): void {
+    this.leftovers = reading;
+    this.onDidChangeTreeDataEmitter.fire();
+  }
 
   /** Draws the tree again and reads standings again. `fetchNow` fetches refs
    * at once, whatever the interval: the view's Refresh. */
@@ -598,6 +660,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     );
     items.push(new RepoBootstrapRootTreeItem());
     items.push(new HarnessSettingsRootTreeItem());
+    if (this.leftovers.cleared.length > 0) items.push(new LeftoversClearedTreeItem(this.leftovers.cleared));
+    for (const kept of this.leftovers.kept) {
+      items.push(new LeftoverTreeItem(kept.name, kept.path, kept.files, kept.archived));
+    }
     for (const change of workspace.changes) {
       items.push(new ChangeTreeItem(
         change.name,

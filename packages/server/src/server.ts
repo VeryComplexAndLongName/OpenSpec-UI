@@ -38,6 +38,8 @@ import {
   handleLiveRunsRequest,
   handleAskToStopRequest,
   handleWorktreeSurveyRequest,
+  handleWorkspaceLeftoversRequest,
+  handleRemoveLeftoverRequest,
   handleHumanOnlyInboxRequest,
   handleScheduledRunsRequest,
   handleWorkspaceRunStatsRequest,
@@ -274,6 +276,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/worktree-survey") {
       void handleWorktreeSurveyRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/workspace-leftovers") {
+      void handleWorkspaceLeftoversRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/workspace-leftovers/remove") {
+      void handleRemoveLeftoverRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/human-only-inbox") {

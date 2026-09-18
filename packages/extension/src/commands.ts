@@ -43,6 +43,8 @@ import {
   runTimestampsByChange,
   readChangeGraph,
   editChangeRelation,
+  readWorkspaceLeftovers,
+  removeWorkingDirectory,
   getChangeTimelines,
   readChangeSpans,
   initOpenSpec,
@@ -92,7 +94,7 @@ import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode
 import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
-import { ChangeTreeItem } from "./tree/changes-tree.js";
+import { ChangeTreeItem, LeftoverTreeItem } from "./tree/changes-tree.js";
 import { pickChangeToRelate, pickRelationKind, pickRelationToRemove } from "./relation-edit.js";
 import type { ViewFilterState } from "./tree/view-filter-state.js";
 import type { TaskTreeItem } from "./tree/changes-tree.js";
@@ -1124,6 +1126,72 @@ function warnArchivedRelation(change: string): void {
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
+    // A leftover the sweep will not clear by itself, removed because
+    // somebody pressed for it. Asked first, and named in the question:
+    // the whole point of not sweeping these is that one of them may be
+    // somebody's start (the-workspace-clears-what-it-left-behind).
+    vscode.commands.registerCommand("openspec-ui.removeLeftover", async (invokedItem?: unknown) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const item = invokedItem instanceof LeftoverTreeItem
+        ? invokedItem
+        : (deps.changesView?.selection ?? []).find((row): row is LeftoverTreeItem => row instanceof LeftoverTreeItem);
+      if (!item) {
+        void vscode.window.showWarningMessage(
+          "OpenSpec UI: select a directory with no documents in the Changes view, or run this from its right-click menu.",
+        );
+        return;
+      }
+      try {
+        const leftover = (await readWorkspaceLeftovers(workspaceRoot))
+          .find((one) => one.name === item.leftoverName);
+        if (!leftover) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${item.leftoverName} is no longer a directory without documents.`,
+          );
+          return;
+        }
+        const held = leftover.files.length === 0 ? "nothing" : leftover.files.join(", ");
+        const answer = await vscode.window.showWarningMessage(
+          `Remove openspec/changes/${leftover.name}? It holds ${held}, and this cannot be undone.`,
+          { modal: true },
+          "Remove",
+        );
+        if (answer !== "Remove") return;
+        await vscode.workspace.fs.delete(vscode.Uri.file(leftover.path), { recursive: true, useTrash: true });
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(`OpenSpec UI: removed ${leftover.name}.`);
+      } catch (error) {
+        await showCommandError("remove the leftover directory", error);
+      }
+    }),
+    // A working directory the survey calls finished with. Removed only by
+    // a press, and only with a clean tree: core deletes each junction as a
+    // junction first, since a recursive delete through one takes the
+    // primary directory's packages with it.
+    vscode.commands.registerCommand("openspec-ui.removeWorkingDirectory", async (directoryPath?: string) => {
+      if (typeof directoryPath !== "string" || directoryPath.trim().length === 0) {
+        void vscode.window.showWarningMessage("OpenSpec UI: this command is run from a working directory's row.");
+        return;
+      }
+      const answer = await vscode.window.showWarningMessage(
+        `Remove the working directory ${directoryPath}? This cannot be undone.`,
+        { modal: true },
+        "Remove",
+      );
+      if (answer !== "Remove") return;
+      try {
+        const result = await removeWorkingDirectory(directoryPath);
+        if (!result.ok) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.reason}.`);
+          return;
+        }
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(`OpenSpec UI: removed ${result.path}.`);
+      } catch (error) {
+        await showCommandError("remove the working directory", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.addRelation", async (invokedItem?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
