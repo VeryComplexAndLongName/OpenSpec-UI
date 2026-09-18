@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-18T01:22:45.465Z",
+  "generated_at": "2026-09-18T04:53:49.074Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "9be5ad0efab724a4cab5d0bc695513da7b86128a",
+  "commit": "61e677da8657b8afccc0f1c0dc8a7bd15a774cc5",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.60.4",
-      "released_at": "2026-09-18T01:22:45.465Z",
-      "tag": "openspec-ui-vscode@0.60.4",
+      "version": "0.60.5",
+      "released_at": "2026-09-18T04:53:49.074Z",
+      "tag": "openspec-ui-vscode@0.60.5",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.4"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.5"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.4/openspec-ui-vscode-0.60.4.vsix",
-          "size_bytes": 6841712
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.5/openspec-ui-vscode-0.60.5.vsix",
+          "size_bytes": 6916918
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
+          "summary": "Compare changes draws every change of the workspace on a grid of days"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.28.5",
-      "released_at": "2026-09-18T01:22:45.465Z",
+      "version": "1.29.0",
+      "released_at": "2026-09-18T04:53:49.074Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,15 +47,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Compare changes draws every change of the workspace on a grid of days"
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.93.0",
-      "released_at": "2026-09-18T01:22:45.465Z",
+      "version": "0.94.0",
+      "released_at": "2026-09-18T04:53:49.074Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -66,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
+          "summary": "Compare changes draws every change of the workspace on a grid of days"
         }
       ]
     },
@@ -75,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.58.0",
-      "released_at": "2026-09-18T01:22:45.465Z",
+      "version": "1.59.0",
+      "released_at": "2026-09-18T04:53:49.074Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +91,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
+          "summary": "Compare changes draws every change of the workspace on a grid of days"
         }
       ]
     },
@@ -96,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-18T01:22:45.465Z",
+      "released_at": "2026-09-18T04:53:49.074Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
