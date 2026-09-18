@@ -26,4 +26,16 @@ describe("filterChanges", () => {
   it("returns an empty array when nothing matches", () => {
     expect(filterChanges(changes, "does-not-exist")).toEqual([]);
   });
+
+  // the-views-are-searched-and-landed-relations-fold 2.2: the rule is
+  // core's now, and it takes a word from the name and a word from the
+  // state in one query.
+  it("takes one word from the name and one from the state", () => {
+    const changes = [
+      { name: "the-pipeline-cards", state: "in-progress" },
+      { name: "the-pipeline-reads", state: "archived" },
+    ] as Parameters<typeof filterChanges>[0];
+
+    expect(filterChanges(changes, "pipeline progress").map((change) => change.name)).toEqual(["the-pipeline-cards"]);
+  });
 });

@@ -204,6 +204,46 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "openspec-ui.filterArchive",
+        "title": "OpenSpec UI: Filter Archive",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openspec-ui.clearArchiveFilter",
+        "title": "OpenSpec UI: Clear Archive Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openspec-ui.filterSpecs",
+        "title": "OpenSpec UI: Filter Specs",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openspec-ui.clearSpecsFilter",
+        "title": "OpenSpec UI: Clear Specs Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openspec-ui.filterChangeGraph",
+        "title": "OpenSpec UI: Filter Change Graph",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openspec-ui.clearChangeGraphFilter",
+        "title": "OpenSpec UI: Clear Change Graph Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openspec-ui.showLandedRelations",
+        "title": "OpenSpec UI: Show Landed Relations",
+        "icon": "$(unfold)"
+      },
+      {
+        "command": "openspec-ui.hideLandedRelations",
+        "title": "OpenSpec UI: Hide Landed Relations",
+        "icon": "$(fold)"
+      },
+      {
         "command": "openspec-ui.reviewDiff",
         "title": "OpenSpec UI: Review Diff (tasks.md vs HEAD)",
         "icon": "$(diff)"
@@ -318,6 +358,46 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "openspec-ui.filterArchive",
+          "when": "view == openspecUiArchive",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openspec-ui.clearArchiveFilter",
+          "when": "view == openspecUiArchive && openspec-ui.archiveFiltered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.filterSpecs",
+          "when": "view == openspecUiSpecs",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openspec-ui.clearSpecsFilter",
+          "when": "view == openspecUiSpecs && openspec-ui.specsFiltered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.filterChangeGraph",
+          "when": "view == openspecUiChangeGraph",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openspec-ui.clearChangeGraphFilter",
+          "when": "view == openspecUiChangeGraph && openspec-ui.changeGraphFiltered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openspec-ui.showLandedRelations",
+          "when": "view == openspecUiChangeGraph && !openspec-ui.landedRelationsShown",
+          "group": "navigation@3"
+        },
+        {
+          "command": "openspec-ui.hideLandedRelations",
+          "when": "view == openspecUiChangeGraph && openspec-ui.landedRelationsShown",
+          "group": "navigation@3"
+        },
         {
           "command": "openspec-ui.createChange",
           "when": "view == openspecUiChanges",

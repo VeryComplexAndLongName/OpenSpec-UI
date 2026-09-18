@@ -230,3 +230,109 @@ describe("ancestryOf", () => {
     expect(ancestryOf(nodes, "a").map((node) => node.id)).toEqual(["b"]);
   });
 });
+
+describe("ChangeGraphTreeProvider, narrowed and folded", () => {
+  /** A finished branch beside a live one. Every change states a relation:
+   * a change that states none is not in this view at all. */
+  const landedBesideLive = {
+    "old-root": { archived: true },
+    "old-child": { follows: ["old-root"], archived: true },
+    "live-root": {},
+    "live-child": { follows: ["live-root"] },
+  };
+
+  it("folds a branch whose every change has landed, and counts it", async () => {
+    const roots = await provider(landedBesideLive).getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["live-root", "1 landed relation hidden"]);
+  });
+
+  it("shows the folded branch once asked, and stops counting it", async () => {
+    const tree = provider(landedBesideLive);
+    tree.setShowLanded(true);
+
+    const roots = await tree.getChildren();
+
+    expect(tree.landedShown).toBe(true);
+    expect(roots.map((row) => row.label)).toEqual(["live-root", "old-root"]);
+  });
+
+  it("draws an archived change a live one follows, whatever the fold says", async () => {
+    // The parent is the reason the live change exists, so its branch has
+    // not landed however archived the parent is.
+    const roots = await provider({
+      "old-root": { archived: true },
+      live: { follows: ["old-root"] },
+    }).getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["old-root"]);
+  });
+
+  it("draws a landed branch something unfinished is waiting on", async () => {
+    // Folding it would leave a row reading "waiting on old-root" with no
+    // old-root anywhere in the view.
+    const roots = await provider({
+      "old-root": { archived: true },
+      "old-child": { follows: ["old-root"], archived: true },
+      waiting: { blockedBy: ["old-root"] },
+    }).getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["old-root", "waiting"]);
+  });
+
+  it("counts only what it was drawing, not every finished change in the workspace", async () => {
+    // Read live against this repository: an archived change that states no
+    // relation is not in this view at all, so counting it as hidden
+    // promised branches that pressing the row could never show.
+    const roots = await provider({
+      "states-nothing": { archived: true },
+      "live-root": {},
+      "live-child": { follows: ["live-root"] },
+    }).getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["live-root"]);
+  });
+
+  it("narrows the roots to what a word finds, and counts what it shows", async () => {
+    const tree = provider({
+      "the-pipeline-cards": {},
+      "pipeline-child": { follows: ["the-pipeline-cards"] },
+      "the-timeline-compares": {},
+      "timeline-child": { follows: ["the-timeline-compares"] },
+    });
+    tree.filter.set("timeline");
+
+    const roots = await tree.getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["the-timeline-compares"]);
+    expect(tree.filter.message).toBe('Filtered by "timeline" - showing 1 of 2');
+  });
+
+  it("keeps a root whose child matches, so the match can be reached", async () => {
+    const tree = provider({ parent: {}, "wanted-child": { follows: ["parent"] } });
+    tree.filter.set("wanted");
+
+    const roots = await tree.getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["parent"]);
+  });
+
+  it("unfolds a landed branch a word finds inside it", async () => {
+    const tree = provider(landedBesideLive);
+    tree.filter.set("old-child");
+
+    const roots = await tree.getChildren();
+
+    expect(roots.map((row) => row.label)).toEqual(["old-root"]);
+    expect(tree.filter.message).toBe('Filtered by "old-child" - showing 1 of 2');
+  });
+
+  it("says so where a filter matches nothing", async () => {
+    const tree = provider({ first: {}, second: { follows: ["first"] } });
+    tree.filter.set("absent");
+
+    const roots = await tree.getChildren();
+
+    expect(roots[0]?.label).toBe('Nothing matches "absent"');
+  });
+});

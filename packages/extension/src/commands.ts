@@ -92,6 +92,7 @@ import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import { ChangeTreeItem } from "./tree/changes-tree.js";
+import type { ViewFilterState } from "./tree/view-filter-state.js";
 import type { TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
 import type { ImplementationSessionManager } from "./implementation-sessions.js";
@@ -117,6 +118,35 @@ export interface RevealableTreeView<T> extends TreeSelectionView {
   ): Thenable<void>;
 }
 
+/** A view that can be narrowed: the state holding what was typed, and the
+ * way to draw the view again once it changes. */
+export interface FilterableView {
+  readonly filter: ViewFilterState;
+  refresh: () => void;
+}
+
+/** A `FilterableView` that also folds the branches whose every change has
+ * landed, which only the Change Graph does. */
+export interface FoldableView extends FilterableView {
+  readonly landedShown: boolean;
+  setShowLanded: (shown: boolean) => void;
+}
+
+export interface ViewFilters {
+  archive: FilterableView;
+  specs: FilterableView;
+  changeGraph: FoldableView;
+}
+
+/** The context keys the title bars read: a view offers Clear only while
+ * something is filtering it, and the graph offers Show or Hide in turn. */
+export const FILTER_CONTEXT_KEYS = {
+  archive: "openspec-ui.archiveFiltered",
+  specs: "openspec-ui.specsFiltered",
+  changeGraph: "openspec-ui.changeGraphFiltered",
+  landedShown: "openspec-ui.landedRelationsShown",
+} as const;
+
 export interface CommandsDeps {
   getWorkspaceRoot: () => string | undefined;
   runController: RunController;
@@ -137,6 +167,10 @@ export interface CommandsDeps {
   archiveView?: RevealableTreeView<ChangeTreeItem>;
   templatesView?: TreeSelectionView;
   changeGraphView?: RevealableTreeView<GraphTreeNode>;
+  /** The views a reader can narrow, and the graph's fold
+   * (the-views-are-searched-and-landed-relations-fold). Undefined without
+   * a workspace, for the same reason the views above are. */
+  filters?: ViewFilters;
   /** Reads the workspace's audit log. Undefined without an open
    * workspace, where there is nowhere for one to live — the same reason
    * `chain-runner-audit-deps.ts` treats an absent root as a real case
@@ -1029,9 +1063,72 @@ async function confirmSetupActionThatDoesNotApply(
   return proceed === "Run anyway";
 }
 
+/** Asks for the words a view is narrowed by, and draws it again.
+ *
+ * A tree view holds no text box, so the search box a reader expects is an
+ * input box the title bar opens, seeded with what the view is already
+ * narrowed by: a reader who wants to add a word should not have to type
+ * the first one again. Cancelling leaves the filter where it was, so an
+ * escaped keystroke does not silently widen the view.
+ * (the-views-are-searched-and-landed-relations-fold) */
+async function askForFilter(view: FilterableView, title: string, contextKey: string): Promise<void> {
+  const typed = await vscode.window.showInputBox({
+    title,
+    prompt: "Every word must appear somewhere in the row",
+    placeHolder: "Words to narrow this view by",
+    value: view.filter.text,
+  });
+  if (typed === undefined) return;
+  view.filter.set(typed);
+  await vscode.commands.executeCommand("setContext", contextKey, view.filter.active);
+  view.refresh();
+}
+
+async function clearFilter(view: FilterableView, contextKey: string): Promise<void> {
+  view.filter.clear();
+  await vscode.commands.executeCommand("setContext", contextKey, false);
+  view.refresh();
+}
+
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.filterArchive", async () => {
+      if (!deps.filters) return;
+      await askForFilter(deps.filters.archive, "Filter Archive", FILTER_CONTEXT_KEYS.archive);
+    }),
+    vscode.commands.registerCommand("openspec-ui.clearArchiveFilter", async () => {
+      if (!deps.filters) return;
+      await clearFilter(deps.filters.archive, FILTER_CONTEXT_KEYS.archive);
+    }),
+    vscode.commands.registerCommand("openspec-ui.filterSpecs", async () => {
+      if (!deps.filters) return;
+      await askForFilter(deps.filters.specs, "Filter Specs", FILTER_CONTEXT_KEYS.specs);
+    }),
+    vscode.commands.registerCommand("openspec-ui.clearSpecsFilter", async () => {
+      if (!deps.filters) return;
+      await clearFilter(deps.filters.specs, FILTER_CONTEXT_KEYS.specs);
+    }),
+    vscode.commands.registerCommand("openspec-ui.filterChangeGraph", async () => {
+      if (!deps.filters) return;
+      await askForFilter(deps.filters.changeGraph, "Filter Change Graph", FILTER_CONTEXT_KEYS.changeGraph);
+    }),
+    vscode.commands.registerCommand("openspec-ui.clearChangeGraphFilter", async () => {
+      if (!deps.filters) return;
+      await clearFilter(deps.filters.changeGraph, FILTER_CONTEXT_KEYS.changeGraph);
+    }),
+    // The folded row's own command, so pressing the row and pressing the
+    // title bar do the same thing.
+    vscode.commands.registerCommand("openspec-ui.showLandedRelations", async () => {
+      if (!deps.filters) return;
+      deps.filters.changeGraph.setShowLanded(true);
+      await vscode.commands.executeCommand("setContext", FILTER_CONTEXT_KEYS.landedShown, true);
+    }),
+    vscode.commands.registerCommand("openspec-ui.hideLandedRelations", async () => {
+      if (!deps.filters) return;
+      deps.filters.changeGraph.setShowLanded(false);
+      await vscode.commands.executeCommand("setContext", FILTER_CONTEXT_KEYS.landedShown, false);
+    }),
     vscode.commands.registerCommand("openspec-ui.initialize", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;

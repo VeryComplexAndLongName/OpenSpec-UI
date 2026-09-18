@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
-import { readChangeGraph, type ChangeGraph, type ChangeGraphNode } from "@openspec-ui/core";
+import { landedBranches, readChangeGraph, type ChangeGraph, type ChangeGraphNode } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
+import { ViewFilterState } from "./view-filter-state.js";
 
 /** A change as it appears in the relation view.
  *
@@ -60,7 +61,28 @@ export class ChangeGraphNoticeTreeItem extends vscode.TreeItem {
   }
 }
 
-export type GraphTreeNode = ChangeGraphTreeItem | ChangeGraphNoticeTreeItem | EmptyTreeItem;
+/** The branches whose every change has landed, folded away with their
+ * count. Nothing goes quiet: the row is drawn whenever anything is folded,
+ * and pressing it shows them (the-views-are-searched-and-landed-relations-fold). */
+export class ChangeGraphFoldedTreeItem extends vscode.TreeItem {
+  constructor(public readonly hidden: number) {
+    super(
+      `${hidden} landed ${hidden === 1 ? "relation" : "relations"} hidden`,
+      vscode.TreeItemCollapsibleState.None,
+    );
+    this.id = "folded:landed";
+    // Read live against this repository, where 184 branches are folded and
+    // the rest of the view is short: without this the row states a fact and
+    // a reader has no reason to think it can be pressed.
+    this.description = "Press to show";
+    this.contextValue = "openspec-ui.graphFolded";
+    this.iconPath = new vscode.ThemeIcon("archive");
+    this.tooltip = "Every change in these branches is archived";
+    this.command = { command: "openspec-ui.showLandedRelations", title: "Show landed relations" };
+  }
+}
+
+export type GraphTreeNode = ChangeGraphTreeItem | ChangeGraphNoticeTreeItem | ChangeGraphFoldedTreeItem | EmptyTreeItem;
 
 export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTreeNode> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -74,8 +96,25 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
   // one" — this avoids re-reading `openspec/` once per level of a reveal,
   // it does not need to be a full cache with invalidation).
   private lastRead: ChangeGraph | undefined;
+  /** What this view is narrowed by. */
+  readonly filter = new ViewFilterState();
+  /** Whether the branches whose every change has landed are drawn. Off by
+   * default: the view exists to show what is being decided now, and a
+   * finished cluster that stays in the way is what was reported. */
+  private showLanded = false;
 
   constructor(private readonly workspaceRoot: string) { }
+
+  /** Whether the landed branches are being drawn, for the title bar's two
+   * commands and their `when` clause. */
+  get landedShown(): boolean {
+    return this.showLanded;
+  }
+
+  setShowLanded(shown: boolean): void {
+    this.showLanded = shown;
+    this.refresh();
+  }
 
   refresh(): void {
     this.lastRead = undefined;
@@ -122,23 +161,88 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
       return [new EmptyTreeItem("No change states a relation", "Add follows, supersedes or blocked_by to a change")];
     }
 
-    const roots = connected
+    // A branch whose every change is archived is folded away, unless the
+    // reader asked for it or the filter found something inside it: a
+    // reader who types a name expects to be shown that change, whatever
+    // state it is in.
+    // A finished branch that something unfinished is waiting on stays
+    // drawn: folding it would leave a row reading "waiting on base" with
+    // no base anywhere in the view.
+    const awaited = new Set<string>();
+    for (const node of nodes.values()) {
+      if (node.archived) continue;
+      for (const blocker of node.blockedBy) awaited.add(blocker);
+    }
+    // Only the roots this view actually draws can be folded away. Read
+    // live against this repository: counting every landed branch in the
+    // graph promised 184 hidden relations where the view held 28 roots,
+    // because a change that states no relation at all is not in this view
+    // to begin with.
+    const drawnRoots = new Set(connected.filter((node) => node.follows.length === 0).map((node) => node.id));
+    const landed = new Set(
+      landedBranches(nodes)
+        .filter((branch) => branch.landed && !branch.members.some((id) => awaited.has(id)))
+        .map((branch) => branch.root)
+        .filter((root) => drawnRoots.has(root)),
+    );
+    // Only a filter unfolds a branch: with nothing typed `branchMatches`
+    // is true of everything, and taking that as a match would fold away
+    // nothing at all.
+    const matchedRoots = new Set(
+      this.filter.active ? [...landed].filter((root) => branchMatches(root, nodes, children, this.filter)) : [],
+    );
+    const folded = this.showLanded ? new Set<string>() : new Set([...landed].filter((root) => !matchedRoots.has(root)));
+
+    const rootNodes = connected
       .filter((node) => node.follows.length === 0)
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((node) => item(node, waiting, [], children));
+      .filter((node) => !folded.has(node.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const shownRoots = rootNodes.filter((node) => branchMatches(node.id, nodes, children, this.filter));
+    this.filter.counted(shownRoots.length, connected.filter((node) => node.follows.length === 0).length);
+    const roots = shownRoots.map((node) => item(node, waiting, [], children));
+    const foldedRow = folded.size > 0 ? [new ChangeGraphFoldedTreeItem(folded.size)] : [];
 
     const reachable = reachableFromRoots(nodes, children);
     const stranded = connected
       .filter((node) => !reachable.has(node.id))
+      .filter((node) => this.filter.matches([node.id]))
       .sort((a, b) => a.id.localeCompare(b.id));
-    if (stranded.length === 0) return roots;
+    if (stranded.length === 0) {
+      if (roots.length === 0 && this.filter.active) {
+        return [new EmptyTreeItem(`Nothing matches "${this.filter.text}"`, "Clear the filter to see every relation")];
+      }
+      return [...roots, ...foldedRow];
+    }
 
     return [
       ...roots,
+      ...foldedRow,
       new ChangeGraphNoticeTreeItem("Not reachable from any root, which a cycle causes"),
       ...stranded.map((node) => item(node, waiting, [], children)),
     ];
   }
+}
+
+/** Whether a filter finds anything in a branch. A row whose child matches
+ * is kept, or the match could not be reached. */
+function branchMatches(
+  root: string,
+  nodes: ChangeGraph,
+  children: Map<string, string[]>,
+  filter: ViewFilterState,
+): boolean {
+  if (!filter.active) return true;
+  const seen = new Set<string>();
+  const queue = [root];
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = nodes.get(id);
+    if (node && filter.matches([node.id, node.archived ? "archived" : undefined])) return true;
+    queue.push(...(children.get(id) ?? []));
+  }
+  return false;
 }
 
 function item(
