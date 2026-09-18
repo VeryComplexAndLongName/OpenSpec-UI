@@ -23,7 +23,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/node": "^26.5.0",
+    "@types/node": "^26.5.1",
     "@types/cross-spawn": "^6.0.6",
     "@types/pdfkit": "^0.17.6"
   }
