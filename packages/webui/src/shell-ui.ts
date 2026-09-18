@@ -964,19 +964,16 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
-  .openspec-run-insights {
-    margin: 0 0 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line) 75%);
-    background: var(--primary-bg);
-    display: grid;
-    gap: 8px;
+  /* A panel like every other, since that is what it is now: its own
+     tinted box read as a notice rather than as a section
+     (the-remaining-tabs-wear-metro 1.4). What is left is the spacing of
+     the lists inside it. */
+  .openspec-run-insights > :not(.openspec-panel-head) {
+    padding: 0 16px 12px;
   }
 
-  .openspec-run-insights h3 {
-    margin: 0;
-    font-size: 14px;
+  .openspec-run-insights > .openspec-panel-head + * {
+    padding-top: 12px;
   }
 
   .openspec-run-insights-meta {
@@ -2158,16 +2155,35 @@ export const shellThemeCss = `
     letter-spacing: 0.04em;
   }
 
-  .openspec-process-details {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
+  /* The run being reviewed is a panel of its own; what it was - a block
+     with its own top border and two bare headings - is gone
+     (the-remaining-tabs-wear-metro 2.3). */
+  .openspec-process-details .openspec-panel-fine {
+    font-variant-numeric: tabular-nums;
   }
 
-  .openspec-process-details h3,
-  .openspec-process-details h4 {
-    margin: 8px 0;
+  /* A run state is a badge, and what it waits on and what it cost sit
+     beside it as words. */
+  .openspec-process-state-note {
+    margin-left: 8px;
+    color: var(--muted);
   }
+
+  /* A table cell that holds the row's actions, and a badge that says
+     where a template came from (the-remaining-tabs-wear-metro). */
+  .openspec-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .openspec-template-badge {
+    margin-left: 8px;
+  }
+
+  .openspec-template-badge--project { background: var(--cobalt); color: var(--cobalt-ink); }
+  .openspec-template-badge--built-in { background: var(--steel); color: var(--steel-ink); }
+  .openspec-template-badge--customized { background: var(--amber); color: var(--amber-ink); }
 
   .openspec-overview-error {
     margin: 0;
@@ -2175,26 +2191,15 @@ export const shellThemeCss = `
     font-size: 12px;
   }
 
-  .openspec-editor-tabs {
-    display: flex;
-    gap: 8px;
-    margin: 10px 0;
-    flex-wrap: wrap;
-  }
-
-  .openspec-editor-tabs button {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface-2);
-    color: var(--ink);
-    padding: 6px 10px;
-    cursor: pointer;
-  }
-
-  .openspec-editor-tabs button.is-active {
-    background: var(--primary);
-    color: var(--primary-ink);
-    border-color: transparent;
+  /* The document strip was a hand-rolled segmented control with an
+     .is-active modifier; it is the shared one now
+     (the-remaining-tabs-wear-metro 4.2). What is left here is the
+     preview beside the textarea. */
+  .openspec-editor-preview h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
   }
 
   .openspec-editor-grid {
@@ -2313,6 +2318,17 @@ export const shellThemeCss = `
      of moments beside a Tasks tile and the dates, then what the rail cannot
      place. Tokens only, so both themes and the editor's draw it. */
   .openspec-timeline-screen {
+    display: grid;
+    gap: 20px;
+  }
+
+  /* A tab that is a toolbar and its panels, with the same gap the
+     Timeline's screen uses (the-remaining-tabs-wear-metro). */
+  .openspec-diff-screen,
+  .openspec-processes-screen,
+  .openspec-templates-screen,
+  .openspec-run-screen,
+  .openspec-editor-screen {
     display: grid;
     gap: 20px;
   }
@@ -4181,6 +4197,10 @@ export const vscodeThemeCss = `
 
   .openspec-extension-app .openspec-shell-headline,
   .openspec-extension-app .openspec-shell-panel,
+  /* The panel the redrawn screens wear, which the editor draws too
+     (the-remaining-tabs-wear-metro 6.1). */
+  .openspec-extension-app .openspec-panel,
+  .openspec-extension-app .openspec-table,
   .openspec-extension-app .openspec-ai-panel,
   .openspec-extension-app .openspec-status-card,
   .openspec-extension-app .openspec-data-card,
@@ -4211,13 +4231,13 @@ export const vscodeThemeCss = `
      the shell's accent does standalone. Every other button is drawn from
      Metro's variables, which the mapping below sets from the theme. */
   .openspec-extension-app .button.primary,
-  .openspec-extension-app .openspec-editor-tabs button.is-active {
+  .openspec-extension-app .openspec-segmented > button[aria-pressed="true"] {
     color: var(--vscode-button-foreground);
     background: var(--vscode-button-background);
   }
 
   .openspec-extension-app .button.primary:hover:not(:disabled),
-  .openspec-extension-app .openspec-editor-tabs button.is-active:hover {
+  .openspec-extension-app .openspec-segmented > button[aria-pressed="true"]:hover {
     background: var(--vscode-button-hoverBackground);
   }
 
@@ -4267,6 +4287,8 @@ export const vscodeThemeCss = `
   @media (forced-colors: active) {
     .openspec-extension-app .openspec-shell-headline,
     .openspec-extension-app .openspec-shell-panel,
+    .openspec-extension-app .openspec-panel,
+    .openspec-extension-app .openspec-table,
     .openspec-extension-app .openspec-ai-panel {
       border-color: CanvasText;
     }

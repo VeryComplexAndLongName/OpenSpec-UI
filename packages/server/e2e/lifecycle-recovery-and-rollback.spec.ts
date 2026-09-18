@@ -32,8 +32,14 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
       await expect(row).toContainText("interrupted", { timeout: 15000 });
       await row.getByRole("button", { name: "Review" }).click();
 
-      await expect(page.locator(".openspec-process-details h3")).toContainText("implement: interrupted");
-      await expect(page.locator(".openspec-process-details")).toContainText(`modified: ${RELATIVE_FILE_PATH}`);
+      // The run being reviewed is a panel: its head names the operation,
+      // its state is a badge, and its changed files are a table of path
+      // and kind (the-remaining-tabs-wear-metro 2.3).
+      const details = page.locator(".openspec-process-details");
+      await expect(details.getByRole("heading", { name: "implement" })).toBeVisible();
+      await expect(details).toContainText("interrupted");
+      await expect(details).toContainText(RELATIVE_FILE_PATH);
+      await expect(details).toContainText("modified");
 
       const rollbackButton = page.getByRole("button", { name: "Rollback files" });
       await expect(rollbackButton).toBeEnabled();

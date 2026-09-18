@@ -177,8 +177,10 @@ test.describe("standalone documentation screenshots", () => {
       // Scoped to the control row: the editor around it is already its
       // own picture, and README's caption is about this one control.
       await expect(page.getByTestId("run-with-harness-button")).toBeVisible();
-      await page.locator("div", { has: page.getByTestId("run-with-harness-button") })
-        .last()
+      // The row by its own testid, not by the div that happens to hold
+      // the button: that locator was written against a nesting this
+      // change moves (the-remaining-tabs-wear-metro 7.1).
+      await page.getByTestId("change-editor-toolbar")
         .screenshot({ path: path.join(IMAGES_DIR, "run-with-harness.png") });
 
       // 6. The template catalog.

@@ -132,14 +132,17 @@ export function RunDialog(
 
   return (
     <section
-      className="openspec-shell-panel"
+      className="openspec-panel openspec-run-dialog"
       data-testid="run-dialog"
       ref={container}
       role="dialog"
       aria-label={`Run ${changeName}`}
       tabIndex={-1}
     >
-      <h3>{`Run ${changeName}`}</h3>
+      {/* A panel with its head, as every redrawn screen has
+          (the-remaining-tabs-wear-metro 4.5); the dialog role, the focus
+          and every testid are what they were. */}
+      <div className="openspec-panel-head"><h2>{`Run ${changeName}`}</h2></div>
       {/* Said before anything else: this dialog opening by itself is a
           different event from a person opening it, and which one it was
           has to be legible. */}

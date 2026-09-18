@@ -123,7 +123,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
 
   return (
     <div className="openspec-harness-chain-panel">
-      <div className="openspec-ai-panel-controls">
+      <div className="openspec-controls">
         {/* Named for what it does, not for how the harness is entered.
             It used to read "Run with Agentic Harness", which is also the
             dispatch entry rendered directly above it in the standalone

@@ -22,7 +22,10 @@ describe("ProcessesView", () => {
     render(<ProcessesView api={api} />);
     expect(await screen.findByText("interrupted")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(await screen.findByText("modified: src/app.ts")).toBeInTheDocument();
+    // The changed files are a table of path and kind
+    // (the-remaining-tabs-wear-metro 2.3).
+    expect(await screen.findByText("src/app.ts")).toBeInTheDocument();
+    expect(screen.getByText("modified")).toBeInTheDocument();
     expect(screen.getByText(/large\.bin/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Rollback files" }));
     await waitFor(() => expect(api.rollback).toHaveBeenCalledWith("run-1"));
@@ -68,7 +71,10 @@ describe("ProcessesView", () => {
     };
     render(<ProcessesView api={api} />);
 
-    expect(await screen.findByText("completed · $0.26")).toBeInTheDocument();
+    // The state is a badge and what it cost sits beside it
+    // (the-remaining-tabs-wear-metro 2.2).
+    expect(await screen.findByText("completed")).toHaveClass("badge");
+    expect(screen.getByText("$0.26")).toBeInTheDocument();
   });
 
   it("renders the state cell identically to today when the process carries no usage (task 6.3)", async () => {
@@ -98,7 +104,8 @@ describe("ProcessesView", () => {
     };
     render(<ProcessesView api={api} />);
 
-    expect(await screen.findByText("suspended · a CI run to finish")).toBeInTheDocument();
+    expect(await screen.findByText("suspended")).toHaveClass("badge");
+    expect(screen.getByText("a CI run to finish")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     expect(await screen.findByText("Waiting for: a CI run to finish")).toBeInTheDocument();
