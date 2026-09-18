@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChangeStandings, SurveyedRun, WorktreeSurvey } from "@openspec-ui/core/browser";
+import type { ChangeReadinessReport, ChangeStandings, SurveyedRun, WorktreeSurvey } from "@openspec-ui/core/browser";
 import { useStandingStates } from "./standing-states.js";
 
 // the-changes-views-see-a-run-start 3.2: the standalone Changes list reads
@@ -47,6 +47,36 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+// a-blocked-change-says-so-where-it-is-listed 2.3, reported by DW: the list
+// read Ready for a change the graph called blocked, because the word was
+// asked for without the readiness fact.
+describe("useStandingStates - the declared order", () => {
+  const READINESS: ChangeReadinessReport = {
+    changes: [{
+      changeName: "demo",
+      run: { state: "blocked", blockedBy: ["apply-plan-stays-pending"] },
+      blockers: ["apply-plan-stays-pending"],
+      capabilities: [],
+    }],
+  } as unknown as ChangeReadinessReport;
+
+  it("says a change is blocked, and names what blocks it", () => {
+    const loadSurvey = vi.fn<() => Promise<WorktreeSurvey>>().mockResolvedValue(survey([]));
+
+    const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL, READINESS));
+
+    expect(result.current?.get("demo")?.word).toBe("Blocked by apply-plan-stays-pending");
+  });
+
+  it("reads Ready where readiness has not been read", () => {
+    const loadSurvey = vi.fn<() => Promise<WorktreeSurvey>>().mockResolvedValue(survey([]));
+
+    const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL, null));
+
+    expect(result.current?.get("demo")?.word).toBe("Ready");
+  });
 });
 
 describe("useStandingStates", () => {
