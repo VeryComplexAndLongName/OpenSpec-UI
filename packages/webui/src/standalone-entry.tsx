@@ -2106,9 +2106,12 @@ function StandaloneApp() {
         ) : (
         <>
         <section className="openspec-panel">
+          {/* The change, with the document as its note: the textarea
+              below already carries the label "Markdown (proposal)", and a
+              head repeating it spends the line twice. */}
           <div className="openspec-panel-head">
-            <h2>{`Markdown (${editorTab})`}</h2>
-            {editorChangeName.trim().length > 0 ? <span className="openspec-panel-head-note">{editorChangeName}</span> : null}
+            <h2>{editorChangeName.trim().length > 0 ? editorChangeName : "No change loaded"}</h2>
+            <span className="openspec-panel-head-note">{editorTab}</span>
           </div>
         {editorTab === "tasks" ? (
           <div className="openspec-controls">

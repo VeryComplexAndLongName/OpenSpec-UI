@@ -964,19 +964,16 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
-  .openspec-run-insights {
-    margin: 0 0 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--line) 75%);
-    background: var(--primary-bg);
-    display: grid;
-    gap: 8px;
+  /* A panel like every other, since that is what it is now: its own
+     tinted box read as a notice rather than as a section
+     (the-remaining-tabs-wear-metro 1.4). What is left is the spacing of
+     the lists inside it. */
+  .openspec-run-insights > :not(.openspec-panel-head) {
+    padding: 0 16px 12px;
   }
 
-  .openspec-run-insights h3 {
-    margin: 0;
-    font-size: 14px;
+  .openspec-run-insights > .openspec-panel-head + * {
+    padding-top: 12px;
   }
 
   .openspec-run-insights-meta {

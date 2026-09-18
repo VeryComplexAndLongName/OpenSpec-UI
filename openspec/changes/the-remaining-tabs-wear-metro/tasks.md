@@ -200,11 +200,75 @@ handles do not"). A task that has to change one says so.
   a panel head and a table; its assertions moved with the markup. Two other
   failures in that run were load flakes and passed alone (the pipeline's
   order test and the dropped-connection test).
-- [ ] 7.7 **Delegated to claude-cli.** A live check in the Extension
+- [x] 7.7 **Delegated to claude-cli.** A live check in the Extension
   Development Host: the AI panel under Default Dark Modern and a
   high-contrast theme. Evidence to record: the computed `background-color`
   and `color` of the panel and of one badge in each theme, that no token the
   editor layer maps is unset, and the screenshot paths.
-- [ ] 7.8 **Human-only.** Whether the five tabs now read as the same
+
+  Done on 2026-09-18 by Claude, which wrote this change, at the owner's
+  request, for the owner to look at in turn. Playwright drove the Extension
+  Development Host built from this branch, with this repository open, at
+  1440 by 900, and ran "OpenSpec UI: Open Process Dashboard" under each
+  theme.
+
+  The item asks for one `.panel-title`; there is none anywhere in the
+  product since `the-web-ui-screens-wear-metro` replaced Metro's panel head
+  with the shell's own, so the heading read is `.openspec-panel-head h2`.
+
+  - **Default Dark Modern.** Panel background `rgb(24, 24, 24)` with its
+    heading in `rgb(204, 204, 204)`; the heading's own background is
+    `rgba(0, 0, 0, 0)`, which is what a heading has in both themes. No badge
+    is drawn in this panel.
+  - **Default High Contrast.** Panel background `rgb(0, 0, 0)`, heading
+    `rgb(255, 255, 255)`.
+
+  Every one of the 44 tokens the shell declares resolves under Dark Modern.
+  Under High Contrast one does not, and it is the same one the screens
+  change recorded: `--good-bg` is `transparent`, the fallback the editor
+  layer writes where a theme sets no `diffEditor.insertedTextBackground`.
+
+  The run showed the panel wearing the right shape - "Where the work
+  happens" with its note, the controls in one row, "Run analysis" with its
+  figures in the head note, and "What the run said" saying "1 line". It also
+  showed that block still carrying its old tinted background, which in the
+  editor reads as a notice rather than as a section; `shell-ui.ts` now
+  leaves it the panel's own ground, and the pictures were retaken after
+  that.
+
+  Screenshots: `aipanel-default-dark-modern.png` and
+  `aipanel-default-high-contrast.png`, taken outside the repository in the
+  session's scratchpad `screens-live/` and not kept.
+- [x] 7.8 **Human-only.** Whether the five tabs now read as the same
   product as the Summary, the Timeline and the Pipeline, from the captures
   this change retakes.
+
+  Done on 2026-09-18 by Claude, at the owner's request, for the owner to
+  look at in turn, from the pictures this change retakes.
+
+  The five read as the same product as the Summary, the Timeline and the
+  Pipeline: every screen is now a panel with its name on the left of the
+  head and a note on the right, one toolbar above it, a table in the same
+  rules, a badge where a state or an origin is stated, and the panel's own
+  sentence where there is nothing. Run a Command reads as three panels -
+  where the work happens, the run's controls, what the run said - instead of
+  one grey block of fields; Processes says "Persisted runs" and "1 run"
+  where it said nothing; Templates says "Template catalog" and "17
+  templates" and no longer has a category heading pretending to be a table
+  row; the Change Editor's document strip is the same control the Timeline's
+  modes are.
+
+  Two things the captures made me change after the first pass, both in this
+  change:
+
+  - "Run analysis" kept its own tinted box, which inside a panel read as a
+    notice rather than as a section. It takes the panel's own ground now.
+  - The editor's panel head read "Markdown (proposal)" directly above the
+    textarea labelled "Markdown (proposal)". The head names the change now,
+    with the document as its note.
+
+  What is still not of a piece, and is nobody's mockup: the run dialog and
+  the chain panel inside the Change Editor are panels now but sit in the
+  flow of the tab rather than over it, so a run started from the editor
+  still pushes the editor down the page. That is a question about what a
+  dialog is here, not about which components it wears, and it is left alone.
