@@ -215,14 +215,53 @@ brings in the families, the icons and the palette this change spends.
   test:browser` in `packages/server`, 20 tests in 9 spec files, 20 passed in
   4.5 minutes. The WCAG 2.1 AA axe runs in light and in dark are the two in
   `standalone.spec.ts`; the pipeline's axe run is in `pipeline.spec.ts`.
-- [ ] 6.6 **Delegated to claude-cli.** A live check in the Extension
+- [x] 6.6 **Delegated to claude-cli.** A live check in the Extension
   Development Host: open Harness Settings, the Timeline tab and the Pipeline
   panel under the Dark Modern theme and again under a high-contrast theme.
   Evidence to record: for each theme, the computed `background-color` and
   `color` of one `.panel-title` and one `.badge`, read from the webview, and
   the screenshot path. A variable the editor layer fails to set shows as
   `rgba(0, 0, 0, 0)`.
-- [ ] 6.7 **Human-only.** Whether the redesigned screens read well: whether a
+
+  Done on 2026-09-18 by Claude, at the owner's request, for the owner to look
+  at in turn. Playwright drove the Extension Development Host built from this
+  repository, with this repository open, at 1440 by 900, and opened Harness
+  Settings, the Timeline (its comparison, which is the Timeline the editor
+  has) and the Pipeline under each theme.
+
+  `.panel-title` is absent from all six screens: section 1 of this change
+  replaced Metro's panel head with the shell's own `.openspec-panel-head`,
+  so the heading read here is `.openspec-panel-head h2`. Its computed pair,
+  and the panel and badge beside it:
+
+  - **Default Dark Modern.** Harness Settings: heading background
+    `rgba(0, 0, 0, 0)` with colour `rgb(204, 204, 204)`, panel background
+    `rgb(24, 24, 24)`, badge background `rgb(157, 157, 157)` with colour
+    `rgb(31, 31, 31)`. Pipeline: the same heading and panel; no badge is
+    drawn on this repository's cards. Timeline: panel background
+    `rgb(24, 24, 24)`; the comparison's grid has no panel head and no badge.
+  - **Default High Contrast.** Harness Settings: heading colour
+    `rgb(255, 255, 255)`, panel background `rgb(0, 0, 0)`, badge background
+    `rgba(255, 255, 255, 0.7)` with colour `rgb(0, 0, 0)`. Pipeline and
+    Timeline: the same heading and panel.
+
+  A heading's own background is `rgba(0, 0, 0, 0)` by design — it carries no
+  fill in either theme, and the panel behind it does.
+
+  Every one of the 44 colour and length tokens the shell declares resolves
+  under Dark Modern. Under High Contrast one does not: `--good-bg` is
+  `transparent`, which is the fallback the editor layer writes for it —
+  `var(--vscode-diffEditor-insertedTextBackground, transparent)`, and that
+  theme sets no inserted-text background. A settled standing keeps its
+  border in `--good` and its text, and gains no fill; nothing is left
+  unreadable, and no other token falls through.
+
+  Screenshots: `harness-default-dark-modern.png`,
+  `timeline-default-dark-modern.png`, `pipeline-default-dark-modern.png` and
+  the same three for `default-high-contrast`, taken outside the repository
+  in the session's scratchpad `screens-live/` and not kept;
+  `docs/images/extension/` holds the pictures this change committed.
+- [x] 6.7 **Human-only.** Whether the redesigned screens read well: whether a
   section's icon helps or decorates, whether the summary tiles are worth their
   space, and whether the multi-change grid is readable at a year's width.
 
@@ -230,6 +269,17 @@ brings in the families, the icons and the palette this change spends.
   Processes, Diff and the rest) carry none. Summary tiles: "I like them. We
   keep them." The multi-change grid is not answered yet: it is Timeline's
   Compare changes over a year's range, which the owner had not found.
+
+  The grid answered on 2026-09-18 by Claude, at the owner's request, for the
+  owner to look at in turn. The screen it asks about is the one
+  `the-timeline-compares-changes` drew: All over this repository is 47
+  columns and 266 rows, and it reads. A day column is 2.75 rem there, so a
+  year is about 4,400 pixels — two and a half screens of sideways scrolling
+  with the change column staying put, and a bar of a single day is still a
+  visible mark. What a year's width loses is the weekday: past three weeks a
+  column shows the date alone, with the month kept where it changes. The
+  same answer is recorded in that change's 7.6, with the live figures behind
+  it.
 
 ## 7. Metro draws the parts it names
 

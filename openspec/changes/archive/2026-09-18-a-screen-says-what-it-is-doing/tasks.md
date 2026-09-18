@@ -261,13 +261,42 @@ tab's label. The first draft had only the sentence.
     and dark among them, and `tab-reading.spec.ts` new. Of the pictures the
     suite retook, only `diff-preview.png` is kept: it now shows the
     fixture's real diff, and the others differed in their timestamps alone.
-- [ ] 5.6 **Delegated to claude-cli.** A live check against a real server in a
+- [x] 5.6 **Delegated to claude-cli.** A live check against a real server in a
   real repository: open Diff Preview for a change with an edited file, for a
   change with nothing uncommitted, and switch to a tab whose reading is slow.
   Evidence to record: the first three lines of the diff shown, the sentence
   shown for the empty change, the text of the `role="status"` node caught
   while a reading was outstanding, whether a control of that tab was
   disabled at that moment, and the screenshot paths.
+
+  Done on 2026-09-18 by Claude, at the owner's request, for the owner to look
+  at in turn. A server from this branch ran against this worktree of the
+  repository and Playwright drove the shell at 1280 pixels.
+
+  **A change with an edited file** - `the-web-ui-screens-wear-metro`, whose
+  `tasks.md` carried this run's own records uncommitted. The tab said "1 file
+  changed" and drew git's own diff, whose first three lines are:
+
+  ```
+  diff --git a/openspec/changes/the-web-ui-screens-wear-metro/tasks.md b/openspec/changes/the-web-ui-screens-wear-metro/tasks.md
+  index f195d500..32d0c12a 100644
+  --- a/openspec/changes/the-web-ui-screens-wear-metro/tasks.md
+  ```
+
+  **A change with nothing uncommitted** - `a-screen-says-what-it-is-doing`:
+  "This change has nothing uncommitted."
+
+  **A tab caught reading** - the Timeline, entering its comparison, which
+  dates every change of the workspace. Its `role="status"` node read
+  "Reading when every change was proposed and archived...", one tab spinner
+  was up, and the tab's controls were held: the one `fieldset.openspec-busy-fieldset`
+  on the page was disabled, and its first control, the "One change" button,
+  matched `:disabled`.
+
+  Screenshots: `reading-diff-edited.png`, `reading-diff-clean.png` and
+  `reading-timeline.png`, taken outside the repository in the session's
+  scratchpad `screens-live/` and not kept; the pictures this change committed
+  are in `docs/images/standalone/`.
 - [x] 5.7 **Human-only.** Whether the theme switch reads as a switch, and
   whether the waiting sentence answers the question a person actually has
   while looking at a slow tab.
