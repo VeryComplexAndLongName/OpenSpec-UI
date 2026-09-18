@@ -42,8 +42,13 @@ export const DEFAULT_COMPARISON_PERIOD: ComparisonPeriodId = "5-days";
 export interface ComparisonDay {
   /** `YYYY-MM-DD` in the reader's own zone. */
   day: string;
-  /** "Sat 12 Sep". */
+  /** "Sat 12 Sep" — what the column is called, whatever it shows. */
   heading: string;
+  /** What fits in the column at this window's width: the heading over a
+   * few days, the day and month over a couple of weeks, the date alone
+   * over more — with the month kept where it changes, so a reader can
+   * still tell one from the next. */
+  label: string;
   /** Saturday or Sunday: the columns the grid shades. */
   weekend: boolean;
   /** The instants this column begins and ends at, so a bar's position
@@ -58,6 +63,12 @@ export interface ComparisonWindow {
   start: number;
   end: number;
   days: ComparisonDay[];
+  /** How wide one day's column is, in rem — derived here rather than left
+   * to the stylesheet, because it is what decides which label fits. A
+   * five-day window gives a day the room for "Sat 12 Sep"; a window of
+   * months gives it the room for a bar (ADR 0025: derived, not
+   * measured). */
+  dayRem: number;
 }
 
 /** Beyond this many columns a grid is not a picture of anything, and a
@@ -80,13 +91,33 @@ export function comparisonWindow(
   const first = chosen?.days != null
     ? addDays(today, -(Math.max(1, chosen.days) - 1))
     : earliestProposedDay(spans, today);
-  const days: ComparisonDay[] = [];
-  for (let start = Math.min(first, today); start <= today && days.length < MOST_DAYS; start = addDays(start, 1)) {
-    days.push(describeDay(start));
+  const starts: number[] = [];
+  for (let start = Math.min(first, today); start <= today && starts.length < MOST_DAYS; start = addDays(start, 1)) {
+    starts.push(start);
   }
+  const width = dayWidthFor(starts.length);
+  const days = starts.map((start, index) => describeDay(start, width, index === 0 ? undefined : starts[index - 1] as number));
   const firstDay = days[0] as ComparisonDay;
   const lastDay = days[days.length - 1] as ComparisonDay;
-  return { start: firstDay.start, end: lastDay.end, days };
+  return { start: firstDay.start, end: lastDay.end, days, dayRem: width.rem };
+}
+
+/** How much room one day gets, and how much of its name fits in it.
+ *
+ * Three steps rather than a formula: a column either has the room for a
+ * weekday, a month, or a number, and a width between them buys a
+ * half-drawn word. */
+interface DayWidth {
+  rem: number;
+  shows: "heading" | "day-and-month" | "date";
+}
+
+function dayWidthFor(days: number): DayWidth {
+  if (days <= 7) return { rem: 7, shows: "heading" };
+  if (days <= 21) return { rem: 3.5, shows: "day-and-month" };
+  // Wide enough for the month a changed one carries, which is what the
+  // live check at All found clipped to an ellipsis at 2.25rem.
+  return { rem: 2.75, shows: "date" };
 }
 
 function earliestProposedDay(spans: readonly ChangeSpan[], today: number): number {
@@ -282,12 +313,23 @@ function instantOf(fact: DatedFact): number | null {
   return Number.isNaN(at) ? null : at;
 }
 
-function describeDay(start: number): ComparisonDay {
+function describeDay(start: number, width: DayWidth, previous: number | undefined): ComparisonDay {
   const at = new Date(start);
   const weekday = at.getDay();
+  const heading = `${WEEKDAYS[weekday]} ${at.getDate()} ${MONTHS[at.getMonth()]}`;
+  // The month is kept on the first column and wherever it changes, even
+  // at the narrowest width: a run of bare numbers says nothing about
+  // where one month ended.
+  const monthChanged = previous === undefined || new Date(previous).getMonth() !== at.getMonth();
+  const label = width.shows === "heading"
+    ? heading
+    : width.shows === "day-and-month" || monthChanged
+      ? `${at.getDate()} ${MONTHS[at.getMonth()]}`
+      : `${at.getDate()}`;
   return {
     day: `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`,
-    heading: `${WEEKDAYS[weekday]} ${at.getDate()} ${MONTHS[at.getMonth()]}`,
+    heading,
+    label,
     weekend: weekday === 0 || weekday === 6,
     start,
     end: addDays(start, 1),

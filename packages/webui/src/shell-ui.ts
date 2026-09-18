@@ -2834,9 +2834,11 @@ export const shellThemeCss = `
     max-width: 100%;
   }
 
+  /* As wide as its days need, and never narrower than the panel: a
+     column is the width core derived for one day, which is what decides
+     which of its names fits. */
   .openspec-comparison-grid {
-    min-width: 100%;
-    width: max-content;
+    width: max(100%, calc(var(--comparison-name) + var(--comparison-day) * var(--days)));
   }
 
   .openspec-comparison-head {
@@ -2864,14 +2866,14 @@ export const shellThemeCss = `
   .openspec-comparison-days,
   .openspec-comparison-bands {
     display: grid;
-    grid-template-columns: repeat(var(--days), minmax(var(--comparison-day), 1fr));
+    grid-template-columns: repeat(var(--days), minmax(0, 1fr));
     flex: 1 1 auto;
     min-width: calc(100% - var(--comparison-name));
   }
 
   .openspec-comparison-day {
     box-sizing: border-box;
-    padding: 8px;
+    padding: 8px 6px;
     border-left: 1px solid var(--line-strong);
     font-size: 12px;
     color: var(--muted);

@@ -32,6 +32,11 @@ const SUMMARY_TILE_ICONS: Record<SummaryTile["key"], IconMeaning> = {
 
 /** Where the standalone shell keeps what a viewer left the Pipeline as. */
 const PIPELINE_VIEW_STORAGE_KEY = "openspec-ui.pipeline-view";
+
+/** How long the comparison waits before asking for the histories its
+ * charts rest on, so pressing through the periods asks once rather than
+ * four times (the-timeline-compares-changes). */
+const CHARTS_ASKED_AFTER_MS = 600;
 import { loadChangeReadiness } from "./change-readiness-client.js";
 import { loadChangeLastRuns } from "./change-last-runs-client.js";
 import { askRunToStop as askRunToStopRequest, loadLiveRuns } from "./live-runs-client.js";
@@ -1532,6 +1537,11 @@ function StandaloneApp() {
 
   // The histories the charts rest on, for the rows on screen and only for
   // those not read already. The grid is drawn from the spans meanwhile.
+  //
+  // After a pause, not at once: a history costs about two seconds of git
+  // against this repository, and pressing through the periods asked for
+  // 16, then 37, then 149, then 266 of them, each read carrying on after
+  // its answer was no longer wanted (measured live on 2026-09-18).
   useEffect(() => {
     if (activeTab !== "timeline" || timelineMode !== "multi" || cwd.trim().length === 0) return;
     const held = () => comparisonWanted
@@ -1545,25 +1555,28 @@ function StandaloneApp() {
       setComparisonCharts(held());
       return;
     }
-    const reading = ++comparisonReading.current;
-    setComparisonChartsReading(missing.length);
-    void loadChangeTimelines(apiFetch, cwd, missing)
-      .then((loaded) => {
-        if (reading !== comparisonReading.current) return;
-        for (const read of loaded) {
-          comparisonHeld.current.set(`${read.archived ? "archived" : "active"}:${read.changeName}`, read);
-        }
-        setComparisonCharts(held());
-        setComparisonChartsError(null);
-      })
-      .catch((error: unknown) => {
-        if (reading !== comparisonReading.current) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setComparisonChartsError(`The charts could not be read: ${message}`);
-      })
-      .finally(() => {
-        if (reading === comparisonReading.current) setComparisonChartsReading(0);
-      });
+    const asked = setTimeout(() => {
+      const reading = ++comparisonReading.current;
+      setComparisonChartsReading(missing.length);
+      void loadChangeTimelines(apiFetch, cwd, missing)
+        .then((loaded) => {
+          if (reading !== comparisonReading.current) return;
+          for (const read of loaded) {
+            comparisonHeld.current.set(`${read.archived ? "archived" : "active"}:${read.changeName}`, read);
+          }
+          setComparisonCharts(held());
+          setComparisonChartsError(null);
+        })
+        .catch((error: unknown) => {
+          if (reading !== comparisonReading.current) return;
+          const message = error instanceof Error ? error.message : String(error);
+          setComparisonChartsError(`The charts could not be read: ${message}`);
+        })
+        .finally(() => {
+          if (reading === comparisonReading.current) setComparisonChartsReading(0);
+        });
+    }, CHARTS_ASKED_AFTER_MS);
+    return () => clearTimeout(asked);
   }, [comparisonWantedKey, activeTab, timelineMode, cwd]);
 
   // While one change's timeline is shown, the page head names it, as the

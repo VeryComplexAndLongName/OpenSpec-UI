@@ -270,10 +270,11 @@ the mockup's "Timeline: compare changes" artboard draws it
 - [x] 7.1 `npm run typecheck && npm run lint && npm run test` passes,
   run unpiped. Record each package's test count.
 
-  Done on 2026-09-18, run unpiped into a log: typecheck and lint pass in every
-  package. Tests: `@openspec-ui/cli` 161 in 16 files; `@openspec-ui/core` 1527
+  Done on 2026-09-18, run unpiped into a log, and again after 7.5's two fixes
+  on the tree rebased onto `9be5ad0e`: typecheck and lint pass in every
+  package. Tests: `@openspec-ui/cli` 161 in 16 files; `@openspec-ui/core` 1532
   in 110 files and 4 in 2 git-subprocess files; `openspec-ui-vscode` 404 in 30
-  files; `@openspec-ui/server` 106 in 4 files; `@openspec-ui/webui` 593 of 594
+  files; `@openspec-ui/server` 106 in 4 files; `@openspec-ui/webui` 597 of 598
   in 70 files. The one failure is `scripts/build-metro-icons.test.mjs`, which
   compares the generated icon stylesheet with the checked-out one and fails on
   Windows only, where the checkout has CRLF line ends; it fails the same way
@@ -298,14 +299,90 @@ the mockup's "Timeline: compare changes" artboard draws it
   including the new comparison capture (11.0 s) and `change-charts.spec.ts`
   through the new screen (26.3 s). The pictures the other specs rewrote were
   put back; only the two comparison pictures are part of this change.
-- [ ] 7.5 **Delegated to claude-cli.** Live: the comparison against this
+- [x] 7.5 **Delegated to claude-cli.** Live: the comparison against this
   repository on a server run from this branch, in both themes, at each of
   the four periods; and the editor's panel in the Extension Development
   Host, where a row opens that change's timeline. Evidence to record: the
   row count and the sentence at each period, the time from choosing the
   mode to the grid being drawn and to the charts arriving, and the
   screenshot paths.
-- [ ] 7.6 **Human-only.** Whether the screen matches the mockup's
+
+  Done on 2026-09-18 by Claude, which wrote this change, at the owner's
+  request, for the owner to look at in turn. A server from this branch ran
+  against this worktree of the repository, and Playwright drove the Timeline
+  tab at 1280 pixels in both themes:
+
+  - The grid was drawn 5.0 seconds after choosing "Compare changes" — 266
+    changes read in one pass — and redrew in 70-165 ms at every period after
+    that: 2 days 16 rows over 2 columns, 5 days 37 over 5, 2 weeks 149 over
+    14, All 266 over 47 (Mon 3 Aug to today).
+  - The page head read "Compare changes" over "37 changes between Mon 14 Sep
+    and today · each bar runs from proposed to archived", and the sentence
+    followed each period.
+  - The charts arrived 11.4 seconds after the grid for the 37 rows of five
+    days, saying "33 changes · 33 dated from a commit" and "28 of 37 changes
+    have exactly zero days".
+  - Typing "timeline" said "3 of 37 match"; the first row, named
+    "a-card-opens-to-its-tasks, archived, proposed Sun 13 Sep, 18:40, archived
+    Mon 14 Sep, 10:56, 26 tasks", opened that change's own timeline.
+  - Screenshots: `compare-light-2-days.png` through `compare-light-All.png`,
+    the same in dark, and `compare-light-charts.png`, taken outside the
+    repository and not kept; the two pictures in `docs/images/standalone/`
+    show the same screen from the fixture.
+
+  In the Extension Development Host built from this branch, with this
+  repository open, "OpenSpec UI: Show Change Comparison Timeline" opened the
+  same screen with no quick pick, in Default Dark Modern and Default Light
+  Modern: 37 rows over 5 columns, drawn in 21.5 s and 11.7 s, the charts
+  after 33.3 s and 23.1 s, the now line in the editor's own red
+  (rgb(241, 76, 76) dark, rgb(229, 20, 0) light) and a bar in its
+  descriptionForeground; clicking the first row opened the timeline panel
+  headed "a-card-opens-to-its-tasks · Archived".
+
+  The run found two faults, both fixed before the run recorded here:
+
+  - Every press of a period asked for the histories of the rows it showed —
+    16, then 37, then 149, then 266 — each read carrying on after its answer
+    was no longer wanted, and the charts took 77 seconds to appear. Both hosts
+    now wait 600 ms before asking, and the same check took 11.4 seconds.
+  - At All, each of the 47 day columns was as wide as "Mon 3 Aug", so the grid
+    was four screens wide. A column's width and the name it shows are now
+    derived together in core — the heading up to seven days, the day and month
+    up to three weeks, the date alone beyond, with the month kept where it
+    changes — and 2.1 covers it.
+- [x] 7.6 **Human-only.** Whether the screen matches the mockup's
   "Timeline: compare changes" artboard in both hosts, and whether the grid
   reads at a year's width — the part of `the-web-ui-screens-wear-metro`
   6.7 the owner left open.
+
+  Done on 2026-09-18 by Claude, at the owner's request ("if there are human
+  parts again, take them on yourself"), for the owner to look at in turn.
+
+  Against the artboard, in the browser in both themes and in the editor's
+  panel: the toolbar is one row — the three Timeline modes, the period as a
+  segmented control with 5 days pressed, "Filter changes" with its glass, and
+  the legend at the right naming Archived in steel and Active in cobalt; the
+  panel's first column is headed "Change" and stays put while the days
+  scroll; a day column carries its date, Saturday and Sunday are shaded, and
+  the dashed red line stands where now is; a row is its name and a bar from
+  the hour the change was proposed to the hour it was archived, an active
+  one running to the line and fading into it, with "47 tasks" or "25 / 27"
+  beside it; the footnote reads as the artboard writes it. What the artboard
+  does not draw, and the screen keeps, is the charts under the grid — the
+  requirement that they be readable in every host that shows the timeline —
+  and the editor's panel, which carries its own heading instead of a page
+  head and has no mode control.
+
+  The one place the screen departs from the artboard is the figures of a bar
+  that ends near the right edge: they are drawn in front of it rather than
+  after it, because after it they would run off the grid. The artboard's own
+  active rows end far enough from the edge for the question not to arise.
+
+  On whether the grid reads at a year's width — the part of
+  the-web-ui-screens-wear-metro 6.7 the owner left open: All over this
+  repository is 47 columns and 266 rows, and it reads. A day column is 2.75
+  rem there, so a year would be about 4,400 pixels — two and a half screens
+  of sideways scrolling with the change column staying put, and a bar of a
+  day is still a visible mark. What a year's width loses is the weekday: past
+  three weeks a column shows the date alone, with the month where it changes.
+  The owner's own reading of it is still worth having.

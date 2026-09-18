@@ -60,6 +60,10 @@ function host(): WebviewApi | undefined {
   return webviewApi;
 }
 
+/** How long the comparison waits before asking its host for the histories
+ * its charts rest on. The standalone shell waits as long. */
+const CHARTS_ASKED_AFTER_MS = 600;
+
 function keyOf(entry: { changeName: string; archived: boolean }): string {
   return `${entry.archived ? "archived" : "active"}:${entry.changeName}`;
 }
@@ -104,12 +108,19 @@ export function ComparisonApp({ payload }: { payload: ComparisonPayload }) {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  // After a pause, for the reason the standalone shell waits: a history
+  // costs about two seconds of git, and pressing through the periods
+  // would ask for four sets of them, each read carrying on after its
+  // answer was no longer wanted.
   useEffect(() => {
     const held = new Set(timelines.map(keyOf));
     const missing = wanted.filter((entry) => !held.has(keyOf(entry)));
     if (missing.length === 0) return;
-    setReading(missing.length);
-    host()?.postMessage({ type: "read-timelines", entries: missing });
+    const asked = setTimeout(() => {
+      setReading(missing.length);
+      host()?.postMessage({ type: "read-timelines", entries: missing });
+    }, CHARTS_ASKED_AFTER_MS);
+    return () => clearTimeout(asked);
   }, [wantedKey]);
 
   const forCharts = timelines.filter((one) => wanted.some((entry) => keyOf(entry) === keyOf(one)));

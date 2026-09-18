@@ -167,7 +167,12 @@ export function ChangeComparisonView({
         >
           <div
             className="openspec-comparison-grid"
-            style={{ "--days": window.days.length } as React.CSSProperties}
+            style={{
+              "--days": window.days.length,
+              // The width core derived for one day: it is what decides
+              // which of its names fits (ADR 0025).
+              "--comparison-day": `${window.dayRem}rem`,
+            } as React.CSSProperties}
           >
             <div className="openspec-comparison-head">
               <span className="openspec-comparison-name-head">Change</span>
@@ -178,8 +183,9 @@ export function ChangeComparisonView({
                     className="openspec-comparison-day"
                     data-weekend={day.weekend ? "true" : undefined}
                     data-testid={`comparison-day-${day.day}`}
+                    title={day.heading}
                   >
-                    {day.heading}
+                    {day.label}
                   </span>
                 ))}
               </span>

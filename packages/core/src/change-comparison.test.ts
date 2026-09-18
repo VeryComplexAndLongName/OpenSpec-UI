@@ -66,6 +66,28 @@ describe("comparisonWindow", () => {
     expect(comparisonWindow("2-weeks", [], NOW).days).toHaveLength(14);
   });
 
+  // A column either has the room for a weekday, a month or a number, and
+  // the live check at All found 47 columns each as wide as "Mon 3 Aug".
+  it("narrows a day and shortens its name as the window widens", () => {
+    const five = comparisonWindow("5-days", [], NOW);
+    expect(five.dayRem).toBe(7);
+    expect(five.days[0]?.label).toBe("Sat 12 Sep");
+
+    const fortnight = comparisonWindow("2-weeks", [], NOW);
+    expect(fortnight.dayRem).toBe(3.5);
+    expect(fortnight.days[0]?.label).toBe("3 Sep");
+    expect(fortnight.days[0]?.heading).toBe("Thu 3 Sep");
+
+    const all = comparisonWindow("all", [span("old", at(2026, 7, 20, 9, 0), at(2026, 7, 21, 9, 0))], NOW);
+    expect(all.dayRem).toBe(2.75);
+    // The date alone, except where the month changes — a run of bare
+    // numbers says nothing about where one month ended.
+    expect(all.days[0]?.label).toBe("20 Jul");
+    expect(all.days[1]?.label).toBe("21");
+    expect(all.days.find((day) => day.day === "2026-08-01")?.label).toBe("1 Aug");
+    expect(all.days.find((day) => day.day === "2026-08-02")?.label).toBe("2");
+  });
+
   it("marks Saturday and Sunday", () => {
     const window = comparisonWindow("5-days", [], NOW);
     expect(window.days.map((day) => day.weekend)).toEqual([true, true, false, false, false]);
