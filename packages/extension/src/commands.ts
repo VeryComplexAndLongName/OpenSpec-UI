@@ -42,6 +42,7 @@ import {
   openTaskCount,
   runTimestampsByChange,
   readChangeGraph,
+  editChangeRelation,
   getChangeTimelines,
   readChangeSpans,
   initOpenSpec,
@@ -92,6 +93,7 @@ import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import { ChangeTreeItem } from "./tree/changes-tree.js";
+import { pickChangeToRelate, pickRelationKind, pickRelationToRemove } from "./relation-edit.js";
 import type { ViewFilterState } from "./tree/view-filter-state.js";
 import type { TaskTreeItem } from "./tree/changes-tree.js";
 import type { TemplateTreeItem } from "./tree/templates-tree.js";
@@ -1090,9 +1092,92 @@ async function clearFilter(view: FilterableView, contextKey: string): Promise<vo
   view.refresh();
 }
 
+/** The change a relation command acts on: the row it was invoked on, or
+ * the one highlighted in the view it belongs to. Either view will do -
+ * the Changes list and the Change Graph both name one change per row -
+ * and an archived row is reported here rather than after two questions,
+ * since core refuses an edit to an archived change and would refuse it
+ * at the end (a-relation-is-set-where-it-is-read). */
+function relationSubject(
+  item: unknown,
+  deps: CommandsDeps,
+): { name: string; archived: boolean } | undefined {
+  // The invoked row decides, and its kind decides which field names the
+  // change: `resolveTreeItem` takes any row it is handed, so asking it
+  // twice with two kind checks would read a graph row as a Changes row.
+  if (isChangeTreeItem(item)) return { name: item.changeName, archived: item.archived };
+  if (isChangeGraphTreeItem(item)) return { name: item.node.id, archived: item.node.archived };
+  if (item !== undefined) return undefined;
+  const selectedChange = resolveTreeItem(undefined, deps.changesView, isChangeTreeItem);
+  if (selectedChange) return { name: selectedChange.changeName, archived: selectedChange.archived };
+  const selectedRow = resolveTreeItem(undefined, deps.changeGraphView, isChangeGraphTreeItem);
+  if (selectedRow) return { name: selectedRow.node.id, archived: selectedRow.node.archived };
+  return undefined;
+}
+
+function warnArchivedRelation(change: string): void {
+  void vscode.window.showWarningMessage(
+    `OpenSpec UI: ${change} is archived, and an archived change's relations are history.`,
+  );
+}
+
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandsDeps): void {
   const timelinePanel = new TimelineWebviewPanel({ extensionUri: context.extensionUri });
   context.subscriptions.push(
+    vscode.commands.registerCommand("openspec-ui.addRelation", async (invokedItem?: unknown) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const subject = relationSubject(invokedItem, deps);
+      if (!subject) { warnNoTreeSelection("change"); return; }
+      if (subject.archived) { warnArchivedRelation(subject.name); return; }
+      try {
+        const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
+        const key = await pickRelationKind(subject.name);
+        if (!key) return;
+        const named = await pickChangeToRelate(graph, subject.name, key);
+        if (!named) return;
+        const result = await editChangeRelation(workspaceRoot, { change: subject.name, key, add: named });
+        if (!result.ok) {
+          // The refusal core wrote, as it wrote it: a cycle names the
+          // changes in it, and an unknown id names the id.
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.message}.`);
+          return;
+        }
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: ${subject.name} now states ${key} ${named}.`,
+        );
+      } catch (error) {
+        await showCommandError("add relation", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.removeRelation", async (invokedItem?: unknown) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const subject = relationSubject(invokedItem, deps);
+      if (!subject) { warnNoTreeSelection("change"); return; }
+      if (subject.archived) { warnArchivedRelation(subject.name); return; }
+      try {
+        const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
+        const stated = await pickRelationToRemove(graph.get(subject.name));
+        if (!stated) return;
+        const result = await editChangeRelation(workspaceRoot, {
+          change: subject.name,
+          key: stated.key,
+          remove: stated.id,
+        });
+        if (!result.ok) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.message}.`);
+          return;
+        }
+        deps.refreshTrees();
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: ${subject.name} no longer states ${stated.key} ${stated.id}.`,
+        );
+      } catch (error) {
+        await showCommandError("remove relation", error);
+      }
+    }),
     vscode.commands.registerCommand("openspec-ui.filterArchive", async () => {
       if (!deps.filters) return;
       await askForFilter(deps.filters.archive, "Filter Archive", FILTER_CONTEXT_KEYS.archive);

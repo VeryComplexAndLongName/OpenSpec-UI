@@ -9,6 +9,9 @@ export * from "./audit-message.js";
 export * from "./change-state.js";
 export * from "./change-standing.js";
 export * from "./change-graph.js";
+// The filesystem half of the relation: reading is change-graph.js, and
+// this writes it back. Not in browser.js - it reads and writes files.
+export * from "./change-relations-file.js";
 export * from "./view-filter.js";
 export * from "./successor-check.js";
 export * from "./spec-delta-check.js";
