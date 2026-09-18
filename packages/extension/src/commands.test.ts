@@ -55,6 +55,7 @@ const readChangeHarnessConfigMock = vi.fn();
 const detectAvailableAgentsDetailedMock = vi.fn();
 const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
+const editChangeRelationMock = vi.fn();
 const resolveCheckScriptsMock = vi.fn();
 const runMechanicalCheckMock = vi.fn();
 class TemplateAlreadyExistsError extends Error { }
@@ -132,6 +133,8 @@ vi.mock("@openspec-ui/core", () => ({
     stage === "archive" || stepAgents === undefined ? undefined : stepAgents[stage],
   readArchivedChangeTasksTemplate: (...args: unknown[]) => readArchivedChangeTasksTemplateMock(...args),
   readChangeGraph: (...args: unknown[]) => readChangeGraphMock(...args),
+  CHANGE_RELATION_KEYS: ["follows", "supersedes", "blocked_by"],
+  editChangeRelation: (...args: unknown[]) => editChangeRelationMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   resolveCheckScripts: (...args: unknown[]) => resolveCheckScriptsMock(...args),
   runMechanicalCheck: (...args: unknown[]) => runMechanicalCheckMock(...args),
@@ -262,6 +265,8 @@ describe("registerCommands", () => {
         "openspec-ui.openAiPanel",
         "openspec-ui.reviewDiff",
         "openspec-ui.rollbackChange",
+        "openspec-ui.addRelation",
+        "openspec-ui.removeRelation",
       ]),
     );
   });
@@ -2741,5 +2746,121 @@ describe("createRunChoiceHandler", () => {
 
     expect(writeChangeHarnessConfigMock).not.toHaveBeenCalled();
     expect(deps.outputChannel.appendLine).toHaveBeenCalledWith(expect.stringContaining("not-an-agent"));
+  });
+});
+
+describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
+  function graphOf(spec: Record<string, { archived?: boolean; follows?: string[]; blockedBy?: string[] }>) {
+    return new Map(Object.entries(spec).map(([id, value]) => [id, {
+      id,
+      archived: value.archived ?? false,
+      follows: value.follows ?? [],
+      supersedes: [],
+      blockedBy: value.blockedBy ?? [],
+      errors: [],
+      metadataPath: `openspec/changes/${id}/.openspec.yaml`,
+    }]));
+  }
+
+  const activeRow = (name: string) => ({
+    contextValue: "openspec-ui.activeChange",
+    changeName: name,
+    archived: false,
+  });
+
+  it("states the relation the reader picked, and redraws the views", async () => {
+    readChangeGraphMock.mockResolvedValue(graphOf({ first: {}, second: {} }));
+    vscodeMock.window.showQuickPick
+      .mockResolvedValueOnce({ key: "blocked_by", label: "Blocked by" })
+      .mockResolvedValueOnce({ id: "first", label: "first" });
+    editChangeRelationMock.mockResolvedValue({
+      ok: true, change: "second", key: "blocked_by", ids: ["first"], metadataPath: "x", written: true,
+    });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.(activeRow("second"));
+
+    expect(editChangeRelationMock).toHaveBeenCalledWith("/workspace/repo", {
+      change: "second", key: "blocked_by", add: "first",
+    });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("shows core's refusal, naming the changes in the cycle, and redraws nothing", async () => {
+    readChangeGraphMock.mockResolvedValue(graphOf({ first: { follows: ["second"] }, second: {} }));
+    vscodeMock.window.showQuickPick
+      .mockResolvedValueOnce({ key: "blocked_by", label: "Blocked by" })
+      .mockResolvedValueOnce({ id: "first", label: "first" });
+    editChangeRelationMock.mockResolvedValue({
+      ok: false,
+      reason: "cycle",
+      ids: ["second", "first", "second"],
+      message: "That would close a cycle: second then first then second",
+    });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.(activeRow("second"));
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining("That would close a cycle: second then first then second"),
+    );
+    expect(deps.refreshTrees).not.toHaveBeenCalled();
+  });
+
+  it("offers nothing on an archived row, rather than refusing after two questions", async () => {
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.({
+      contextValue: "openspec-ui.archivedChange",
+      changeName: "old-change",
+      archived: true,
+    });
+
+    expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+    expect(editChangeRelationMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("archived"));
+  });
+
+  it("takes back the relation the reader picked from the ones stated", async () => {
+    readChangeGraphMock.mockResolvedValue(graphOf({ first: {}, second: { blockedBy: ["first"] } }));
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({
+      relation: { key: "blocked_by", id: "first" }, label: "first",
+    });
+    editChangeRelationMock.mockResolvedValue({
+      ok: true, change: "second", key: "blocked_by", ids: [], metadataPath: "x", written: true,
+    });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.removeRelation")?.(activeRow("second"));
+
+    expect(editChangeRelationMock).toHaveBeenCalledWith("/workspace/repo", {
+      change: "second", key: "blocked_by", remove: "first",
+    });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  it("acts on a Change Graph row as readily as on a Changes row", async () => {
+    readChangeGraphMock.mockResolvedValue(graphOf({ first: {}, second: {} }));
+    vscodeMock.window.showQuickPick
+      .mockResolvedValueOnce({ key: "follows", label: "Follows" })
+      .mockResolvedValueOnce({ id: "first", label: "first" });
+    editChangeRelationMock.mockResolvedValue({
+      ok: true, change: "second", key: "follows", ids: ["first"], metadataPath: "x", written: true,
+    });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.({
+      contextValue: "openspec-ui.graphActiveChange",
+      node: { id: "second", archived: false },
+    });
+
+    expect(editChangeRelationMock).toHaveBeenCalledWith("/workspace/repo", {
+      change: "second", key: "follows", add: "first",
+    });
   });
 });

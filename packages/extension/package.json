@@ -204,6 +204,16 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "openspec-ui.addRelation",
+        "title": "OpenSpec UI: Add Relation",
+        "icon": "$(link)"
+      },
+      {
+        "command": "openspec-ui.removeRelation",
+        "title": "OpenSpec UI: Remove Relation",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "openspec-ui.filterArchive",
         "title": "OpenSpec UI: Filter Archive",
         "icon": "$(search)"
@@ -443,6 +453,16 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "openspec-ui.addRelation",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "group": "relation@1"
+        },
+        {
+          "command": "openspec-ui.removeRelation",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "group": "relation@2"
+        },
         {
           "command": "openspec-ui.reviewDiff",
           "when": "viewItem == openspec-ui.activeChange",
