@@ -30,6 +30,9 @@ export type {
   TemplateVariable,
 } from "./template-catalog.js";
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
+// The spans a comparison draws, as types only: the read that fills them
+// spawns git, and the screen is handed its result by a host.
+export type { ChangeSpan, ChangeSpans } from "./change-spans.js";
 // Types and one pure builder — no git, no filesystem, so the browser can
 // read a change's dates and say where each came from.
 export { buildChangeDates, NO_DATE, UNREADABLE_DATE, normalizedInstant, readDatedFact, withoutArchivePrefix } from "./change-dates.js";
@@ -220,3 +223,6 @@ export * from "./pipeline-card.js";
 // a-hint-says-what-can-run-together.
 export * from "./hints.js";
 export * from "./change-layout.js";
+// Which days the Timeline's comparison covers and where each change's bar
+// sits on them — derived, never measured (the-timeline-compares-changes).
+export * from "./change-comparison.js";

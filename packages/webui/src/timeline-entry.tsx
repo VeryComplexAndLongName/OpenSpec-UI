@@ -1,43 +1,163 @@
 // Entry point for the VS Code extension's Timeline webview (see
-// openspec/changes/add-change-timeline-view/design.md). Deliberately
-// simpler than extension-entry.tsx's message-bridge: the extension host
-// already computed the `ChangeTimeline` via a direct `@openspec-ui/core`
-// import (no HTTP, no local server) and embeds it as a global before this
-// script loads — a one-shot render of already-fetched data, not a live
-// stream, so no message listener is needed. Not part of the package's
-// public API.
+// openspec/changes/add-change-timeline-view/design.md). One change's
+// timeline is a one-shot render: the extension host already computed the
+// `ChangeTimeline` via a direct `@openspec-ui/core` import (no HTTP, no
+// local server) and embedded it as a global before this script loads.
+//
+// The comparison is the same one-shot render of the spans, plus the two
+// messages it cannot answer itself (the-timeline-compares-changes): the
+// histories its charts rest on, which the host reads, and opening one
+// change's own timeline, which the host opens. That is the message bridge
+// ADR 0001 names as the extension's primary mode, not a local server.
+//
+// Not part of the package's public API.
 
+import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  comparisonRows,
+  comparisonWindow,
+  DEFAULT_COMPARISON_PERIOD,
+  describeComparison,
+  type ChangeSpan,
+  type ComparisonPeriodId,
+} from "@openspec-ui/core/browser";
 import { ChangeTimelineView } from "./components/ChangeTimelineView.js";
-import { MultiChangeTimelineView } from "./components/MultiChangeTimelineView.js";
-import { ChangeChartsView } from "./components/ChangeChartsView.js";
+import { ChangeComparisonView } from "./components/ChangeComparisonView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
 import { metroRootClassName, useEditorDarkTheme } from "./vscode-theme.js";
 import type { ChangeTimeline } from "./change-timeline-client.js";
 
-interface MultiChangeTimelinePayload {
-  timelines: ChangeTimeline[];
-  rangeStart: string;
-  rangeEnd: string;
+interface ComparisonPayload {
+  spans: ChangeSpan[];
+  /** When the host read them, so the dashed line marks the reading rather
+   * than whenever this webview happened to render. */
+  readAt: string;
+}
+
+interface WebviewApi {
+  postMessage(message: unknown): void;
 }
 
 declare global {
   interface Window {
     __OPENSPEC_UI_TIMELINE__?: ChangeTimeline;
-    __OPENSPEC_UI_MULTI_TIMELINE__?: MultiChangeTimelinePayload;
+    __OPENSPEC_UI_COMPARISON__?: ComparisonPayload;
     __OPENSPEC_UI_STALE_THRESHOLD_DAYS__?: number;
+    acquireVsCodeApi?: () => WebviewApi;
   }
+}
+
+let webviewApi: WebviewApi | undefined;
+
+/** The webview's own channel to the extension host, acquired once — VS
+ * Code refuses a second call. Absent outside a webview, where nothing is
+ * posted at all. */
+function host(): WebviewApi | undefined {
+  webviewApi ??= window.acquireVsCodeApi?.();
+  return webviewApi;
+}
+
+/** How long the comparison waits before asking its host for the histories
+ * its charts rest on. The standalone shell waits as long. */
+const CHARTS_ASKED_AFTER_MS = 600;
+
+function keyOf(entry: { changeName: string; archived: boolean }): string {
+  return `${entry.archived ? "archived" : "active"}:${entry.changeName}`;
+}
+
+export function ComparisonApp({ payload }: { payload: ComparisonPayload }) {
+  const [period, setPeriod] = useState<ComparisonPeriodId>(DEFAULT_COMPARISON_PERIOD);
+  const [filter, setFilter] = useState("");
+  const [timelines, setTimelines] = useState<ChangeTimeline[]>([]);
+  const [reading, setReading] = useState(0);
+  const [chartsError, setChartsError] = useState<string | null>(null);
+  const now = useMemo(() => {
+    const read = Date.parse(payload.readAt);
+    return Number.isNaN(read) ? Date.now() : read;
+  }, [payload.readAt]);
+
+  const days = useMemo(() => comparisonWindow(period, payload.spans, now), [period, payload.spans, now]);
+  const all = useMemo(() => comparisonRows(payload.spans, days, now), [payload.spans, days, now]);
+  const shown = useMemo(() => comparisonRows(payload.spans, days, now, filter), [payload.spans, days, now, filter]);
+  const wanted = shown.map((row) => ({ changeName: row.changeName, archived: !row.active }));
+  const wantedKey = wanted.map(keyOf).join("|");
+
+  // What the host sends back. Kept by change, so a period changed twice
+  // does not ask for the same history twice.
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const message = event.data as { type?: string; timelines?: ChangeTimeline[]; error?: string } | undefined;
+      if (message?.type === "timelines" && Array.isArray(message.timelines)) {
+        const arrived = message.timelines;
+        setTimelines((held) => {
+          const byChange = new Map(held.map((one) => [keyOf(one), one]));
+          for (const one of arrived) byChange.set(keyOf(one), one);
+          return [...byChange.values()];
+        });
+        setChartsError(null);
+        setReading(0);
+      } else if (message?.type === "timelines-failed") {
+        setChartsError(`The charts could not be read: ${message.error ?? "the read failed"}`);
+        setReading(0);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  // After a pause, for the reason the standalone shell waits: a history
+  // costs about two seconds of git, and pressing through the periods
+  // would ask for four sets of them, each read carrying on after its
+  // answer was no longer wanted.
+  useEffect(() => {
+    const held = new Set(timelines.map(keyOf));
+    const missing = wanted.filter((entry) => !held.has(keyOf(entry)));
+    if (missing.length === 0) return;
+    const asked = setTimeout(() => {
+      setReading(missing.length);
+      host()?.postMessage({ type: "read-timelines", entries: missing });
+    }, CHARTS_ASKED_AFTER_MS);
+    return () => clearTimeout(asked);
+  }, [wantedKey]);
+
+  const forCharts = timelines.filter((one) => wanted.some((entry) => keyOf(entry) === keyOf(one)));
+
+  return (
+    <>
+      {/* The panel has no page head, so the screen names itself, as the
+          one-change view does with its heading. */}
+      <header className="openspec-change-timeline-heading" data-testid="comparison-heading">
+        <h2>Compare changes</h2>
+        <p>{describeComparison(shown, days, now)}</p>
+      </header>
+      <ChangeComparisonView
+        window={days}
+        rows={shown}
+        total={all.length}
+        period={period}
+        onPeriod={setPeriod}
+        filter={filter}
+        onFilter={setFilter}
+        now={now}
+        onOpen={(changeName, archived) => host()?.postMessage({ type: "open-timeline", changeName, archived })}
+        timelines={forCharts}
+        readingCharts={reading > 0 ? `Reading the history of ${reading} ${reading === 1 ? "change" : "changes"} from git…` : null}
+        chartsError={chartsError}
+      />
+    </>
+  );
 }
 
 function TimelineApp({
   timeline,
-  multi,
+  comparison,
   staleThresholdDays,
 }: {
   timeline: ChangeTimeline | undefined;
-  multi: MultiChangeTimelinePayload | undefined;
+  comparison: ComparisonPayload | undefined;
   staleThresholdDays: number | undefined;
 }) {
   const editorDark = useEditorDarkTheme();
@@ -49,11 +169,8 @@ function TimelineApp({
         // The panel has no page head, so the view names the change itself
         // (the-change-timeline-looks-like-the-mockup 4.1).
         <ChangeTimelineView timeline={timeline} staleThresholdDays={staleThresholdDays} heading />
-      ) : multi ? (
-        <>
-          <MultiChangeTimelineView timelines={multi.timelines} rangeStart={multi.rangeStart} rangeEnd={multi.rangeEnd} />
-          <ChangeChartsView timelines={multi.timelines} />
-        </>
+      ) : comparison ? (
+        <ComparisonApp payload={comparison} />
       ) : (
         <p>No timeline data.</p>
       )}
@@ -68,7 +185,7 @@ if (!container) {
 createRoot(container).render(
   <TimelineApp
     timeline={window.__OPENSPEC_UI_TIMELINE__}
-    multi={window.__OPENSPEC_UI_MULTI_TIMELINE__}
+    comparison={window.__OPENSPEC_UI_COMPARISON__}
     staleThresholdDays={window.__OPENSPEC_UI_STALE_THRESHOLD_DAYS__}
   />,
 );

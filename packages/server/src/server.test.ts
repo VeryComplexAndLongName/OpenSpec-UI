@@ -677,6 +677,51 @@ describe("server — REST /api/status", () => {
     expect(body[0]?.dates.firstWorked.date).toBe("2026-02-02T09:00:00.000Z");
   });
 
+  // the-timeline-compares-changes 4.2. The comparison draws from this
+  // route before it has read a single history.
+  it("returns every change's dates and task counts in one pass", async () => {
+    const cwd = await createTempWorkspace();
+    const lists: Array<[string, string]> = [
+      ["first-change", "- [x] done\n- [ ] todo\n"],
+      ["second-change", "- [ ] todo\n"],
+    ];
+    for (const [name, tasks] of lists) {
+      const changeDir = path.join(cwd, "openspec", "changes", name);
+      await mkdir(changeDir, { recursive: true });
+      await writeFile(path.join(changeDir, "proposal.md"), "## Why\n\nBecause.\n");
+      await writeFile(path.join(changeDir, "tasks.md"), tasks);
+    }
+
+    const response = await fetch(`${baseUrl}/api/change-spans`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as {
+      readAt: string;
+      spans: Array<{ changeName: string; archived: boolean; tasks: { done: number; total: number } | null; dates: { proposed: { source: string } } }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.spans.map((span) => span.changeName).sort()).toEqual(["first-change", "second-change"]);
+    const first = body.spans.find((span) => span.changeName === "first-change");
+    expect(first?.tasks).toEqual({ done: 1, total: 2 });
+    // A temporary workspace has no history, so the dates are absent and
+    // say so rather than being guessed.
+    expect(first?.dates.proposed.source).toBe("none");
+    expect(Number.isNaN(Date.parse(body.readAt))).toBe(false);
+  }, 20_000);
+
+  it("rejects a change-spans request that names no workspace", async () => {
+    const response = await fetch(`${baseUrl}/api/change-spans`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("rejects a change-timeline request missing archived", async () => {
     const cwd = await createTempWorkspace();
 
@@ -1219,6 +1264,28 @@ describe("server — REST /api/status", () => {
 
     expect(response.status).toBe(403);
     expect(detectAvailableAgentsMock).not.toHaveBeenCalled();
+  });
+
+  // the-timeline-compares-changes 4.2: the comparison reads a whole
+  // workspace, so the route is held to the same boundary as every other.
+  it("rejects a change-spans request for a cwd outside the workspace", async () => {
+    await server.close();
+    server = createServer({
+      workspaceRoot: "/workspace/repo",
+      host: "127.0.0.1",
+      port: 0,
+      accessToken: ACCESS_TOKEN,
+    });
+    const address = await server.listen();
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/api/change-spans`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: "/outside/repo" }),
+    });
+
+    expect(response.status).toBe(403);
   });
 
   // what-the-others-are-doing 4.1: the survey travels in the shape core

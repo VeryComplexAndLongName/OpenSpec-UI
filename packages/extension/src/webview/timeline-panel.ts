@@ -6,13 +6,17 @@
 
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
-import type { ChangeTimeline } from "@openspec-ui/core";
+import type { ChangeSpans, ChangeTimeline, ChangeTimelineRequestEntry } from "@openspec-ui/core";
 import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
-interface MultiChangeTimelinePayload {
-  timelines: ChangeTimeline[];
-  rangeStart: string;
-  rangeEnd: string;
+/** What the comparison's webview asks its host for, and what it is
+ * given back (the-timeline-compares-changes). */
+export interface ComparisonHandlers {
+  /** The histories behind the charts, for the rows the webview is
+   * showing. */
+  readTimelines: (entries: ChangeTimelineRequestEntry[]) => Promise<ChangeTimeline[]>;
+  /** One change's own timeline, opened from its row. */
+  openTimeline: (changeName: string, archived: boolean) => void | Promise<void>;
 }
 
 export class TimelineWebviewPanel {
@@ -33,12 +37,41 @@ export class TimelineWebviewPanel {
     });
   }
 
-  /** Same not-a-singleton shape as `show()`, for the multi-change
-   * comparison view (see openspec/changes/
-   * add-multi-change-timeline-view/design.md). */
-  showMulti(payload: MultiChangeTimelinePayload): void {
+  /** Same not-a-singleton shape as `show()`, for every change of the
+   * workspace on one grid of days (the-timeline-compares-changes).
+   *
+   * The spans are embedded as the one-shot data this panel has always
+   * embedded. The two things the screen cannot answer itself go through
+   * `handlers`: the histories its charts rest on, asked for a page of
+   * rows at a time rather than for all 264 up front, and opening one
+   * change's own timeline. */
+  showComparison(spans: ChangeSpans, handlers: ComparisonHandlers): void {
     const panel = this.createPanel("OpenSpec UI: change comparison");
-    panel.webview.html = this.getHtml(panel.webview, { __OPENSPEC_UI_MULTI_TIMELINE__: payload });
+    panel.webview.html = this.getHtml(panel.webview, {
+      __OPENSPEC_UI_COMPARISON__: { spans: spans.spans, readAt: spans.readAt },
+    });
+    panel.webview.onDidReceiveMessage((message: unknown) => {
+      const asked = message as {
+        type?: string;
+        entries?: ChangeTimelineRequestEntry[];
+        changeName?: string;
+        archived?: boolean;
+      } | undefined;
+      if (asked?.type === "read-timelines" && Array.isArray(asked.entries)) {
+        void handlers.readTimelines(asked.entries)
+          .then((timelines) => panel.webview.postMessage({ type: "timelines", timelines }))
+          // Said in the webview rather than swallowed: a charts section
+          // that simply stays empty reads as a workspace with no history.
+          .catch((error: unknown) => panel.webview.postMessage({
+            type: "timelines-failed",
+            error: error instanceof Error ? error.message : String(error),
+          }));
+        return;
+      }
+      if (asked?.type === "open-timeline" && typeof asked.changeName === "string") {
+        void handlers.openTimeline(asked.changeName, asked.archived === true);
+      }
+    });
   }
 
   private createPanel(title: string): vscode.WebviewPanel {

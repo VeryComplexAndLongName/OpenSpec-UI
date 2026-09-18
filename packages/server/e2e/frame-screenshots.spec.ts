@@ -5,7 +5,8 @@
 // page in both (the-summary-looks-like-the-mockup 4.2); then Harness Settings
 // in both, on a global file set as the mockup's artboard sets it
 // (the-harness-settings-look-like-the-mockup 4.2); then the Timeline's one
-// change in both (the-change-timeline-looks-like-the-mockup 5.1).
+// change in both (the-change-timeline-looks-like-the-mockup 5.1) and its
+// comparison in both (the-timeline-compares-changes 6.2).
 //
 // Regenerate with (from packages/server):
 // `npm run test:browser -- frame-screenshots.spec.ts`.
@@ -15,6 +16,7 @@ import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
+import { createDatedWorkspace } from "./fixtures/create-dated-workspace.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
 import { createTimelineWorkspace, TIMELINE_ARCHIVE_FOLDER, TIMELINE_CHANGE } from "./fixtures/create-timeline-workspace.js";
 
@@ -211,5 +213,92 @@ test.describe("the Timeline's one change", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Timeline");
     release();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(TIMELINE_CHANGE, { timeout: 30_000 });
+  });
+});
+
+// The Timeline's comparison, for the mockup's "Timeline: compare changes"
+// artboard: a workspace whose changes were proposed and archived at known
+// hours across five days, two of them a weekend, with the clock fixed so
+// the dashed line marking now falls where the artboard draws it.
+test.describe("the Timeline's comparison", () => {
+  test.use({ timezoneId: "Europe/Moscow" });
+  /** 16:15 in Moscow on Monday 9 March, the artboard's hour. */
+  const NOW = new Date("2026-03-09T13:15:00Z");
+  let comparisonServer: OpenSpecUiServer;
+  let comparisonRoot: string;
+  let comparisonUrl: string;
+
+  test.beforeAll(async () => {
+    comparisonRoot = await createDatedWorkspace([
+      // Proposed before the window and archived inside it: its bar is cut
+      // at the left edge.
+      { name: "older-change", proposedOn: "2026-03-02", proposedAt: "09:00", archivedOn: "2026-03-05", archivedAt: "11:00", tasks: { total: 18, done: 18 } },
+      { name: "first-change", proposedOn: "2026-03-05", proposedAt: "09:00", archivedOn: "2026-03-06", archivedAt: "12:00", tasks: { total: 47, done: 47 } },
+      { name: "weekend-change", proposedOn: "2026-03-06", proposedAt: "10:00", archivedOn: "2026-03-07", archivedAt: "15:00", tasks: { total: 12, done: 12 } },
+      { name: "quick-change", proposedOn: "2026-03-09", proposedAt: "06:00", archivedOn: "2026-03-09", archivedAt: "09:00", tasks: { total: 5, done: 5 } },
+      { name: "still-open", proposedOn: "2026-03-08", proposedAt: "08:00", tasks: { total: 27, done: 25 } },
+      { name: "just-started", proposedOn: "2026-03-09", proposedAt: "07:00", tasks: { total: 22, done: 0 } },
+    ]);
+    comparisonServer = createServer({ workspaceRoot: comparisonRoot, host: "127.0.0.1", port: 0 });
+    const address = await comparisonServer.listen();
+    comparisonUrl = `http://127.0.0.1:${address.port}`;
+  });
+
+  test.afterAll(async () => {
+    await comparisonServer.close();
+    await rm(comparisonRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
+
+  test("captures the comparison, in the light theme and in the dark", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.clock.install({ time: NOW });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${comparisonUrl}/#token=${encodeURIComponent(comparisonServer.accessToken)}`);
+
+    await expect(page.getByTestId("app-bar")).toBeVisible();
+    await page.getByRole("tab", { name: "Timeline" }).click();
+    // Nothing is asked for first: choosing the mode draws the workspace.
+    await page.getByRole("button", { name: "Compare changes" }).click();
+
+    await expect(page.getByTestId("change-comparison-view")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Compare changes");
+    // Five days ending today, with the weekend among them.
+    await expect(page.getByTestId("comparison-day-2026-03-05")).toHaveText("Thu 5 Mar");
+    await expect(page.getByTestId("comparison-day-2026-03-09")).toHaveText("Mon 9 Mar");
+    await expect(page.locator('.openspec-comparison-band[data-weekend="true"]')).toHaveCount(2);
+    await expect(page.getByTestId("comparison-now")).toBeVisible();
+
+    // A bar per change, with its figures: an archived change's task count
+    // and an active change's done-of-total.
+    const first = page.getByTestId("comparison-row-2026-03-06-first-change");
+    await expect(first).toContainText("47 tasks");
+    await expect(page.getByTestId("comparison-row-still-open")).toContainText("25 / 27");
+    // Proposed before these five days, so its bar is cut at the edge.
+    await expect(page.getByTestId("comparison-bar-2026-03-05-older-change")).toHaveAttribute("data-clipped-start", "true");
+    await expect(page.getByTestId("tab-reading-timeline")).toHaveCount(0, { timeout: 60_000 });
+    await expect(page.locator(".openspec-tab-spinner")).toHaveCount(0, { timeout: 60_000 });
+    // The charts follow the grid, over the changes the grid shows.
+    await expect(page.getByTestId("change-charts")).toBeVisible({ timeout: 60_000 });
+
+    const masks = () => [page.getByTestId("app-bar-workspace")];
+    const theme = page.getByRole("switch", { name: "Dark theme" });
+    if ((await theme.getAttribute("aria-checked")) === "true") await theme.click();
+    await expect(page.locator("html")).not.toHaveAttribute("data-openspec-theme", "dark");
+    await page.screenshot({ path: path.join(IMAGES_DIR, "timeline-compare-light.png"), fullPage: true, mask: masks(), maskColor: MASK_COLOR });
+
+    await theme.click();
+    await expect(page.locator("html")).toHaveAttribute("data-openspec-theme", "dark");
+    await page.evaluate(() => Promise.all(document.getAnimations()
+      .filter((animation) => animation instanceof CSSTransition)
+      .map((animation) => animation.finished)));
+    await page.screenshot({ path: path.join(IMAGES_DIR, "timeline-compare-dark.png"), fullPage: true, mask: masks(), maskColor: MASK_COLOR });
+
+    // Typing part of a name narrows the rows and says how many of how many
+    // match; a row opens that change's own timeline.
+    await page.getByTestId("comparison-filter").fill("still");
+    await expect(page.getByTestId("comparison-filter-count")).toHaveText("1 of 6 match");
+    await page.getByTestId("comparison-row-still-open").click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("still-open", { timeout: 60_000 });
+    await expect(page.getByTestId("change-timeline-view")).toBeVisible();
   });
 });

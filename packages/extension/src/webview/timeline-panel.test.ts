@@ -7,14 +7,30 @@ vi.mock("vscode", () => vscodeMock);
 const { TimelineWebviewPanel } = await import("./timeline-panel.js");
 
 function createPanelFixture() {
+  /** What the webview posted back, and the listener the panel wired, so a
+   * test can play the webview's side of the comparison's two messages. */
+  const posted: unknown[] = [];
+  let listener: ((message: unknown) => void) | undefined;
   const webview = {
     cspSource: "vscode-webview:",
     html: "",
     asWebviewUri: vi.fn((uri: { toString(): string }) => uri),
+    postMessage: vi.fn((message: unknown) => {
+      posted.push(message);
+      return Promise.resolve(true);
+    }),
+    onDidReceiveMessage: vi.fn((handler: (message: unknown) => void) => {
+      listener = handler;
+      return { dispose: vi.fn() };
+    }),
   };
   const panel = { webview };
   vscodeMock.window.createWebviewPanel.mockReturnValue(panel);
-  return panel;
+  return {
+    ...panel,
+    posted,
+    send: (message: unknown) => listener?.(message),
+  };
 }
 
 function createTimelinePanel() {
@@ -51,16 +67,64 @@ describe("TimelineWebviewPanel", () => {
     expect(panel.webview.html).toContain("window.__OPENSPEC_UI_STALE_THRESHOLD_DAYS__ = 14;");
   });
 
-  it("embeds the multi-change payload behind a CSP nonce", () => {
+  // the-timeline-compares-changes 5.6
+  it("embeds the comparison's spans behind a CSP nonce", () => {
     const panel = createPanelFixture();
     const timelinePanel = createTimelinePanel();
 
-    timelinePanel.showMulti({ timelines: [], rangeStart: "2026-01-01T00:00:00.000Z", rangeEnd: "2026-01-02T00:00:00.000Z" });
+    timelinePanel.showComparison(
+      { readAt: "2026-09-16T13:15:00.000Z", spans: [] },
+      { readTimelines: vi.fn(), openTimeline: vi.fn() } as never,
+    );
 
     const nonce = extractInlineScriptNonce(panel.webview.html);
     expect(nonce).toBeTruthy();
     expect(panel.webview.html).toContain(`script-src vscode-webview: 'nonce-${nonce}'`);
-    expect(panel.webview.html).toContain("window.__OPENSPEC_UI_MULTI_TIMELINE__ =");
+    expect(panel.webview.html).toContain('window.__OPENSPEC_UI_COMPARISON__ = {"spans":[],"readAt":"2026-09-16T13:15:00.000Z"}');
+  });
+
+  it("answers the comparison's request for the histories its charts rest on", async () => {
+    const panel = createPanelFixture();
+    const timelinePanel = createTimelinePanel();
+    const readTimelines = vi.fn().mockResolvedValue([{ changeName: "my-change", archived: false }]);
+
+    timelinePanel.showComparison(
+      { readAt: "2026-09-16T13:15:00.000Z", spans: [] },
+      { readTimelines, openTimeline: vi.fn() } as never,
+    );
+    panel.send({ type: "read-timelines", entries: [{ changeName: "my-change", archived: false }] });
+    await vi.waitFor(() => expect(panel.posted).toHaveLength(1));
+
+    expect(readTimelines).toHaveBeenCalledWith([{ changeName: "my-change", archived: false }]);
+    expect(panel.posted[0]).toEqual({ type: "timelines", timelines: [{ changeName: "my-change", archived: false }] });
+  });
+
+  it("tells the comparison the histories could not be read, rather than leaving it waiting", async () => {
+    const panel = createPanelFixture();
+    const timelinePanel = createTimelinePanel();
+
+    timelinePanel.showComparison(
+      { readAt: "2026-09-16T13:15:00.000Z", spans: [] },
+      { readTimelines: vi.fn().mockRejectedValue(new Error("git exploded")), openTimeline: vi.fn() } as never,
+    );
+    panel.send({ type: "read-timelines", entries: [{ changeName: "my-change", archived: false }] });
+    await vi.waitFor(() => expect(panel.posted).toHaveLength(1));
+
+    expect(panel.posted[0]).toEqual({ type: "timelines-failed", error: "git exploded" });
+  });
+
+  it("opens one change's own timeline when a row is activated", () => {
+    const panel = createPanelFixture();
+    const timelinePanel = createTimelinePanel();
+    const openTimeline = vi.fn();
+
+    timelinePanel.showComparison(
+      { readAt: "2026-09-16T13:15:00.000Z", spans: [] },
+      { readTimelines: vi.fn(), openTimeline } as never,
+    );
+    panel.send({ type: "open-timeline", changeName: "2026-09-13-my-change", archived: true });
+
+    expect(openTimeline).toHaveBeenCalledWith("2026-09-13-my-change", true);
   });
 
   it("uses a different nonce for each panel", () => {

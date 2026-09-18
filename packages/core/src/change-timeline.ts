@@ -12,7 +12,7 @@ import {
   withoutArchivePrefix,
   type ChangeDates,
 } from "./change-dates.js";
-import { readTaskChecklist, type TaskChecklistItem } from "./task-checklist.js";
+import { readTaskChecklistOf, type TaskChecklistItem } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 export interface ChangeTimelineTask extends TaskChecklistItem {
@@ -409,7 +409,14 @@ export async function getChangeTimeline(
     archiveDatesUnreadableLines?: number;
   },
 ): Promise<ChangeTimeline> {
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
+  // Only this change, and only from the list it can be in: reading the
+  // whole workspace here cost 585 ms per change, which over the 264
+  // changes the comparison's charts ask for is most of the read
+  // (the-pipeline-reads-each-workspace-once, the-timeline-compares-changes).
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, {
+    changes: archived ? "archived" : "active",
+    names: [changeName],
+  });
   const change = (archived ? workspace.archivedChanges : workspace.changes).find(
     (c) => c.name === changeName,
   );
@@ -427,7 +434,9 @@ export async function getChangeTimeline(
         content: await readIfExists(artifact),
       })),
     ),
-    readTaskChecklist(workspaceRoot, changeName, archived),
+    // From the change discovered above rather than discovering the list
+    // again to find the same file.
+    readTaskChecklistOf(change).then((read) => read.items),
     proposalArtifact?.exists
       ? getFileCreatedDate(workspaceRoot, proposalArtifact.path)
       : Promise.resolve(null),

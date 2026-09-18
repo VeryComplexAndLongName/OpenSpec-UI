@@ -3,8 +3,8 @@
 // hand-duplicated copy of these interfaces already drifted out of sync
 // once (missing `lastTouchedDate`) before this module started importing
 // them for real.
-export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "@openspec-ui/core/browser";
-import type { ChangeTimeline } from "@openspec-ui/core/browser";
+export type { ChangeSpan, ChangeSpans, ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "@openspec-ui/core/browser";
+import type { ChangeSpans, ChangeTimeline } from "@openspec-ui/core/browser";
 
 export interface ChangeTimelineEntry {
   changeName: string;
@@ -45,4 +45,20 @@ export async function loadChangeTimelines(
   });
   if (!response.ok) throw new Error(await responseError(response));
   return response.json() as Promise<ChangeTimeline[]>;
+}
+
+/** Every change's proposed and archived dates and task counts, in one
+ * pass — what the comparison draws before any history is read
+ * (the-timeline-compares-changes). */
+export async function loadChangeSpans(
+  request: ChangeTimelineRequest,
+  cwd: string,
+): Promise<ChangeSpans> {
+  const response = await request("/api/change-spans", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cwd }),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  return response.json() as Promise<ChangeSpans>;
 }

@@ -25,6 +25,7 @@ import {
   handleChangeEditorReadRequest,
   handleChangeEditorSaveRequest,
   handleChangeTimelineRequest,
+  handleChangeSpansRequest,
   handleChangeTimelinesRequest,
   handleDelegatedItemRunRequest,
   handleEnrolmentConfirmRequest,
@@ -225,6 +226,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-timelines") {
       void handleChangeTimelinesRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-spans") {
+      void handleChangeSpansRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/sprint-report") {

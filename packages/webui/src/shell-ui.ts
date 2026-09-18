@@ -125,12 +125,14 @@ export const shellThemeCss = `
     --w-name: 14rem;
     --w-sentence: 26rem;
 
-    /* The day grid's two tracks: the column that names a change, which
-       stays put while the days scroll, and one day. A day is wide enough
-       for a marker and its gridline, not for a date — the header above
-       carries the date (the-web-ui-screens-wear-metro 2.3). */
-    --multi-timeline-name: 14rem;
-    --multi-timeline-day: 2.25rem;
+    /* The comparison's tracks: the column that names a change, which
+       stays put while the days scroll; the least a day column may shrink
+       to, below which a bar has nothing left to be read in; and the
+       filter field, which is one control of a row rather than the width
+       of the toolbar (the-timeline-compares-changes). */
+    --comparison-name: 17rem;
+    --comparison-day: 3rem;
+    --comparison-filter: 15rem;
   }
 
   /* The standalone dark palette, chosen by the header toggle or the
@@ -2770,89 +2772,255 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
-  /* Several changes over one axis of days (the-web-ui-screens-wear-metro
-     2.3). A grid, not a lane: the first column names the change and stays
-     put while the days scroll, and an event sits in the column of the day
-     it happened, so a position can be read back as a date. */
-  .openspec-multi-timeline-scroll {
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .openspec-multi-timeline-grid {
+  /* Every change of a workspace on one grid of days, as ADR 0033's
+     mockup draws the comparison (the-timeline-compares-changes). The
+     first column names the change and stays put while the days scroll; a
+     bar sits where core said, as a percentage of the window, and nothing
+     here is measured (ADR 0025). */
+  .openspec-comparison {
     display: grid;
-    grid-template-columns: var(--multi-timeline-name) repeat(var(--days), var(--multi-timeline-day));
-    align-items: center;
+    gap: 20px;
   }
 
-  .openspec-multi-timeline-corner,
-  .openspec-multi-timeline-lane-label {
+  .openspec-comparison-filter {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: var(--comparison-filter);
+    color: var(--muted);
+  }
+
+  .openspec-comparison-filter > svg {
+    position: absolute;
+    left: 10px;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .openspec-comparison-filter > input {
+    width: 100%;
+    padding-left: 32px;
+  }
+
+  .openspec-comparison-legend {
+    display: flex;
+    gap: 14px;
+    margin: 0 0 0 auto;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-comparison-legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .openspec-comparison-swatch {
+    width: 14px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .openspec-comparison-swatch--archived { background: var(--steel); }
+  .openspec-comparison-swatch--active { background: var(--cobalt); }
+
+  .openspec-comparison-scroll {
+    overflow-x: auto;
+    /* Its own scroller, so the page body never scrolls sideways — All
+       over a year is 365 columns. */
+    max-width: 100%;
+  }
+
+  /* As wide as its days need, and never narrower than the panel: a
+     column is the width core derived for one day, which is what decides
+     which of its names fits. */
+  .openspec-comparison-grid {
+    width: max(100%, calc(var(--comparison-name) + var(--comparison-day) * var(--days)));
+  }
+
+  .openspec-comparison-head {
+    display: flex;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openspec-comparison-name-head {
     position: sticky;
     left: 0;
-    z-index: 1;
+    z-index: 2;
+    flex: none;
+    box-sizing: border-box;
+    width: var(--comparison-name);
+    padding: 8px 12px 8px 16px;
     background: var(--surface);
-  }
-
-  .openspec-multi-timeline-day {
-    font-size: 11px;
-    color: var(--muted);
-    text-align: center;
-    padding: 0 2px 6px;
-    white-space: nowrap;
-  }
-
-  .openspec-multi-timeline-row {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: subgrid;
-    min-height: 28px;
-    border-top: 1px solid var(--line);
-  }
-
-  .openspec-multi-timeline-axis {
-    display: flex;
-    justify-content: space-between;
-    color: var(--muted);
-    font-size: 12px;
-    margin-bottom: 8px;
-  }
-
-  .openspec-multi-timeline-lane-label {
-    display: block;
     font-size: 12px;
     font-weight: 600;
-    padding-right: 12px;
+    color: var(--muted);
+  }
+
+  /* One column per day, equal however many there are: a day is a column
+     on the screen, which is what makes a bar's position a date. */
+  .openspec-comparison-days,
+  .openspec-comparison-bands {
+    display: grid;
+    grid-template-columns: repeat(var(--days), minmax(0, 1fr));
+    flex: 1 1 auto;
+    min-width: calc(100% - var(--comparison-name));
+  }
+
+  .openspec-comparison-day {
+    box-sizing: border-box;
+    padding: 8px 6px;
+    border-left: 1px solid var(--line-strong);
+    font-size: 12px;
+    color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .openspec-multi-timeline-track {
+  .openspec-comparison-rows {
     position: relative;
-    height: 28px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    border-radius: 8px;
   }
 
-  .openspec-multi-timeline-point {
+  /* The shading and the dashed line belong to the grid rather than to any
+     one row, so they are drawn once behind all of them. */
+  .openspec-comparison-bands {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--comparison-name);
+    right: 0;
+    pointer-events: none;
+  }
+
+  .openspec-comparison-band {
+    border-left: 1px solid var(--line);
+  }
+
+  .openspec-comparison-band[data-weekend="true"] {
+    background: var(--surface-2);
+  }
+
+  .openspec-comparison-now {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--at);
+    width: 0;
+    border-left: 2px dashed var(--crimson);
+  }
+
+  .openspec-comparison-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    line-height: 1;
+    width: 100%;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
   }
 
-  .openspec-multi-timeline-point-created {
+  .openspec-comparison-row:hover,
+  .openspec-comparison-row:focus-visible {
+    background: var(--surface-2);
+  }
+
+  .openspec-comparison-row-name {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: none;
+    box-sizing: border-box;
+    width: var(--comparison-name);
+    padding: 0 12px 0 16px;
+    background: inherit;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  /* An active change is the one still being worked on, and the one a
+     reader is most often looking for. */
+  .openspec-comparison-row[data-active="true"] .openspec-comparison-row-name {
+    color: var(--heading);
+    font-weight: 600;
+  }
+
+  .openspec-comparison-track {
+    position: relative;
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-width: calc(100% - var(--comparison-name));
+  }
+
+  .openspec-comparison-bar {
+    position: absolute;
+    top: 10px;
+    left: var(--from);
+    width: max(0.5rem, calc(var(--to) - var(--from)));
+    height: 12px;
+    border-radius: 3px;
+    background: var(--steel);
+  }
+
+  /* An active change's bar runs to the line marking now and fades into
+     it: its end is where the reading was taken, not where the change
+     ends. */
+  .openspec-comparison-row[data-active="true"] .openspec-comparison-bar {
+    background: linear-gradient(90deg, var(--cobalt) 0%, var(--cobalt) 70%, color-mix(in srgb, var(--cobalt) 25%, transparent) 100%);
+  }
+
+  /* A bar cut by an edge of the window is square there, so a span that
+     began earlier is not read as having begun at the edge. */
+  .openspec-comparison-bar[data-clipped-start="true"] {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .openspec-comparison-bar[data-clipped-end="true"] {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .openspec-comparison-label {
+    position: absolute;
+    top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .openspec-comparison-label[data-side="after"] {
+    left: calc(var(--to) + 6px);
+  }
+
+  .openspec-comparison-label[data-side="before"] {
+    right: calc(100% - var(--from) + 6px);
+  }
+
+  .openspec-comparison-undated {
+    position: absolute;
+    top: 8px;
+    left: 6px;
+    font-size: 11px;
     color: var(--muted);
   }
 
-  .openspec-multi-timeline-point-task {
-    color: var(--primary);
-  }
-
-  .openspec-multi-timeline-point-archived {
-    color: var(--danger);
+  .openspec-comparison-rows .openspec-panel-empty {
+    padding: 16px;
   }
 
   @media (max-width: 760px) {
@@ -3857,8 +4025,9 @@ export const vscodeThemeCss = `
 
     /* The day grid's tracks are lengths, not colours, so they are the
        shell's values verbatim here too. */
-    --multi-timeline-name: 14rem;
-    --multi-timeline-day: 2.25rem;
+    --comparison-name: 17rem;
+    --comparison-day: 3rem;
+    --comparison-filter: 15rem;
 
     /* Control widths are not colours and are not the editor's to
        decide, so they are the shell's values verbatim. */

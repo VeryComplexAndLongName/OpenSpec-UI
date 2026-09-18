@@ -23,6 +23,7 @@ const archiveChangeMock = vi.fn();
 const checkChangesetReminderMock = vi.fn();
 const getChangeTimelineMock = vi.fn();
 const getChangeTimelinesMock = vi.fn();
+const readChangeSpansMock = vi.fn();
 const buildSprintReportMock = vi.fn();
 const renderSprintReportPdfMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
@@ -114,6 +115,7 @@ vi.mock("@openspec-ui/core", () => ({
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
   getChangeTimeline: (...args: unknown[]) => getChangeTimelineMock(...args),
   getChangeTimelines: (...args: unknown[]) => getChangeTimelinesMock(...args),
+  readChangeSpans: (...args: unknown[]) => readChangeSpansMock(...args),
   initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
   isHarnessStepAgentStage: (stage: string) => stage !== "archive",
   listBootstrapProjectTypes: () => [
@@ -160,11 +162,11 @@ const openDiffAgainstHeadMock = vi.fn();
 vi.mock("./native/diff.js", () => ({ openDiffAgainstHead: (...args: unknown[]) => openDiffAgainstHeadMock(...args) }));
 
 const timelinePanelShowMock = vi.fn();
-const timelinePanelShowMultiMock = vi.fn();
+const timelinePanelShowComparisonMock = vi.fn();
 vi.mock("./webview/timeline-panel.js", () => ({
   TimelineWebviewPanel: vi.fn().mockImplementation(() => ({
     show: timelinePanelShowMock,
-    showMulti: timelinePanelShowMultiMock,
+    showComparison: timelinePanelShowComparisonMock,
   })),
 }));
 
@@ -553,31 +555,26 @@ describe("registerCommands", () => {
     });
   });
 
-  it("picks changes across active and archived, fetches, and shows a comparison", async () => {
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      changes: [{ name: "active-change" }],
-      archivedChanges: [{ name: "2026-01-01-old-change" }],
-    });
-    vscodeMock.window.showQuickPick.mockResolvedValue([
-      { label: "active-change", description: "active", archived: false },
-      { label: "2026-01-01-old-change", description: "archived", archived: true },
-    ]);
-    const timelines = [
-      {
-        changeName: "active-change",
-        archived: false,
-        createdDate: "2026-01-02T00:00:00.000Z",
-        archivedDate: null,
-        tasks: [],
-      },
-      {
-        changeName: "2026-01-01-old-change",
-        archived: true,
-        createdDate: null,
-        archivedDate: "2026-01-01",
-        tasks: [],
-      },
-    ];
+  // the-timeline-compares-changes 5.5: every change, with nothing asked
+  // of the reader first.
+  it("opens the comparison over the whole workspace without prompting", async () => {
+    const spans = {
+      readAt: "2026-09-16T13:15:00.000Z",
+      spans: [{ changeName: "active-change", archived: false, dates: {}, tasks: null }],
+    };
+    readChangeSpansMock.mockResolvedValue(spans);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showAllChangesTimeline")?.();
+
+    expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+    expect(readChangeSpansMock).toHaveBeenCalledWith("/workspace/repo");
+    expect(timelinePanelShowComparisonMock).toHaveBeenCalledWith(spans, expect.anything());
+  });
+
+  it("reads the histories the comparison's charts ask for, with the audit log it already reads", async () => {
+    readChangeSpansMock.mockResolvedValue({ readAt: "2026-09-16T13:15:00.000Z", spans: [] });
+    const timelines = [{ changeName: "active-change", archived: false, tasks: [] }];
     getChangeTimelinesMock.mockResolvedValue(timelines);
     const deps = makeDeps({
       readAuditEntries: async () => [{
@@ -592,41 +589,51 @@ describe("registerCommands", () => {
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
 
     await vscodeMock._registeredCommands.get("openspec-ui.showAllChangesTimeline")?.();
+    const handlers = timelinePanelShowComparisonMock.mock.calls[0]?.[1] as {
+      readTimelines: (entries: unknown[]) => Promise<unknown>;
+      openTimeline: (changeName: string, archived: boolean) => Promise<void>;
+    };
+    const read = await handlers.readTimelines([{ changeName: "active-change", archived: false }]);
 
-    // The audit log read once for the whole request and handed down:
-    // this was the one production entry that could not pass it, so
+    // The audit log read once per request and handed down: this was the
+    // one production entry that could not pass it, so
     // `firstWorked.source === "audit-log"` existed only in tests. See
     // a-date-is-one-day-in-every-source.
     expect(getChangeTimelinesMock).toHaveBeenCalledWith(
       "/workspace/repo",
-      [
-        { changeName: "active-change", archived: false },
-        { changeName: "2026-01-01-old-change", archived: true },
-      ],
+      [{ changeName: "active-change", archived: false }],
       { auditTimestampsByChange: new Map([["active-change", ["2026-02-02T09:00:00.000Z"]]]) },
     );
-    expect(timelinePanelShowMultiMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        timelines,
-        rangeStart: "2026-01-01T23:59:59.999Z",
-        rangeEnd: "2026-01-02T00:00:00.000Z",
-      }),
-    );
+    expect(read).toBe(timelines);
   });
 
-  it("does nothing when no changes are picked for comparison", async () => {
-    discoverOpenSpecWorkspaceMock.mockResolvedValue({
-      changes: [{ name: "active-change" }],
-      archivedChanges: [],
-    });
-    vscodeMock.window.showQuickPick.mockResolvedValue(undefined);
-    const deps = makeDeps();
-    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+  it("opens one change's own timeline from a row of the comparison", async () => {
+    readChangeSpansMock.mockResolvedValue({ readAt: "2026-09-16T13:15:00.000Z", spans: [] });
+    const timeline = { changeName: "2026-01-01-old-change", archived: true, tasks: [] };
+    getChangeTimelineMock.mockResolvedValue(timeline);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.showAllChangesTimeline")?.();
+    const handlers = timelinePanelShowComparisonMock.mock.calls[0]?.[1] as {
+      openTimeline: (changeName: string, archived: boolean) => Promise<void>;
+    };
+    await handlers.openTimeline("2026-01-01-old-change", true);
+
+    expect(getChangeTimelineMock).toHaveBeenCalledWith("/workspace/repo", "2026-01-01-old-change", true);
+    // The threshold is the editor's setting, whatever it is set to here.
+    expect(timelinePanelShowMock).toHaveBeenCalledWith("2026-01-01-old-change", timeline, expect.any(Number));
+  });
+
+  it("says the workspace could not be read, and opens no webview", async () => {
+    readChangeSpansMock.mockRejectedValue(new Error("git exploded"));
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
     await vscodeMock._registeredCommands.get("openspec-ui.showAllChangesTimeline")?.();
 
-    expect(getChangeTimelinesMock).not.toHaveBeenCalled();
-    expect(timelinePanelShowMultiMock).not.toHaveBeenCalled();
+    expect(timelinePanelShowComparisonMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining("show change comparison"),
+    );
   });
 
   describe("generateSprintReport", () => {
