@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   describeChangeState,
   withSurveyedRuns,
+  type ChangeReadinessReport,
   type ChangeStandings,
   type DescribedChangeState,
   type WorktreeSurvey,
@@ -33,6 +34,11 @@ export function useStandingStates(
   isActive: boolean,
   loadSurvey: () => Promise<WorktreeSurvey>,
   intervalMs: number,
+  /** What readiness says about each change, where it has been read. Without
+   * it a change blocked by an active change reads Ready, which is what the
+   * list did until DW reported it
+   * (a-blocked-change-says-so-where-it-is-listed). */
+  readiness?: ChangeReadinessReport | null,
 ): ReadonlyMap<string, DescribedChangeState> | undefined {
   const [held, setHeld] = useState<HeldSurvey | undefined>(undefined);
   const hasStandings = standings !== null;
@@ -59,9 +65,16 @@ export function useStandingStates(
     if (standings === null) return undefined;
     const readAt = Date.parse(standings.readAt);
     const survey = held !== undefined && !(held.askedAt < readAt) ? held.survey : undefined;
-    return new Map(standings.standings.map((standing) => [
-      standing.changeName,
-      describeChangeState({ standing: withSurveyedRuns(standing, survey) }),
-    ]));
-  }, [standings, held]);
+    const readinessOf = new Map((readiness?.changes ?? []).map((change) => [change.changeName, change]));
+    return new Map(standings.standings.map((standing) => {
+      const read = readinessOf.get(standing.changeName);
+      return [
+        standing.changeName,
+        describeChangeState({
+          standing: withSurveyedRuns(standing, survey),
+          ...(read ? { readiness: read.run.state, blockers: read.blockers } : {}),
+        }),
+      ];
+    }));
+  }, [standings, held, readiness]);
 }

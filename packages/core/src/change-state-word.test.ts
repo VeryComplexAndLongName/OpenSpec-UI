@@ -62,6 +62,35 @@ describe("describeChangeState — one word per state (a-change-says-where-it-sta
     expect(word({ standing: standing(), readiness: "blocked" })).toBe("Blocked");
     expect(word({ standing: standing(), readiness: "ready" })).toBe("Ready");
   });
+
+  // a-blocked-change-says-so-where-it-is-listed 1.3, reported by DW: the
+  // listing said Ready while the graph said blocked, and a bare "Blocked"
+  // still sends the reader to the graph to learn what by.
+  it("Blocked names what blocks it, and counts the rest", () => {
+    expect(word({ standing: standing(), readiness: "blocked", blockers: ["apply-plan-stays-pending"] }))
+      .toBe("Blocked by apply-plan-stays-pending");
+    expect(word({ standing: standing(), readiness: "blocked", blockers: ["first", "second", "third"] }))
+      .toBe("Blocked by first and 2 more");
+    // A reading that says blocked and names nothing still says blocked.
+    expect(word({ standing: standing(), readiness: "blocked", blockers: [] })).toBe("Blocked");
+  });
+
+  it("says both where a finished change is still blocked", () => {
+    const described = describeChangeState({
+      standing: standing({ here: copy("repo", 4, 4) }),
+      readiness: "blocked",
+      blockers: ["apply-plan-stays-pending"],
+    });
+
+    expect(described.word).toBe("Done");
+    expect(described.lines.map((line) => line.text)).toContain("Blocked by apply-plan-stays-pending");
+  });
+
+  it("stops saying blocked once the blocker has archived", () => {
+    // Readiness keeps only the blockers that are still active, so an
+    // archived blocker arrives as a ready reading with none.
+    expect(word({ standing: standing(), readiness: "ready", blockers: [] })).toBe("Ready");
+  });
 });
 
 describe("describeChangeState — what else applies", () => {

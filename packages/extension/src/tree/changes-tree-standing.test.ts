@@ -101,6 +101,35 @@ async function rowsAfterReading(provider: InstanceType<typeof ChangesTreeProvide
   return rows(provider);
 }
 
+// a-blocked-change-says-so-where-it-is-listed 3.2, reported by DW: the tree
+// read Ready for a change the Change Graph called blocked, because the row's
+// word was asked for without the readiness fact.
+describe("ChangesTreeProvider - the declared order", () => {
+  it("writes Blocked with the blocker's name on the row it blocks", async () => {
+    workspace();
+    const provider = new ChangesTreeProvider("/repo", {
+      readStandings: async () => ({
+        ...reading(),
+        readiness: {
+          changes: [{
+            changeName: "only-here",
+            run: { state: "blocked", blockedBy: ["archived-one"] },
+            blockers: ["archived-one"],
+            capabilities: [],
+          }],
+        },
+      }) as never,
+    });
+
+    const drawn = await rowsAfterReading(provider);
+
+    // The separator is the one the tree already writes between the state
+    // and the word; what this pins is the word.
+    expect(drawn.get("only-here")?.description).toContain("Blocked by archived-one");
+    expect(String(drawn.get("only-here")?.description).startsWith("draft")).toBe(true);
+  });
+});
+
 describe("ChangesTreeProvider — where each change stands", () => {
   it("writes the word after the state of a change archived on main and of one only here, with decorations that agree", async () => {
     workspace();

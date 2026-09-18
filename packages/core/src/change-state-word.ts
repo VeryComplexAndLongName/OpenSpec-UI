@@ -33,6 +33,11 @@ export interface ChangeStateFacts {
   standing: ChangeStanding;
   /** What readiness says about this checkout's copy, where it was read. */
   readiness?: "running" | "blocked" | "ready";
+  /** The changes still blocking this one, where readiness was read. A
+   * listing that says only "Blocked" sends the reader to the graph to
+   * learn what by, which is the trip DW made on 2026-09-18
+   * (a-blocked-change-says-so-where-it-is-listed). */
+  blockers?: readonly string[];
   /** How the last run here ended, where it ended without finishing. Filled
    * in by a-card-says-what-its-change-is-doing; a fact not yet read takes no
    * part. */
@@ -171,14 +176,26 @@ function candidates(facts: ChangeStateFacts): Candidate[] {
   }
 
   const counts = standing.here?.counts;
-  if (counts !== undefined && counts.total > 0 && counts.done === counts.total) {
-    found.push({ key: "done", word: "Done", source: "this checkout's tasks" });
-  } else if (facts.readiness === "blocked") {
-    found.push({ key: "blocked", word: "Blocked", source: "this checkout's declared order" });
-  } else {
+  const done = counts !== undefined && counts.total > 0 && counts.done === counts.total;
+  if (done) found.push({ key: "done", word: "Done", source: "this checkout's tasks" });
+  // Beside Done rather than instead of it: a change whose tasks are all
+  // ticked and whose blocker is still active is both, and a listing that
+  // drops either fact sends its reader somewhere else to learn it.
+  if (facts.readiness === "blocked") {
+    found.push({ key: "blocked", word: blockedWord(facts.blockers ?? []), source: "this checkout's declared order" });
+  } else if (!done) {
     found.push({ key: "ready", word: "Ready", source: "this checkout" });
   }
   return found;
+}
+
+/** "Blocked by <name>", and "and N more" past the first: what blocks a
+ * change is the question a reader asks next, and the graph is where they
+ * had to go for it. */
+function blockedWord(blockers: readonly string[]): string {
+  const [first, ...rest] = blockers;
+  if (first === undefined) return "Blocked";
+  return rest.length === 0 ? `Blocked by ${first}` : `Blocked by ${first} and ${rest.length} more`;
 }
 
 /** Whether any source other than this checkout has the change. */

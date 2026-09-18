@@ -120,7 +120,7 @@ import {
   type ComparisonPeriodId,
   type DescribedChangeState,
 } from "@openspec-ui/core/browser";
-import type { CatalogTemplate, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
+import type { CatalogTemplate, ChangeReadinessReport, CommandKind, Event, HarnessBudget, HarnessStepAgents, HarnessTemplate, HumanOnlyInboxState, RunPathId, WorkspaceRunStats } from "@openspec-ui/core/browser";
 import { toChangeState, toChangeSummary } from "./overview-mapping.js";
 
 /** What a delegated item's last run reported, shown beside its row: the
@@ -618,6 +618,17 @@ function StandaloneApp() {
     await loadOverviewFor(cwd);
   }
 
+  /** What readiness says about each change, for the Changes list's words.
+   * A reading that fails leaves the words without it rather than taking
+   * the summary down with it: the same trade the standings reading makes. */
+  async function readReadinessFor(root: string) {
+    try {
+      setChangeReadiness(await loadChangeReadiness(apiFetch, root));
+    } catch {
+      setChangeReadiness(null);
+    }
+  }
+
   /** Reads the files again and fetches refs now, whatever the fetch
    * interval. A second press while one is under way starts nothing
    * (a-change-says-where-it-stands). */
@@ -627,6 +638,7 @@ function StandaloneApp() {
     setStandingsError(undefined);
     try {
       setStandings(await loadChangeStandings(apiFetch, cwd, "now"));
+      void readReadinessFor(cwd);
       await loadOverviewFor(cwd, { standings: false });
     } catch (error) {
       setStandingsError(error instanceof Error ? error.message : String(error));
@@ -669,6 +681,7 @@ function StandaloneApp() {
             setStandingsError(undefined);
           })
           .catch((error: unknown) => setStandingsError(error instanceof Error ? error.message : String(error)));
+        void readReadinessFor(root);
       }
       // Read beside the summary, and its failure is its own: a workspace
       // whose task files cannot be read still has a summary worth
@@ -848,11 +861,16 @@ function StandaloneApp() {
    * under way, and what the run dialog leads with
    * (a-change-says-where-it-stands). */
   const [standings, setStandings] = useState<ChangeStandings | null>(null);
+  /** What readiness says about each change, read beside the standings so
+   * the list can say a change is blocked. Without it every unfinished
+   * change read Ready, whatever the declared order said - reported by DW
+   * (a-blocked-change-says-so-where-it-is-listed). */
+  const [changeReadiness, setChangeReadiness] = useState<ChangeReadinessReport | null>(null);
   const [standingsRefreshing, setStandingsRefreshing] = useState(false);
   const [standingsError, setStandingsError] = useState<string | undefined>(undefined);
   /** Each change's word on the Changes list, with the runs read again while
    * the summary is shown (the-changes-views-see-a-run-start). */
-  const standingStates = useStandingStates(standings, activeTab === "overview", pipelineSurvey, SURVEY_POLL_INTERVAL_MS);
+  const standingStates = useStandingStates(standings, activeTab === "overview", pipelineSurvey, SURVEY_POLL_INTERVAL_MS, changeReadiness);
   const [runStanding, setRunStanding] = useState<DescribedChangeState | undefined>(undefined);
   /** What the last run of each delegated item reported, keyed the way
    * its row is. Shown beside the row it was started from: an outcome

@@ -3,12 +3,14 @@ import {
   applicableRepoSetupActionIds,
   describeChangeState,
   discoverOpenSpecWorkspace,
+  readChangeReadiness,
   readChangeStandings,
   readTaskChecklist,
   refreshSurveyRuns,
   STANDING_FETCH_INTERVAL_MS,
   surveyWorktrees,
   withSurveyedRuns,
+  type ChangeReadinessReport,
   type ChangeStandings,
   type ChangeState,
   type DescribedChangeState,
@@ -384,6 +386,11 @@ export type StandingFetchMode = "now" | "interval";
 export interface StandingsReading {
   standings: ChangeStandings;
   survey: WorktreeSurvey;
+  /** What readiness says about each change, so a row can say it is
+   * blocked. Absent where the reading failed: a tree that lost its words
+   * over this would be worse than one that says Ready
+   * (a-blocked-change-says-so-where-it-is-listed). */
+  readiness?: ChangeReadinessReport;
 }
 
 export interface ChangesTreeOptions {
@@ -406,7 +413,11 @@ async function readStandingsFromCore(workspaceRoot: string, fetch: StandingFetch
     survey: async (root) => (survey = await surveyWorktrees({ workspaceRoot: root })),
   });
   if (survey === undefined) throw new Error("the standings were read without a survey");
-  return { standings, survey };
+  // Read beside the standings, and its failure is its own: the Change
+  // Graph and the command line have always read this, and the tree said
+  // Ready for every change that was not finished until it did too.
+  const readiness = await readChangeReadiness({ workspaceRoot }).catch(() => undefined);
+  return { standings, survey, ...(readiness ? { readiness } : {}) };
 }
 
 /** Records are not swept here: a tree reading removes no files. */
@@ -417,10 +428,17 @@ function readRunsFromCore(survey: WorktreeSurvey): Promise<WorktreeSurvey> {
 /** Each change's word, from its standing with the survey's runs laid over
  * it, as a Pipeline card lays them. */
 function describeReading(reading: StandingsReading): ReadonlyMap<string, DescribedChangeState> {
-  return new Map(reading.standings.standings.map((standing) => [
-    standing.changeName,
-    describeChangeState({ standing: withSurveyedRuns(standing, reading.survey) }),
-  ]));
+  const readinessOf = new Map((reading.readiness?.changes ?? []).map((change) => [change.changeName, change]));
+  return new Map(reading.standings.standings.map((standing) => {
+    const read = readinessOf.get(standing.changeName);
+    return [
+      standing.changeName,
+      describeChangeState({
+        standing: withSurveyedRuns(standing, reading.survey),
+        ...(read ? { readiness: read.run.state, blockers: read.blockers } : {}),
+      }),
+    ];
+  }));
 }
 
 /** Whether two readings say the same for every change: its word, colour,
