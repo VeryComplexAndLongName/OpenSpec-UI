@@ -1,39 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-17T16:37:51.121Z",
+  "generated_at": "2026-09-18T01:22:45.465Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "a49e8f3e073bdf0982baed9c7c193f527e799dc3",
+  "commit": "9be5ad0efab724a4cab5d0bc695513da7b86128a",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.60.3",
-      "released_at": "2026-09-17T16:37:51.121Z",
-      "tag": "openspec-ui-vscode@0.60.3",
+      "version": "0.60.4",
+      "released_at": "2026-09-18T01:22:45.465Z",
+      "tag": "openspec-ui-vscode@0.60.4",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.3"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.60.4"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.3/openspec-ui-vscode-0.60.3.vsix",
-          "size_bytes": 6808900
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.60.4/openspec-ui-vscode-0.60.4.vsix",
+          "size_bytes": 6841712
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "The editor's Pipeline answers on a repository with hundreds of archived"
-        },
-        {
-          "kind": "patch",
-          "summary": "The Timeline tab's change is found by typing part of its name. The picker is"
+          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
         }
       ]
     },
@@ -42,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.28.4",
-      "released_at": "2026-09-17T16:37:51.121Z",
+      "version": "1.28.5",
+      "released_at": "2026-09-18T01:22:45.465Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -58,8 +54,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.92.1",
-      "released_at": "2026-09-17T16:37:51.121Z",
+      "version": "0.93.0",
+      "released_at": "2026-09-18T01:22:45.465Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -69,8 +65,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The editor's Pipeline answers on a repository with hundreds of archived"
+          "kind": "minor",
+          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
         }
       ]
     },
@@ -79,8 +75,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.57.0",
-      "released_at": "2026-09-17T16:37:51.121Z",
+      "version": "1.58.0",
+      "released_at": "2026-09-18T01:22:45.465Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -90,7 +86,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The Timeline tab's change is found by typing part of its name. The picker is"
+          "summary": "The Pipeline looks like the approved mockup, in the standalone shell and in"
         }
       ]
     },
@@ -100,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.14.0",
-      "released_at": "2026-09-17T16:37:51.121Z",
+      "released_at": "2026-09-18T01:22:45.465Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
