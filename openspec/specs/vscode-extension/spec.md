@@ -903,8 +903,11 @@ The Changes tree SHALL show each active change's standing, as
 `packages/core` describes it:
 
 - in the item's description, as the standing's word;
-- in a file decoration, as a colour that agrees with the word, a one-letter
-  badge, and the word as its tooltip.
+- in the item's icon, as a colour that agrees with the word;
+- in a file decoration, as a one-letter badge and the word as its tooltip.
+
+The item's label SHALL be drawn in the theme's ordinary foreground: the
+standing's colour SHALL NOT tint the words.
 
 While the Changes view is visible, the extension SHALL read standings again
 on the `openspec/**` watcher's events. It SHALL fetch refs, without touching
@@ -955,6 +958,12 @@ SHALL be drawn again only where its word, colour or badge changed.
 - **WHEN** the theme's colours cannot be told apart by the reader
 - **THEN** each item's description and tooltip still state the standing in
   words
+
+#### Scenario: The colour is on the icon, not on the words
+
+- **WHEN** a change's standing carries a colour
+- **THEN** the item's icon is drawn in that colour and its label is not, and
+  the decoration still carries the badge letter and the word as its tooltip
 
 ### Requirement: Cancelling a chain from the Processes tree stops the chain
 
