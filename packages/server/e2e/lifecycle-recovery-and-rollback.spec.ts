@@ -32,16 +32,18 @@ test("an interrupted run's recovery and rollback are reviewable in the browser",
       await expect(row).toContainText("interrupted", { timeout: 15000 });
       await row.getByRole("button", { name: "Review" }).click();
 
-      // The run being reviewed is a panel: its head names the operation,
-      // its state is a badge, and its changed files are a table of path
-      // and kind (the-remaining-tabs-wear-metro 2.3).
-      const details = page.locator(".openspec-process-details");
-      await expect(details.getByRole("heading", { name: "implement" })).toBeVisible();
-      await expect(details).toContainText("interrupted");
+      // The run being reviewed opens under its own row, so what it says is
+      // read against the row that asked for it: the operation and the state
+      // are the row's own cells, and the details carry the changed files as
+      // a table of path and kind (the-review-button-shows-what-it-has,
+      // the-remaining-tabs-wear-metro 2.3).
+      const details = page.locator(".openspec-process-open");
+      await expect(details).toBeVisible();
       await expect(details).toContainText(RELATIVE_FILE_PATH);
       await expect(details).toContainText("modified");
+      await expect(row.getByRole("button", { name: "Review" })).toHaveAttribute("aria-expanded", "true");
 
-      const rollbackButton = page.getByRole("button", { name: "Rollback files" });
+      const rollbackButton = details.getByRole("button", { name: "Rollback files" });
       await expect(rollbackButton).toBeEnabled();
       await rollbackButton.click();
 
