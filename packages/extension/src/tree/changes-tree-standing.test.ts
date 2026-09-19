@@ -141,13 +141,32 @@ describe("ChangesTreeProvider — where each change stands", () => {
     expect(drawn.get("archived-one")?.description).toBe("in-progress — Archived on main");
     expect(drawn.get("only-here")?.description).toBe("draft — Ready");
     expect((drawn.get("only-here") as { tooltip?: string }).tooltip).toContain("Only here (every source read)");
+    // The decoration carries the badge and the word, and no colour: the
+    // colour is on the icon, and a decoration's colour would tint the label
+    // and the badge (the-icon-carries-the-colour).
     expect(decorations.provideFileDecoration(changeUri("archived-one") as never)).toEqual({
       tooltip: "Archived on main",
       badge: "A",
-      color: new vscodeMock.ThemeColor("charts.green"),
     });
-    // A change that is simply ready gets its word as a tooltip, and no colour.
+    // A change that is simply ready gets its word as a tooltip.
     expect(decorations.provideFileDecoration(changeUri("only-here") as never)).toEqual({ tooltip: "Ready" });
+  });
+
+  // the-icon-carries-the-colour
+  it("draws the standing's colour on the item's icon, and leaves an item without one alone", async () => {
+    workspace();
+    const provider = new ChangesTreeProvider("/repo", { readStandings: async () => reading() });
+
+    const drawn = await rowsAfterReading(provider);
+
+    const settled = (drawn.get("archived-one") as { iconPath?: { id?: string; color?: { id?: string } } }).iconPath;
+    expect(settled?.color?.id).toBe("charts.green");
+    // The icon itself is still the one the state chooses: the colour is
+    // laid over it, not instead of it.
+    expect(typeof settled?.id).toBe("string");
+
+    const plain = (drawn.get("only-here") as { iconPath?: { id?: string; color?: { id?: string } } }).iconPath;
+    expect(plain?.color).toBeUndefined();
   });
 
   it("reads again with a fetch now on Refresh, and only past the interval otherwise", async () => {
