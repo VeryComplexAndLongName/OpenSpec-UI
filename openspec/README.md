@@ -109,6 +109,36 @@ archived 2026-09-02, depends on `git-fixture-test-cost`, archived
 2026-09-05. Establish direction from what a change says about another,
 and record it here so nobody has to establish it twice.
 
+### A branch ends with its pull request
+
+**One change is one pull request.** A change is implemented on its own
+branch, that branch carries exactly one change, and the pull request's
+title is the change id, verbatim. Nothing has to be decoded to see what a
+pull request is for.
+
+**Archiving is a second pull request**, one per change, titled
+`<change-id> (archive)`.
+
+**Anything left to finish is a new change and a new pull request.** Not
+another commit on the open one. The owner merges quickly, and a commit
+pushed to a branch whose pull request has already merged is stranded where
+nobody looks for it again; that has happened twice.
+
+**When the pull request merges, the branch is finished.** Delete it
+locally with `git branch -D <id>`, delete it on the server, remove its
+working directory with `git worktree remove`, and remove the empty shell
+that leaves behind on Windows. The repository setting **Automatically
+delete head branches** does the server side by itself; where it is off,
+`git push origin --delete <id>` after the merge.
+
+**Why this has to be said rather than noticed.** This repository
+squash-merges, so a merged branch's tip is never an ancestor of `main`.
+Neither git nor this product can answer "is this branch finished" from the
+commit graph, which is why the standings read the pull request and the
+archive on `main` instead. Nothing sweeps a branch up later, so they
+accumulate: on 2026-09-19 there were 184 local and 45 remote, 175 and 40
+of them dead since the spring.
+
 ## Architecture Changes via ADR (mandatory)
 
 Any architecture-impacting modification must be documented via ADR in

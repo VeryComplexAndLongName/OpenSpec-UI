@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse as parseYaml } from "yaml";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 import {
@@ -164,6 +165,20 @@ describe("checkSpecDeltaDrift", () => {
   });
 });
 
+/** Whether a change says of itself that it has no specs to reach:
+ * `skip_specs: true` in its own `.openspec.yaml`, which is how a
+ * documentation or process change is written. Anything unreadable answers
+ * `false`, so a broken metadata file is never taken for a declaration
+ * (a-branch-ends-with-its-pull-request). */
+async function declaresNoSpecs(changeDir: string): Promise<boolean> {
+  try {
+    const parsed: unknown = parseYaml(await readFile(path.join(changeDir, ".openspec.yaml"), "utf8"));
+    return typeof parsed === "object" && parsed !== null && (parsed as { skip_specs?: unknown }).skip_specs === true;
+  } catch {
+    return false;
+  }
+}
+
 describe("this repository's own changes", () => {
   // The gate, in the shape `change-graph.test.ts` established. Without it
   // this check would only ever run over fixtures, and the drift it exists
@@ -187,9 +202,20 @@ describe("this repository's own changes", () => {
     // a regression. Do not restore the unconditional form — the empty
     // case is covered over a fixture below, because this test cannot
     // reach it while any change is active.
+    //
+    // And only over changes that have specs to reach. A change that
+    // declares `skip_specs: true` - documentation, process - carries no
+    // delta by design, so a queue holding only those is another empty
+    // subject, not a broken reach. On 2026-09-19 this assertion turned a
+    // documentation change red for being the only one open
+    // (a-branch-ends-with-its-pull-request).
     const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
-    if (workspace.changes.length > 0) {
-      const deltaSpecs = workspace.changes.flatMap((change) =>
+    const withSpecs: typeof workspace.changes = [];
+    for (const change of workspace.changes) {
+      if (!await declaresNoSpecs(change.path)) withSpecs.push(change);
+    }
+    if (withSpecs.length > 0) {
+      const deltaSpecs = withSpecs.flatMap((change) =>
         change.artifacts.filter((artifact) => artifact.kind === "delta-spec" && artifact.exists));
       expect(deltaSpecs.length).toBeGreaterThan(0);
     }
