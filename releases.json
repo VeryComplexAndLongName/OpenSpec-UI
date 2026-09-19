@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-18T15:52:52.121Z",
+  "generated_at": "2026-09-19T10:33:32.136Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "615b0d110e15a88dca810395cfbf953248d6b4be",
+  "commit": "cfd4710634e8c45e445659e908029bc037db633c",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.63.0",
-      "released_at": "2026-09-18T15:52:52.121Z",
-      "tag": "openspec-ui-vscode@0.63.0",
+      "version": "0.64.0",
+      "released_at": "2026-09-19T10:33:32.136Z",
+      "tag": "openspec-ui-vscode@0.64.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.63.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.64.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.63.0/openspec-ui-vscode-0.63.0.vsix",
-          "size_bytes": 6965725
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.64.0/openspec-ui-vscode-0.64.0.vsix",
+          "size_bytes": 6975369
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "The workspace clears what it left behind"
+          "summary": "A run can be told where to stop, not only that it should"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.30.0",
-      "released_at": "2026-09-18T15:52:52.121Z",
+      "version": "1.30.1",
+      "released_at": "2026-09-19T10:33:32.136Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,20 +47,15 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "The workspace clears what it left behind"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.98.0",
-      "released_at": "2026-09-18T15:52:52.121Z",
+      "version": "0.99.0",
+      "released_at": "2026-09-19T10:33:32.136Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +66,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The workspace clears what it left behind"
+          "summary": "A run can be told where to stop, not only that it should"
         }
       ]
     },
@@ -80,28 +75,23 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.62.0",
-      "released_at": "2026-09-18T15:52:52.121Z",
+      "version": "1.62.1",
+      "released_at": "2026-09-19T10:33:32.136Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "The workspace clears what it left behind"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.14.0",
-      "released_at": "2026-09-18T15:52:52.121Z",
+      "version": "0.15.0",
+      "released_at": "2026-09-19T10:33:32.136Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -111,7 +101,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A run in another worktree can be asked to stop, through ADR 0028's signed channel."
+          "summary": "A run can be told where to stop, not only that it should"
         }
       ]
     }
