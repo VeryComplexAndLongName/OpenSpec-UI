@@ -43,6 +43,11 @@ import {
   runTimestampsByChange,
   readChangeGraph,
   editChangeRelation,
+  askLiveRunToStop,
+  createGitWrapper,
+  isTaskNumber,
+  readAgentStatuses,
+  resolveAgentStatusDirectory,
   readWorkspaceLeftovers,
   removeWorkingDirectory,
   getChangeTimelines,
@@ -1190,6 +1195,64 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         void vscode.window.showInformationMessage(`OpenSpec UI: removed ${result.path}.`);
       } catch (error) {
         await showCommandError("remove the working directory", error);
+      }
+    }),
+    // "Only up to 4.6", said to a live run without interrupting it
+    // (a-run-is-told-where-to-stop). The request goes through the signed
+    // channel core owns; this asks the two questions and reports.
+    vscode.commands.registerCommand("openspec-ui.stopRunAfterTask", async (invokedItem?: unknown) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const subject = relationSubject(invokedItem, deps);
+      if (!subject) { warnNoTreeSelection("change"); return; }
+      try {
+        const statusDirectory = await resolveAgentStatusDirectory(
+          createGitWrapper({ cwd: workspaceRoot }),
+          workspaceRoot,
+        );
+        const { reports } = await readAgentStatuses(statusDirectory);
+        // A record that does not check out names no run, and a gone run
+        // reads no requests: neither is one this could ask.
+        const live = reports.find((report) => report.changeName === subject.name
+          && !report.gone
+          && report.signature !== "does-not-check-out");
+        if (!live) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: nothing is running on ${subject.name}, so there is nothing to ask.`,
+          );
+          return;
+        }
+        const task = await vscode.window.showInputBox({
+          title: `Stop the run on ${subject.name} after a task`,
+          prompt: "The task it may finish first, as tasks.md numbers it",
+          placeHolder: "4.6",
+          validateInput: (value) => (value.trim().length === 0 || isTaskNumber(value)
+            ? undefined
+            : "A task number, such as 4.6"),
+        });
+        if (task === undefined || task.trim().length === 0) return;
+        const reason = await vscode.window.showInputBox({
+          title: "Why the run is being asked to stop",
+          prompt: "Recorded with the request, and in the run's ending",
+          placeHolder: "only up to 4.6",
+        });
+        if (reason === undefined || reason.trim().length === 0) return;
+        const result = await askLiveRunToStop({
+          statusDirectory,
+          workspaceRoot,
+          instanceId: live.instanceId,
+          reason,
+          afterTask: task,
+        });
+        if (!result.asked) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.why}.`);
+          return;
+        }
+        void vscode.window.showInformationMessage(
+          `OpenSpec UI: ${subject.name} will stop after ${task.trim()} (request ${result.messageId}).`,
+        );
+      } catch (error) {
+        await showCommandError("ask the run to stop after a task", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.addRelation", async (invokedItem?: unknown) => {

@@ -36,7 +36,7 @@ Usage:
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli status [--cwd <path>] [--format text|json]
-  openspec-ui-cli stop <instanceId> --reason <text> [--cwd <path>]
+  openspec-ui-cli stop <instanceId> --reason <text> [--after <task>] [--cwd <path>]
                        [--format text|json]
   openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
                         [--format text|json]
@@ -69,6 +69,8 @@ Options:
   --label <text>      The name an enrolled key's person is known by
                       (default: the run's git author)
   --reason <text>     Why a run is asked to stop; the run records it
+  --after <task>      Let the run finish this task first, as tasks.md numbers
+                      it (for example 4.6), then stop where the work is sound
   --repository        owner/name for the manifest's links
                       (default: VeryComplexAndLongName/OpenSpec-UI)
   --ref <ref>         Ref the manifest's links point at (default: main)
@@ -162,6 +164,8 @@ export interface MainOptions {
   label?: string;
   /** `stop`'s reason for asking a run to stop. */
   reason?: string;
+  /** The task a stop should let the run finish first. */
+  after?: string;
 }
 
 export interface MainDeps {
@@ -219,11 +223,12 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--base" ||
       arg === "--change" ||
       arg === "--label" ||
-      arg === "--reason"
+      arg === "--reason" ||
+      arg === "--after"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -361,6 +366,9 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
         // The run to ask arrives where `run <change>` puts its subject.
         instanceId: options.changeName,
         reason: options.reason,
+        // The task the run may finish before it stops
+        // (a-run-is-told-where-to-stop).
+        ...(options.after !== undefined ? { afterTask: options.after } : {}),
         format: options.format === "json" ? "json" : "text",
       },
       { stdout, stderr },

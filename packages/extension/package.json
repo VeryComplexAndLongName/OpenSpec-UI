@@ -214,6 +214,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "openspec-ui.stopRunAfterTask",
+        "title": "OpenSpec UI: Stop This Run After a Task",
+        "icon": "$(debug-pause)"
+      },
+      {
         "command": "openspec-ui.addRelation",
         "title": "OpenSpec UI: Add Relation",
         "icon": "$(link)"
@@ -467,6 +472,11 @@
           "command": "openspec-ui.removeLeftover",
           "when": "viewItem == openspec-ui.leftover",
           "group": "inline"
+        },
+        {
+          "command": "openspec-ui.stopRunAfterTask",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "group": "relation@3"
         },
         {
           "command": "openspec-ui.addRelation",

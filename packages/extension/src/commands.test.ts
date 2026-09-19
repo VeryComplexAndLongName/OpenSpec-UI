@@ -57,6 +57,8 @@ const readGlobalHarnessConfigMock = vi.fn();
 const readChangeGraphMock = vi.fn();
 const editChangeRelationMock = vi.fn();
 const readWorkspaceLeftoversMock = vi.fn();
+const readAgentStatusesMock = vi.fn();
+const askLiveRunToStopMock = vi.fn();
 const removeWorkingDirectoryMock = vi.fn();
 const resolveCheckScriptsMock = vi.fn();
 const runMechanicalCheckMock = vi.fn();
@@ -138,6 +140,11 @@ vi.mock("@openspec-ui/core", () => ({
   CHANGE_RELATION_KEYS: ["follows", "supersedes", "blocked_by"],
   editChangeRelation: (...args: unknown[]) => editChangeRelationMock(...args),
   readWorkspaceLeftovers: (...args: unknown[]) => readWorkspaceLeftoversMock(...args),
+  readAgentStatuses: (...args: unknown[]) => readAgentStatusesMock(...args),
+  askLiveRunToStop: (...args: unknown[]) => askLiveRunToStopMock(...args),
+  resolveAgentStatusDirectory: async () => "/wt/repo/.agent-status",
+  createGitWrapper: () => ({}),
+  isTaskNumber: (value: string) => /^\d+(?:\.\d+)+$/u.test(String(value).trim()),
   removeWorkingDirectory: (...args: unknown[]) => removeWorkingDirectoryMock(...args),
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   resolveCheckScripts: (...args: unknown[]) => resolveCheckScriptsMock(...args),
@@ -274,6 +281,7 @@ describe("registerCommands", () => {
         "openspec-ui.removeRelation",
         "openspec-ui.removeLeftover",
         "openspec-ui.removeWorkingDirectory",
+        "openspec-ui.stopRunAfterTask",
       ]),
     );
   });
@@ -2933,5 +2941,71 @@ describe("the leftover commands (the-workspace-clears-what-it-left-behind)", () 
       expect.stringContaining("not clean"),
     );
     expect(deps.refreshTrees).not.toHaveBeenCalled();
+  });
+});
+
+describe("openspec-ui.stopRunAfterTask (a-run-is-told-where-to-stop)", () => {
+  const activeRow = (name: string) => ({
+    contextValue: "openspec-ui.activeChange",
+    changeName: name,
+    archived: false,
+  });
+
+  const liveReport = (changeName: string) => ({
+    instanceId: "run-b",
+    changeName,
+    gone: false,
+    signature: "verified",
+  });
+
+  it("asks the live run of that change, carrying the task and the reason", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("4.6").mockResolvedValueOnce("only up to 4.6");
+    askLiveRunToStopMock.mockResolvedValue({ asked: true, messageId: "message-9" });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+
+    expect(askLiveRunToStopMock).toHaveBeenCalledWith(expect.objectContaining({
+      instanceId: "run-b",
+      reason: "only up to 4.6",
+      afterTask: "4.6",
+    }));
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("stop after 4.6"));
+  });
+
+  it("says there is nothing to ask where no run of that change is live", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [{ ...liveReport("another-change") }], malformed: [] });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+
+    expect(vscodeMock.window.showInputBox).not.toHaveBeenCalled();
+    expect(askLiveRunToStopMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("nothing is running"));
+  });
+
+  it("writes nothing where the task or the reason is escaped", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    vscodeMock.window.showInputBox.mockResolvedValueOnce(undefined);
+    await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("4.6").mockResolvedValueOnce(undefined);
+    await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+
+    expect(askLiveRunToStopMock).not.toHaveBeenCalled();
+  });
+
+  it("shows core's refusal rather than claiming it asked", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("4.6").mockResolvedValueOnce("only up to 4.6");
+    askLiveRunToStopMock.mockResolvedValue({ asked: false, why: "no live run reports itself as run-b" });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("no live run reports itself"));
+    expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();
   });
 });

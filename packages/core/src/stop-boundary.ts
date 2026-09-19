@@ -13,13 +13,25 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import type { Event } from "./protocol.js";
-import { TASK_CHECKBOX_LINE_RE } from "./task-checklist.js";
+import { TASK_CHECKBOX_LINE_RE, taskNumberOf } from "./task-checklist.js";
 import { readTaskMarker } from "./task-marker.js";
 
 /** How often a run with a stop pending reads its task list for a newly
  * ticked task. Only while a stop is pending: nothing else reads the list
  * during a run. */
 export const STOP_CHECK_INTERVAL_MS = 2_000;
+
+/** How often a run holding a request that names a task reads its list for
+ * that task.
+ *
+ * Shorter than the interval above, because the two answer different
+ * questions. A pending stop has already decided to end and is waiting for
+ * a sound point; a held request is waiting for the point itself, and every
+ * moment between the task being ticked and the run learning it is a moment
+ * the agent may spend starting the next task. Half a second is a file read
+ * twice a second, and only while a request is held
+ * (a-run-is-told-where-to-stop). */
+export const STOP_AFTER_CHECK_INTERVAL_MS = 500;
 
 /** How many of a change's tasks are ticked, or `undefined` where its task
  * list cannot be read. */
@@ -36,6 +48,44 @@ export async function countTickedTasks(changeDir: string): Promise<number | unde
     if (match && (match[1] ?? "").toLowerCase() === "x") ticked += 1;
   }
   return ticked;
+}
+
+/** Whether one named task of a change is ticked, still open, or not in
+ * the list at all.
+ *
+ * Read from the same file as the count above, and only while a request
+ * naming a task is held: a run told to stop after 4.6 has to know when
+ * 4.6 is done, and nothing else in a run reads the list by name
+ * (a-run-is-told-where-to-stop). */
+export async function readTaskTickState(changeDir: string, task: string): Promise<"ticked" | "open" | "absent" | "unreadable"> {
+  let content: string;
+  try {
+    content = await readFile(path.join(changeDir, "tasks.md"), "utf8");
+  } catch {
+    return "unreadable";
+  }
+  for (const line of content.split(/\r?\n/u)) {
+    const match = line.match(TASK_CHECKBOX_LINE_RE);
+    if (!match) continue;
+    if (taskNumberOf(match[2] ?? "") !== task) continue;
+    return (match[1] ?? "").toLowerCase() === "x" ? "ticked" : "open";
+  }
+  return "absent";
+}
+
+/** Whether `marker` names a task that comes after `task`, comparing the
+ * numbers part by part: 4.10 comes after 4.6, and 5.1 after both. A part
+ * that is not a number sorts as 0, which is what an unreadable marker
+ * deserves - it never ends a run early by itself. */
+export function taskComesAfter(marker: string, task: string): boolean {
+  const left = marker.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = task.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const one = left[index] ?? 0;
+    const other = right[index] ?? 0;
+    if (one !== other) return one > other;
+  }
+  return false;
 }
 
 /** Reads the task markers out of a run's output as it passes.
@@ -99,6 +149,15 @@ export interface StopBoundaryOptions {
   /** Whether a permission request may be answered here. A chain under
    * `autonomous` answers them itself. */
   mayDenyPermissions?: boolean;
+  /** The task a request told this run to stop after, while one is held and
+   * not yet due. The run goes on working until it is
+   * (a-run-is-told-where-to-stop). */
+  stopAfterTask?: () => string | undefined;
+  /** Called once, when the held request comes due: its task is ticked, a
+   * marker names a task after it, or the list does not have it. The caller
+   * turns it into the stop this boundary already knows how to end on, or
+   * refuses it. */
+  onStopAfterDue?: (due: { task: string; why: "ticked" | "passed" | "absent" }) => void;
   /** Test seam for the check interval. */
   intervalMs?: number;
 }
@@ -124,6 +183,29 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
   let pendingPermission: string | undefined;
   let ticker: ReturnType<typeof setInterval> | undefined;
   let wake: (() => void) | undefined;
+  /** Whether the held request has been answered, so it is answered once
+   * and not on every wake. */
+  let answered = false;
+  /** Set when a held request came due, so the stage ends on the task it
+   * named rather than waiting for the next sound point after it: the tick
+   * of that task is the sound point (a-run-is-told-where-to-stop). */
+  let endsOnDueTask = false;
+  let tickerMs: number | undefined;
+  const runTicker = (ms: number) => {
+    if (tickerMs === ms) return;
+    if (ticker !== undefined) clearInterval(ticker);
+    tickerMs = ms;
+    ticker = setInterval(() => wake?.(), ms);
+  };
+  const heldTask = () => options.stopAfterTask?.();
+  const dueNow = (task: string, why: "ticked" | "passed" | "absent") => {
+    if (answered) return;
+    answered = true;
+    // A task the change does not have leaves the run going; the other two
+    // are the point the operator named, and the stage ends there.
+    if (why !== "absent") endsOnDueTask = true;
+    options.onStopAfterDue?.({ task, why });
+  };
   const end = () => {
     if (ending) return;
     ending = true;
@@ -132,6 +214,15 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
   try {
     for (;;) {
       pending ??= iterator.next();
+      // A caller that can hold a request needs the ticker from the start,
+      // not from the moment one arrives: the request is made from another
+      // thread of control, and a silent agent leaves this loop with
+      // nothing to wake it. The tick only wakes the loop; the task list
+      // is read only while a request is actually held.
+      if (options.stopAfterTask !== undefined) {
+        const holding = !announced && !answered && heldTask() !== undefined;
+        runTicker(options.intervalMs ?? (holding ? STOP_AFTER_CHECK_INTERVAL_MS : STOP_CHECK_INTERVAL_MS));
+      }
       const step: IteratorResult<Event> | "wake" = stopAsked() && !announced
         ? "wake"
         : await Promise.race([
@@ -143,17 +234,27 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
         ]);
       onWake(undefined);
       if (step === "wake") {
+        const heldOnWake = announced || answered ? undefined : heldTask();
+        if (heldOnWake !== undefined) {
+          const state = await readTaskTickState(changeDir, heldOnWake);
+          if (state === "ticked") dueNow(heldOnWake, "ticked");
+          else if (state === "absent") dueNow(heldOnWake, "absent");
+        }
         if (stopAsked() && !ending) {
           const ticked = await countTickedTasks(changeDir);
           if (!announced) {
             announced = true;
             tickedAtAnnouncement = ticked;
             yield* announce();
-            ticker ??= setInterval(() => wake?.(), options.intervalMs ?? STOP_CHECK_INTERVAL_MS);
+            runTicker(options.intervalMs ?? STOP_CHECK_INTERVAL_MS);
             if (pendingPermission !== undefined && mayDeny) {
               denyPermission(pendingPermission);
               end();
             }
+            // The task the request named has just been reached, so this is
+            // the point: ending here is ending on a finished task, not
+            // cutting into the next one.
+            if (endsOnDueTask) end();
           } else if (tickedAtAnnouncement === undefined) {
             tickedAtAnnouncement = ticked;
           } else if (ticked !== undefined && ticked > tickedAtAnnouncement) {
@@ -176,6 +277,8 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
         pendingPermission = undefined;
       }
       for (const marker of markers.read(event)) {
+        const heldOnMarker = announced || answered ? undefined : heldTask();
+        if (heldOnMarker !== undefined && taskComesAfter(marker, heldOnMarker)) dueNow(heldOnMarker, "passed");
         if (announced && marker !== lastMarker) end();
         lastMarker = marker;
       }

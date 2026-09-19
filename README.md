@@ -436,7 +436,7 @@ HTTP server and no webview. It started as a merge gate with one command,
 | `advise` | What the readiness report suggests, with the commands for it. |
 | `lease`, `lease release` | Who holds the workspace; clear a lease whose holder is gone. |
 | `status` | What every run of the repository last said it was doing. |
-| `stop <instanceId> --reason <text>` | Asks a live run to stop where its work is sound. |
+| `stop <instanceId> --reason <text> [--after <task>]` | Asks a live run to stop where its work is sound, or after it finishes a named task. |
 | `enrol [<keyId>]` | Lists unenrolled keys signing live runs; confirms one was yours. |
 | `worktree add`, `list`, `move`, `remove` | A working directory per change. |
 | `change-graph` | What each change follows. |
@@ -516,6 +516,12 @@ instance id; `status` lists the instance ids.
 ```bash
 npm run start --workspace @openspec-ui/cli -- stop <instanceId> --reason "wrong branch" --cwd .
 ```
+
+`--after <task>` asks the run to finish that task first: `--after 4.6`
+lets 4.6 be ticked and stops at the next sound point after it. A task the
+change's list does not have is refused before anything is written, and a
+run asked for a task it has already passed stops at the next sound point
+and says so.
 
 See [`docs/how-to/stop-a-run.md`](docs/how-to/stop-a-run.md) for stopping a
 run from its Pipeline card, in either host.

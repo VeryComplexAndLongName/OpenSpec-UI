@@ -2023,6 +2023,60 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
     return { root, auditLog, chain, command, events, pump, ...scripted };
   }
 
+  // a-run-is-told-where-to-stop 2.6: a request that names a task is held
+  // until that task is done, and the run keeps working while it is held.
+  it("holds a request naming a task, and stops once that task is ticked", async () => {
+    const run = await applyChain();
+    await writeTasksRaw(run.root, ["## 2. Tasks", "", "- [ ] 2.1 first", "- [ ] 2.2 second", ""].join("\n"));
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.1\n" });
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stdout")).toBe(true), "the first marker");
+
+    expect(run.chain.requestStop(run.command.runId, "only up to 2.1", "Ada", "message-2", "2.1")).toBe(true);
+    // Held: nothing is announced and nothing ends while the task is open.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(run.events.some((event) => event.kind === "stopRequested")).toBe(false);
+    expect(run.calls.some((call) => call.kind === "cancel")).toBe(false);
+
+    await writeTasksRaw(run.root, ["## 2. Tasks", "", "- [x] 2.1 first", "- [ ] 2.2 second", ""].join("\n"));
+    await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the held stop to come due");
+    // No further marker and no further tick: the tick of 2.1 is the point
+    // the operator named, and the stage ends on it rather than letting the
+    // agent into 2.2 (a-run-is-told-where-to-stop).
+    await run.pump;
+    expect(run.events.some((event) => event.kind === "stdout" && String(event.chunk).includes("2.2"))).toBe(false);
+
+    expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
+    expect(run.auditLog.entries.filter((entry) => entry.agent === "chain")).toEqual([
+      expect.objectContaining({
+        outcome: "cancelled",
+        stopRequest: { reason: "only up to 2.1", by: "Ada", messageId: "message-2", afterTask: "2.1" },
+      }),
+    ]);
+  });
+
+  it("refuses a request naming a task the change does not have, and the run goes on", async () => {
+    const run = await applyChain();
+    await writeTasksRaw(run.root, ["## 2. Tasks", "", "- [ ] 2.1 first", ""].join("\n"));
+
+    expect(run.chain.requestStop(run.command.runId, "typo", "Ada", "message-3", "9.9")).toBe(true);
+    await waitForChain(
+      () => expect(run.auditLog.entries.some((entry) => String(entry.reason ?? "").includes("9.9"))).toBe(true),
+      "the refusal to be recorded",
+    );
+
+    expect(run.events.some((event) => event.kind === "stopRequested")).toBe(false);
+    expect(run.calls.some((call) => call.kind === "cancel")).toBe(false);
+    const refusal = run.auditLog.entries.find((entry) => String(entry.reason ?? "").includes("9.9"));
+    expect(refusal).toMatchObject({ outcome: "message" });
+    expect(String(refusal?.reason)).toContain("the run goes on");
+
+    // Ended with an ordinary stop: the refusal left the chain running, and
+    // a chain left running holds this test open.
+    run.chain.requestStop(run.command.runId, "done here", "Ada");
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.9\n" });
+    await run.pump;
+  });
+
   it("ends a stage at the next marker naming another task, and starts no stage after it", async () => {
     const run = await applyChain();
     run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.1\n" });

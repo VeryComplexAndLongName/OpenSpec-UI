@@ -89,3 +89,53 @@ describe("stopCommand", () => {
     expect(JSON.parse(out.join("\n"))).toEqual({ messageId: "message-1", to: "run-b" });
   });
 });
+
+// a-run-is-told-where-to-stop 3.3.
+describe("stopCommand --after", () => {
+  it("carries the task in the request and says what it asked for", async () => {
+    const { out, ask, deps } = collectingDeps([LIVE]);
+
+    const code = await stopCommand(
+      { workspaceRoot: "/repo", instanceId: "run-b", reason: "only up to 4.6", afterTask: "4.6", format: "text" },
+      deps,
+    );
+
+    expect(code).toBe(0);
+    expect(out).toEqual(["message-1 (after 4.6)"]);
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ to: "run-b", reason: "only up to 4.6", afterTask: "4.6" }));
+  });
+
+  it("names the task in its json answer too", async () => {
+    const { out, deps } = collectingDeps([LIVE]);
+
+    await stopCommand(
+      { workspaceRoot: "/repo", instanceId: "run-b", reason: "only up to 4.6", afterTask: "4.6", format: "json" },
+      deps,
+    );
+
+    expect(JSON.parse(out.join(""))).toEqual({ messageId: "message-1", to: "run-b", afterTask: "4.6" });
+  });
+
+  it("refuses something that is not a task number, before anything is written", async () => {
+    const { err, ask, deps } = collectingDeps([LIVE]);
+
+    for (const afterTask of ["the fourth one", "4", "", "  "]) {
+      expect(await stopCommand(
+        { workspaceRoot: "/repo", instanceId: "run-b", reason: "live check", afterTask, format: "text" },
+        deps,
+      )).toBe(2);
+    }
+
+    expect(ask).not.toHaveBeenCalled();
+    expect(err.join("\n")).toContain("--after takes a task number");
+  });
+
+  it("writes the request it always did when no task is given", async () => {
+    const { out, ask, deps } = collectingDeps([LIVE]);
+
+    expect(await stopCommand({ workspaceRoot: "/repo", instanceId: "run-b", reason: "live check", format: "text" }, deps)).toBe(0);
+
+    expect(out).toEqual(["message-1"]);
+    expect(ask).toHaveBeenCalledWith(expect.not.objectContaining({ afterTask: expect.anything() }));
+  });
+});
