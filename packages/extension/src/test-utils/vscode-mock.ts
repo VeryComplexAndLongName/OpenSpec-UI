@@ -49,7 +49,10 @@ export class EventEmitter<T> {
 }
 
 export class ThemeIcon {
-  constructor(public readonly id: string) { }
+  // The colour is the real API's second argument, and a tree item now
+  // carries its standing there (the-icon-carries-the-colour). A mock that
+  // dropped it would let the colour go missing with every test green.
+  constructor(public readonly id: string, public readonly color?: ThemeColor) { }
 }
 
 export class ThemeColor {

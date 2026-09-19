@@ -40,16 +40,29 @@ async function findEditor(): Promise<string> {
   // binary to photograph with (the-pictures-show-what-is-drawn-now).
   const named = process.env.OPENSPEC_PICTURE_EDITOR;
   if (named !== undefined && named.trim().length > 0) return named;
+  // Both places the download lands: the repository root, and the package
+  // the integration suite is configured from. Which one it is depends on
+  // where that suite was last run from, and a capture that knows only one
+  // of them fails with the editor sitting in the other
+  // (the-icon-carries-the-colour).
   const { readdir } = await import("node:fs/promises");
-  const testRoot = path.resolve(HERE, "..", "..", "..", ".vscode-test");
-  const entries = await readdir(testRoot, { withFileTypes: true });
-  const archive = entries.find((entry) => entry.isDirectory() && entry.name.startsWith("vscode-"));
-  if (!archive) {
-    throw new Error(
-      `no VS Code under ${testRoot}. Run the extension's integration suite once to download it.`,
-    );
+  const roots = [
+    path.resolve(HERE, "..", "..", "..", ".vscode-test"),
+    path.resolve(HERE, "..", ".vscode-test"),
+  ];
+  for (const testRoot of roots) {
+    let entries;
+    try {
+      entries = await readdir(testRoot, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    const archive = entries.find((entry) => entry.isDirectory() && entry.name.startsWith("vscode-"));
+    if (archive) return path.join(testRoot, archive.name, "Code.exe");
   }
-  return path.join(testRoot, archive.name, "Code.exe");
+  throw new Error(
+    `no VS Code under ${roots.join(" or ")}. Run the extension's integration suite once to download it.`,
+  );
 }
 
 /** Written into the editor's own user directory before it starts.
@@ -469,7 +482,7 @@ test.describe("editor documentation screenshots", () => {
   test("the Archive view narrowed by a filter, saying what it is showing", async () => {
     await closeEditors();
     await onlyExpand("Archive");
-    await runCommand("OpenSpec UI: Filter Archive");
+    await runCommand("OpenSpec UI: Filter Archive", "Every word must appear somewhere in the row");
     const input = window.locator(".quick-input-widget input");
     await input.waitFor();
     await input.fill("shipped");
@@ -580,14 +593,24 @@ async function widenSideBar(width: number): Promise<void> {
 }
 
 /** Runs a command by its title through the command palette, the way a
- * reader of the caption would. */
-async function runCommand(title: string): Promise<void> {
+ * reader of the caption would.
+ *
+ * `thenAsking` is the text the command's own input box carries, for a
+ * command that opens one. Waiting for the widget to hide is wrong for
+ * those: the palette closes and the command's box opens into the same
+ * widget, so whether a gap ever appears is a race this lost twice in a
+ * row (the-icon-carries-the-colour). */
+async function runCommand(title: string, thenAsking?: string): Promise<void> {
   await window.keyboard.press("F1");
   const input = window.locator(".quick-input-widget input");
   await input.waitFor();
   await input.fill(`>${title}`);
   await window.locator(`.quick-input-list .monaco-list-row:has-text("${title}")`).first().waitFor();
   await window.keyboard.press("Enter");
+  if (thenAsking !== undefined) {
+    await expect(window.locator(".quick-input-widget")).toContainText(thenAsking);
+    return;
+  }
   await expect(window.locator(".quick-input-widget")).toBeHidden();
 }
 

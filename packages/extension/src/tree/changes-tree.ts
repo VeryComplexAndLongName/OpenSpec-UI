@@ -20,7 +20,7 @@ import {
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { readRepoSetupFacts } from "../repo-setup-facts.js";
-import { changeUri, type ChangeStandingDecorations } from "./change-standing-decorations.js";
+import { changeUri, standingThemeColour, type ChangeStandingDecorations } from "./change-standing-decorations.js";
 
 // Every TreeItem subclass here sets an explicit, stable `.id`. Without one,
 // VS Code falls back to a label-derived identity; since every getChildren()
@@ -64,7 +64,12 @@ export class ChangeTreeItem extends vscode.TreeItem {
       this.tooltip = [standing.word, ...standing.lines.map((line) => `${line.text} (${line.source})`)].join("\n");
     }
     this.contextValue = archived ? "openspec-ui.archivedChange" : "openspec-ui.activeChange";
-    this.iconPath = new vscode.ThemeIcon(iconForState(state));
+    // The standing's colour rides the icon, and the label keeps the theme's
+    // own foreground: a decoration's colour would tint the words, and a
+    // dozen coloured rows read as if the colour were the subject
+    // (the-icon-carries-the-colour).
+    const colour = standing === undefined ? undefined : standingThemeColour(standing.colour);
+    this.iconPath = new vscode.ThemeIcon(iconForState(state), colour);
   }
 }
 
