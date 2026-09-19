@@ -99,10 +99,11 @@ function feed() {
   return { events: events(), push };
 }
 
-function boundary(changeDir: string, source: AsyncIterable<Event>) {
+function boundary(changeDir: string, source: AsyncIterable<Event>, afterTask?: string) {
   let asked = false;
+  let held = afterTask;
   let wake: (() => void) | undefined;
-  const calls = { ended: 0, denied: [] as string[] };
+  const calls = { ended: 0, denied: [] as string[], due: [] as Array<{ task: string; why: string }> };
   const seen: Event[] = [];
   const run = (async () => {
     for await (const event of untilStopBoundary({
@@ -119,6 +120,12 @@ function boundary(changeDir: string, source: AsyncIterable<Event>) {
       endRun: () => {
         calls.ended += 1;
       },
+      stopAfterTask: () => held,
+      onStopAfterDue: (due) => {
+        calls.due.push(due);
+        held = undefined;
+      },
+      intervalMs: 20,
     })) seen.push(event);
   })();
   const ask = () => {
@@ -196,6 +203,75 @@ describe("untilStopBoundary", () => {
     b.ask();
     await vi.waitFor(() => expect(b.calls.ended).toBe(1));
     expect(b.calls.denied).toEqual(["perm-1"]);
+    source.push("end");
+    await b.run;
+  });
+});
+
+// a-run-is-told-where-to-stop 2.2 and 2.3: a request naming a task is held
+// until that task is done, and the run keeps working while it is.
+describe("untilStopBoundary, holding a request that names a task", () => {
+  /** A task list whose numbers are given, since this is about one task by
+   * name and `writeTasks` renumbers what it writes. */
+  async function writeNamedTasks(dir: string, tasks: Array<[string, boolean]>): Promise<void> {
+    await mkdir(dir, { recursive: true });
+    const lines = ["## 2. Tasks", ...tasks.map(([number, ticked]) => `- [${ticked ? "x" : " "}] ${number} something`), ""];
+    await writeFile(path.join(dir, "tasks.md"), lines.join("\n"), "utf8");
+  }
+
+  it("says the request is due once the named task is ticked, and ends nothing before that", async () => {
+    const dir = await changeWithTasks(0, 3);
+    await writeNamedTasks(dir, [["2.1", false], ["2.2", false], ["2.3", false]]);
+    const source = feed();
+    const b = boundary(dir, source.events, "2.2");
+
+    source.push(stdout("Starting task 2.1\n"));
+    await vi.waitFor(() => expect(b.seen.length).toBe(1));
+    expect(b.calls.due).toEqual([]);
+    expect(b.calls.ended).toBe(0);
+
+    await writeNamedTasks(dir, [["2.1", true], ["2.2", true], ["2.3", false]]);
+    await vi.waitFor(() => expect(b.calls.due).toEqual([{ task: "2.2", why: "ticked" }]), { timeout: 5_000 });
+
+    source.push("end");
+    await b.run;
+  });
+
+  it("says it is due when the agent names a task after the one it was given", async () => {
+    const dir = await changeWithTasks(0, 3);
+    await writeNamedTasks(dir, [["2.1", false], ["2.2", false], ["2.3", false]]);
+    const source = feed();
+    const b = boundary(dir, source.events, "2.2");
+
+    source.push(stdout("Starting task 2.3\n"));
+    await vi.waitFor(() => expect(b.calls.due).toEqual([{ task: "2.2", why: "passed" }]), { timeout: 5_000 });
+
+    source.push("end");
+    await b.run;
+  });
+
+  it("says it is due, as absent, where the change has no such task", async () => {
+    const dir = await changeWithTasks(0, 2);
+    const source = feed();
+    const b = boundary(dir, source.events, "9.9");
+
+    await vi.waitFor(() => expect(b.calls.due).toEqual([{ task: "9.9", why: "absent" }]), { timeout: 5_000 });
+    expect(b.calls.ended).toBe(0);
+
+    source.push("end");
+    await b.run;
+  });
+
+  it("answers once, not on every wake", async () => {
+    const dir = await changeWithTasks(2, 1);
+    await writeNamedTasks(dir, [["1.1", true], ["1.2", true], ["2.1", false]]);
+    const source = feed();
+    const b = boundary(dir, source.events, "1.2");
+
+    await vi.waitFor(() => expect(b.calls.due).toHaveLength(1), { timeout: 5_000 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(b.calls.due).toHaveLength(1);
+
     source.push("end");
     await b.run;
   });

@@ -58,6 +58,9 @@ export interface AgentStatusStopRequestMessage {
   reason: string;
   by: string;
   messageId: string;
+  /** The task of the change the request told this run to finish before
+   * stopping, where it named one (a-run-is-told-where-to-stop). */
+  afterTask?: string;
 }
 
 /** A request addressed to a run that it did not act on, and why. */
@@ -400,11 +403,16 @@ export class AgentStatusWriter {
       });
       for (const reading of readings) {
         if (this.stopped) return;
-        const { messageId, reason } = reading.message;
+        const { messageId, reason, afterTask } = reading.message;
         const firstReading = !this.seenStopRequests.has(messageId);
         this.seenStopRequests.add(messageId);
         if (reading.state === "act") {
-          this.onStopRequested({ reason, by: reading.person.label, messageId });
+          this.onStopRequested({
+            reason,
+            by: reading.person.label,
+            messageId,
+            ...(afterTask !== undefined ? { afterTask } : {}),
+          });
         } else if (firstReading) {
           this.setActivity(`a request to stop arrived, ${REFUSAL_WORDS[reading.why]}; not acted on`);
           this.onStopRequestRefused?.({ messageId, why: reading.why, reason });

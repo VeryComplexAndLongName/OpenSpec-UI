@@ -44,9 +44,23 @@ export interface StopMessage {
   /** The instance id of the run it asks, from that run's status record. */
   to: string;
   reason: string;
+  /** The task of the change to finish before stopping, as `tasks.md`
+   * writes it (for example `4.6`). Absent asks the run to stop at the
+   * next sound point, which is what a stop has always meant
+   * (a-run-is-told-where-to-stop). */
+  afterTask?: string;
   sentAt: string;
   machine: string;
   gitAuthor?: string;
+}
+
+/** What a task number looks like in a task list: two or more numbers,
+ * separated by dots. Checked where the request is written and again where
+ * it is read, since neither end trusts the other. */
+const TASK_NUMBER = /^\d+(?:\.\d+)+$/u;
+
+export function isTaskNumber(value: string): boolean {
+  return TASK_NUMBER.test(value.trim());
 }
 
 /** Why a request addressed to a run was not acted on. */
@@ -60,6 +74,9 @@ export interface AskRunToStopOptions {
   directory: string;
   to: string;
   reason: string;
+  /** The task to finish before stopping. Refused here rather than written
+   * as something a run would have to refuse later. */
+  afterTask?: string;
   key: Pick<MachineKey, "keyId" | "publicKey" | "sign">;
   machine: string;
   gitAuthor?: string;
@@ -73,12 +90,16 @@ export interface AskRunToStopOptions {
  * reads half a request. */
 export async function askRunToStop(options: AskRunToStopOptions): Promise<string> {
   const messageId = options.messageId ?? randomUUID();
+  if (options.afterTask !== undefined && !isTaskNumber(options.afterTask)) {
+    throw new Error(`${JSON.stringify(options.afterTask)} is not a task number, such as 4.6`);
+  }
   const message: StopMessage = {
     version: STOP_MESSAGE_VERSION,
     messageId,
     kind: "stop",
     to: options.to,
     reason: options.reason,
+    ...(options.afterTask !== undefined ? { afterTask: options.afterTask.trim() } : {}),
     sentAt: (options.now ?? (() => new Date()))().toISOString(),
     machine: options.machine,
     ...(options.gitAuthor !== undefined ? { gitAuthor: options.gitAuthor } : {}),
@@ -108,12 +129,19 @@ function readStopMessage(value: unknown): StopMessage | undefined {
   if (typeof message.reason !== "string" || typeof message.sentAt !== "string" || typeof message.machine !== "string") return undefined;
   if (!Number.isFinite(Date.parse(message.sentAt))) return undefined;
   if (message.gitAuthor !== undefined && typeof message.gitAuthor !== "string") return undefined;
+  // A task that is not a task number is not a request anybody can honour:
+  // the run would have to guess between "stop now" and "never stop", and
+  // both are wrong (a-run-is-told-where-to-stop).
+  if (message.afterTask !== undefined && (typeof message.afterTask !== "string" || !isTaskNumber(message.afterTask))) {
+    return undefined;
+  }
   return {
     version: STOP_MESSAGE_VERSION,
     messageId: message.messageId,
     kind: "stop",
     to: message.to,
     reason: message.reason,
+    ...(typeof message.afterTask === "string" ? { afterTask: message.afterTask.trim() } : {}),
     sentAt: message.sentAt,
     machine: message.machine,
     ...(typeof message.gitAuthor === "string" ? { gitAuthor: message.gitAuthor } : {}),

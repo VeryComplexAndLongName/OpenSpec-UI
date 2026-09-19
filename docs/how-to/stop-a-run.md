@@ -27,6 +27,22 @@ recorded in the run's status and in the chain's ending audit entry.
 without waiting for a sound point. Use it only when waiting is worse than
 an unfinished task.
 
+## Stopping after a task, rather than now
+
+Where the run should finish part of the change first, name the task:
+
+```bash
+openspec-ui-cli stop <instanceId> --reason "only up to 4.6" --after 4.6
+```
+
+The run keeps working, and stops at the first sound point once 4.6 is
+ticked - which may be a few lines into 4.7, since that is where the work
+stays sound. In the editor, the same request is made from a change's row
+with **OpenSpec UI: Stop This Run After a Task**.
+
+A task the change's list does not have is refused, and the run goes on: a
+typo must not become "stop now".
+
 ## A run held somewhere else
 
 A run started in another working directory, or by another host, offers

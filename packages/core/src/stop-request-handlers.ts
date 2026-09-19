@@ -8,7 +8,7 @@
 
 import os from "node:os";
 
-import { askRunToStop, messageDirectoryBeside } from "./agent-messages.js";
+import { askRunToStop, isTaskNumber, messageDirectoryBeside } from "./agent-messages.js";
 import { readAgentStatuses, type AgentStatusRunOptions, type AgentStatusStopRequestRefusal } from "./agent-status.js";
 import { readGitAuthor } from "./git.js";
 import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
@@ -37,13 +37,13 @@ function recordRefusal(auditLog: AuditLog | undefined, command: RunCommand, agen
  * the enrolled person as `by` and the request's message id, which the chain's
  * ending entry carries. */
 export function chainStopRequestHandlers(
-  chainRunner: { requestStop(runId: string, reason: string, by?: string, messageId?: string): boolean },
+  chainRunner: { requestStop(runId: string, reason: string, by?: string, messageId?: string, afterTask?: string): boolean },
   command: RunCommand,
   auditLog?: AuditLog,
 ): StopRequestHandlers {
   return {
     onStopRequested: (request) => {
-      chainRunner.requestStop(command.runId, request.reason, request.by, request.messageId);
+      chainRunner.requestStop(command.runId, request.reason, request.by, request.messageId, request.afterTask);
     },
     onStopRequestRefused: (refusal) => recordRefusal(auditLog, command, "chain", refusal),
   };
@@ -81,6 +81,9 @@ export interface AskLiveRunToStopOptions {
   workspaceRoot: string;
   instanceId: string;
   reason: string;
+  /** The task the run may finish before it stops, as `tasks.md` numbers
+   * it (a-run-is-told-where-to-stop). */
+  afterTask?: string;
   /** Test seams. */
   read?: typeof readAgentStatuses;
   ask?: typeof askRunToStop;
@@ -102,12 +105,17 @@ export async function askLiveRunToStop(options: AskLiveRunToStopOptions): Promis
   // requests: neither is one a card could ask.
   const live = reports.some((report) => report.instanceId === options.instanceId && !report.gone && report.signature !== "does-not-check-out");
   if (!live) return { asked: false, why: `no live run reports itself as ${options.instanceId}` };
+  const afterTask = options.afterTask?.trim();
+  if (options.afterTask !== undefined && (afterTask === undefined || !isTaskNumber(afterTask))) {
+    return { asked: false, why: `${JSON.stringify(options.afterTask)} is not a task number, such as 4.6` };
+  }
   const key = await (options.loadKey ?? (() => loadOrCreateMachineKey()))();
   const gitAuthor = await (options.readAuthor ?? readGitAuthor)(options.workspaceRoot).catch(() => undefined);
   const messageId = await (options.ask ?? askRunToStop)({
     directory: messageDirectoryBeside(options.statusDirectory),
     to: options.instanceId,
     reason,
+    ...(afterTask !== undefined ? { afterTask } : {}),
     key,
     machine: options.machine ?? os.hostname(),
     ...(gitAuthor !== undefined ? { gitAuthor } : {}),

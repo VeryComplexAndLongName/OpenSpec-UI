@@ -151,3 +151,65 @@ describe("readStopRequests", () => {
     expect(await readUnopenedRequests(directory, new Map())).toEqual([]);
   });
 });
+
+// a-run-is-told-where-to-stop 1.4: the task travels in the request, and a
+// task nobody can read never reaches a run.
+describe("a stop that names a task to stop after", () => {
+  it("seals the task and reads it back", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await askRunToStop({
+      directory, to: INSTANCE, reason: "only up to 4.6", afterTask: "4.6",
+      key, machine: "machine-a", now: () => SENT_AT,
+    });
+
+    const readings = await readStopRequests({ directory, instanceId: INSTANCE, roster: rosterWith(key), now: SENT_AT, seen: new Set() });
+
+    expect(readings).toEqual([
+      expect.objectContaining({
+        state: "act",
+        message: expect.objectContaining({ reason: "only up to 4.6", afterTask: "4.6" }),
+      }),
+    ]);
+  });
+
+  it("reads a request without one exactly as before", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await asked(directory, key);
+
+    const [reading] = await readStopRequests({ directory, instanceId: INSTANCE, roster: rosterWith(key), now: SENT_AT, seen: new Set() });
+
+    expect(reading?.state).toBe("act");
+    expect(reading?.message.afterTask).toBeUndefined();
+  });
+
+  it("refuses to write a task that is not a task number", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+
+    await expect(askRunToStop({
+      directory, to: INSTANCE, reason: "no", afterTask: "the fourth one",
+      key, machine: "machine-a", now: () => SENT_AT,
+    })).rejects.toThrow("is not a task number");
+  });
+
+  it("does not read a signed request whose task is not a task number", async () => {
+    // Signed by an enrolled key and still unreadable: the envelope proves
+    // who wrote it, never that what they wrote can be honoured.
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    const messageId = await asked(directory, key);
+    const file = path.join(directory, `${messageId}.json`);
+    const envelope = JSON.parse(await readFile(file, "utf8")) as { payload: string };
+    const payload = JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8")) as Record<string, unknown>;
+    payload.afterTask = "later";
+    const { sealEnvelope } = await import("./signed-envelope.js");
+    await writeFile(file, `${JSON.stringify(sealEnvelope(Buffer.from(JSON.stringify(payload), "utf8"), key), null, 2)}
+`, "utf8");
+
+    const readings = await readStopRequests({ directory, instanceId: INSTANCE, roster: rosterWith(key), now: SENT_AT, seen: new Set() });
+
+    expect(readings).toEqual([]);
+  });
+});

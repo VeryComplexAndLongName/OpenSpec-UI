@@ -10,6 +10,7 @@
 import os from "node:os";
 import {
   askRunToStop,
+  isTaskNumber,
   createGitWrapper,
   loadOrCreateMachineKey,
   messageDirectoryBeside,
@@ -25,6 +26,10 @@ export interface StopOptions {
   /** The run to ask, by the instance id its status record names. */
   instanceId: string | undefined;
   reason: string | undefined;
+  /** The task the run may finish before it stops, as `tasks.md` numbers
+   * it. Absent asks it to stop at the next sound point, which is what a
+   * stop has always meant (a-run-is-told-where-to-stop). */
+  afterTask?: string;
   format: "text" | "json";
 }
 
@@ -55,6 +60,14 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
     deps.stderr("openspec-ui-cli: stop needs a reason: --reason <text>");
     return 2;
   }
+  const afterTask = options.afterTask?.trim();
+  // Refused here, before anything is read or written: a request carrying a
+  // task no list can name is one the run would have to refuse later, and
+  // by then the operator has stopped watching.
+  if (options.afterTask !== undefined && (afterTask === undefined || !isTaskNumber(afterTask))) {
+    deps.stderr(`openspec-ui-cli: --after takes a task number, such as 4.6; it was given ${JSON.stringify(options.afterTask)}`);
+    return 2;
+  }
 
   let directory: string;
   let live: boolean;
@@ -82,6 +95,7 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
       directory: messageDirectoryBeside(directory),
       to: instanceId,
       reason,
+      ...(afterTask !== undefined ? { afterTask } : {}),
       key,
       machine: deps.machine ?? os.hostname(),
       ...(gitAuthor !== undefined ? { gitAuthor } : {}),
@@ -92,9 +106,9 @@ export async function stopCommand(options: StopOptions, deps: StopDeps): Promise
   }
 
   if (options.format === "json") {
-    deps.stdout(JSON.stringify({ messageId, to: instanceId }, null, 2));
+    deps.stdout(JSON.stringify({ messageId, to: instanceId, ...(afterTask !== undefined ? { afterTask } : {}) }, null, 2));
   } else {
-    deps.stdout(messageId);
+    deps.stdout(afterTask !== undefined ? `${messageId} (after ${afterTask})` : messageId);
   }
   return 0;
 }

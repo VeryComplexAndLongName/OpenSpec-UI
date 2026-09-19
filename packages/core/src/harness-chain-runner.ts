@@ -149,7 +149,13 @@ interface ChainState {
   currentCommand?: Command;
   /** A stop a person asked for (a-change-is-run-from-its-card): the reason,
    * who asked where known, and whether `stopRequested` has been yielded. */
-  stopRequest?: { reason: string; by?: string; messageId?: string; announced: boolean };
+  stopRequest?: { reason: string; by?: string; messageId?: string; afterTask?: string; announced: boolean };
+  /** A request that named a task to stop after, held until that task is
+   * done. The run goes on working while it is held; when the task is
+   * ticked, or its agent names a task after it, this becomes
+   * `stopRequest` and the stage ends at the next sound point
+   * (a-run-is-told-where-to-stop). */
+  heldStop?: { reason: string; by?: string; messageId?: string; afterTask: string };
   /** Wakes the running stage's stop boundary, so a stop is acted on while
    * the stage says nothing. */
   stopWake?: () => void;
@@ -566,6 +572,10 @@ export class HarnessChainRunner {
         ...(stopRequest.by !== undefined ? { by: stopRequest.by } : {}),
         // The request a run elsewhere acted on (a-run-elsewhere-can-be-asked-to-stop).
         ...(stopRequest.messageId !== undefined ? { messageId: stopRequest.messageId } : {}),
+        // The task the request named, so a line read a week later says
+        // where the run was told to stop rather than where it happened to
+        // (a-run-is-told-where-to-stop).
+        ...(stopRequest.afterTask !== undefined ? { afterTask: stopRequest.afterTask } : {}),
       }
       : undefined;
     const reason = ending.kind === "completed" || stopped !== undefined ? undefined : ending.reason;
@@ -701,14 +711,29 @@ export class HarnessChainRunner {
    * `messageId` is the signed request's, where the stop was asked through
    * the channel from another worktree; the chain's ending entry carries it
    * (a-run-elsewhere-can-be-asked-to-stop). */
-  requestStop(runId: string, reason: string, by?: string, messageId?: string): boolean {
+  requestStop(runId: string, reason: string, by?: string, messageId?: string, afterTask?: string): boolean {
     const state = this.active.get(runId);
     if (!state) return false;
     if (state.stopRequest !== undefined) return true;
+    if (afterTask !== undefined) {
+      // Held, not pending: the run keeps working until the task it names
+      // is done. The first held request wins, as the first stop does.
+      if (state.heldStop === undefined) {
+        state.heldStop = {
+          reason,
+          ...(by !== undefined ? { by } : {}),
+          ...(messageId !== undefined ? { messageId } : {}),
+          afterTask,
+        };
+        state.stopWake?.();
+      }
+      return true;
+    }
     state.stopRequest = {
       reason,
       ...(by !== undefined ? { by } : {}),
       ...(messageId !== undefined ? { messageId } : {}),
+      ...(afterTask !== undefined ? { afterTask } : {}),
       announced: false,
     };
     if (state.pendingCheckpoint) {
@@ -719,6 +744,41 @@ export class HarnessChainRunner {
     }
     state.stopWake?.();
     return true;
+  }
+
+  /** A held request comes due: its task was ticked, its agent named a task
+   * after it, or the change's list does not have it.
+   *
+   * The first two become the stop this runner already knows how to honour.
+   * The third is refused and recorded, and the run goes on: a task nobody
+   * can find must not silently mean "stop now", which would end a run the
+   * operator meant to keep, nor "never stop", which would leave a request
+   * that never lands (a-run-is-told-where-to-stop). */
+  private heldStopIsDue(
+    command: Command,
+    state: ChainState,
+    due: { task: string; why: "ticked" | "passed" | "absent" },
+  ): void {
+    const held = state.heldStop;
+    if (held === undefined) return;
+    state.heldStop = undefined;
+    if (due.why === "absent") {
+      this.deps.auditLog?.record({
+        runId: command.runId,
+        agent: CHAIN_ENDING_AGENT_NAME,
+        // `message`, as the channel's other refusals are recorded: nothing
+        // ran and nothing ended, something was said.
+        outcome: "message",
+        cwd: command.cwd,
+        timestamp: nowIso(),
+        changeDir: command.context.changeDir,
+        reason: `a request to stop after ${due.task} named a task this change does not have; the run goes on`,
+      });
+      return;
+    }
+    this.requestStop(command.runId, held.reason, held.by, held.messageId);
+    const request = state.stopRequest;
+    if (request !== undefined) request.afterTask = held.afterTask;
   }
 
   /** Yields the one `stopRequested` a requested stop produces, the first
@@ -1452,6 +1512,8 @@ export class HarnessChainRunner {
       events: runner.run(stageCommand),
       changeDir: context.changeDir,
       stopAsked: () => state.stopRequest !== undefined,
+      stopAfterTask: () => state.heldStop?.afterTask,
+      onStopAfterDue: (due) => this.heldStopIsDue(command, state, due),
       onWake: (wake) => {
         state.stopWake = wake;
       },
