@@ -79,9 +79,13 @@ and a question back from it follow in the next one.
   in CI.
 - [x] 5.2 A changeset: `@openspec-ui/core` minor, `@openspec-ui/cli`
   minor, `openspec-ui-vscode` minor.
-- [ ] 5.3 `lint:english` after `git add`, `lint:changesets`,
+- [x] 5.3 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets`, `lint:source-text`, `lint:screenshots` and
   `lint:publish-workflow` pass.
+
+  Done 2026-09-19 after `git add`: English policy check passed, changeset
+  check passed, test budget policy check passed, source text check passed,
+  screenshot check passed, publish workflow check passed.
 - [x] 5.4 The whole standalone browser suite passes, unchanged by this
   change. Record the count.
 
