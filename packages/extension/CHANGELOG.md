@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.66.0
+
+### Minor Changes
+
+- 84bbb26: Review in Processes answers where it was pressed: a run's details, its
+  changed files and its rollback control open under that run's own row
+  instead of in a panel at the foot of the tab, which with a hundred rows
+  put the answer five screens below the button. A second press folds it,
+  opening another run closes the first, and the list can be narrowed by a
+  word.
+
+### Patch Changes
+
+- Updated dependencies [84bbb26]
+  - @openspec-ui/webui@1.64.0
+  - @openspec-ui/server@1.32.0
+
 ## 0.65.0
 
 ### Minor Changes
