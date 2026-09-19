@@ -30,6 +30,24 @@ away the branches where every change has landed, and lets a relation be
 added or removed from the row that shows it. The Archive, Specs and
 Change Graph views each take a filter from their title bar.
 
+Both hosts also carry, beyond the views above:
+
+- **The Pipeline** - every change as a card in the order the changes
+  declare, with what a live run last said and what can start alongside
+  what. A card starts a run, answers a checkpoint, and asks a run to stop
+  with a reason.
+- **The Timeline** - one change as a line of moments read from git, and a
+  comparison of every change on a grid of days.
+- **What waits on somebody** - every task marked human-only or delegated
+  to a named agent, with the run offered where this build carries that
+  agent. A panel of the Summary in the standalone app; a view of its own
+  in the editor.
+- **Harness Settings** - the per-stage agent, model, effort and budget,
+  globally and per change.
+- **What the archive left behind** - a directory holding nothing but a
+  file this product wrote is cleared, and anything else with no documents
+  in it is shown rather than removed.
+
 See the complete screenshot galleries for the
 [standalone application](packages/server/README.md#screenshots) and the
 [VS Code extension](packages/extension/README.md#screenshots).
@@ -255,16 +273,17 @@ information.
 The private root package remains `0.0.0`; it is a workspace container, not a
 release artifact, and is excluded from changesets accordingly
 (`.changeset/config.json`'s `ignore`). Current release versions (as of
-2026-08-26; each package's own `package.json` is the live source of truth,
-this table is a snapshot, not authoritative):
+2026-09-19; each package's own `package.json` is the live source of truth,
+this table is a snapshot, not authoritative, and the standalone app's
+footer prints the live figures):
 
 | Package | Version | Release role |
 | --- | ---: | --- |
-| `@openspec-ui/core` | 0.31.0 | Shared behavior and persistence contract |
-| `openspec-ui-vscode` | 0.28.0 | VS Code delivery |
-| `@openspec-ui/server` | 1.12.0 | Standalone server delivery |
-| `@openspec-ui/webui` | 1.16.0 | Shared browser UI |
-| `@openspec-ui/cli` | 0.1.2 | CI merge-gate delivery |
+| `@openspec-ui/core` | 0.98.0 | Shared behavior and persistence contract |
+| `openspec-ui-vscode` | 0.63.0 | VS Code delivery |
+| `@openspec-ui/server` | 1.30.0 | Standalone server delivery |
+| `@openspec-ui/webui` | 1.62.0 | Shared browser UI |
+| `@openspec-ui/cli` | 0.14.0 | CI merge-gate delivery |
 
 `@vscode/vsce` (the extension's packager) already names the built
 artifact with its version (`openspec-ui-vscode-<version>.vsix`) — no
@@ -299,9 +318,10 @@ stops holding.
 | Agent selection (plan/implement/review via this app's own protocol) | Yes | Yes |
 | Processes view and checkpoint rollback | Yes | Yes |
 | Persistent run journal engine | Yes | Yes |
-| Built-in template catalog (16 templates, 9 categories) | Yes | Yes |
+| Built-in template catalog (17 templates, 10 categories) | Yes | Yes |
 | Recorded agent spend, and a ceiling that stops a chain | Yes | Yes |
-| Change relation graph (`follows`/`supersedes`/`blocked_by`) | No — `@openspec-ui/cli change-graph` | View and command |
+| Change relation graph (`follows`/`supersedes`/`blocked_by`) | No — `@openspec-ui/cli change-graph` | View, filter, fold what has landed, and add or remove a relation from a row |
+| Clear what the archive left behind | Yes | Yes |
 
 Host-specific UX is allowed to differ, but business behavior must remain in
 `packages/core`. Both delivery targets expose the same core recovery behavior

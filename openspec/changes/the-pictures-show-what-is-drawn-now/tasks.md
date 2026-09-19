@@ -126,6 +126,23 @@ them with them.
 - [x] 6.4 The captions were corrected to what the pictures now show: the
   workbench picture names its seven views rather than promising artifacts
   it no longer shows, and the standalone picture names the frame.
+- [x] 6.6 The owner asked whether the README on this branch matches the
+  product. The pictures did after 6.1 to 6.4; the prose did not. The
+  version snapshot read "as of 2026-08-26" with core 0.31.0, extension
+  0.28.0, server 1.12.0, webui 1.16.0 and cli 0.1.2 - three weeks and
+  about sixty releases behind. It now reads the live figures: core 0.98.0,
+  extension 0.63.0, server 1.30.0, webui 1.62.0, cli 0.14.0, dated
+  2026-09-19, and says the standalone footer prints them live.
+- [x] 6.7 The catalogue was described as "16 templates, 9 categories" in
+  the root README and on the Marketplace page. `BUILT_IN_TEMPLATES` holds
+  17, across 10 categories - release-management was the one nobody
+  counted. Both say 17 and 10 now, and the Marketplace page names the
+  tenth.
+- [x] 6.8 The Product Tour showed two pictures and named nothing else the
+  product has. It now lists the Pipeline, the Timeline and its comparison,
+  what waits on somebody, Harness Settings, and what the archive left
+  behind. The capability matrix's relation row says the graph can be
+  filtered, folded and edited, and gained a row for the sweep.
 - [ ] 6.5 **Human-only.** The view titles read in capitals - CHANGES,
   ARCHIVE - and the owner says their editor does not draw them that way.
   Taken again with the owner's own editor (1.138.0, the binary at
