@@ -1,0 +1,119 @@
+name: Publish to the Marketplace
+
+# Asked for, never inferred (the-marketplace-publish-is-a-manual-step).
+#
+# What the automatic path does, in `quality.yml`: a push to `main` whose
+# `openspec-ui-vscode` version has no tag yet is tagged
+# `openspec-ui-vscode@<version>` and published as a GitHub Release with
+# the VSIX attached. That is the whole of it. Nothing there reaches the
+# Visual Studio Marketplace.
+#
+# This workflow is the step that does, and it runs on no event: a person
+# dispatches it, names the version and types the confirmation. Not every
+# release is meant for the Marketplace, a publish reaches every installed
+# copy through the editor's auto-update, and a version pulled from the
+# Marketplace stays gone and its number can never be reused.
+#
+# What is published is the artifact that was released - the VSIX the
+# extension integration suite exercised, downloaded from that tag's
+# release - and never a rebuild of whatever `main` holds now.
+#
+# `scripts/check-publish-workflow.mjs` fails the lint gate if this file
+# stops holding to any of that.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to publish, as packages/extension/package.json states it (for example 0.62.0)'
+        required: true
+        type: string
+      confirm:
+        description: 'Type publish to confirm. Not every release is meant for the Marketplace.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-marketplace
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22.11.0
+  NPM_VERSION: 10.9.0
+
+jobs:
+  publish:
+    name: Publish the released VSIX
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No protection rules are required for this to run. It is declared so
+    # a required reviewer can be added, or the secret scoped here, without
+    # editing this file - and so what was published, and when, appears
+    # outside the run log.
+    environment: marketplace
+    steps:
+      - name: Refuse a run that was not confirmed
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${CONFIRM}" != "publish" ]; then
+            echo "Refusing: the confirmation field reads '${CONFIRM}', and it has to read exactly 'publish'."
+            echo "Nothing was published, and the token was not read."
+            exit 1
+          fi
+          echo "Confirmed. Publishing openspec-ui-vscode ${VERSION}."
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm install --global npm@${NPM_VERSION}
+      - run: npm ci
+
+      - name: Take the VSIX from the release that version was tagged as
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          TAG="openspec-ui-vscode@${VERSION}"
+          if ! gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "Refusing: ${TAG} has no GitHub Release. Only a released version can be published."
+            exit 1
+          fi
+          mkdir -p publish
+          gh release download "${TAG}" --pattern '*.vsix' --dir publish
+          VSIX=$(ls publish/*.vsix 2>/dev/null | head -1)
+          if [ -z "${VSIX}" ]; then
+            echo "Refusing: the release for ${TAG} carries no .vsix asset."
+            exit 1
+          fi
+          case "${VSIX}" in
+            *"${VERSION}.vsix") ;;
+            *)
+              echo "Refusing: ${VSIX} is not the file version ${VERSION} would have produced."
+              exit 1
+              ;;
+          esac
+          echo "VSIX=${VSIX}" >> "${GITHUB_ENV}"
+          echo "Publishing ${VSIX}, as it was released."
+
+      - name: Publish it
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        working-directory: packages/extension
+        run: npx vsce publish --packagePath "${GITHUB_WORKSPACE}/${VSIX}"
+
+      - name: Say what went out
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "openspec-ui-vscode ${VERSION} is on the Marketplace." >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Published from the release for openspec-ui-vscode@${VERSION}, dispatched by ${GITHUB_ACTOR}." >> "${GITHUB_STEP_SUMMARY}"

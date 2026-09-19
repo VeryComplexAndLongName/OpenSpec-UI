@@ -47,13 +47,15 @@ code change it describes, until it is later applied.
   none of them are ever published to the npm registry. `access:
   "restricted"` in `config.json` is a harmless default that is never
   exercised — this repo never runs `changeset publish`.
-- **The actual release mechanism is unchanged.** `openspec-ui-vscode`
-  still ships via `vsce`/the VS Code Marketplace, and CI
-  (`release-extension` job in `.github/workflows/quality.yml`) still
-  tags the commit and publishes a GitHub Release with the built `.vsix`
-  once `package.json`'s version has no matching git tag yet — changesets
-  only produces the version bump and changelog entry that trigger that
-  existing pipeline; it does not replace it.
+- **The actual release mechanism is unchanged.** CI (`release-extension`
+  job in `.github/workflows/quality.yml`) tags the commit and publishes a
+  GitHub Release with the built `.vsix` once `package.json`'s version has
+  no matching git tag yet — changesets only produces the version bump and
+  changelog entry that trigger that existing pipeline; it does not replace
+  it. Publishing that release to the VS Code Marketplace is a step
+  somebody dispatches by hand, for a version they name
+  (`.github/workflows/publish-marketplace.yml`): a version bump reaches
+  the Marketplace only when somebody asks it to.
 - **`openspec-ui`** (the private workspace root, always `0.0.0`) is
   listed in `config.json`'s `ignore` array — it is a workspace
   container, never a release artifact, and was never bumped by hand
