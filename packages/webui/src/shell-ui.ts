@@ -2254,11 +2254,40 @@ export const shellThemeCss = `
     letter-spacing: 0.04em;
   }
 
-  /* The run being reviewed is a panel of its own; what it was - a block
-     with its own top border and two bare headings - is gone
-     (the-remaining-tabs-wear-metro 2.3). */
+  /* The run being reviewed opens under its own row. It was a panel at the
+     foot of the tab, which with a hundred rows put the answer five screens
+     below the button that asks for it
+     (the-review-button-shows-what-it-has). */
+  .openspec-process-row-open > td {
+    background: var(--surface-2);
+    border-bottom-color: transparent;
+  }
+
+  .openspec-process-open > td {
+    padding: 0 16px 14px;
+    background: var(--surface-2);
+    box-shadow: inset 2px 0 0 var(--link);
+  }
+
+  .openspec-process-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .openspec-process-details > p {
+    margin: 0;
+  }
+
   .openspec-process-details .openspec-panel-fine {
+    padding: 0;
+    border-top: 0;
     font-variant-numeric: tabular-nums;
+  }
+
+  .openspec-process-details .openspec-panel-foot {
+    padding: 0;
+    border-top: 0;
   }
 
   /* A run state is a badge, and what it waits on and what it cost sit
