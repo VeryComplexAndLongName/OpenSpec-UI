@@ -24,6 +24,16 @@ streamed output in the same view.
 
 ![Standalone visual summary of active changes and canonical specs](../../docs/images/standalone/view-summary.png)
 
+#### What the archive left behind
+
+The summary says what the product cleared of its own leavings, what it
+will not clear and why, and which working directories have nothing left to
+do. A directory is cleared only where its change is archived and every
+file in it is one this product wrote; anything else is shown with a
+Remove beside it.
+
+![The Left behind panel: one directory cleared because its change is archived, and one kept because no change of that name is archived, with Remove beside it](../../docs/images/standalone/summary-leftovers.png)
+
 #### Diff preview
 
 ![Standalone before and after diff preview for an OpenSpec task list](../../docs/images/standalone/diff-preview.png)

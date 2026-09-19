@@ -34,6 +34,12 @@ const IMAGES = path.resolve(HERE, "..", "..", "..", "docs", "images", "extension
  * suite. Resolved rather than hard-coded to one version: a version bump
  * should not need an edit here. */
 async function findEditor(): Promise<string> {
+  // A reader sees the editor they have installed, not the one this
+  // repository downloaded for its integration suite, and the two differ
+  // in how they draw a view's title. `OPENSPEC_PICTURE_EDITOR` names the
+  // binary to photograph with (the-pictures-show-what-is-drawn-now).
+  const named = process.env.OPENSPEC_PICTURE_EDITOR;
+  if (named !== undefined && named.trim().length > 0) return named;
   const { readdir } = await import("node:fs/promises");
   const testRoot = path.resolve(HERE, "..", "..", "..", ".vscode-test");
   const entries = await readdir(testRoot, { withFileTypes: true });
@@ -174,21 +180,45 @@ async function quietTheEditor(page: Page): Promise<void> {
 test.describe("editor documentation screenshots", () => {
   test("the workbench, expanded", async () => {
     await closeEditors();
+    // Wide enough that no row is cut off. At the side bar's default
+    // width a change's state, its standing word and a dated archive
+    // folder all end in an ellipsis, and the picture the README leads
+    // with showed a product that cannot say what it knows
+    // (the-pictures-show-what-is-drawn-now).
+    await widenSideBar(560);
+    // Taller than the rest, because the caption promises every view and
+    // the seventh - the Human-Only Inbox - fell below a 900 pixel window
+    // once the Changes view learned to say what the sweep cleared.
+    await window.setViewportSize({ width: 1440, height: 1200 });
     // What the README leads with: every view the extension contributes,
-    // each with something in it.
-    // The caption promises change ARTIFACTS, so a change is opened to show
-    // them. Taken with every change collapsed, the first picture carried
-    // this caption over a list of names.
-    await expandRow("a-change-in-progress");
-    await expect(window.locator('.monaco-list-row:has-text("Proposal")').first()).toBeVisible();
-    await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toBeVisible();
+    // each with something in it, and each row readable.
+    //
+    // Every assertion below is `toBeInViewport`, not `toBeVisible`: a row
+    // below a pane's fold, and a pane below the window, are both "visible"
+    // to a locator, and that is how the seventh view and half the words
+    // went missing from the picture that promises them
+    // (the-pictures-show-what-is-drawn-now).
+    for (const pane of ["Changes", "Archive", "Specs", "Processes", "Templates", "Change Graph", "Human-Only Inbox"]) {
+      await expect(window.locator(`.pane-header:has-text("${pane}")`).first()).toBeInViewport();
+    }
+    // What each view has in it, in the words the caption uses.
+    await expect(window.locator('.monaco-list-row:has-text("Cleared 1 directory")').first()).toBeInViewport();
+    await expect(window.locator('.monaco-list-row:has-text("a-change-in-progress")').first())
+      .toContainText("Blocked by a-change-not-started");
+    await expect(window.locator('.monaco-list-row:has-text("2026-08-01-a-change-that-shipped")').first())
+      .toContainText("archived");
+    await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toContainText("1 requirement");
+    await expect(window.locator('.monaco-list-row:has-text("1 landed relation hidden")').first()).toBeInViewport();
+    await expect(window.locator('.monaco-list-row:has-text("Whether the picture reads")').first()).toBeInViewport();
 
     await settle(window);
     await shoot("overview-expanded.png");
+    await window.setViewportSize({ width: 1440, height: 900 });
   });
 
   test("the workbench, compact", async () => {
     await closeEditors();
+    await widenSideBar(560);
     // The same views with the trees collapsed, which is what a reader
     // sees before they have opened anything.
     // Re-queried each time: clicking a header toggles it, so a list
@@ -431,7 +461,109 @@ test.describe("editor documentation screenshots", () => {
     await settle(window);
     await shoot("pipeline-panel.png");
   });
+
+  // What the views learned after these pictures were last taken
+  // (the-pictures-show-what-is-drawn-now): a filter, a fold, a relation
+  // stated from a row, and what the sweep cleared.
+
+  test("the Archive view narrowed by a filter, saying what it is showing", async () => {
+    await closeEditors();
+    await onlyExpand("Archive");
+    await runCommand("OpenSpec UI: Filter Archive");
+    const input = window.locator(".quick-input-widget input");
+    await input.waitFor();
+    await input.fill("shipped");
+    await window.keyboard.press("Enter");
+    await expect(window.locator(".quick-input-widget")).toBeHidden();
+
+    // The message is the part of this picture a reader cannot guess, so
+    // the capture waits on the message and not on the rows.
+    const archive = window.locator('.pane:has(.pane-header:has-text("Archive"))').first();
+    await expect(archive).toContainText('Filtered by "shipped" - showing 1 of 3', { timeout: 60_000 });
+
+    await settle(window);
+    await shoot("archive-filtered.png");
+
+    await runCommand("OpenSpec UI: Clear Archive Filter");
+    await expect(archive).not.toContainText("Filtered by");
+  });
+
+  test("the Change Graph with its landed branches folded", async () => {
+    await closeEditors();
+    await onlyExpand("Change Graph");
+
+    const graph = window.locator('.pane:has(.pane-header:has-text("Change Graph"))').first();
+    // Both halves of what this picture is of: the live relation it keeps
+    // drawing, and the finished branch it folded away with its count.
+    await expect(graph).toContainText("waiting on a-change-not-started", { timeout: 120_000 });
+    await expect(graph).toContainText("1 landed relation hidden");
+
+    await settle(window);
+    await shoot("change-graph-folded.png");
+  });
+
+  test("a relation being stated from a change's row", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+    const row = window.locator('.monaco-list-row:has-text("a-change-in-progress")').first();
+    await row.scrollIntoViewIfNeeded();
+    await row.click();
+
+    // Left open on purpose: this picture is of the question, so the
+    // command runs and the pick is photographed rather than answered.
+    await window.keyboard.press("F1");
+    const input = window.locator(".quick-input-widget input");
+    await input.waitFor();
+    await input.fill(">OpenSpec UI: Add Relation");
+    await window.locator('.quick-input-list .monaco-list-row:has-text("OpenSpec UI: Add Relation")').first().waitFor();
+    await window.keyboard.press("Enter");
+
+    const pick = window.locator(".quick-input-widget");
+    await expect(pick).toContainText("Relation to state on a-change-in-progress", { timeout: 60_000 });
+    await expect(pick).toContainText("Blocked by");
+    await expect(pick).toContainText("This change waits on another");
+
+    // `settle` moves the pointer; the pick stays open because nothing
+    // takes the focus from it.
+    await settle(window);
+    await shoot("relation-pick.png");
+
+    await window.keyboard.press("Escape");
+    await expect(pick).toBeHidden();
+  });
+
+  test("the Changes view saying what the sweep cleared", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+
+    const changes = window.locator('.pane:has(.pane-header:has-text("Changes"))').first();
+    // The sweep runs on activation. Both rows are the picture: what went,
+    // and what stayed because nothing of its name is archived.
+    await expect(changes).toContainText("Cleared 1 directory the archive left behind", { timeout: 120_000 });
+    await expect(changes).toContainText("an-idea-not-written-yet");
+
+    await settle(window);
+    await shoot("leftovers-cleared.png");
+  });
 });
+
+/** Scrolls a pane's list until a row is drawn.
+ *
+ * A tree view renders only the rows that fit, so a row below the fold is
+ * absent rather than merely out of sight, and `scrollIntoViewIfNeeded`
+ * has nothing to scroll to. The wheel is what a reader would use. */
+async function scrollPaneTo(pane: string, selector: string): Promise<void> {
+  const body = window.locator(`.pane:has(.pane-header:has-text("${pane}")) .pane-body`).first();
+  const box = await body.boundingBox();
+  if (!box) throw new Error(`the ${pane} pane is not drawn`);
+  await window.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let remaining = 12; remaining > 0; remaining -= 1) {
+    if (await window.locator(selector).count() > 0) return;
+    await window.mouse.wheel(0, 60);
+    await window.waitForTimeout(150);
+  }
+  await expect(window.locator(selector).first()).toBeVisible();
+}
 
 /** Drags the side bar's sash until the side bar is `width` pixels wide,
  * the way a person widens it. There is no setting for its width. */

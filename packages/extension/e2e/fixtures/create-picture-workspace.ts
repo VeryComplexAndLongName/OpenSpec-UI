@@ -96,6 +96,8 @@ export async function createPictureWorkspace(): Promise<PictureWorkspace> {
     "## 2. The second part",
     "",
     "- [ ] 2.1 Not started",
+    "- [ ] 2.2 **Human-only.** Whether the picture reads as the product does.",
+    "- [ ] 2.3 **Delegated to claude-cli.** A live check against a real workspace.",
     "",
   ].join("\n"));
   await write(
@@ -133,6 +135,29 @@ export async function createPictureWorkspace(): Promise<PictureWorkspace> {
     "",
   ].join("\n"));
   await write(path.join(archived, "tasks.md"), "- [x] 1.1 Done\n- [x] 1.2 Also done\n");
+
+  // A branch of the relation whose every change has landed, so the
+  // Change Graph has something to fold, and a live change waiting on
+  // another, so it has something to draw
+  // (the-pictures-show-what-is-drawn-now).
+  const foundation = path.join(root, "openspec", "changes", "archive", "2026-06-01-a-foundation");
+  await write(path.join(foundation, "proposal.md"), "# A foundation\n\n## Why\n\nThe branch this one starts.\n");
+  await write(path.join(foundation, "tasks.md"), "- [x] 1.1 Done\n");
+  await write(path.join(foundation, ".openspec.yaml"), "schema: spec-driven\ncreated: 2026-06-01\n");
+  const earlier = path.join(root, "openspec", "changes", "archive", "2026-07-01-an-earlier-change");
+  await write(path.join(earlier, "proposal.md"), "# An earlier change\n\n## Why\n\nIt follows the foundation.\n");
+  await write(path.join(earlier, "tasks.md"), "- [x] 1.1 Done\n");
+  await write(path.join(earlier, ".openspec.yaml"), "schema: spec-driven\ncreated: 2026-07-01\nfollows: a-foundation\n");
+  await write(
+    path.join(root, "openspec", "changes", "a-change-in-progress", ".openspec.yaml"),
+    "schema: spec-driven\ncreated: 2026-08-20\nblocked_by: a-change-not-started\n",
+  );
+
+  // What the archive leaves behind: one directory the sweep clears,
+  // because its change is archived and it holds only a file this product
+  // wrote, and one it will not, because nothing of that name is archived.
+  await write(path.join(root, "openspec", "changes", "a-change-that-shipped", "harness.json"), "{}\n");
+  await write(path.join(root, "openspec", "changes", "an-idea-not-written-yet", "harness.json"), "{}\n");
 
   // Two capabilities, so the Specs view shows a list rather than a row.
   await write(path.join(root, "openspec", "specs", "a-capability", "spec.md"), [
