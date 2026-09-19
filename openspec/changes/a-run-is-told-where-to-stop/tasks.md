@@ -125,6 +125,23 @@ and a question back from it follow in the next one.
   chain's own tests cover the reaction (held while the task is open,
   pending stop once it is ticked, ending entry naming the task), and the
   owner's next real run is where it will be seen.
-- [ ] 5.6 **Human-only.** Whether "stop after 4.6" lands where the owner
+- [x] 5.6 **Human-only.** Whether "stop after 4.6" lands where the owner
   means it - after 4.6 is ticked, possibly a few lines into 4.7 - or
   whether they expect it to stop before 4.7 starts at all.
+
+  Answered by the owner on 2026-09-19: before 4.7 starts, not after 4.6
+  has been ticked and the agent has moved on. Agreed, and the reason is
+  that a task's tick is itself a sound point - waiting for another one, as
+  a plain stop does, is what let the agent into the next task.
+
+  The run now ends on the task the request named: the tick of 4.6, or the
+  agent saying it is starting a task after it, ends the stage there, with
+  no further marker and no further tick needed. While a request is held
+  the task list is read twice a second rather than every two seconds, so
+  the window in which an agent could begin 4.7 is about half a second
+  rather than about two.
+
+  What is still not promised, and is said so in `docs/how-to/stop-a-run.md`
+  rather than promised away: that 4.7 is untouched. The runner observes;
+  ending before the next task is begun at all is the agent's to do, which
+  is the next change's `note`.

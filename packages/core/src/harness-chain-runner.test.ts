@@ -2039,8 +2039,11 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
 
     await writeTasksRaw(run.root, ["## 2. Tasks", "", "- [x] 2.1 first", "- [ ] 2.2 second", ""].join("\n"));
     await waitForChain(() => expect(run.events.some((event) => event.kind === "stopRequested")).toBe(true), "the held stop to come due");
-    run.push({ kind: "stdout", timestamp: "t", chunk: "Starting task 2.2\n" });
+    // No further marker and no further tick: the tick of 2.1 is the point
+    // the operator named, and the stage ends on it rather than letting the
+    // agent into 2.2 (a-run-is-told-where-to-stop).
     await run.pump;
+    expect(run.events.some((event) => event.kind === "stdout" && String(event.chunk).includes("2.2"))).toBe(false);
 
     expect(run.events.at(-1)).toMatchObject({ kind: "cancelled" });
     expect(run.auditLog.entries.filter((entry) => entry.agent === "chain")).toEqual([

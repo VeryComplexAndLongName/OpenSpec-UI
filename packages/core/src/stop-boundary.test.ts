@@ -124,6 +124,9 @@ function boundary(changeDir: string, source: AsyncIterable<Event>, afterTask?: s
       onStopAfterDue: (due) => {
         calls.due.push(due);
         held = undefined;
+        // What the chain does with a due request: it becomes the pending
+        // stop. Not for an absent task, which leaves the run going.
+        if (due.why !== "absent") asked = true;
       },
       intervalMs: 20,
     })) seen.push(event);
@@ -237,6 +240,28 @@ describe("untilStopBoundary, holding a request that names a task", () => {
     await b.run;
   });
 
+
+  it("ends the stage on the task it was told to stop after, not at the next point after it", async () => {
+    // The owner's reading, and the right one: the tick of 4.6 is itself a
+    // sound point, so waiting for another one lets the agent into 4.7.
+    const dir = await changeWithTasks(0, 3);
+    await writeNamedTasks(dir, [["2.1", false], ["2.2", false], ["2.3", false]]);
+    const source = feed();
+    const b = boundary(dir, source.events, "2.2");
+
+    source.push(stdout("Starting task 2.1\n"));
+    await vi.waitFor(() => expect(b.seen.length).toBe(1));
+    expect(b.calls.ended).toBe(0);
+
+    await writeNamedTasks(dir, [["2.1", true], ["2.2", true], ["2.3", false]]);
+
+    // No further marker and no further tick: the run ends on this one.
+    await vi.waitFor(() => expect(b.calls.ended).toBe(1), { timeout: 5_000 });
+    expect(b.seen.some((event) => event.kind === "stopRequested")).toBe(true);
+
+    source.push("end");
+    await b.run;
+  });
   it("says it is due when the agent names a task after the one it was given", async () => {
     const dir = await changeWithTasks(0, 3);
     await writeNamedTasks(dir, [["2.1", false], ["2.2", false], ["2.3", false]]);

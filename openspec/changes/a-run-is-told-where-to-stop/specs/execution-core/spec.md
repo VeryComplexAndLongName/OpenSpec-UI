@@ -12,9 +12,17 @@ what came after.
 
 The named task SHALL be counted done when its checkbox is ticked in the
 change's task list, or when the run's agent says it is starting a task
-that comes after it. From that moment the request SHALL behave as a stop
-asked at that moment, and the run SHALL end cancelled, carrying the
-reason and the asker as any stop does.
+that comes after it. The run SHALL end there, rather than at the next
+sound point after it: a task's tick is itself a sound point, and waiting
+for another one lets the agent into the task the operator asked it not to
+start. The run SHALL end cancelled, carrying the reason and the asker as
+any stop does.
+
+How soon the run learns that the task was ticked SHALL be a bounded wait,
+not the interval a pending stop uses: while a request naming a task is
+held, the list SHALL be read often enough that the agent is unlikely to
+have started the next task, and the documentation SHALL say that the
+window exists rather than promising it away.
 
 A request naming a task the change's list does not have SHALL be refused,
 said in the run's activity, and recorded; the run SHALL go on. A request
@@ -32,8 +40,8 @@ honoured.
 
 - **WHEN** a run is asked to stop after a task, and that task is then
   ticked
-- **THEN** the run stops at the first sound point after it, and no further
-  stage starts
+- **THEN** the run ends there, without waiting for another marker or
+  another tick, and no further stage starts
 
 #### Scenario: The agent moves past the named task
 

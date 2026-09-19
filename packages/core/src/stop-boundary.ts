@@ -21,6 +21,18 @@ import { readTaskMarker } from "./task-marker.js";
  * during a run. */
 export const STOP_CHECK_INTERVAL_MS = 2_000;
 
+/** How often a run holding a request that names a task reads its list for
+ * that task.
+ *
+ * Shorter than the interval above, because the two answer different
+ * questions. A pending stop has already decided to end and is waiting for
+ * a sound point; a held request is waiting for the point itself, and every
+ * moment between the task being ticked and the run learning it is a moment
+ * the agent may spend starting the next task. Half a second is a file read
+ * twice a second, and only while a request is held
+ * (a-run-is-told-where-to-stop). */
+export const STOP_AFTER_CHECK_INTERVAL_MS = 500;
+
 /** How many of a change's tasks are ticked, or `undefined` where its task
  * list cannot be read. */
 export async function countTickedTasks(changeDir: string): Promise<number | undefined> {
@@ -174,10 +186,24 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
   /** Whether the held request has been answered, so it is answered once
    * and not on every wake. */
   let answered = false;
+  /** Set when a held request came due, so the stage ends on the task it
+   * named rather than waiting for the next sound point after it: the tick
+   * of that task is the sound point (a-run-is-told-where-to-stop). */
+  let endsOnDueTask = false;
+  let tickerMs: number | undefined;
+  const runTicker = (ms: number) => {
+    if (tickerMs === ms) return;
+    if (ticker !== undefined) clearInterval(ticker);
+    tickerMs = ms;
+    ticker = setInterval(() => wake?.(), ms);
+  };
   const heldTask = () => options.stopAfterTask?.();
   const dueNow = (task: string, why: "ticked" | "passed" | "absent") => {
     if (answered) return;
     answered = true;
+    // A task the change does not have leaves the run going; the other two
+    // are the point the operator named, and the stage ends there.
+    if (why !== "absent") endsOnDueTask = true;
     options.onStopAfterDue?.({ task, why });
   };
   const end = () => {
@@ -194,7 +220,8 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
       // nothing to wake it. The tick only wakes the loop; the task list
       // is read only while a request is actually held.
       if (options.stopAfterTask !== undefined) {
-        ticker ??= setInterval(() => wake?.(), options.intervalMs ?? STOP_CHECK_INTERVAL_MS);
+        const holding = !announced && !answered && heldTask() !== undefined;
+        runTicker(options.intervalMs ?? (holding ? STOP_AFTER_CHECK_INTERVAL_MS : STOP_CHECK_INTERVAL_MS));
       }
       const step: IteratorResult<Event> | "wake" = stopAsked() && !announced
         ? "wake"
@@ -219,11 +246,15 @@ export async function* untilStopBoundary(options: StopBoundaryOptions): AsyncGen
             announced = true;
             tickedAtAnnouncement = ticked;
             yield* announce();
-            ticker ??= setInterval(() => wake?.(), options.intervalMs ?? STOP_CHECK_INTERVAL_MS);
+            runTicker(options.intervalMs ?? STOP_CHECK_INTERVAL_MS);
             if (pendingPermission !== undefined && mayDeny) {
               denyPermission(pendingPermission);
               end();
             }
+            // The task the request named has just been reached, so this is
+            // the point: ending here is ending on a finished task, not
+            // cutting into the next one.
+            if (endsOnDueTask) end();
           } else if (tickedAtAnnouncement === undefined) {
             tickedAtAnnouncement = ticked;
           } else if (ticked !== undefined && ticked > tickedAtAnnouncement) {

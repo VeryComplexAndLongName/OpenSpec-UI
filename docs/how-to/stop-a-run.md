@@ -35,10 +35,15 @@ Where the run should finish part of the change first, name the task:
 openspec-ui-cli stop <instanceId> --reason "only up to 4.6" --after 4.6
 ```
 
-The run keeps working, and stops at the first sound point once 4.6 is
-ticked - which may be a few lines into 4.7, since that is where the work
-stays sound. In the editor, the same request is made from a change's row
-with **OpenSpec UI: Stop This Run After a Task**.
+The run keeps working and ends the moment 4.6 is ticked, or the moment its
+agent says it is starting a task after it. It does not wait for a further
+sound point: the tick of 4.6 is one. In the editor, the same request is
+made from a change's row with **OpenSpec UI: Stop This Run After a Task**.
+
+The run learns that 4.6 was ticked by reading the task list twice a second
+while it holds the request, so there is a window of up to about half a
+second in which an agent can begin 4.7. Ending before 4.7 is touched at
+all is the agent's to do, not the runner's.
 
 A task the change's list does not have is refused, and the run goes on: a
 typo must not become "stop now".
