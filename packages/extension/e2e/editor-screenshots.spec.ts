@@ -34,6 +34,12 @@ const IMAGES = path.resolve(HERE, "..", "..", "..", "docs", "images", "extension
  * suite. Resolved rather than hard-coded to one version: a version bump
  * should not need an edit here. */
 async function findEditor(): Promise<string> {
+  // A reader sees the editor they have installed, not the one this
+  // repository downloaded for its integration suite, and the two differ
+  // in how they draw a view's title. `OPENSPEC_PICTURE_EDITOR` names the
+  // binary to photograph with (the-pictures-show-what-is-drawn-now).
+  const named = process.env.OPENSPEC_PICTURE_EDITOR;
+  if (named !== undefined && named.trim().length > 0) return named;
   const { readdir } = await import("node:fs/promises");
   const testRoot = path.resolve(HERE, "..", "..", "..", ".vscode-test");
   const entries = await readdir(testRoot, { withFileTypes: true });
@@ -174,26 +180,45 @@ async function quietTheEditor(page: Page): Promise<void> {
 test.describe("editor documentation screenshots", () => {
   test("the workbench, expanded", async () => {
     await closeEditors();
+    // Wide enough that no row is cut off. At the side bar's default
+    // width a change's state, its standing word and a dated archive
+    // folder all end in an ellipsis, and the picture the README leads
+    // with showed a product that cannot say what it knows
+    // (the-pictures-show-what-is-drawn-now).
+    await widenSideBar(560);
+    // Taller than the rest, because the caption promises every view and
+    // the seventh - the Human-Only Inbox - fell below a 900 pixel window
+    // once the Changes view learned to say what the sweep cleared.
+    await window.setViewportSize({ width: 1440, height: 1200 });
     // What the README leads with: every view the extension contributes,
-    // each with something in it.
-    // The caption promises change ARTIFACTS, so a change is opened to show
-    // them. Taken with every change collapsed, the first picture carried
-    // this caption over a list of names.
-    await expandRow("a-change-in-progress");
-    // The Changes view says what the sweep cleared and what it kept above
-    // the changes, so the artifacts this caption promises start below the
-    // pane's fold, and a virtual list draws only what fits. Scrolled the
-    // way a reader would (the-pictures-show-what-is-drawn-now).
-    await scrollPaneTo("Changes", '.monaco-list-row:has-text("Proposal")');
-    await expect(window.locator('.monaco-list-row:has-text("Proposal")').first()).toBeVisible();
-    await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toBeVisible();
+    // each with something in it, and each row readable.
+    //
+    // Every assertion below is `toBeInViewport`, not `toBeVisible`: a row
+    // below a pane's fold, and a pane below the window, are both "visible"
+    // to a locator, and that is how the seventh view and half the words
+    // went missing from the picture that promises them
+    // (the-pictures-show-what-is-drawn-now).
+    for (const pane of ["Changes", "Archive", "Specs", "Processes", "Templates", "Change Graph", "Human-Only Inbox"]) {
+      await expect(window.locator(`.pane-header:has-text("${pane}")`).first()).toBeInViewport();
+    }
+    // What each view has in it, in the words the caption uses.
+    await expect(window.locator('.monaco-list-row:has-text("Cleared 1 directory")').first()).toBeInViewport();
+    await expect(window.locator('.monaco-list-row:has-text("a-change-in-progress")').first())
+      .toContainText("Blocked by a-change-not-started");
+    await expect(window.locator('.monaco-list-row:has-text("2026-08-01-a-change-that-shipped")').first())
+      .toContainText("archived");
+    await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toContainText("1 requirement");
+    await expect(window.locator('.monaco-list-row:has-text("1 landed relation hidden")').first()).toBeInViewport();
+    await expect(window.locator('.monaco-list-row:has-text("Whether the picture reads")').first()).toBeInViewport();
 
     await settle(window);
     await shoot("overview-expanded.png");
+    await window.setViewportSize({ width: 1440, height: 900 });
   });
 
   test("the workbench, compact", async () => {
     await closeEditors();
+    await widenSideBar(560);
     // The same views with the trees collapsed, which is what a reader
     // sees before they have opened anything.
     // Re-queried each time: clicking a header toggles it, so a list

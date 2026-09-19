@@ -41,7 +41,15 @@ const MASK_COLOR = "#94a3b8";
  * under the home of whoever regenerated the picture, and a published
  * document should not carry that. Nothing a reader needs is in it. */
 function workspacePaths(page: Page): Locator[] {
-  return [page.getByLabel("Workspace root (cwd)"), page.getByLabel("Change directory")];
+  // The application bar prints the workspace path too, and a picture of
+  // the whole page carries it where a picture of one tab's panel did not
+  // (the-pictures-show-what-is-drawn-now). The fixture sits under the
+  // home of whoever regenerated the picture, so all three are masked.
+  return [
+    page.getByLabel("Workspace root (cwd)"),
+    page.getByLabel("Change directory"),
+    page.getByTestId("app-bar-workspace"),
+  ];
 }
 
 test.describe("standalone documentation screenshots", () => {
@@ -131,8 +139,18 @@ test.describe("standalone documentation screenshots", () => {
       // the account name of whoever regenerated the picture. That is not
       // something a published document should carry, and the path says
       // nothing a reader needs, so it is masked rather than photographed.
-      await page.getByTestId("page-tab-panel-run-a-command")
-        .screenshot({ path: path.join(IMAGES_DIR, "run-command.png"), mask: workspacePaths(page), maskColor: MASK_COLOR });
+      // The whole page, not the tab's panel alone. This is the picture
+      // the root README leads with, and a crop of two panels shows
+      // neither the application bar, nor the tab row, nor the footer -
+      // a reader could not tell which product it is of
+      // (the-pictures-show-what-is-drawn-now).
+      await expect(page.getByTestId("app-bar")).toBeInViewport();
+      await page.screenshot({
+        path: path.join(IMAGES_DIR, "run-command.png"),
+        fullPage: true,
+        mask: workspacePaths(page),
+        maskColor: MASK_COLOR,
+      });
 
       // 2. The summary. Loading it shells out to the `openspec` CLI, the
       // same call standalone.spec.ts waits 15s for on a loaded runner.

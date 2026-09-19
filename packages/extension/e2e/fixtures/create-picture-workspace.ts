@@ -96,6 +96,8 @@ export async function createPictureWorkspace(): Promise<PictureWorkspace> {
     "## 2. The second part",
     "",
     "- [ ] 2.1 Not started",
+    "- [ ] 2.2 **Human-only.** Whether the picture reads as the product does.",
+    "- [ ] 2.3 **Delegated to claude-cli.** A live check against a real workspace.",
     "",
   ].join("\n"));
   await write(

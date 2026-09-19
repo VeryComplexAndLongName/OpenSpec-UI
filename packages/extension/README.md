@@ -11,9 +11,9 @@ Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
 
 ### Workbench overview
 
-#### Expanded artifacts and actions
+#### Every view, with something in it
 
-![Expanded OpenSpec Workbench: a change opened to its artifacts, its row saying what blocks it, what the sweep cleared of what the archive left behind, specs with their requirement counts, the template catalogue, and the change graph](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
+![The OpenSpec Workbench's seven views: Changes with what the sweep cleared and a change's row saying what blocks it, the Archive, Specs with their requirement counts, Processes, the template catalogue, the Change Graph with a landed branch folded away, and the Human-Only Inbox](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
 
 #### Compact repository overview
 

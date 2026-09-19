@@ -18,13 +18,13 @@ workflows through interfaces suited to their respective hosts.
 
 ### Standalone application
 
-![Standalone OpenSpec UI showing a completed show command and its streamed output](docs/images/standalone/run-command.png)
+![The standalone OpenSpec UI: the application bar with the workspace and the theme switch, the Run tab beside Processes, Diff, Summary, Editor, Templates, Timeline, Pipeline and Harness, a completed show command with its analysis and streamed output, and the footer's package versions](docs/images/standalone/run-command.png)
 
 ### VS Code extension
 
-![VS Code OpenSpec Workbench showing Changes, Archive, Specs, Templates, Processes and Change Graph, with a change opened to its artifacts](docs/images/extension/overview-expanded.png)
+![The VS Code OpenSpec Workbench's seven views: Changes, Archive, Specs, Processes, Templates, Change Graph and the Human-Only Inbox](docs/images/extension/overview-expanded.png)
 
-The sixth view, **Change Graph**, nests each change under the ones it
+The **Change Graph** view nests each change under the ones it
 follows, marks anything waiting on a change that has not landed, folds
 away the branches where every change has landed, and lets a relation be
 added or removed from the row that shows it. The Archive, Specs and

@@ -104,3 +104,34 @@ them with them.
   one shows the screen its caption claims, whether the Marketplace page
   reads well to somebody who has never seen the product, and whether any
   screen they expected to see is still missing.
+
+## 6. What the owner's first look found
+
+- [x] 6.1 The picture the root README leads with showed one tab's panels
+  and none of the frame - no application bar, no tab row, no footer - so a
+  reader could not tell which product it was of. `run-command.png` is now
+  the whole page, and the application bar's workspace path is masked with
+  the two fields, since a picture of the whole page carries it.
+- [x] 6.2 The editor's pictures were taken at the side bar's default
+  width, where a change's standing word, a dated archive folder and the
+  leftover rows all ended in an ellipsis. The workbench pictures widen the
+  side bar to 560 pixels, and the capture asserts that no row reads
+  "in-prog...".
+- [x] 6.3 The Human-Only Inbox was missing from the picture that promises
+  every view: at 900 pixels the seventh pane fell below the window, and
+  `toBeVisible` passes for a pane nobody can see. The hero picture is
+  taken at 1200 pixels, every pane is asserted with `toBeInViewport`, and
+  the fixture gained a human-only item and a delegated one so the view has
+  something in it.
+- [x] 6.4 The captions were corrected to what the pictures now show: the
+  workbench picture names its seven views rather than promising artifacts
+  it no longer shows, and the standalone picture names the frame.
+- [ ] 6.5 **Human-only.** The view titles read in capitals - CHANGES,
+  ARCHIVE - and the owner says their editor does not draw them that way.
+  Taken again with the owner's own editor (1.138.0, the binary at
+  `%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`) and a clean
+  profile, the titles are still capitals, so it is not the version. It is
+  a setting or an extension in the owner's profile, and the capture now
+  takes `OPENSPEC_PICTURE_EDITOR` so the pictures can be taken with
+  whatever editor a reader has. Outstanding: which setting, so the
+  captures can match it.
