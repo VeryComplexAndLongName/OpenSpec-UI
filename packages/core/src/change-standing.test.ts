@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { describeChangeState } from "./change-state-word.js";
-import { describeStandingSources, readChangeStandings } from "./change-standing.js";
+import { describeStandingSources, finishedWorkingDirectories, readChangeStandings } from "./change-standing.js";
 import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
 import { createGitWrapper } from "./git.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
@@ -171,5 +171,99 @@ describe("readChangeStandings (a-change-says-where-it-stands 3.5)", () => {
     expect(reading.sources.pullRequests).toEqual({ read: false, why: "gh is not installed" });
     expect(reading.standings.every((standing) => standing.pullRequest === undefined)).toBe(true);
     expect(describeStandingSources(reading.sources)).toContain("Pull requests were not read: gh is not installed.");
+  });
+});
+
+// what-is-finished-is-tidied-away 3.4: built from fixtures rather than a
+// git repository, because this reading is about what the survey and the
+// standings say, not about what git says to them.
+describe("finishedWorkingDirectories", () => {
+  const directory = (over: Partial<Record<string, unknown>> = {}) => ({
+    path: "C:/wt/repo/change-b",
+    label: "change-b",
+    labelDeclared: false,
+    isMain: false,
+    isThis: false,
+    branch: "change-b",
+    runs: [],
+    readable: true as const,
+    changes: [{ changeName: "change-b", counts: { total: 1, unchecked: 0 } }],
+    authorDiffers: false,
+    ...over,
+  });
+
+  const survey = (directories: unknown[]) => ({
+    directories: directories as never,
+    runsElsewhere: [],
+  });
+
+  const standings = (over: Record<string, unknown> = {}) => ({
+    readAt: "2026-09-19T00:00:00.000Z",
+    standings: [{ changeName: "change-b", elsewhere: [], ...over }] as never,
+    sources: { fetch: { attempted: false }, pullRequests: { read: true } } as never,
+  });
+
+  it("calls a directory finished with where its change's pull request merged", async () => {
+    const finished = await finishedWorkingDirectories(
+      survey([directory()]),
+      standings({ pullRequest: { number: 590, state: "MERGED" } }),
+      { isClean: async () => true },
+    );
+
+    expect(finished).toEqual([
+      { path: "C:/wt/repo/change-b", label: "change-b", branch: "change-b", changeName: "change-b", reason: "pull-request-merged" },
+    ]);
+  });
+
+  it("calls one finished with where main carries the change archived", async () => {
+    const finished = await finishedWorkingDirectories(
+      survey([directory()]),
+      standings({ main: { kind: "archived", archiveName: "2026-09-19-change-b" } }),
+      { isClean: async () => true },
+    );
+
+    expect(finished.map((one) => one.reason)).toEqual(["archived-on-main"]);
+  });
+
+  it("leaves out a directory whose tree is not clean", async () => {
+    const finished = await finishedWorkingDirectories(
+      survey([directory()]),
+      standings({ pullRequest: { number: 590, state: "MERGED" } }),
+      { isClean: async () => false },
+    );
+
+    expect(finished).toEqual([]);
+  });
+
+  it("leaves out a directory with a run recorded against it", async () => {
+    const finished = await finishedWorkingDirectories(
+      survey([directory({ runs: [{ instanceId: "run-1" }] })]),
+      standings({ pullRequest: { number: 590, state: "MERGED" } }),
+      { isClean: async () => true },
+    );
+
+    expect(finished).toEqual([]);
+  });
+
+  it("never calls the main working directory finished with", async () => {
+    const finished = await finishedWorkingDirectories(
+      survey([directory({ isMain: true })]),
+      standings({ pullRequest: { number: 590, state: "MERGED" } }),
+      { isClean: async () => true },
+    );
+
+    expect(finished).toEqual([]);
+  });
+
+  it("takes the survey's own word without reading the tree again", async () => {
+    let read = 0;
+    const finished = await finishedWorkingDirectories(
+      survey([directory({ finishedWith: { reason: "branch-gone", branch: "change-b" } })]),
+      standings(),
+      { isClean: async () => { read += 1; return true; } },
+    );
+
+    expect(finished.map((one) => one.reason)).toEqual(["branch-gone"]);
+    expect(read).toBe(0);
   });
 });

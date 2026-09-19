@@ -109,8 +109,11 @@ export async function readWorkspaceLeftovers(root: string): Promise<WorkspaceLef
       name,
       path: directory,
       files,
-      onlyProductFiles: files.length > 0
-        && files.every((file) => (PRODUCT_WRITTEN_FILES as readonly string[]).includes(file)),
+      // An empty directory counts: nothing in it can be somebody's work,
+      // and what keeps a person's fresh `mkdir` safe is the archive check
+      // below, not the file count. Requiring at least one file refused the
+      // case the sweep exists for (what-is-finished-is-tidied-away).
+      onlyProductFiles: files.every((file) => (PRODUCT_WRITTEN_FILES as readonly string[]).includes(file)),
       ...(archivedByName.has(name) ? { archivedAs: archivedByName.get(name) as string } : {}),
     });
   }
@@ -163,6 +166,191 @@ export async function clearWorkspaceLeftovers(root: string): Promise<LeftoverSwe
     }
   }
   return sweep;
+}
+
+/** A directory under the worktree root that git no longer lists as a
+ * working directory. Empty ones are this product's own leavings: removing
+ * a working directory leaves the shell behind where a link was inside it,
+ * and git stops listing it, so nothing else can see what the product
+ * itself left (what-is-finished-is-tidied-away). */
+export interface WorktreeShell {
+  name: string;
+  path: string;
+  /** Whether it holds no file at any depth. Only an empty one is cleared;
+   * anything else is somebody's. */
+  empty: boolean;
+}
+
+/** Whether a directory holds no file at any depth. A directory of empty
+ * directories is still empty: what matters is whether anything was
+ * written, not how deep the tree of nothing goes. */
+export async function holdsNoFile(directory: string): Promise<boolean> {
+  let entries: Array<{ name: string; isDirectory: boolean }>;
+  try {
+    entries = (await readdir(directory, { withFileTypes: true }))
+      .map((entry) => ({ name: entry.name, isDirectory: entry.isDirectory() }));
+  } catch {
+    // Unreadable is not empty: a directory nobody can look into is one
+    // nothing here removes.
+    return false;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory) return false;
+    if (!await holdsNoFile(path.join(directory, entry.name))) return false;
+  }
+  return true;
+}
+
+/** Every directory under the worktree root that git does not list as a
+ * working directory, with whether it holds anything.
+ *
+ * `known` is what `git worktree list` reports, as absolute paths; the
+ * coordination directories beside them (`.agent-status`, `.agent-roster`,
+ * `.agent-messages`) are never shells and are left out. */
+export async function readWorktreeShells(
+  worktreeRoot: string,
+  known: readonly string[],
+): Promise<WorktreeShell[]> {
+  const root = path.resolve(worktreeRoot);
+  const listed = new Set(known.map((one) => pathKeyOf(one)));
+  let names: string[];
+  try {
+    names = (await readdir(root, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+  } catch {
+    return [];
+  }
+
+  const shells: WorktreeShell[] = [];
+  for (const name of names) {
+    if (name.startsWith(".")) continue;
+    const full = path.join(root, name);
+    if (listed.has(pathKeyOf(full))) continue;
+    shells.push({ name, path: full, empty: await holdsNoFile(full) });
+  }
+  return shells;
+}
+
+/** Windows says the same path in more than one case; a comparison that
+ * did not fold it would take a listed directory for a shell. */
+function pathKeyOf(one: string): string {
+  return path.resolve(one).toLowerCase();
+}
+
+export interface ShellSweep {
+  removed: WorktreeShell[];
+  /** Held back because something is in them. */
+  kept: WorktreeShell[];
+  failures: LeftoverRemovalFailure[];
+}
+
+/** Removes the empty shells and reports the rest.
+ *
+ * Only the empty ones: a shell is empty by definition, and a directory
+ * with a file in it is somebody's, whatever git thinks of it. */
+export async function clearWorktreeShells(
+  worktreeRoot: string,
+  known: readonly string[],
+): Promise<ShellSweep> {
+  const sweep: ShellSweep = { removed: [], kept: [], failures: [] };
+  for (const shell of await readWorktreeShells(worktreeRoot, known)) {
+    if (!shell.empty) {
+      sweep.kept.push(shell);
+      continue;
+    }
+    try {
+      await rm(shell.path, { recursive: true, force: true });
+      sweep.removed.push(shell);
+    } catch (error) {
+      sweep.failures.push({
+        name: shell.name,
+        path: shell.path,
+        reason: await withHolders(shell.path, error),
+      });
+    }
+  }
+  return sweep;
+}
+
+/** One process that mentions a path on its command line. */
+export interface PathHolder {
+  pid: number;
+  name: string;
+  commandLine: string;
+}
+
+/** The processes whose command line mentions this path.
+ *
+ * Best effort, and said so wherever it is used: a process whose working
+ * directory is inside but whose command line does not name it is not
+ * found this way. It is how the three directories that prompted this were
+ * found - each was a server started with its path as an argument
+ * (what-is-finished-is-tidied-away).
+ *
+ * Never throws, and answers an empty list where the process list cannot
+ * be read. */
+export async function whoMightHold(
+  directory: string,
+  options: { run?: (command: string, args: string[]) => Promise<string> } = {},
+): Promise<PathHolder[]> {
+  const wanted = path.resolve(directory).toLowerCase();
+  const run = options.run ?? defaultProcessList;
+  let output: string;
+  try {
+    output = process.platform === "win32"
+      ? await run("powershell.exe", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)|$($_.Name)|$($_.CommandLine)\" }",
+      ])
+      : await run("ps", ["-eo", "pid=,comm=,args="]);
+  } catch {
+    return [];
+  }
+
+  const holders: PathHolder[] = [];
+  for (const line of output.split(/\r?\n/u)) {
+    const text = line.trim();
+    if (text.length === 0) continue;
+    const parts = process.platform === "win32" ? text.split("|") : text.split(/\s+/u);
+    const pid = Number.parseInt(parts[0] ?? "", 10);
+    if (!Number.isFinite(pid)) continue;
+    const commandLine = process.platform === "win32"
+      ? (parts.slice(2).join("|") ?? "")
+      : parts.slice(2).join(" ");
+    const name = parts[1] ?? "";
+    // Both spellings, since a command line carries whichever separator
+    // the caller typed.
+    const haystack = commandLine.toLowerCase().replace(/\//gu, "\\");
+    if (!haystack.includes(wanted.replace(/\//gu, "\\"))) continue;
+    holders.push({ pid, name, commandLine: commandLine.trim() });
+  }
+  return holders;
+}
+
+async function defaultProcessList(command: string, args: string[]): Promise<string> {
+  const { execFile } = await import("node:child_process");
+  return new Promise<string>((resolve, reject) => {
+    execFile(command, args, { windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (error, stdout) => {
+      if (error) reject(error);
+      else resolve(stdout);
+    });
+  });
+}
+
+/** The reason a removal failed, with what is holding the directory where
+ * anything can be found. */
+export async function withHolders(directory: string, error: unknown): Promise<string> {
+  const said = error instanceof Error ? error.message : String(error);
+  const holders = await whoMightHold(directory);
+  if (holders.length === 0) {
+    return `${said}. No process names this directory on its command line; one that holds it without naming it is not found this way.`;
+  }
+  const named = holders.map((holder) => `${holder.name} (${holder.pid})`).join(", ");
+  return `${said}. Held by ${named}, by their command lines.`;
 }
 
 export type WorkingDirectoryRemoval =
@@ -231,6 +419,8 @@ export async function removeWorkingDirectory(
     await rm(directory, { recursive: true, force: true });
     return { ok: true, path: directory, linksRemoved };
   } catch (error) {
-    return { ok: false, path: directory, reason: error instanceof Error ? error.message : String(error) };
+    // Who, not just what: "access denied" is not something a person can
+    // act on (what-is-finished-is-tidied-away).
+    return { ok: false, path: directory, reason: await withHolders(directory, error) };
   }
 }

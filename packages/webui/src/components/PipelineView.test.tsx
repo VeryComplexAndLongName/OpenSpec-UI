@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ChangeReadiness,
   ChangeReadinessReport,
+  ChangeStandings,
   LiveRun,
   SurveyedDirectory,
   SurveyedRun,
@@ -693,6 +694,12 @@ describe("PipelineView — a card says what its change is doing", () => {
       />,
     );
 
+    // A change archived on main is folded away now
+    // (what-is-finished-is-tidied-away), so the word is read where the
+    // reader would read it: after showing what landed.
+    await waitFor(() => expect(screen.getByTestId("pipeline-landed")).toHaveTextContent("1 change has landed"));
+    fireEvent.click(screen.getByTestId("pipeline-show-landed"));
+
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("Archived on main"));
   });
 
@@ -1157,5 +1164,111 @@ describe("PipelineView — says it is reading, once", () => {
     await screen.findByTestId("pipeline-refs");
 
     expect(onReadingChange.mock.calls.length).toBe(callsAfterFirst);
+  });
+});
+
+// what-is-finished-is-tidied-away 4.4: the fold, the press and the filter.
+describe("PipelineView - what has landed, folded away", () => {
+  const alphaHere = () => directory({
+    changes: [{ changeName: "alpha", tasksDone: 1, tasksTotal: 3, blockers: [], alsoIn: [], tasksForPerson: 1, tasksDelegated: 0 }],
+  } as Partial<Extract<SurveyedDirectory, { readable: true }>>);
+
+  const landedStandings = (names: string[], rest: string[] = []) => async (): Promise<ChangeStandings> => ({
+    readAt: new Date().toISOString(),
+    standings: [
+      ...names.map((changeName) => ({
+        changeName,
+        elsewhere: [],
+        main: { kind: "archived" as const, archiveName: `2026-09-19-${changeName}` },
+      })),
+      ...rest.map((changeName) => ({ changeName, elsewhere: [] })),
+    ],
+    sources: { fetch: { attempted: false }, pullRequests: { read: true } },
+  });
+
+  it("folds the landed changes into one row, and opens them when asked", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        survey={async () => survey(alphaHere())}
+        standings={landedStandings(["alpha"], ["beta"])}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-landed")).toHaveTextContent("1 change has landed"));
+    expect(screen.queryByTestId("pipeline-node-alpha")).toBeNull();
+    expect(screen.getByTestId("pipeline-node-beta")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("pipeline-show-landed"));
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
+  });
+
+  it("archives exactly the folded changes when the row is pressed", async () => {
+    const archived: string[][] = [];
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        survey={async () => survey(alphaHere())}
+        standings={landedStandings(["alpha"], ["beta"])}
+        onArchive={(names) => archived.push(names)}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-archive-landed")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("pipeline-archive-landed"));
+
+    expect(archived).toEqual([["alpha"]]);
+  });
+
+  it("offers no press where the host gave none", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        survey={async () => survey(alphaHere())}
+        standings={landedStandings(["alpha"], ["beta"])}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-landed")).toBeTruthy());
+    expect(screen.queryByTestId("pipeline-archive-landed")).toBeNull();
+  });
+
+  it("narrows the picture, and says what it is filtered by", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        survey={async () => survey(alphaHere())}
+        standings={landedStandings([], ["alpha", "beta"])}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
+    fireEvent.change(screen.getByTestId("pipeline-filter"), { target: { value: "beta" } });
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-filtered")).toHaveTextContent('Filtered by "beta" - showing 1 of 2'));
+    expect(screen.queryByTestId("pipeline-node-alpha")).toBeNull();
+    expect(screen.getByTestId("pipeline-node-beta")).toBeTruthy();
+  });
+
+  it("opens the folded group for a filter that matches inside it", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        survey={async () => survey(alphaHere())}
+        standings={landedStandings(["alpha"], ["beta"])}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-landed")).toBeTruthy());
+    fireEvent.change(screen.getByTestId("pipeline-filter"), { target: { value: "alpha" } });
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
+    expect(screen.queryByTestId("pipeline-landed")).toBeNull();
   });
 });

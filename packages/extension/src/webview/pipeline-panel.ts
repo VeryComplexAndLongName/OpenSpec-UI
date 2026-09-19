@@ -10,6 +10,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import {
+  archiveChange,
   askLiveRunToStop,
   createGitWrapper,
   describeStandingSources,
@@ -49,6 +50,8 @@ export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
 /** Webview to host: a card asked a run held elsewhere to stop
  * (a-run-elsewhere-can-be-asked-to-stop). */
 export const ASK_TO_STOP_MESSAGE_TYPE = "openspec-ui/ask-to-stop";
+/** The folded row's press (what-is-finished-is-tidied-away). */
+export const ARCHIVE_CHANGES_MESSAGE_TYPE = "openspec-ui/archive-changes";
 
 /** Host to webview: what became of a request to stop. */
 export const ASK_TO_STOP_RESULT_MESSAGE_TYPE = "openspec-ui/ask-to-stop-result";
@@ -160,6 +163,9 @@ export interface PipelinePanelDeps {
   liveRuns?: LiveRuns;
   /** Opens a change's run dialog, for a card's Start. */
   runChange?: (changeName: string) => Promise<void>;
+  /** Draws the views again after the folded row archived what had landed
+   * (what-is-finished-is-tidied-away). */
+  refreshTrees?: () => void;
   /** Carries out a control for a run this host holds. */
   sendRunControl?: (control: PipelineRunControl) => void;
   readers?: Partial<PipelineReaders>;
@@ -344,6 +350,10 @@ export class PipelinePanel {
       await this.askToStop(panel, message);
       return;
     }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === ARCHIVE_CHANGES_MESSAGE_TYPE) {
+      await this.archiveChanges((message as { changeNames?: unknown }).changeNames);
+      return;
+    }
     const request = asRequest(message);
     if (!request) return;
     const reply = (body: { ok: boolean; value?: unknown; error?: string }) => {
@@ -466,6 +476,40 @@ export class PipelinePanel {
    * workspace's status directory, with this host's key; any other instance is
    * refused. What became of it goes back to the view, and a message that is
    * not a request changes nothing. */
+  /** Archives the changes the folded row named, one after another, and
+   * says what could not be archived rather than stopping at the first
+   * (what-is-finished-is-tidied-away). Nothing is archived without that
+   * press: this is only reached by one. */
+  private async archiveChanges(changeNames: unknown): Promise<void> {
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    if (!workspaceRoot) return;
+    const names = Array.isArray(changeNames)
+      ? changeNames.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+      : [];
+    if (names.length === 0) return;
+    const archived: string[] = [];
+    const failures: string[] = [];
+    for (const changeName of names) {
+      try {
+        const result = await archiveChange(changeName, { cwd: workspaceRoot }) as Record<string, unknown>;
+        if (result.ok === false) failures.push(`${changeName}: ${typeof result.report === "string" ? result.report : "refused"}`);
+        else archived.push(changeName);
+      } catch (error) {
+        failures.push(`${changeName}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    this.deps.refreshTrees?.();
+    if (failures.length === 0) {
+      void vscode.window.showInformationMessage(
+        `OpenSpec UI: archived ${archived.length === 1 ? archived[0] : `${archived.length} changes`}.`,
+      );
+    } else {
+      void vscode.window.showWarningMessage(
+        `OpenSpec UI: archived ${archived.length} of ${names.length}. ${failures.join("; ")}`,
+      );
+    }
+  }
+
   private async askToStop(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
     const request = asAskToStop(message);
     const workspaceRoot = this.deps.getWorkspaceRoot();

@@ -51,7 +51,10 @@ import {
   readPipelineReadiness,
   readLastRuns,
   surveyWorktrees,
+  archiveChange,
   clearWorkspaceLeftovers,
+  clearWorktreeShells,
+  finishedWorkingDirectories,
   readWorkspaceLeftovers,
   removeWorkingDirectory,
   runDelegatedItem,
@@ -1458,22 +1461,106 @@ export async function handleWorkspaceLeftoversRequest(
   try {
     const sweep = await clearWorkspaceLeftovers(parsed.cwd);
     const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd });
+    // What settles "finished with" in a repository that squashes is the
+    // pull request and the archive on main, which the standings read and
+    // the survey cannot. Asked for only where there is a directory it
+    // could settle - a workspace of one directory has none - and a
+    // reading that fails leaves the survey's own answer standing, since
+    // the sweep is worth having without git or `gh`
+    // (what-is-finished-is-tidied-away).
+    const candidates = survey.directories.filter((directory) => !directory.isMain);
+    let finishedWith: Awaited<ReturnType<typeof finishedWorkingDirectories>> = [];
+    if (candidates.length > 0) {
+      try {
+        finishedWith = await finishedWorkingDirectories(survey, await readChangeStandings(parsed.cwd));
+      } catch {
+        finishedWith = survey.directories
+          .filter((directory) => directory.finishedWith !== undefined)
+          .map((directory) => ({
+            path: directory.path,
+            label: directory.label,
+            ...(directory.finishedWith?.branch !== undefined ? { branch: directory.finishedWith.branch } : {}),
+            reason: directory.finishedWith?.reason as "merged" | "branch-gone",
+          }));
+      }
+    }
+    // The shells the product's own removals leave under the worktree root,
+    // which git no longer lists and nothing else can see.
+    const shells = candidates.length > 0
+      ? await clearWorktreeShells(
+        path.dirname(path.resolve(candidates[0]?.path ?? parsed.cwd)),
+        survey.directories.map((directory) => directory.path),
+      )
+      : { removed: [], kept: [], failures: [] };
     sendJson(res, 200, {
       cleared: sweep.removed,
       kept: sweep.kept,
-      failures: sweep.failures,
-      finishedWith: survey.directories
-        .filter((directory) => directory.finishedWith !== undefined)
-        .map((directory) => ({
-          path: directory.path,
-          label: directory.label,
-          branch: directory.finishedWith?.branch,
-          reason: directory.finishedWith?.reason,
-        })),
+      failures: [...sweep.failures, ...shells.failures],
+      finishedWith,
+      shellsCleared: shells.removed,
+      shellsKept: shells.kept,
     });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+interface ArchiveChangesRequest {
+  cwd: string;
+  changeNames: string[];
+}
+
+function isArchiveChangesRequest(value: unknown): value is ArchiveChangesRequest {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.cwd !== "string" || record.cwd.trim().length === 0) return false;
+  return Array.isArray(record.changeNames)
+    && record.changeNames.length > 0
+    && record.changeNames.every((name) => typeof name === "string" && name.trim().length > 0);
+}
+
+/** Archives the changes a person pressed for, one after another.
+ *
+ * One at a time, and every failure named: a batch that stopped at the
+ * first refusal would leave the rest of what the reader asked for undone
+ * with nothing to say which (what-is-finished-is-tidied-away). Nothing is
+ * archived without the press; this route is only reached by one. */
+export async function handleArchiveChangesRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isArchiveChangesRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a cwd and a non-empty changeNames" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  const archived: string[] = [];
+  const failures: Array<{ changeName: string; reason: string }> = [];
+  for (const changeName of parsed.changeNames) {
+    try {
+      // The CLI's own answer, whatever shape it takes: `ok` where it
+      // says so, and whatever it printed as the reason where it does not.
+      const result = await archiveChange(changeName, { cwd: parsed.cwd }) as Record<string, unknown>;
+      if (result.ok === false) {
+        const said = typeof result.report === "string" ? result.report : JSON.stringify(result);
+        failures.push({ changeName, reason: said });
+      } else {
+        archived.push(changeName);
+      }
+    } catch (error) {
+      failures.push({ changeName, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  sendJson(res, 200, { archived, failures });
 }
 
 interface RemoveLeftoverRequest {

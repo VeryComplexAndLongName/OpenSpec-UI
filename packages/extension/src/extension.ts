@@ -529,6 +529,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runChange: async (changeName) => {
       await vscode.commands.executeCommand("openspec-ui.runWithHarness", changeName);
     },
+    // After the folded row archived what had landed, the views are drawn
+    // again so they stop listing it (what-is-finished-is-tidied-away).
+    refreshTrees: () => {
+      changesTree?.refresh();
+      archiveTree?.refresh();
+      specsTree?.refresh();
+      changeGraphTree?.refresh();
+    },
     // A card's answer or stop, for a run the panel has already checked this
     // host holds: to the chain runner when it holds the run, otherwise to
     // the runner the run was started on. The run's own stream reports what
