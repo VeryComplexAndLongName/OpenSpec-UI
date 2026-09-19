@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.66.1
+
+### Patch Changes
+
+- 3af743e: A change's standing colours its icon in the Changes tree, not its label. The
+  word stays in the description, the badge letter and the tooltip stay in the
+  file decoration, and the row's text is drawn in the theme's own foreground.
+
 ## 0.66.0
 
 ### Minor Changes
