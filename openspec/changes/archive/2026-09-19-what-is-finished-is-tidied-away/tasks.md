@@ -93,9 +93,13 @@ cards.
   in CI.
 - [x] 5.2 A changeset: `@openspec-ui/core` minor, `@openspec-ui/webui`
   minor, `@openspec-ui/server` minor, `openspec-ui-vscode` minor.
-- [ ] 5.3 `lint:english` after `git add`, `lint:changesets`,
+- [x] 5.3 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets`, `lint:source-text`, `lint:screenshots` and
   `lint:publish-workflow` pass.
+
+  Done 2026-09-19: `npm run lint` over the workspace on `main` once the
+  change had landed - every lint green, `lint:publish-workflow` among
+  them, and what `main` carries is this change's own content.
 - [x] 5.4 The whole standalone browser suite passes. Record the count, and
   commit the pictures it retakes.
 
@@ -138,6 +142,26 @@ cards.
   workspace path, the Pipeline's own guard reads only the tab's section,
   and the published picture therefore carried this machine's account name
   in full. The bar is masked now, and the comment says why.
-- [ ] 5.6 **Human-only.** Whether the Pipeline now reads as "what is being
+- [x] 5.6 **Human-only.** Whether the Pipeline now reads as "what is being
   worked on" rather than a wall, and whether the folded row says enough
   about what is behind it.
+
+  Done 2026-09-19 by Claude, at the owner's request rather than by the
+  owner, for the owner to look at in turn.
+
+  Looked at live, over this repository: the standalone app on `main`,
+  with one working directory whose change had landed. The folded row
+  reads `1 change has landed` with `Show them` and `Archive them`, the
+  picture drew nothing beside it, and the wall of finished cards is gone.
+  As "what is being worked on", it now answers correctly: nothing is.
+
+  Three things it does not say well enough. They are recorded here rather
+  than fixed, and go to the next change that touches this view:
+
+  - With everything folded, the canvas says `Nothing to draw here.`,
+    which reads as a failure rather than as "everything here has landed".
+  - The row does not say why the work landed - a merged pull request or
+    the change archived on `main` - and where it folds a single change it
+    does not name it, which would cost nothing.
+  - The other working directory below still says "which is drawn above"
+    while the card it means is folded away.
