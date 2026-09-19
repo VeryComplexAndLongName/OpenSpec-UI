@@ -98,12 +98,23 @@ them with them.
   here on an untouched tree and passes in CI.
 - [x] 5.2 No changeset: this change alters no package's behaviour, and
   `lint:changesets` passes without one.
-- [ ] 5.3 `lint:english` after `git add`, `lint:changesets`,
+- [x] 5.3 `lint:english` after `git add`, `lint:changesets`,
   `lint:test-budgets`, `lint:source-text` and `lint:screenshots` pass.
-- [ ] 5.4 **Human-only.** The owner looks at the pictures. Whether each
+
+  Done 2026-09-19 after `git add`: English policy check passed, changeset
+  check passed, test budget policy check passed, source text check passed,
+  screenshot check passed, publish workflow check passed.
+- [x] 5.4 **Human-only.** The owner looks at the pictures. Whether each
   one shows the screen its caption claims, whether the Marketplace page
   reads well to somebody who has never seen the product, and whether any
   screen they expected to see is still missing.
+
+  Done 2026-09-19 by the owner, who looked and found three things: the
+  README's lead picture showed one tab's panels and none of the frame, the
+  editor's pictures were cut off at the side bar's default width, and the
+  Human-Only Inbox was missing from the picture that promises every view.
+  Each was real and each is fixed in section 6, along with the README prose
+  their question exposed as stale.
 
 ## 6. What the owner's first look found
 
@@ -143,7 +154,7 @@ them with them.
   what waits on somebody, Harness Settings, and what the archive left
   behind. The capability matrix's relation row says the graph can be
   filtered, folded and edited, and gained a row for the sweep.
-- [ ] 6.5 **Human-only.** The view titles read in capitals - CHANGES,
+- [x] 6.5 **Human-only.** The view titles read in capitals - CHANGES,
   ARCHIVE - and the owner says their editor does not draw them that way.
   Taken again with the owner's own editor (1.138.0, the binary at
   `%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`) and a clean
@@ -152,3 +163,7 @@ them with them.
   takes `OPENSPEC_PICTURE_EDITOR` so the pictures can be taken with
   whatever editor a reader has. Outstanding: which setting, so the
   captures can match it.
+
+  Closed 2026-09-19 at the owner's word: "Forget the capitals." The
+  pictures are taken with the editor this repository downloads, and
+  `OPENSPEC_PICTURE_EDITOR` remains for taking them with another.

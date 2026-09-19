@@ -1147,3 +1147,69 @@ be shown for that reading.
 - **THEN** that branch is shown for that reading, with the filter's message
   saying what was found
 
+### Requirement: The editor says what the workspace left behind, and sweeps on its own
+
+The extension SHALL read what the workspace left behind when it activates
+and again on the interval core settles, clearing what the product itself
+left and reporting the rest in the Changes view.
+
+The editor is where a workspace is usually open all day, so it is where a
+directory left behind is most likely to be seen — and where it was seen, as
+two changes with no tasks, on 2026-09-18.
+
+What it reports SHALL be the same reading the standalone shell shows, from
+the same core function, and removing a leftover or a working directory that
+is finished with SHALL be a command the person runs, never part of the
+sweep.
+
+#### Scenario: Activation clears an archived change's leavings
+
+- **WHEN** the extension activates in a workspace holding a directory whose
+  change is archived and which holds only files the product writes
+- **THEN** the directory is removed and the Changes view says what was
+  cleared
+
+#### Scenario: What it will not clear
+
+- **WHEN** the workspace holds a directory with no documents and no archived
+  change of that name
+- **THEN** the Changes view reports it, and it is removed only by the
+  command
+
+#### Scenario: A sweep that fails
+
+- **WHEN** the sweep cannot remove what it found
+- **THEN** the Changes view reports the failure and the extension carries on
+
+### Requirement: A run can be asked from a change's row to stop after a task
+
+The extension SHALL offer, on a change whose run is live, a command that
+asks that run to stop after a named task, taking the task and the reason
+from the person and writing the signed request through the shared core.
+
+The command SHALL be offered where the change is acted on, so an operator
+who can see a change running can steer it without leaving the view.
+
+On a change with no live run the command SHALL say there is nothing
+running to ask, and SHALL write nothing.
+
+A cancelled prompt SHALL write nothing: an escaped keystroke is not a
+request.
+
+#### Scenario: Asking a live run
+
+- **WHEN** the command is run on a change whose run is live, and a task
+  and a reason are given
+- **THEN** a signed request carrying that task is written, and the person
+  is told what was asked
+
+#### Scenario: A change with nothing running
+
+- **WHEN** the command is run on a change with no live run
+- **THEN** it says there is nothing running to ask, and writes nothing
+
+#### Scenario: The prompt is escaped
+
+- **WHEN** the person escapes the task or the reason
+- **THEN** nothing is written
+

@@ -81,10 +81,19 @@ should reach the Marketplace.
   "Publish workflow check passed" against the workflow as committed, and
   `node --test scripts/check-publish-workflow.test.mjs` reports 11 passed,
   0 failed.
-- [ ] 4.5 **Human-only, and the owner's alone.** The first real publish.
+- [x] 4.5 **Human-only, and the owner's alone.** The first real publish.
   The workflow is dispatched by a person against a released version, and
   what the Marketplace then shows is theirs to check. Nothing in this
   change publishes anything, and no agent may dispatch it.
+
+  Done 2026-09-19 by the owner, who dispatched the workflow and deployed:
+  run 35425382249, conclusion success, 33 seconds. Its log reads
+  "Confirmed. Publishing openspec-ui-vscode 0.63.0.", then "Publishing
+  publish/openspec-ui-vscode-0.63.0.vsix, as it was released.", then
+  "Publishing 'openspec-ui.openspec-ui-vscode v0.63.0'..." - the artifact
+  from that version's GitHub Release, not a rebuild, which is what this
+  change set out to guarantee.
+  https://github.com/VeryComplexAndLongName/OpenSpec-UI/actions/runs/35425382249
 - [x] 4.6 **Human-only.** Whether a typed confirmation plus an environment
   is the right amount of friction, or one gate too many for a step the
   owner will take every few releases.
