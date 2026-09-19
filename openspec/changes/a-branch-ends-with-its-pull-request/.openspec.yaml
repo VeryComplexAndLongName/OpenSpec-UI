@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-19
+# Process only: the runbook gains a section, and no requirement of any
+# capability changes.
+skip_specs: true
