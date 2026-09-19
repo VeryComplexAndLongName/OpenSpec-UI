@@ -462,6 +462,29 @@ function StandaloneApp() {
   const pipelineAskToStop = useCallback((request: AskToStop) => {
     void askRunToStopRequest(apiFetch, cwd, request.instanceId, request.reason).catch(() => undefined);
   }, [cwd]);
+  // What the folded row presses: the changes it named, archived one after
+   // another by the server, and the readings taken again so the picture
+   // stops drawing what is now in the archive
+   // (what-is-finished-is-tidied-away).
+  const pipelineArchive = useCallback((changeNames: string[]) => {
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/changes/archive", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ cwd, changeNames }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { failures?: Array<{ changeName: string; reason: string }> };
+        const failures = payload.failures ?? [];
+        setScheduleMessage(failures.length === 0
+          ? `Archived ${changeNames.length === 1 ? changeNames[0] : `${changeNames.length} changes`}.`
+          : `Archived ${changeNames.length - failures.length} of ${changeNames.length}; ${failures.map((one) => `${one.changeName}: ${one.reason}`).join("; ")}`);
+      } catch (error) {
+        setScheduleMessage(`Could not archive: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      await loadOverviewFor(cwd);
+    })();
+  }, [cwd]);
   const pipelineRunControl = useCallback((control: RunControl) => {
     transport.send({
       kind: control.kind,
@@ -2542,6 +2565,7 @@ function StandaloneApp() {
                 copyText={pipelineCopyText}
                 viewState={pipelineViewState}
                 onAskToStop={pipelineAskToStop}
+                onArchive={pipelineArchive}
                 onReadingChange={setPipelineReading}
               />
               {runOpenedFrom === "pipeline" && runHarnessMessage

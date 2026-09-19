@@ -4,6 +4,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LEFTOVER_SWEEP_INTERVAL_MS,
+  clearWorktreeShells,
+  holdsNoFile,
+  readWorktreeShells,
+  whoMightHold,
+  withHolders,
   clearWorkspaceLeftovers,
   holdsChangeDocuments,
   isClearable,
@@ -175,5 +180,114 @@ describe("removeWorkingDirectory", () => {
 describe("LEFTOVER_SWEEP_INTERVAL_MS", () => {
   it("is one value both hosts read", () => {
     expect(LEFTOVER_SWEEP_INTERVAL_MS).toBe(30 * 60_000);
+  });
+});
+
+// what-is-finished-is-tidied-away 1.4 and 2.3.
+describe("an empty leftover", () => {
+  it("is cleared where its change is archived", async () => {
+    const root = await workspaceWith({ "archive/2026-09-10-left-empty": { "proposal.md": "## Why\n" } });
+    await mkdir(path.join(root, "openspec", "changes", "left-empty"), { recursive: true });
+
+    const sweep = await clearWorkspaceLeftovers(root);
+
+    expect(sweep.removed.map((one) => one.name)).toEqual(["left-empty"]);
+    expect(await namesUnder(root, "openspec/changes")).toEqual(["archive"]);
+  });
+
+  it("is kept where nothing of its name is archived", async () => {
+    const root = await workspaceWith({});
+    await mkdir(path.join(root, "openspec", "changes", "my-idea"), { recursive: true });
+
+    const sweep = await clearWorkspaceLeftovers(root);
+
+    expect(sweep.removed).toEqual([]);
+    expect(sweep.kept.map((one) => one.name)).toEqual(["my-idea"]);
+  });
+});
+
+describe("the shells under the worktree root", () => {
+  async function worktreeRootWith(shape: Record<string, string | null>): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-shells-"));
+    roots.push(root);
+    for (const [relative, contents] of Object.entries(shape)) {
+      const full = path.join(root, ...relative.split("/"));
+      if (contents === null) {
+        await mkdir(full, { recursive: true });
+      } else {
+        await mkdir(path.dirname(full), { recursive: true });
+        await writeFile(full, contents, "utf8");
+      }
+    }
+    return root;
+  }
+
+  it("finds a directory git no longer lists, and says whether it holds anything", async () => {
+    const root = await worktreeRootWith({
+      "a-shell/packages/server": null,
+      "still-working/packages/core/index.ts": "// work",
+      "listed/packages": null,
+      ".agent-status": null,
+    });
+
+    const shells = await readWorktreeShells(root, [path.join(root, "listed")]);
+
+    expect(shells.map((shell) => [shell.name, shell.empty])).toEqual([["a-shell", true], ["still-working", false]]);
+  });
+
+  it("removes the empty ones and keeps what holds a file", async () => {
+    const root = await worktreeRootWith({
+      "a-shell/packages/server": null,
+      "still-working/notes.txt": "mine",
+    });
+
+    const sweep = await clearWorktreeShells(root, []);
+
+    expect(sweep.removed.map((one) => one.name)).toEqual(["a-shell"]);
+    expect(sweep.kept.map((one) => one.name)).toEqual(["still-working"]);
+    expect(await namesUnder(root, ".")).toEqual(["still-working"]);
+  });
+
+  it("calls a directory of empty directories empty, and one with a file deep inside not", async () => {
+    const root = await worktreeRootWith({
+      "deep-empty/one/two/three": null,
+      "deep-file/one/two/kept.txt": "x",
+    });
+
+    expect(await holdsNoFile(path.join(root, "deep-empty"))).toBe(true);
+    expect(await holdsNoFile(path.join(root, "deep-file"))).toBe(false);
+  });
+});
+
+describe("whoMightHold", () => {
+  it("names the processes whose command line mentions the directory", async () => {
+    const directory = path.join(os.tmpdir(), "openspec-held", "changes-views");
+    const listed = process.platform === "win32"
+      ? ["4182|node.exe|node tsx cli.ts " + directory, "9|idle.exe|idle"].join("\n")
+      : ["4182 node node tsx cli.ts " + directory, "9 idle idle"].join("\n");
+
+    const holders = await whoMightHold(directory, { run: async () => listed });
+
+    expect(holders.map((holder) => holder.pid)).toEqual([4182]);
+    expect(holders[0]?.commandLine).toContain("cli.ts");
+  });
+
+  it("answers an empty list where the process list cannot be read", async () => {
+    const holders = await whoMightHold("/anything", {
+      run: async () => {
+        throw new Error("no such command");
+      },
+    });
+
+    expect(holders).toEqual([]);
+  });
+});
+
+describe("withHolders", () => {
+  it("says the original error where nothing names the directory", async () => {
+    const said = await withHolders(path.join(os.tmpdir(), "openspec-unheld"), new Error("EBUSY: resource busy"));
+
+    expect(said).toContain("EBUSY: resource busy");
+    expect(said).toContain("No process names this directory");
   });
 });

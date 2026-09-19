@@ -36,7 +36,9 @@ import {
   describeRun,
   describeTaskRows,
   fitPipelineCardDetails,
+  describeChangeState,
   layoutChanges,
+  matchesFilter,
   pipelineCardHeight,
   runsShownOnCards,
   STOP_REQUEST_READ_WITHIN_MS,
@@ -156,6 +158,10 @@ export interface PipelineViewProps {
   /** Asks a run held elsewhere to stop, through the signed channel, with the
    * host's own key. Absent, no card offers it. */
   onAskToStop?: (request: AskToStop) => void;
+  /** Archives the changes whose work has landed, from the folded row.
+   * Absent, the row still folds and offers nothing to press
+   * (what-is-finished-is-tidied-away). */
+  onArchive?: (changeNames: string[]) => void;
   /** `PIPELINE_FIRST_READING` until the first report returns, then `null`
    * for good: the shell draws a spinner on the tab while it is anything
    * else (a-screen-says-what-it-is-doing). A later poll does not report,
@@ -330,6 +336,7 @@ export function PipelineView({
   refresh,
   lastRuns,
   standings,
+  onArchive,
   liveRuns,
   onRunControl,
   onStart,
@@ -392,6 +399,10 @@ export function PipelineView({
   }
 
   const report = local.value;
+  // What the picture is narrowed by, and whether the changes that have
+  // landed are drawn (what-is-finished-is-tidied-away).
+  const [filter, setFilter] = useState("");
+  const [showLanded, setShowLanded] = useState(false);
   // Only the first reading: once a report has arrived it stays on screen
   // through every later poll, so there is nothing to wait for.
   const firstReading = report === undefined && local.error === undefined ? PIPELINE_FIRST_READING : null;
@@ -411,6 +422,33 @@ export function PipelineView({
     now,
   });
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
+  // What has landed, from the standings rather than from the words on a
+  // card: a merged pull request, the change archived on the default
+  // branch, or deleted from it after being there
+  // (what-is-finished-is-tidied-away).
+  const landed = new Set((stands.value?.standings ?? [])
+    .filter((standing) => standing.pullRequest?.state === "MERGED"
+      || standing.main?.kind === "archived"
+      || standing.main?.kind === "deleted")
+    .map((standing) => standing.changeName));
+  const wordsOf = (changeName: string) => {
+    const card = cards.get(changeName);
+    // The same word the card draws, asked of core rather than read off the
+    // rendered element.
+    const described = card === undefined ? undefined : describeChangeState(card.stateFacts);
+    return [changeName, card?.state, described?.word, ...(described?.lines ?? []).map((line) => line.text)]
+      .filter((word): word is string => typeof word === "string");
+  };
+  const matches = (changeName: string) => matchesFilter(filter, wordsOf(changeName));
+  const landedHere = (report?.changes ?? []).filter((change) => landed.has(change.changeName));
+  // A filter reaching into the folded group opens it, as the Change
+  // Graph's fold does.
+  const foldLanded = !showLanded && !landedHere.some((change) => filter.trim().length > 0 && matches(change.changeName));
+  const shownChanges = (report?.changes ?? [])
+    .filter((change) => matches(change.changeName))
+    .filter((change) => !foldLanded || !landed.has(change.changeName));
+  const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
+  const foldedCount = foldLanded ? landedHere.length : 0;
   const onCards = runsShownOnCards(cardList);
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
   // A control changes what the run's record says within moments. The card
@@ -501,6 +539,18 @@ export function PipelineView({
               <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh"}
             </button>
           ) : null}
+          {/* The same narrowing the editor's views take, over a change's
+              name and the word beside it (what-is-finished-is-tidied-away). */}
+          <label className="openspec-pipeline-filter">
+            <span className="openspec-visually-hidden">Filter changes</span>
+            <input
+              type="search"
+              value={filter}
+              placeholder="Filter changes"
+              data-testid="pipeline-filter"
+              onChange={(event) => setFilter(event.target.value)}
+            />
+          </label>
         </div>
       </div>
       {refs ? <p className="openspec-shell-note" data-testid="pipeline-refs">{refs}</p> : null}
@@ -514,6 +564,39 @@ export function PipelineView({
           <span className="openspec-panel-head-note">a column starts after the ones before it</span>
         </div>
         <div className="openspec-pipeline-panel-body">
+          {filter.trim().length > 0 && report !== undefined ? (
+            <p className="openspec-shell-note" data-testid="pipeline-filtered">
+              {shownChanges.length === 0
+                ? `Nothing matches "${filter.trim()}"`
+                : `Filtered by "${filter.trim()}" - showing ${shownChanges.length} of ${report.changes.length}`}
+            </p>
+          ) : null}
+          {foldedCount > 0 ? (
+            <p className="openspec-pipeline-landed" data-testid="pipeline-landed">
+              <span>{`${foldedCount} ${foldedCount === 1 ? "change has" : "changes have"} landed`}</span>
+              <button type="button" className="openspec-pipeline-button" data-testid="pipeline-show-landed" onClick={() => setShowLanded(true)}>
+                Show them
+              </button>
+              {onArchive ? (
+                <button
+                  type="button"
+                  className="openspec-pipeline-button"
+                  data-testid="pipeline-archive-landed"
+                  onClick={() => onArchive(landedHere.map((change) => change.changeName))}
+                >
+                  Archive them
+                </button>
+              ) : null}
+            </p>
+          ) : null}
+          {showLanded && landedHere.length > 0 ? (
+            <p className="openspec-shell-note" data-testid="pipeline-landed-shown">
+              <span>{`${landedHere.length} of these have landed.`}</span>
+              <button type="button" className="openspec-pipeline-button" data-testid="pipeline-hide-landed" onClick={() => setShowLanded(false)}>
+                Fold them away
+              </button>
+            </p>
+          ) : null}
           {showLegend ? <Legend testId="pipeline-legend" /> : null}
           {local.error !== undefined
             ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-error">{local.error}</p>
@@ -527,7 +610,9 @@ export function PipelineView({
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-              : <LocalPicture report={report} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} />}
+              : shownReport === undefined || shownReport.changes.length === 0
+                ? <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>
+                : <LocalPicture report={shownReport} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} />}
         </div>
       </section>
 

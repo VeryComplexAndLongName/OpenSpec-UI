@@ -36,6 +36,9 @@ export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
  * host asks only a run it reads as live, with its own key
  * (a-run-elsewhere-can-be-asked-to-stop). */
 export const ASK_TO_STOP_MESSAGE_TYPE = "openspec-ui/ask-to-stop";
+/** The folded row's press: the host archives the changes it names
+ * (what-is-finished-is-tidied-away). */
+export const ARCHIVE_CHANGES_MESSAGE_TYPE = "openspec-ui/archive-changes";
 
 /** The webview API, with the state the webview keeps while its panel is
  * hidden and destroyed. */
@@ -103,6 +106,10 @@ function PipelineApp() {
     (request: AskToStop) => vscodeApi.postMessage({ type: ASK_TO_STOP_MESSAGE_TYPE, ...request }),
     [vscodeApi],
   );
+  const onArchive = useCallback(
+    (changeNames: string[]) => vscodeApi.postMessage({ type: ARCHIVE_CHANGES_MESSAGE_TYPE, changeNames }),
+    [vscodeApi],
+  );
 
   const editorDark = useEditorDarkTheme();
 
@@ -113,7 +120,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} />
       </section>
     </div>
   );

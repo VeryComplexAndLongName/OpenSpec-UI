@@ -111,6 +111,11 @@ const ACCOUNT = os.userInfo().username;
  *   either way, since opening or widening a card draws it. */
 function pictureMasks(page: Page, paths: string[]) {
   return [
+    // The application bar prints the workspace path, and a full-page
+    // picture carries it. The guard below reads the tab's own section, so
+    // nothing was checking the bar: the published picture showed the
+    // account name in full (what-is-finished-is-tidied-away).
+    page.getByTestId("app-bar-workspace"),
     page.locator("[data-testid^='pipeline-directory-'][data-testid$='-where']"),
     ...paths.map((fixturePath) => page.locator(".openspec-pipeline-node-detail").filter({ hasText: fixturePath })),
   ];

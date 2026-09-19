@@ -888,6 +888,43 @@ export const shellThemeCss = `
     color: var(--link);
   }
 
+  /* What has landed, folded into one row above the picture, and the box
+     that narrows it. Tokens only (what-is-finished-is-tidied-away). */
+  .openspec-pipeline-landed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-landed span {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .openspec-pipeline-filter input {
+    min-width: 12rem;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .openspec-pipeline-filter input:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 1px;
+  }
+
   .openspec-panel-fine {
     margin: 0;
     padding: 10px 16px 12px;

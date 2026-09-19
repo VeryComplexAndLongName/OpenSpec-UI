@@ -221,3 +221,79 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
 
   return { readAt: now.toISOString(), standings, sources };
 }
+
+/** Why a working directory has nothing left to do. The first two are what
+ * settle it in a repository that squashes its pull requests; the last two
+ * are the survey's own cheap signals (what-is-finished-is-tidied-away). */
+export type FinishedReason = "pull-request-merged" | "archived-on-main" | "merged" | "branch-gone";
+
+export interface FinishedDirectory {
+  path: string;
+  label: string;
+  branch?: string;
+  /** The change whose standing settled it, where one did. */
+  changeName?: string;
+  reason: FinishedReason;
+}
+
+/** Every working directory whose work has landed.
+ *
+ * A squashed pull request never makes a branch's tip an ancestor of the
+ * default branch, so the survey's merge base answers "not finished" for
+ * work that plainly is. What settles it is already read here: the pull
+ * request, and whether the default branch carries the change archived.
+ *
+ * The main working directory is never included - it is where the default
+ * branch lives - and neither is a directory with a run recorded against
+ * it. A directory the survey already called finished with is included on
+ * the survey's word, since that word was given with its tree read as
+ * clean; one settled by a standing has its tree read here, and only
+ * there, so nothing pays for a git call it does not need. */
+export async function finishedWorkingDirectories(
+  survey: WorktreeSurvey,
+  standings: ChangeStandings,
+  options: { isClean?: (directoryPath: string) => Promise<boolean> } = {},
+): Promise<FinishedDirectory[]> {
+  const byChange = new Map(standings.standings.map((standing) => [standing.changeName, standing]));
+  const isClean = options.isClean ?? (async (directoryPath: string) => {
+    try {
+      return (await createGitWrapper({ cwd: directoryPath }).status()).isClean;
+    } catch {
+      return false;
+    }
+  });
+
+  const finished: FinishedDirectory[] = [];
+  for (const directory of survey.directories) {
+    if (directory.isMain || !directory.readable || directory.runs.length > 0) continue;
+    const base = {
+      path: directory.path,
+      label: directory.label,
+      ...(directory.branch !== undefined ? { branch: directory.branch } : {}),
+    };
+
+    if (directory.finishedWith !== undefined) {
+      finished.push({ ...base, reason: directory.finishedWith.reason });
+      continue;
+    }
+
+    // The change this directory is for: the one it was cut for, or the one
+    // copy it holds. Two changes in one directory settle nothing, since
+    // one of them may still be under way.
+    const changeName = directory.belongsTo
+      ?? (directory.changes.length === 1 ? directory.changes[0]?.changeName : undefined);
+    if (changeName === undefined) continue;
+    const standing = byChange.get(changeName);
+    if (standing === undefined) continue;
+
+    const reason: FinishedReason | undefined = standing.pullRequest?.state === "MERGED"
+      ? "pull-request-merged"
+      : standing.main?.kind === "archived"
+        ? "archived-on-main"
+        : undefined;
+    if (reason === undefined) continue;
+    if (!await isClean(directory.path)) continue;
+    finished.push({ ...base, changeName, reason });
+  }
+  return finished;
+}
