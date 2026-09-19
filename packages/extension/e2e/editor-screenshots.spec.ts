@@ -180,6 +180,11 @@ test.describe("editor documentation screenshots", () => {
     // them. Taken with every change collapsed, the first picture carried
     // this caption over a list of names.
     await expandRow("a-change-in-progress");
+    // The Changes view says what the sweep cleared and what it kept above
+    // the changes, so the artifacts this caption promises start below the
+    // pane's fold, and a virtual list draws only what fits. Scrolled the
+    // way a reader would (the-pictures-show-what-is-drawn-now).
+    await scrollPaneTo("Changes", '.monaco-list-row:has-text("Proposal")');
     await expect(window.locator('.monaco-list-row:has-text("Proposal")').first()).toBeVisible();
     await expect(window.locator('.monaco-list-row:has-text("a-capability")').first()).toBeVisible();
 
@@ -431,7 +436,109 @@ test.describe("editor documentation screenshots", () => {
     await settle(window);
     await shoot("pipeline-panel.png");
   });
+
+  // What the views learned after these pictures were last taken
+  // (the-pictures-show-what-is-drawn-now): a filter, a fold, a relation
+  // stated from a row, and what the sweep cleared.
+
+  test("the Archive view narrowed by a filter, saying what it is showing", async () => {
+    await closeEditors();
+    await onlyExpand("Archive");
+    await runCommand("OpenSpec UI: Filter Archive");
+    const input = window.locator(".quick-input-widget input");
+    await input.waitFor();
+    await input.fill("shipped");
+    await window.keyboard.press("Enter");
+    await expect(window.locator(".quick-input-widget")).toBeHidden();
+
+    // The message is the part of this picture a reader cannot guess, so
+    // the capture waits on the message and not on the rows.
+    const archive = window.locator('.pane:has(.pane-header:has-text("Archive"))').first();
+    await expect(archive).toContainText('Filtered by "shipped" - showing 1 of 3', { timeout: 60_000 });
+
+    await settle(window);
+    await shoot("archive-filtered.png");
+
+    await runCommand("OpenSpec UI: Clear Archive Filter");
+    await expect(archive).not.toContainText("Filtered by");
+  });
+
+  test("the Change Graph with its landed branches folded", async () => {
+    await closeEditors();
+    await onlyExpand("Change Graph");
+
+    const graph = window.locator('.pane:has(.pane-header:has-text("Change Graph"))').first();
+    // Both halves of what this picture is of: the live relation it keeps
+    // drawing, and the finished branch it folded away with its count.
+    await expect(graph).toContainText("waiting on a-change-not-started", { timeout: 120_000 });
+    await expect(graph).toContainText("1 landed relation hidden");
+
+    await settle(window);
+    await shoot("change-graph-folded.png");
+  });
+
+  test("a relation being stated from a change's row", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+    const row = window.locator('.monaco-list-row:has-text("a-change-in-progress")').first();
+    await row.scrollIntoViewIfNeeded();
+    await row.click();
+
+    // Left open on purpose: this picture is of the question, so the
+    // command runs and the pick is photographed rather than answered.
+    await window.keyboard.press("F1");
+    const input = window.locator(".quick-input-widget input");
+    await input.waitFor();
+    await input.fill(">OpenSpec UI: Add Relation");
+    await window.locator('.quick-input-list .monaco-list-row:has-text("OpenSpec UI: Add Relation")').first().waitFor();
+    await window.keyboard.press("Enter");
+
+    const pick = window.locator(".quick-input-widget");
+    await expect(pick).toContainText("Relation to state on a-change-in-progress", { timeout: 60_000 });
+    await expect(pick).toContainText("Blocked by");
+    await expect(pick).toContainText("This change waits on another");
+
+    // `settle` moves the pointer; the pick stays open because nothing
+    // takes the focus from it.
+    await settle(window);
+    await shoot("relation-pick.png");
+
+    await window.keyboard.press("Escape");
+    await expect(pick).toBeHidden();
+  });
+
+  test("the Changes view saying what the sweep cleared", async () => {
+    await closeEditors();
+    await onlyExpand("Changes");
+
+    const changes = window.locator('.pane:has(.pane-header:has-text("Changes"))').first();
+    // The sweep runs on activation. Both rows are the picture: what went,
+    // and what stayed because nothing of its name is archived.
+    await expect(changes).toContainText("Cleared 1 directory the archive left behind", { timeout: 120_000 });
+    await expect(changes).toContainText("an-idea-not-written-yet");
+
+    await settle(window);
+    await shoot("leftovers-cleared.png");
+  });
 });
+
+/** Scrolls a pane's list until a row is drawn.
+ *
+ * A tree view renders only the rows that fit, so a row below the fold is
+ * absent rather than merely out of sight, and `scrollIntoViewIfNeeded`
+ * has nothing to scroll to. The wheel is what a reader would use. */
+async function scrollPaneTo(pane: string, selector: string): Promise<void> {
+  const body = window.locator(`.pane:has(.pane-header:has-text("${pane}")) .pane-body`).first();
+  const box = await body.boundingBox();
+  if (!box) throw new Error(`the ${pane} pane is not drawn`);
+  await window.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let remaining = 12; remaining > 0; remaining -= 1) {
+    if (await window.locator(selector).count() > 0) return;
+    await window.mouse.wheel(0, 60);
+    await window.waitForTimeout(150);
+  }
+  await expect(window.locator(selector).first()).toBeVisible();
+}
 
 /** Drags the side bar's sash until the side bar is `width` pixels wide,
  * the way a person widens it. There is no setting for its width. */

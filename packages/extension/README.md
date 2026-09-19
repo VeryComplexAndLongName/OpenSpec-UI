@@ -13,7 +13,7 @@ Project site: [https://openspec-ui.dev](https://openspec-ui.dev).
 
 #### Expanded artifacts and actions
 
-![Expanded OpenSpec Workbench with a change's artifacts, an archived change, specs with their requirement counts, the template catalogue, and the change graph](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
+![Expanded OpenSpec Workbench: a change opened to its artifacts, its row saying what blocks it, what the sweep cleared of what the archive left behind, specs with their requirement counts, the template catalogue, and the change graph](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/overview-expanded.png)
 
 #### Compact repository overview
 
@@ -68,6 +68,50 @@ A card's **Start** opens the run dialog for that change. On a run this
 editor holds, the card answers a checkpoint or a permission, and **Stop**
 asks the run to stop, with a reason. See
 [stopping a run](https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/docs/how-to/stop-a-run.md).
+
+### Finding one change, and hiding what has landed
+
+The Archive, Specs and Change Graph views each take a filter from their
+title bar. Every word typed has to appear somewhere in the row, so
+"pipeline blocked" finds the blocked pipeline change rather than
+everything called pipeline. A narrowed view says what it is narrowed by
+and how much of itself it is showing, and a view that matches nothing
+says so with the words it was given.
+
+![The Archive view narrowed by a filter, reading: Filtered by "shipped" - showing 1 of 3](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/archive-filtered.png)
+
+The Change Graph folds away every branch whose root and every change
+under it are archived, and ends its rows with the count it is hiding.
+One press shows them again; a filter that finds something inside a folded
+branch opens that branch for the reading. A branch a live change follows,
+or is waiting on, is never folded.
+
+![The Change Graph drawing a change waiting on another, and a row reading "1 landed relation hidden - Press to show"](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/change-graph-folded.png)
+
+### Stating a relation without opening a file
+
+**Add Relation** and **Remove Relation** sit on a change's row, in the
+Changes view and in the Change Graph. Adding asks which relation - Follows,
+Supersedes or Blocked by, each with the sentence that says what it means -
+and then which change, from the ones the workspace has. Removing offers
+only the relations that change actually states.
+
+An edit that names a change the workspace does not have, a change naming
+itself, or one that would close a cycle is refused before anything is
+written, naming the changes in the cycle.
+
+![The relation picker open over the Changes view, offering Follows, Supersedes and Blocked by with what each one means](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/relation-pick.png)
+
+### What the archive left behind
+
+Archiving can leave a directory holding nothing but a file this product
+wrote, and that directory used to be listed as a change with no tasks. It
+is cleared now, on activation and on an interval, and the Changes view
+says what went. A directory holding something this product did not write,
+or one whose name is nowhere in the archive, is shown rather than removed:
+it may be a change you have not written yet.
+
+![The Changes view reading "Cleared 1 directory the archive left behind", with a directory it kept beneath it](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/leftovers-cleared.png)
 
 ### Specs, templates, and repository setup
 

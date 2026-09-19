@@ -12,7 +12,7 @@
 // `npm run test:browser -- frame-screenshots.spec.ts`.
 
 import { expect, test, type Page } from "@playwright/test";
-import { rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
@@ -47,6 +47,23 @@ test.beforeAll(async () => {
     }, null, 2)}\n`,
     "utf8",
   );
+  // What the archive leaves behind, so the Summary draws its "Left
+  // behind" panel with both of its lists: one directory the sweep clears,
+  // because its change is archived and it holds only a file this product
+  // wrote, and one it will not, because nothing of that name is archived
+  // (the-pictures-show-what-is-drawn-now).
+  const changes = path.join(workspaceRoot, "openspec", "changes");
+  await mkdir(path.join(changes, "archive", "2026-08-01-a-change-that-shipped"), { recursive: true });
+  await writeFile(
+    path.join(changes, "archive", "2026-08-01-a-change-that-shipped", "proposal.md"),
+    "# A change that shipped\n\n## Why\n\nTo fill the archive.\n",
+    "utf8",
+  );
+  await mkdir(path.join(changes, "a-change-that-shipped"), { recursive: true });
+  await writeFile(path.join(changes, "a-change-that-shipped", "harness.json"), "{}\n", "utf8");
+  await mkdir(path.join(changes, "an-idea-not-written-yet"), { recursive: true });
+  await writeFile(path.join(changes, "an-idea-not-written-yet", "harness.json"), "{}\n", "utf8");
+
   server = createServer({ workspaceRoot, host: "127.0.0.1", port: 0 });
   const address = await server.listen();
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -99,6 +116,14 @@ test("captures the frame around the summary, in the light theme and in the dark"
     .filter((animation) => animation instanceof CSSTransition)
     .map((animation) => animation.finished)));
   await page.screenshot({ path: path.join(IMAGES_DIR, "summary-light.png"), fullPage: true, mask: workspacePaths(page), maskColor: MASK_COLOR });
+
+  // The panel itself, close enough to read: what the sweep cleared, what
+  // it will not clear and why, and the press beside it
+  // (the-pictures-show-what-is-drawn-now).
+  const leftovers = page.getByTestId("leftovers");
+  await expect(leftovers).toContainText("Cleared 1 directory", { timeout: 30_000 });
+  await expect(leftovers).toContainText("an-idea-not-written-yet");
+  await leftovers.screenshot({ path: path.join(IMAGES_DIR, "summary-leftovers.png") });
 });
 
 test("captures Harness Settings, in the light theme and in the dark", async ({ page }) => {

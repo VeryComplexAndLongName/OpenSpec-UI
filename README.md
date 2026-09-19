@@ -22,10 +22,13 @@ workflows through interfaces suited to their respective hosts.
 
 ### VS Code extension
 
-![VS Code OpenSpec Workbench showing Changes, Archive, Specs, Templates, Processes and Change Graph](docs/images/extension/overview-expanded.png)
+![VS Code OpenSpec Workbench showing Changes, Archive, Specs, Templates, Processes and Change Graph, with a change opened to its artifacts](docs/images/extension/overview-expanded.png)
 
 The sixth view, **Change Graph**, nests each change under the ones it
-follows and marks anything waiting on a change that has not landed.
+follows, marks anything waiting on a change that has not landed, folds
+away the branches where every change has landed, and lets a relation be
+added or removed from the row that shows it. The Archive, Specs and
+Change Graph views each take a filter from their title bar.
 
 See the complete screenshot galleries for the
 [standalone application](packages/server/README.md#screenshots) and the
