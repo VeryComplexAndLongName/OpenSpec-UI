@@ -24,8 +24,13 @@ interface HeldSurvey {
   askedAt: number;
 }
 
-/** Each change's word, from `standings` with the runs of the latest survey
- * laid over them. While `isActive`, the survey is read at once and then
+/** What the list draws with: each change's word, and the survey those
+ * words were laid from. The survey is handed back rather than read a
+ * second time, so the list can also say whose each change is
+ * (changes-shows-one-change-and-who-owns-it) without a second poll.
+ *
+ * Each change's word comes from `standings` with the runs of the latest
+ * survey laid over them. While `isActive`, the survey is read at once and then
  * every `intervalMs`. A survey asked for before the standings were read is
  * not laid over them: their own runs are as fresh. A survey that fails
  * leaves the words as they were. */
@@ -39,7 +44,7 @@ export function useStandingStates(
    * list did until DW reported it
    * (a-blocked-change-says-so-where-it-is-listed). */
   readiness?: ChangeReadinessReport | null,
-): ReadonlyMap<string, DescribedChangeState> | undefined {
+): { states: ReadonlyMap<string, DescribedChangeState> | undefined; survey: WorktreeSurvey | undefined } {
   const [held, setHeld] = useState<HeldSurvey | undefined>(undefined);
   const hasStandings = standings !== null;
 
@@ -61,7 +66,7 @@ export function useStandingStates(
     };
   }, [isActive, hasStandings, loadSurvey, intervalMs]);
 
-  return useMemo(() => {
+  const states = useMemo(() => {
     if (standings === null) return undefined;
     const readAt = Date.parse(standings.readAt);
     const survey = held !== undefined && !(held.askedAt < readAt) ? held.survey : undefined;
@@ -77,4 +82,8 @@ export function useStandingStates(
       ];
     }));
   }, [standings, held, readiness]);
+
+  // The survey itself, whenever one has been read: whose a change is does
+  // not depend on how fresh the standings are.
+  return useMemo(() => ({ states, survey: held?.survey }), [states, held]);
 }

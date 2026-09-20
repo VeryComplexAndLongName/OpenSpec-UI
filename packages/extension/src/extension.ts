@@ -42,6 +42,7 @@ import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
+import { registerChangeElsewhere } from "./change-elsewhere.js";
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
 import { sendPipelineRunControl } from "./pipeline-run-control.js";
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
@@ -260,13 +261,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // (a-change-says-where-it-stands).
     const standingDecorations = new ChangeStandingDecorations();
     context.subscriptions.push(vscode.window.registerFileDecorationProvider(standingDecorations));
-    changesTree = new ChangesTreeProvider(workspaceRoot, { decorations: standingDecorations });
+    const changes = new ChangesTreeProvider(workspaceRoot, { decorations: standingDecorations });
+    changesTree = changes;
     archiveTree = new ArchiveTreeProvider(workspaceRoot);
     specsTree = new SpecsTreeProvider(workspaceRoot);
     templatesTree = new TemplatesTreeProvider(workspaceRoot);
     changeGraphTree = new ChangeGraphTreeProvider(workspaceRoot);
     humanOnlyInboxTree = new HumanOnlyInboxTreeProvider(workspaceRoot);
-    const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changesTree });
+    const changesTreeView = vscode.window.createTreeView("openspecUiChanges", { treeDataProvider: changes });
+    // The view says which change this working directory is for, beside its
+    // title, and says it again whenever the tree is drawn: the survey that
+    // knows it lands after the first draw
+    // (changes-shows-one-change-and-who-owns-it).
+    const sayWhichChange = (): void => {
+      changesTreeView.description = changes.ownChangeName();
+    };
+    context.subscriptions.push(changes.onDidChangeTreeData(sayWhichChange));
+    sayWhichChange();
+    // Reading another working directory's copy, opening that directory,
+    // and the picker over all of them
+    // (changes-shows-one-change-and-who-owns-it).
+    registerChangeElsewhere(context, {
+      getWorkspaceRoot: () => workspaceRoot,
+      reveal: async (item) => { await changesTreeView.reveal(item, { select: true, focus: true }); },
+    });
     const archiveTreeView = vscode.window.createTreeView("openspecUiArchive", { treeDataProvider: archiveTree });
     const templatesTreeView = vscode.window.createTreeView("openspecUiTemplates", { treeDataProvider: templatesTree });
     // Was `registerTreeDataProvider` (no command read this view's

@@ -13,6 +13,13 @@ vi.mock("@openspec-ui/core", async () => {
   return {
     describeChangeState: browser.describeChangeState,
     withSurveyedRuns: browser.withSurveyedRuns,
+  // Whose a change is: core's own reading, which touches no repository
+  // (changes-shows-one-change-and-who-owns-it).
+  changeOwnerships: browser.changeOwnerships,
+  changesOnlyElsewhere: browser.changesOnlyElsewhere,
+  describeChangesOnlyElsewhere: browser.describeChangesOnlyElsewhere,
+  describeOwnership: browser.describeOwnership,
+  isOursToWrite: browser.isOursToWrite,
     discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
     readTaskChecklist: vi.fn(async () => []),
     applicableRepoSetupActionIds: vi.fn(() => []),

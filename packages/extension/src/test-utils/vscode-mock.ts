@@ -71,15 +71,22 @@ export class TreeItem {
 }
 
 export class Uri {
-  private constructor(public readonly fsPath: string, public readonly scheme = "file", public readonly path = fsPath) { }
+  private constructor(
+    public readonly fsPath: string,
+    public readonly scheme = "file",
+    public readonly path = fsPath,
+    /** A document served by a content provider carries what it was built
+     * from here (changes-shows-one-change-and-who-owns-it). */
+    public readonly query = "",
+  ) { }
   static file(fsPath: string): Uri {
     return new Uri(fsPath);
   }
   static joinPath(base: Uri, ...segments: string[]): Uri {
     return new Uri([base.fsPath, ...segments].join("/"));
   }
-  static from(components: { scheme: string; path: string }): Uri {
-    return new Uri(components.path, components.scheme, components.path);
+  static from(components: { scheme: string; path: string; query?: string }): Uri {
+    return new Uri(components.path, components.scheme, components.path, components.query ?? "");
   }
   toString(): string {
     return `${this.scheme}://${this.fsPath}`;
@@ -145,6 +152,7 @@ export function createVscodeMock() {
     },
     workspace: {
       workspaceFolders: undefined as { uri: Uri }[] | undefined,
+      registerTextDocumentContentProvider: vi.fn((_scheme: string, _provider: unknown) => ({ dispose: vi.fn() })),
       getConfiguration: vi.fn(() => ({ get: vi.fn((_key: string, defaultValue?: unknown) => defaultValue) })),
       onDidChangeConfiguration: vi.fn(
         (_listener?: (e: { affectsConfiguration: (section: string) => boolean }) => void) => ({ dispose: vi.fn() }),

@@ -7,7 +7,10 @@ vi.mock("vscode", () => vscodeMock);
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const readTaskChecklistMock = vi.fn();
 const applicableRepoSetupActionIdsMock = vi.fn((..._args: unknown[]) => [] as string[]);
-vi.mock("@openspec-ui/core", () => ({
+vi.mock("@openspec-ui/core", async () => ({
+  // Whose a change is: core's own reading, which touches no repository
+  // (changes-shows-one-change-and-who-owns-it).
+  ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
   discoverOpenSpecWorkspace: (...args: unknown[]) => discoverOpenSpecWorkspaceMock(...args),
   readTaskChecklist: (...args: unknown[]) => readTaskChecklistMock(...args),
   applicableRepoSetupActionIds: (...args: unknown[]) => applicableRepoSetupActionIdsMock(...args),

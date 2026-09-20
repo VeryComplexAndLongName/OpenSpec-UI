@@ -8,6 +8,7 @@ export * from "./security.js";
 export * from "./audit-message.js";
 export * from "./change-state.js";
 export * from "./change-standing.js";
+export * from "./change-ownership.js";
 export * from "./main-drift.js";
 export * from "./change-graph.js";
 // The filesystem half of the relation: reading is change-graph.js, and

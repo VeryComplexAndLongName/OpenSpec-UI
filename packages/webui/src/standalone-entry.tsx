@@ -115,6 +115,7 @@ import {
   DEFAULT_STALE_TASK_THRESHOLD_DAYS,
   describeChangeState,
   describeComparison,
+  changeOwnerships,
   describeHumanOnlyInboxState,
   describeStandingSources,
   describeWaitingOn,
@@ -929,7 +930,19 @@ function StandaloneApp() {
   const [standingsError, setStandingsError] = useState<string | undefined>(undefined);
   /** Each change's word on the Changes list, with the runs read again while
    * the summary is shown (the-changes-views-see-a-run-start). */
-  const standingStates = useStandingStates(standings, activeTab === "overview", pipelineSurvey, SURVEY_POLL_INTERVAL_MS, changeReadiness);
+  const { states: standingStates, survey: overviewSurvey } = useStandingStates(
+    standings,
+    activeTab === "overview",
+    pipelineSurvey,
+    SURVEY_POLL_INTERVAL_MS,
+    changeReadiness,
+  );
+  // Whose each change is, from the survey those words were laid from
+  // (changes-shows-one-change-and-who-owns-it).
+  const changeOwners = useMemo(
+    () => changeOwnerships(overview?.changes.map((change) => change.name) ?? [], overviewSurvey),
+    [overview, overviewSurvey],
+  );
   const [runStanding, setRunStanding] = useState<DescribedChangeState | undefined>(undefined);
   /** What the last run of each delegated item reported, keyed the way
    * its row is. Shown beside the row it was started from: an outcome
@@ -1946,6 +1959,7 @@ function StandaloneApp() {
 
               <ChangesList
                 changes={overview.changes.map((change) => toChangeSummary(change, toChangeState(change.status)))}
+                ownerships={changeOwners}
                 {...(standings && standingStates
                   ? {
                     states: standingStates,
