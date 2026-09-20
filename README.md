@@ -5,7 +5,7 @@ changes.** Start a run from a change, watch what the agent is doing while it
 does it, stop it where its work is sound, and see every change's standing
 across every working directory you have open.
 
-![The standalone OpenSpec Workbench: the application bar with the workspace and the theme switch, the Run tab beside Processes, Diff, Summary, Editor, Templates, Timeline, Pipeline and Harness, a completed show command with its analysis and streamed output, and the footer's package versions](docs/images/standalone/run-command.png)
+![A tour of the standalone OpenSpec Workbench: the Pipeline drawing three changes with one waiting on another, a run started from a change's card, the run stopping at a checkpoint and continuing, and a stop asked for with a reason that the card then states](docs/images/standalone/tour.gif)
 
 ## Install
 
