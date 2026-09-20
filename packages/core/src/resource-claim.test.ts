@@ -47,8 +47,17 @@ function take(directory: string, over: Partial<Parameters<typeof takeClaim>[0]> 
 
 describe("claimDirectoryBeside", () => {
   it("puts claims beside the status directory, not inside it", () => {
-    expect(claimDirectoryBeside(path.join("C:", "wt", "repo", ".agent-status")))
-      .toBe(path.join("C:", "wt", "repo", ".agent-claims"));
+    // Rooted with `path.sep`, not with a drive letter: "C:" is absolute
+    // on Windows and a relative directory called `C:` everywhere else, so
+    // a drive-lettered fixture passes here and fails on the Linux runner
+    // with the repository's path glued in front of it.
+    const worktreeRoot = path.join(path.sep, "wt", "repo");
+
+    // Resolved on both sides: the reading resolves its input, and on
+    // Windows that adds the current drive to a path rooted at the
+    // separator.
+    expect(claimDirectoryBeside(path.join(worktreeRoot, ".agent-status")))
+      .toBe(path.resolve(path.join(worktreeRoot, ".agent-claims")));
   });
 });
 
