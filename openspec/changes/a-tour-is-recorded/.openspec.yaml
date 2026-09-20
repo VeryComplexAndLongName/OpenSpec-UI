@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-20
+# A capture spec and the pictures it writes: no requirement of any
+# capability changes.
+skip_specs: true
