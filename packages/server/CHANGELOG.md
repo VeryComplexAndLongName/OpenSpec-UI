@@ -1,5 +1,12 @@
 # @openspec-ui/server
 
+## 1.34.1
+
+### Patch Changes
+
+- Updated dependencies [c4550cc]
+  - @openspec-ui/core@0.107.0
+
 ## 1.34.0
 
 ### Minor Changes
