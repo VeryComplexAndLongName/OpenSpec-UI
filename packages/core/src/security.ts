@@ -427,6 +427,14 @@ export interface AuditEntry {
    * The request's reason is not repeated here: it was not verified to be
    * anybody's. */
   stopRequestRefused?: { messageId: string; why: "unverified" | "stale" | "seen" };
+  /** A note or a question the operator sent that this run took and handed
+   * to its agent, on an entry whose outcome is `message`. What was said is
+   * deliberately not repeated here: the audit records that the run was
+   * spoken to and by whom, and the words themselves are in the prompt the
+   * stage ran with (the-operator-can-say-something-to-a-run). */
+  operatorMessage?: { messageId: string; kind: "note" | "ask"; from: string; stage: string };
+  /** A message addressed to this run that it did not take, and why. */
+  operatorMessageRefused?: { messageId: string; why: "unverified" | "stale" | "seen" | "author-not-allowed" };
 }
 
 export interface AuditLog {

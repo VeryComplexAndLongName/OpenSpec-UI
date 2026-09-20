@@ -44,6 +44,7 @@ import {
   readChangeGraph,
   editChangeRelation,
   askLiveRunToStop,
+  sayToLiveRun,
   createGitWrapper,
   isTaskNumber,
   readAgentStatuses,
@@ -1253,6 +1254,64 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
       } catch (error) {
         await showCommandError("ask the run to stop after a task", error);
+      }
+    }),
+    // "Do not touch the release manifest", said to a run while it works,
+    // and "which task are you on?", answered when the stage that carried it
+    // ends (the-operator-can-say-something-to-a-run). The message goes
+    // through the same signed channel a stop does.
+    vscode.commands.registerCommand("openspec-ui.sayToRun", async (invokedItem?: unknown) => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      const subject = relationSubject(invokedItem, deps);
+      if (!subject) { warnNoTreeSelection("change"); return; }
+      try {
+        const statusDirectory = await resolveAgentStatusDirectory(
+          createGitWrapper({ cwd: workspaceRoot }),
+          workspaceRoot,
+        );
+        const { reports } = await readAgentStatuses(statusDirectory);
+        const live = reports.find((report) => report.changeName === subject.name
+          && !report.gone
+          && report.signature !== "does-not-check-out");
+        if (!live) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: nothing is running on ${subject.name}, so there is nobody to say it to.`,
+          );
+          return;
+        }
+        const kind = await vscode.window.showQuickPick(
+          [
+            { label: "Note", description: "words to take into account; no reply", value: "note" as const },
+            { label: "Question", description: "answered by what the next stage says", value: "ask" as const },
+          ],
+          { title: `Say something to the run on ${subject.name}` },
+        );
+        if (kind === undefined) return;
+        const words = await vscode.window.showInputBox({
+          title: kind.label === "Note" ? `A note for the run on ${subject.name}` : `A question for the run on ${subject.name}`,
+          prompt: "Reaches the agent when its next stage starts, signed with your key",
+          placeHolder: kind.value === "note" ? "do not touch the release manifest" : "which task are you on?",
+        });
+        if (words === undefined || words.trim().length === 0) return;
+        const result = await sayToLiveRun({
+          statusDirectory,
+          workspaceRoot,
+          instanceId: live.instanceId,
+          kind: kind.value,
+          words,
+        });
+        if (!result.sent) {
+          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.why}.`);
+          return;
+        }
+        void vscode.window.showInformationMessage(
+          kind.value === "ask"
+            ? `OpenSpec UI: asked the run on ${subject.name}; the answer arrives when its stage ends.`
+            : `OpenSpec UI: the run on ${subject.name} will read this when its next stage starts.`,
+        );
+      } catch (error) {
+        await showCommandError("say something to the run", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.addRelation", async (invokedItem?: unknown) => {

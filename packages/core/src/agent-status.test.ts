@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:f
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { askRunToStop, messageDirectoryBeside, STOP_MESSAGE_STALE_AFTER_MS } from "./agent-messages.js";
+import { askRunToStop, messageDirectoryBeside, sendMessage, STOP_MESSAGE_STALE_AFTER_MS } from "./agent-messages.js";
 import { agentRosterDirectory, confirmEnrolment } from "./agent-roster.js";
 import {
   AGENT_STATUS_STALE_AFTER_MS,
@@ -1081,5 +1081,114 @@ describe("a signed record (a-run-is-signed-by-its-person 3.4)", () => {
     expect(seen).toEqual(events);
     expect(written.version).toBe(AGENT_STATUS_VERSION);
     expect((await readAgentStatuses(directory)).reports[0]).toMatchObject({ signature: "unverified", activity: "halfway" });
+  });
+});
+
+// the-operator-can-say-something-to-a-run 2.1: the same renewal that reads
+// a request to stop reads what the operator said.
+describe("a note or a question addressed to this run", () => {
+  function memoryKey(): MachineKey {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    return {
+      keyId: keyIdOf(publicKey),
+      publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString(),
+      publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64"),
+      sign: (bytes) => new Uint8Array(sign(null, bytes, privateKey)),
+    };
+  }
+
+  async function listeningWriter(options: {
+    onMessage: (message: { messageId: string; kind: string; words: string; from: string }) => void;
+    onMessageRefused?: (refusal: { messageId: string; why: string; words: string }) => void;
+    allowAgentMessages?: boolean;
+  }) {
+    const root = await temporaryRoot();
+    const repository = path.join(root, "repo");
+    const worktreeRoot = path.join(root, "wt-root");
+    const directory = agentStatusDirectory(worktreeRoot, repository);
+    const sender = memoryKey();
+    await confirmEnrolment({
+      rosterDirectory: agentRosterDirectory(worktreeRoot, repository),
+      request: { keyId: sender.keyId, publicKey: sender.publicKey, label: "ada", machine: "ada-laptop", gitAuthor: "ada@example.com" },
+      label: "Ada",
+    });
+    const writer = new AgentStatusWriter({
+      directory,
+      workingDirectory: path.join(worktreeRoot, "repo", "alpha"),
+      changeName: "alpha",
+      onMessage: options.onMessage as never,
+      ...(options.onMessageRefused !== undefined ? { onMessageRefused: options.onMessageRefused as never } : {}),
+      ...(options.allowAgentMessages !== undefined ? { allowAgentMessages: options.allowAgentMessages } : {}),
+    });
+    await writer.start("applying");
+    return { directory, messages: messageDirectoryBeside(directory), sender, writer };
+  }
+
+  it("takes a note once across two renewals, names who said it, and removes it", async () => {
+    const onMessage = vi.fn();
+    const { messages, sender, writer } = await listeningWriter({ onMessage });
+    const messageId = await sendMessage({
+      directory: messages, to: writer.instanceId, toKind: "run", kind: "note", author: "person",
+      words: "leave the release manifest alone", key: sender, machine: "ada-laptop",
+    });
+
+    await writer.checkMessages();
+    await writer.checkMessages();
+
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({
+      messageId, kind: "note", words: "leave the release manifest alone", from: "Ada", fromKeyId: sender.keyId,
+    }));
+    // Delivery is what ends it, not the clock.
+    expect(await readdir(messages)).toEqual([]);
+    await writer.stop();
+  });
+
+  it("refuses a run's message by default, says so in the activity once, and leaves it where it is", async () => {
+    const onMessage = vi.fn();
+    const onMessageRefused = vi.fn();
+    const { directory, messages, sender, writer } = await listeningWriter({ onMessage, onMessageRefused });
+    const messageId = await sendMessage({
+      directory: messages, to: writer.instanceId, toKind: "run", kind: "note", author: "run",
+      words: "rebase your branch onto mine", key: sender, machine: "ada-laptop",
+    });
+
+    await writer.checkMessages();
+    const refused = await readAgentStatuses(directory);
+
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(onMessageRefused).toHaveBeenCalledTimes(1);
+    expect(onMessageRefused).toHaveBeenCalledWith(expect.objectContaining({ messageId, why: "author-not-allowed" }));
+    expect(refused.reports[0]?.activity).toBe("a message arrived, from a run, which this run does not take; not taken");
+    expect(await readdir(messages)).toEqual([`${messageId}.json`]);
+    await writer.stop();
+  });
+
+  it("takes a run's message where the run is configured to allow them", async () => {
+    const onMessage = vi.fn();
+    const { messages, sender, writer } = await listeningWriter({ onMessage, allowAgentMessages: true });
+    await sendMessage({
+      directory: messages, to: writer.instanceId, toKind: "run", kind: "note", author: "run",
+      words: "I have the lock on packages/core", key: sender, machine: "ada-laptop",
+    });
+
+    await writer.checkMessages();
+
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    await writer.stop();
+  });
+
+  it("reads none once it has stopped", async () => {
+    const onMessage = vi.fn();
+    const { messages, sender, writer } = await listeningWriter({ onMessage });
+    await sendMessage({
+      directory: messages, to: writer.instanceId, toKind: "run", kind: "note", author: "person",
+      words: "anything at all", key: sender, machine: "ada-laptop",
+    });
+
+    await writer.stop();
+    await writer.checkMessages();
+
+    expect(onMessage).not.toHaveBeenCalled();
   });
 });

@@ -985,6 +985,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
     steps: [{ step: "await-change", before: "verify", param: "the-other-change", maxWaitSeconds: 600 }],
     hints: { enabled: false },
+    allowAgentMessages: true,
   };
 
   it("has a sample for every accepted key, and no others", () => {

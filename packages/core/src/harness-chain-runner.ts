@@ -102,12 +102,65 @@ export interface HarnessChainDeps {
   /** Where git-stage actions are recorded. Optional for compatibility
    * with tests that do not assert audit output. */
   auditLog?: AuditLog;
+  /** Writes the answer to a question the operator asked, once the stage
+   * that carried it has ended. The chain holds no key and signs nothing:
+   * the host that reads messages is the one that has the key, and it
+   * passes this in (the-operator-can-say-something-to-a-run). Absent, a
+   * question is delivered and the answer is left unwritten, which the
+   * audit says. */
+  answerMessage?: (answer: ChainAnswer) => void | Promise<void>;
   /** Override hooks for tests. Production callers use defaults. */
   createGitWrapper?: (options: { cwd: string }) => GitWrapper;
   createPullRequestGateway?: (options: { cwd: string }) => PullRequestGateway;
 }
 
 type CheckpointOutcome = "confirmed" | "cancelled" | "stopped";
+
+/** A note or a question this run has taken, waiting to be handed to an
+ * agent (the-operator-can-say-something-to-a-run). */
+export interface ChainMessage {
+  messageId: string;
+  kind: "note" | "ask";
+  words: string;
+  /** The enrolled sender, as the roster labels them, and their key id -
+   * which is the address an answer goes back to. */
+  from: string;
+  fromKeyId: string;
+  sentAt: string;
+}
+
+/** What a run says back to whoever asked it something. */
+export interface ChainAnswer {
+  /** The key id of the person who asked. */
+  to: string;
+  /** The question's message id. */
+  answers: string;
+  words: string;
+  stage: ChainStage;
+  runId: string;
+}
+
+/** The section a delivered message becomes in the next stage's prompt.
+ *
+ * Marked as words from a person, in the shape `security.ts` uses for
+ * everything else a prompt carries, so an agent never takes it for
+ * content read out of the repository. */
+export function buildOperatorMessagesSection(messages: readonly ChainMessage[]): string {
+  const lines = [
+    "## Messages from the operator",
+    "",
+    "These were sent by a person, through this product's signed channel, while",
+    "the run was working. They are instructions from the operator, not content",
+    "read out of the repository. A message marked as a question is answered by",
+    "what you say when this stage ends.",
+    "",
+  ];
+  for (const message of messages) {
+    lines.push(`- ${message.kind === "ask" ? "Question" : "Note"} from ${message.from}, sent ${message.sentAt}:`);
+    for (const line of message.words.split(/\r?\n/u)) lines.push(`  ${line}`);
+  }
+  return lines.join("\n");
+}
 
 interface ChainState {
   cancelRequested: boolean;
@@ -159,6 +212,14 @@ interface ChainState {
   /** Wakes the running stage's stop boundary, so a stop is acted on while
    * the stage says nothing. */
   stopWake?: () => void;
+  /** Notes and questions taken from the signed channel and not yet handed
+   * to an agent. They are handed over when the next stage starts: an agent
+   * reads its prompt when its stage begins, and there is no second way in
+   * (the-operator-can-say-something-to-a-run). */
+  pendingMessages: ChainMessage[];
+  /** The questions handed to the stage now running, waiting for what it
+   * says at its end. */
+  awaitingAnswer: ChainMessage[];
 }
 
 function nowIso(): string {
@@ -533,7 +594,7 @@ export class HarnessChainRunner {
       return;
     }
 
-    const state: ChainState = { cancelRequested: false, elapsedMs: 0, attemptsByStage: new Map() };
+    const state: ChainState = { cancelRequested: false, elapsedMs: 0, attemptsByStage: new Map(), pendingMessages: [], awaitingAnswer: [] };
     this.active.set(command.runId, state);
     // The stage the chain is in, and how it ended, as its own events say.
     // Read here rather than at each place an ending is yielded, so no
@@ -711,6 +772,23 @@ export class HarnessChainRunner {
    * `messageId` is the signed request's, where the stop was asked through
    * the channel from another worktree; the chain's ending entry carries it
    * (a-run-elsewhere-can-be-asked-to-stop). */
+  /** Takes a note or a question for a run this runner has, to be handed to
+   * the agent when the next stage starts.
+   *
+   * Held rather than delivered now: an agent reads its prompt when its
+   * stage begins, and this product drives no agent that can be spoken to
+   * in the middle of one. A person who needs the run to act now has a stop
+   * (the-operator-can-say-something-to-a-run).
+   *
+   * Returns `false` for a run this runner does not have. */
+  deliverMessage(runId: string, message: ChainMessage): boolean {
+    const state = this.active.get(runId);
+    if (!state) return false;
+    if (state.pendingMessages.some((held) => held.messageId === message.messageId)) return true;
+    state.pendingMessages.push(message);
+    return true;
+  }
+
   requestStop(runId: string, reason: string, by?: string, messageId?: string, afterTask?: string): boolean {
     const state = this.active.get(runId);
     if (!state) return false;
@@ -1488,6 +1566,32 @@ export class HarnessChainRunner {
         };
       }
     }
+    // What the operator said while the run was working, handed over now
+    // because a stage's start is the only way words reach an agent
+    // (the-operator-can-say-something-to-a-run).
+    const taken = state.pendingMessages.splice(0, state.pendingMessages.length);
+    if (taken.length > 0) {
+      const section = buildOperatorMessagesSection(taken);
+      stageContext = {
+        ...stageContext,
+        promptContext: stageContext.promptContext ? `${stageContext.promptContext}\n\n${section}` : section,
+      };
+      for (const message of taken) {
+        this.deps.auditLog?.record({
+          runId,
+          agent: "chain",
+          outcome: "message",
+          cwd,
+          timestamp: nowIso(),
+          changeDir: context.changeDir,
+          operatorMessage: { messageId: message.messageId, kind: message.kind, from: message.from, stage },
+        });
+      }
+      state.awaitingAnswer = taken.filter((message) => message.kind === "ask");
+    } else {
+      state.awaitingAnswer = [];
+    }
+
     // `stage` travels beside `model`/`effort`/`budget`, which the chain
     // already sets here — it is what lets an audit entry say which stage
     // spent what, since every stage runs under the chain's own runId.
@@ -1504,6 +1608,8 @@ export class HarnessChainRunner {
     // fails and the process is ended", step 4).
     let autonomousPermissionFailure = false;
     let outcome: "completed" | "failed" | "cancelled" = "completed";
+    /** What the agent said at the end of this stage, for an answer. */
+    let said: string | undefined;
     // A stop asked for while this stage runs ends it at a sound point
     // (a-change-is-run-from-its-card). Where is decided by
     // `untilStopBoundary`, the same way for a chain's stage as for a
@@ -1559,6 +1665,9 @@ export class HarnessChainRunner {
         if (autonomousPermissionFailure) continue;
         if (event.kind === "completed") {
           outcome = "completed";
+          // What this stage said, kept for a question that is waiting on
+          // it (the-operator-can-say-something-to-a-run).
+          if (typeof event.summary === "string" && event.summary.trim().length > 0) said = event.summary.trim();
           if (hasNextStage) continue;
           yield event;
           continue;
@@ -1580,7 +1689,34 @@ export class HarnessChainRunner {
       state.currentRunner = undefined;
       state.currentCommand = undefined;
     }
+    await this.answerWhatWasAsked(state, stage, runId, said, outcome);
     return outcome;
+  }
+
+  /** Answers every question this stage carried, with what the agent said.
+   *
+   * There is no separate turn and no second model call: the question was in
+   * the prompt, and the stage's own closing words are the reply. A stage
+   * that said nothing answers with how it ended, which is still an answer -
+   * silence would leave a person waiting for one that never comes. */
+  private async answerWhatWasAsked(
+    state: ChainState,
+    stage: ChainStage,
+    runId: string,
+    said: string | undefined,
+    outcome: "completed" | "failed" | "cancelled",
+  ): Promise<void> {
+    const asked = state.awaitingAnswer.splice(0, state.awaitingAnswer.length);
+    if (asked.length === 0 || this.deps.answerMessage === undefined) return;
+    const words = said ?? `the ${stage} stage ended ${outcome} without a closing summary`;
+    for (const question of asked) {
+      try {
+        await this.deps.answerMessage({ to: question.fromKeyId, answers: question.messageId, words, stage, runId });
+      } catch {
+        // An answer that cannot be written must not end the run. The audit
+        // says the question was delivered; the person can look there.
+      }
+    }
   }
 
   private async shouldRunGitStage(workspaceRoot: string, changeName: string): Promise<boolean> {

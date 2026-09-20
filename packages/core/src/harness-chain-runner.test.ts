@@ -1996,7 +1996,12 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
   }
 
   /** A chain resumed at `apply`, with its events collected as they come. */
-  async function applyChain(options: { autonomyLevel?: "autonomous" | "semi-autonomous"; noCheckpoints?: boolean } = {}) {
+  async function applyChain(options: {
+    autonomyLevel?: "autonomous" | "semi-autonomous";
+    noCheckpoints?: boolean;
+    /** Where a question's answer goes (the-operator-can-say-something-to-a-run). */
+    answerMessage?: (answer: { to: string; answers: string; words: string; stage: string; runId: string }) => void;
+  } = {}) {
     const root = await temporaryRoot();
     // `autonomous` and checkpoints turned off are only valid in a change's
     // own harness.json, never in the global file.
@@ -2010,7 +2015,12 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
     const auditLog = new InMemoryAuditLog();
     const scripted = scriptedRunner();
     const git = { configuredIdentity: async () => "ada@example.com" } as unknown as GitWrapper;
-    const chain = new HarnessChainRunner({ resolveRunner: () => scripted.runner, auditLog, createGitWrapper: () => git });
+    const chain = new HarnessChainRunner({
+      resolveRunner: () => scripted.runner,
+      auditLog,
+      createGitWrapper: () => git,
+      ...(options.answerMessage !== undefined ? { answerMessage: options.answerMessage as never } : {}),
+    });
     const command = baseCommand(root);
     const events: Event[] = [];
     const pump = (async () => {
@@ -2052,6 +2062,78 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
         stopRequest: { reason: "only up to 2.1", by: "Ada", messageId: "message-2", afterTask: "2.1" },
       }),
     ]);
+  });
+
+  // the-operator-can-say-something-to-a-run 2.6: what the operator said
+  // reaches the agent where words can reach it at all - the next stage's
+  // prompt - and a question is answered by what that stage says.
+  it("carries a note into the next stage's prompt, saying who said it and when", async () => {
+    const run = await applyChain({ noCheckpoints: true });
+
+    expect(run.chain.deliverMessage(run.command.runId, {
+      messageId: "m-note",
+      kind: "note",
+      words: "do not touch the release manifest",
+      from: "Ada",
+      fromKeyId: "key-ada",
+      sentAt: "2026-09-19T10:00:00.000Z",
+    })).toBe(true);
+
+    // Every task ticked, so the stage that follows apply is verify.
+    await writeTasks(run.root, 0, 2);
+    run.push({ kind: "completed", timestamp: "t", summary: "applied" }, "end");
+    await waitForChain(
+      () => expect(run.calls.some((call) => call.kind === "verify")).toBe(true),
+      "the verify stage to start",
+    );
+
+    const verify = run.calls.find((call) => call.kind === "verify");
+    expect(verify?.context.promptContext).toContain("Messages from the operator");
+    expect(verify?.context.promptContext).toContain("Note from Ada, sent 2026-09-19T10:00:00.000Z");
+    expect(verify?.context.promptContext).toContain("do not touch the release manifest");
+    // The audit says the run was spoken to, and by whom, without repeating
+    // the words.
+    expect(run.auditLog.entries).toContainEqual(expect.objectContaining({
+      operatorMessage: { messageId: "m-note", kind: "note", from: "Ada", stage: "verify" },
+    }));
+
+    run.chain.cancel(run.command.runId);
+    await run.pump.catch(() => undefined);
+  });
+
+  it("answers a question with what the stage that carried it said", async () => {
+    const answers: Array<{ to: string; answers: string; words: string; stage: string }> = [];
+    const run = await applyChain({ noCheckpoints: true, answerMessage: (answer) => { answers.push(answer); } });
+
+    run.chain.deliverMessage(run.command.runId, {
+      messageId: "m-ask",
+      kind: "ask",
+      words: "which task are you on?",
+      from: "Ada",
+      fromKeyId: "key-ada",
+      sentAt: "2026-09-19T10:00:00.000Z",
+    });
+
+    // Every task ticked, so the stage that follows apply is verify.
+    await writeTasks(run.root, 0, 2);
+    run.push({ kind: "completed", timestamp: "t", summary: "applied" }, "end");
+    await waitForChain(
+      () => expect(run.calls.some((call) => call.kind === "verify")).toBe(true),
+      "the verify stage to start",
+    );
+    run.push({ kind: "completed", timestamp: "t", summary: "on 4.6, and the checks pass" }, "end");
+    await waitForChain(() => expect(answers.length).toBe(1), "the answer to be written");
+
+    expect(answers[0]).toMatchObject({
+      to: "key-ada",
+      answers: "m-ask",
+      words: "on 4.6, and the checks pass",
+      stage: "verify",
+      runId: run.command.runId,
+    });
+
+    run.chain.cancel(run.command.runId);
+    await run.pump.catch(() => undefined);
   });
 
   it("refuses a request naming a task the change does not have, and the run goes on", async () => {

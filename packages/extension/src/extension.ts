@@ -18,7 +18,18 @@ import {
   auditLogPath,
   agentStopRequestHandlers,
   buildDefaultAgentRunners,
+  chainAnswerWriter,
+  chainMessageHandlers,
   chainStopRequestHandlers,
+  createGitWrapper,
+  forgetMessage,
+  loadOrCreateMachineKey,
+  messageDirectoryBeside,
+  readAgentRoster,
+  readMessagesFor,
+  resolveAgentStatusDirectory,
+  rosterDirectoryBeside,
+  rosterOf,
   confirmEnrolmentFor,
   readGitAuthor,
   resolveCheckScripts,
@@ -26,6 +37,7 @@ import {
   runDelegatedItem,
   shortDelegatedItemOutcome,
 } from "@openspec-ui/core";
+import { AnswerWatcher, describeAnswer } from "./answers-watcher.js";
 import { buildChainRunnerAuditDeps } from "./chain-runner-audit-deps.js";
 import { getWorkspaceRoot, readConfig } from "./config.js";
 import { RunController } from "./run-controller.js";
@@ -145,7 +157,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
   // `auditLog` are read when a request arrives, long after activation.
   const runController = new RunController(liveRuns, (runner, command) =>
     command.kind === "chain"
-      ? chainStopRequestHandlers(chainRunner, command, auditLog)
+      ? {
+        ...chainStopRequestHandlers(chainRunner, command, auditLog),
+        // The same renewal that reads a request to stop reads what the
+        // operator said (the-operator-can-say-something-to-a-run).
+        ...chainMessageHandlers(chainRunner, command, auditLog),
+      }
       : agentStopRequestHandlers(runner, command, auditLog));
   const workspaceRoot = getWorkspaceRoot();
   let journal: WorkbenchRunJournal | undefined;
@@ -501,7 +518,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // writes its spend but reads nothing back" cannot be introduced by
     // editing one of two lines. See chain-runner-audit-deps.ts.
     ...buildChainRunnerAuditDeps(auditLog),
+    // An answer to a question the operator asked is written where the key
+    // is, and only once a stage has said something
+    // (the-operator-can-say-something-to-a-run). The status directory is
+    // resolved when the first answer is due, not now: resolving it needs
+    // git, and most runs are never asked anything.
+    ...(workspaceRoot !== undefined
+      ? {
+        answerMessage: chainAnswerWriter({
+          workspaceRoot,
+          statusDirectory: () => resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
+        }),
+      }
+      : {}),
   });
+
+  // The person's own side of the signed channel: an answer a run wrote is
+  // brought to whoever asked, rather than left in a directory nobody opens
+  // (the-operator-can-say-something-to-a-run).
+  if (workspaceRoot !== undefined) {
+    const answers = new AnswerWatcher({
+      myKeyId: async () => (await loadOrCreateMachineKey().catch(() => undefined))?.keyId,
+      messageDirectory: async () => messageDirectoryBeside(
+        await resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
+      ),
+      roster: async () => rosterOf((await readAgentRoster(
+        rosterDirectoryBeside(await resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot)),
+      )).entries),
+      readMessages: readMessagesFor,
+      forget: forgetMessage,
+      show: (message) => { void vscode.window.showInformationMessage(describeAnswer(message)); },
+    });
+    answers.start();
+    context.subscriptions.push({ dispose: () => answers.dispose() });
+  }
 
   const aiPanel = new AiPanel({
     extensionUri: context.extensionUri,
