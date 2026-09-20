@@ -8,6 +8,7 @@ export * from "./security.js";
 export * from "./audit-message.js";
 export * from "./change-state.js";
 export * from "./change-standing.js";
+export * from "./finished-directories.js";
 export * from "./change-ownership.js";
 export * from "./main-drift.js";
 export * from "./change-graph.js";
