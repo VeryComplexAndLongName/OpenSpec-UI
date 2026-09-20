@@ -14,6 +14,7 @@ import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
+import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
 import { stopCommand } from "./stop-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
@@ -36,6 +37,8 @@ Usage:
   openspec-ui-cli lease [--cwd <path>] [--format text|json]
   openspec-ui-cli lease release [--cwd <path>] [--format text|json]
   openspec-ui-cli status [--cwd <path>] [--format text|json]
+  openspec-ui-cli present [--change <id>] [--activity <text>] [--cwd <path>]
+  openspec-ui-cli claim <resource> [--wait <seconds>] [--cwd <path>]
   openspec-ui-cli stop <instanceId> --reason <text> [--after <task>] [--cwd <path>]
                        [--format text|json]
   openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
@@ -122,6 +125,18 @@ acts on it only if the request is verified and fresh. It prints the
 request's message id, and exits 1 when no live run reports itself under
 that instance id.
 
+'present' reports this agent into the status directory beside the
+repository and keeps the record alive until it is interrupted, so other
+agents on this machine - and the Pipeline - can see that somebody is
+working here and on what. It is not a run: no run id, nothing in the
+audit.
+
+'claim <resource>' holds something this machine has one of - the browser
+capture suite, a port, the editor under test - and releases it when it
+ends. Where somebody already holds it, it says who and waits, saying so
+while it waits, and exits 1 rather than proceeding when the wait runs
+out. Advisory: an agent that never asks holds nothing back.
+
 'enrol' lists the keys that sign a live run's record and are not
 enrolled, with where the run is, its machine and git author. 'enrol
 <keyId>' says a listed run was yours: its key is enrolled, and its runs
@@ -166,6 +181,11 @@ export interface MainOptions {
   reason?: string;
   /** The task a stop should let the run finish first. */
   after?: string;
+  /** What `present` says this agent is doing, and how long `claim` waits
+   * for a resource somebody else holds, in seconds
+   * (an-agent-says-where-it-is-working). */
+  activity?: string;
+  wait?: string;
 }
 
 export interface MainDeps {
@@ -191,6 +211,12 @@ export interface MainDeps {
    * change configured to pause refuse to start rather than hang.
    * Production derives it from whether standard input is a TTY. */
   checkpoint?: CheckpointPrompt;
+  presentCommand?: typeof presentCommand;
+  claimCommand?: typeof claimCommand;
+  /** Resolves when a command that holds something should let go. In
+   * production a signal; in a test, the test's own promise
+   * (an-agent-says-where-it-is-working). */
+  untilStopped?: () => Promise<void>;
   /** Writes without adding a newline — `run`'s text output joins the
    * slices of a streamed reply, so it cannot go through a line-oriented
    * writer. Defaults to `process.stdout.write`. */
@@ -224,11 +250,13 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--change" ||
       arg === "--label" ||
       arg === "--reason" ||
-      arg === "--after"
+      arg === "--after" ||
+      arg === "--activity" ||
+      arg === "--wait"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -356,6 +384,41 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
         format: options.format === "json" ? "json" : "text",
       },
       { stdout, stderr },
+    );
+  }
+
+  // Two agents on one machine see each other, and hold what there is one
+   // of (an-agent-says-where-it-is-working).
+  if (command === "present") {
+    return await (deps.presentCommand ?? presentCommand)(
+      {
+        workspaceRoot: rootOf(options.cwd),
+        ...(options.changeName !== undefined ? { changeName: options.changeName } : {}),
+        ...(options.activity !== undefined ? { activity: options.activity } : {}),
+      },
+      { stdout, stderr, untilStopped: deps.untilStopped ?? untilInterrupted() },
+    );
+  }
+
+  if (command === "claim") {
+    const resource = options.changeName;
+    if (!resource) {
+      stderr("openspec-ui-cli: claim requires a resource name");
+      stderr(USAGE);
+      return 2;
+    }
+    const waitSeconds = options.wait === undefined ? undefined : Number.parseInt(options.wait, 10);
+    if (waitSeconds !== undefined && !Number.isFinite(waitSeconds)) {
+      stderr("openspec-ui-cli: --wait takes a number of seconds");
+      return 2;
+    }
+    return await (deps.claimCommand ?? claimCommand)(
+      {
+        workspaceRoot: rootOf(options.cwd),
+        resource,
+        ...(waitSeconds !== undefined ? { waitSeconds } : {}),
+      },
+      { stdout, stderr, untilStopped: deps.untilStopped ?? untilInterrupted() },
     );
   }
 

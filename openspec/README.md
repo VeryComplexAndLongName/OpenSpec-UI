@@ -139,6 +139,45 @@ archive on `main` instead. Nothing sweeps a branch up later, so they
 accumulate: on 2026-09-19 there were 184 local and 45 remote, 175 and 40
 of them dead since the spring.
 
+### Where an agent works
+
+**A change is worked in its own working directory**, under the worktree
+root beside the repository (ADR 0027): `<parent>/.worktrees/<repo>/<change-id>`,
+on a branch of the same name. The directory's name is the change id
+exactly, so the survey resolves it to that change and the Pipeline draws
+it as that change's card.
+
+```bash
+git worktree add ../.worktrees/OpenSpec-UI/<change-id> -b <change-id>
+```
+
+**The shared checkout stays on the default branch.** It is the owner's
+window: what is happening is read there, from the Pipeline, rather than
+worked there.
+
+**Two agents never share a working directory.** This is the rule the
+branch rule above does not give you, and the difference is not academic.
+On 2026-09-20 two agents worked on two different changes, each on its own
+branch, in one directory - and collided anyway. A directory has one
+checked-out branch and one index: the second agent's files were staged in
+the first agent's index, under the first agent's branch, and neither could
+see it until a commit was about to carry the other's work. A branch is a
+name for a line of commits; the working directory is the desk.
+
+**Dependencies are linked, not installed again**, where the change does
+not touch a package's own sources: `mklink /J node_modules <main>/node_modules`
+on Windows, a symlink elsewhere. Know what that costs: the link makes
+`@openspec-ui/*` resolve to the **main checkout's** packages, so a test
+that crosses packages checks the main checkout's code, not the change's.
+Where the change alters a package another package imports, install in the
+working directory instead.
+
+**What is machine-wide is not solved by a directory.** Ports, the
+processor, the downloaded editor under `.vscode-test`: two working
+directories contend for all of them. Two browser suites at once produce
+failures that look like defects and are not - three specs failed in a
+parallel run on 2026-09-20 and all six passed alone.
+
 ### Editorial content is not a change
 
 `docs/articles/**` - articles, teasers and the pictures beside them - needs

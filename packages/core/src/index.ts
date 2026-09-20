@@ -37,6 +37,8 @@ export * from "./process-scheduler.js";
 export * from "./workspace-lease.js";
 export * from "./lease-release.js";
 export * from "./agent-status.js";
+export * from "./agent-presence.js";
+export * from "./resource-claim.js";
 export * from "./agent-roster.js";
 export * from "./agent-messages.js";
 export * from "./stop-request-handlers.js";
