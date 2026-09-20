@@ -4,11 +4,19 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { runValidateAll } from "./openspec-validate.js";
 
-// every-varying-check-has-a-budget: each change is validated by spawning
-// the real `openspec` CLI, one process per change, whose time varies
-// with the machine and its load. The rule under test is the open-item
-// one; the structural validation around it is what costs the seconds.
-vi.setConfig({ testTimeout: 60_000 });
+// every-varying-check-has-a-budget: each test makes a temporary
+// workspace of small files and reads them back. The structural
+// validation is stubbed - the job that runs these tests does not
+// install the `openspec` CLI, and the rule under test is the open-item
+// one. Measured on 2026-09-20: the six together take under 100 ms.
+vi.setConfig({ testTimeout: 10_000 });
+
+/** Structure is somebody else's question here, and answering it would
+ * spawn a process this job has no binary for. */
+const structureIsFine = (async () => ({
+  summary: { totals: { items: 1, failed: 0 } },
+  items: [],
+})) as unknown as Parameters<typeof runValidateAll>[1] extends { validateChange?: infer V } ? V : never;
 
 // a-change-lands-with-nothing-open 2. The rule applies to the change a
 // pull request is for, and to no other.
@@ -43,7 +51,7 @@ describe("the open-item rule", () => {
   it("refuses the named change for an open item, and names it", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change" });
+    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
 
     const named = forChange(result, "the-change");
     expect(named?.valid).toBe(false);
@@ -54,7 +62,7 @@ describe("the open-item rule", () => {
   it("refuses a human-only item closed with nothing written under it", async () => {
     const root = await workspace({ "the-change": UNRECORDED });
 
-    const result = await runValidateAll(root, { change: "the-change" });
+    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
 
     expect(forChange(result, "the-change")?.unrecordedItems?.join(" ")).toContain("Whether it reads");
   });
@@ -62,7 +70,7 @@ describe("the open-item rule", () => {
   it("accepts one that carries its record", async () => {
     const root = await workspace({ "the-change": RECORDED });
 
-    const result = await runValidateAll(root, { change: "the-change" });
+    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
 
     expect(forChange(result, "the-change")?.unrecordedItems).toBeUndefined();
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
@@ -71,7 +79,7 @@ describe("the open-item rule", () => {
   it("never fails one change for another change's open item", async () => {
     const root = await workspace({ "the-change": CLOSED, "somebody-elses": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change" });
+    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
     expect(forChange(result, "somebody-elses")?.openItems).toBeUndefined();
@@ -80,7 +88,7 @@ describe("the open-item rule", () => {
   it("applies no rule where the name is no active change", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change-archive" });
+    const result = await runValidateAll(root, { change: "the-change-archive", validateChange: structureIsFine });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
   });
@@ -88,7 +96,7 @@ describe("the open-item rule", () => {
   it("applies no rule where no change was named at all", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root);
+    const result = await runValidateAll(root, { validateChange: structureIsFine });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
   });

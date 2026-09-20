@@ -29,9 +29,16 @@ export interface ValidateAllResult {
   results: ChangeValidationResult[];
 }
 
-async function validateOne(id: string, cwd: string): Promise<ChangeValidationResult> {
+/** The structural validation, which spawns the `openspec` CLI. A seam,
+ * because the job that runs the unit tests does not install that CLI -
+ * only the merge-gate job does - and a test about the open-item rule
+ * should not need a process at all
+ * (a-change-lands-with-nothing-open). */
+export type ValidateChange = typeof validateChange;
+
+async function validateOne(id: string, cwd: string, run: ValidateChange): Promise<ChangeValidationResult> {
   try {
-    const result = await validateChange(id, { cwd });
+    const result = await run(id, { cwd });
     const issues = result.items
       .filter((item) => !item.valid)
       .flatMap((item) => item.issues.map((issue) => issue.message));
@@ -74,9 +81,13 @@ async function taskDebts(cwd: string, changeName: string): Promise<{ open: strin
   };
 }
 
-export async function runValidateAll(cwd: string, options: { change?: string } = {}): Promise<ValidateAllResult> {
+export async function runValidateAll(
+  cwd: string,
+  options: { change?: string; validateChange?: ValidateChange } = {},
+): Promise<ValidateAllResult> {
+  const run = options.validateChange ?? validateChange;
   const { changes } = await listChanges({ cwd });
-  const results = await Promise.all(changes.map((change) => validateOne(change.name, cwd)));
+  const results = await Promise.all(changes.map((change) => validateOne(change.name, cwd, run)));
 
   // The open-item rule applies to one change: the one the pull request
   // is for, which this repository names its branch after. A name no
