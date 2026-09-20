@@ -615,7 +615,7 @@ describe("server — REST /api/status", () => {
     expect(body.createdDate).toBeNull();
     expect(body.proposal).toContain("Because.");
     expect(body.tasks).toEqual([
-      { lineNumber: 0, text: "done", done: true, date: null, lastTouchedDate: null },
+      { lineNumber: 0, text: "done", done: true, ending: "done", date: null, lastTouchedDate: null },
       { lineNumber: 1, text: "todo", done: false, date: null, lastTouchedDate: null },
     ]);
   }, 20_000);

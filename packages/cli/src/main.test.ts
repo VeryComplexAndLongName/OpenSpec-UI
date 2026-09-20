@@ -75,7 +75,17 @@ describe("runMain", () => {
 
     await runMain(["validate", "--cwd", "/workspace/repo"], { validateAll, ...io });
 
-    expect(validateAll).toHaveBeenCalledWith("/workspace/repo");
+    expect(validateAll).toHaveBeenCalledWith("/workspace/repo", {});
+  });
+
+  // a-change-lands-with-nothing-open: the change a pull request is for.
+  it("passes --change through to validateAll, for the open-item rule", async () => {
+    const io = collectingIo();
+    const validateAll = vi.fn().mockResolvedValue(okResult);
+
+    await runMain(["validate", "--cwd", "/workspace/repo", "--change", "the-change"], { validateAll, ...io });
+
+    expect(validateAll).toHaveBeenCalledWith("/workspace/repo", { change: "the-change" });
   });
 
   it("prints a human-readable table with --format text", async () => {

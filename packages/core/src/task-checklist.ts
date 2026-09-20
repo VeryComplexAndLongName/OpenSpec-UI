@@ -55,7 +55,18 @@ export interface TaskChecklistItem {
    * every marker and declaration is read from
    * (the-change-timeline-looks-like-the-mockup). */
   continued?: string;
+  /** How a closed item ended (a-change-lands-with-nothing-open).
+   * Absent for an open item; `done` for a closed one that declares
+   * nothing, which is how every item written before this existed
+   * reads. */
+  ending?: TaskEnding;
 }
+
+/** The three ways a closed item can have ended. `waived` is a person
+ * deciding not to carry it out; `deferred` is a judgement about the
+ * shipped thing, which leaves the change and waits in the inbox. Both
+ * are closed: a change is never held open by one. */
+export type TaskEnding = "done" | "waived" | "deferred";
 
 /** A line that carries on the item above it: indented, and not the start
  * of a list item of its own. */
@@ -78,6 +89,39 @@ const SECTION_NUMBER_RE = /^\d+(?:\.\d+)*\.?[ \t]+/;
  * lead that doesn't start with "Human-only") is a known gap, not a
  * silent one: it simply doesn't appear in the inbox this powers. */
 export const HUMAN_ONLY_LEAD_RE = /\*\*([^*]+)\*\*/;
+
+/** The bold leads that declare an ending. Matched as plain text rather
+ * than by a pattern: an ending is written as a bold lead, the way
+ * `**Human-only.**` and `**Delegated to <id>**` already are, and a
+ * lower-cased `includes` says exactly that without an escape anybody
+ * can get wrong. */
+const WAIVED_LEAD = "**waived";
+const DEFERRED_LEAD = "**deferred";
+
+/** How a closed item ended, read from its line and the lines continuing
+ * it. `undefined` for an open item: an open item has not ended. */
+export function taskEndingOf(item: Pick<TaskChecklistItem, "done" | "text" | "continued">): TaskEnding | undefined {
+  if (!item.done) return undefined;
+  const whole = (item.continued === undefined ? item.text : `${item.text} ${item.continued}`).toLowerCase();
+  // Deferred first: an item can say both, and moving to the inbox is
+  // the stronger claim - it is still waiting on somebody.
+  if (whole.includes(DEFERRED_LEAD)) return "deferred";
+  if (whole.includes(WAIVED_LEAD)) return "waived";
+  return "done";
+}
+
+/** A closed item that claims something happened outside the repository
+ * and writes nothing under itself.
+ *
+ * Only for an item marked human-only or naming an agent: an ordinary
+ * item is evidenced by the code and the test beside it, and asking for
+ * prose under every tick would teach everybody to write prose. */
+export function isUnrecordedTask(item: TaskChecklistItem): boolean {
+  if (!item.done) return false;
+  if (item.humanOnly !== true && item.delegatedTo === undefined) return false;
+  if (taskEndingOf(item) !== "done") return false;
+  return (item.continued ?? "").trim().length === 0;
+}
 
 export function isHumanOnlyTask(text: string): boolean {
   const match = text.match(HUMAN_ONLY_LEAD_RE);
@@ -279,6 +323,13 @@ export async function tasksFilePath(
   return findTasksArtifactPath(workspaceRoot, changeName, archived);
 }
 
+/** The checklist a `tasks.md` text holds, without reading a file.
+ * Exported so a caller that already has the text - the merge gate, a
+ * test - parses it the one way (a-change-lands-with-nothing-open). */
+export function parseTaskChecklist(content: string): TaskChecklistItem[] {
+  return parseChecklist(content);
+}
+
 function parseChecklist(content: string): TaskChecklistItem[] {
   const items: TaskChecklistItem[] = [];
   let section: string | undefined;
@@ -320,6 +371,13 @@ function parseChecklist(content: string): TaskChecklistItem[] {
     items.push(item);
     continuing = item;
   });
+  // The ending is read once the continued lines are on the item: a
+  // waiver or a deferral is usually written under the item rather than
+  // on its line.
+  for (const item of items) {
+    const ending = taskEndingOf(item);
+    if (ending !== undefined) item.ending = ending;
+  }
   return items;
 }
 

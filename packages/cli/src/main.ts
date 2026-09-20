@@ -189,7 +189,7 @@ export interface MainOptions {
 }
 
 export interface MainDeps {
-  validateAll?: (cwd: string) => Promise<ValidateAllResult>;
+  validateAll?: (cwd: string, options?: { change?: string }) => Promise<ValidateAllResult>;
   buildManifest?: typeof buildReleaseManifest;
   readReleasesFile?: (filePath: string) => Promise<string>;
   stdout?: (line: string) => void;
@@ -308,7 +308,11 @@ function formatText(result: ValidateAllResult): string {
   const lines = result.results.map((r) => {
     const status = r.valid ? "OK" : "FAIL";
     const detail = r.error ? ` — ${r.error}` : r.totalItems > 0 ? ` (${r.failedItems}/${r.totalItems} failed)` : "";
-    return `${status}  ${r.id}${detail}`;
+    const owed = [
+      ...(r.openItems ?? []).map((item) => `    still open: ${item}`),
+      ...(r.unrecordedItems ?? []).map((item) => `    closed with nothing written under it: ${item}`),
+    ];
+    return [`${status}  ${r.id}${detail}`, ...owed].join(String.fromCharCode(10));
   });
   lines.push(result.ok ? "\nAll changes valid." : "\nOne or more changes failed validation.");
   return lines.join("\n");
@@ -523,7 +527,10 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
 
   let result: ValidateAllResult;
   try {
-    result = await validateAll(cwd);
+    // The change this pull request is for, where the caller says: the
+    // open-item rule applies to it and to no other change
+    // (a-change-lands-with-nothing-open).
+    result = await validateAll(cwd, options.change === undefined ? {} : { change: options.change });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     stderr(`openspec-ui-cli: could not complete validation: ${message}`);
