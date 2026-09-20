@@ -97,6 +97,26 @@ behind by whatever landed while they were looking, and nothing says so.
   the reading answered `undefined` - which is the right answer for a
   checkout with no local `main`. The clone is taken with `--branch main`
   now.
-- [ ] 4.5 **Human-only.** Whether the line reads as information rather than
+- [x] 4.5 **Human-only.** Whether the line reads as information rather than
   as a nag, and whether one press is the right amount of ceremony for
   moving a branch.
+
+  Done 2026-09-20 by Claude, at the owner's request rather than by the
+  owner, for the owner to look at in turn.
+
+  It reads as information: the line exists only while the checkout is
+  behind, says a number and what that number means for the cards on the
+  screen, and disappears the moment the branch is level. Nothing repeats
+  it, nothing badges it, and nothing asks twice.
+
+  One press is the right amount for what it does, because of what it
+  refuses. A fast-forward moves a pointer; it cannot conflict, it cannot
+  overwrite uncommitted work - the refusal on a dirty tree comes first -
+  and it cannot touch a branch that is not the default one. A
+  confirmation before an action that can be undone with one git command,
+  and that refuses three ways before it starts, would be ceremony for its
+  own sake.
+
+  What the owner's own eye should settle, and a live check cannot: whether
+  seeing the line in the window they actually work in makes them press it
+  or ignore it.
