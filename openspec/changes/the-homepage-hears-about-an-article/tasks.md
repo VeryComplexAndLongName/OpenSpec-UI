@@ -41,7 +41,20 @@ articles, tell the homepage repository; when it does not, say nothing.
   Checked 2026-09-20: it reads as
   `{"on":{"push":{"branches":["main"],"paths":["docs/articles/site/**"]}},"permissions":{},"jobs":["tell-the-homepage"]}`.
 - [x] 4.3 No changeset: nothing under `packages/` changes.
-- [ ] 4.4 **Human-only.** The token itself: minted by the owner with the
+- [x] 4.4 **Human-only.** The token itself: minted by the owner with the
   narrowest scope that can dispatch to the homepage repository, and stored
   as `HOMEPAGE_DISPATCH_TOKEN`. Until then the workflow skips, and this
   item records that it is waiting on a person rather than on code.
+
+  Done by the owner on 2026-09-20: `gh secret list` shows
+  `HOMEPAGE_DISPATCH_TOKEN` beside `VSCE_PAT`. The workflow will therefore
+  take the dispatch path rather than the skip path on the first merge
+  that touches `docs/articles/site`.
+
+  What was checked here, and what was not. The endpoint and the payload
+  are right: a dispatch of `articles-changed` to
+  `VeryComplexAndLongName/OpenSpec-UI-Homepage` was accepted, sent with
+  this machine's own credentials. That proves the repository name, the
+  route and the shape. It does **not** prove the secret's own scope,
+  which nothing here can read; the first real merge proves that, and the
+  run summary says which path it took.
