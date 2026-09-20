@@ -67,7 +67,7 @@ describe("useStandingStates - the declared order", () => {
 
     const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL, READINESS));
 
-    expect(result.current?.get("demo")?.word).toBe("Blocked by apply-plan-stays-pending");
+    expect(result.current.states?.get("demo")?.word).toBe("Blocked by apply-plan-stays-pending");
   });
 
   it("reads Ready where readiness has not been read", () => {
@@ -75,7 +75,7 @@ describe("useStandingStates - the declared order", () => {
 
     const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL, null));
 
-    expect(result.current?.get("demo")?.word).toBe("Ready");
+    expect(result.current.states?.get("demo")?.word).toBe("Ready");
   });
 });
 
@@ -88,14 +88,14 @@ describe("useStandingStates", () => {
     const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL));
 
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-    expect(result.current?.get("demo")?.word).toBe("Ready");
+    expect(result.current.states?.get("demo")?.word).toBe("Ready");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL); });
-    expect(result.current?.get("demo")?.word).toBe("Running");
+    expect(result.current.states?.get("demo")?.word).toBe("Running");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL); });
     expect(loadSurvey).toHaveBeenCalledTimes(3);
-    expect(result.current?.get("demo")?.word).toBe("Running");
+    expect(result.current.states?.get("demo")?.word).toBe("Running");
   });
 
   it("reads nothing while the list is not shown, or before standings are read", async () => {
@@ -105,12 +105,12 @@ describe("useStandingStates", () => {
       { initialProps: { standings: null as ChangeStandings | null, isActive: true } },
     );
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL); });
-    expect(result.current).toBeUndefined();
+    expect(result.current.states).toBeUndefined();
 
     rerender({ standings: STANDINGS, isActive: false });
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL); });
     expect(loadSurvey).not.toHaveBeenCalled();
-    expect(result.current?.get("demo")?.word).toBe("Ready");
+    expect(result.current.states?.get("demo")?.word).toBe("Ready");
   });
 
   it("does not lay a survey asked for before the standings were read over them", async () => {
@@ -119,6 +119,6 @@ describe("useStandingStates", () => {
     const { result } = renderHook(() => useStandingStates(STANDINGS, true, loadSurvey, INTERVAL));
 
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-    expect(result.current?.get("demo")?.word).toBe("Ready");
+    expect(result.current.states?.get("demo")?.word).toBe("Ready");
   });
 });

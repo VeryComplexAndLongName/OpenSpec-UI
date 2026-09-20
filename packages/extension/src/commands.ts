@@ -42,6 +42,7 @@ import {
   openTaskCount,
   runTimestampsByChange,
   readChangeGraph,
+  refuseToWrite,
   editChangeRelation,
   askLiveRunToStop,
   sayToLiveRun,
@@ -93,6 +94,7 @@ import {
   type CheckScriptName,
   type AuditEntry,
   type ChangeCostReport,
+  type ChangeOwnership,
 } from "@openspec-ui/core";
 import { readRepoSetupFacts } from "./repo-setup-facts.js";
 import type { RunController } from "./run-controller.js";
@@ -1109,18 +1111,47 @@ async function clearFilter(view: FilterableView, contextKey: string): Promise<vo
 function relationSubject(
   item: unknown,
   deps: CommandsDeps,
-): { name: string; archived: boolean } | undefined {
+): { name: string; archived: boolean; ownership?: ChangeOwnership } | undefined {
   // The invoked row decides, and its kind decides which field names the
   // change: `resolveTreeItem` takes any row it is handed, so asking it
   // twice with two kind checks would read a graph row as a Changes row.
-  if (isChangeTreeItem(item)) return { name: item.changeName, archived: item.archived };
+  if (isChangeTreeItem(item)) return { name: item.changeName, archived: item.archived, ownership: item.ownership };
   if (isChangeGraphTreeItem(item)) return { name: item.node.id, archived: item.node.archived };
   if (item !== undefined) return undefined;
   const selectedChange = resolveTreeItem(undefined, deps.changesView, isChangeTreeItem);
-  if (selectedChange) return { name: selectedChange.changeName, archived: selectedChange.archived };
+  if (selectedChange) {
+    return { name: selectedChange.changeName, archived: selectedChange.archived, ownership: selectedChange.ownership };
+  }
   const selectedRow = resolveTreeItem(undefined, deps.changeGraphView, isChangeGraphTreeItem);
   if (selectedRow) return { name: selectedRow.node.id, archived: selectedRow.node.archived };
   return undefined;
+}
+
+/** Refuses a command that would write to a change another working
+ * directory is working (changes-shows-one-change-and-who-owns-it).
+ *
+ * The menus already hide these on such a row, but a `when` clause governs
+ * a menu and nothing else: the palette, a keybinding and another extension
+ * all reach the command without one. The refusal names the directory,
+ * because the useful thing to know is not "no" but "over there", and
+ * offers to open it.
+ *
+ * A row built without an ownership - the change graph's, or a Pipeline
+ * card naming a change by its id - reads as nobody's and is allowed: those
+ * surfaces answer the question their own way, and refusing on a fact this
+ * row does not carry would refuse at random. */
+async function refusedAsAnothersChange(
+  change: string,
+  ownership: ChangeOwnership | undefined,
+): Promise<boolean> {
+  const refusal = ownership === undefined ? undefined : refuseToWrite(change, ownership);
+  if (refusal === undefined) return false;
+  const open = "Open that directory";
+  const answer = await vscode.window.showWarningMessage(`OpenSpec UI: ${refusal}`, open);
+  if (answer === open && ownership !== undefined && "path" in ownership) {
+    await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(ownership.path), { forceNewWindow: true });
+  }
+  return true;
 }
 
 function warnArchivedRelation(change: string): void {
@@ -1320,6 +1351,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const subject = relationSubject(invokedItem, deps);
       if (!subject) { warnNoTreeSelection("change"); return; }
       if (subject.archived) { warnArchivedRelation(subject.name); return; }
+      if (await refusedAsAnothersChange(subject.name, subject.ownership)) return;
       try {
         const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
         const key = await pickRelationKind(subject.name);
@@ -1347,6 +1379,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const subject = relationSubject(invokedItem, deps);
       if (!subject) { warnNoTreeSelection("change"); return; }
       if (subject.archived) { warnArchivedRelation(subject.name); return; }
+      if (await refusedAsAnothersChange(subject.name, subject.ownership)) return;
       try {
         const graph = await readChangeGraph(workspaceRoot, { changes: "all" });
         const stated = await pickRelationToRemove(graph.get(subject.name));
@@ -1500,6 +1533,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
+      if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       const uri = vscode.Uri.file(path.join(item.changeDir, "harness.json"));
       try {
         await vscode.workspace.fs.stat(uri);
@@ -1564,6 +1598,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       }
       if (!item) { warnNoTreeSelection("change"); return; }
+      if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       if (item.archived) return;
       try {
         // Resolved fresh on every invocation (never cached) — see
@@ -1995,6 +2030,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
+      if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       if (item.archived) return;
       const answer = await vscode.window.showWarningMessage(
         `Archive ${item.changeName}? Canonical specs may be updated.`,
@@ -2178,6 +2214,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
+      if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       const answer = await vscode.window.showWarningMessage(
         `Permanently delete ${item.changeName} and all of its artifacts?`,
         { modal: true },
@@ -2286,6 +2323,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.rollbackChange", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
+      if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       const details = await deps.implementationSessions.changeRollbackDetails(item.changeName);
       if (!details) {
         void vscode.window.showWarningMessage(`OpenSpec UI: no rollback-eligible processes for ${item.changeName}.`);

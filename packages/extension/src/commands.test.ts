@@ -67,7 +67,10 @@ class TemplateAlreadyExistsError extends Error { }
 class UnknownProjectTemplateError extends Error { }
 class TaskListChangedError extends Error { }
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
-vi.mock("@openspec-ui/core", () => ({
+vi.mock("@openspec-ui/core", async () => ({
+  // Whose a change is: core's own reading, which touches no repository
+  // (changes-shows-one-change-and-who-owns-it).
+  ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
   AGENT_REGISTRY: [
     { id: "claude-cli", label: "Claude CLI" },
     { id: "copilot-cli", label: "GitHub Copilot CLI" },
@@ -820,6 +823,26 @@ describe("registerCommands", () => {
 
     expect(archiveChangeMock).toHaveBeenCalledWith("done-change", { cwd: "/workspace/repo" });
     expect(deps.refreshTrees).toHaveBeenCalled();
+  });
+
+  // changes-shows-one-change-and-who-owns-it 3.3. The menus hide these on
+  // another directory's row; a `when` clause governs a menu and nothing
+  // else, so the command refuses too.
+  it("refuses to archive a change another working directory is working, and says where", async () => {
+    vscodeMock.window.showWarningMessage.mockResolvedValue(undefined);
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.archiveChange")?.({
+      changeName: "done-change",
+      archived: false,
+      ownership: { kind: "elsewhere", label: "their-worktree", path: "/wt/theirs" },
+    });
+
+    expect(archiveChangeMock).not.toHaveBeenCalled();
+    const said = vscodeMock.window.showWarningMessage.mock.calls.map((call: unknown[]) => String(call[0])).join(" ");
+    expect(said).toContain("their-worktree");
+    expect(said).toContain("/wt/theirs");
   });
 
   it("offers to run npx changeset after archiving when Changesets is adopted but nothing is pending", async () => {

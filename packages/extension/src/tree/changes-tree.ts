@@ -4,12 +4,19 @@ import {
   describeChangeState,
   discoverOpenSpecWorkspace,
   readChangeReadiness,
+  changeOwnerships,
+  changesOnlyElsewhere,
+  describeChangesOnlyElsewhere,
+  describeOwnership,
+  isOursToWrite,
+  ownChangeOf,
   readChangeStandings,
   readTaskChecklist,
   refreshSurveyRuns,
   STANDING_FETCH_INTERVAL_MS,
   surveyWorktrees,
   withSurveyedRuns,
+  type ChangeOwnership,
   type ChangeReadinessReport,
   type ChangeStandings,
   type ChangeState,
@@ -55,21 +62,42 @@ export class ChangeTreeItem extends vscode.TreeItem {
     /** The OpenSpec schema its artifacts were read from; a fallback puts a
      * warning row first (a-change-lists-what-its-schema-declares). */
     public readonly schema?: { name: string; fallback?: { reason: string; detail: string } },
+    /** Whose change this is, where the survey has been taken
+     * (changes-shows-one-change-and-who-owns-it). */
+    public readonly ownership: ChangeOwnership = { kind: "nobody" },
   ) {
     super(changeName, vscode.TreeItemCollapsibleState.Collapsed);
     this.id = `change:${archived ? "archived" : "active"}:${changeName}`;
-    this.description = standing ? `${state} — ${standing.word}` : state;
+    const whose = archived ? undefined : describeOwnership(ownership);
+    const stands = standing ? `${state} — ${standing.word}` : state;
+    this.description = whose === undefined ? stands : `${stands} - ${whose}`;
     if (!archived) this.resourceUri = changeUri(changeName);
-    if (standing) {
-      this.tooltip = [standing.word, ...standing.lines.map((line) => `${line.text} (${line.source})`)].join("\n");
-    }
-    this.contextValue = archived ? "openspec-ui.archivedChange" : "openspec-ui.activeChange";
+    const lines = standing
+      ? [standing.word, ...standing.lines.map((line) => `${line.text} (${line.source})`)]
+      : [];
+    if (whose !== undefined) lines.push(whose);
+    if (lines.length > 0) this.tooltip = lines.join("\n");
+    // A row worked in another working directory takes a context value of
+    // its own, so the menu items that would write to it are not offered.
+    // Reading it, and speaking to the run in it, still are: the channel is
+    // how two agents are meant to coordinate (ADR 0028).
+    this.contextValue = archived
+      ? "openspec-ui.archivedChange"
+      : isOursToWrite(ownership) ? "openspec-ui.activeChange" : "openspec-ui.activeChange.elsewhere";
     // The standing's colour rides the icon, and the label keeps the theme's
     // own foreground: a decoration's colour would tint the words, and a
     // dozen coloured rows read as if the colour were the subject
     // (the-icon-carries-the-colour).
-    const colour = standing === undefined ? undefined : standingThemeColour(standing.colour);
-    this.iconPath = new vscode.ThemeIcon(iconForState(state), colour);
+    // Ownership takes the icon's shape and the standing keeps its colour:
+    // one channel each (the-icon-carries-the-colour). Another directory's
+    // copy is greyed because this checkout's copy of it is a snapshot from
+    // when their branch was cut, so a colour here would be about the past.
+    if (!archived && !isOursToWrite(ownership)) {
+      this.iconPath = new vscode.ThemeIcon("lock", new vscode.ThemeColor("disabledForeground"));
+    } else {
+      const colour = standing === undefined ? undefined : standingThemeColour(standing.colour);
+      this.iconPath = new vscode.ThemeIcon(iconForState(state), colour);
+    }
   }
 }
 
@@ -496,6 +524,23 @@ function sameStates(left: ReadonlyMap<string, DescribedChangeState>, right: Read
   return JSON.stringify([...left]) === JSON.stringify([...right]);
 }
 
+/** This working directory's own change first: the view is about it. The
+ * rest keep the order they were discovered in, so a list does not
+ * reshuffle as records come and go. */
+function orderedByOwner<T extends { name: string }>(
+  changes: readonly T[],
+  ownerships: ReadonlyMap<string, ChangeOwnership>,
+): T[] {
+  const rank = (name: string): number => {
+    switch (ownerships.get(name)?.kind) {
+      case "here": return 0;
+      case "nobody": return 1;
+      default: return 2;
+    }
+  };
+  return [...changes].sort((left, right) => rank(left.name) - rank(right.name));
+}
+
 export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
@@ -531,6 +576,14 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   }): void {
     this.leftovers = reading;
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  /** The change this working directory is for, where the survey says it
+   * is one change's worktree (ADR 0022). The view puts it in its own
+   * description, so the window says what it is for before a row is read
+   * (changes-shows-one-change-and-who-owns-it). */
+  ownChangeName(): string | undefined {
+    return ownChangeOf(this.held?.survey);
   }
 
   /** Draws the tree again and reads standings again. `fetchNow` fetches refs
@@ -669,7 +722,12 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     for (const kept of this.leftovers.kept) {
       items.push(new LeftoverTreeItem(kept.name, kept.path, kept.files, kept.archived));
     }
-    for (const change of workspace.changes) {
+    // Whose each change is, from the survey the standings reading already
+    // took: no extra git, no extra watcher
+    // (changes-shows-one-change-and-who-owns-it).
+    const survey = this.held?.survey;
+    const ownerships = changeOwnerships(workspace.changes.map((change) => change.name), survey);
+    for (const change of orderedByOwner(workspace.changes, ownerships)) {
       items.push(new ChangeTreeItem(
         change.name,
         change.path,
@@ -678,11 +736,23 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
         false,
         this.states?.get(change.name),
         change.schema,
+        ownerships.get(change.name),
+      ));
+    }
+    // Changes that exist only in another working directory: this checkout
+    // was cut before they were proposed, so no row above can carry them.
+    const onlyElsewhere = changesOnlyElsewhere(survey, new Set(workspace.changes.map((change) => change.name)));
+    const line = describeChangesOnlyElsewhere(onlyElsewhere);
+    if (line !== undefined) {
+      items.push(new EmptyTreeItem(
+        line,
+        onlyElsewhere.map((found) => `${found.changeName} (${found.label})`).join(", "),
+        { command: "openspec-ui.openPipeline", title: "Open the Pipeline" },
       ));
     }
     if (workspace.changes.length === 0) {
       items.push(workspace.initialized
-        ? new EmptyTreeItem("No active changes", "Create an OpenSpec change to begin")
+        ? new EmptyTreeItem("No active changes in this checkout", "Create an OpenSpec change to begin")
         : new EmptyTreeItem(
           "Initialize OpenSpec",
           "Set up this workspace",

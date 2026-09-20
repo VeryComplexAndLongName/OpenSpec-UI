@@ -2197,6 +2197,23 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  /* Whose the change is, under its name. A row worked in another working
+     directory is dimmed: it is drawn so it is known about, not so it is
+     acted on (changes-shows-one-change-and-who-owns-it). */
+  .openspec-change-worked-in {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--muted);
+  }
+
+  .openspec-change-row--elsewhere .openspec-change-name {
+    opacity: 0.7;
+  }
+
   .openspec-change-standing-block {
     border: 0 solid var(--line);
     border-left-width: 4px;
