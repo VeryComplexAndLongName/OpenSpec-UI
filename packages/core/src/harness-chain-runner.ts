@@ -55,7 +55,7 @@ import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readTaskChecklist, TASK_CHECKBOX_LINE_RE, writeTaskCheckStates } from "./task-checklist.js";
-import { buildUsageReport, type UsageTotal } from "./usage-report.js";
+import { buildUsageReport, unitKey, type UsageTotal } from "./usage-report.js";
 
 /** The subsequence of `HarnessStage` a chain drives. Each entry's
  * `AgentRunner` `CommandKind`, where one exists — `"archive"` and `"git"`
@@ -568,6 +568,18 @@ function nextStageAfter(sequence: readonly ChainEntry[], index: number): ChainSt
  * so two different changes cannot collide here.
  *
  * Found by running two chains in two worktrees for real. */
+/** Two per-unit totals, added unit by unit. */
+function mergeCostByUnit(
+  left: Record<string, number>,
+  right: Record<string, number>,
+): Record<string, number> {
+  const merged: Record<string, number> = { ...left };
+  for (const [unit, amount] of Object.entries(right)) {
+    merged[unit] = (merged[unit] ?? 0) + amount;
+  }
+  return merged;
+}
+
 function totalForChange(
   totalsByChange: Record<string, UsageTotal>,
   changeDir: string,
@@ -583,6 +595,9 @@ function totalForChange(
         inputTokens: found.inputTokens + total.inputTokens,
         outputTokens: found.outputTokens + total.outputTokens,
         costUsd: found.costUsd + total.costUsd,
+        // Per unit, never across: a credit and a euro are not addends
+        // (a-run-budget-has-a-unit).
+        costByUnit: mergeCostByUnit(found.costByUnit, total.costByUnit),
       }
       : total;
   }
@@ -1409,7 +1424,10 @@ export class HarnessChainRunner {
 
   private async checkBudget(harnessConfig: HarnessConfig, changeDir: string): Promise<string | undefined> {
     const budget = harnessConfig.budget;
-    if (!budget || (budget.maxCostUsd === undefined && budget.maxTokens === undefined)) return undefined;
+    const perUnit = Object.entries(budget?.maxCost ?? {});
+    if (!budget || (budget.maxCostUsd === undefined && budget.maxTokens === undefined && perUnit.length === 0)) {
+      return undefined;
+    }
     if (!this.deps.listAuditEntries) return undefined;
 
     const entries = await this.deps.listAuditEntries();
@@ -1423,6 +1441,15 @@ export class HarnessChainRunner {
       const totalTokens = total.inputTokens + total.outputTokens;
       if (totalTokens >= budget.maxTokens) {
         return `budget exceeded: recorded tokens (${totalTokens}) for this change have reached the configured ceiling (${budget.maxTokens}) — stopping before the next stage, not because a stage failed`;
+      }
+    }
+    // A ceiling per unit of account, each against its own unit's total:
+    // nothing is converted and nothing is summed across units
+    // (a-run-budget-has-a-unit).
+    for (const [unit, ceiling] of perUnit) {
+      const spent = total.costByUnit[unitKey(unit)] ?? 0;
+      if (spent >= ceiling) {
+        return `budget exceeded: recorded cost ${spent} ${unit} for this change has reached the configured ceiling (${ceiling} ${unit}) — stopping before the next stage, not because a stage failed`;
       }
     }
     return undefined;

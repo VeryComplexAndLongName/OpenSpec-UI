@@ -59,12 +59,12 @@ describe("buildUsageReport", () => {
 
     const report = buildUsageReport(entries);
 
-    expect(report.totalsByAgent["claude-cli"]).toEqual({ runCount: 2, inputTokens: 110, outputTokens: 55, costUsd: 0.28 });
-    expect(report.totalsByAgent["copilot-cli"]).toEqual({ runCount: 1, inputTokens: 1, outputTokens: 1, costUsd: 0.01 });
-    expect(report.totalsByModel["claude-opus"]).toEqual({ runCount: 2, inputTokens: 70, outputTokens: 35, costUsd: 0.22 });
-    expect(report.totalsByModel["claude-haiku"]).toEqual({ runCount: 1, inputTokens: 40, outputTokens: 20, costUsd: 0.06 });
-    expect(report.totalsByChange["/repo/openspec/changes/a"]).toEqual({ runCount: 2, inputTokens: 110, outputTokens: 55, costUsd: 0.28 });
-    expect(report.totalsByChange["/repo/openspec/changes/b"]).toEqual({ runCount: 1, inputTokens: 1, outputTokens: 1, costUsd: 0.01 });
+    expect(report.totalsByAgent["claude-cli"]).toEqual({ runCount: 2, inputTokens: 110, outputTokens: 55, costUsd: 0.28, costByUnit: {} });
+    expect(report.totalsByAgent["copilot-cli"]).toEqual({ runCount: 1, inputTokens: 1, outputTokens: 1, costUsd: 0.01, costByUnit: {} });
+    expect(report.totalsByModel["claude-opus"]).toEqual({ runCount: 2, inputTokens: 70, outputTokens: 35, costUsd: 0.22, costByUnit: {} });
+    expect(report.totalsByModel["claude-haiku"]).toEqual({ runCount: 1, inputTokens: 40, outputTokens: 20, costUsd: 0.06, costByUnit: {} });
+    expect(report.totalsByChange["/repo/openspec/changes/a"]).toEqual({ runCount: 2, inputTokens: 110, outputTokens: 55, costUsd: 0.28, costByUnit: {} });
+    expect(report.totalsByChange["/repo/openspec/changes/b"]).toEqual({ runCount: 1, inputTokens: 1, outputTokens: 1, costUsd: 0.01, costByUnit: {} });
     expect(report.unmeasuredRunCount).toBe(0);
   });
 
@@ -82,8 +82,8 @@ describe("buildUsageReport", () => {
     const report = buildUsageReport(entries);
 
     expect(report.unmeasuredRunCount).toBe(1);
-    expect(report.totalsByAgent["claude-cli"]).toEqual({ runCount: 1, inputTokens: 0, outputTokens: 0, costUsd: 0.05 });
-    expect(report.totalsByChange["/repo/openspec/changes/a"]).toEqual({ runCount: 1, inputTokens: 0, outputTokens: 0, costUsd: 0.05 });
+    expect(report.totalsByAgent["claude-cli"]).toEqual({ runCount: 1, inputTokens: 0, outputTokens: 0, costUsd: 0.05, costByUnit: {} });
+    expect(report.totalsByChange["/repo/openspec/changes/a"]).toEqual({ runCount: 1, inputTokens: 0, outputTokens: 0, costUsd: 0.05, costByUnit: {} });
   });
 
   it("produces a zero report for no runs at all, not an error (task 5.3)", () => {
@@ -95,5 +95,27 @@ describe("buildUsageReport", () => {
       totalsByChange: {},
       unmeasuredRunCount: 0,
     });
+  });
+});
+
+// a-run-budget-has-a-unit: an agent billed in something other than
+// dollars reports `cost: { amount, currency }`, kept whole.
+describe("buildUsageReport - what was reported in another unit", () => {
+  it("sums each unit on its own, folding the spelling of the unit", () => {
+    const report = buildUsageReport([
+      ...startedAndCompleted({ runId: "r1", agent: "copilot-cli", changeDir: "/repo/openspec/changes/a", usage: { cost: { amount: 12, currency: "credits" } } }),
+      ...startedAndCompleted({ runId: "r2", agent: "copilot-cli", changeDir: "/repo/openspec/changes/a", usage: { cost: { amount: 8, currency: "Credits" } } }),
+      ...startedAndCompleted({ runId: "r3", agent: "some-agent", changeDir: "/repo/openspec/changes/a", usage: { cost: { amount: 5, currency: "EUR" } } }),
+    ]);
+
+    expect(report.totalsByChange["/repo/openspec/changes/a"]?.costByUnit).toEqual({ credits: 20, eur: 5 });
+  });
+
+  it("never folds another unit into the dollar total", () => {
+    const report = buildUsageReport([
+      ...startedAndCompleted({ runId: "r1", agent: "copilot-cli", changeDir: "/repo/openspec/changes/a", usage: { cost: { amount: 12, currency: "credits" } } }),
+    ]);
+
+    expect(report.totalsByChange["/repo/openspec/changes/a"]?.costUsd).toBe(0);
   });
 });

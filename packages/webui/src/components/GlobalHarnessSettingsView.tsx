@@ -258,7 +258,7 @@ export function GlobalHarnessSettingsView({
             </p>
           </div>
           <div className="openspec-harness-band-item">
-            <label className="openspec-harness-band-label" htmlFor={runBudgetId}>Run budget</label>
+            <label className="openspec-harness-band-label" htmlFor={runBudgetId}>Run budget, in dollars</label>
             <span className="openspec-amount openspec-amount--dollars">
               <span className="openspec-amount-unit" aria-hidden="true">$</span>
               <input
@@ -272,7 +272,14 @@ export function GlobalHarnessSettingsView({
                 onChange={(e) => setRunBudget(e.target.value)}
               />
             </span>
-            <p className="openspec-harness-band-note">A chain stops when its reported cost reaches this.</p>
+            {/* The unit is in the label and the reason is here: an agent
+                billed in credits is bounded by a ceiling in credits, and
+                that one is set in the file (a-run-budget-has-a-unit). */}
+            <p className="openspec-harness-band-note">
+              A chain stops when its reported cost in dollars reaches this. An agent billed in
+              another unit takes a ceiling in that unit, set as `budget.maxCost` in the
+              configuration file.
+            </p>
           </div>
         </div>
         <SettingsFoot

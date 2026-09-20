@@ -48,7 +48,13 @@ function agentForStage(config: HarnessConfig, stage: HarnessStage): string | und
  * ignore. */
 export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[] {
   const findings: HarnessFinding[] = [];
-  const hasCostCeiling = config.budget?.maxCostUsd !== undefined || config.budget?.maxStageCostUsd !== undefined;
+  // A ceiling in any unit is a cost ceiling for the findings below: an
+   // agent that reports nothing defeats one as surely as the other
+   // (a-run-budget-has-a-unit).
+  const perUnit = Object.entries(config.budget?.maxCost ?? {});
+  const hasCostCeiling = config.budget?.maxCostUsd !== undefined
+    || config.budget?.maxStageCostUsd !== undefined
+    || perUnit.length > 0;
   const hasTokenCeiling = config.budget?.maxTokens !== undefined || config.budget?.maxStageTokens !== undefined;
   const hasTimeCeiling = config.timeout?.maxRunSeconds !== undefined || config.timeout?.maxStageSeconds !== undefined;
 
@@ -103,6 +109,24 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
         message: `"${agent}" reports tokens and no cost, so a cost ceiling cannot act on "${stage}".`
           + " A token ceiling is the one that can.",
       });
+    }
+
+    // A ceiling in a unit this stage is not billed in cannot act on it,
+    // and says so where the operator might otherwise believe it binds:
+    // the agent reports cost, so the ceiling looks alive
+    // (a-run-budget-has-a-unit).
+    if (reports === "cost-and-tokens" && perUnit.length > 0) {
+      const billedIn = HARNESS_AGENT_CAPABILITIES[agent]?.budgetField === "maxAiCredits" ? "credits" : "usd";
+      for (const [unit] of perUnit) {
+        if (unit.trim().toLowerCase() === billedIn) continue;
+        findings.push({
+          kind: "ceiling-cannot-act",
+          stage,
+          agent,
+          message: `budget.maxCost sets a ceiling in "${unit}", and "${agent}" is billed in ${billedIn === "usd" ? "dollars" : "credits"},`
+            + ` so that ceiling cannot act on "${stage}". The ceiling in its own unit is the one that can.`,
+        });
+      }
     }
 
     if (reports === "cost-and-tokens" && hasTokenCeiling) {

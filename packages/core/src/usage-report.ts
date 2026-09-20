@@ -21,6 +21,14 @@ export interface UsageTotal {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  /** What was reported in a unit that is not dollars, summed per unit and
+   * never converted or folded into `costUsd`.
+   *
+   * An agent billed in credits reports `cost: { amount, currency }`, which
+   * this product keeps whole (see `agent-usage.ts`). Keyed by the unit
+   * lowercased, because a ceiling written `Credits` and a report saying
+   * `credits` are the same ceiling (a-run-budget-has-a-unit). */
+  costByUnit: Record<string, number>;
 }
 
 export interface UsageReport {
@@ -34,7 +42,13 @@ export interface UsageReport {
 }
 
 function emptyTotal(): UsageTotal {
-  return { runCount: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  return { runCount: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, costByUnit: {} };
+}
+
+/** The unit a ceiling and a report are compared by: the code, lowercased
+ * and trimmed. Two spellings of one unit are one unit. */
+export function unitKey(currency: string): string {
+  return currency.trim().toLowerCase();
 }
 
 function addTotal(totals: Record<string, UsageTotal>, key: string, usage: AgentUsage | AgentUsageByModel): void {
@@ -43,6 +57,11 @@ function addTotal(totals: Record<string, UsageTotal>, key: string, usage: AgentU
   total.inputTokens += usage.inputTokens ?? 0;
   total.outputTokens += usage.outputTokens ?? 0;
   total.costUsd += usage.costUsd ?? 0;
+  const other = "cost" in usage ? usage.cost : undefined;
+  if (other !== undefined && Number.isFinite(other.amount) && other.currency.trim().length > 0) {
+    const key = unitKey(other.currency);
+    total.costByUnit[key] = (total.costByUnit[key] ?? 0) + other.amount;
+  }
 }
 
 function groupByRunId(entries: AuditEntry[]): Map<string, AuditEntry[]> {
