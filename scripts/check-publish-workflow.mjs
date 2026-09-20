@@ -90,6 +90,9 @@ export function checkPublishWorkflow(source) {
 /** Every other workflow, which may name neither the token nor a publish:
  * a second path to the Marketplace is exactly what "a manual step" rules
  * out, and it would not be visible from the file above. */
+/** The one workflow allowed to name the homepage's dispatch token. */
+const DISPATCH_WORKFLOW = ".github/workflows/homepage-dispatch.yml";
+
 export async function checkOtherWorkflows(root = repoRoot) {
   const problems = [];
   const directory = path.join(root, ".github", "workflows");
@@ -107,6 +110,12 @@ export async function checkOtherWorkflows(root = repoRoot) {
     const text = instructions(source).join("\n");
     if (text.includes("VSCE_PAT")) {
       problems.push(`${relative}: names VSCE_PAT; the token is read by the publishing workflow alone`);
+    }
+    // The same rule for the other credential this repository holds: a
+    // token that can act on another repository is named by the one
+    // workflow that needs it (the-homepage-hears-about-an-article).
+    if (relative !== DISPATCH_WORKFLOW && text.includes("HOMEPAGE_DISPATCH_TOKEN")) {
+      problems.push(`${relative}: names HOMEPAGE_DISPATCH_TOKEN; the token is read by the homepage dispatch workflow alone`);
     }
     if (/vsce publish/u.test(text)) {
       problems.push(`${relative}: publishes to the Marketplace; that is the dispatched workflow's alone`);

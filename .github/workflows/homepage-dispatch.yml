@@ -1,0 +1,55 @@
+name: Tell the homepage the articles changed
+
+# The campaign's site lives in another repository. When an article it
+# serves lands here, that repository is told, and it decides what to
+# rebuild (the-homepage-hears-about-an-article).
+#
+# There is no "did anything change" step: the paths filter below is the
+# check. A push that touches nothing under docs/articles/site does not
+# start this workflow at all, which is cheaper and harder to get wrong
+# than reading a diff in a script.
+#
+# Only the site's own subtree. The other venues - linkedin, devto and the
+# rest - are published by hand to places that are not a site, and a
+# rebuild triggered by a LinkedIn draft would be noise.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/articles/site/**'
+
+# Nothing here reads or writes this repository: the only credential is
+# the dispatch token, and the repository is never checked out.
+permissions: {}
+
+# Two merges in quick succession are one rebuild, not a queue of them.
+concurrency:
+  group: homepage-dispatch
+  cancel-in-progress: true
+
+jobs:
+  tell-the-homepage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say nothing where there is no token
+        id: token
+        env:
+          GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "HOMEPAGE_DISPATCH_TOKEN is not set in this repository; the homepage was not told." >> "$GITHUB_STEP_SUMMARY"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tell the homepage
+        if: steps.token.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/VeryComplexAndLongName/OpenSpec-UI-Homepage/dispatches \
+            -f event_type=articles-changed \
+            -F "client_payload[commit]=${GITHUB_SHA}"
+          echo "Told the homepage that the articles changed at ${GITHUB_SHA}." >> "$GITHUB_STEP_SUMMARY"

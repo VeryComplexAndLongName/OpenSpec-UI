@@ -220,6 +220,12 @@ description.
   by people who cannot check it against the tree, so the citation is what
   makes it checkable later.
 
+**An article under `docs/articles/site/` tells the homepage.** That
+subtree is what the campaign's own site serves, and a merge to the default
+branch touching it sends a `repository_dispatch` to the homepage's
+repository, which decides what to rebuild. The other venues send nothing:
+they are published by hand to places that are not a site.
+
 **Its pull request is titled `article: <slug>`**, since it has no change id
 to be titled with. It touches `docs/articles/` and nothing else: a pull
 request that also edits `packages/`, `openspec/` or `.changeset/` is not
