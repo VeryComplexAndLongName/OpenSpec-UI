@@ -95,3 +95,47 @@ describe("findHarnessConfigLimits", () => {
     expect(findings).toEqual([]);
   });
 });
+
+// a-run-budget-has-a-unit: a ceiling in a unit a stage is not billed in.
+describe("findHarnessConfigLimits - a ceiling in another unit", () => {
+  it("says a credits ceiling cannot act on a stage billed in dollars", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "claude-cli-acp" },
+      budget: { maxCost: { credits: 500 } },
+    }));
+
+    const finding = findings.find((one) => one.stage === "apply" && one.message.includes("credits"));
+    expect(finding?.kind).toBe("ceiling-cannot-act");
+    expect(finding?.message).toContain("is billed in dollars");
+  });
+
+  it("says nothing where the ceiling is in the unit the stage is billed in", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "copilot-cli-acp" },
+      budget: { maxCost: { credits: 500 } },
+    }));
+
+    expect(findings.filter((one) => one.message.includes("maxCost"))).toEqual([]);
+  });
+
+  it("folds the spelling of the unit rather than reporting a false mismatch", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "copilot-cli-acp" },
+      budget: { maxCost: { Credits: 500 } },
+    }));
+
+    expect(findings.filter((one) => one.message.includes("maxCost"))).toEqual([]);
+  });
+
+  it("counts a ceiling in any unit when saying an agent that reports nothing defeats it", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "claude-cli" },
+      budget: { maxCost: { credits: 500 } },
+      timeout: { maxRunSeconds: 600 },
+    }));
+
+    const finding = findings.find((one) => one.stage === "apply");
+    expect(finding?.kind).toBe("ceiling-cannot-act");
+    expect(finding?.message).toContain("reports no usage at all");
+  });
+});

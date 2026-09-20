@@ -94,6 +94,20 @@ export interface HarnessHints {
 export interface HarnessBudget {
   maxCostUsd?: number;
   maxTokens?: number;
+  /** A chain ceiling per unit of account, for agents billed in something
+   * other than dollars: `{ "credits": 500 }`.
+   *
+   * A map rather than a field per unit, so the unit is data and the check
+   * is written once. Each ceiling is compared only against what was
+   * reported in that same unit: nothing is converted, no exchange rate is
+   * invented, and no total mixes units - the same reasoning that kept
+   * `cost` and `costUsd` apart in `agent-usage.ts`
+   * (a-run-budget-has-a-unit).
+   *
+   * `maxCostUsd` stays the dollar ceiling: it is in every configuration,
+   * every template and both settings forms, and moving it into here would
+   * be churn with no gain. */
+  maxCost?: Record<string, number>;
   /** Ceiling on what one stage reports, enforced by this project rather
    * than by the agent's own command line — so it exists for every agent
    * that reports usage, where `stepAgents.<stage>.budget` reaches a CLI
@@ -267,6 +281,25 @@ const NO_AGENT_STAGES = ["archive", "git"] as const;
  * which are mechanical/dedicated-sequence stages with nothing for an
  * entry to configure (task 4.1). */
 const STEP_AGENT_STAGES: readonly HarnessStepAgentStage[] = STAGES.filter(isHarnessStepAgentStage);
+/** Every ceiling in `budget.maxCost` is a positive number under a
+ * non-empty unit. A unit nobody is billed in is not refused here: the
+ * findings report it before a run, which the spec requires and which
+ * leaves the judgement with the operator (a-run-budget-has-a-unit). */
+function assertValidMaxCost(maxCost: unknown): void {
+  if (maxCost === undefined) return;
+  if (typeof maxCost !== "object" || maxCost === null || Array.isArray(maxCost)) {
+    throw new InvalidHarnessConfigError("budget.maxCost must be an object of unit to ceiling");
+  }
+  for (const [unit, ceiling] of Object.entries(maxCost as Record<string, unknown>)) {
+    if (unit.trim().length === 0) {
+      throw new InvalidHarnessConfigError("budget.maxCost has a ceiling under an empty unit");
+    }
+    if (!(typeof ceiling === "number" && Number.isFinite(ceiling) && ceiling > 0)) {
+      throw new InvalidHarnessConfigError(`budget.maxCost.${unit} must be a positive number`);
+    }
+  }
+}
+
 const STEP_BUDGET_KEYS = ["maxCostUsd", "maxAiCredits"] as const;
 const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
 /** The only keys `assertValidHarnessConfigInput` accepts at the top level
@@ -891,6 +924,7 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidHints((input as { hints?: unknown }).hints);
+  assertValidMaxCost((input as { budget?: { maxCost?: unknown } }).budget?.maxCost);
   const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
     throw new InvalidHarnessConfigError("allowAgentMessages must be a boolean");
