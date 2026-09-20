@@ -72,3 +72,27 @@ and the script that makes it.
 - **Anything about the campaign.** Where the recording is posted is the
   article agent's and the owner's. This change only makes it exist, and
   regenerable.
+
+## Verified at archive
+
+- **No contract to test.** The change adds a capture spec and its output. It
+  changes no capability, no command and no event in the protocol, and it has
+  no spec delta, so there is no scenario that needed a test of its own.
+- **What ran** (PR #620, merged 2026-09-20): `lint`, `typecheck`,
+  `lint:screenshots` ("44 pictures: 44 captured"), the root `test` and the
+  whole standalone browser suite, where the new spec passes. The frames were
+  looked at by the owner (task 4.3), and none carries a path, an account name
+  or a host name.
+
+## Risks that remain open
+
+- **`tour.webm` is outside `lint:screenshots`.** That check knows `.png` and
+  `.gif` only, so a WebM in `docs/images/` is not required to come from a
+  capture. This one does, and its recorder names it, but nothing would fail
+  for the next one.
+- **The composition is plain.** Each photograph is the page scrolled to what
+  the step is about, so a photograph also carries the panels around it. A
+  tighter crop is a matter of taste and was not asked for.
+- **A recording goes stale as the screen changes.** The spec waits on the
+  element each step is about and fails when one goes, but it does not compare
+  the picture with the last one; a restyled card is recorded as restyled.
