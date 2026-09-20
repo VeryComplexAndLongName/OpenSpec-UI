@@ -1,5 +1,12 @@
 # @openspec-ui/server
 
+## 1.32.1
+
+### Patch Changes
+
+- Updated dependencies [dac06ce]
+  - @openspec-ui/core@0.101.0
+
 ## 1.32.0
 
 ### Minor Changes
