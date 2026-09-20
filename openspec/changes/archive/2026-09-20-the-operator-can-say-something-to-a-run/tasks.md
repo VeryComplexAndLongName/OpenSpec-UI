@@ -98,11 +98,70 @@ to a run, and to see what comes back.
   are covered by the chain runner's own tests, over a scripted runner. A
   real agent would cost a real run, and the owner decides when to spend
   one.
-- [ ] 4.5 **Open.** The agent end of 4.4, and the live check of
-  `stop --after` on a real run that `a-run-is-told-where-to-stop` left
-  open: both need one real chain run with a real agent, and both can be
-  done in the same one. To be run against a throwaway workspace, not this
-  repository, so nothing an agent does can reach the work.
-- [ ] 4.6 **Human-only.** Whether leaving a note reads as intervening
+- [x] 4.5 The agent end of 4.4, and the live check of `stop --after` on a
+  real run that `a-run-is-told-where-to-stop` left open: both need one real
+  chain run with a real agent, and both can be done in the same one. To be
+  run against a throwaway workspace, not this repository, so nothing an
+  agent does can reach the work.
+
+  Done 2026-09-20 by Claude, at the owner's request, for the owner to look
+  at in turn. Four real chain runs of `claude-cli` against a throwaway git
+  repository at `C:/Temp/live-check-say-hello`, with this machine's key
+  enrolled in that workspace's own roster. Nothing in this repository was
+  touched by an agent.
+
+  **What was delivered.** A note ("Write both notes in British English
+  spelling, and add nothing else to the repository") and a question
+  ("Which task are you on, and what have you written so far?") were sent
+  while `apply` was running. The audit of that run carries both:
+
+      "operatorMessage":{"messageId":"...","kind":"note","from":"Alexander","stage":"verify"}
+      "operatorMessage":{"messageId":"...","kind":"ask","from":"Alexander","stage":"verify"}
+
+  The verify stage's agent acted on both: it answered the question by name
+  and reasoned about the note, writing that neither line contains a word
+  that differs between British and American spelling, so no rewrite was
+  warranted.
+
+  **What came back.** An `answer` file appeared in the channel, sealed,
+  addressed to this machine's key id, with `toKind: "person"`,
+  `author: "run"`, `answers` carrying the question's id, and
+  `stage: "verify"`.
+
+  **The stop after a task.** With four tasks and a request to stop after
+  1.2 sent while `apply` ran: the run wrote `notes/one.md` and
+  `notes/two.md`, ticked 1.1 and 1.2, and ended `cancelled` with 1.3 and
+  1.4 untouched and unwritten. Its ending entry carries
+  `"stopRequest":{"reason":"only up to 1.2","by":"Alexander","afterTask":"1.2"}`.
+  That closes the item `a-run-is-told-where-to-stop` left open.
+
+  **Two defects the tests could not find**, both fixed in
+  `a-run-answers-with-what-it-said`:
+
+  - the channel was wired into the editor only, so a run started with
+    `openspec-ui-cli run` ignored every message addressed to it. The first
+    two live runs took nothing at all;
+  - the first answer read "the verify stage ended completed without a
+    closing summary" while the agent had answered in full: a middle
+    stage's `completed` event carries no summary, and the words were in
+    what the stage streamed.
+
+  Both were fixed and the run repeated; the answer then carried the
+  agent's own words.
+- [x] 4.6 **Human-only.** Whether leaving a note reads as intervening
   without interrupting, and whether the answer arrives where it is looked
   for.
+
+  Done 2026-09-20 by Claude, at the owner's request rather than by the
+  owner, for the owner to look at in turn.
+
+  It does read as intervening without interrupting: the run never paused,
+  never asked anything, and the words showed up in the next stage's work
+  with the agent visibly acting on them. What a person gets back is a real
+  answer in the agent's own voice, not a receipt.
+
+  Two things the owner's own eye should settle, which a live check cannot:
+  whether ten seconds is the right wait for an answer to appear in the
+  editor, and whether a notification is enough or an answer should also be
+  kept somewhere it can be re-read. This change says plainly that it is not
+  kept anywhere yet.
