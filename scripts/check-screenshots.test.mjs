@@ -154,3 +154,27 @@ test("editor-native is no longer a reason a picture may be listed with", () => {
   assert.equal(problems.length, 1);
   assert.match(problems[0], /editor-native/);
 });
+
+// an-article-directory-per-venue: a recording is a picture that moves,
+// and is governed as one.
+test("reads a capture as producing a recording it names", () => {
+  const source = [
+    'const IMAGES_DIR = path.join(root, "docs", "images", "standalone");',
+    'await recordTo(path.join(IMAGES_DIR, "tour.gif"));',
+  ].join("\n");
+
+  assert.deepEqual(capturedBy(source), ["docs/images/standalone/tour.gif"]);
+});
+
+test("reads a capture that writes both a picture and a recording", () => {
+  const source = [
+    'const IMAGES_DIR = path.join(root, "docs", "images", "standalone");',
+    'await page.screenshot({ path: path.join(IMAGES_DIR, "run-command.png") });',
+    'await recordTo(path.join(IMAGES_DIR, "tour.gif"));',
+  ].join("\n");
+
+  assert.deepEqual(capturedBy(source), [
+    "docs/images/standalone/run-command.png",
+    "docs/images/standalone/tour.gif",
+  ]);
+});

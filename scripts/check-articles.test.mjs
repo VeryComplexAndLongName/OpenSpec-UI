@@ -87,3 +87,40 @@ test("reads the real articles of a repository, and names the one that is wrong",
 test("this repository's own articles pass", async () => {
   assert.deepEqual(await checkAll(), []);
 });
+
+// an-article-directory-per-venue: one subdirectory per venue, and a
+// shared directory for the pictures more than one article uses.
+test("reads an article in a venue subdirectory, and names it by its path", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-articles-"));
+  try {
+    await mkdir(path.join(root, "docs", "articles", "linkedin"), { recursive: true });
+    await writeFile(path.join(root, "docs", "articles", "linkedin", "a-post.md"), "![A cover](missing.png)\n", "utf8");
+
+    const problems = await checkAll(root);
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^linkedin\/a-post\.md/u);
+    assert.match(problems[0], /docs\/articles\/linkedin\/missing\.png is not in the repository/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("passes a cover beside an article in its venue, and one in shared", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-articles-"));
+  try {
+    await mkdir(path.join(root, "docs", "articles", "devto"), { recursive: true });
+    await mkdir(path.join(root, "docs", "articles", "shared"), { recursive: true });
+    await writeFile(path.join(root, "docs", "articles", "devto", "a-post-cover.png"), "x", "utf8");
+    await writeFile(path.join(root, "docs", "articles", "shared", "tour.gif"), "x", "utf8");
+    await writeFile(
+      path.join(root, "docs", "articles", "devto", "a-post.md"),
+      "![A cover](a-post-cover.png)\n\n![The tour](../shared/tour.gif)\n",
+      "utf8",
+    );
+
+    assert.deepEqual(await checkAll(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
