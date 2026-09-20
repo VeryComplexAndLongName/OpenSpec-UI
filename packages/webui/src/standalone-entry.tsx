@@ -66,7 +66,8 @@ import {
   type ChangeEditorFiles,
 } from "./change-editor-client.js";
 import { loadChangeSpans, loadChangeTimeline, loadChangeTimelines, type ChangeSpan, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
-import { fetchSprintReportPdf } from "./sprint-report-client.js";
+import { fetchSprintReport } from "./sprint-report-client.js";
+import { renderSprintReportPage } from "./sprint-report-page.js";
 import { ChangeComparisonView } from "./components/ChangeComparisonView.js";
 import {
   customizeTemplate as customizeTemplateApi,
@@ -1241,13 +1242,20 @@ function StandaloneApp() {
     try {
       const rangeStart = new Date(multiRangeStart).toISOString();
       const rangeEnd = new Date(multiRangeEnd).toISOString();
-      const pdfBlob = await fetchSprintReportPdf(apiFetch, cwd, entries, rangeStart, rangeEnd);
-      const objectUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = `sprint-report-${multiRangeStart}-${multiRangeEnd}.pdf`;
-      link.click();
-      URL.revokeObjectURL(objectUrl);
+      const page = renderSprintReportPage(await fetchSprintReport(apiFetch, cwd, entries, rangeStart, rangeEnd));
+      // Opened, not downloaded: the page is the report, and the PDF is
+      // the browser's own print of it
+      // (the-sprint-report-is-a-page-of-the-product). The window is
+      // opened from the click that asked for it, so a popup blocker has
+      // no reason to stop it; where one does, the reader is told rather
+      // than left with nothing.
+      const opened = window.open("", "_blank");
+      if (!opened) {
+        setSprintReportMessage("The report could not be opened: allow pop-ups for this page, then ask again.");
+        return;
+      }
+      opened.document.write(page);
+      opened.document.close();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSprintReportMessage(`Generate failed: ${message}`);
@@ -2548,7 +2556,7 @@ function StandaloneApp() {
                 onClick={() => void downloadSprintReport()}
                 disabled={sprintReportLoading || multiSelection.length === 0}
               >
-                {sprintReportLoading ? "Generating..." : "Download PDF"}
+                {sprintReportLoading ? "Generating..." : "Open the report"}
               </button>
             </div>
 

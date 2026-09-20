@@ -25,7 +25,7 @@ const getChangeTimelineMock = vi.fn();
 const getChangeTimelinesMock = vi.fn();
 const readChangeSpansMock = vi.fn();
 const buildSprintReportMock = vi.fn();
-const renderSprintReportPdfMock = vi.fn();
+const renderSprintReportPageMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const createChangeMock = vi.fn();
 const deleteChangeMock = vi.fn();
@@ -67,6 +67,9 @@ class TemplateAlreadyExistsError extends Error { }
 class UnknownProjectTemplateError extends Error { }
 class TaskListChangedError extends Error { }
 const TASK_CHECKBOX_LINE_RE = /^[ \t]*-\s\[([ xX])\]\s*(.*)$/;
+vi.mock("@openspec-ui/webui/src/sprint-report-page.js", () => ({
+  renderSprintReportPage: (...args: unknown[]) => renderSprintReportPageMock(...args),
+}));
 vi.mock("@openspec-ui/core", async () => ({
   // Whose a change is: core's own reading, which touches no repository
   // (changes-shows-one-change-and-who-owns-it).
@@ -154,7 +157,6 @@ vi.mock("@openspec-ui/core", async () => ({
   readGlobalHarnessConfig: (...args: unknown[]) => readGlobalHarnessConfigMock(...args),
   resolveCheckScripts: (...args: unknown[]) => resolveCheckScriptsMock(...args),
   runMechanicalCheck: (...args: unknown[]) => runMechanicalCheckMock(...args),
-  renderSprintReportPdf: (...args: unknown[]) => renderSprintReportPdfMock(...args),
   renderTemplate: (...args: unknown[]) => renderTemplateMock(...args),
   resolveHarnessConfig: (...args: unknown[]) => resolveHarnessConfigMock(...args),
   resolveRunWithHarnessTarget: (...args: unknown[]) => resolveRunWithHarnessTargetMock(...args),
@@ -673,16 +675,16 @@ describe("registerCommands", () => {
       ]);
     }
 
-    it("builds a sprint report for the picked range and changes, then saves and offers to open the PDF", async () => {
+    it("builds a sprint report for the picked range and changes, then writes the page and offers to open it", async () => {
       setUpPicker();
       vscodeMock.window.showInputBox
         .mockResolvedValueOnce("2026-08-01")
         .mockResolvedValueOnce("2026-08-14");
       const report = { rangeStart: "2026-08-01T00:00:00.000Z", rangeEnd: "2026-08-14T23:59:59.999Z", entries: [], stats: {} };
       buildSprintReportMock.mockResolvedValue(report);
-      const pdf = Buffer.from("pdf-bytes");
-      renderSprintReportPdfMock.mockResolvedValue(pdf);
-      const target = vscodeMock.Uri.file("/workspace/repo/sprint-report-2026-08-01-2026-08-14.pdf");
+      const page = "<!doctype html><html><body>Sprint summary</body></html>";
+      renderSprintReportPageMock.mockReturnValue(page);
+      const target = vscodeMock.Uri.file("/workspace/repo/sprint-report-2026-08-01-2026-08-14.html");
       vscodeMock.window.showSaveDialog.mockResolvedValue(target);
       vscodeMock.window.showInformationMessage.mockResolvedValue("Open");
       const deps = makeDeps();
@@ -699,8 +701,8 @@ describe("registerCommands", () => {
         "2026-08-01T00:00:00.000Z",
         "2026-08-14T23:59:59.999Z",
       );
-      expect(renderSprintReportPdfMock).toHaveBeenCalledWith(report);
-      expect(vscodeMock.workspace.fs.writeFile).toHaveBeenCalledWith(target, pdf);
+      expect(renderSprintReportPageMock).toHaveBeenCalledWith(report);
+      expect(vscodeMock.workspace.fs.writeFile).toHaveBeenCalledWith(target, Buffer.from(page, "utf8"));
       expect(vscodeMock.env.openExternal).toHaveBeenCalledWith(target);
     });
 
@@ -762,7 +764,7 @@ describe("registerCommands", () => {
         .mockResolvedValueOnce("2026-08-01")
         .mockResolvedValueOnce("2026-08-14");
       buildSprintReportMock.mockResolvedValue({ entries: [] });
-      renderSprintReportPdfMock.mockResolvedValue(Buffer.from("pdf-bytes"));
+      renderSprintReportPageMock.mockReturnValue("<!doctype html><html></html>");
       vscodeMock.window.showSaveDialog.mockResolvedValue(undefined);
       const deps = makeDeps();
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
@@ -773,13 +775,13 @@ describe("registerCommands", () => {
       expect(vscodeMock.env.openExternal).not.toHaveBeenCalled();
     });
 
-    it("does not open the PDF when the confirmation message is dismissed", async () => {
+    it("does not open the report when the confirmation message is dismissed", async () => {
       setUpPicker();
       vscodeMock.window.showInputBox
         .mockResolvedValueOnce("2026-08-01")
         .mockResolvedValueOnce("2026-08-14");
       buildSprintReportMock.mockResolvedValue({ entries: [] });
-      renderSprintReportPdfMock.mockResolvedValue(Buffer.from("pdf-bytes"));
+      renderSprintReportPageMock.mockReturnValue("<!doctype html><html></html>");
       vscodeMock.window.showSaveDialog.mockResolvedValue(vscodeMock.Uri.file("/workspace/repo/report.pdf"));
       vscodeMock.window.showInformationMessage.mockResolvedValue(undefined);
       const deps = makeDeps();

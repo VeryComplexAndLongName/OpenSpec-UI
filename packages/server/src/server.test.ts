@@ -734,7 +734,7 @@ describe("server — REST /api/status", () => {
     expect(response.status).toBe(400);
   });
 
-  it("generates a downloadable sprint report PDF", async () => {
+  it("serves the sprint summary as data, for the browser to draw", async () => {
     const cwd = await createTempWorkspace();
     const changeDir = path.join(cwd, "openspec", "changes", "my-change");
     await mkdir(changeDir, { recursive: true });
@@ -751,13 +751,15 @@ describe("server — REST /api/status", () => {
         rangeEnd: "2026-01-14T00:00:00.000Z",
       }),
     });
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const report = await response.json();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toContain("attachment");
-    expect(response.headers.get("content-disposition")).toContain("sprint-report-2026-01-01-2026-01-14.pdf");
-    expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    // Data, not a document: the page that draws it is the browser's half
+    // (the-sprint-report-is-a-page-of-the-product).
+    expect(response.headers.get("content-type")).toBe("application/json");
+    expect(response.headers.get("content-disposition")).toBeNull();
+    expect(report.entries.map((entry: { changeName: string }) => entry.changeName)).toEqual(["my-change"]);
+    expect(report.stats.totalChanges).toBe(1);
   });
 
   it("rejects a sprint-report request missing the date range", async () => {

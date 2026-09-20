@@ -69,7 +69,6 @@ export * from "./task-checklist-counts.js";
 export * from "./audit-runs.js";
 export * from "./stale-tasks.js";
 export * from "./sprint-report.js";
-export * from "./sprint-report-pdf.js";
 export * from "./agent-usage.js";
 export * from "./verified-agent-versions.js";
 export * from "./acp-streamed-text.js";

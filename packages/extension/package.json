@@ -194,7 +194,7 @@
       },
       {
         "command": "openspec-ui.generateSprintReport",
-        "title": "OpenSpec UI: Generate Sprint Report (PDF)"
+        "title": "OpenSpec UI: Generate Sprint Report"
       },
       {
         "command": "openspec-ui.showChangeDetails",
