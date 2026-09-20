@@ -1,40 +1,45 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-20T04:03:38.384Z",
+  "generated_at": "2026-09-20T06:31:44.296Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "53b444940ac41bd4db7243985a50b5b2310881e4",
+  "commit": "c408491b5d0350a9a785c2054997b84697863c67",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.67.1",
-      "released_at": "2026-09-20T04:03:38.384Z",
-      "tag": "openspec-ui-vscode@0.67.1",
+      "version": "0.68.0",
+      "released_at": "2026-09-20T06:31:44.296Z",
+      "tag": "openspec-ui-vscode@0.68.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.67.1"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.68.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.67.1/openspec-ui-vscode-0.67.1.vsix",
-          "size_bytes": 7011578
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.68.0/openspec-ui-vscode-0.68.0.vsix",
+          "size_bytes": 7022816
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline says how far this checkout is behind what has landed - \"main is"
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.32.2",
-      "released_at": "2026-09-20T04:03:38.384Z",
+      "version": "1.33.0",
+      "released_at": "2026-09-20T06:31:44.296Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -42,15 +47,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline says how far this checkout is behind what has landed - \"main is"
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.101.1",
-      "released_at": "2026-09-20T04:03:38.384Z",
+      "version": "0.102.0",
+      "released_at": "2026-09-20T06:31:44.296Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -60,8 +70,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A run started from the terminal takes the notes and questions addressed to"
+          "kind": "minor",
+          "summary": "The Pipeline says how far this checkout is behind what has landed - \"main is"
         }
       ]
     },
@@ -70,15 +80,20 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.64.2",
-      "released_at": "2026-09-20T04:03:38.384Z",
+      "version": "1.65.0",
+      "released_at": "2026-09-20T06:31:44.296Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline says how far this checkout is behind what has landed - \"main is"
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -86,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.15.1",
-      "released_at": "2026-09-20T04:03:38.384Z",
+      "released_at": "2026-09-20T06:31:44.296Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
