@@ -44,7 +44,15 @@ import { defineWorkspace } from "vitest/config";
 // the whole package, with `GIT_TRACE`, they are the only tests that start a
 // shell whose success they need. `change-standing.test.ts` also starts one,
 // for a fetch it expects to fail, so it stays in the parallel project.
-const SHELL_STARTING_TESTS = ["src/git.push.test.ts", "src/git-refs.test.ts"];
+// finished-directories.removal.test.ts joins them: it spawns real git for
+// init, commit, worktree add and worktree remove against a temporary
+// repository, which is the same fork-emulation contention on Windows
+// (git-says-a-working-directory-is-done).
+const SHELL_STARTING_TESTS = [
+  "src/git.push.test.ts",
+  "src/git-refs.test.ts",
+  "src/finished-directories.removal.test.ts",
+];
 
 export default defineWorkspace([
   {

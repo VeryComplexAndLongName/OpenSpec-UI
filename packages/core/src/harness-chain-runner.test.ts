@@ -233,6 +233,7 @@ function makeGitStageDeps(options: {
     fastForward: vi.fn(async () => ({ ok: true as const })),
     resolveCommit: vi.fn(async () => undefined),
     remoteUrl: vi.fn(async () => undefined),
+    branchUpstreams: vi.fn(async () => []),
     configuredIdentity: vi.fn(async () => undefined),
   };
   const gateway: PullRequestGateway = {

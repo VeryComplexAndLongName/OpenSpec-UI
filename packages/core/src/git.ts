@@ -22,6 +22,22 @@ export interface GitStatusSummary {
 
 /** One working directory of this repository, as `git worktree list`
  * reports it. The main working tree is one of these. */
+/** The field separator for a `for-each-ref` format: a unit separator,
+ * which no ref name contains. Written by code so that no editor or
+ * heredoc can turn it into the two characters that spell it. */
+const FIELD = String.fromCharCode(31);
+
+/** A local branch and what it tracks
+ * (git-says-a-working-directory-is-done). */
+export interface BranchUpstream {
+  branch: string;
+  /** Absent where the branch tracks nothing, which means it was never
+   * pushed. */
+  upstream?: string;
+  /** The branch records an upstream and the server no longer has it. */
+  gone: boolean;
+}
+
 export interface GitWorktree {
   /** Absolute path, as git reports it. */
   path: string;
@@ -99,7 +115,16 @@ export interface GitWrapper {
    * change fails with git's own "a branch named X already exists", which
    * says nothing about what to do next. */
   branchExists(name: string): Promise<boolean>;
-  worktreeRemove(path: string): Promise<void>;
+  worktreeRemove(path: string, options?: { force?: boolean }): Promise<void>;
+  /** Every local branch with the upstream it tracks and whether that
+   * upstream is gone.
+   *
+   * `gone` is what git says about a branch that was pushed and whose
+   * remote branch has since been deleted - what a merged pull request
+   * leaves behind where the server deletes its branches on merge. One
+   * call answers for every branch, and it touches no network
+   * (git-says-a-working-directory-is-done). */
+  branchUpstreams(): Promise<BranchUpstream[]>;
   /** The git identity configured for this working directory —
    * `user.email`, falling back to `user.name` — or `undefined` where
    * none is set.
@@ -140,8 +165,12 @@ export interface GitWrapper {
   listRefs(prefixes: readonly string[]): Promise<Array<{ name: string; commit: string }>>;
   /** The commit `ref` names, or `undefined` where it names none. */
   resolveCommit(ref: string): Promise<string | undefined>;
-  /** Fetches `remote`. Touches refs only, never a working tree. */
-  fetch(remote: string): Promise<void>;
+  /** Fetches `remote`. Touches refs only, never a working tree.
+   *
+   * With `prune`, drops remote-tracking refs whose branch the server no
+   * longer has - which is what turns a merged branch into `gone`
+   * (git-says-a-working-directory-is-done). */
+  fetch(remote: string, options?: { prune?: boolean }): Promise<void>;
   /** When refs were last fetched: the modification time of `FETCH_HEAD` in
    * the repository's common git directory, or `undefined` where there has
    * been no fetch. */
@@ -225,11 +254,36 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         return false;
       }
     },
-    async worktreeRemove(worktreePath: string): Promise<void> {
-      // No `--force`. Refusing a directory that still holds work is the
-      // point, and `git worktree remove --force` is right there for
-      // somebody who means it.
-      await git.raw(["worktree", "remove", worktreePath]);
+    async worktreeRemove(worktreePath: string, options: { force?: boolean } = {}): Promise<void> {
+      // No `--force` by default. Refusing a directory that still holds
+      // work is the point. The sweep passes it, having read the tree as
+      // clean itself, because a directory holding only ignored files -
+      // a module overlay, a downloaded editor - is refused otherwise
+      // (git-says-a-working-directory-is-done).
+      const force = options.force === true ? ["--force"] : [];
+      await git.raw(["worktree", "remove", ...force, worktreePath]);
+    },
+    async branchUpstreams(): Promise<BranchUpstream[]> {
+      const out = await git.raw([
+        "for-each-ref",
+        "--format=%(refname:short)" + FIELD + "%(upstream:short)" + FIELD + "%(upstream:track)",
+        "refs/heads",
+      ]);
+      // Lines split on a newline built from its code point, and the
+      // carriage return trimmed: an escape sequence written here is
+      // liable to become the character it names before it reaches the
+      // file (feedback_heredoc_destroys_escape_sequences).
+      return out
+        .split(String.fromCharCode(10))
+        .map((line) => line.trim())
+        .map((line) => line.split(FIELD))
+        .filter((parts) => (parts[0] ?? "").length > 0)
+        .map(([branch, upstream, track]) => ({
+          branch: branch as string,
+          ...((upstream ?? "").length > 0 ? { upstream: upstream as string } : {}),
+          // git writes "[gone]" among the tracking counts.
+          gone: (track ?? "").includes("gone"),
+        }));
     },
     async configuredIdentity(): Promise<string | undefined> {
       for (const key of ["user.email", "user.name"]) {
@@ -316,8 +370,9 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         return undefined;
       }
     },
-    async fetch(remote: string): Promise<void> {
-      await git.raw(["fetch", "--quiet", remote]);
+    async fetch(remote: string, options: { prune?: boolean } = {}): Promise<void> {
+      const prune = options.prune === true ? ["--prune"] : [];
+      await git.raw(["fetch", "--quiet", ...prune, remote]);
     },
     async lastFetchedAt(): Promise<Date | undefined> {
       try {

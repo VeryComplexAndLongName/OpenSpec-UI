@@ -22,6 +22,10 @@ import {
   chainMessageHandlers,
   chainStopRequestHandlers,
   createGitWrapper,
+  describeFinished,
+  describeKept,
+  sweepFinishedDirectories,
+  surveyWorktrees,
   forgetMessage,
   loadOrCreateMachineKey,
   messageDirectoryBeside,
@@ -329,10 +333,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         for (const failure of sweep.failures) {
           outputChannel.appendLine(`OpenSpec UI: could not clear ${failure.path} (${failure.reason})`);
         }
+        await sweepDirectories();
       } catch (error) {
         outputChannel.appendLine(`OpenSpec UI: the leftover sweep failed (${error instanceof Error ? error.message : String(error)})`);
       }
     };
+    // A working directory whose branch is gone from the server is
+     // removed rather than offered, and what went is said
+     // (git-says-a-working-directory-is-done). git settles it, so this
+     // needs no token and answers for a directory whose change was
+     // withdrawn as readily as for any other.
+    const sweepDirectories = async () => {
+      if (!workspaceRoot) return;
+      const root = workspaceRoot;
+      try {
+        const survey = await surveyWorktrees({ workspaceRoot: root });
+        const git = createGitWrapper({ cwd: root });
+        const swept = await sweepFinishedDirectories(survey, {
+          git,
+          isClean: async (directoryPath: string) => {
+            try {
+              return (await createGitWrapper({ cwd: directoryPath }).status()).isClean;
+            } catch {
+              return false;
+            }
+          },
+        });
+        for (const directory of swept.removed) {
+          outputChannel.appendLine(directory.failed === undefined
+            ? `OpenSpec UI: removed the working directory ${directory.label}, ${describeFinished(directory.reason)}.`
+            : `OpenSpec UI: could not remove ${directory.label} (${directory.failed}).`);
+        }
+        if (swept.fetchFailed !== undefined) {
+          outputChannel.appendLine(`OpenSpec UI: no working directory was removed, ${describeKept("the-fetch-failed")} (${swept.fetchFailed}).`);
+        }
+      } catch (error) {
+        outputChannel.appendLine(`OpenSpec UI: the working-directory sweep failed (${error instanceof Error ? error.message : String(error)})`);
+      }
+    };
+
     void sweepLeftovers();
     const sweepTimer = setInterval(() => { void sweepLeftovers(); }, LEFTOVER_SWEEP_INTERVAL_MS);
     context.subscriptions.push({ dispose: () => clearInterval(sweepTimer) });

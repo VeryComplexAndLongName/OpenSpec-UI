@@ -225,16 +225,10 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
 /** Why a working directory has nothing left to do. The first two are what
  * settle it in a repository that squashes its pull requests; the last two
  * are the survey's own cheap signals (what-is-finished-is-tidied-away). */
-export type FinishedReason = "pull-request-merged" | "archived-on-main" | "merged" | "branch-gone";
-
-export interface FinishedDirectory {
-  path: string;
-  label: string;
-  branch?: string;
-  /** The change whose standing settled it, where one did. */
-  changeName?: string;
-  reason: FinishedReason;
-}
+// One union, declared beside the reading that acts on it
+// (git-says-a-working-directory-is-done).
+export type { FinishedDirectory, FinishedReason } from "./finished-directories.js";
+import type { FinishedDirectory, FinishedReason } from "./finished-directories.js";
 
 /** Every working directory whose work has landed.
  *
