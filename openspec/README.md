@@ -124,14 +124,18 @@ another commit on the open one. The owner merges quickly, and a commit
 pushed to a branch whose pull request has already merged is stranded where
 nobody looks for it again; that has happened twice.
 
-**A ready pull request joins the merge queue.** The owner presses the
-button as before; the pull request then does not merge at once. GitHub
-takes it against the current tip of `main`, runs the required checks on
-that tentative merge, and lands it if they pass. Nobody updates a branch
-by hand for "out-of-date" any more, and nobody should: an entry rebased
-under the queue is an entry the queue drops. A rebase is still the answer
-to a *conflict*, which the queue cannot resolve
-(the-merge-queue-lands-them-in-order).
+**Nobody updates a branch because `main` moved.** `main` does not
+require a branch to be up to date: a pull request lands when its own
+required checks are green, whatever has landed since they ran
+(main-no-longer-requires-an-up-to-date-branch). A rebase is the answer to
+a **conflict**, which git refuses to merge, and to nothing else.
+
+What that rule used to guard, and now does not: two pull requests that
+are green apart can be broken together - a function renamed in one and
+called in the other. git catches the textual half of that and nothing
+more. Two changes touching the same code at the same time is the case to
+be careful about, and the answer is to land one before starting the
+other, not to update branches.
 
 **When the pull request merges, the branch is finished.** Delete it
 locally with `git branch -D <id>`, delete it on the server, remove its
