@@ -143,6 +143,14 @@ export interface HarnessGitStageAllowlist {
 
 export interface HarnessConfig {
   stepAgents: HarnessStepAgents;
+  /** Whether a run in this workspace takes notes and questions written by
+   * another run, rather than only by a person. Absent means `false`.
+   *
+   * Runs can see each other in the roster, so they can address each other;
+   * that is exactly why this is off. A run that takes instructions from
+   * another run has a second operator nobody chose, and a refusal is
+   * recorded like any other (the-operator-can-say-something-to-a-run). */
+  allowAgentMessages?: boolean;
   autonomyLevel: HarnessAutonomyLevel;
   reviewGate: HarnessReviewGate;
   /** Whether `HarnessChainRunner` pauses for an explicit human
@@ -265,7 +273,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages"] as const;
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -883,6 +891,10 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidHints((input as { hints?: unknown }).hints);
+  const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
+  if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
+    throw new InvalidHarnessConfigError("allowAgentMessages must be a boolean");
+  }
   assertValidBudget(input.budget);
   assertValidTimeout(input.timeout);
   assertValidMaxStageAttempts(input.maxStageAttempts);
@@ -1022,6 +1034,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
     hints: input.hints ?? DEFAULT_HARNESS_CONFIG.hints,
+    ...(input.allowAgentMessages !== undefined ? { allowAgentMessages: input.allowAgentMessages } : {}),
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
     // A field added to `HarnessConfig` and to `TOP_LEVEL_CONFIG_KEYS` but
     // not to this list is accepted by validation and then silently
@@ -1082,6 +1095,9 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // call site resolves the global configuration rather than one
     // change's.
     hints: override.hints ?? global.hints,
+    ...((override.allowAgentMessages ?? global.allowAgentMessages) !== undefined
+      ? { allowAgentMessages: override.allowAgentMessages ?? global.allowAgentMessages }
+      : {}),
     // Whole-object override, like autonomyLevel/reviewGate/checkpoints
     // above — not a key-by-key merge like stepAgents. A per-change budget,
     // when set, is used exactly as declared regardless of whether it is

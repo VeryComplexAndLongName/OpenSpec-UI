@@ -15,9 +15,19 @@ import path from "node:path";
 
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { describeAcpUpdate } from "./acp-update-line.js";
-import { messageDirectoryBeside, readStopRequests, STOP_MESSAGE_STALE_AFTER_MS, type StopRequestRefusal } from "./agent-messages.js";
+import {
+  forgetMessage,
+  messageDirectoryBeside,
+  readMessagesFor,
+  readStopRequests,
+  STOP_MESSAGE_STALE_AFTER_MS,
+  type ConversationMessage,
+  type ConversationRefusal,
+  type StopRequestRefusal,
+} from "./agent-messages.js";
 import { readAgentRoster, rosterDirectoryBeside, rosterOf } from "./agent-roster.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
+import { readGlobalHarnessConfig } from "./harness-config.js";
 import { TASK_NUMBER_PATTERN } from "./harness-step-agent.js";
 import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
 import type { Command, Event } from "./protocol.js";
@@ -50,6 +60,33 @@ const REFUSAL_WORDS: Readonly<Record<StopRequestRefusal, string>> = {
   stale: "stale",
   seen: "already read",
 };
+
+/** The same words, and the one a conversation adds: a run refusing another
+ * run (the-operator-can-say-something-to-a-run). */
+const MESSAGE_REFUSAL_WORDS: Readonly<Record<ConversationRefusal, string>> = {
+  ...REFUSAL_WORDS,
+  "author-not-allowed": "from a run, which this run does not take",
+};
+
+/** A note or a question as the run hands it to its host: what was said, the
+ * enrolled person who said it, and the message's own id. */
+export interface AgentStatusMessage {
+  messageId: string;
+  kind: ConversationMessage["kind"];
+  words: string;
+  /** The enrolled sender's label, and their key id - which is the address
+   * an answer goes back to. */
+  from: string;
+  fromKeyId: string;
+  author: ConversationMessage["author"];
+  sentAt: string;
+}
+
+export interface AgentStatusMessageRefusal {
+  messageId: string;
+  why: ConversationRefusal;
+  words: string;
+}
 
 /** A request to stop a run, as the run hands it to its host: the reason,
  * the enrolled person who asked, and the request's message id
@@ -179,6 +216,16 @@ export interface AgentStatusWriterOptions {
   /** Called once for each request addressed to this run that is not acted
    * on, so the host can record it. */
   onStopRequestRefused?: (refusal: AgentStatusStopRequestRefusal) => void;
+  /** Called for each note or question addressed to this run that is
+   * verified, fresh and not read before. Absent, the writer reads none
+   * (the-operator-can-say-something-to-a-run). */
+  onMessage?: (message: AgentStatusMessage) => void;
+  /** Called once for each message addressed to this run that is not taken. */
+  onMessageRefused?: (refusal: AgentStatusMessageRefusal) => void;
+  /** Whether this run takes messages written by another run. Absent is
+   * `false`: a run that takes instructions from another run has a second
+   * operator nobody chose. */
+  allowAgentMessages?: boolean;
   /** Test seams: where requests are read from, and the enrolled keys. Read
    * from beside the status directory where not given. */
   messageDirectory?: string;
@@ -255,11 +302,15 @@ export class AgentStatusWriter {
   private stopped = false;
   private readonly onStopRequested: ((request: AgentStatusStopRequestMessage) => void) | undefined;
   private readonly onStopRequestRefused: ((refusal: AgentStatusStopRequestRefusal) => void) | undefined;
+  private readonly onMessage: ((message: AgentStatusMessage) => void) | undefined;
+  private readonly onMessageRefused: ((refusal: AgentStatusMessageRefusal) => void) | undefined;
+  private readonly allowAgentMessages: boolean;
   private readonly messageDirectory: string;
   private readonly readRoster: (() => Promise<Roster>) | undefined;
   /** Every request this run has read. It dies with the run, and so does the
    * only instance a replay could reach. */
   private readonly seenStopRequests = new Set<string>();
+  private readonly seenMessages = new Set<string>();
   /** When the record was last written, and whether it holds everything
    * reported since — so streamed activity can wait for the next write
    * instead of forcing one. */
@@ -282,6 +333,9 @@ export class AgentStatusWriter {
     this.machine = options.machine ?? os.hostname();
     this.onStopRequested = options.onStopRequested;
     this.onStopRequestRefused = options.onStopRequestRefused;
+    this.onMessage = options.onMessage;
+    this.onMessageRefused = options.onMessageRefused;
+    this.allowAgentMessages = options.allowAgentMessages === true;
     this.messageDirectory = options.messageDirectory ?? messageDirectoryBeside(this.directory);
     this.readRoster = options.readRoster;
     this.filePath = path.join(this.directory, `${this.instanceId}.json`);
@@ -310,7 +364,7 @@ export class AgentStatusWriter {
       // Neither rejects. A rejection left unhandled here is what ended a run
       // on Windows. Requests are read first, so the renewal carries what
       // they made the run say.
-      void this.checkStopRequests().then(() => this.writeQuietly());
+      void this.checkStopRequests().then(() => this.checkMessages()).then(() => this.writeQuietly());
     }, AGENT_STATUS_RENEW_INTERVAL_MS);
     // Never hold a process open on the heartbeat alone.
     this.timer.unref?.();
@@ -421,6 +475,49 @@ export class AgentStatusWriter {
       }
     } catch {
       // Requests that cannot be read this time are read at the next renewal;
+      // reporting never stops the run.
+    }
+    if (said) await this.writeQuietly();
+  }
+
+  /** Reads the notes and questions addressed to this run, once, as each
+   * renewal does (the-operator-can-say-something-to-a-run).
+   *
+   * One that is verified, fresh and not read before goes to `onMessage`
+   * and is then removed from the directory: delivery is what ends a
+   * conversation message, not the clock. One that is not taken is said in
+   * the activity, once, and told to `onMessageRefused`, and is left where
+   * it is - a refusal is not a reading, and a run whose configuration
+   * changes may take it later. Never rejects. */
+  async checkMessages(): Promise<void> {
+    if (this.stopped || this.onMessage === undefined) return;
+    let said = false;
+    try {
+      const roster = await (this.readRoster ?? (() => rosterBeside(this.directory)))();
+      const readings = await readMessagesFor({
+        directory: this.messageDirectory,
+        to: this.instanceId,
+        roster,
+        now: this.now(),
+        seen: this.seenMessages,
+        allowFromRun: this.allowAgentMessages,
+      });
+      for (const reading of readings) {
+        if (this.stopped) return;
+        const { messageId, words, kind, author, sentAt } = reading.message;
+        const firstReading = !this.seenMessages.has(messageId);
+        this.seenMessages.add(messageId);
+        if (reading.state === "act") {
+          this.onMessage({ messageId, kind, words, from: reading.person.label, fromKeyId: reading.person.keyId, author, sentAt });
+          await forgetMessage(this.messageDirectory, messageId).catch(() => undefined);
+        } else if (firstReading && reading.why !== "seen") {
+          this.setActivity(`a message arrived, ${MESSAGE_REFUSAL_WORDS[reading.why]}; not taken`);
+          this.onMessageRefused?.({ messageId, why: reading.why, words });
+          said = true;
+        }
+      }
+    } catch {
+      // What cannot be read this time is read at the next renewal;
       // reporting never stops the run.
     }
     if (said) await this.writeQuietly();
@@ -1125,6 +1222,14 @@ export interface AgentStatusRunOptions {
   onStopRequested?: (request: AgentStatusStopRequestMessage) => void;
   /** How the host records a request the run did not act on. */
   onStopRequestRefused?: (refusal: AgentStatusStopRequestRefusal) => void;
+  /** How the host takes a note or a question addressed to this run.
+   * Absent, the run reads none (the-operator-can-say-something-to-a-run). */
+  onMessage?: (message: AgentStatusMessage) => void;
+  /** How the host records a message the run did not take. */
+  onMessageRefused?: (refusal: AgentStatusMessageRefusal) => void;
+  /** Whether this run takes messages written by another run; absent is
+   * `false`. */
+  allowAgentMessages?: boolean;
 }
 
 let machineKeyOnce: Promise<MachineKey | undefined> | undefined;
@@ -1193,6 +1298,14 @@ export async function startAgentStatusWriter(options: AgentStatusRunOptions): Pr
       ...(gitAuthor !== undefined ? { gitAuthor } : {}),
       ...(options.onStopRequested !== undefined ? { onStopRequested: options.onStopRequested } : {}),
       ...(options.onStopRequestRefused !== undefined ? { onStopRequestRefused: options.onStopRequestRefused } : {}),
+      ...(options.onMessage !== undefined ? { onMessage: options.onMessage } : {}),
+      ...(options.onMessageRefused !== undefined ? { onMessageRefused: options.onMessageRefused } : {}),
+      // Read here, once, rather than asked of every host: the flag belongs
+      // to the run's own harness configuration, and a host that forgot to
+      // pass it would silently become the strict one
+      // (the-operator-can-say-something-to-a-run).
+      allowAgentMessages: options.allowAgentMessages
+        ?? await readGlobalHarnessConfig(options.cwd).then((config) => config.allowAgentMessages === true).catch(() => false),
     });
     await writer.start(options.changeName ? `starting "${options.changeName}"` : "starting");
     return writer;
@@ -1233,7 +1346,11 @@ const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["ki
 export async function* withAgentStatus(
   events: AsyncIterable<Event>,
   command: Pick<Command, "kind" | "cwd" | "context" | "runId" | "taskNumber">,
-  seams: Pick<AgentStatusRunOptions, "resolveDirectory" | "loadKey" | "readGitAuthor" | "onStopRequested" | "onStopRequestRefused"> = {},
+  seams: Pick<
+    AgentStatusRunOptions,
+    "resolveDirectory" | "loadKey" | "readGitAuthor" | "onStopRequested" | "onStopRequestRefused"
+    | "onMessage" | "onMessageRefused" | "allowAgentMessages"
+  > = {},
 ): AsyncGenerator<Event> {
   if (!REPORTED_COMMAND_KINDS.has(command.kind)) {
     yield* events;

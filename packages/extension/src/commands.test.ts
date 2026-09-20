@@ -59,6 +59,7 @@ const editChangeRelationMock = vi.fn();
 const readWorkspaceLeftoversMock = vi.fn();
 const readAgentStatusesMock = vi.fn();
 const askLiveRunToStopMock = vi.fn();
+const sayToLiveRunMock = vi.fn();
 const removeWorkingDirectoryMock = vi.fn();
 const resolveCheckScriptsMock = vi.fn();
 const runMechanicalCheckMock = vi.fn();
@@ -142,6 +143,7 @@ vi.mock("@openspec-ui/core", () => ({
   readWorkspaceLeftovers: (...args: unknown[]) => readWorkspaceLeftoversMock(...args),
   readAgentStatuses: (...args: unknown[]) => readAgentStatusesMock(...args),
   askLiveRunToStop: (...args: unknown[]) => askLiveRunToStopMock(...args),
+  sayToLiveRun: (...args: unknown[]) => sayToLiveRunMock(...args),
   resolveAgentStatusDirectory: async () => "/wt/repo/.agent-status",
   createGitWrapper: () => ({}),
   isTaskNumber: (value: string) => /^\d+(?:\.\d+)+$/u.test(String(value).trim()),
@@ -3004,6 +3006,88 @@ describe("openspec-ui.stopRunAfterTask (a-run-is-told-where-to-stop)", () => {
     registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
     await vscodeMock._registeredCommands.get("openspec-ui.stopRunAfterTask")?.(activeRow("demo-change"));
+
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("no live run reports itself"));
+    expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();
+  });
+});
+
+// the-operator-can-say-something-to-a-run 3.4: the editor speaks to a live
+// run through the same signed channel a stop goes through.
+describe("openspec-ui.sayToRun (the-operator-can-say-something-to-a-run)", () => {
+  const activeRow = (name: string) => ({
+    contextValue: "openspec-ui.activeChange",
+    changeName: name,
+    archived: false,
+  });
+
+  const liveReport = (changeName: string) => ({
+    instanceId: "run-b",
+    changeName,
+    gone: false,
+    signature: "verified",
+  });
+
+  it("sends a note to the live run of that change", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Note", value: "note" });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("do not touch the release manifest");
+    sayToLiveRunMock.mockResolvedValue({ sent: true, messageId: "message-11" });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.sayToRun")?.(activeRow("demo-change"));
+
+    expect(sayToLiveRunMock).toHaveBeenCalledWith(expect.objectContaining({
+      instanceId: "run-b",
+      kind: "note",
+      words: "do not touch the release manifest",
+    }));
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("next stage"));
+  });
+
+  it("says a question is answered when the stage ends", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Question", value: "ask" });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("which task are you on?");
+    sayToLiveRunMock.mockResolvedValue({ sent: true, messageId: "message-12" });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.sayToRun")?.(activeRow("demo-change"));
+
+    expect(sayToLiveRunMock).toHaveBeenCalledWith(expect.objectContaining({ kind: "ask" }));
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("answer arrives"));
+  });
+
+  it("writes nothing where no run of that change is live", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("another-change")], malformed: [] });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.sayToRun")?.(activeRow("demo-change"));
+
+    expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+    expect(sayToLiveRunMock).not.toHaveBeenCalled();
+    expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("nobody to say it to"));
+  });
+
+  it("writes nothing where the words are escaped", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Note", value: "note" });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce(undefined);
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.sayToRun")?.(activeRow("demo-change"));
+
+    expect(sayToLiveRunMock).not.toHaveBeenCalled();
+  });
+
+  it("shows core's refusal rather than claiming it was sent", async () => {
+    readAgentStatusesMock.mockResolvedValue({ reports: [liveReport("demo-change")], malformed: [] });
+    vscodeMock.window.showQuickPick.mockResolvedValueOnce({ label: "Note", value: "note" });
+    vscodeMock.window.showInputBox.mockResolvedValueOnce("anything");
+    sayToLiveRunMock.mockResolvedValue({ sent: false, why: "no live run reports itself as run-b" });
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+    await vscodeMock._registeredCommands.get("openspec-ui.sayToRun")?.(activeRow("demo-change"));
 
     expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("no live run reports itself"));
     expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalled();

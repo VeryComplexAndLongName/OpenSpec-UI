@@ -214,6 +214,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "openspec-ui.sayToRun",
+        "title": "OpenSpec UI: Say Something to This Run",
+        "icon": "$(comment)"
+      },
+      {
         "command": "openspec-ui.stopRunAfterTask",
         "title": "OpenSpec UI: Stop This Run After a Task",
         "icon": "$(debug-pause)"
@@ -472,6 +477,11 @@
           "command": "openspec-ui.removeLeftover",
           "when": "viewItem == openspec-ui.leftover",
           "group": "inline"
+        },
+        {
+          "command": "openspec-ui.sayToRun",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "group": "relation@3"
         },
         {
           "command": "openspec-ui.stopRunAfterTask",

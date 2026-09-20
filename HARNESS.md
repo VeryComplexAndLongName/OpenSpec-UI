@@ -119,8 +119,8 @@ it matches a known stage name, suggesting `stepAgents.<key>` instead.
 
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
 `checkpoints`, `budget`, `timeout`, `maxStageAttempts`,
-`gitStageAllowlist`, `taskAgents`. Nothing else is accepted, at either
-file.
+`gitStageAllowlist`, `taskAgents`, `steps`, `hints`,
+`allowAgentMessages`. Nothing else is accepted, at either file.
 
 ### `stepAgents`
 
@@ -242,6 +242,26 @@ carries no suggestions at all. Read from the workspace file rather than
 from a change's — the report they come from is about the whole
 repository, so a per-change value would be answering a different
 question.
+
+### `allowAgentMessages`
+
+`<boolean>`. Optional; absent means `false`.
+
+Whether a run in this workspace takes notes and questions written by
+**another run**, rather than only by a person. A person's messages are
+always taken.
+
+Runs can see each other in the roster, so they can address each other;
+that is exactly why this is off. A run that takes instructions from
+another run has a second operator nobody chose, and nothing in the audit
+would distinguish the two. A refused message is recorded with its id and
+the reason, and left where it is rather than removed - a run whose
+configuration changes may take it later.
+
+What a taken message does: it is handed to the agent in the prompt of the
+next stage that starts, marked as words from a person rather than as
+content read from the repository, and a question is answered by what that
+stage says when it ends. See `the-operator-can-say-something-to-a-run`.
 
 ### `budget` (chain-level)
 

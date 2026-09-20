@@ -289,6 +289,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
       steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
       hints: { enabled: false },
+      allowAgentMessages: true,
     };
     const api = createApi({ resolveGlobal: vi.fn().mockResolvedValue(everyKey) });
     render(<GlobalHarnessSettingsView api={api} />);

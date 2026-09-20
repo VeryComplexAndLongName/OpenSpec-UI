@@ -221,6 +221,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
       steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
       hints: { enabled: false },
+      allowAgentMessages: true,
     };
     const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ ...everyKey }) });
     await renderLoaded(api);

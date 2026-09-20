@@ -5,10 +5,15 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   askRunToStop,
+  CONVERSATION_STALE_AFTER_MS,
+  forgetMessage,
   myRosterLabel,
+  readMessagesFor,
   readStopRequests,
   readUnopenedRequests,
+  sendMessage,
   STOP_MESSAGE_STALE_AFTER_MS,
+  sweepOldMessages,
 } from "./agent-messages.js";
 import { keyIdOf, type MachineKey } from "./machine-key.js";
 import type { Roster } from "./signed-envelope.js";
@@ -211,5 +216,156 @@ describe("a stop that names a task to stop after", () => {
     const readings = await readStopRequests({ directory, instanceId: INSTANCE, roster: rosterWith(key), now: SENT_AT, seen: new Set() });
 
     expect(readings).toEqual([]);
+  });
+});
+
+// the-operator-can-say-something-to-a-run: the same directory, the same
+// envelope and the same refusals, carrying a conversation.
+describe("readMessagesFor", () => {
+  async function said(
+    directory: string,
+    key: MachineKey,
+    over: Partial<Parameters<typeof sendMessage>[0]> = {},
+  ): Promise<string> {
+    return sendMessage({
+      directory,
+      to: INSTANCE,
+      toKind: "run",
+      kind: "note",
+      author: "person",
+      words: "do not touch the release manifest",
+      key,
+      machine: "machine-a",
+      now: () => SENT_AT,
+      ...over,
+    });
+  }
+
+  it("takes a verified, fresh note for this run and names the enrolled person who wrote it", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    const messageId = await said(directory, key);
+
+    const readings = await readMessagesFor({
+      directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+    });
+
+    expect(readings).toHaveLength(1);
+    expect(readings[0]?.state).toBe("act");
+    expect(readings[0]?.message.messageId).toBe(messageId);
+    expect(readings[0]?.message.words).toBe("do not touch the release manifest");
+    expect(readings[0]?.state === "act" && readings[0].person.label).toBe("Ada");
+  });
+
+  it("carries a question and an answer, with what the answer answers", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await said(directory, key, { kind: "ask", words: "which task are you on?" });
+    await said(directory, key, {
+      to: key.keyId, toKind: "person", kind: "answer", author: "run",
+      words: "4.6, and the checks pass", answers: "q-1", stage: "apply", runId: "run-9",
+    });
+
+    const toRun = await readMessagesFor({
+      directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+    });
+    const toPerson = await readMessagesFor({
+      directory, to: key.keyId, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+      allowFromRun: true,
+    });
+
+    expect(toRun.map((reading) => reading.message.kind)).toEqual(["ask"]);
+    expect(toPerson.map((reading) => reading.message.kind)).toEqual(["answer"]);
+    expect(toPerson[0]?.message.answers).toBe("q-1");
+    expect(toPerson[0]?.message.stage).toBe("apply");
+  });
+
+  it("refuses a run's message where the reader does not take them, and takes it where it does", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await said(directory, key, { author: "run", words: "please stop touching my files" });
+    const when = { directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set<string>() };
+
+    const refused = await readMessagesFor(when);
+    const taken = await readMessagesFor({ ...when, allowFromRun: true });
+
+    expect(refused[0]?.state === "refused" && refused[0].why).toBe("author-not-allowed");
+    expect(taken[0]?.state).toBe("act");
+  });
+
+  it("stays fresh for a day, where a stop request goes stale in a minute", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await said(directory, key);
+    const when = { directory, to: INSTANCE, roster: rosterWith(key), seen: new Set<string>() };
+
+    const afterAnHour = await readMessagesFor({ ...when, now: new Date(SENT_AT.getTime() + 60 * 60_000) });
+    const afterTwoDays = await readMessagesFor({ ...when, now: new Date(SENT_AT.getTime() + 2 * CONVERSATION_STALE_AFTER_MS) });
+
+    expect(afterAnHour[0]?.state).toBe("act");
+    expect(afterTwoDays[0]?.state === "refused" && afterTwoDays[0].why).toBe("stale");
+    // The window a stop request keeps is untouched by this.
+    expect(STOP_MESSAGE_STALE_AFTER_MS).toBe(60_000);
+  });
+
+  it("answers nothing for a message addressed to another reader", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    await said(directory, key, { to: "run-elsewhere" });
+
+    expect(await readMessagesFor({
+      directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+    })).toEqual([]);
+  });
+
+  it("never parses the words of a message whose envelope does not check out", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    const messageId = await said(directory, key);
+    const filePath = path.join(directory, `${messageId}.json`);
+    const envelope = JSON.parse(await readFile(filePath, "utf8")) as { signature: string };
+    await writeFile(filePath, JSON.stringify({ ...envelope, signature: Buffer.from("not it").toString("base64") }, null, 2), "utf8");
+
+    expect(await readMessagesFor({
+      directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+    })).toEqual([]);
+  });
+
+  it("refuses a message with no words rather than writing one", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+
+    await expect(said(directory, key, { words: "   " })).rejects.toThrow(/says nothing/u);
+  });
+});
+
+describe("forgetMessage and sweepOldMessages", () => {
+  it("removes a delivered message, and does not mind one that is already gone", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    const messageId = await sendMessage({
+      directory, to: INSTANCE, toKind: "run", kind: "note", author: "person",
+      words: "look at 4.6 first", key, machine: "machine-a", now: () => SENT_AT,
+    });
+
+    await forgetMessage(directory, messageId);
+    await forgetMessage(directory, messageId);
+
+    expect(await readMessagesFor({
+      directory, to: INSTANCE, roster: rosterWith(key), now: new Date(SENT_AT.getTime() + 5_000), seen: new Set(),
+    })).toEqual([]);
+  });
+
+  it("sweeps what nobody came back for, by the time the file was written", async () => {
+    const directory = await messageDirectory();
+    const key = memoryKey();
+    const messageId = await sendMessage({
+      directory, to: INSTANCE, toKind: "run", kind: "note", author: "person",
+      words: "a message nobody read", key, machine: "machine-a",
+    });
+
+    expect(await sweepOldMessages(directory, { olderThanMs: 60_000 })).toEqual([]);
+    expect(await sweepOldMessages(directory, { now: new Date(Date.now() + 2 * CONVERSATION_STALE_AFTER_MS) }))
+      .toEqual([`${messageId}.json`]);
   });
 });

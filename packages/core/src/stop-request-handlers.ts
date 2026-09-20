@@ -8,8 +8,21 @@
 
 import os from "node:os";
 
-import { askRunToStop, isTaskNumber, messageDirectoryBeside } from "./agent-messages.js";
-import { readAgentStatuses, type AgentStatusRunOptions, type AgentStatusStopRequestRefusal } from "./agent-status.js";
+import {
+  askRunToStop,
+  isTaskNumber,
+  messageDirectoryBeside,
+  sendMessage,
+  type ConversationKind,
+} from "./agent-messages.js";
+import {
+  readAgentStatuses,
+  type AgentStatusMessage,
+  type AgentStatusMessageRefusal,
+  type AgentStatusRunOptions,
+  type AgentStatusStopRequestRefusal,
+} from "./agent-status.js";
+import type { ChainAnswer, ChainMessage } from "./harness-chain-runner.js";
 import { readGitAuthor } from "./git.js";
 import { loadOrCreateMachineKey, type MachineKey } from "./machine-key.js";
 import type { Command, Event } from "./protocol.js";
@@ -46,6 +59,93 @@ export function chainStopRequestHandlers(
       chainRunner.requestStop(command.runId, request.reason, request.by, request.messageId, request.afterTask);
     },
     onStopRequestRefused: (refusal) => recordRefusal(auditLog, command, "chain", refusal),
+  };
+}
+
+type MessageHandlers = Pick<AgentStatusRunOptions, "onMessage" | "onMessageRefused">;
+
+/** For a chain: a note or a question is held for the next stage, and the
+ * audit records that the run was spoken to and by whom
+ * (the-operator-can-say-something-to-a-run).
+ *
+ * An answer is not written here. The chain writes it when the stage that
+ * carried the question ends, through the `answerMessage` dependency its
+ * host passes in: only then is there anything to say. */
+export function chainMessageHandlers(
+  chainRunner: { deliverMessage(runId: string, message: ChainMessage): boolean },
+  command: RunCommand,
+  auditLog?: AuditLog,
+): MessageHandlers {
+  return {
+    onMessage: (message: AgentStatusMessage) => {
+      if (message.kind === "answer") return;
+      chainRunner.deliverMessage(command.runId, {
+        messageId: message.messageId,
+        kind: message.kind,
+        words: message.words,
+        from: message.from,
+        fromKeyId: message.fromKeyId,
+        sentAt: message.sentAt,
+      });
+    },
+    onMessageRefused: (refusal: AgentStatusMessageRefusal) => recordMessageRefusal(auditLog, command, "chain", refusal),
+  };
+}
+
+/** Records a message the run did not take, beside its other entries. What
+ * was said is not repeated: it was not verified to be anybody's. */
+function recordMessageRefusal(
+  auditLog: AuditLog | undefined,
+  command: RunCommand,
+  agent: string,
+  refusal: AgentStatusMessageRefusal,
+): void {
+  auditLog?.record({
+    runId: command.runId,
+    agent,
+    outcome: "message",
+    cwd: command.cwd,
+    timestamp: new Date().toISOString(),
+    changeDir: command.context.changeDir,
+    operatorMessageRefused: { messageId: refusal.messageId, why: refusal.why },
+  });
+}
+
+/** Writes the answers a chain owes, sealed with this machine's key.
+ *
+ * Passed to the chain runner as `answerMessage`. The chain decides what to
+ * say and when; this knows where the key is. */
+export function chainAnswerWriter(options: {
+  /** Where the run's status records live. A function, because a host
+   * builds its chain runner long before it knows the directory: resolving
+   * it needs git. */
+  statusDirectory: string | (() => Promise<string>);
+  workspaceRoot: string;
+  loadKey?: () => Promise<MachineKey>;
+  readAuthor?: (cwd: string) => Promise<string | undefined>;
+  machine?: string;
+  send?: typeof sendMessage;
+}): (answer: ChainAnswer) => Promise<void> {
+  return async (answer: ChainAnswer) => {
+    const statusDirectory = typeof options.statusDirectory === "string"
+      ? options.statusDirectory
+      : await options.statusDirectory();
+    const key = await (options.loadKey ?? (() => loadOrCreateMachineKey()))();
+    const gitAuthor = await (options.readAuthor ?? readGitAuthor)(options.workspaceRoot).catch(() => undefined);
+    await (options.send ?? sendMessage)({
+      directory: messageDirectoryBeside(statusDirectory),
+      to: answer.to,
+      toKind: "person",
+      kind: "answer",
+      author: "run",
+      words: answer.words,
+      answers: answer.answers,
+      stage: answer.stage,
+      runId: answer.runId,
+      key,
+      machine: options.machine ?? os.hostname(),
+      ...(gitAuthor !== undefined ? { gitAuthor } : {}),
+    });
   };
 }
 
@@ -90,6 +190,53 @@ export interface AskLiveRunToStopOptions {
   loadKey?: () => Promise<MachineKey>;
   readAuthor?: (cwd: string) => Promise<string | undefined>;
   machine?: string;
+}
+
+export type SayToLiveRunResult = { sent: true; messageId: string } | { sent: false; why: string };
+
+export interface SayToLiveRunOptions {
+  /** The status directory the host has just read the live runs from. */
+  statusDirectory: string;
+  workspaceRoot: string;
+  instanceId: string;
+  /** A note expects no reply; a question is answered when the stage that
+   * carries it ends. */
+  kind: "note" | "ask";
+  words: string;
+  /** Test seams. */
+  read?: typeof readAgentStatuses;
+  send?: typeof sendMessage;
+  loadKey?: () => Promise<MachineKey>;
+  readAuthor?: (cwd: string) => Promise<string | undefined>;
+  machine?: string;
+}
+
+/** The speaking side, for a host's row or card: a note or a question,
+ * written only for a run the host reads as live now, and sealed with the
+ * host's own key. Any other instance is refused, and says why - the same
+ * rule `askLiveRunToStop` applies, for the same reason: a run that is gone
+ * reads nothing, so a message to it would sit unread and look delivered
+ * (the-operator-can-say-something-to-a-run). */
+export async function sayToLiveRun(options: SayToLiveRunOptions): Promise<SayToLiveRunResult> {
+  const words = options.words.trim();
+  if (words.length === 0) return { sent: false, why: "a message with no words says nothing" };
+  const { reports } = await (options.read ?? readAgentStatuses)(options.statusDirectory);
+  const live = reports.some((report) => report.instanceId === options.instanceId && !report.gone && report.signature !== "does-not-check-out");
+  if (!live) return { sent: false, why: `no live run reports itself as ${options.instanceId}` };
+  const key = await (options.loadKey ?? (() => loadOrCreateMachineKey()))();
+  const gitAuthor = await (options.readAuthor ?? readGitAuthor)(options.workspaceRoot).catch(() => undefined);
+  const messageId = await (options.send ?? sendMessage)({
+    directory: messageDirectoryBeside(options.statusDirectory),
+    to: options.instanceId,
+    toKind: "run",
+    kind: options.kind satisfies ConversationKind,
+    author: "person",
+    words,
+    key,
+    machine: options.machine ?? os.hostname(),
+    ...(gitAuthor !== undefined ? { gitAuthor } : {}),
+  });
+  return { sent: true, messageId };
 }
 
 /** The asking side, for a host's card: a request to stop, written only for a
