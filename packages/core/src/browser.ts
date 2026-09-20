@@ -16,6 +16,9 @@ export type { ChangeState } from "./change-state.js";
 // leaves with no Node imports; the reading itself stays Node-only
 // (a-change-says-where-it-stands).
 export * from "./change-standing-facts.js";
+// How far a checkout is behind what has landed, and how that is
+// said (main-catches-up-with-what-landed).
+export * from "./main-drift-facts.js";
 export * from "./change-state-word.js";
 // One card per change, and its words — pure over readings a host took
 // (a-card-says-what-its-change-is-doing).

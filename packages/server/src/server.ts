@@ -39,6 +39,8 @@ import {
   handleAskToStopRequest,
   handleWorktreeSurveyRequest,
   handleArchiveChangesRequest,
+  handleCatchUpRequest,
+  handleMainDriftRequest,
   handleWorkspaceLeftoversRequest,
   handleRemoveLeftoverRequest,
   handleHumanOnlyInboxRequest,
@@ -281,6 +283,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/changes/archive") {
       void handleArchiveChangesRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/main-drift") {
+      void handleMainDriftRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/main-drift/catch-up") {
+      void handleCatchUpRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/workspace-leftovers") {

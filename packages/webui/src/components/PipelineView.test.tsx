@@ -5,6 +5,7 @@ import type {
   ChangeReadinessReport,
   ChangeStandings,
   LiveRun,
+  MainDrift,
   SurveyedDirectory,
   SurveyedRun,
   WorktreeSurvey,
@@ -1270,5 +1271,113 @@ describe("PipelineView - what has landed, folded away", () => {
 
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
     expect(screen.queryByTestId("pipeline-landed")).toBeNull();
+  });
+});
+
+// main-catches-up-with-what-landed 2.6: the drift line, the press and the
+// word on a foreign card.
+describe("PipelineView - how far behind this checkout is", () => {
+  const drifted = (over: Partial<MainDrift> = {}) => async (): Promise<MainDrift> => ({
+    branch: "main",
+    defaultBranch: "main",
+    remote: "origin",
+    ahead: 0,
+    behind: 5,
+    archivedOnDefault: ["alpha", "beta"],
+    clean: true,
+    ...over,
+  });
+
+  it("says how far behind it is and how many of the changes drawn are archived there", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        drift={drifted()}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-drift"))
+      .toHaveTextContent("main is 5 commits behind origin/main; 2 of these changes are archived on main"));
+  });
+
+  it("says nothing where the checkout is level with its remote", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        drift={drifted({ behind: 0, archivedOnDefault: [] })}
+      />,
+    );
+
+    await screen.findByTestId("pipeline-picture");
+    expect(screen.queryByTestId("pipeline-drift")).toBeNull();
+  });
+
+  it("offers no press where the host passes no way to catch up", async () => {
+    render(<PipelineView isActive load={async () => report(change("alpha"))} drift={drifted()} />);
+
+    await screen.findByTestId("pipeline-drift");
+    expect(screen.queryByTestId("pipeline-catch-up")).toBeNull();
+  });
+
+  it("catches up on the press, and says how far it moved", async () => {
+    const onCatchUp = vi.fn(async () => ({ ok: true as const, branch: "main", moved: 5 }));
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        drift={drifted()}
+        onCatchUp={onCatchUp}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-catch-up"));
+
+    await waitFor(() => expect(onCatchUp).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByTestId("pipeline-catch-up-said"))
+      .toHaveTextContent("Moved main on by 5 commits."));
+  });
+
+  it("shows a refusal beside the press rather than swallowing it", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        drift={drifted()}
+        onCatchUp={async () => ({ ok: false, why: "the working tree is not clean" })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-catch-up"));
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-catch-up-said"))
+      .toHaveTextContent("Not caught up: the working tree is not clean."));
+  });
+
+  it("says a change worked in another directory is archived on main", async () => {
+    const elsewhere = directory({
+      isThis: false,
+      label: "other",
+      path: "/wt/other",
+      changes: [{ changeName: "gamma", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [], tasksForPerson: 0, tasksDelegated: 0 }],
+    } as Partial<Extract<SurveyedDirectory, { readable: true }>>);
+    const standings = async (): Promise<ChangeStandings> => ({
+      readAt: new Date().toISOString(),
+      standings: [{ changeName: "gamma", elsewhere: [], main: { kind: "archived", archiveName: "2026-09-19-gamma" } }],
+      sources: { fetch: { attempted: false }, pullRequests: { read: true } },
+    });
+
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(elsewhere)}
+        standings={standings}
+      />,
+    );
+
+    const card = await screen.findByTestId("pipeline-directory-0-node-gamma");
+    expect(card).toHaveTextContent("archived on main");
   });
 });
