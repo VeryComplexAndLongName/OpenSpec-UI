@@ -1,45 +1,40 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-20T02:51:57.269Z",
+  "generated_at": "2026-09-20T04:03:38.384Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "8ef6e5a392d7ff1269e45d7f0d5dad9612ac5757",
+  "commit": "53b444940ac41bd4db7243985a50b5b2310881e4",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.67.0",
-      "released_at": "2026-09-20T02:51:57.269Z",
-      "tag": "openspec-ui-vscode@0.67.0",
+      "version": "0.67.1",
+      "released_at": "2026-09-20T04:03:38.384Z",
+      "tag": "openspec-ui-vscode@0.67.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.67.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.67.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.67.0/openspec-ui-vscode-0.67.0.vsix",
-          "size_bytes": 7010880
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.67.1/openspec-ui-vscode-0.67.1.vsix",
+          "size_bytes": 7011578
         }
       ],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "The operator can say something to a run, and hear back. The signed channel"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.32.1",
-      "released_at": "2026-09-20T02:51:57.269Z",
+      "version": "1.32.2",
+      "released_at": "2026-09-20T04:03:38.384Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -54,8 +49,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.101.0",
-      "released_at": "2026-09-20T02:51:57.269Z",
+      "version": "0.101.1",
+      "released_at": "2026-09-20T04:03:38.384Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -65,8 +60,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The operator can say something to a run, and hear back. The signed channel"
+          "kind": "patch",
+          "summary": "A run started from the terminal takes the notes and questions addressed to"
         }
       ]
     },
@@ -75,8 +70,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.64.1",
-      "released_at": "2026-09-20T02:51:57.269Z",
+      "version": "1.64.2",
+      "released_at": "2026-09-20T04:03:38.384Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -90,8 +85,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.15.0",
-      "released_at": "2026-09-20T02:51:57.269Z",
+      "version": "0.15.1",
+      "released_at": "2026-09-20T04:03:38.384Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -100,8 +95,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A run can be told where to stop, not only that it should"
+          "kind": "patch",
+          "summary": "A run started from the terminal takes the notes and questions addressed to"
         }
       ]
     }
