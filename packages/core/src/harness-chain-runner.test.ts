@@ -3531,6 +3531,74 @@ describe("HarnessChainRunner — one repository, one ceiling (changes-run-side-b
     expect((events.at(-1) as unknown as { reason: string }).reason).toContain("budget exceeded");
   });
 
+  // a-run-budget-has-a-unit: a chain whose agents are billed in credits
+  // can have a chain ceiling too.
+  it("stops before the next stage when a ceiling in another unit is reached", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxCost: { credits: 20 } },
+    });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    mockStatus(false);
+
+    const changeDir = path.join(root, "openspec", "changes", "demo");
+    const spentInCredits = [
+      { timestamp: "2026-09-20T00:00:00.000Z", runId: "earlier", agent: "copilot-cli", outcome: "started", changeDir },
+      {
+        timestamp: "2026-09-20T00:01:00.000Z",
+        runId: "earlier",
+        agent: "copilot-cli",
+        outcome: "completed",
+        changeDir,
+        usage: { cost: { amount: 25, currency: "credits" } },
+      },
+    ] as unknown as AuditEntry[];
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries: () => spentInCredits });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.at(-1)).toMatchObject({ kind: "failed" });
+    expect((events.at(-1) as unknown as { reason: string }).reason).toContain("25 credits");
+  });
+
+  it("leaves a run alone where what was reported is in a unit no ceiling names", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      budget: { maxCost: { credits: 20 } },
+    });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    mockStatus(false);
+
+    const changeDir = path.join(root, "openspec", "changes", "demo");
+    const spentInEuros = [
+      { timestamp: "2026-09-20T00:00:00.000Z", runId: "earlier", agent: "some-agent", outcome: "started", changeDir },
+      {
+        timestamp: "2026-09-20T00:01:00.000Z",
+        runId: "earlier",
+        agent: "some-agent",
+        outcome: "completed",
+        changeDir,
+        usage: { cost: { amount: 900, currency: "EUR" } },
+      },
+    ] as unknown as AuditEntry[];
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, listAuditEntries: () => spentInEuros });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    // The chain may end however this fixture ends it; what matters is
+    // that no ceiling fired on a unit it does not name.
+    const reasons = events.map((event) => String((event as unknown as { reason?: string }).reason ?? ""));
+    expect(reasons.some((reason) => reason.includes("budget exceeded"))).toBe(false);
+  });
+
   it("does not count a different change that happens to be recorded", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {

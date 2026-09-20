@@ -32,12 +32,25 @@ different units, and none substitutes for another.
 ### 1. `HarnessConfig.budget` — caps a whole chain, between stages
 
 ```json
-{ "budget": { "maxCostUsd": 25, "maxTokens": 2000000 } }
+{ "budget": { "maxCostUsd": 25, "maxTokens": 2000000, "maxCost": { "credits": 500 } } }
 ```
 
-`maxCostUsd` and `maxTokens` are both optional and independent — a
-configuration may cap cost only, tokens only, both, or (by omitting
-`budget` entirely) neither.
+`maxCostUsd`, `maxTokens` and `maxCost` are optional and independent — a
+configuration may cap any of them, all of them, or (by omitting `budget`
+entirely) none.
+
+`maxCost` is a ceiling **per unit of account**, for agents billed in
+something other than dollars. Each entry is compared only against what
+was reported in that same unit: nothing is converted, no exchange rate is
+invented, and no total mixes units. The unit is the code the agent itself
+reported, compared without regard to case, so `credits` and `Credits` are
+one ceiling. `maxCostUsd` remains the dollar ceiling and is not folded
+into the map.
+
+A ceiling in a unit no stage's agent is billed in is reported before the
+run, where the configuration is chosen — see "A configuration says
+which of its ceilings cannot act". It is not refused: an operator may
+knowingly set a ceiling that binds some stages and not others.
 
 `HarnessChainRunner.checkBudget` sums this change's own recorded audit
 usage — usage the agent reported, for the agents that report any — and
@@ -101,6 +114,10 @@ In this generated capture of the global view, `claude-cli` exposes
 control map and the screenshot regeneration command.*
 
 ## Why there is no single `budget: number`
+
+The same reasoning is why `maxCost` above is a map from unit to ceiling
+rather than one number: the unit travels with the amount, and two units
+are two ceilings rather than one sum.
 
 A portable, unit-agnostic `budget` field was rejected, for three concrete
 reasons found investigating what the underlying CLIs actually accept:
