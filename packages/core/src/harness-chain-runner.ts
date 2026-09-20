@@ -17,6 +17,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { readAcpStreamedText } from "./acp-streamed-text.js";
 import type { AdapterInvocation, AgentRunner } from "./agent-runner.js";
 import { captureCheckpoint, finalizeCheckpoint, type WorkbenchCheckpoint } from "./checkpoint.js";
 import {
@@ -115,6 +116,16 @@ export interface HarnessChainDeps {
 }
 
 type CheckpointOutcome = "confirmed" | "cancelled" | "stopped";
+
+/** How much of what an agent said an answer carries.
+ *
+ * The tail, not the whole stage: a stage can print thousands of lines,
+ * and what answers a question is what the agent finished by saying. Found
+ * live on 2026-09-20 - the first answer read "the verify stage ended
+ * completed without a closing summary" while the agent had answered the
+ * question in full, because a middle stage's `completed` event carries no
+ * summary (the-operator-can-say-something-to-a-run). */
+export const ANSWER_WORDS_LIMIT = 2_000;
 
 /** A note or a question this run has taken, waiting to be handed to an
  * agent (the-operator-can-say-something-to-a-run). */
@@ -1608,8 +1619,15 @@ export class HarnessChainRunner {
     // fails and the process is ended", step 4).
     let autonomousPermissionFailure = false;
     let outcome: "completed" | "failed" | "cancelled" = "completed";
-    /** What the agent said at the end of this stage, for an answer. */
+    /** What the agent said at the end of this stage, for an answer: the
+     * stage's closing summary where it has one, and otherwise the tail of
+     * what it streamed. */
     let said: string | undefined;
+    let saidTail = "";
+    const remember = (text: string): void => {
+      if (text.trim().length === 0) return;
+      saidTail = `${saidTail}${text}`.slice(-ANSWER_WORDS_LIMIT);
+    };
     // A stop asked for while this stage runs ends it at a sound point
     // (a-change-is-run-from-its-card). Where is decided by
     // `untilStopBoundary`, the same way for a chain's stage as for a
@@ -1672,6 +1690,8 @@ export class HarnessChainRunner {
           yield event;
           continue;
         }
+        if (event.kind === "stdout") remember(event.chunk);
+        if (event.kind === "agentUpdate") remember(readAcpStreamedText(event.update)?.text ?? "");
         if (event.kind === "usageReported") state.lastStageUsage = event.usage;
         if (event.kind === "failed") outcome = "failed";
         if (event.kind === "cancelled") {
@@ -1689,7 +1709,7 @@ export class HarnessChainRunner {
       state.currentRunner = undefined;
       state.currentCommand = undefined;
     }
-    await this.answerWhatWasAsked(state, stage, runId, said, outcome);
+    await this.answerWhatWasAsked(state, stage, runId, said ?? (saidTail.trim() || undefined), outcome);
     return outcome;
   }
 
