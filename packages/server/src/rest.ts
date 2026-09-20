@@ -37,7 +37,6 @@ import {
   runTimestampsByChange,
   readChangeEditorDocument,
   readChangeHarnessConfig,
-  renderSprintReportPdf,
   renderTemplate,
   resolveHarnessConfig,
   buildWorkspaceRunStats,
@@ -118,14 +117,6 @@ async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Prom
 function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   res.writeHead(statusCode, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
-}
-
-function sendPdf(res: ServerResponse, buffer: Buffer, filename: string): void {
-  res.writeHead(200, {
-    "content-type": "application/pdf",
-    "content-disposition": `attachment; filename="${filename}"`,
-  });
-  res.end(buffer);
 }
 
 function sendBodyError(res: ServerResponse, error: unknown): void {
@@ -570,10 +561,11 @@ export async function handleSprintReportRequest(req: IncomingMessage, res: Serve
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const report = await buildSprintReport(parsed.cwd, parsed.entries, parsed.rangeStart, parsed.rangeEnd);
-    const pdf = await renderSprintReportPdf(report);
-    const filename = `sprint-report-${parsed.rangeStart.slice(0, 10)}-${parsed.rangeEnd.slice(0, 10)}.pdf`;
-    sendPdf(res, pdf, filename);
+    // The summary, as data. The page that draws it is the browser's
+     // half, drawn with the product's own stylesheets, which live in
+     // `webui` (the-sprint-report-is-a-page-of-the-product): this layer
+     // stays thin, and sends JSON like everything else it sends.
+    sendJson(res, 200, await buildSprintReport(parsed.cwd, parsed.entries, parsed.rangeStart, parsed.rangeEnd));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to generate sprint report: ${message}` });

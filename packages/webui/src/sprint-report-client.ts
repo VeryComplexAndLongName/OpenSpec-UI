@@ -1,3 +1,5 @@
+import type { SprintReport } from "@openspec-ui/core/browser";
+
 export interface SprintReportEntry {
   changeName: string;
   archived: boolean;
@@ -10,22 +12,22 @@ async function responseError(response: Response): Promise<string> {
   return payload.error ?? `${response.status} ${response.statusText}`;
 }
 
-/** Fetches the sprint report PDF as a `Blob` — triggering the actual
- * browser download (an object URL + a temporary `<a download>`) is left
- * to the caller, since that part is DOM-specific and not meaningfully
- * unit-testable the way this network call is. */
-export async function fetchSprintReportPdf(
+/** Fetches the sprint summary. Drawing it as a page, opening it and
+ * printing it are the caller's: that part is DOM-specific and not
+ * meaningfully unit-testable the way this network call is
+ * (the-sprint-report-is-a-page-of-the-product). */
+export async function fetchSprintReport(
   request: SprintReportRequest,
   cwd: string,
   entries: SprintReportEntry[],
   rangeStart: string,
   rangeEnd: string,
-): Promise<Blob> {
+): Promise<SprintReport> {
   const response = await request("/api/sprint-report", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ cwd, entries, rangeStart, rangeEnd }),
   });
   if (!response.ok) throw new Error(await responseError(response));
-  return response.blob();
+  return response.json() as Promise<SprintReport>;
 }

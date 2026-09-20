@@ -36,6 +36,17 @@ export type {
   TemplateVariable,
 } from "./template-catalog.js";
 export type { ChangeTimeline, ChangeTimelineSpec, ChangeTimelineTask } from "./change-timeline.js";
+// The sprint summary's shape, so the page that draws it can be built in
+// `webui` while the figures stay here
+// (the-sprint-report-is-a-page-of-the-product). Types only: the module
+// they come from reads git, and a type export erases at build time.
+export type { CommitAuthor } from "./change-timeline.js";
+export type {
+  SprintReport,
+  SprintReportAuthorStat,
+  SprintReportEntry,
+  SprintReportStats,
+} from "./sprint-report.js";
 // The spans a comparison draws, as types only: the read that fills them
 // spawns git, and the screen is handed its result by a host.
 export type { ChangeSpan, ChangeSpans } from "./change-spans.js";

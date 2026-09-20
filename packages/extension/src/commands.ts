@@ -65,7 +65,6 @@ import {
   stepAgentFor,
   readArchivedChangeTasksTemplate,
   readGlobalHarnessConfig,
-  renderSprintReportPdf,
   renderTemplate,
   resolveHarnessConfig,
   showChange,
@@ -96,6 +95,9 @@ import {
   type ChangeCostReport,
   type ChangeOwnership,
 } from "@openspec-ui/core";
+// The report's page, from the package that owns the product's look
+// (the-sprint-report-is-a-page-of-the-product).
+import { renderSprintReportPage } from "@openspec-ui/webui/src/sprint-report-page.js";
 import { readRepoSetupFacts } from "./repo-setup-facts.js";
 import type { RunController } from "./run-controller.js";
 import { ancestryOf, findGraphRows, type ChangeGraphTreeItem, type GraphTreeNode } from "./tree/change-graph-tree.js";
@@ -2475,16 +2477,20 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!range) return;
       try {
         const report = await buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd);
-        const pdf = await renderSprintReportPdf(report);
-        const defaultName = `sprint-report-${range.rangeStart.slice(0, 10)}-${range.rangeEnd.slice(0, 10)}.pdf`;
+        // A page in the product's own look, opened in a browser, where
+        // Ctrl+P is the PDF. A webview would be the closer fit visually,
+        // but a webview cannot print and the editor has no print command
+        // (the-sprint-report-is-a-page-of-the-product).
+        const page = renderSprintReportPage(report);
+        const defaultName = `sprint-report-${range.rangeStart.slice(0, 10)}-${range.rangeEnd.slice(0, 10)}.html`;
         const target = await vscode.window.showSaveDialog({
-          filters: { PDF: ["pdf"] },
+          filters: { "Web page": ["html"] },
           defaultUri: vscode.Uri.joinPath(vscode.Uri.file(workspaceRoot), defaultName),
         });
         if (!target) return;
-        await vscode.workspace.fs.writeFile(target, pdf);
+        await vscode.workspace.fs.writeFile(target, Buffer.from(page, "utf8"));
         const action = await vscode.window.showInformationMessage(
-          `OpenSpec UI: sprint report saved to ${target.fsPath}.`,
+          `OpenSpec UI: sprint report saved to ${target.fsPath}. Open it and print to PDF.`,
           "Open",
         );
         if (action === "Open") await vscode.env.openExternal(target);
