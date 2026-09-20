@@ -1,40 +1,45 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-20T11:02:35.815Z",
+  "generated_at": "2026-09-20T13:05:44.230Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "de05aec4846d3aa3049506c0ff3231723f344309",
+  "commit": "562587b580563f369263d6c4e225ef63982509d5",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.68.2",
-      "released_at": "2026-09-20T11:02:35.815Z",
-      "tag": "openspec-ui-vscode@0.68.2",
+      "version": "0.69.0",
+      "released_at": "2026-09-20T13:05:44.230Z",
+      "tag": "openspec-ui-vscode@0.69.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.68.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.69.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.68.2/openspec-ui-vscode-0.68.2.vsix",
-          "size_bytes": 7034245
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.69.0/openspec-ui-vscode-0.69.0.vsix",
+          "size_bytes": 7052871
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Changes view says whose each change is"
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.33.2",
-      "released_at": "2026-09-20T11:02:35.815Z",
+      "version": "1.33.3",
+      "released_at": "2026-09-20T13:05:44.230Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +54,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.104.0",
-      "released_at": "2026-09-20T11:02:35.815Z",
+      "version": "0.105.0",
+      "released_at": "2026-09-20T13:05:44.230Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -61,7 +66,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Two agents on one machine can see each other. An agent that is not a run"
+          "summary": "The Changes view says whose each change is"
         }
       ]
     },
@@ -70,15 +75,20 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.66.1",
-      "released_at": "2026-09-20T11:02:35.815Z",
+      "version": "1.67.0",
+      "released_at": "2026-09-20T13:05:44.230Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Changes view says whose each change is"
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -86,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.16.0",
-      "released_at": "2026-09-20T11:02:35.815Z",
+      "released_at": "2026-09-20T13:05:44.230Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
