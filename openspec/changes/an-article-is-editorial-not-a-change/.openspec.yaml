@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-20
+# Process and one lint script: the runbook gains a section and a check is
+# added, and no requirement of any capability changes.
+skip_specs: true

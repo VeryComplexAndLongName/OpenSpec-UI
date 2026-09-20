@@ -139,6 +139,40 @@ archive on `main` instead. Nothing sweeps a branch up later, so they
 accumulate: on 2026-09-19 there were 184 local and 45 remote, 175 and 40
 of them dead since the spring.
 
+### Editorial content is not a change
+
+`docs/articles/**` - articles, teasers and the pictures beside them - needs
+no OpenSpec change. It is editorial: it has no requirement to state, no
+capability to modify, and nothing to verify beyond being true and readable.
+Everything else in this repository still does, the other documents
+included: a README, `HARNESS.md`, an ADR and a how-to page all say how the
+product behaves, and changing one of those is changing the product's
+description.
+
+**What still applies to editorial work:**
+
+- **English only.** `lint:english` reads every tracked `.md` and fails on
+  Cyrillic. A translation cannot live here; keep it where the other
+  language versions live.
+- **Pictures beside the article**, in `docs/articles/`, or taken from
+  `docs/images/`. `lint:screenshots` governs `docs/images/` and requires
+  every picture there to come from an end-to-end capture, so a cover drawn
+  by hand fails that check. `lint:articles` fails a link to a picture that
+  is neither, or to one that is not in the repository at all.
+- **The branch rules above.** One piece of work, one pull request, and the
+  branch ends when it merges.
+- **A claim about the product cites where it comes from.** A version, a
+  count of templates, a capability: name the file or the spec beside it.
+  `README.md` claimed "16 templates across 9 categories" for three weeks
+  while the answer was 17 across 10, and nothing failed. An article is read
+  by people who cannot check it against the tree, so the citation is what
+  makes it checkable later.
+
+**Its pull request is titled `article: <slug>`**, since it has no change id
+to be titled with. It touches `docs/articles/` and nothing else: a pull
+request that also edits `packages/`, `openspec/` or `.changeset/` is not
+editorial and takes the ordinary route.
+
 ## Architecture Changes via ADR (mandatory)
 
 Any architecture-impacting modification must be documented via ADR in
