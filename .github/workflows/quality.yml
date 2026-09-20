@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    branches: [main]
 
 # Which event runs what (a-merged-commit-is-checked-once). A change is
 # checked once, on its pull request:
@@ -16,10 +18,19 @@ on:
 #   changelogs, the lockfile and deleted changesets, which the integration
 #   and browser suites cannot exercise. It runs `version-pr` — install,
 #   build, package — with the audit and review; the suites report skipped.
+# - A merge group - a pull request's tentative merge, taken by the merge
+#   queue - runs the five required checks again, against the commit the
+#   change would land on (the-merge-queue-lands-them-in-order). That is
+#   the second run per change, and what buys it back is the queue's
+#   batching: a burst of small pull requests is one group, not one run
+#   each. `version-pr` is skipped there, since a merge group has no head
+#   branch to recognise the version pull request by, and dependency
+#   review is skipped too, since it reads a pull request's own diff.
 # - A push to `main` runs the release path only: `version-packages`,
 #   `release-extension`, `release-manifest`. It does not repeat the checks.
 #   The `main` ruleset requires them to pass on a branch that is up to date
-#   with `main`, so what lands is what they ran on. Before 2026-09-17 each
+#   with `main`, and the queue is what brings a branch up to date, so what
+#   lands is what they ran on. Before 2026-09-17 each
 #   change paid for four full runs: its pull request, its merge, the version
 #   pull request, and that merge.
 #
@@ -34,13 +45,16 @@ on:
 #
 # - A pull request's earlier run answers about a commit that is no longer
 #   the head, and nobody merges on that. Cancelling it is strictly better.
+# - A merge group's run must NOT be cancelled either: a cancelled check
+#   takes its pull request out of the queue, which reads as the queue
+#   dropping work at random.
 # - A `main` run must NOT be cancelled. Stopping one between creating a
 #   tag and publishing its release leaves a tag with nothing attached,
 #   which is worse than the race it would prevent and far harder to
 #   notice. It queues instead, and costs a wait.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -55,7 +69,9 @@ jobs:
     # A pull request's check, not the version pull request's, and not a
     # push's: see "Which event runs what" above. The three jobs that need
     # this one carry the same condition.
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: >-
+      (github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main')
+      || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -81,7 +97,7 @@ jobs:
     name: Dependency audit
     # Every pull request, the version pull request included: its lockfile
     # changes there. Not a push, which repeats a pull request's answer.
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -119,7 +135,9 @@ jobs:
   openspec-validate:
     name: OpenSpec change validation (merge gate)
     needs: quality
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: >-
+      (github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main')
+      || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     # 10, not 5, because `npm ci` dominates this job and its cost varies
     # by more than the old budget's margin. Measured on a run that
@@ -145,7 +163,9 @@ jobs:
   extension-integration:
     name: Extension integration and package
     needs: quality
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: >-
+      (github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main')
+      || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -493,7 +513,9 @@ jobs:
   browser-e2e:
     name: Standalone browser and accessibility
     needs: quality
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: >-
+      (github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main')
+      || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -124,6 +124,15 @@ another commit on the open one. The owner merges quickly, and a commit
 pushed to a branch whose pull request has already merged is stranded where
 nobody looks for it again; that has happened twice.
 
+**A ready pull request joins the merge queue.** The owner presses the
+button as before; the pull request then does not merge at once. GitHub
+takes it against the current tip of `main`, runs the required checks on
+that tentative merge, and lands it if they pass. Nobody updates a branch
+by hand for "out-of-date" any more, and nobody should: an entry rebased
+under the queue is an entry the queue drops. A rebase is still the answer
+to a *conflict*, which the queue cannot resolve
+(the-merge-queue-lands-them-in-order).
+
 **When the pull request merges, the branch is finished.** Delete it
 locally with `git branch -D <id>`, delete it on the server, remove its
 working directory with `git worktree remove`, and remove the empty shell
