@@ -17,6 +17,10 @@ export type ChangeStateKey =
   | "waiting-elsewhere"
   | "archived-on-main"
   | "merged"
+  // Finished and did not land: the two alarms
+  // (a-change-lands-with-nothing-open).
+  | "finished-never-pushed"
+  | "finished-rejected"
   | "deleted-on-main"
   | "further-along"
   | "failed"
@@ -48,6 +52,11 @@ export interface ChangeStateFacts {
    * something else holds is "Waiting in" this checkout. A surface that holds
    * no runs leaves this out. */
   answerableHere?: boolean;
+  /** Whether pull requests could be read at all. Without it the two
+   * alarms below stay silent: an absent pull request and a source that
+   * did not answer look the same from here, and only one of them is
+   * worth an alarm (a-change-lands-with-nothing-open). */
+  pullRequestsRead?: boolean;
 }
 
 export interface ChangeStateLine {
@@ -80,6 +89,9 @@ const COLOUR: Record<ChangeStateKey, ChangeStateColour> = {
   "waiting-elsewhere": "now",
   "archived-on-main": "settled",
   merged: "settled",
+  // An alarm is drawn as a failure: it is the colour a reader stops at.
+  "finished-never-pushed": "failed",
+  "finished-rejected": "failed",
   "deleted-on-main": "deleted",
   "further-along": "ahead",
   failed: "failed",
@@ -130,6 +142,14 @@ function liveRuns(copy: StandingCopy | undefined): { working: boolean; waiting: 
   return { working: runs.some((run) => !run.waiting), waiting: runs.some((run) => run.waiting) };
 }
 
+/** Whether every item of the change is closed, as the copy that has the
+ * most to say about it counts them. A change with no task list counted
+ * says nothing: zero of zero is not "finished". */
+function everyItemClosed(standing: ChangeStanding): boolean {
+  const counts = standing.here?.counts ?? standing.elsewhere.find((copy) => copy.counts !== undefined)?.counts;
+  return counts !== undefined && counts.total > 0 && counts.done >= counts.total;
+}
+
 /** Every word that applies, in precedence order. */
 function candidates(facts: ChangeStateFacts): Candidate[] {
   const { standing } = facts;
@@ -149,6 +169,25 @@ function candidates(facts: ChangeStateFacts): Candidate[] {
   }
   for (const copy of standing.elsewhere) {
     if (liveRuns(copy).waiting) found.push({ key: "waiting-elsewhere", word: `Waiting in ${copy.label}`, source: `a run's record in ${copy.label}` });
+  }
+
+  // Two alarms, before the ordinary words: work that is finished and did
+   // not land (a-change-lands-with-nothing-open). Loud because they are
+   // rare, and silent where pull requests could not be read.
+  if (facts.pullRequestsRead === true && everyItemClosed(standing) && standing.main?.kind !== "archived") {
+    if (standing.pullRequest === undefined) {
+      found.push({
+        key: "finished-never-pushed",
+        word: "Finished, never pushed",
+        source: "its task list, and no pull request",
+      });
+    } else if (standing.pullRequest.state === "CLOSED") {
+      found.push({
+        key: "finished-rejected",
+        word: `Finished, and #${standing.pullRequest.number} was closed`,
+        source: "its task list, and the change's pull request",
+      });
+    }
   }
 
   if (standing.main?.kind === "archived") {

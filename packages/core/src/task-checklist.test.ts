@@ -53,7 +53,7 @@ describe("readTaskChecklist", () => {
     const items = await readTaskChecklist(root, "active-change", false);
 
     expect(items).toEqual([
-      { lineNumber: 2, text: "1.1 First task", done: true, section: "Setup" },
+      { lineNumber: 2, text: "1.1 First task", done: true, section: "Setup", ending: "done" },
       { lineNumber: 3, text: "1.2 Second task", done: false, section: "Setup" },
     ]);
   });

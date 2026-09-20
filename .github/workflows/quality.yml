@@ -140,7 +140,14 @@ jobs:
       - run: npm install --global npm@${NPM_VERSION}
       - run: npm install --global @fission-ai/openspec@1.7.0
       - run: npm ci
-      - run: npm run start --workspace @openspec-ui/cli -- validate --cwd "$GITHUB_WORKSPACE"
+      # The branch names the change (ADR 0022), so the gate knows which
+      # change this pull request is for and applies the open-item rule
+      # to that one alone (a-change-lands-with-nothing-open). A branch
+      # that names no active change - an archive pull request, an
+      # article - skips the rule.
+      - run: npm run start --workspace @openspec-ui/cli -- validate --cwd "$GITHUB_WORKSPACE" --change "$HEAD_REF"
+        env:
+          HEAD_REF: ${{ github.head_ref }}
 
   extension-integration:
     name: Extension integration and package

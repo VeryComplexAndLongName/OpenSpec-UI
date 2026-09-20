@@ -26,6 +26,7 @@ import type {
 import type { HarnessTaskAgents } from "./harness-step-agent.js";
 import type { ItemReply } from "./audit-message.js";
 import { changeNameOf } from "./audit-runs.js";
+import { deferredListPath, readDeferredItems } from "./deferred-items.js";
 import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-items.js";
 import { readEnrolmentRequests } from "./enrolment.js";
 import { auditLogPath, FileAuditLog, type AuditEntry } from "./security.js";
@@ -62,8 +63,11 @@ export {
  * question.
  *
  * Archived changes are not read: archiving requires every task ticked,
- * so an archived change has nothing waiting by construction — and
- * reading 178 of them to confirm that would cost the caller a page load.
+ * so an archived change has nothing waiting by construction - and
+ * reading 285 of them to confirm would cost 309 ms, measured on
+ * 2026-09-20. A judgement that must outlive its change moves to the
+ * deferred list instead, which is one file and one read
+ * (a-change-lands-with-nothing-open).
  */
 export interface HumanOnlyInboxOptions {
   /** Test seam: the keys waiting to be enrolled. Production reads them
@@ -97,6 +101,19 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
   const items: HumanOnlyItem[] = [];
   const unmatchedTaskAgents: UnmatchedTaskAgent[] = [];
   const unreadableTaskAgents: UnreadableTaskAgentsConfig[] = [];
+
+  // Questions that outlived their changes, from the one file they move
+  // to. Read first, so an empty workspace still answers with them.
+  for (const deferred of await readDeferredItems(workspaceRoot)) {
+    if (deferred.done) continue;
+    items.push({
+      changeName: deferred.fromChange ?? "(deferred)",
+      changeDir: deferredListPath(workspaceRoot),
+      lineNumber: deferred.lineNumber,
+      text: deferred.text,
+      waitingOn: { kind: "person" },
+    });
+  }
 
   for (const change of workspace.changes) {
     const { items: tasks } = await readTaskChecklistOf(change);
