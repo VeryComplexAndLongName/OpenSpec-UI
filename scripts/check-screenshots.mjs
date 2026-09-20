@@ -42,6 +42,14 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 export const BASELINE_REASONS = new Set(["external-product"]);
 
 const IMAGES_DIR = path.join("docs", "images");
+/** What counts as a picture here.
+ *
+ * A recording is a picture that moves, and the reason this check exists -
+ * a picture nobody can retake goes stale silently - is exactly as true of
+ * one. Added before the campaign's demo recording landed, so it could not
+ * arrive outside every rule this repository has about pictures
+ * (an-article-directory-per-venue). */
+const PICTURE_EXTENSIONS = [".png", ".gif"];
 /** Every directory a capture may live in.
  *
  * Two, because two things are photographed: the standalone shell, by a
@@ -75,7 +83,7 @@ async function walkImages(root) {
     for (const entry of entries) {
       const next = path.join(relative, entry.name);
       if (entry.isDirectory()) await walk(next);
-      else if (entry.name.toLowerCase().endsWith(".png")) found.push(repoPath(next));
+      else if (PICTURE_EXTENSIONS.some((extension) => entry.name.toLowerCase().endsWith(extension))) found.push(repoPath(next));
     }
   }
   await walk(IMAGES_DIR);
@@ -90,7 +98,10 @@ async function walkImages(root) {
  * question: which images directory this spec writes into, and which
  * `.png` names it mentions. A spec that named a directory some other
  * way would be reported as producing nothing, which fails loudly on the
- * pictures it takes rather than passing them silently. */
+ * pictures it takes rather than passing them silently.
+ *
+ * A recorder of the demo is a capture like any other: it lives beside the
+ * other captures and names the file it writes. */
 export function capturedBy(source) {
   const directories = new Set();
   const directoryPattern = /"docs"\s*,\s*"images"\s*,\s*"([A-Za-z0-9._-]+)"/gu;
@@ -99,7 +110,7 @@ export function capturedBy(source) {
   }
 
   const names = new Set();
-  for (const match of source.matchAll(/"([A-Za-z0-9._-]+\.png)"/gu)) {
+  for (const match of source.matchAll(/"([A-Za-z0-9._-]+\.(?:png|gif))"/gu)) {
     if (match[1]) names.add(match[1]);
   }
 

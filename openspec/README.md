@@ -154,11 +154,24 @@ description.
 - **English only.** `lint:english` reads every tracked `.md` and fails on
   Cyrillic. A translation cannot live here; keep it where the other
   language versions live.
-- **Pictures beside the article**, in `docs/articles/`, or taken from
-  `docs/images/`. `lint:screenshots` governs `docs/images/` and requires
-  every picture there to come from an end-to-end capture, so a cover drawn
-  by hand fails that check. `lint:articles` fails a link to a picture that
-  is neither, or to one that is not in the repository at all.
+- **Pictures beside the article**, in `docs/articles/` at any depth - one
+  subdirectory per venue, and `shared/` for what more than one article
+  uses - or taken from `docs/images/`. `lint:articles` fails a link to a
+  picture that is neither, or to one that is not in the repository at all.
+- **A picture of the product comes from a capture**, under
+  `docs/images/`, and never from a hand-taken screenshot. Not a matter of
+  tidiness: a hand-taken picture carries whatever was on the screen, and
+  this repository has already published one with an account name in it.
+  A capture's fixture is built for the photograph and its paths are
+  masked. `lint:screenshots` governs `docs/images/` and requires every
+  picture there - `.png` and `.gif` alike - to come from an end-to-end
+  capture, so a cover drawn by hand fails that check. A recording lives
+  there too, and the script that re-records it is its capture: it sits
+  beside the other captures, in `packages/server/e2e` or
+  `packages/extension/e2e`, and names the file it writes.
+- **A cover or a diagram** - a drawing that is not of the product - is
+  the one hand-made picture there is, and it lives beside its article,
+  never in `docs/images/`.
 - **The branch rules above.** One piece of work, one pull request, and the
   branch ends when it merges.
 - **A claim about the product cites where it comes from.** A version, a

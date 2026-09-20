@@ -79,16 +79,34 @@ export async function checkArticleLinks(articleName, text, exists) {
   return problems;
 }
 
+/** Every article under `docs/articles/`, at any depth, as a path
+ * relative to it.
+ *
+ * To any depth because the campaign gives the directory one subdirectory
+ * per venue. A check that read only the root would have stopped seeing
+ * every article the moment they moved, and passed for ever
+ * (an-article-directory-per-venue). */
+async function articleNames(directory, within = "") {
+  let entries;
+  try {
+    entries = await readdir(path.join(directory, within), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const names = [];
+  for (const entry of entries) {
+    const next = within.length === 0 ? entry.name : `${within}/${entry.name}`;
+    if (entry.isDirectory()) names.push(...await articleNames(directory, next));
+    else if (entry.name.toLowerCase().endsWith(".md")) names.push(next);
+  }
+  return names.sort();
+}
+
 /** Every problem across every article. A repository with no articles has
  * none: an empty subject is not a broken check. */
 export async function checkAll(root = repoRoot) {
   const directory = path.join(root, ARTICLES_DIR);
-  let names;
-  try {
-    names = (await readdir(directory)).filter((name) => name.toLowerCase().endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
+  const names = await articleNames(directory);
   const exists = async (relative) => {
     try {
       return (await stat(path.join(root, relative))).isFile();
