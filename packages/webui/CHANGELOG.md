@@ -1,5 +1,22 @@
 # @openspec-ui/webui
 
+## 1.65.0
+
+### Minor Changes
+
+- 08d2cf8: The Pipeline says how far this checkout is behind what has landed - "main is
+  5 commits behind origin/main; 2 of these changes are archived on main" - and
+  offers to catch up. Catching up is a fast-forward and nothing else: it
+  refuses a tree that is not clean, a branch with commits the remote does not
+  have, and a checkout that is not on its default branch, each by name. A card
+  of a change in another working directory now says when that change is
+  archived on main.
+
+### Patch Changes
+
+- Updated dependencies [08d2cf8]
+  - @openspec-ui/core@0.102.0
+
 ## 1.64.2
 
 ### Patch Changes
