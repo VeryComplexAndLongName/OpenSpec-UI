@@ -29,12 +29,14 @@ export interface ValidateAllResult {
   results: ChangeValidationResult[];
 }
 
-/** The structural validation, which spawns the `openspec` CLI. A seam,
- * because the job that runs the unit tests does not install that CLI -
- * only the merge-gate job does - and a test about the open-item rule
- * should not need a process at all
- * (a-change-lands-with-nothing-open). */
+/** The two calls that spawn the `openspec` CLI. Seams, because the job
+ * that runs the unit tests does not install that CLI - only the
+ * merge-gate and extension jobs do - and a test about the open-item
+ * rule should not need a process at all. CI found this with
+ * `spawn openspec ENOENT` where this machine, which has the CLI
+ * installed, said nothing (a-change-lands-with-nothing-open). */
 export type ValidateChange = typeof validateChange;
+export type ListChanges = typeof listChanges;
 
 async function validateOne(id: string, cwd: string, run: ValidateChange): Promise<ChangeValidationResult> {
   try {
@@ -83,10 +85,11 @@ async function taskDebts(cwd: string, changeName: string): Promise<{ open: strin
 
 export async function runValidateAll(
   cwd: string,
-  options: { change?: string; validateChange?: ValidateChange } = {},
+  options: { change?: string; validateChange?: ValidateChange; listChanges?: ListChanges } = {},
 ): Promise<ValidateAllResult> {
   const run = options.validateChange ?? validateChange;
-  const { changes } = await listChanges({ cwd });
+  const list = options.listChanges ?? listChanges;
+  const { changes } = await list({ cwd });
   const results = await Promise.all(changes.map((change) => validateOne(change.name, cwd, run)));
 
   // The open-item rule applies to one change: the one the pull request

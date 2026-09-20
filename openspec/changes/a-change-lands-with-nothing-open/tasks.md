@@ -58,11 +58,14 @@ lands with nothing open.
   `packages/webui/scripts/build-metro-icons.test.mjs`, which fails on
   Windows for its line endings and fails the same way on untouched
   `main`.
-- [x] 5.1a The structural validation is a seam in the gate's tests. It
-  spawns the `openspec` CLI, and the job that runs the unit tests does
-  not install it - only the merge-gate and extension jobs do. CI found
-  that with `spawn openspec ENOENT` where this machine, which has it
-  installed, said nothing.
+- [x] 5.1a Both calls that spawn the `openspec` CLI - the structural
+  validation and the change listing - are seams in the gate's tests. The
+  job that runs the unit tests does not install that CLI; only the
+  merge-gate and extension jobs do. CI found it with
+  `spawn openspec ENOENT` where this machine, which has it installed,
+  said nothing - twice, because the first fix seamed only one of the
+  two. Proven by running the tests with the binary taken off `PATH`,
+  which is the condition CI has and the one to check before pushing.
 - [x] 5.2 A changeset: core and the CLI both change.
 - [x] 5.3 `openspec validate a-change-lands-with-nothing-open --strict`.
 - [x] 5.4 The gate run against this repository as it stands. With this

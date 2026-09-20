@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,12 +11,23 @@ import { runValidateAll } from "./openspec-validate.js";
 // one. Measured on 2026-09-20: the six together take under 100 ms.
 vi.setConfig({ testTimeout: 10_000 });
 
-/** Structure is somebody else's question here, and answering it would
- * spawn a process this job has no binary for. */
+/** Structure is somebody else's question here, and both of these spawn
+ * a process this job has no binary for. */
+type Options = NonNullable<Parameters<typeof runValidateAll>[1]>;
+
 const structureIsFine = (async () => ({
   summary: { totals: { items: 1, failed: 0 } },
   items: [],
-})) as unknown as Parameters<typeof runValidateAll>[1] extends { validateChange?: infer V } ? V : never;
+})) as unknown as NonNullable<Options["validateChange"]>;
+
+const listsWhatIsThere = (async (options: { cwd: string }) => ({
+  root: options.cwd,
+  changes: (await readdir(path.join(options.cwd, "openspec", "changes"), { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({ name: entry.name })),
+})) as unknown as NonNullable<Options["listChanges"]>;
+
+const seams = { validateChange: structureIsFine, listChanges: listsWhatIsThere };
 
 // a-change-lands-with-nothing-open 2. The rule applies to the change a
 // pull request is for, and to no other.
@@ -51,7 +62,7 @@ describe("the open-item rule", () => {
   it("refuses the named change for an open item, and names it", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
 
     const named = forChange(result, "the-change");
     expect(named?.valid).toBe(false);
@@ -62,7 +73,7 @@ describe("the open-item rule", () => {
   it("refuses a human-only item closed with nothing written under it", async () => {
     const root = await workspace({ "the-change": UNRECORDED });
 
-    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
 
     expect(forChange(result, "the-change")?.unrecordedItems?.join(" ")).toContain("Whether it reads");
   });
@@ -70,7 +81,7 @@ describe("the open-item rule", () => {
   it("accepts one that carries its record", async () => {
     const root = await workspace({ "the-change": RECORDED });
 
-    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
 
     expect(forChange(result, "the-change")?.unrecordedItems).toBeUndefined();
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
@@ -79,7 +90,7 @@ describe("the open-item rule", () => {
   it("never fails one change for another change's open item", async () => {
     const root = await workspace({ "the-change": CLOSED, "somebody-elses": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change", validateChange: structureIsFine });
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
     expect(forChange(result, "somebody-elses")?.openItems).toBeUndefined();
@@ -88,7 +99,7 @@ describe("the open-item rule", () => {
   it("applies no rule where the name is no active change", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root, { change: "the-change-archive", validateChange: structureIsFine });
+    const result = await runValidateAll(root, { change: "the-change-archive", ...seams });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
   });
@@ -96,7 +107,7 @@ describe("the open-item rule", () => {
   it("applies no rule where no change was named at all", async () => {
     const root = await workspace({ "the-change": OPEN });
 
-    const result = await runValidateAll(root, { validateChange: structureIsFine });
+    const result = await runValidateAll(root, { ...seams });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
   });
