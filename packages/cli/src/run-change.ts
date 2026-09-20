@@ -16,12 +16,15 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  chainAnswerWriter,
+  chainMessageHandlers,
   chainStopRequestHandlers,
   createGitWrapper,
   readGitAuthor,
   readRepositoryAuditEntries,
   describeWorkspaceLeaseConflict,
   describeWorkspaceLeaseReclamation,
+  resolveAgentStatusDirectory,
   resolveChainStart,
   resolveRunner,
   withAgentStatus,
@@ -53,7 +56,7 @@ export interface RunChangeDeps {
     resolveRunner: (agentId: string | undefined) => AgentRunner | undefined;
     listAuditEntries: () => ReturnType<FileAuditLog["readEntries"]>;
     auditLog: FileAuditLog;
-  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "cancel" | "requestStop">;
+  }) => Pick<HarnessChainRunner, "run" | "confirmCheckpoint" | "cancel" | "requestStop" | "deliverMessage">;
   /** Registers an interrupt handler and returns a function that removes
    * it. Injected because a unit test must not install a process-wide
    * signal handler. */
@@ -111,6 +114,17 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
             resolveRunner: chainDeps.resolveRunner,
             listAuditEntries: chainDeps.listAuditEntries,
             auditLog: chainDeps.auditLog,
+            // An answer to a question the operator asked, written where
+            // the key is (the-operator-can-say-something-to-a-run). The
+            // status directory is resolved when the first answer is due:
+            // resolving it needs git, and most runs are asked nothing.
+            answerMessage: chainAnswerWriter({
+              workspaceRoot,
+              statusDirectory: () => resolveAgentStatusDirectory(
+                createGitWrapper({ cwd: workspaceRoot }),
+                workspaceRoot,
+              ),
+            }),
           }),
       { resolve, auditLog },
     );
@@ -184,7 +198,14 @@ async function driveChain(
   try {
     // A request to stop this run, from another worktree, stops it where its
     // work is sound, as a card's Stop would (a-run-elsewhere-can-be-asked-to-stop).
-    for await (const event of withAgentStatus(chain.run(command), command, chainStopRequestHandlers(chain, command, wiring.auditLog))) {
+    // The same renewal reads a request to stop and what the operator said
+    // (the-operator-can-say-something-to-a-run): a run from the terminal is
+    // spoken to exactly as one started from the editor is.
+    const statusHandlers = {
+      ...chainStopRequestHandlers(chain, command, wiring.auditLog),
+      ...chainMessageHandlers(chain, command, wiring.auditLog),
+    };
+    for await (const event of withAgentStatus(chain.run(command), command, statusHandlers)) {
       write(event);
 
       if (event.kind === "checkpoint") {

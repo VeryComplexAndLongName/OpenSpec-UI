@@ -49,6 +49,7 @@ function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {
   /** Stops asked through a signed request from another worktree
    * (a-run-elsewhere-can-be-asked-to-stop). */
   const stopsRequested: Array<{ runId: string; reason: string; by?: string; messageId?: string }> = [];
+  const delivered: Array<{ runId: string; messageId: string; kind: string; words: string }> = [];
   return {
     confirmed,
     cancelled,
@@ -68,6 +69,12 @@ function scriptedChain(events: Event[], hooks: { beforeEvents?: () => void } = {
       },
       requestStop(runId: string, reason: string, by?: string, messageId?: string) {
         stopsRequested.push({ runId, reason, ...(by !== undefined ? { by } : {}), ...(messageId !== undefined ? { messageId } : {}) });
+        return true;
+      },
+      // What the operator said, taken the same way a stop is
+      // (the-operator-can-say-something-to-a-run).
+      deliverMessage(runId: string, message: { messageId: string; kind: string; words: string }) {
+        delivered.push({ runId, messageId: message.messageId, kind: message.kind, words: message.words });
         return true;
       },
     }),

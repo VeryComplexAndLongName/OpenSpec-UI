@@ -2136,6 +2136,37 @@ describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.
     await run.pump.catch(() => undefined);
   });
 
+  it("answers with the tail of what the agent said where the stage has no closing summary", async () => {
+    const answers: Array<{ words: string }> = [];
+    const run = await applyChain({ noCheckpoints: true, answerMessage: (answer) => { answers.push(answer); } });
+
+    run.chain.deliverMessage(run.command.runId, {
+      messageId: "m-ask",
+      kind: "ask",
+      words: "which task are you on?",
+      from: "Ada",
+      fromKeyId: "key-ada",
+      sentAt: "2026-09-19T10:00:00.000Z",
+    });
+
+    await writeTasks(run.root, 0, 2);
+    run.push({ kind: "completed", timestamp: "t", summary: "applied" }, "end");
+    await waitForChain(
+      () => expect(run.calls.some((call) => call.kind === "verify")).toBe(true),
+      "the verify stage to start",
+    );
+    // A middle stage's completed event carries no summary of its own: what
+    // the agent said is what it streamed (the-operator-can-say-something-to-a-run).
+    run.push({ kind: "stdout", timestamp: "t", chunk: "Answering Ada: 4.6, and both notes are written." });
+    run.push({ kind: "completed", timestamp: "t" }, "end");
+    await waitForChain(() => expect(answers.length).toBe(1), "the answer to be written");
+
+    expect(answers[0]?.words).toContain("Answering Ada: 4.6, and both notes are written.");
+
+    run.chain.cancel(run.command.runId);
+    await run.pump.catch(() => undefined);
+  });
+
   it("refuses a request naming a task the change does not have, and the run goes on", async () => {
     const run = await applyChain();
     await writeTasksRaw(run.root, ["## 2. Tasks", "", "- [ ] 2.1 first", ""].join("\n"));
