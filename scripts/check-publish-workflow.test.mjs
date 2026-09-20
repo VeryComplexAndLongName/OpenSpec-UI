@@ -112,3 +112,42 @@ test("a missing workflow fails rather than passing quietly", async () => {
 test("this repository's own workflows pass", async () => {
   assert.deepEqual(await checkAll(), []);
 });
+
+// the-homepage-hears-about-an-article: the other credential this
+// repository holds is named by one workflow too.
+test("fails a workflow other than the dispatch one that names the homepage token", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-workflows-"));
+  try {
+    await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
+    await writeFile(path.join(root, ".github", "workflows", "publish-marketplace.yml"), GOOD, "utf8");
+    await writeFile(
+      path.join(root, ".github", "workflows", "quality.yml"),
+      ["name: Quality", "jobs:", "  build:", "    env:", "      GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}"].join("\n"),
+      "utf8",
+    );
+
+    const problems = await checkOtherWorkflows(root);
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /names HOMEPAGE_DISPATCH_TOKEN/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("allows the dispatch workflow itself to name the homepage token", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-workflows-"));
+  try {
+    await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
+    await writeFile(path.join(root, ".github", "workflows", "publish-marketplace.yml"), GOOD, "utf8");
+    await writeFile(
+      path.join(root, ".github", "workflows", "homepage-dispatch.yml"),
+      ["name: Tell the homepage", "jobs:", "  tell:", "    env:", "      GH_TOKEN: ${{ secrets.HOMEPAGE_DISPATCH_TOKEN }}"].join("\n"),
+      "utf8",
+    );
+
+    assert.deepEqual(await checkOtherWorkflows(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
