@@ -1,10 +1,46 @@
-# OpenSpec UI
+# OpenSpec Workbench
 
-Dashboard for [OpenSpec](https://github.com/Fission-AI/OpenSpec) — a view
-over Changes/Archive/Specs/Tasks and a launcher for CLI agents (Claude CLI,
-GitHub Copilot CLI, Codex CLI, Gemini CLI, and a local LLM via an
-OpenAI-compatible API) for working with change proposals. The product ships
-in two forms with shared code: a standalone web tool and a VS Code extension.
+**Run and supervise coding agents on [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+changes.** Start a run from a change, watch what the agent is doing while it
+does it, stop it where its work is sound, and see every change's standing
+across every working directory you have open.
+
+![The standalone OpenSpec Workbench: the application bar with the workspace and the theme switch, the Run tab beside Processes, Diff, Summary, Editor, Templates, Timeline, Pipeline and Harness, a completed show command with its analysis and streamed output, and the footer's package versions](docs/images/standalone/run-command.png)
+
+## Install
+
+**In VS Code**, from the
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=openspec-ui.openspec-ui-vscode),
+or from a terminal:
+
+```bash
+code --install-extension openspec-ui.openspec-ui-vscode
+```
+
+**As a local web application**, from a clone of this repository:
+
+```bash
+npm install
+npm run build --workspace @openspec-ui/server
+npm run start --workspace @openspec-ui/server -- <workspaceRoot> 4317
+```
+
+The build step is not optional: the server serves a bundle that is not
+committed. `<workspaceRoot>` is the repository you want it to work on. It
+prints a URL carrying a one-time token; open that exact URL. Everything
+runs on your machine, against your own agent CLIs.
+
+**The name is the product's; the code keeps its own.** The repository, the
+npm packages (`@openspec-ui/core`, `@openspec-ui/server`,
+`@openspec-ui/webui`), the CLI (`openspec-ui-cli`), the extension id
+(`openspec-ui.openspec-ui-vscode`) and the site
+[openspec-ui.dev](https://openspec-ui.dev) are all still OpenSpec-UI. If you
+came here looking for that, you are in the right place.
+
+It ships in two forms with shared code: the VS Code extension and the
+standalone web application. The agents it can drive are Claude CLI, GitHub
+Copilot CLI, Codex CLI, Gemini CLI, and a local LLM over an
+OpenAI-compatible API.
 
 Project site: [https://openspec-ui.dev](https://openspec-ui.dev) — downloads, release notes and
 what each delivery target does.
@@ -18,7 +54,10 @@ workflows through interfaces suited to their respective hosts.
 
 ### Standalone application
 
-![The standalone OpenSpec UI: the application bar with the workspace and the theme switch, the Run tab beside Processes, Diff, Summary, Editor, Templates, Timeline, Pipeline and Harness, a completed show command with its analysis and streamed output, and the footer's package versions](docs/images/standalone/run-command.png)
+Pictured above: the application bar with the workspace and the theme
+switch, the Run tab beside Processes, Diff, Summary, Editor, Templates,
+Timeline, Pipeline and Harness, and a completed command with its analysis
+and streamed output.
 
 ### VS Code extension
 
@@ -70,9 +109,9 @@ product.
 
 ### UI reception and launch
 
-- Standalone web app: build the server bundle and start the local standalone
-  app from source, then open the tokenized localhost URL printed by the server.
-  Example commands from the repository root:
+- Standalone web app: start the local standalone app from source, then open
+  the tokenized localhost URL printed by the server. The same two commands
+  as above, with the build step written out:
 
   ```bash
   npm install
@@ -93,13 +132,17 @@ product.
   You must open that exact URL in the browser to connect to the server. The
   URL contains a temporary one-time access token; without it, you cannot access
   the running server. The default port is `4317`.
-- VS Code extension: install the extension into VS Code and open the native
-  workbench from the editor. The extension uses the same shared core logic and
-  local-only data access path as the web app.
+- VS Code extension: install it from the
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=openspec-ui.openspec-ui-vscode)
+  and open the workbench from the activity bar. The extension uses the same
+  shared core logic and local-only data access path as the web app.
 
-### VSIX package reception and installation in VS Code
+### Installing without the Marketplace
 
-- Receive the packaged artifact from the official GitHub Release for the
+For a machine that cannot reach the Marketplace, or to pin an exact
+version:
+
+- Take the packaged artifact from the official GitHub Release for the
   extension. The built package is published as a `.vsix` file; it is not
   committed into the repository.
 - In VS Code, open the Extensions view and choose "Install from VSIX...".
@@ -189,6 +232,42 @@ comparison could not find them.
 
 The two are not exclusive: planning done with BMAD can be written down as an
 OpenSpec change here and run through the harness.
+
+## How this differs from the other OpenSpec viewers
+
+Several projects put a user interface over OpenSpec. Read on 2026-09-20,
+in their own words:
+
+- **[ToruAI/openspec-ui](https://github.com/ToruAI/openspec-ui)** — "a
+  single kanban board over every OpenSpec repo you work in — which change
+  is where in the workflow, what is ready to write next, and what is still
+  blocked". It is read-only by design and says it "never writes to your
+  specs". It covers several repositories at once, which this one does not:
+  it reads the working directories of one.
+- **[jixoai/openspecui](https://github.com/jixoai/openspecui)** — "a web
+  interface for OpenSpec workflows (live mode + static export)", with
+  viewers and editors for the config and schema, a compose panel for change
+  actions, and a static snapshot you can host as documentation. The static
+  export is its own, and this one has nothing like it. It also offers a
+  terminal panel, in which a person can of course run whatever they like.
+- **[coderj001/openspec-ui-vscode](https://github.com/coderj001/openspec-ui-vscode)**
+  — "a visual workspace for browsing, reviewing, and understanding Openspec
+  changes in VS Code", with line-level comments on artifacts and a "Copy
+  Comments" action for pasting into "Codex, Claude Code, or another CLI
+  tool". Its line-level commenting is its own; this one has no equivalent.
+
+What they share is showing a change's documents and where it stands. The
+difference is what happens next: **none of them starts an agent, and this
+one does.** Here a change is run — propose, review, apply, verify, archive,
+git — by the agent CLI you configure per stage; the run says what it is
+doing while it does it; a person can stop it, or tell it to stop after a
+named task; a checkpoint can ask before the next stage; there are spending
+and time ceilings, an audit log, a lease on the working directory, and a
+signed channel for asking a run elsewhere to stop or leaving it a note.
+
+If you want to read and review OpenSpec changes, any of these will do it,
+and two of them do things this one does not. If you want to set agents
+working on them and keep your hand on the wheel, that is what this is for.
 
 ## Architecture at a Glance
 
