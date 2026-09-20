@@ -141,6 +141,16 @@ function createPipelinePanel(overrides: {
       standings: [{ changeName: "alpha", elsewhere: [], main: { kind: "archived", archiveName: "2026-09-14-alpha" } }],
       sources: { fetch: { attempted: false }, pullRequests: { read: true } },
     })),
+    drift: vi.fn(async (_root: string, standings: { standings: Array<{ changeName: string }> } | undefined) => ({
+      branch: "main",
+      defaultBranch: "main",
+      remote: "origin",
+      ahead: 0,
+      behind: 4,
+      archivedOnDefault: (standings?.standings ?? []).map((one) => one.changeName),
+      clean: true,
+    })),
+    catchUp: vi.fn(async () => ({ ok: true, branch: "main", moved: 4 })),
     ...overrides.readers,
   };
   const revealChange = vi.fn(async () => undefined);
@@ -601,5 +611,50 @@ describe("PipelinePanel — the optional local server", () => {
     const html = created[0]!.webview.html;
     expect(html).toContain('event.origin !== "http://127.0.0.1:4999"');
     expect(html).toContain("acquireVsCodeApi()");
+  });
+});
+
+// main-catches-up-with-what-landed 3.2: the panel answers the drift and
+// the catch-up for its own host's root.
+describe("PipelinePanel - how far behind this checkout is", () => {
+  it("answers the drift, handing it the standings it read", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "w:9", op: "pipeline/drift" });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "w:9",
+      ok: true,
+      value: expect.objectContaining({ behind: 4, archivedOnDefault: ["alpha"] }),
+    }));
+  });
+
+  it("still answers the counts where the standings cannot be read", async () => {
+    const { pipeline } = createPipelinePanel({
+      readers: { standings: vi.fn(async () => { throw new Error("no gh here"); }) },
+    });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "w:10", op: "pipeline/drift" });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "w:10",
+      ok: true,
+      value: expect.objectContaining({ behind: 4, archivedOnDefault: [] }),
+    }));
+  });
+
+  it("answers the catch-up with what core said", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "w:11", op: "pipeline/catch-up" });
+
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "w:11",
+      ok: true,
+      value: { ok: true, branch: "main", moved: 4 },
+    }));
   });
 });

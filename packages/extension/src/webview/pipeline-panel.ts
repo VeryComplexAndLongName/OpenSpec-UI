@@ -17,14 +17,18 @@ import {
   myRosterLabel,
   discoverOpenSpecWorkspace,
   isValidChangeName,
+  catchUpWithMain,
   readChangeStandings,
+  readMainDrift,
   readLastRuns,
   readPipelineReadiness,
   refreshSurveyRuns,
   resolveAgentStatusDirectory,
   STANDING_FETCH_INTERVAL_MS,
   surveyWorktrees,
+  type CatchUpResult,
   type ChangeStandings,
+  type MainDrift,
   type LastRunsReport,
   type LiveRuns,
   type WorktreeSurvey,
@@ -130,6 +134,13 @@ export interface PipelineReaders {
   /** Where every change stands, fetching refs only on the interval, so a
    * card's word is the Changes tree's (a-card-says-what-its-change-is-doing). */
   standings: (workspaceRoot: string) => Promise<ChangeStandings>;
+  /** How far this checkout is behind what has landed, and what of it the
+   * default branch already carries archived
+   * (main-catches-up-with-what-landed). */
+  drift: (workspaceRoot: string, standings: ChangeStandings | undefined) => Promise<MainDrift | undefined>;
+  /** Brings the default branch up to its remote by fast-forward, or says
+   * why it will not. */
+  catchUp: (workspaceRoot: string) => Promise<CatchUpResult>;
   /** The roster label of this host's own key, beside a status directory. */
   myLabel: (statusDirectory: string) => Promise<string | undefined>;
   /** Asks a run the host reads as live to stop, with its own key
@@ -141,6 +152,11 @@ const DEFAULT_READERS: PipelineReaders = {
   standingsNow: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: "now" }),
   lastRuns: (workspaceRoot) => readLastRuns({ workspaceRoot }),
   standings: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: { ifOlderThan: STANDING_FETCH_INTERVAL_MS } }),
+  drift: async (workspaceRoot, standings) => readMainDrift({
+    root: workspaceRoot,
+    ...(standings !== undefined ? { standings } : {}),
+  }),
+  catchUp: (workspaceRoot) => catchUpWithMain({ root: workspaceRoot }),
   readiness: (workspaceRoot) => readPipelineReadiness(workspaceRoot),
   survey: (workspaceRoot) => surveyWorktrees({ workspaceRoot, sweepStatuses: true }),
   refreshRuns: (survey) => refreshSurveyRuns(survey, { sweepStatuses: true }),
@@ -379,6 +395,23 @@ export class PipelinePanel {
           return;
         case "pipeline/standings":
           reply({ ok: true, value: await this.readers.standings(workspaceRoot) });
+          return;
+        case "pipeline/drift": {
+          // The standings are read for the one thing the drift needs from
+          // them, and a reading that fails leaves the counts standing:
+          // being behind is worth saying without `gh`
+          // (main-catches-up-with-what-landed).
+          let standings: ChangeStandings | undefined;
+          try {
+            standings = await this.readers.standings(workspaceRoot);
+          } catch {
+            standings = undefined;
+          }
+          reply({ ok: true, value: (await this.readers.drift(workspaceRoot, standings)) ?? null });
+          return;
+        }
+        case "pipeline/catch-up":
+          reply({ ok: true, value: await this.readers.catchUp(workspaceRoot) });
           return;
         case "pipeline/live-runs": {
           // The same shape the server's /api/live-runs answers, for this

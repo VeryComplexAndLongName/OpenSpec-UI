@@ -148,6 +148,19 @@ export interface GitWrapper {
   lastFetchedAt(): Promise<Date | undefined>;
   /** The merge base of two refs, or `undefined` where they share none. */
   mergeBase(left: string, right: string): Promise<string | undefined>;
+  /** How many commits each of two refs has that the other does not.
+   *
+   * One `rev-list --left-right --count`, which answers both directions at
+   * once. Both are read because `behind` is what a person is told and
+   * `ahead` is what makes a fast-forward impossible: a refusal that
+   * cannot say why is worse than none (main-catches-up-with-what-landed).
+   *
+   * `undefined` where either ref does not resolve. */
+  aheadBehind(left: string, right: string): Promise<{ ahead: number; behind: number } | undefined>;
+  /** Moves the current branch to `ref` where that is a fast-forward, and
+   * refuses otherwise. Runs exactly `git merge --ff-only <ref>`: it moves
+   * a pointer and can conflict with nothing. */
+  fastForward(ref: string): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
@@ -321,6 +334,26 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         return out.length > 0 ? out : undefined;
       } catch {
         return undefined;
+      }
+    },
+    async aheadBehind(left: string, right: string): Promise<{ ahead: number; behind: number } | undefined> {
+      try {
+        // `A...B` with `--left-right` counts each side's own commits: the
+        // left column is what A has and B does not.
+        const out = (await git.raw(["rev-list", "--left-right", "--count", `${left}...${right}`])).trim();
+        const [ahead, behind] = out.split(/\s+/u).map((part) => Number.parseInt(part, 10));
+        if (!Number.isFinite(ahead) || !Number.isFinite(behind)) return undefined;
+        return { ahead: ahead as number, behind: behind as number };
+      } catch {
+        return undefined;
+      }
+    },
+    async fastForward(ref: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+      try {
+        await git.raw(["merge", "--ff-only", ref]);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, reason: error instanceof Error ? error.message.trim() : String(error) };
       }
     },
   };

@@ -49,7 +49,10 @@ import {
   type ChangeLayoutNode,
   type ChangeReadiness,
   type ChangeReadinessReport,
+  driftWords,
   type ChangeStandings,
+  type CatchUpResult,
+  type MainDrift,
   type DescribedChangeCard,
   type LastRunsReport,
   type LiveRun,
@@ -158,6 +161,13 @@ export interface PipelineViewProps {
   /** Asks a run held elsewhere to stop, through the signed channel, with the
    * host's own key. Absent, no card offers it. */
   onAskToStop?: (request: AskToStop) => void;
+  /** Reads how far this checkout is behind what has landed, and what of
+   * it is already archived on the default branch. Absent, the Pipeline
+   * says nothing about it (main-catches-up-with-what-landed). */
+  drift?: () => Promise<MainDrift | undefined>;
+  /** Brings the default branch up to its remote by fast-forward. Absent,
+   * the line is still said and offers no press. */
+  onCatchUp?: () => Promise<CatchUpResult>;
   /** Archives the changes whose work has landed, from the folded row.
    * Absent, the row still folds and offers nothing to press
    * (what-is-finished-is-tidied-away). */
@@ -336,6 +346,8 @@ export function PipelineView({
   refresh,
   lastRuns,
   standings,
+  drift,
+  onCatchUp,
   onArchive,
   liveRuns,
   onRunControl,
@@ -349,6 +361,8 @@ export function PipelineView({
   const others = usePolledReading(survey, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const stands = usePolledReading(standings, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const behind = usePolledReading(drift, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const [caughtUp, setCaughtUp] = useState<string | null>(null);
   // The runs this host holds, read with the survey: a card offers controls
   // only for these (a-change-is-run-from-its-card).
   const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
@@ -389,7 +403,7 @@ export function PipelineView({
     setRefreshError(undefined);
     try {
       setRefs(await refresh());
-      await Promise.all([local.read(), others.read(), ended.read(), stands.read(), held.read()]);
+      await Promise.all([local.read(), others.read(), ended.read(), stands.read(), held.read(), behind.read()]);
     } catch (cause) {
       setRefreshError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -426,6 +440,11 @@ export function PipelineView({
   // card: a merged pull request, the change archived on the default
   // branch, or deleted from it after being there
   // (what-is-finished-is-tidied-away).
+  // What the default branch already carries archived, for a foreign card
+   // to say so (main-catches-up-with-what-landed).
+  const archivedOnDefault = new Set((stands.value?.standings ?? [])
+    .filter((standing) => standing.main?.kind === "archived")
+    .map((standing) => standing.changeName));
   const landed = new Set((stands.value?.standings ?? [])
     .filter((standing) => standing.pullRequest?.state === "MERGED"
       || standing.main?.kind === "archived"
@@ -571,6 +590,31 @@ export function PipelineView({
                 : `Filtered by "${filter.trim()}" - showing ${shownChanges.length} of ${report.changes.length}`}
             </p>
           ) : null}
+          {/* How far this checkout is behind what has landed. Said only
+              where it is behind: a line that is always there is a line
+              nobody reads (main-catches-up-with-what-landed). */}
+          {behind.value !== undefined && behind.value.behind > 0 ? (
+            <p className="openspec-pipeline-landed" data-testid="pipeline-drift">
+              <span>{driftWords(behind.value)}</span>
+              {onCatchUp ? (
+                <button
+                  type="button"
+                  className="openspec-pipeline-button"
+                  data-testid="pipeline-catch-up"
+                  onClick={() => void (async () => {
+                    const result = await onCatchUp();
+                    setCaughtUp(result.ok
+                      ? `Moved ${behind.value?.defaultBranch ?? "main"} on by ${result.moved} ${result.moved === 1 ? "commit" : "commits"}.`
+                      : `Not caught up: ${result.why}.`);
+                    await behind.read();
+                  })()}
+                >
+                  Catch up
+                </button>
+              ) : null}
+              {caughtUp !== null ? <span data-testid="pipeline-catch-up-said">{caughtUp}</span> : null}
+            </p>
+          ) : null}
           {foldedCount > 0 ? (
             <p className="openspec-pipeline-landed" data-testid="pipeline-landed">
               <span>{`${foldedCount} ${foldedCount === 1 ? "change has" : "changes have"} landed`}</span>
@@ -620,7 +664,7 @@ export function PipelineView({
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
       {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -1233,12 +1277,13 @@ function describeChange(change: ChangeReadiness): CardDetail[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now, onCards, openCards }: {
+function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain }: {
   survey: WorktreeSurvey;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
   openCards: OpenCards;
+  archivedOnMain: ReadonlySet<string>;
 }) {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
@@ -1253,7 +1298,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards }: {
           Nothing below can be opened, run or changed from this checkout.
         </p>
         {others.map((directory, index) => (
-          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} />
+          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} />
         ))}
         {survey.runsElsewhere.length > 0 ? (
           <div data-testid="pipeline-runs-elsewhere">
@@ -1270,13 +1315,14 @@ function OtherDirectories({ survey, labels, now, onCards, openCards }: {
   );
 }
 
-function OtherDirectory({ directory, index, labels, now, onCards, openCards }: {
+function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain }: {
   directory: SurveyedDirectory;
   index: number;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
   openCards: OpenCards;
+  archivedOnMain: ReadonlySet<string>;
 }) {
   const testId = `pipeline-directory-${index}`;
   return (
@@ -1307,7 +1353,7 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards }: {
       <ul className="openspec-shell-note openspec-pipeline-directory-runs" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
-      {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} /> : null}
+      {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} /> : null}
     </section>
   );
 }
@@ -1327,19 +1373,29 @@ function asLayoutInput(change: SurveyedChange): ChangeReadiness {
 }
 
 /** The facts a card of another working directory states. */
-function foreignDetails(change: SurveyedChange | undefined, blockers: readonly string[], labels: Map<string, string>): CardDetail[] {
+function foreignDetails(
+  change: SurveyedChange | undefined,
+  blockers: readonly string[],
+  labels: Map<string, string>,
+  archivedOnMain: ReadonlySet<string> = new Set(),
+): CardDetail[] {
   return [
     ...(change?.tasksUnreadable ? [{ kind: "tasks" as const, text: `tasks could not be read: ${change.tasksUnreadable}` }] : []),
+    // The case the owner met: a change worked in another directory,
+    // landed and archived, still drawn as if it were alive
+    // (main-catches-up-with-what-landed).
+    ...(change && archivedOnMain.has(change.changeName) ? [{ kind: "where" as const, text: "archived on main" }] : []),
     ...(blockers.length > 0 ? [{ kind: "waiting-on" as const, text: `waiting on ${blockers.join(", ")}` }] : []),
     ...(change && change.alsoIn.length > 0 ? [{ kind: "where" as const, text: `also in ${change.alsoIn.map((other) => labels.get(other) ?? other).join(", ")}` }] : []),
   ];
 }
 
-function ForeignChanges({ directory, testId, labels, openCards }: {
+function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
   testId: string;
   labels: Map<string, string>;
   openCards: OpenCards;
+  archivedOnMain: ReadonlySet<string>;
 }) {
   // The change this directory is the worktree of is already a card above.
   const changes = directory.changes.filter((change) => change.changeName !== directory.belongsTo);
@@ -1358,7 +1414,7 @@ function ForeignChanges({ directory, testId, labels, openCards }: {
       hasState: false,
       hasProgress: !change.tasksUnreadable && change.tasksTotal > 0,
       hasCallout: false,
-      detailLines: foreignDetails(change, change.blockers, labels).length,
+      detailLines: foreignDetails(change, change.blockers, labels, archivedOnMain).length,
       hasControls: false,
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
@@ -1377,6 +1433,7 @@ function ForeignChanges({ directory, testId, labels, openCards }: {
             node={node}
             change={byName.get(node.change.changeName)}
             labels={labels}
+            archivedOnMain={archivedOnMain}
             testId={`${testId}-node-${node.change.changeName}`}
             open={openCards.isOpen(directory.path, node.change.changeName)}
             onToggle={() => openCards.toggle(directory.path, node.change.changeName)}
@@ -1391,19 +1448,20 @@ function ForeignChanges({ directory, testId, labels, openCards }: {
  * reaches a change: a change is the pair (directory, name), and nothing
  * here may reach the change of the same name in this checkout (ADR 0026).
  * Its one control shows or hides the tasks this reading already holds. */
-function ForeignNode({ node, change, labels, testId, open, onToggle }: {
+function ForeignNode({ node, change, labels, testId, open, onToggle, archivedOnMain }: {
   node: ChangeLayoutNode;
   change: SurveyedChange | undefined;
   labels: Map<string, string>;
   testId: string;
   open: boolean;
   onToggle: () => void;
+  archivedOnMain: ReadonlySet<string>;
 }) {
   // No run in hand is paired with another directory's rows: a row's word
   // there is what its list says.
   const rows = change?.tasks !== undefined ? describeTaskRows(change.tasks, undefined) : [];
   const name = node.change.changeName;
-  const details = foreignDetails(change, node.change.blockers, labels);
+  const details = foreignDetails(change, node.change.blockers, labels, archivedOnMain);
   const counted = change !== undefined && !change.tasksUnreadable && change.tasksTotal > 0;
   return (
     <div

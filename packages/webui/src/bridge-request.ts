@@ -53,6 +53,8 @@ export type BridgeOperation =
     // Where each change stands, fetched only on the interval, so a card's
     // word is the Changes tree's (a-card-says-what-its-change-is-doing).
     | "pipeline/standings"
+    | "pipeline/drift"
+    | "pipeline/catch-up"
     // The runs this host holds, whose cards get controls
     // (a-change-is-run-from-its-card).
     | "pipeline/live-runs";

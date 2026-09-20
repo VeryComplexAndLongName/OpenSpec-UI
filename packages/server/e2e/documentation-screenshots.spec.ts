@@ -144,6 +144,13 @@ test.describe("standalone documentation screenshots", () => {
       // neither the application bar, nor the tab row, nor the footer -
       // a reader could not tell which product it is of
       // (the-pictures-show-what-is-drawn-now).
+      // Back to the top first. A completed run leaves the page scrolled
+      // past the application bar - the output is long and the browser
+      // follows it - and the assertion below is about the picture having
+      // a bar at all, not about where the window happened to sit. Without
+      // this the capture failed on an untouched main
+      // (main-catches-up-with-what-landed).
+      await page.evaluate(() => { window.scrollTo(0, 0); });
       await expect(page.getByTestId("app-bar")).toBeInViewport();
       await page.screenshot({
         path: path.join(IMAGES_DIR, "run-command.png"),

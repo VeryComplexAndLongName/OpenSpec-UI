@@ -46,7 +46,9 @@ import {
   collectHumanOnlyInbox,
   confirmEnrolmentFor,
   EnrolmentRefusedError,
+  catchUpWithMain,
   readChangeStandings,
+  readMainDrift,
   STANDING_FETCH_INTERVAL_MS,
   readPipelineReadiness,
   readLastRuns,
@@ -1440,6 +1442,76 @@ export async function handleWorktreeSurveyRequest(
  * status records are swept: a host that asks what is there is the host
  * that would have had to ask for the clearing too
  * (the-workspace-clears-what-it-left-behind). */
+/** How far this checkout is behind what has landed
+ * (main-catches-up-with-what-landed).
+ *
+ * The standings are read for the one thing the drift needs from them -
+ * which changes the default branch already carries archived - and a
+ * reading that fails leaves the counts standing: being behind is worth
+ * saying without `gh`. */
+export async function handleMainDriftRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    let standings: Awaited<ReturnType<typeof readChangeStandings>> | undefined;
+    try {
+      standings = await readChangeStandings(parsed.cwd);
+    } catch {
+      standings = undefined;
+    }
+    const drift = await readMainDrift({
+      root: parsed.cwd,
+      ...(standings !== undefined ? { standings } : {}),
+    });
+    sendJson(res, 200, { drift: drift ?? null });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** Brings the default branch up to its remote, by fast-forward alone. A
+ * refusal is a 200 carrying why: it is an answer, not a failure of this
+ * route (main-catches-up-with-what-landed). */
+export async function handleCatchUpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  policy: RestRequestPolicy,
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    sendJson(res, 200, await catchUpWithMain({ root: parsed.cwd }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 export async function handleWorkspaceLeftoversRequest(
   req: IncomingMessage,
   res: ServerResponse,

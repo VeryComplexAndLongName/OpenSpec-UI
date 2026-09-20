@@ -1793,6 +1793,50 @@ describe("server — REST /api/status", () => {
     });
     expect(await readFile(journal.filePath, "utf8")).toBe(futureJournal);
   });
+
+// main-catches-up-with-what-landed 3.1: the two routes, over a workspace
+// that is not a git repository at all - which is the honest shape of "the
+// repository cannot answer".
+describe("the drift between a checkout and its remote", () => {
+  it("answers null where the repository cannot say", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/main-drift`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { drift: unknown };
+
+    expect(response.status).toBe(200);
+    expect(body.drift).toBeNull();
+  });
+
+  it("refuses a body with no cwd", async () => {
+    const response = await fetch(`${baseUrl}/api/main-drift`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("answers a catch-up with a refusal rather than a failure", async () => {
+    const cwd = await createTempWorkspace();
+
+    const response = await fetch(`${baseUrl}/api/main-drift/catch-up`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd }),
+    });
+    const body = (await response.json()) as { ok: boolean; why?: string };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(false);
+    expect(typeof body.why).toBe("string");
+  });
+});
 });
 
 describe("server — WebSocket /api/ws", () => {
