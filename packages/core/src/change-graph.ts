@@ -20,6 +20,28 @@ import path from "node:path";
 const CHANGES_DIR = "openspec/changes";
 const ARCHIVE_DIR = "openspec/changes/archive";
 
+/** Whether an event on a repository-relative path can change what
+ * `readChangeGraph` returns (the-change-graph-reads-once).
+ *
+ * The graph reads two directory listings - the active changes and the
+ * archive - and each change's `.openspec.yaml`, and nothing else. So a
+ * `.openspec.yaml` anywhere under them counts, and so does a change
+ * directory appearing or going; a task ticked, a proposal edited or a
+ * spec delta written does not. A run ticks tasks many times a minute, and
+ * each tick used to re-read the whole archive once per open row of the
+ * view. */
+export function changeGraphReads(relativePath: string): boolean {
+  const normal = relativePath.split(String.fromCharCode(92)).join("/").replace(/^\/+/u, "");
+  if (!normal.startsWith(`${CHANGES_DIR}/`)) return false;
+  if (normal.endsWith("/.openspec.yaml")) return true;
+  const rest = normal.slice(CHANGES_DIR.length + 1).split("/").filter((part) => part.length > 0);
+  // `<name>`: an active change directory, or the archive directory itself -
+  // either appearing or going changes a listing the graph reads.
+  if (rest.length === 1) return true;
+  // `archive/<name>`: an archived change directory.
+  return rest.length === 2 && rest[0] === "archive";
+}
+
 /** `openspec archive` renames `<id>` to `<YYYY-MM-DD>-<id>`. A relation
  * names the id, so archiving must never break one — most relations point
  * at archived work, which is where their value is. */

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  changeGraphReads,
   checkChangeGraph,
   findChangeGraphCycles,
   findUnmetBlockers,
@@ -187,3 +188,31 @@ describe("this repository's own changes", () => {
     expect(checkChangeGraph(nodes)).toEqual([]);
   });
 });
+
+// the-change-graph-reads-once: which events can change the graph. It reads
+// two directory listings and each change's `.openspec.yaml`, nothing else.
+describe("changeGraphReads", () => {
+  it.each([
+    ["openspec/changes/demo/.openspec.yaml", true],
+    ["openspec/changes/archive/2026-09-21-demo/.openspec.yaml", true],
+    ["openspec/changes/demo", true],
+    ["openspec/changes/archive/2026-09-21-demo", true],
+    ["openspec/changes/archive", true],
+    ["openspec/changes/demo/tasks.md", false],
+    ["openspec/changes/demo/proposal.md", false],
+    ["openspec/changes/demo/specs/core/spec.md", false],
+    ["openspec/changes/archive/2026-09-21-demo/tasks.md", false],
+    ["openspec/specs/core/spec.md", false],
+    ["openspec/deferred.md", false],
+  ])("%s -> %s", (relativePath, expected) => {
+    expect(changeGraphReads(relativePath)).toBe(expected);
+  });
+
+  it("reads a Windows path the same way", () => {
+    const windows = ["openspec", "changes", "demo", "tasks.md"].join(String.fromCharCode(92));
+    expect(changeGraphReads(windows)).toBe(false);
+    const yaml = ["openspec", "changes", "demo", ".openspec.yaml"].join(String.fromCharCode(92));
+    expect(changeGraphReads(yaml)).toBe(true);
+  });
+});
+
