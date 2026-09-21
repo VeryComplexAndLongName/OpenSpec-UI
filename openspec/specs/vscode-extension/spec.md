@@ -959,7 +959,7 @@ SHALL allow `data:` images, and SHALL NOT allow images from anywhere else.
 #### Scenario: The AI panel's headline
 
 - **WHEN** the AI panel opens through the message bridge
-- **THEN** the owl is shown at the left of its "OpenSpec UI" headline
+- **THEN** the owl is shown at the left of its "OpenSpec Workbench" headline
 
 ### Requirement: An editor webview's policy lets the shell's icons draw
 
@@ -1384,4 +1384,15 @@ on every tick a run wrote to a task list.
 
 - **WHEN** a change directory moves into the archive
 - **THEN** the graph is read again
+
+### Requirement: The sprint report command says it is reading
+
+The sprint report command SHALL show a progress notification, naming how
+many changes it reads, while it builds the report.
+
+#### Scenario: A report over many changes
+
+- **WHEN** the user runs the sprint report command over many changes
+- **THEN** a notification says the command is reading them until the save
+  dialog opens
 
