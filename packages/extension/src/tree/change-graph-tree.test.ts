@@ -336,3 +336,53 @@ describe("ChangeGraphTreeProvider, narrowed and folded", () => {
     expect(roots[0]?.label).toBe('Nothing matches "absent"');
   });
 });
+
+// the-change-graph-reads-once: VS Code asks for the root and then for every
+// expanded row, often at once. Each used to read the whole graph, archive
+// included - ten open rows, ten full reads per drawing.
+describe("ChangeGraphTreeProvider, reading once per drawing", () => {
+  it("reads the graph once for the root and every row beneath it", async () => {
+    readChangeGraphMock.mockClear();
+    const tree = provider({ first: {}, second: { follows: ["first"] }, third: { follows: ["second"] } });
+
+    const roots = await tree.getChildren();
+    const children = await tree.getChildren(roots[0]);
+    await tree.getChildren(children[0]);
+
+    expect(readChangeGraphMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares one read between calls that arrive together", async () => {
+    readChangeGraphMock.mockClear();
+    const tree = provider({ first: {}, second: { follows: ["first"] } });
+
+    await Promise.all([tree.getChildren(), tree.getChildren(), tree.getChildren()]);
+
+    expect(readChangeGraphMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads again after a refresh, and only then", async () => {
+    readChangeGraphMock.mockClear();
+    const tree = provider({ first: {}, second: { follows: ["first"] } });
+
+    await tree.getChildren();
+    await tree.getChildren();
+    tree.refresh();
+    await tree.getChildren();
+
+    expect(readChangeGraphMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not keep a read that failed", async () => {
+    readChangeGraphMock.mockReset();
+    readChangeGraphMock.mockRejectedValueOnce(new Error("unreadable"));
+    readChangeGraphMock.mockResolvedValue(graph({ first: {}, second: { follows: ["first"] } }));
+    const tree = new ChangeGraphTreeProvider("/repo");
+
+    await expect(tree.getChildren()).rejects.toThrow("unreadable");
+    const roots = await tree.getChildren();
+
+    expect(roots[0]?.label).toBe("first");
+  });
+});
+

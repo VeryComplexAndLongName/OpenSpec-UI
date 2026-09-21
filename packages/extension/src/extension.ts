@@ -3,6 +3,7 @@
 // network involved (see ADR 0001 item 2 and
 // openspec/changes/vscode-extension/design.md).
 
+import path from "node:path";
 import * as vscode from "vscode";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
 import {
@@ -22,6 +23,7 @@ import {
   chainMessageHandlers,
   chainStopRequestHandlers,
   createGitWrapper,
+  changeGraphReads,
   describeWorkspaceSweep,
   sweepWorkspace,
   forgetMessage,
@@ -420,7 +422,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       if (isUnderArchive(workspaceRoot, uri)) archiveTree?.refresh();
       specsTree?.refresh();
       templatesTree?.refresh();
-      changeGraphTree?.refresh();
+      // Only for what the graph reads: a change's `.openspec.yaml`, or a
+      // change directory appearing or going. A task ticked changes nothing
+      // in it, and each tick used to re-read the whole archive once per
+      // open row (the-change-graph-reads-once).
+      if (changeGraphReads(path.relative(workspaceRoot, uri.fsPath))) changeGraphTree?.refresh();
       humanOnlyInboxTree?.refresh();
     };
     context.subscriptions.push(

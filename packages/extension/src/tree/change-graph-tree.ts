@@ -96,6 +96,13 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
   // one" — this avoids re-reading `openspec/` once per level of a reveal,
   // it does not need to be a full cache with invalidation).
   private lastRead: ChangeGraph | undefined;
+  /** The one reading every `getChildren` and `getParent` shares until the
+   * next refresh (the-change-graph-reads-once). VS Code asks for the root
+   * and then for every expanded row, often at once; each used to read the
+   * whole graph, archive included, so ten open rows were ten full reads
+   * per drawing. A promise rather than the result, so calls that arrive
+   * together share one read instead of each starting their own. */
+  private reading: Promise<ChangeGraph> | undefined;
   /** What this view is narrowed by. */
   readonly filter = new ViewFilterState();
   /** Whether the branches whose every change has landed are drawn. Off by
@@ -118,7 +125,22 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
 
   refresh(): void {
     this.lastRead = undefined;
+    this.reading = undefined;
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  /** The graph for this drawing: read once, then shared. */
+  private async graph(): Promise<ChangeGraph> {
+    this.reading ??= readChangeGraph(this.workspaceRoot);
+    try {
+      const nodes = await this.reading;
+      this.lastRead = nodes;
+      return nodes;
+    } catch (error) {
+      // A read that failed is not kept: the next drawing tries again.
+      this.reading = undefined;
+      throw error;
+    }
   }
 
   getTreeItem(element: GraphTreeNode): vscode.TreeItem {
@@ -127,8 +149,7 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
 
   async getParent(element: GraphTreeNode): Promise<GraphTreeNode | undefined> {
     if (!(element instanceof ChangeGraphTreeItem) || element.ancestry.length === 0) return undefined;
-    const nodes = this.lastRead ?? await readChangeGraph(this.workspaceRoot);
-    this.lastRead = nodes;
+    const nodes = this.lastRead ?? await this.graph();
     const parentId = element.ancestry[element.ancestry.length - 1];
     if (parentId === undefined) return undefined;
     const node = nodes.get(parentId);
@@ -139,8 +160,7 @@ export class ChangeGraphTreeProvider implements vscode.TreeDataProvider<GraphTre
   }
 
   async getChildren(element?: GraphTreeNode): Promise<GraphTreeNode[]> {
-    const nodes = await readChangeGraph(this.workspaceRoot);
-    this.lastRead = nodes;
+    const nodes = await this.graph();
     const children = childrenByParent(nodes);
     const waiting = unmetBlockers(nodes);
 
