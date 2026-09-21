@@ -1140,6 +1140,11 @@ branch that was pushed and whose remote is gone - and past them nothing
 is lost: the branch stays, its commits stay, and the directory is one
 `git worktree add` from existing again.
 
+The same sweep SHALL rebase a change's branch that has fallen behind and
+push it with a lease, where its configuration allows it (ADR 0034). What
+it did SHALL be said in the output channel, and a conflict - the one
+outcome a person has to act on - SHALL also be raised as a warning.
+
 #### Scenario: Activation clears an archived change's leavings
 
 - **WHEN** the extension activates in a workspace holding a directory whose
@@ -1164,6 +1169,12 @@ is lost: the branch stays, its commits stay, and the directory is one
 - **WHEN** the sweep finds a working directory that is finished with
 - **THEN** it is removed without being asked for, and the Changes view
   says which directory went and why
+
+#### Scenario: A behind branch that conflicts
+
+- **WHEN** the sweep tries to rebase a change branch and it conflicts
+- **THEN** the branch is left as it was, and the editor raises a warning
+  naming the branch and the files in conflict
 
 ### Requirement: A run can be asked from a change's row to stop after a task
 
