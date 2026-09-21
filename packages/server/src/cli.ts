@@ -24,5 +24,5 @@ const server = createServer({
 });
 const address = await server.listen();
 console.log(
-  `OpenSpec UI server listening on http://${DEFAULT_HOST}:${address.port}/#token=${encodeURIComponent(server.accessToken)} (workspaceRoot: ${workspaceRoot}, allowExternalCwd: ${allowExternalCwd})`,
+  `OpenSpec Workbench server listening on http://${DEFAULT_HOST}:${address.port}/#token=${encodeURIComponent(server.accessToken)} (workspaceRoot: ${workspaceRoot}, allowExternalCwd: ${allowExternalCwd})`,
 );

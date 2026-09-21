@@ -51,7 +51,7 @@ export class RunCompletionNotifier {
 export function describeRunCompletion(process: WorkbenchProcess): string {
   const change = process.changeName ? ` for "${process.changeName}"` : "";
   if (process.state === "failed") {
-    return `OpenSpec UI: ${process.operation}${change} failed${process.error ? ` (${process.error})` : ""}.`;
+    return `OpenSpec Workbench: ${process.operation}${change} failed${process.error ? ` (${process.error})` : ""}.`;
   }
-  return `OpenSpec UI: ${process.operation}${change} completed${process.summary ? ` (${process.summary})` : ""}.`;
+  return `OpenSpec Workbench: ${process.operation}${change} completed${process.summary ? ` (${process.summary})` : ""}.`;
 }

@@ -64,7 +64,7 @@ export async function checkScheduleOnce(deps: ScheduledRunWatcherDeps): Promise<
       archived: workspace.archivedChanges.map((change) => change.name),
     }, new Date());
 
-    for (const note of firing.dropNotes) deps.outputChannel.appendLine(`OpenSpec UI: ${note}`);
+    for (const note of firing.dropNotes) deps.outputChannel.appendLine(`OpenSpec Workbench: ${note}`);
     // Written straight away: a drop cannot fail to be carried out, and
     // holding it back would make it depend on a run that can.
     if (firing.dropped.length > 0) await writeScheduledRuns(workspaceRoot, firing.afterDrops);
@@ -72,7 +72,7 @@ export async function checkScheduleOnce(deps: ScheduledRunWatcherDeps): Promise<
     // Reading is what failed here, and this is the only place that may
     // say so.
     deps.outputChannel.appendLine(
-      `OpenSpec UI: reading the schedule failed: ${error instanceof Error ? error.message : String(error)}`,
+      `OpenSpec Workbench: reading the schedule failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     return;
   }
@@ -106,11 +106,11 @@ export async function checkScheduleOnce(deps: ScheduledRunWatcherDeps): Promise<
       // the note above says so.
       ...(offered ? { runPath: due.entry.path } : {}),
     });
-    deps.outputChannel.appendLine(`OpenSpec UI: ${runNote}`);
+    deps.outputChannel.appendLine(`OpenSpec Workbench: ${runNote}`);
   } catch (error) {
     // The entry is still in the file, and the sentence says what failed.
     deps.outputChannel.appendLine(
-      `OpenSpec UI: the scheduled run for "${due.entry.changeName}" could not be opened: `
+      `OpenSpec Workbench: the scheduled run for "${due.entry.changeName}" could not be opened: `
       + `${error instanceof Error ? error.message : String(error)}`,
     );
   }

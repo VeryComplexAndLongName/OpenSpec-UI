@@ -8,7 +8,7 @@ describe("describeRunCompletionNotification", () => {
   it("describes a completed agent run", () => {
     const event: Event = { ...base, kind: "completed", summary: "3/3 tasks" };
     expect(describeRunCompletionNotification("implement", event)).toEqual({
-      title: "OpenSpec UI",
+      title: "OpenSpec Workbench",
       body: "implement completed: 3/3 tasks.",
     });
   });
@@ -16,7 +16,7 @@ describe("describeRunCompletionNotification", () => {
   it("describes a failed agent run", () => {
     const event: Event = { ...base, kind: "failed", reason: "agent exited with code 1" };
     expect(describeRunCompletionNotification("review", event)).toEqual({
-      title: "OpenSpec UI",
+      title: "OpenSpec Workbench",
       body: "review failed: agent exited with code 1",
     });
   });

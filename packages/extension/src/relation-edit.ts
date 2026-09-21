@@ -103,7 +103,7 @@ export async function pickRelationToRemove(node: ChangeGraphNode | undefined): P
   );
   if (stated.length === 0) {
     void vscode.window.showInformationMessage(
-      `OpenSpec UI: ${node?.id ?? "this change"} states no relation to remove.`,
+      `OpenSpec Workbench: ${node?.id ?? "this change"} states no relation to remove.`,
     );
     return undefined;
   }

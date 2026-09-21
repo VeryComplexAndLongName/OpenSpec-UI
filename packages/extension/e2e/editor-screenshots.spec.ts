@@ -153,7 +153,7 @@ test.afterAll(async () => {
 });
 
 /** Takes the pointer out of the picture and lets any tooltip it raised
- * disappear. The first capture carried a floating "OpenSpec UI" label
+ * disappear. The first capture carried a floating "OpenSpec Workbench" label
  * over the Archive view — the tooltip from the click that opened the
  * container, photographed because nothing had moved the mouse away. */
 async function settle(page: Page): Promise<void> {
@@ -391,12 +391,12 @@ test.describe("editor documentation screenshots", () => {
 
   test("the global harness settings, in a panel of their own", async () => {
     await closeEditors();
-    await runCommand("OpenSpec UI: Configure Harness Settings");
+    await runCommand("OpenSpec Workbench: Configure Harness Settings");
 
     // The panel's title is the editor's, the form is the webview's. A
     // picture taken on the title alone shows a panel reading nothing, which
     // is the defect a-change-is-configured-from-the-change fixed.
-    await expect(window.locator('.tabs-container .tab:has-text("OpenSpec UI: Harness Settings")')).toBeVisible();
+    await expect(window.locator('.tabs-container .tab:has-text("OpenSpec Workbench: Harness Settings")')).toBeVisible();
     const view = activeWebview();
     await expect(view.getByTestId("global-harness-settings")).toBeVisible({ timeout: 60_000 });
     await expect(view.getByLabel("Global autonomy level")).toBeVisible({ timeout: 30_000 });
@@ -413,7 +413,7 @@ test.describe("editor documentation screenshots", () => {
     // Hovered and chosen with Enter, not clicked: a click on the label
     // left the menu open and ran nothing, where a hover focuses the item
     // the way a person's pointer does.
-    const item = window.getByRole("menuitem", { name: "OpenSpec UI: Configure Harness for this Change" });
+    const item = window.getByRole("menuitem", { name: "OpenSpec Workbench: Configure Harness for this Change" });
     await item.hover();
     await window.keyboard.press("Enter");
 
@@ -461,7 +461,7 @@ test.describe("editor documentation screenshots", () => {
 
   test("the Pipeline, in a panel of the editor", async () => {
     await closeEditors();
-    await runCommand("OpenSpec UI: Open Pipeline");
+    await runCommand("OpenSpec Workbench: Open Pipeline");
 
     // the-docs-catch-up-to-0-55 1.2. Waited for on the fixture's cards in
     // the webview, not on the panel's title: a panel that opened and has
@@ -482,7 +482,7 @@ test.describe("editor documentation screenshots", () => {
   test("the Archive view narrowed by a filter, saying what it is showing", async () => {
     await closeEditors();
     await onlyExpand("Archive");
-    await runCommand("OpenSpec UI: Filter Archive", "Every word must appear somewhere in the row");
+    await runCommand("OpenSpec Workbench: Filter Archive", "Every word must appear somewhere in the row");
     const input = window.locator(".quick-input-widget input");
     await input.waitFor();
     await input.fill("shipped");
@@ -497,7 +497,7 @@ test.describe("editor documentation screenshots", () => {
     await settle(window);
     await shoot("archive-filtered.png");
 
-    await runCommand("OpenSpec UI: Clear Archive Filter");
+    await runCommand("OpenSpec Workbench: Clear Archive Filter");
     await expect(archive).not.toContainText("Filtered by");
   });
 
@@ -527,8 +527,8 @@ test.describe("editor documentation screenshots", () => {
     await window.keyboard.press("F1");
     const input = window.locator(".quick-input-widget input");
     await input.waitFor();
-    await input.fill(">OpenSpec UI: Add Relation");
-    await window.locator('.quick-input-list .monaco-list-row:has-text("OpenSpec UI: Add Relation")').first().waitFor();
+    await input.fill(">OpenSpec Workbench: Add Relation");
+    await window.locator('.quick-input-list .monaco-list-row:has-text("OpenSpec Workbench: Add Relation")').first().waitFor();
     await window.keyboard.press("Enter");
 
     const pick = window.locator(".quick-input-widget");

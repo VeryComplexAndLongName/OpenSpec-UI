@@ -64,19 +64,19 @@ describe("RunCompletionNotifier", () => {
 describe("describeRunCompletion", () => {
   it("describes a completed run with the change name and summary", () => {
     expect(describeRunCompletion(process({ state: "completed", summary: "3/3 tasks complete" }))).toBe(
-      'OpenSpec UI: implement for "demo-change" completed (3/3 tasks complete).',
+      'OpenSpec Workbench: implement for "demo-change" completed (3/3 tasks complete).',
     );
   });
 
   it("describes a failed run with the change name and error", () => {
     expect(describeRunCompletion(process({ state: "failed", error: "agent exited with code 1" }))).toBe(
-      'OpenSpec UI: implement for "demo-change" failed (agent exited with code 1).',
+      'OpenSpec Workbench: implement for "demo-change" failed (agent exited with code 1).',
     );
   });
 
   it("omits the change-name clause when absent", () => {
     expect(describeRunCompletion(process({ changeName: undefined, state: "completed" }))).toBe(
-      "OpenSpec UI: implement completed.",
+      "OpenSpec Workbench: implement completed.",
     );
   });
 });

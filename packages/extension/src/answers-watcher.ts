@@ -103,5 +103,5 @@ export class AnswerWatcher {
 export function describeAnswer(answer: ConversationMessage): string {
   const where = [answer.stage, answer.runId].filter((part): part is string => typeof part === "string" && part.length > 0);
   const from = where.length > 0 ? ` (${where.join(", run ")})` : "";
-  return `OpenSpec UI: a run answered${from}: ${answer.words}`;
+  return `OpenSpec Workbench: a run answered${from}: ${answer.words}`;
 }

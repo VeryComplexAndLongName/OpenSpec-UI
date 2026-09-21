@@ -205,7 +205,7 @@ export class WorkbenchRunJournal {
 
         if (raw.version !== WORKBENCH_RUN_JOURNAL_VERSION) {
             throw new WorkbenchJournalLoadError(
-                `Workbench run journal version ${String(raw.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                `Workbench run journal version ${String(raw.version)} is not supported by this OpenSpec Workbench version. Upgrade OpenSpec Workbench to recover runs.`,
                 {
                     code: "unsupported-journal-version",
                     journalPath: this.filePath,
@@ -387,7 +387,7 @@ export class WorkbenchRunJournal {
     private validateCheckpointSession(checkpoint: SerializedWorkbenchCheckpoint, resolvedRoot: string): void {
         if (checkpoint.version !== 1) {
             throw new WorkbenchJournalLoadError(
-                `Workbench checkpoint version ${String(checkpoint.version)} is not supported by this OpenSpec UI version. Upgrade OpenSpec UI to recover runs.`,
+                `Workbench checkpoint version ${String(checkpoint.version)} is not supported by this OpenSpec Workbench version. Upgrade OpenSpec Workbench to recover runs.`,
                 {
                     code: "unsupported-checkpoint-version",
                     journalPath: this.filePath,

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "OpenSpec UI Agentic Harness — global config",
+  "title": "OpenSpec Workbench Agentic Harness — global config",
   "description": "Global default for openspec/agent-harness.json — see the agentic-harness capability. At this level: reviewGate.mode is fixed to human-required, autonomyLevel excludes autonomous, and checkpoints.requireConfirmationBetweenSteps is fixed to true. Only a per-change openspec/changes/<id>/harness.json may relax any of these.",
   "type": "object",
   "additionalProperties": false,

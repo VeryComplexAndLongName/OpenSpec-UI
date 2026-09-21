@@ -169,7 +169,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       <header className="openspec-shell-headline">
         <OwlLogo />
         <div>
-          <h1>OpenSpec UI</h1>
+          <h1>OpenSpec Workbench</h1>
           <p>VS Code webview runner for OpenSpec commands.</p>
         </div>
       </header>

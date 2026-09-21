@@ -381,7 +381,7 @@ describe("server — REST /api/status", () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
-      error: expect.stringContaining("Update OpenSpec CLI or OpenSpec UI to compatible versions"),
+      error: expect.stringContaining("Update OpenSpec CLI or OpenSpec Workbench to compatible versions"),
     });
   });
 
@@ -1791,7 +1791,7 @@ describe("server — REST /api/status", () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      error: expect.stringContaining("Upgrade OpenSpec UI to recover runs"),
+      error: expect.stringContaining("Upgrade OpenSpec Workbench to recover runs"),
     });
     expect(await readFile(journal.filePath, "utf8")).toBe(futureJournal);
   });

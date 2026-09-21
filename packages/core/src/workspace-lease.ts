@@ -101,7 +101,7 @@ export function describeWorkspaceLeaseConflict(conflict: WorkspaceLeaseConflict)
   // had established.
   const author = conflict.author ? `, git author ${conflict.author}` : "";
   return (
-    `Another OpenSpec UI host (${hostKindLabel(conflict.hostKind)} on ` +
+    `Another OpenSpec Workbench host (${hostKindLabel(conflict.hostKind)} on ` +
     `${conflict.hostname}, pid ${conflict.pid}${author}, last active ${heartbeatAgeSeconds}s ago) ` +
     `is currently running a mutating operation on this workspace. Wait for it to ` +
     `finish, or close it, before starting one here.`

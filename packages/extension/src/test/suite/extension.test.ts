@@ -190,7 +190,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     // JSON. The file is still written first — a view over a file that
     // does not exist would have to explain the difference between
     // "inherits everything" and "not configured".
-    assert.equal(api.getHarnessSettingsTitle(), "OpenSpec UI: Harness Settings", "expected the global settings panel to be open");
+    assert.equal(api.getHarnessSettingsTitle(), "OpenSpec Workbench: Harness Settings", "expected the global settings panel to be open");
     assert.ok(
       !vscode.window.visibleTextEditors.some((editor) => editor.document.uri.fsPath === uri.fsPath),
       "expected the raw JSON not to be opened as well — one surface for this, not two",
@@ -276,10 +276,10 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   // the-pipeline-opens-in-vs-code 7.1. Counted from the editor's own tabs,
   // not from the extension's bookkeeping: a second panel the extension had
   // lost track of would be exactly what this must catch.
-  test("Pipeline: the command opens one panel titled OpenSpec UI: Pipeline, and running it again opens no second one", async () => {
+  test("Pipeline: the command opens one panel titled OpenSpec Workbench: Pipeline, and running it again opens no second one", async () => {
     const pipelineTabs = () => vscode.window.tabGroups.all
       .flatMap((group) => group.tabs)
-      .filter((tab) => tab.input instanceof vscode.TabInputWebview && tab.label === "OpenSpec UI: Pipeline");
+      .filter((tab) => tab.input instanceof vscode.TabInputWebview && tab.label === "OpenSpec Workbench: Pipeline");
 
     await vscode.commands.executeCommand("openspec-ui.openPipeline");
     await waitFor(() => pipelineTabs().length > 0);

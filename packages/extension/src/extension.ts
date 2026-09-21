@@ -147,7 +147,7 @@ export interface ExtensionTestApi {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
-  const outputChannel = vscode.window.createOutputChannel("OpenSpec UI");
+  const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
   context.subscriptions.push(outputChannel);
 
   // Every run this extension host starts — from the palette, the AI panel,
@@ -331,11 +331,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           })),
         });
         for (const failure of sweep.failures) {
-          outputChannel.appendLine(`OpenSpec UI: could not clear ${failure.path} (${failure.reason})`);
+          outputChannel.appendLine(`OpenSpec Workbench: could not clear ${failure.path} (${failure.reason})`);
         }
         await sweepDirectories();
       } catch (error) {
-        outputChannel.appendLine(`OpenSpec UI: the leftover sweep failed (${error instanceof Error ? error.message : String(error)})`);
+        outputChannel.appendLine(`OpenSpec Workbench: the leftover sweep failed (${error instanceof Error ? error.message : String(error)})`);
       }
     };
     // A working directory whose branch is gone from the server is
@@ -352,16 +352,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       if (!workspaceRoot) return;
       try {
         const swept = await sweepWorkspace(workspaceRoot);
-        for (const line of describeWorkspaceSweep(swept)) outputChannel.appendLine(`OpenSpec UI: ${line}.`);
+        for (const line of describeWorkspaceSweep(swept)) outputChannel.appendLine(`OpenSpec Workbench: ${line}.`);
         // A conflict is the one outcome a person has to act on, so it is
         // said where they will see it, not only in the output.
         for (const branch of swept.branches?.conflicted ?? []) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${branch.branch} needs a rebase by hand - it conflicts with ${branch.onto} in ${branch.conflicts.join(", ")}.`,
+            `OpenSpec Workbench: ${branch.branch} needs a rebase by hand - it conflicts with ${branch.onto} in ${branch.conflicts.join(", ")}.`,
           );
         }
       } catch (error) {
-        outputChannel.appendLine(`OpenSpec UI: the working-directory sweep failed (${error instanceof Error ? error.message : String(error)})`);
+        outputChannel.appendLine(`OpenSpec Workbench: the working-directory sweep failed (${error instanceof Error ? error.message : String(error)})`);
       }
     };
 
@@ -466,20 +466,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         // that invoked the command.
         if (!item) {
           void vscode.window.showWarningMessage(
-            "OpenSpec UI: run a delegated item from its own row in the Human-Only Inbox.",
+            "OpenSpec Workbench: run a delegated item from its own row in the Human-Only Inbox.",
           );
           return;
         }
         const agents = runners;
         if (!agents) {
-          void vscode.window.showWarningMessage("OpenSpec UI: no workspace is open.");
+          void vscode.window.showWarningMessage("OpenSpec Workbench: no workspace is open.");
           return;
         }
         try {
           const result = await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: `OpenSpec UI: running ${item.changeName} — ${item.text}`,
+              title: `OpenSpec Workbench: running ${item.changeName} — ${item.text}`,
               cancellable: false,
             },
             () => runDelegatedItem({
@@ -501,11 +501,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           const show = refused || stopped ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
           const lastStderr = result.status === "ran" ? result.lastStderr : undefined;
           if (lastStderr === undefined) {
-            void show(`OpenSpec UI: ${result.message}`);
+            void show(`OpenSpec Workbench: ${result.message}`);
           } else {
             // What the agent last said is one click away rather than lost
             // behind an exit code (a-delegated-run-says-what-happened).
-            void show(`OpenSpec UI: ${result.message}`, "Show output").then((choice) => {
+            void show(`OpenSpec Workbench: ${result.message}`, "Show output").then((choice) => {
               if (choice !== "Show output") return;
               outputChannel.appendLine(`${item.changeName} — ${item.text}: what the agent last said`);
               outputChannel.appendLine(lastStderr);
@@ -515,7 +515,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           inboxTree?.reportOutcome(item, "the run could not be started");
-          void vscode.window.showErrorMessage(`OpenSpec UI: failed to run delegated item — ${reason}`);
+          void vscode.window.showErrorMessage(`OpenSpec Workbench: failed to run delegated item — ${reason}`);
         }
       }),
       // A person says a run was theirs, from the row of the key that signed
@@ -524,7 +524,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       vscode.commands.registerCommand("openspec-ui.confirmEnrolment", async (row?: EnrolmentRequestTreeItem) => {
         if (!row) {
           void vscode.window.showWarningMessage(
-            "OpenSpec UI: confirm an enrolment from its own row in the Human-Only Inbox.",
+            "OpenSpec Workbench: confirm an enrolment from its own row in the Human-Only Inbox.",
           );
           return;
         }
@@ -537,10 +537,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         try {
           const entry = await confirmEnrolmentFor(inboxRoot, row.keyId, label.trim().length > 0 ? { label } : {});
           inboxTree?.refresh();
-          void vscode.window.showInformationMessage(`OpenSpec UI: enrolled — its runs read as signed by ${entry.label}, verified.`);
+          void vscode.window.showInformationMessage(`OpenSpec Workbench: enrolled — its runs read as signed by ${entry.label}, verified.`);
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
-          void vscode.window.showErrorMessage(`OpenSpec UI: not enrolled — ${reason}`);
+          void vscode.window.showErrorMessage(`OpenSpec Workbench: not enrolled — ${reason}`);
         }
       }),
     );
@@ -556,7 +556,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       packageJsonWatcher.onDidDelete(refreshCheckContexts),
     );
   } else {
-    void vscode.window.showWarningMessage("OpenSpec UI: no folder open — open a workspace to use it.");
+    void vscode.window.showWarningMessage("OpenSpec Workbench: no folder open — open a workspace to use it.");
   }
   await updateCheckContexts(workspaceRoot);
 

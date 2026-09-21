@@ -126,7 +126,7 @@ product.
   the console similar to:
 
   ```text
-  OpenSpec UI server listening on http://127.0.0.1:4317/#token=PU32_AOBt0lG6sHhYQtCMwSU6ZmcXtIJX0-4RUe1FQM (workspaceRoot: ., allowExternalCwd: false)
+  OpenSpec Workbench server listening on http://127.0.0.1:4317/#token=PU32_AOBt0lG6sHhYQtCMwSU6ZmcXtIJX0-4RUe1FQM (workspaceRoot: ., allowExternalCwd: false)
   ```
 
   You must open that exact URL in the browser to connect to the server. The

@@ -56,7 +56,7 @@ Refresh. Only the run records are read for that, never git.
 
 ![Changes tree with each change's state and its standing word, such as in-progress — Ready](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/extension/changes-standings.png)
 
-**OpenSpec UI: Open Pipeline**, also in the Changes view's title bar,
+**OpenSpec Workbench: Open Pipeline**, also in the Changes view's title bar,
 opens the Pipeline in a panel of its own. It is the same picture the
 standalone app draws: every change as a card in the order the changes
 declare, with its state, its tasks, what a live run last said, and what
@@ -164,7 +164,7 @@ it may be a change you have not written yet.
   done: those items are reported by a person after observing the thing
   they name, and a button on a surface that cannot observe it would turn
   that rule into a formality.
-- Open the **Pipeline** in a panel ("OpenSpec UI: Open Pipeline"): every
+- Open the **Pipeline** in a panel ("OpenSpec Workbench: Open Pipeline"): every
   active change as a card with its state, its tasks and what a live run
   last said, and every other working directory beneath. A card starts its
   change, answers a run's checkpoint or permission, and asks a run to stop
@@ -250,7 +250,7 @@ it may be a change you have not written yet.
    through VS Code's own Copilot Chat, using whatever model is selected
    in Chat's own model picker. If you specifically want a particular CLI
    agent (e.g. the real Anthropic Claude Code CLI, not Claude via
-   Copilot) to make the change instead, use **OpenSpec UI: Open Process
+   Copilot) to make the change instead, use **OpenSpec Workbench: Open Process
    Dashboard** and its own agent picker instead — see "Agents" below.
 5. Follow the run in **Processes**. When Agent work is done, choose
    **Finish Implementation & Review**.
@@ -272,7 +272,7 @@ To run `plan`/`implement`/`review` through a specific CLI agent (Claude
 CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI, or a local
 OpenAI-compatible LLM) instead of VS Code's native Chat/Agent handoff:
 
-1. Run **OpenSpec UI: Open Process Dashboard** from the Command Palette
+1. Run **OpenSpec Workbench: Open Process Dashboard** from the Command Palette
    (or the toolbar button on a change in **Changes**).
 2. In the panel, pick `implement` (or `plan`/`review`) from the command
    dropdown.
@@ -297,13 +297,13 @@ how this differs from the `@openspec` Chat Participant above.
 
 ## Agentic Harness
 
-**OpenSpec UI: Configure Harness Settings** and **OpenSpec UI: Configure
+**OpenSpec Workbench: Configure Harness Settings** and **OpenSpec Workbench: Configure
 Harness for this Change** set the per-stage agent, autonomy level, and
 review gate the commands above (and a chain run) use by default. Each opens
 a panel of its own: the first for the workspace's global file, the second
 for the one change it was run on, titled `Harness: <change>`, already
 loaded;
-**OpenSpec UI: Run with Agentic Harness** starts a single-stage run or a
+**OpenSpec Workbench: Run with Agentic Harness** starts a single-stage run or a
 chain depending on the resolved autonomy level. See the root repository's
 [`HARNESS.md`](../../HARNESS.md) for every setting these commands can and
 cannot reach, and [`LIMITS.md`](../../LIMITS.md) for what actually caps a
