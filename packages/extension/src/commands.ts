@@ -2482,7 +2482,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const report = await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: `OpenSpec UI: reading ${entries.length === 1 ? "one change" : `${entries.length} changes`} for the sprint report`,
+            title: `OpenSpec Workbench: reading ${entries.length === 1 ? "one change" : `${entries.length} changes`} for the sprint report`,
             cancellable: false,
           },
           () => buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd),
