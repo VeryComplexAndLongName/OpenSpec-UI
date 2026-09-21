@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-21T08:53:06.034Z",
+  "generated_at": "2026-09-21T09:08:44.259Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "1005f94c33c73a2f4fff6cf4db7ad100e43c9a95",
+  "commit": "7589a6955033aa0f3d236ff1fce44bcd702c950a",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.72.0",
-      "released_at": "2026-09-21T08:53:06.034Z",
-      "tag": "openspec-ui-vscode@0.72.0",
+      "version": "0.72.1",
+      "released_at": "2026-09-21T09:08:44.259Z",
+      "tag": "openspec-ui-vscode@0.72.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.72.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.72.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.72.0/openspec-ui-vscode-0.72.0.vsix",
-          "size_bytes": 6365826
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.72.1/openspec-ui-vscode-0.72.1.vsix",
+          "size_bytes": 6367420
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A change's branch that falls behind is rebased for you"
+          "kind": "patch",
+          "summary": "The Change Graph no longer holds a processor at 100%"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.35.0",
-      "released_at": "2026-09-21T08:53:06.034Z",
+      "version": "1.35.1",
+      "released_at": "2026-09-21T09:08:44.259Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,20 +47,15 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "A change's branch that falls behind is rebased for you"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.110.0",
-      "released_at": "2026-09-21T08:53:06.034Z",
+      "version": "0.110.1",
+      "released_at": "2026-09-21T09:08:44.259Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +65,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A change's branch that falls behind is rebased for you"
+          "kind": "patch",
+          "summary": "The Change Graph no longer holds a processor at 100%"
         }
       ]
     },
@@ -80,20 +75,15 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.69.0",
-      "released_at": "2026-09-21T08:53:06.034Z",
+      "version": "1.69.1",
+      "released_at": "2026-09-21T09:08:44.259Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "A change's branch that falls behind is rebased for you"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
@@ -101,7 +91,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.18.0",
-      "released_at": "2026-09-21T08:53:06.034Z",
+      "released_at": "2026-09-21T09:08:44.259Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
