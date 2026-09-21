@@ -363,25 +363,6 @@ it when rendering a change's timeline.
 - **THEN** open tasks are flagged stale according to the new value, without
   the timeline being read again
 
-### Requirement: The Timeline tab offers a downloadable sprint report
-
-The system SHALL offer, within the Timeline tab, a mode where the user
-picks a date range and multiple active and/or archived changes, then
-downloads a generated PDF sprint report as a browser file download.
-
-#### Scenario: User generates a sprint report
-
-- **WHEN** the user selects a date range and one or more changes in the
-  Sprint report mode and starts the download
-- **THEN** a PDF file download begins, named after the selected range
-
-#### Scenario: User has not selected a range or any changes
-
-- **WHEN** the user attempts to generate a report without a complete
-  date range or without selecting any change
-- **THEN** the system reports what is missing rather than attempting
-  to generate an empty or partial report
-
 ### Requirement: OpenSpec view summary lists are searchable by name or status
 
 The standalone "OpenSpec view summary" tab SHALL render its active
@@ -801,4 +782,27 @@ show an empty panel.
 - **WHEN** every directory under `openspec/changes/` is a change and every
   working directory still has work
 - **THEN** the Summary shows no panel for this
+
+### Requirement: The Timeline tab opens a sprint report for printing
+
+The system SHALL offer, within the Timeline tab, a mode where the user
+picks a date range and multiple active and/or archived changes, and then
+opens the generated sprint report as a page, from which the browser's own
+print prepares a PDF.
+
+`POST /api/sprint-report` SHALL return that page as `text/html`.
+
+#### Scenario: User generates a sprint report
+
+- **WHEN** the user selects a date range and one or more changes in the
+  Sprint report mode and asks for the report
+- **THEN** the report opens as a page in the product's own look, and the
+  browser's print is offered for it
+
+#### Scenario: User has not selected a range or any changes
+
+- **WHEN** the user attempts to generate a report without a complete
+  date range or without selecting any change
+- **THEN** the system reports what is missing rather than attempting
+  to generate an empty or partial report
 

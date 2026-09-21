@@ -508,6 +508,17 @@ function. A bucket SHALL be named by its boundaries.
 Unticked items that no implementing agent will close SHALL be readable
 in every host, naming the change each belongs to and who each waits on.
 
+A judgement **deferred** from a change SHALL be collected too, from a
+single list the workspace keeps, and SHALL name the change that raised
+it. A judgement about a shipped thing outlives the change that shipped
+it, and holding a change open until somebody makes that judgement is
+what left six changes active for a day.
+
+The archive SHALL NOT be read for this. Measured on 2026-09-20, this
+repository's 285 archived changes hold 1.76 MB of task lists: 309 ms to
+read and 74 ms merely to `stat`, on every collection, to find one
+deferred judgement.
+
 A change waiting on a live check and a change nobody has started are the
 same row in a list of changes: both are in progress with a task open.
 Telling them apart by opening each change's task file does not scale, and
@@ -518,7 +529,7 @@ agent can make this check" and "the agent running this change cannot
 make it" are different facts, and only the first is a question for a
 person. An item naming an agent SHALL name it by its registry id, and an
 id that is not registered SHALL be reported as unknown rather than
-counted as delegated — an item delegated to nobody looks assigned and is
+counted as delegated - an item delegated to nobody looks assigned and is
 not.
 
 An item that names an agent SHALL also state the evidence that agent
@@ -528,18 +539,6 @@ works; an agent asked to quote a line either has it or does not.
 
 The collecting SHALL be done in one place both hosts read. Two walks over
 the same files drift into two answers about the same workspace.
-
-An empty result SHALL say which empty it is: nothing waiting, or nothing
-read.
-
-Where the collecting fails, the surface SHALL say that it failed and why,
-in the place the count would have been. A failure rendered as an absent
-block is indistinguishable from a block not yet loaded, which is the
-distinction this surface exists to make.
-
-Neither surface SHALL offer to tick an item. The point of such an item is
-that the thing was done and recorded; a control that records it without
-that is a control for recording something untrue.
 
 #### Scenario: A change waiting on a live check
 
@@ -573,6 +572,12 @@ that is a control for recording something untrue.
 - **WHEN** the task files of a workspace cannot be read
 - **THEN** the surface says the inbox could not be read, and why, rather
   than showing no block
+
+#### Scenario: A deferred judgement outlives its change
+
+- **WHEN** a change with a deferred item is archived
+- **THEN** the judgement is still collected, from the workspace's
+  deferred list, naming the change that raised it
 
 ### Requirement: An unaccounted-for documentation picture fails a check
 
@@ -779,4 +784,34 @@ before removing the directory.
   finished with
 - **THEN** its links are removed as links first, and the primary
   directory's packages are untouched
+
+### Requirement: Work that is finished and did not land is said so
+
+Where every item of a change is closed, a host SHALL say so plainly
+when the work did not land:
+
+- the change has no pull request at all, which means the work exists
+  only in a working directory and has left no other trace;
+- the change's pull request was closed without merging, which means the
+  work was declared done and then rejected.
+
+Neither SHALL be said where pull requests could not be read: a source
+that did not answer is not evidence of absence.
+
+#### Scenario: Finished, and never pushed anywhere
+
+- **WHEN** a change's items are all closed and no pull request exists
+  for it
+- **THEN** the host says the work never left this machine
+
+#### Scenario: Finished, and rejected
+
+- **WHEN** a change's items are all closed and its pull request was
+  closed without merging
+- **THEN** the host says so
+
+#### Scenario: Pull requests could not be read
+
+- **WHEN** the pull request source did not answer
+- **THEN** neither is said
 

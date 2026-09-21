@@ -1300,6 +1300,10 @@ the editor SHALL report that the stage can run without any bound. This is
 the finding that matters most, because it is the one with no upper
 limit at all.
 
+Where a chain ceiling is set in a unit that no stage's agent is billed
+in, or that only agents reporting nothing are billed in, the editor SHALL
+report that ceiling as one that cannot act, naming the unit.
+
 A configuration SHALL NOT be refused for this. An operator may knowingly
 set a ceiling that binds some stages and not others; that judgement is
 theirs, and refusing would trade a real use for it.
@@ -1328,7 +1332,15 @@ instead needs history the editor does not consult here.
 #### Scenario: The configuration is still accepted
 
 - **WHEN** a configuration contains a ceiling that cannot act
-- **THEN** it is saved and used, with the finding reported alongside it
+- **THEN** it is accepted, and the report is a statement rather than a
+  refusal
+
+#### Scenario: A ceiling in a unit nothing is billed in
+
+- **WHEN** the chain's budget sets a ceiling in a unit that no stage's
+  agent is billed in
+- **THEN** the editor reports that ceiling as one that cannot act, naming
+  the unit
 
 ### Requirement: What a change cost can be read after the run
 
@@ -3257,4 +3269,37 @@ nothing unsaved, the offer SHALL be unavailable.
 - **WHEN** a field is changed and Discard is used
 - **THEN** the view shows the file's values again, and says nothing is
   unsaved
+
+### Requirement: The chain's spending ceiling carries its unit
+
+The chain's budget SHALL be able to hold a ceiling per unit of account, so
+that a chain whose agents are billed in something other than dollars can
+be bounded.
+
+Each ceiling SHALL be compared only against what was reported in that same
+unit. The product SHALL NOT convert between units, SHALL NOT invent an
+exchange rate, and SHALL NOT sum amounts of different units into one
+total.
+
+A unit SHALL be the code the agent itself reported, compared without
+regard to case.
+
+#### Scenario: A chain billed in credits
+
+- **WHEN** the chain's budget sets a ceiling in credits and its stages
+  report costs in credits
+- **THEN** the chain stops before the stage that would pass that ceiling,
+  as it does for a ceiling in dollars
+
+#### Scenario: Two units, two ceilings
+
+- **WHEN** a ceiling is set in each of two units and stages report in both
+- **THEN** each is compared against its own unit's total, and neither
+  total includes the other's amounts
+
+#### Scenario: A report in a unit no ceiling names
+
+- **WHEN** a stage reports a cost in a unit the budget sets no ceiling for
+- **THEN** the run is not stopped for it, and nothing is added to another
+  unit's total
 

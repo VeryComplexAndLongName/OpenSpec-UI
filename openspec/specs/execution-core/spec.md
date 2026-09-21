@@ -251,7 +251,11 @@ The system SHALL generate, for a given set of changes and a date
 range, a sprint summary containing each change's best-effort git
 authorship, dates, task completion, and a plain-text summary, plus
 aggregate statistics (total changes, tasks completed within the range,
-and a per-author change count), rendered as a PDF document.
+and a per-author change count).
+
+The summary SHALL be produced as data. `packages/core` SHALL NOT render
+it as a document in any format, and SHALL NOT depend on a library that
+renders one.
 
 #### Scenario: Authorship for a change with a single commit
 
@@ -1718,10 +1722,21 @@ claiming that nothing holds the directory.
 
 ### Requirement: A working directory is finished with when the work has landed
 
-Whether a working directory has nothing left to do SHALL be read from
-what settles it: the change's pull request merged, or the default branch
-carrying that change archived, beside a branch that is gone from
-everywhere or whose tip the default branch already contains.
+Whether a working directory has nothing left to do SHALL be read from git
+first: its branch has an upstream, and that upstream is gone. A branch
+that was pushed and whose remote branch has since been deleted is what a
+merged pull request leaves behind in a repository that deletes its
+branches on merge, and it is an answer git gives offline.
+
+The reading SHALL fetch with pruning before it reads, since a deleted
+remote branch becomes visible as gone only then. Where the fetch fails,
+no directory SHALL be called finished with, and the failure SHALL be the
+reason given: a stale reading that removes something is worse than no
+reading.
+
+Two further answers SHALL settle it where they are available: the
+change's pull request merged, or the default branch carrying that change
+archived.
 
 A repository that squashes its pull requests never makes a branch's tip an
 ancestor of its default branch, so a merge base alone answers "not
@@ -1729,8 +1744,11 @@ finished" for work that plainly is.
 
 A directory SHALL be called finished with only where its tree is clean and
 no run is recorded against it, and the main working directory SHALL never
-be called finished with. Each SHALL carry the reason it is finished with,
-so a surface can say why rather than assert it.
+be called finished with. A branch with no upstream SHALL never be called
+finished with, however its change stands: nothing of it was ever pushed.
+Each SHALL carry the reason it is finished with, so a surface can say why
+rather than assert it, and each directory that is kept SHALL carry the one
+reason that kept it.
 
 #### Scenario: A squashed pull request
 
@@ -1747,6 +1765,24 @@ so a surface can say why rather than assert it.
 
 - **WHEN** a directory's change has landed but its tree is not clean
 - **THEN** it is not finished with
+
+#### Scenario: The branch the server no longer has
+
+- **WHEN** a directory's branch has an upstream that git reports gone,
+  its tree is clean and no run is recorded against it
+- **THEN** it is finished with, whatever the change stands at and whether
+  or not pull requests could be read
+
+#### Scenario: A branch that was never pushed
+
+- **WHEN** a directory's branch has no upstream
+- **THEN** it is not finished with, and the reason says the branch was
+  never pushed
+
+#### Scenario: A fetch that failed
+
+- **WHEN** the pruning fetch fails
+- **THEN** no directory is finished with, and the failure is the reason
 
 ### Requirement: The signed channel carries a conversation
 
@@ -1881,4 +1917,191 @@ repository as it was.
 
 - **WHEN** the checkout is on a branch that is not its default
 - **THEN** nothing moves, and the refusal names the branch it is on
+
+### Requirement: An agent working on the repository is visible whether or not it is a run
+
+An agent that works on the repository SHALL be able to report itself into
+the same status directory a run reports into, with the same signed,
+heartbeating record: who it is, which working directory it is in, and what
+it is doing.
+
+A reader SHALL NOT need to distinguish such a record from a run's in order
+to show it, and a record SHALL expire by the same staleness window a run's
+record expires by.
+
+#### Scenario: Two agents on one machine
+
+- **WHEN** two agents are working in two working directories of one
+  repository
+- **THEN** each can read the other's record, and a host that lists runs
+  lists both
+
+#### Scenario: An agent that stops reporting
+
+- **WHEN** an agent's record is not renewed within the staleness window
+- **THEN** it reads as gone, as a run's record does
+
+### Requirement: A shared resource on one machine can be claimed
+
+A resource that is not a working directory - this machine's browser
+capture suite, a port, the editor under test - SHALL be claimable by a
+signed record beside the status directory, naming the claimant, the
+resource and when it was taken, and renewed by a heartbeat.
+
+An agent that finds a resource claimed SHALL wait a bounded time, SHALL
+say whom it is waiting for while it waits, and SHALL report rather than
+proceed when the wait runs out.
+
+A claim SHALL expire when its heartbeat stops, and SHALL NOT be enforced
+against an agent that does not ask for it: it makes a collision visible
+and attributable, and the operating system owns enforcement.
+
+#### Scenario: A resource already held
+
+- **WHEN** an agent asks for a resource another agent holds
+- **THEN** it is told who holds it and since when, waits a bounded time
+  saying so, and reports rather than proceeding if the wait runs out
+
+#### Scenario: A claimant that dies
+
+- **WHEN** a claimant stops renewing its claim
+- **THEN** the claim expires by the staleness window and the resource can
+  be taken
+
+#### Scenario: Two agents asking at once
+
+- **WHEN** two agents ask for the same free resource at the same moment
+- **THEN** exactly one holds it, and the other reads the holder's record
+
+### Requirement: The core says where a change is worked and by whom
+
+`packages/core` SHALL answer, for one active change and one survey of the
+repository's working directories, which of four things is true of it:
+
+- it is worked in the directory the reading was taken from;
+- it is worked in another working directory, which SHALL be named by its
+  label and path, with its branch where it has one, and with the enrolled
+  person where a verified status record names one;
+- it is worked in another working directory whose status record does not
+  check out, which SHALL be named without naming any person;
+- no working directory has taken it up.
+
+A working directory SHALL be read as working a change both where the
+survey pairs the two and where the directory's branch bears that change's
+name and the change is present in that directory. The pairing alone holds
+only while the change is active on the default branch, which a change
+proposed this morning is not.
+
+The sentence each answer is shown as SHALL come from `packages/core` too,
+so that two surfaces cannot word the same answer differently. The two
+answers about another working directory SHALL have a sentence; this
+directory's own change and a change nobody has taken up SHALL have none,
+so that a repository worked in one directory does not caption every row
+with the same words.
+
+Where no survey could be taken, every change SHALL read as taken up by
+nobody, and the reading SHALL NOT fail.
+
+#### Scenario: Another directory is the change's worktree
+
+- **WHEN** a working directory's branch bears an active change's name, and
+  a verified record reports an agent working there
+- **THEN** the reading says the change is worked in that directory, and
+  names the directory and the person
+
+#### Scenario: A record that does not check out
+
+- **WHEN** the only record reporting from that directory fails its
+  signature
+- **THEN** the reading names the directory, names no person, and says the
+  signature did not check out
+
+#### Scenario: A change proposed after the directory was cut
+
+- **WHEN** a working directory's branch bears the name of a change that is
+  present there and is not yet on the default branch
+- **THEN** the reading says that directory is working it
+
+#### Scenario: A change nobody has taken up
+
+- **WHEN** an active change is in this checkout and no working directory
+  is its worktree
+- **THEN** the reading says nobody has taken it up
+
+### Requirement: A working directory that is done is removed
+
+The sweep SHALL remove a working directory it reads as finished with,
+rather than offering the removal, and SHALL say what it removed and why.
+
+Removing one SHALL remove the worktree and whatever shell is left behind
+where a link was inside it. A link SHALL be unlinked and never followed:
+a working directory may hold a link to a directory shared with the rest
+of the repository, and following one would delete what it points at.
+
+The local branch SHALL be left alone. It costs nothing and it holds the
+commits, which matters where a remote branch was deleted without merging
+- something git cannot distinguish from a merge.
+
+Nothing under `openspec/changes/` SHALL be read, moved or written while
+removing a working directory. A change is repository content, and
+archiving one is a separate act with its own commit.
+
+#### Scenario: A directory whose branch is gone
+
+- **WHEN** the sweep finds a working directory that is finished with
+- **THEN** it removes the worktree and its shell, leaves the branch, and
+  reports what it removed and why
+
+#### Scenario: A directory holding a link
+
+- **WHEN** the directory holds a link to a directory outside it
+- **THEN** the link is unlinked and what it pointed at is untouched
+
+#### Scenario: The changes are not touched
+
+- **WHEN** any working directory is removed
+- **THEN** no file under `openspec/changes/` has changed
+
+### Requirement: A closed task item says how it ended
+
+A task item that is closed SHALL carry one of three endings, read from
+its own line and the lines continuing it:
+
+- **done** - it was carried out;
+- **waived** - a person looked and decided not to carry it out;
+- **deferred** - it is a judgement about the shipped thing, and it has
+  moved to the collection of what waits on a person.
+
+An open item SHALL carry no ending. The ending SHALL be absent rather
+than a default where a closed item declares none, which is how every
+item written before this existed reads: done.
+
+A closed item marked as needing a person, or naming an agent, SHALL be
+reported as unrecorded where nothing is written under it. For such an
+item "done" is a claim about something that happened outside the
+repository, and what was run and what was seen is the only thing that
+makes it checkable afterwards.
+
+#### Scenario: An item a person waived
+
+- **WHEN** a closed item's text carries a waiver naming who decided and
+  why
+- **THEN** its ending reads as waived
+
+#### Scenario: An item deferred until the work ships
+
+- **WHEN** a closed item's text says it has been deferred
+- **THEN** its ending reads as deferred, and the change it belongs to is
+  not held open by it
+
+#### Scenario: An ordinary tick
+
+- **WHEN** a closed item declares no ending
+- **THEN** its ending reads as done
+
+#### Scenario: A human-only item ticked with nothing written
+
+- **WHEN** an item marked as needing a person is closed and nothing is
+  written under it
+- **THEN** it is reported as unrecorded
 

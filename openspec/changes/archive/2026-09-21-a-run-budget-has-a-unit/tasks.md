@@ -51,6 +51,9 @@ dollars, and some agents are billed in credits.
   here on an untouched tree and passes in CI.
 - [x] 4.2 A changeset: `@openspec-ui/core` minor, `@openspec-ui/webui`
   minor, and the hosts that bundle them.
-- [ ] 4.3 **Human-only.** Whether a ceiling per unit reads as clearer than
+- [x] 4.3 **Human-only.** Whether a ceiling per unit reads as clearer than
   one number, and whether the finding about a dead ceiling arrives where
   it would be read.
+  Closed by the owner on 2026-09-20, in the main working directory.
+  Committed here rather than there because the change's own branch had
+  already merged and `main` takes no direct push.
