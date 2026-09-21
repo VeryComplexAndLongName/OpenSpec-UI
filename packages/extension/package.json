@@ -733,7 +733,9 @@
     "mocha": "^11.8.0",
     "@types/mocha": "^10.0.10",
     "glob": "^13.0.0",
-    "@vscode/vsce": "^3.9.2"
+    "@vscode/vsce": "^3.9.2",
+    "ajv": "^6.15.0",
+    "tsx": "^4.23.13"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -743,6 +745,7 @@
     "test:integration": "node src/test/run.mjs",
     "test:pictures": "npm run build && playwright test",
     "package": "npm run build && vsce package --no-dependencies",
-    "reinstall:local": "node scripts/reinstall-local.mjs"
+    "reinstall:local": "node scripts/reinstall-local.mjs",
+    "schemas": "tsx scripts/write-harness-schemas.mts"
   }
 }

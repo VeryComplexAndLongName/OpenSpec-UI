@@ -1,7 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "OpenSpec Workbench Agentic Harness — per-change override",
-  "description": "Per-change override for openspec/changes/<id>/harness.json — deep-merged over the global openspec/agent-harness.json, key by key. Only set fields you want to override; everything else stays inherited.",
+  "$comment": "Generated from packages/core/src/harness-config-schema.ts. Do not edit: run npm run schemas --workspace packages/extension.",
+  "title": "OpenSpec Workbench Agentic Harness - per-change override",
+  "description": "openspec/changes/<id>/harness.json: this change's differences from openspec/agent-harness.json, merged over it. See HARNESS.md for every key.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -9,38 +10,358 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "propose": { "$ref": "#/definitions/agentId" },
-        "review": { "$ref": "#/definitions/agentId" },
-        "apply": { "$ref": "#/definitions/agentId" },
-        "archive": { "$ref": "#/definitions/agentId" },
-        "git": { "$ref": "#/definitions/agentId" }
-      }
+        "propose": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "review": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "apply": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "verify": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "archive": {
+          "not": {},
+          "description": "\"archive\" is a mechanical stage and never invokes an agent."
+        },
+        "git": {
+          "not": {},
+          "description": "\"git\" is a mechanical stage and never invokes an agent."
+        }
+      },
+      "description": "Which agent runs each stage."
     },
     "autonomyLevel": {
       "type": "string",
-      "enum": ["assisted", "semi-autonomous", "autonomous"],
-      "description": "semi-autonomous and autonomous are accepted and persisted but not yet functional — see openspec/changes/agentic-harness/design.md."
+      "enum": [
+        "assisted",
+        "semi-autonomous",
+        "autonomous"
+      ],
+      "description": "How much runs without a person."
     },
     "reviewGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode"],
+      "required": [
+        "mode"
+      ],
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["human-required", "agent-sufficient"],
-          "description": "Whoever is configured as the review stepAgent is the accountable party for relaxing this to agent-sufficient."
+          "enum": [
+            "human-required",
+            "agent-sufficient"
+          ],
+          "description": "Whether an agent's review is enough to go on."
         }
       }
     },
     "checkpoints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requireConfirmationBetweenSteps"],
+      "required": [
+        "requireConfirmationBetweenSteps"
+      ],
       "properties": {
         "requireConfirmationBetweenSteps": {
           "type": "boolean",
-          "description": "false lets a semi-autonomous/autonomous chain run this change's stages with no pause between them."
+          "description": "Whether the chain pauses for a person between stages."
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Spending ceilings for the chain and for one stage. A stage ceiling above the chain's is refused by the product.",
+      "properties": {
+        "maxCostUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The chain's ceiling in USD."
+        },
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The chain's ceiling in input plus output tokens."
+        },
+        "maxCost": {
+          "type": "object",
+          "description": "The chain's ceiling per unit of account, such as credits: 500.",
+          "propertyNames": {
+            "minLength": 1,
+            "pattern": "[^ ]"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "A ceiling in this unit."
+          }
+        },
+        "maxStageCostUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "One stage's ceiling in USD, checked when the stage ends."
+        },
+        "maxStageTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One stage's ceiling in tokens, checked when the stage ends."
+        }
+      }
+    },
+    "timeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Time ceilings in seconds. A stage ceiling above the run's is refused by the product.",
+      "properties": {
+        "maxRunSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The chain's stages, summed."
+        },
+        "maxStageSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One stage."
+        }
+      }
+    },
+    "maxStageAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many times one stage may be attempted, counting the first."
+    },
+    "gitStageAllowlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remotes",
+        "branches"
+      ],
+      "description": "Where the git stage may push, open and merge pull requests. Wildcards (*) allowed.",
+      "properties": {
+        "remotes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "taskAgents": {
+      "type": "object",
+      "description": "Which agent runs one numbered task of this change, keyed by the task's number.",
+      "propertyNames": {
+        "pattern": "^\\d+(?:\\.\\d+)*$"
+      },
+      "additionalProperties": {
+        "allOf": [
+          {
+            "$ref": "#/definitions/agentEntry"
+          },
+          {
+            "not": {
+              "anyOf": [
+                {
+                  "const": "vscode-chat"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "const": "vscode-chat"
+                    }
+                  },
+                  "required": [
+                    "agent"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "Steps this change's chain adds, each placed before or after a fixed stage.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "step"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "await-change"
+            ]
+          },
+          "before": {
+            "type": "string",
+            "enum": [
+              "propose",
+              "review",
+              "apply",
+              "verify",
+              "archive",
+              "git"
+            ]
+          },
+          "after": {
+            "type": "string",
+            "enum": [
+              "propose",
+              "review",
+              "apply",
+              "verify",
+              "archive",
+              "git"
+            ]
+          },
+          "param": {
+            "type": "string"
+          },
+          "maxWaitSeconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "How long a waiting step may wait."
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "before"
+            ],
+            "not": {
+              "required": [
+                "after"
+              ]
+            }
+          },
+          {
+            "required": [
+              "after"
+            ],
+            "not": {
+              "required": [
+                "before"
+              ]
+            }
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "step": {
+                  "const": "await-change"
+                }
+              },
+              "required": [
+                "step"
+              ]
+            },
+            "then": {
+              "required": [
+                "param"
+              ],
+              "properties": {
+                "param": {
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "hints": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether suggestions are computed at all."
+        }
+      }
+    },
+    "allowAgentMessages": {
+      "type": "boolean",
+      "description": "Whether a run takes notes written by another run. Absent means false."
+    },
+    "branches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rebaseWhenBehind": {
+          "type": "boolean",
+          "description": "Rebase a change's branch that has fallen behind, and push it with a lease (ADR 0034). Absent means true."
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "whenLanded": {
+          "type": "boolean",
+          "description": "Archive a change that has landed with nothing open, in a pull request that merges on green (ADR 0035). Absent means true."
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "autonomyLevel": {
+        "enum": [
+          "semi-autonomous",
+          "autonomous"
+        ]
+      }
+    },
+    "required": [
+      "autonomyLevel"
+    ]
+  },
+  "then": {
+    "properties": {
+      "stepAgents": {
+        "additionalProperties": {
+          "not": {
+            "anyOf": [
+              {
+                "const": "vscode-chat"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "const": "vscode-chat"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              }
+            ]
+          }
         }
       }
     }
@@ -48,8 +369,418 @@
   "definitions": {
     "agentId": {
       "type": "string",
-      "description": "Must match an AgentDescriptor.id from packages/core/src/agents/registry.ts — kept in sync by hand (a small, stable list).",
-      "enum": ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]
+      "enum": [
+        "claude-cli",
+        "copilot-cli",
+        "codex-cli",
+        "gemini-cli",
+        "local-llm",
+        "copilot-cli-acp",
+        "gemini-cli-acp",
+        "codex-cli-acp",
+        "claude-cli-acp",
+        "vscode-chat"
+      ],
+      "description": "A registered agent id (packages/core/src/agents/registry.ts), or vscode-chat, which hands the stage to VS Code chat."
+    },
+    "agentEntry": {
+      "description": "An agent id, or an object naming the agent with what it runs with.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/agentId"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent"
+          ],
+          "properties": {
+            "agent": {
+              "$ref": "#/definitions/agentId"
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "The model the agent runs. Only for an agent that takes a model flag."
+            },
+            "effort": {
+              "type": "string",
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "description": "Reasoning effort. Only the values the chosen agent accepts."
+            },
+            "budget": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "maxCostUsd": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "A cap in USD, for an agent that caps spending in dollars."
+                },
+                "maxAiCredits": {
+                  "type": "integer",
+                  "minimum": 30,
+                  "description": "A cap in AI credits, at least 30, for an agent that caps spending in credits."
+                }
+              }
+            },
+            "customAgent": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "A custom agent definition the agent loads. Only for an agent that takes one."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "vscode-chat"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {}
+                  },
+                  "effort": {
+                    "not": {}
+                  },
+                  "budget": {
+                    "not": {}
+                  },
+                  "customAgent": {
+                    "not": {}
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "claude-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values claude-cli accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxAiCredits": {
+                        "not": {},
+                        "description": "claude-cli caps spending in maxCostUsd only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "copilot-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values copilot-cli accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxCostUsd": {
+                        "not": {},
+                        "description": "copilot-cli caps spending in maxAiCredits only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "codex-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "codex-cli does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "codex-cli does not take a custom agent."
+                  },
+                  "effort": {
+                    "enum": [
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "description": "The effort values codex-cli accepts."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "codex-cli has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "gemini-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "gemini-cli does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "gemini-cli does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "gemini-cli has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "gemini-cli has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "local-llm"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "local-llm does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "local-llm does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "local-llm has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "local-llm has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "copilot-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values copilot-cli-acp accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxCostUsd": {
+                        "not": {},
+                        "description": "copilot-cli-acp caps spending in maxAiCredits only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "gemini-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "gemini-cli-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "gemini-cli-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "gemini-cli-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "gemini-cli-acp has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "codex-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "codex-cli-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "codex-cli-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "codex-cli-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "codex-cli-acp has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "claude-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values claude-cli-acp accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxAiCredits": {
+                        "not": {},
+                        "description": "claude-cli-acp caps spending in maxCostUsd only."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 }
