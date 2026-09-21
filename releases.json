@@ -1,40 +1,45 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-21T17:44:08.331Z",
+  "generated_at": "2026-09-21T18:10:32.611Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "5dde040256772ebd787c82495b0fe1156ee1f698",
+  "commit": "1a56519a7275db076f1614ab61322b7bc93ddd77",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.74.2",
-      "released_at": "2026-09-21T17:44:08.331Z",
-      "tag": "openspec-ui-vscode@0.74.2",
+      "version": "0.75.0",
+      "released_at": "2026-09-21T18:10:32.611Z",
+      "tag": "openspec-ui-vscode@0.75.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.74.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.75.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.74.2/openspec-ui-vscode-0.74.2.vsix",
-          "size_bytes": 6429036
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.75.0/openspec-ui-vscode-0.75.0.vsix",
+          "size_bytes": 6432750
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "Your main checkout follows what landed"
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.36.2",
-      "released_at": "2026-09-21T17:44:08.331Z",
+      "version": "1.37.0",
+      "released_at": "2026-09-21T18:10:32.611Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -44,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A sprint's changes are picked from a list you can read"
+          "kind": "minor",
+          "summary": "Your main checkout follows what landed"
         }
       ]
     },
@@ -54,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.112.1",
-      "released_at": "2026-09-21T17:44:08.331Z",
+      "version": "0.113.0",
+      "released_at": "2026-09-21T18:10:32.611Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -65,8 +70,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The sweep no longer leaves half-removed working directories"
+          "kind": "minor",
+          "summary": "Your main checkout follows what landed"
         }
       ]
     },
@@ -75,20 +80,15 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.70.2",
-      "released_at": "2026-09-21T17:44:08.331Z",
+      "version": "1.70.3",
+      "released_at": "2026-09-21T18:10:32.611Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "patch",
-          "summary": "A sprint's changes are picked from a list you can read"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
@@ -96,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.19.0",
-      "released_at": "2026-09-21T17:44:08.331Z",
+      "released_at": "2026-09-21T18:10:32.611Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
