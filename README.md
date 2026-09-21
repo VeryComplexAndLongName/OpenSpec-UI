@@ -234,7 +234,9 @@ testing expertise".
     [`HARNESS.md`](HARNESS.md#branches).
   - A change that has landed with every task item closed is archived for
     you, in one pull request per pass that merges when its checks pass.
-    One that landed still owing something is named, not archived.
+    One that landed still owing something is named, not archived. The
+    main checkout's `main` then follows what landed, by fast-forward, when
+    its tree is clean; `branches.followMain` turns that off.
     `archive.whenLanded` turns it off; see
     [`HARNESS.md`](HARNESS.md#archive).
 

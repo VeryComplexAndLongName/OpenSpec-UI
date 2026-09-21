@@ -27,6 +27,10 @@ export interface MainDrift {
   fetchedAt?: string;
   /** The visible changes the default branch already carries archived. */
   archivedOnDefault: string[];
+  /** Changes under way on the remote's default branch that this checkout's
+   * does not hold at all: landed while it was behind, and shown by no view
+   * here until it catches up (main-follows-what-landed). */
+  landedNotHere?: string[];
   /** Whether the tree is clean. Read with the rest because it is the
    * first thing that would refuse a catch-up, and a press that is going
    * to be refused should be able to say so before it is pressed. */
@@ -47,5 +51,9 @@ export function driftWords(drift: MainDrift): string {
   const alsoArchived = archived === 0
     ? ""
     : `; ${archived} of these ${archived === 1 ? "changes is" : "changes are"} archived on ${drift.defaultBranch}`;
-  return `${drift.defaultBranch} is ${commits} behind ${drift.remote}/${drift.defaultBranch}${alsoArchived}`;
+  const notHere = drift.landedNotHere ?? [];
+  const unseen = notHere.length === 0
+    ? ""
+    : `; ${notHere.length} ${notHere.length === 1 ? "change there is" : "changes there are"} not shown here: ${notHere.join(", ")}`;
+  return `${drift.defaultBranch} is ${commits} behind ${drift.remote}/${drift.defaultBranch}${alsoArchived}${unseen}`;
 }

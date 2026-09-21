@@ -21,6 +21,7 @@ import {
   readGlobalHarnessConfig,
   rebasesWhenBehind,
   archivesWhenLanded,
+  followsMain,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
   TOP_LEVEL_CONFIG_KEYS,
@@ -1702,6 +1703,25 @@ describe("branches.rebaseWhenBehind", () => {
       .rejects.toThrow(/rebaseWhenBehind must be a boolean/);
     await expect(writeGlobalHarnessConfig(root, { branches: { mergeWhenBehind: true } } as never))
       .rejects.toThrow(/branches has no key "mergeWhenBehind"/);
+  });
+});
+
+// main-follows-what-landed: on unless it is turned off.
+describe("branches.followMain", () => {
+  it("is on where nothing says otherwise, and off where the workspace says so", async () => {
+    const root = await temporaryRoot();
+    expect(followsMain(await readGlobalHarnessConfig(root))).toBe(true);
+
+    await writeGlobalHarnessConfig(root, { branches: { followMain: false } });
+
+    expect(followsMain(await readGlobalHarnessConfig(root))).toBe(false);
+  });
+
+  it("refuses a value that is not a boolean", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { branches: { followMain: "yes" } } as never))
+      .rejects.toThrow(/branches.followMain must be a boolean/);
   });
 });
 

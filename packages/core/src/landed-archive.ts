@@ -63,6 +63,14 @@ function stamp(now: Date): string {
   return `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
 }
 
+/** What an archive pull request is called: the changes it archives, by
+ * name, so the list of pull requests says what each one is. Two named in
+ * full; more, the first two and how many besides. */
+export function landedArchiveTitle(changes: readonly string[]): string {
+  if (changes.length <= 2) return `Archive ${changes.join(" and ")}`;
+  return `Archive ${changes.slice(0, 2).join(", ")} and ${changes.length - 2} more`;
+}
+
 function lines(...parts: string[]): string {
   return parts.join(String.fromCharCode(10));
 }
@@ -150,7 +158,7 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
     const git = deps.gitIn(directory.path);
     await git.stagePath("openspec");
     const committed = await git.commit(lines(
-      archived.length === 1 ? `Archive ${archived[0]}` : `Archive the ${archived.length} changes that landed`,
+      landedArchiveTitle(archived),
       "",
       ...archived.map((name) => `- ${name}`),
       "",
@@ -166,7 +174,7 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
     const pullRequest = await deps.forge.openPullRequest({
       head: branch,
       base: defaultBranch,
-      title: archived.length === 1 ? `Archive ${archived[0]}` : `Archive the ${archived.length} changes that landed`,
+      title: landedArchiveTitle(archived),
       body: lines(
         "Every change below has landed on the default branch with every task item closed, so it is archived here.",
         "",

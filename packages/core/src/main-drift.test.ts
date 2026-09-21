@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { catchUpWithMain, readMainDrift } from "./main-drift.js";
+import { catchUpWithMain, driftWords, readMainDrift } from "./main-drift.js";
 import type { ChangeStandings } from "./change-standing.js";
 
 // every-varying-check-has-a-budget: no git, no filesystem. The wrapper is
@@ -22,6 +22,10 @@ function gitOver(over: Partial<{
     aheadBehind: vi.fn(async () => ("counts" in over ? over.counts : { ahead: 0, behind: 3 })),
     lastFetchedAt: vi.fn(async () => over.fetchedAt ?? new Date("2026-09-20T09:00:00.000Z")),
     status: vi.fn(async () => ({ isClean: over.clean ?? true }) as never),
+    listTreeNames: vi.fn(async (ref: string, pathInRepo: string) => {
+      if (pathInRepo.endsWith("archive")) return ref === "main" ? ["2026-09-19-landed-one"] : [];
+      return ref === "main" ? ["still-here", "archive"] : ["still-here", "landed-one", "landed-elsewhere", "archive"];
+    }),
   };
 }
 
@@ -32,6 +36,23 @@ const standings = {
     { changeName: "landed-two", main: { kind: "archived", archiveName: "2026-09-19-landed-two" } },
   ],
 } as unknown as ChangeStandings;
+
+describe("readMainDrift, what landed that this checkout does not show", () => {
+  // main-follows-what-landed: a change merged while this checkout was
+  // behind is on no view here, and the owner could not find it.
+  it("names the changes under way there that this checkout does not hold", async () => {
+    const drift = await readMainDrift({ root: "/repo", standings, git: gitOver() });
+
+    expect(drift?.landedNotHere).toEqual(["landed-elsewhere"]);
+    expect(driftWords(drift!)).toContain("1 change there is not shown here: landed-elsewhere");
+  });
+
+  it("names none where the checkout is level", async () => {
+    const drift = await readMainDrift({ root: "/repo", git: gitOver({ counts: { ahead: 0, behind: 0 } }) });
+
+    expect(drift?.landedNotHere).toBeUndefined();
+  });
+});
 
 describe("readMainDrift", () => {
   it("says the branch, the distance both ways, when refs were fetched, and what is already archived", async () => {

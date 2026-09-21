@@ -121,6 +121,8 @@ function ruleCases(): Case[] {
     { name: "agent messages allowed", config: { allowAgentMessages: true } },
     { name: "agent messages as text", config: { allowAgentMessages: "yes" } },
     { name: "rebase off", config: { branches: { rebaseWhenBehind: false } } },
+    { name: "main not followed", config: { branches: { followMain: false } } },
+    { name: "main followed as text", config: { branches: { followMain: "yes" } } },
     { name: "an unknown branches key", config: { branches: { mergeWhenBehind: true } } },
     { name: "archive off", config: { archive: { whenLanded: false } } },
     { name: "an unknown archive key", config: { archive: { whenMerged: true } } },
