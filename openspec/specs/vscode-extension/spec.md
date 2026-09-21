@@ -397,45 +397,6 @@ configurable via the `openspec-ui.staleTaskThresholdDays` setting
   different value and reopens the Change Timeline
 - **THEN** the new threshold is used to determine staleness
 
-### Requirement: A global command generates a downloadable sprint report
-
-The system SHALL offer a Command Palette command, not tied to any
-single tree item, that lets the user select multiple active and/or
-archived changes, enter a sprint start and end date, and save a
-generated PDF sprint report to a location of their choosing.
-
-#### Scenario: User generates and saves a sprint report
-
-- **WHEN** the user invokes "Generate Sprint Report (PDF)", selects one
-  or more changes, enters a valid start and end date, and confirms a
-  save location
-- **THEN** a PDF file is written to that location and a confirmation
-  message offers to open it
-
-#### Scenario: User selects no changes
-
-- **WHEN** the user cancels the change selection without picking any
-  change
-- **THEN** no date prompt appears and no report is generated
-
-#### Scenario: User enters a malformed date
-
-- **WHEN** the user types a value that is not a valid `YYYY-MM-DD` date
-  into either date prompt
-- **THEN** the prompt reports the problem and does not accept the value
-
-#### Scenario: User cancels the save dialog
-
-- **WHEN** the user picks changes and a valid date range but dismisses
-  the save dialog
-- **THEN** no PDF file is written
-
-#### Scenario: Report generation fails
-
-- **WHEN** building the sprint report or rendering the PDF throws
-- **THEN** the extension shows an error message and does not write a
-  file
-
 ### Requirement: Tree-scoped commands honour the tree's current selection
 
 A command that acts on a change, template or task SHALL, when invoked
@@ -1163,13 +1124,21 @@ and again on the interval core settles, clearing what the product itself
 left and reporting the rest in the Changes view.
 
 The editor is where a workspace is usually open all day, so it is where a
-directory left behind is most likely to be seen — and where it was seen, as
+directory left behind is most likely to be seen - and where it was seen, as
 two changes with no tasks, on 2026-09-18.
 
 What it reports SHALL be the same reading the standalone shell shows, from
-the same core function, and removing a leftover or a working directory that
-is finished with SHALL be a command the person runs, never part of the
-sweep.
+the same core function. Removing a leftover SHALL be a command the person
+runs; removing a working directory that is finished with SHALL be part of
+the sweep, and the view SHALL say what was removed and why.
+
+That reverses the earlier rule, under which both were commands. Six
+working directories accumulated in one day on this machine, because a
+press nobody remembers is a press nobody makes. The rails that made the
+old rule cautious are unchanged - a clean tree, no run recorded, and a
+branch that was pushed and whose remote is gone - and past them nothing
+is lost: the branch stays, its commits stay, and the directory is one
+`git worktree add` from existing again.
 
 #### Scenario: Activation clears an archived change's leavings
 
@@ -1189,6 +1158,12 @@ sweep.
 
 - **WHEN** the sweep cannot remove what it found
 - **THEN** the Changes view reports the failure and the extension carries on
+
+#### Scenario: A working directory whose work has landed
+
+- **WHEN** the sweep finds a working directory that is finished with
+- **THEN** it is removed without being asked for, and the Changes view
+  says which directory went and why
 
 ### Requirement: A run can be asked from a change's row to stop after a task
 
@@ -1255,4 +1230,114 @@ each answer once.
 - **WHEN** the signed directory cannot be read, or this machine has no key
 - **THEN** nothing is shown, nothing is raised, and the next reading tries
   again
+
+### Requirement: The Changes tree says whose each change is
+
+The Changes tree SHALL draw this working directory's own change first, and
+the view's description SHALL name that change.
+
+For each change that is worked in another working directory, the tree
+SHALL draw a locked, greyed icon and SHALL say in the item's description
+which directory it is worked in and, where a verified record names one,
+which person. The whole sentence SHALL also be the item's tooltip. A change
+no directory has taken up SHALL keep its standing's icon, colour and menu.
+
+The per-change commands that write SHALL be hidden on an item worked in
+another working directory, and each of those commands SHALL refuse when it
+is invoked by name, naming the working directory to work in instead.
+
+Where this checkout has no change of its own, the view SHALL say so and
+SHALL say how many changes are being worked in other working directories,
+with a press that opens the Pipeline.
+
+These readings SHALL come from the survey the tree already takes: no
+additional watcher, and no additional git invocation.
+
+#### Scenario: A fresh working directory holds somebody else's changes
+
+- **WHEN** a directory is cut from the default branch while other changes
+  are active there
+- **THEN** its own change is first and named in the view's description,
+  and the others are drawn locked, naming the directories they are worked
+  in
+
+#### Scenario: A writing command reached another way
+
+- **WHEN** a command that would write to a change is invoked from the
+  palette while that change is worked in another working directory
+- **THEN** it refuses, names that directory, and writes nothing
+
+#### Scenario: The main checkout while the work is elsewhere
+
+- **WHEN** the main working directory has no change of its own and four
+  are worked in other directories
+- **THEN** the view says so, says how many, and offers to open the
+  Pipeline
+
+### Requirement: Another working directory's change can be read without writing
+
+The extension SHALL open another working directory's `proposal.md`,
+`design.md` and `tasks.md` as documents that cannot be saved, serving their
+text through a provider on a scheme of its own rather than opening the
+files themselves. The editor's title SHALL name the change, the directory
+and that it is read-only.
+
+A file that is absent, or a directory that cannot be read, SHALL open as a
+one-line explanation rather than an error notification.
+
+The extension SHALL also offer to open that working directory itself.
+
+#### Scenario: Reading what the other agent has written
+
+- **WHEN** another directory's copy of a change has edits that are not
+  committed
+- **THEN** opening it here shows those edits, and the document cannot be
+  saved
+
+### Requirement: A picker moves between every active change
+
+The extension SHALL offer a command that lists every active change with
+where it is worked and whose it is, and reveals the chosen change in the
+Changes tree. This working directory's own change SHALL be first in that
+list.
+
+#### Scenario: Choosing a change from the picker
+
+- **WHEN** the picker is opened in a working directory with an own change
+- **THEN** that change is the first entry, and choosing any entry reveals
+  it in the tree
+
+### Requirement: A global command writes a sprint report page
+
+The system SHALL offer a Command Palette command, not tied to any
+single tree item, that lets the user select multiple active and/or
+archived changes, enter a sprint start and end date, and save the
+generated sprint report, as a page in the product's own look, to a
+location of their choosing. It SHALL then offer to open that page, and
+SHALL open it outside the editor, where printing to PDF is available.
+
+#### Scenario: User generates and saves a sprint report
+
+- **WHEN** the user invokes the command, selects one or more changes,
+  enters a valid start and end date, and confirms a save location
+- **THEN** the page is written to that location and a confirmation
+  message offers to open it
+
+#### Scenario: User selects no changes
+
+- **WHEN** the user cancels the change selection without picking any
+  change
+- **THEN** no date prompt appears and no report is generated
+
+#### Scenario: User enters a malformed date
+
+- **WHEN** the user types a value that is not a valid `YYYY-MM-DD` date
+  into either date prompt
+- **THEN** the prompt reports the problem and does not accept the value
+
+#### Scenario: User cancels the save dialog
+
+- **WHEN** the user picks changes and a valid date range but dismisses
+  the save dialog
+- **THEN** nothing is written and no error is reported
 
