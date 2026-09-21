@@ -64,8 +64,16 @@ In this order, and the first answer wins:
 - [x] 5.4 A changeset: core and the extension both change.
 - [x] 5.5 `openspec validate git-says-a-working-directory-is-done
   --strict`.
-- [ ] 5.6 **Human-only.** The six directories on this machine: after the
+- [x] 5.6 **Human-only.** The six directories on this machine: after the
   sweep, the ones whose branches are gone are removed, the main one is
-  there, and `openspec/changes/` is byte for byte what it was. Left open
-  until this lands: the sweep runs in the extension, and running it from
-  a branch would remove the very directories this change is written in.
+  there, and `openspec/changes/` is byte for byte what it was.
+  Done by Claude on 2026-09-21 at the owner's request, for the owner to
+  look at in turn. A dry run first listed eight directories to remove -
+  every working directory of a merged change - and kept the main one and
+  this archive's own, whose branch is still on the server. The sweep
+  then removed exactly those eight, each for "its branch is gone from
+  the server". A hash over every file under `openspec/changes/` read
+  `a8e43d7e4081` before and after. The main checkout's `node_modules`,
+  which each removed directory held as a junction, still has its 556
+  entries: the links were unlinked, not followed, on real data as the
+  test says. No shell was left under the worktree root.
