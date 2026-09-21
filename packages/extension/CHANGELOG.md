@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.72.3
+
+### Patch Changes
+
+- ef790ed: Everything now says OpenSpec Workbench
+  
+  The Command Palette, notifications, panel titles, the standalone's
+  headline, the server's startup line and the settings schemas said
+  "OpenSpec UI", the product's old name. They now say "OpenSpec Workbench".
+  Command ids, settings, keybindings and stored state keep their names, so
+  nothing needs to be set up again.
+- Updated dependencies [ef790ed]
+  - @openspec-ui/core@0.110.3
+  - @openspec-ui/webui@1.69.3
+  - @openspec-ui/server@1.35.3
+
 ## 0.72.2
 
 ### Patch Changes
