@@ -165,6 +165,9 @@ export interface HarnessConfig {
    * another run has a second operator nobody chose, and a refusal is
    * recorded like any other (the-operator-can-say-something-to-a-run). */
   allowAgentMessages?: boolean;
+  /** What this product does with a change's branch. Absent means every
+   * default below. */
+  branches?: HarnessBranches;
   autonomyLevel: HarnessAutonomyLevel;
   reviewGate: HarnessReviewGate;
   /** Whether `HarnessChainRunner` pauses for an explicit human
@@ -306,7 +309,25 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches"] as const;
+
+/** What this product does with a change's branch (ADR 0034). */
+export interface HarnessBranches {
+  /** Whether a change's branch that has fallen behind the default branch
+   * is rebased onto it and pushed with a lease. Absent means `true`.
+   *
+   * This is the one workspace default that lets the product push, and it
+   * is an exception on purpose: a rebase adds nothing to the server, and
+   * the lease makes it unable to take anything away. A team that shares
+   * change branches turns it off. */
+  rebaseWhenBehind?: boolean;
+}
+
+/** Whether a behind change branch is rebased, as a configuration says.
+ * On unless it is turned off (ADR 0034). */
+export function rebasesWhenBehind(config: Pick<HarnessConfig, "branches">): boolean {
+  return config.branches?.rebaseWhenBehind !== false;
+}
 
 function formatAcceptedKeys(keys: readonly string[]): string {
   return keys.join(", ");
@@ -929,6 +950,19 @@ function assertValidHarnessConfigInput(
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
     throw new InvalidHarnessConfigError("allowAgentMessages must be a boolean");
   }
+  const branches = (input as { branches?: unknown }).branches;
+  if (branches !== undefined) {
+    if (branches === null || typeof branches !== "object" || Array.isArray(branches)) {
+      throw new InvalidHarnessConfigError("branches must be an object");
+    }
+    for (const key of Object.keys(branches)) {
+      if (key !== "rebaseWhenBehind") throw new InvalidHarnessConfigError(`branches has no key "${key}"; the one it takes is rebaseWhenBehind`);
+    }
+    const rebaseWhenBehind = (branches as { rebaseWhenBehind?: unknown }).rebaseWhenBehind;
+    if (rebaseWhenBehind !== undefined && typeof rebaseWhenBehind !== "boolean") {
+      throw new InvalidHarnessConfigError("branches.rebaseWhenBehind must be a boolean");
+    }
+  }
   assertValidBudget(input.budget);
   assertValidTimeout(input.timeout);
   assertValidMaxStageAttempts(input.maxStageAttempts);
@@ -1069,6 +1103,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
     hints: input.hints ?? DEFAULT_HARNESS_CONFIG.hints,
     ...(input.allowAgentMessages !== undefined ? { allowAgentMessages: input.allowAgentMessages } : {}),
+    ...(input.branches !== undefined ? { branches: input.branches } : {}),
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
     // A field added to `HarnessConfig` and to `TOP_LEVEL_CONFIG_KEYS` but
     // not to this list is accepted by validation and then silently
@@ -1131,6 +1166,11 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     hints: override.hints ?? global.hints,
     ...((override.allowAgentMessages ?? global.allowAgentMessages) !== undefined
       ? { allowAgentMessages: override.allowAgentMessages ?? global.allowAgentMessages }
+      : {}),
+    // Key by key: a change that turns rebasing off says so for itself, and
+    // leaves every other branch setting to the workspace.
+    ...((override.branches ?? global.branches) !== undefined
+      ? { branches: { ...global.branches, ...override.branches } }
       : {}),
     // Whole-object override, like autonomyLevel/reviewGate/checkpoints
     // above — not a key-by-key merge like stepAgents. A per-change budget,

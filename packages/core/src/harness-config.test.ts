@@ -19,6 +19,7 @@ import {
   normalizeStepAgent,
   readChangeHarnessConfig,
   readGlobalHarnessConfig,
+  rebasesWhenBehind,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
   TOP_LEVEL_CONFIG_KEYS,
@@ -986,6 +987,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     steps: [{ step: "await-change", before: "verify", param: "the-other-change", maxWaitSeconds: 600 }],
     hints: { enabled: false },
     allowAgentMessages: true,
+    branches: { rebaseWhenBehind: false },
   };
 
   it("has a sample for every accepted key, and no others", () => {
@@ -1661,3 +1663,43 @@ describe("declared steps (a-change-can-declare-a-step)", () => {
     } as never)).rejects.toThrow(/steps\[1\]/);
   });
 });
+
+// ADR 0034, a-behind-branch-is-rebased-for-you: the one workspace default
+// that lets the product push, and on unless it is turned off.
+describe("branches.rebaseWhenBehind", () => {
+  it("is on where nothing says otherwise", async () => {
+    const root = await temporaryRoot();
+
+    expect(rebasesWhenBehind(await readGlobalHarnessConfig(root))).toBe(true);
+  });
+
+  it("is off where the workspace turns it off", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { branches: { rebaseWhenBehind: false } });
+
+    expect(rebasesWhenBehind(await readGlobalHarnessConfig(root))).toBe(false);
+  });
+
+  it("lets one change turn it off for itself, and leaves the others on", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "shared-branch"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "changes", "shared-branch", "harness.json"),
+      JSON.stringify({ branches: { rebaseWhenBehind: false } }),
+      "utf8",
+    );
+
+    expect(rebasesWhenBehind(await resolveHarnessConfig(root, "shared-branch"))).toBe(false);
+    expect(rebasesWhenBehind(await resolveHarnessConfig(root, "another-change"))).toBe(true);
+  });
+
+  it("refuses a value that is not a boolean, and a key it does not know", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { branches: { rebaseWhenBehind: "yes" } } as never))
+      .rejects.toThrow(/rebaseWhenBehind must be a boolean/);
+    await expect(writeGlobalHarnessConfig(root, { branches: { mergeWhenBehind: true } } as never))
+      .rejects.toThrow(/branches has no key "mergeWhenBehind"/);
+  });
+});
+

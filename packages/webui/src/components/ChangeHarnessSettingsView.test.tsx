@@ -222,6 +222,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
       steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
       hints: { enabled: false },
       allowAgentMessages: true,
+      branches: { rebaseWhenBehind: false },
     };
     const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ ...everyKey }) });
     await renderLoaded(api);

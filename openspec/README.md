@@ -124,18 +124,23 @@ another commit on the open one. The owner merges quickly, and a commit
 pushed to a branch whose pull request has already merged is stranded where
 nobody looks for it again; that has happened twice.
 
-**Nobody updates a branch because `main` moved.** `main` does not
+**Nobody rebases a branch by hand because `main` moved.** `main` does not
 require a branch to be up to date: a pull request lands when its own
 required checks are green, whatever has landed since they ran
-(main-no-longer-requires-an-up-to-date-branch). A rebase is the answer to
-a **conflict**, which git refuses to merge, and to nothing else.
+(main-no-longer-requires-an-up-to-date-branch). And the product rebases
+a change's branch that has fallen behind, pushes it with a lease, and so
+starts its checks again against the current `main`
+([ADR 0034](../docs/adr/0034-a-behind-branch-is-rebased-for-you.md),
+`branches.rebaseWhenBehind`, on by default).
 
-What that rule used to guard, and now does not: two pull requests that
-are green apart can be broken together - a function renamed in one and
-called in the other. git catches the textual half of that and nothing
-more. Two changes touching the same code at the same time is the case to
-be careful about, and the answer is to land one before starting the
-other, not to update branches.
+That closes what the up-to-date rule used to guard: two pull requests
+that are green apart and broken together - a function renamed in one and
+called in the other - now meet on the same `main` before either lands.
+
+A rebase by hand is left for a **conflict**, which the product never
+resolves. It aborts, leaves the branch as it was, and says which files
+conflict; the editor raises a warning. That is the one time a person
+rebases.
 
 **When the pull request merges, the branch is finished.** Delete it
 locally with `git branch -D <id>`, delete it on the server, remove its

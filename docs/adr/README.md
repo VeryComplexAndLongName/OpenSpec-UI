@@ -40,5 +40,6 @@ Alternatives / Consequences.
 | [0031](0031-a-change-lists-what-its-schema-declares.md) | A change lists what its OpenSpec schema declares | Accepted |
 | [0032](0032-the-standalone-shell-uses-more-of-metro.md) | The standalone shell uses more of Metro: panels, badges, a timeline and icons | Accepted; decision 4 superseded by [0033](0033-the-standalone-shell-looks-like-the-project-site.md) |
 | [0033](0033-the-standalone-shell-looks-like-the-project-site.md) | The standalone shell looks like the project site | Accepted |
+| [0034](0034-a-behind-branch-is-rebased-for-you.md) | A change's branch that falls behind is rebased for you | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

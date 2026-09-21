@@ -55,6 +55,9 @@ const SHELL_STARTING_TESTS = [
   // Real git for init, commit and ls-tree against a temporary repository
   // (a-change-is-archived-with-nothing-open).
   "src/archived-since.test.ts",
+  // Real git with pushes to a local bare remote, which start the MSYS
+  // shell this project exists to keep apart (ADR 0034).
+  "src/branch-rebase.test.ts",
 ];
 
 export default defineWorkspace([

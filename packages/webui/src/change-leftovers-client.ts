@@ -16,6 +16,11 @@ export interface WorkspaceLeftoverReading {
   failures: Array<{ name: string; path: string; reason: string }>;
   /** Working directories with nothing left to do. */
   finishedWith: Array<{ path: string; label: string; branch?: string; reason?: "merged" | "branch-gone" }>;
+  /** What the working-directory sweep did - directories removed, branches
+   * rebased, conflicts left for a person - in the sentences core gives
+   * every host (a-behind-branch-is-rebased-for-you). Absent from a server
+   * that predates it. */
+  swept?: string[];
 }
 
 export type LeftoversRequest = (pathname: string, init: RequestInit) => Promise<Response>;

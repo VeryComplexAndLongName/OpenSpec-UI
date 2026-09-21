@@ -54,6 +54,8 @@ import {
   surveyWorktrees,
   archiveChange,
   clearWorkspaceLeftovers,
+  describeWorkspaceSweep,
+  sweepWorkspace,
   clearWorktreeShells,
   finishedWorkingDirectories,
   readWorkspaceLeftovers,
@@ -1524,6 +1526,18 @@ export async function handleWorkspaceLeftoversRequest(
 
   try {
     const sweep = await clearWorkspaceLeftovers(parsed.cwd);
+    // The working-directory sweep the editor runs, from the same core
+    // function: a directory whose work has landed is removed and a behind
+    // change branch is rebased and pushed with a lease
+    // (a-behind-branch-is-rebased-for-you). A sweep that fails leaves the
+    // reading below to stand, since what is left behind is worth saying
+    // without it.
+    let swept: string[] = [];
+    try {
+      swept = describeWorkspaceSweep(await sweepWorkspace(parsed.cwd));
+    } catch (error) {
+      swept = [`the working-directory sweep failed: ${error instanceof Error ? error.message : String(error)}`];
+    }
     const survey = await surveyWorktrees({ workspaceRoot: parsed.cwd });
     // What settles "finished with" in a repository that squashes is the
     // pull request and the archive on main, which the standings read and
@@ -1563,6 +1577,7 @@ export async function handleWorkspaceLeftoversRequest(
       finishedWith,
       shellsCleared: shells.removed,
       shellsKept: shells.kept,
+      ...(swept.length > 0 ? { swept } : {}),
     });
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });

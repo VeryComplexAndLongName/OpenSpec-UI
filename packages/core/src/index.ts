@@ -10,6 +10,8 @@ export * from "./change-state.js";
 export * from "./change-standing.js";
 export * from "./deferred-items.js";
 export * from "./archived-since.js";
+export * from "./branch-rebase.js";
+export { sweepWorkspace, describeWorkspaceSweep, type WorkspaceSweep } from "./workspace-sweep.js";
 export * from "./finished-directories.js";
 export * from "./change-ownership.js";
 export * from "./main-drift.js";
