@@ -49,12 +49,11 @@ test.describe("standalone sprint report", () => {
 
       await page.getByLabel("Sprint report range start").fill("2026-03-01");
       await page.getByLabel("Sprint report range end").fill("2026-03-05");
-      const changes = page.getByLabel("Changes in this sprint");
-      await expect(changes.locator("option")).toHaveCount(2, { timeout: 60000 });
-      await changes.selectOption([
-        { label: "2026-03-02-first-change (archived)" },
-        { label: "2026-03-03-second-change (archived)" },
-      ]);
+      // The range's worth at once (the-sprint-picks-its-changes).
+      const changes = page.getByRole("group", { name: "Changes in this sprint" });
+      await expect(changes.getByRole("checkbox")).toHaveCount(2, { timeout: 60000 });
+      await changes.getByTestId("change-checklist-in-range").click();
+      await expect(changes.getByTestId("change-checklist-count")).toHaveText("2 of 2 chosen");
 
       const opening = context.waitForEvent("page");
       await page.getByRole("button", { name: "Open the report" }).click();
