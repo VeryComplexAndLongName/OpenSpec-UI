@@ -57,6 +57,11 @@ async function behindBranch(options: { conflict?: boolean } = {}): Promise<Fixtu
   await git(root, ["init", "-q", "--bare", "-b", "main", remote]);
   await mkdir(work);
   await git(work, ["init", "-q", "-b", "main"]);
+  // A rebase makes commits, through the product's own git and not this
+  // helper, so the identity lives in the repository: a runner has no
+  // global one to fall back on, and this machine does.
+  await git(work, ["config", "user.name", "Fixture"]);
+  await git(work, ["config", "user.email", "fixture@example.com"]);
   await git(work, ["remote", "add", "origin", remote]);
   await write(path.join(work, "shared.txt"), "one\n");
   await git(work, ["add", "."]);
@@ -115,6 +120,7 @@ describe("rebasing a change's branch that fell behind", () => {
 
     const result = await sweep(fixture);
 
+    expect({ conflicted: result.conflicted, failed: result.failed }).toEqual({ conflicted: [], failed: [] });
     expect(result.rebased.map((one) => one.branch)).toEqual(["demo"]);
     expect(result.rebased[0]?.behind).toBe(1);
     // The server's copy of the branch now carries main's new commit.
@@ -150,7 +156,8 @@ describe("rebasing a change's branch that fell behind", () => {
       upstreams,
     });
 
-    expect(result.failed.map((one) => one.reason)).toEqual(["stale info"]);
+    expect({ conflicted: result.conflicted, failed: result.failed.map((one) => one.reason) })
+      .toEqual({ conflicted: [], failed: ["stale info"] });
     expect(await git(fixture.worktree, ["rev-parse", "HEAD"])).toBe(before);
   });
 
@@ -214,8 +221,28 @@ describe("a workspace with nothing to act on", () => {
 
     const swept = await sweepWorkspace(fixture.work);
 
-    expect(swept.branches?.rebased.map((one) => one.branch)).toEqual(["demo"]);
+    expect({ lines: describeWorkspaceSweep(swept), rebased: swept.branches?.rebased.map((one) => one.branch) })
+      .toMatchObject({ rebased: ["demo"] });
     expect(describeWorkspaceSweep(swept).join(" ")).toContain("rebased demo onto origin/main");
+  });
+});
+
+describe("a rebase that stops without a conflict", () => {
+  it("is a failure with git's reason, not a conflict with no files", async () => {
+    const fixture = await behindBranch();
+    const upstreams = await createGitWrapper({ cwd: fixture.work }).branchUpstreams();
+
+    const result = await rebaseBehindBranches(surveyOf(fixture), {
+      gitIn: (directory) => ({
+        ...createGitWrapper({ cwd: directory }),
+        rebaseOnto: async () => ({ ok: false as const, conflicts: [], reason: "Author identity unknown" }),
+      }),
+      isClean: async () => true,
+      upstreams,
+    });
+
+    expect(result.conflicted).toEqual([]);
+    expect(result.failed.map((one) => one.reason)).toEqual(["the rebase stopped: Author identity unknown"]);
   });
 });
 

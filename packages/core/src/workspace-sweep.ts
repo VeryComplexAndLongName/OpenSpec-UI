@@ -89,10 +89,10 @@ export function describeWorkspaceSweep(sweep: WorkspaceSweep): string[] {
     lines.push(`rebased ${branch.branch} onto ${branch.onto} (${branch.behind} behind) and pushed it; its checks will run again`);
   }
   for (const branch of sweep.branches?.conflicted ?? []) {
-    lines.push(`${branch.branch} needs a rebase by hand: it conflicts with ${branch.onto} in ${branch.conflicts.join(", ") || "files git did not name"}; it was left as it was`);
+    lines.push(`${branch.branch} needs a rebase by hand: it conflicts with ${branch.onto} in ${branch.conflicts.join(", ")}; it was left as it was`);
   }
   for (const branch of sweep.branches?.failed ?? []) {
-    lines.push(`${branch.branch} was rebased but not pushed, and was put back as it was: ${branch.reason}`);
+    lines.push(`${branch.branch} was not rebased, and is as it was: ${branch.reason}`);
   }
   return lines;
 }

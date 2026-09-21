@@ -170,7 +170,15 @@ export async function rebaseBehindBranches(survey: WorktreeSurvey, deps: RebaseD
 
     const rebased = await git.rebaseOnto(onto);
     if (!rebased.ok) {
-      result.conflicted.push({ path: directory.path, branch, onto, conflicts: rebased.conflicts });
+      // A conflict names its files. A rebase that failed without any -
+      // no committer identity, a hook that refused - is a failure, and
+      // saying "conflict" for it would send a person looking for files
+      // that are not there. Either way it was aborted and nothing moved.
+      if (rebased.conflicts.length > 0) {
+        result.conflicted.push({ path: directory.path, branch, onto, conflicts: rebased.conflicts });
+      } else {
+        result.failed.push({ path: directory.path, branch, reason: `the rebase stopped: ${rebased.reason}` });
+      }
       continue;
     }
 
