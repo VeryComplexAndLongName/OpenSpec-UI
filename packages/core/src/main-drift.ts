@@ -29,7 +29,24 @@ export interface ReadMainDriftOptions {
    * changes archived on the default branch comes from there rather than
    * from a second walk of the archive. */
   standings?: ChangeStandings;
-  git?: Pick<GitWrapper, "currentBranch" | "aheadBehind" | "lastFetchedAt" | "status">;
+  git?: Pick<GitWrapper, "currentBranch" | "aheadBehind" | "lastFetchedAt" | "status"> & Partial<Pick<GitWrapper, "listTreeNames">>;
+}
+
+const CHANGES = "openspec/changes";
+
+/** The changes under way on `theirs` that `ours` does not hold. */
+async function landedNotHere(git: Partial<Pick<GitWrapper, "listTreeNames">>, ours: string, theirs: string): Promise<string[]> {
+  if (git.listTreeNames === undefined) return [];
+  try {
+    const here = new Set(await git.listTreeNames(ours, CHANGES));
+    // Archived here already, under its dated folder, counts as held.
+    for (const archived of await git.listTreeNames(ours, `${CHANGES}/archive`)) here.add(archived.replace(/^[0-9]{4}-[0-9]{2}-[0-9]{2}-/u, ""));
+    return (await git.listTreeNames(theirs, CHANGES))
+      .filter((name) => name !== "archive" && !here.has(name))
+      .sort((left, right) => left.localeCompare(right));
+  } catch {
+    return [];
+  }
 }
 
 /** What this checkout's default branch is missing, or `undefined` where
@@ -60,12 +77,17 @@ export async function readMainDrift(options: ReadMainDriftOptions): Promise<Main
     .map((standing) => standing.changeName)
     .sort((left, right) => left.localeCompare(right));
 
+  const notHere = counts.behind > 0
+    ? await landedNotHere(git, DEFAULT_BRANCH, `${DEFAULT_REMOTE}/${DEFAULT_BRANCH}`)
+    : [];
+
   return {
     branch,
     defaultBranch: DEFAULT_BRANCH,
     remote: DEFAULT_REMOTE,
     ahead: counts.ahead,
     behind: counts.behind,
+    ...(notHere.length > 0 ? { landedNotHere: notHere } : {}),
     ...(fetchedAt !== undefined ? { fetchedAt: fetchedAt.toISOString() } : {}),
     archivedOnDefault,
     clean,

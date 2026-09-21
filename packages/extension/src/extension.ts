@@ -147,6 +147,10 @@ export interface ExtensionTestApi {
   onWebviewEvent: (listener: (event: Event) => void) => vscode.Disposable;
 }
 
+/** How long after opening an archive pull request the sweep looks again:
+ * about as long as that pull request's checks take here. */
+const ARCHIVE_RESWEEP_MS = 15 * 60_000;
+
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
   context.subscriptions.push(outputChannel);
@@ -350,6 +354,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // One core function, the same one the standalone runs, so the two hosts
     // cannot do different things with the same directories.
     const warnedOwing = new Set<string>();
+    let resweep: ReturnType<typeof setTimeout> | undefined;
+    context.subscriptions.push({ dispose: () => { if (resweep !== undefined) clearTimeout(resweep); } });
     const sweepDirectories = async () => {
       if (!workspaceRoot) return;
       try {
@@ -371,6 +377,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           void vscode.window.showInformationMessage(
             `OpenSpec Workbench: opened #${opened.pullRequest.number} to archive ${opened.changes.join(", ")}; ${opened.merge.ok ? "it merges when its checks pass" : `merge it by hand (${opened.merge.reason})`}.`,
           );
+          // Swept again once its checks have had time to pass, so the
+          // archive reaches this checkout then rather than half an hour
+          // later (main-follows-what-landed). One timer at a time.
+          if (resweep === undefined) {
+            resweep = setTimeout(() => {
+              resweep = undefined;
+              void sweepDirectories();
+            }, ARCHIVE_RESWEEP_MS);
+          }
         }
         for (const owing of swept.archive?.owing ?? []) {
           // Once a session: the sweep runs every half hour, and the output

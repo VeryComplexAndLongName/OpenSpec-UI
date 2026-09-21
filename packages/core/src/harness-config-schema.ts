@@ -296,6 +296,7 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
       additionalProperties: false,
       properties: {
         rebaseWhenBehind: { type: "boolean", description: "Rebase a change's branch that has fallen behind, and push it with a lease (ADR 0034). Absent means true." },
+        followMain: { type: "boolean", description: "Fast-forward the main working directory's main when it is clean, has nothing of its own and no run works in it. Pushes nothing. Absent means true." },
       },
     },
     archive: {

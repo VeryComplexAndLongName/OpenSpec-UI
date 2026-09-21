@@ -246,8 +246,8 @@ question.
 
 ### `branches`
 
-`{ "rebaseWhenBehind"?: <boolean> }`. Optional; absent means every
-default below. Allowed in the global file and in a change's own file,
+`{ "rebaseWhenBehind"?: <boolean>, "followMain"?: <boolean> }`. Optional;
+absent means every default below. Allowed in the global file and in a change's own file,
 which overrides it key by key.
 
 **`rebaseWhenBehind`** - absent means **`true`**. A change's branch that
@@ -288,6 +288,19 @@ Turn it off - `"branches": { "rebaseWhenBehind": false }` - where change
 branches are shared between people: somebody with the branch checked out
 elsewhere sees its history rewritten, and each rebase costs a full run of
 the pull request's checks.
+
+**`followMain`** - absent means **`true`**. The same sweep brings the main
+working directory's `main` up to `origin/main`, by fast-forward alone, so
+the views show what the server has: a change that landed, or an archive
+the sweep opened, appears or leaves without anybody pulling
+(main-follows-what-landed). It happens only in the checkout the host has
+open, only where that is the main working directory on `main`, only where
+its tree is clean and `main` has no commits of its own, and never while a
+run works in it. Otherwise `main` is left where it is, and the sweep says
+how far behind it is and why. It pushes nothing. Pipeline's drift line also
+names the changes on `origin/main` this checkout does not hold. Turn it
+off - `"branches": { "followMain": false }` - where the main checkout is
+moved only by hand. Read from the workspace file.
 
 ### `archive`
 
@@ -474,6 +487,7 @@ settings screen that doesn't have the control:
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
 | `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec Workbench: Run This Delegated Item**. |
 | `archive.whenLanded` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep archived, and a change that landed owing something, is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel; an archive pull request it opened is also raised as a notification, and a change that landed owing something as a warning. |
+| `branches.followMain` | **Not editable in either UI.** Hand-edit the global JSON file; absent means on. What the sweep did is said under **Done for you** in the Summary, and the Pipeline's drift line names what landed and is not shown here. | Same - not editable. What the sweep did is said in the output channel. |
 | `branches.rebaseWhenBehind` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep did with a branch is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel, and a conflict is also raised as a warning. |
 
 ### Standalone settings, in pictures

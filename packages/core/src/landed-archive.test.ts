@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BranchPullRequest, Forge } from "./gh-pr-gateway.js";
 import { createGitWrapper } from "./git.js";
-import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, type LandedArchiveDeps } from "./landed-archive.js";
+import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, landedArchiveTitle, type LandedArchiveDeps } from "./landed-archive.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 import { describeWorkspaceSweep, sweepWorkspace } from "./workspace-sweep.js";
 
@@ -256,6 +256,65 @@ describe("archiveLandedChanges", () => {
     expect(forge.openPullRequest).not.toHaveBeenCalled();
     expect(await exists(made)).toBe(false);
     expect(await git(fixture.work, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
+  });
+});
+
+describe("an archive pull request's title", () => {
+  // main-follows-what-landed: "Archive the 4 changes that landed" said
+  // nothing of what it archived.
+  it("names what it archives", () => {
+    expect(landedArchiveTitle(["alpha"])).toBe("Archive alpha");
+    expect(landedArchiveTitle(["alpha", "beta"])).toBe("Archive alpha and beta");
+    expect(landedArchiveTitle(["alpha", "beta", "gamma", "delta"])).toBe("Archive alpha, beta and 2 more");
+  });
+});
+
+/** A commit that lands on the remote's default branch from elsewhere, as a
+ * merged pull request does. */
+async function landElsewhere(fixture: Fixture, file: string): Promise<void> {
+  const other = path.join(fixture.root, "elsewhere");
+  await git(fixture.root, ["clone", "-q", fixture.remote, other]);
+  await git(other, ["config", "user.name", "Fixture"]);
+  await git(other, ["config", "user.email", "fixture@example.com"]);
+  await write(path.join(other, file), "landed" + NL);
+  await git(other, ["add", "."]);
+  await git(other, ["commit", "-q", "-m", "landed elsewhere"]);
+  await git(other, ["push", "-q", "origin", "main"]);
+}
+
+describe("the workspace sweep follows main (main-follows-what-landed)", () => {
+  it("brings a clean main up to what landed, and says so", async () => {
+    const fixture = await landed({});
+    await landElsewhere(fixture, "landed.txt");
+
+    const swept = await sweepWorkspace(fixture.work, { forge: fakeForge(), archive: fakeArchive });
+
+    expect(swept.main).toEqual({ moved: 1 });
+    expect(await git(fixture.work, ["rev-parse", "HEAD"])).toBe(await git(fixture.remote, ["rev-parse", "main"]));
+    expect(describeWorkspaceSweep(swept)).toContain("brought main up to origin/main: 1 commit that landed");
+  });
+
+  it("leaves a main with work in its tree where it is, and says why", async () => {
+    const fixture = await landed({});
+    await landElsewhere(fixture, "landed.txt");
+    await write(path.join(fixture.work, "README.md"), "mine" + NL);
+
+    const swept = await sweepWorkspace(fixture.work, { forge: fakeForge(), archive: fakeArchive });
+
+    expect(swept.main).toMatchObject({ behind: 1 });
+    expect(describeWorkspaceSweep(swept).join(" ")).toContain("main is 1 commit behind origin/main and was left there: the working tree is not clean");
+  });
+
+  it("leaves main alone where the workspace turns it off", async () => {
+    const fixture = await landed({});
+    await landElsewhere(fixture, "landed.txt");
+    await write(path.join(fixture.work, "openspec", "agent-harness.json"), JSON.stringify({ branches: { followMain: false } }));
+    await git(fixture.work, ["add", "."]);
+    await git(fixture.work, ["commit", "-q", "-m", "turn it off"]);
+
+    const swept = await sweepWorkspace(fixture.work, { forge: fakeForge(), archive: fakeArchive });
+
+    expect(swept.main).toBeUndefined();
   });
 });
 

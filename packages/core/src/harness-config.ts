@@ -324,6 +324,11 @@ export interface HarnessBranches {
    * the lease makes it unable to take anything away. A team that shares
    * change branches turns it off. */
   rebaseWhenBehind?: boolean;
+  /** Whether the main working directory's default branch is brought up to
+   * its remote, by fast-forward alone, when it is clean, has nothing of its
+   * own and no run is working in it (main-follows-what-landed). Absent
+   * means `true`. Nothing is pushed: it moves this checkout only. */
+  followMain?: boolean;
 }
 
 /** What this product does with a change that has landed (ADR 0035). */
@@ -347,6 +352,10 @@ export function archivesWhenLanded(config: Pick<HarnessConfig, "archive">): bool
 
 /** Whether a behind change branch is rebased, as a configuration says.
  * On unless it is turned off (ADR 0034). */
+export function followsMain(config: Pick<HarnessConfig, "branches">): boolean {
+  return config.branches?.followMain !== false;
+}
+
 export function rebasesWhenBehind(config: Pick<HarnessConfig, "branches">): boolean {
   return config.branches?.rebaseWhenBehind !== false;
 }
@@ -978,11 +987,15 @@ function assertValidHarnessConfigInput(
       throw new InvalidHarnessConfigError("branches must be an object");
     }
     for (const key of Object.keys(branches)) {
-      if (key !== "rebaseWhenBehind") throw new InvalidHarnessConfigError(`branches has no key "${key}"; the one it takes is rebaseWhenBehind`);
+      if (key !== "rebaseWhenBehind" && key !== "followMain") {
+        throw new InvalidHarnessConfigError(`branches has no key "${key}"; the ones it takes are rebaseWhenBehind and followMain`);
+      }
     }
-    const rebaseWhenBehind = (branches as { rebaseWhenBehind?: unknown }).rebaseWhenBehind;
-    if (rebaseWhenBehind !== undefined && typeof rebaseWhenBehind !== "boolean") {
-      throw new InvalidHarnessConfigError("branches.rebaseWhenBehind must be a boolean");
+    for (const key of ["rebaseWhenBehind", "followMain"] as const) {
+      const value = (branches as Record<string, unknown>)[key];
+      if (value !== undefined && typeof value !== "boolean") {
+        throw new InvalidHarnessConfigError(`branches.${key} must be a boolean`);
+      }
     }
   }
   const archive = (input as { archive?: unknown }).archive;
