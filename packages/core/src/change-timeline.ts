@@ -371,23 +371,199 @@ export async function getChangeAuthorship(cwd: string, changeDirPath: string): P
       if (!name || !email || !date) continue;
       authors.push({ name, email, date: new Date(date).toISOString() });
     }
-    if (authors.length === 0) return empty;
-
-    // `git log`'s default order is newest-first, so the first parsed
-    // commit is the most recent one touching this directory.
-    const primaryAuthor = authors[0] ?? null;
-    const seenEmails = new Set<string>();
-    const contributors: CommitAuthor[] = [];
-    for (const author of [...authors].reverse()) {
-      if (seenEmails.has(author.email)) continue;
-      seenEmails.add(author.email);
-      contributors.push(author);
-    }
-    return { primaryAuthor, contributors };
+    return authorshipFrom(authors);
   } catch {
     return empty;
   }
 }
+
+export interface ProposalCreatedDates {
+  /** By directory name under `openspec/changes/`. */
+  active: Map<string, string>;
+  /** By directory name under `openspec/changes/archive/`. */
+  archived: Map<string, string>;
+}
+
+/** When each change's `proposal.md` was first committed, followed through
+ * renames, for every change at once: what `getFileCreatedDate` answers
+ * per file, from one git call over `openspec/changes`. `undefined` when
+ * git could not be asked.
+ *
+ * git lists every commit that added a file there or moved one there. A
+ * file's date is the oldest of the commits that added it and of the
+ * dates of whatever was moved onto it, so an archived change is dated
+ * from the proposal it was before `openspec archive` moved it. A file
+ * moved in from outside `openspec/changes` looks added at the move, where
+ * `--follow` would follow it out; nothing here does that.
+ *
+ * Checked 2026-09-21 against `getFileCreatedDate` over all 297 proposals
+ * in this repository: no difference, 0.6 s against 66 s. See
+ * the-sprint-report-reads-like-the-timeline. */
+export async function readProposalCreatedDates(cwd: string): Promise<ProposalCreatedDates | undefined> {
+  const newline = String.fromCharCode(10);
+  const carriageReturn = String.fromCharCode(13);
+  const tab = String.fromCharCode(9);
+  try {
+    const git = simpleGit(cwd);
+    const prefix = await pathPrefixInRepository(git);
+    const output = await git.raw([
+      "-c",
+      "core.quotePath=false",
+      "log",
+      "--full-history",
+      "-M",
+      "--diff-filter=AR",
+      "--name-status",
+      `--format=${DATE_LINE_MARK}%aI`,
+      "--",
+      CHANGES_LOG_PATH,
+    ]);
+    const addedOn = new Map<string, string[]>();
+    const movedFrom = new Map<string, string[]>();
+    let date: string | undefined;
+    const push = (map: Map<string, string[]>, key: string, value: string) => {
+      const list = map.get(key) ?? [];
+      list.push(value);
+      map.set(key, list);
+    };
+    for (const rawLine of output.split(newline)) {
+      const line = rawLine.endsWith(carriageReturn) ? rawLine.slice(0, -1) : rawLine;
+      if (line.length === 0) continue;
+      if (line.startsWith(DATE_LINE_MARK)) {
+        date = line.slice(DATE_LINE_MARK.length).trim();
+        continue;
+      }
+      const [status, first, second] = line.split(tab);
+      if (!date || !status || !first) continue;
+      if (status === "A") push(addedOn, first, date);
+      else if (status.startsWith("R") && second) push(movedFrom, second, first);
+    }
+
+    const createdOf = (file: string, seen: Set<string>): string | undefined => {
+      if (seen.has(file)) return undefined;
+      seen.add(file);
+      const dates = [
+        ...(addedOn.get(file) ?? []),
+        ...(movedFrom.get(file) ?? []).map((source) => createdOf(source, seen)),
+      ].filter((candidate): candidate is string => candidate !== undefined);
+      return dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+    };
+
+    const changesPrefix = `${prefix}${CHANGES_LOG_PATH}/`;
+    const active = new Map<string, string>();
+    const archived = new Map<string, string>();
+    for (const file of new Set([...addedOn.keys(), ...movedFrom.keys()])) {
+      if (!file.startsWith(changesPrefix)) continue;
+      const segments = file.slice(changesPrefix.length).split("/");
+      const inArchive = segments[0] === "archive";
+      const rest = inArchive ? segments.slice(1) : segments;
+      if (rest.length !== 2 || rest[1] !== "proposal.md" || !rest[0]) continue;
+      const created = createdOf(file, new Set());
+      if (created) (inArchive ? archived : active).set(rest[0], created);
+    }
+    return { active, archived };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Who shipped a change and who worked on it, from the commits that
+ * touched its directory, newest first as git prints them. */
+function authorshipFrom(authors: readonly CommitAuthor[]): ChangeAuthorship {
+  if (authors.length === 0) return { primaryAuthor: null, contributors: [] };
+  // `git log`'s default order is newest-first, so the first parsed
+  // commit is the most recent one touching this directory.
+  const primaryAuthor = authors[0] ?? null;
+  const seenEmails = new Set<string>();
+  const contributors: CommitAuthor[] = [];
+  for (const author of [...authors].reverse()) {
+    if (seenEmails.has(author.email)) continue;
+    seenEmails.add(author.email);
+    contributors.push(author);
+  }
+  return { primaryAuthor, contributors };
+}
+
+export interface ChangeAuthorships {
+  /** By directory name under `openspec/changes/`. */
+  active: Map<string, ChangeAuthorship>;
+  /** By directory name under `openspec/changes/archive/`. */
+  archived: Map<string, ChangeAuthorship>;
+}
+
+/** The authorship of every change, active and archived, from one git
+ * call over `openspec/changes`, or `undefined` when git could not be
+ * asked - a caller then asks per change, as before.
+ *
+ * The same commits `getChangeAuthorship` counts: one that touched a file
+ * under a change's directory counts once for that change. Measured on
+ * this repository 2026-09-21: asking per change is about 0.15 s a call,
+ * 8.6 s across 100 archived changes, in the sprint report that asks for
+ * all of them (the-sprint-report-reads-like-the-timeline). */
+export async function readChangeAuthorships(cwd: string): Promise<ChangeAuthorships | undefined> {
+  const newline = String.fromCharCode(10);
+  const carriageReturn = String.fromCharCode(13);
+  try {
+    const git = simpleGit(cwd);
+    const changesPrefix = `${await pathPrefixInRepository(git)}${CHANGES_LOG_PATH}/`;
+    const output = await git.raw([
+      "-c",
+      "core.quotePath=false",
+      "log",
+      "--name-only",
+      // Every commit that touched a change's files, on whichever branch.
+      // git's default simplification depends on the pathspec, so without
+      // this a commit shown for one change's directory can be hidden for
+      // `openspec/changes` as a whole. Merges list no files and count for
+      // nothing. Checked 2026-09-21 against the per-change call over all
+      // 296 changes here: the one difference is a real commit to one
+      // change's directory that the per-change call had hidden.
+      "--full-history",
+      // Both sides of a move. With rename detection `--name-only` prints
+      // only the new path, and archiving a change would vanish from the
+      // history of the directory it left.
+      "--no-renames",
+      `--format=${DATE_LINE_MARK}%an${AUTHOR_LOG_FIELD_SEP}%ae${AUTHOR_LOG_FIELD_SEP}%aI`,
+      "--",
+      CHANGES_LOG_PATH,
+    ]);
+    const active = new Map<string, CommitAuthor[]>();
+    const archived = new Map<string, CommitAuthor[]>();
+    let author: CommitAuthor | undefined;
+    // The changes this commit has already been counted for.
+    let counted = new Set<string>();
+    for (const rawLine of output.split(newline)) {
+      const line = rawLine.endsWith(carriageReturn) ? rawLine.slice(0, -1) : rawLine;
+      if (line.length === 0) continue;
+      if (line.startsWith(DATE_LINE_MARK)) {
+        const [name, email, date] = line.slice(DATE_LINE_MARK.length).split(AUTHOR_LOG_FIELD_SEP);
+        author = name && email && date ? { name, email, date: new Date(date).toISOString() } : undefined;
+        counted = new Set();
+        continue;
+      }
+      if (!author || !line.startsWith(changesPrefix)) continue;
+      const segments = line.slice(changesPrefix.length).split("/");
+      const inArchive = segments[0] === "archive";
+      const name = inArchive ? segments[1] : segments[0];
+      // A file directly in `changes/` or `archive/` belongs to no change.
+      if (!name || segments.length < (inArchive ? 3 : 2)) continue;
+      const key = `${inArchive ? "archived" : "active"}:${name}`;
+      if (counted.has(key)) continue;
+      counted.add(key);
+      const list = inArchive ? archived : active;
+      const authors = list.get(name) ?? [];
+      authors.push(author);
+      list.set(name, authors);
+    }
+    const settle = (byName: Map<string, CommitAuthor[]>) =>
+      new Map([...byName].map(([name, authors]) => [name, authorshipFrom(authors)] as const));
+    return { active: settle(active), archived: settle(archived) };
+  } catch {
+    return undefined;
+  }
+}
+
+const CHANGES_LOG_PATH = "openspec/changes";
 
 export async function getChangeTimeline(
   workspaceRoot: string,
@@ -407,6 +583,11 @@ export async function getChangeTimeline(
      * timeline so a fallback to the per-change call is visible rather
      * than silent. */
     archiveDatesUnreadableLines?: number;
+    /** When each change's proposal was first committed, followed
+     * through renames, read once for many changes by
+     * `readProposalCreatedDates`. A change it does not know is asked on
+     * its own. */
+    proposalCreatedDates?: ProposalCreatedDates;
   },
 ): Promise<ChangeTimeline> {
   // Only this change, and only from the list it can be in: reading the
@@ -438,7 +619,8 @@ export async function getChangeTimeline(
     // again to find the same file.
     readTaskChecklistOf(change).then((read) => read.items),
     proposalArtifact?.exists
-      ? getFileCreatedDate(workspaceRoot, proposalArtifact.path)
+      ? Promise.resolve((archived ? options?.proposalCreatedDates?.archived : options?.proposalCreatedDates?.active)?.get(changeName))
+        .then((batched) => batched ?? getFileCreatedDate(workspaceRoot, proposalArtifact.path))
       : Promise.resolve(null),
     (async () => {
       const tasksArtifact = change?.artifacts.find((a) => a.id === "tasks");
@@ -547,6 +729,11 @@ export async function getChangeTimelines(
   const archive = entries.some((entry) => entry.archived)
     ? await readArchiveCommitDates(workspaceRoot)
     : undefined;
+  // The same for when each proposal was first committed: one call of
+  // about 0.6 s here, where `--follow` per change is about 0.4 s each and
+  // was most of a timeline's read (the-sprint-report-reads-like-the-timeline).
+  // One change is still asked on its own, which is cheaper.
+  const created = entries.length > 1 ? await readProposalCreatedDates(workspaceRoot) : undefined;
   // In batches rather than all at once. Each timeline opens files and
   // spawns git, and `Promise.all` over every change did both 185 times
   // at once on this repository — `EMFILE: too many open files`, measured
@@ -558,6 +745,7 @@ export async function getChangeTimelines(
     timelines.push(...await Promise.all(
       batch.map((entry) => getChangeTimeline(workspaceRoot, entry.changeName, entry.archived, {
         ...(archive ? { archiveCommitDates: archive.dates } : {}),
+        ...(created ? { proposalCreatedDates: created } : {}),
         ...(archive && archive.unreadableLines > 0
           ? { archiveDatesUnreadableLines: archive.unreadableLines }
           : {}),
@@ -586,4 +774,6 @@ function auditFor(
   return timestamps && timestamps.length > 0 ? { auditTimestamps: timestamps } : {};
 }
 
-const TIMELINE_BATCH = 8;
+/** How many changes are read at once. Shared with the sprint report,
+ * which reads the same things for the same list. */
+export const TIMELINE_BATCH = 8;

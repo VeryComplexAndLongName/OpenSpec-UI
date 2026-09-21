@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SprintReport } from "@openspec-ui/core/browser";
-import { escapeHtml, renderSprintReportPage } from "./sprint-report-page.js";
+import { escapeHtml, renderSprintReportNotice, renderSprintReportPage } from "./sprint-report-page.js";
 
 // the-sprint-report-is-a-page-of-the-product 1.6. The figures are core's;
 // these assert the page carries them, that nothing from the repository
@@ -122,5 +122,27 @@ describe("the sprint report page", () => {
 describe("escaping", () => {
   it("turns every character that could be markup into text", () => {
     expect(escapeHtml("<a href=\"x\">&'")).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
+  });
+});
+
+describe("the notice the report's tab shows first", () => {
+  // the-sprint-report-reads-like-the-timeline. The tab is opened by the
+  // click, before the request, and says what it is waiting for.
+
+  it("is a whole document in the report's own look, with nothing to print", () => {
+    const page = renderSprintReportNotice("Sprint summary", "Reading 12 changes. The report appears here when it is ready.");
+
+    expect(page.startsWith("<!doctype html>")).toBe(true);
+    expect(page).toContain("<h1>Sprint summary</h1>");
+    expect(page).toContain("Reading 12 changes.");
+    expect(page).toContain("openspec-report-head");
+    expect(page).not.toContain("window.print()");
+  });
+
+  it("carries a failure as text, not markup", () => {
+    const page = renderSprintReportNotice("The sprint summary could not be made", "<script>alert(1)</script>");
+
+    expect(page).not.toContain("<script>alert(1)</script>");
+    expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
   });
 });

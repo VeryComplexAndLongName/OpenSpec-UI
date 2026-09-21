@@ -67,7 +67,7 @@ import {
 } from "./change-editor-client.js";
 import { loadChangeSpans, loadChangeTimeline, loadChangeTimelines, type ChangeSpan, type ChangeTimeline, type ChangeTimelineEntry } from "./change-timeline-client.js";
 import { fetchSprintReport } from "./sprint-report-client.js";
-import { renderSprintReportPage } from "./sprint-report-page.js";
+import { renderSprintReportNotice, renderSprintReportPage } from "./sprint-report-page.js";
 import { ChangeComparisonView } from "./components/ChangeComparisonView.js";
 import {
   customizeTemplate as customizeTemplateApi,
@@ -1237,28 +1237,37 @@ function StandaloneApp() {
       setSprintReportMessage("Select at least one change first.");
       return;
     }
+    // Opened now, from the click, and filled when the report is ready:
+    // a browser lets a page open a tab only while it answers a click,
+    // and the report can take a minute
+    // (the-sprint-report-reads-like-the-timeline). Opened, not
+    // downloaded: the page is the report, and
+    // the PDF is the browser's own print of it
+    // (the-sprint-report-is-a-page-of-the-product).
+    const opened = window.open("", "_blank");
+    if (!opened) {
+      setSprintReportMessage("The report could not be opened: allow pop-ups for this page, then ask again.");
+      return;
+    }
+    const show = (page: string) => {
+      opened.document.open();
+      opened.document.write(page);
+      opened.document.close();
+    };
+    show(renderSprintReportNotice(
+      "Sprint summary",
+      `Reading ${entries.length === 1 ? "one change" : `${entries.length} changes`}. The report appears here when it is ready.`,
+    ));
     setSprintReportLoading(true);
     setSprintReportMessage(null);
     try {
       const rangeStart = new Date(multiRangeStart).toISOString();
       const rangeEnd = new Date(multiRangeEnd).toISOString();
-      const page = renderSprintReportPage(await fetchSprintReport(apiFetch, cwd, entries, rangeStart, rangeEnd));
-      // Opened, not downloaded: the page is the report, and the PDF is
-      // the browser's own print of it
-      // (the-sprint-report-is-a-page-of-the-product). The window is
-      // opened from the click that asked for it, so a popup blocker has
-      // no reason to stop it; where one does, the reader is told rather
-      // than left with nothing.
-      const opened = window.open("", "_blank");
-      if (!opened) {
-        setSprintReportMessage("The report could not be opened: allow pop-ups for this page, then ask again.");
-        return;
-      }
-      opened.document.write(page);
-      opened.document.close();
+      show(renderSprintReportPage(await fetchSprintReport(apiFetch, cwd, entries, rangeStart, rangeEnd)));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setSprintReportMessage(`Generate failed: ${message}`);
+      if (!opened.closed) show(renderSprintReportNotice("The sprint summary could not be made", message));
     } finally {
       setSprintReportLoading(false);
     }

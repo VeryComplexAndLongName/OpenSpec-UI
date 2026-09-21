@@ -192,12 +192,37 @@ export function renderSprintReportPage(report: SprintReport): string {
       </section>`
     : report.entries.map(renderEntry).join("\n");
 
+  return documentOf(`Sprint summary, ${range}`, `    <header class="openspec-panel openspec-report-head">
+      <h1>Sprint summary</h1>
+      <p class="openspec-report-range">${range}</p>
+      <button type="button" class="button openspec-report-print" onclick="window.print()">Print, or save as PDF</button>
+    </header>
+${entries}
+${renderStats(report)}`);
+}
+
+/** The page the report's tab shows before the report is ready, or
+ * instead of it when it could not be made.
+ *
+ * The tab is opened by the click that asks for the report, before the
+ * request: a browser lets a page open a tab only while it is answering
+ * a click, and a report over the whole archive takes a minute. Opened
+ * after the request, it was refused with nothing to show for the wait
+ * (the-sprint-report-reads-like-the-timeline). */
+export function renderSprintReportNotice(heading: string, message: string): string {
+  return documentOf(escapeHtml(heading), `    <header class="openspec-panel openspec-report-head">
+      <h1>${escapeHtml(heading)}</h1>
+      <p class="openspec-report-range">${escapeHtml(message)}</p>
+    </header>`);
+}
+
+function documentOf(title: string, body: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sprint summary, ${range}</title>
+<title>${title}</title>
 <style>
 ${metroCss}
 ${metroIconsCss}
@@ -207,13 +232,7 @@ ${REPORT_CSS}
 </head>
 <body>
   <main class="openspec-report">
-    <header class="openspec-panel openspec-report-head">
-      <h1>Sprint summary</h1>
-      <p class="openspec-report-range">${range}</p>
-      <button type="button" class="button openspec-report-print" onclick="window.print()">Print, or save as PDF</button>
-    </header>
-${entries}
-${renderStats(report)}
+${body}
   </main>
 </body>
 </html>

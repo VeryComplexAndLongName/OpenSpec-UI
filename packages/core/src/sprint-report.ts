@@ -1,15 +1,17 @@
 // Sprint summary report data (see
 // openspec/changes/add-sprint-report-pdf/design.md): reuses
-// getChangeTimeline/getChangeAuthorship unchanged for per-change data —
+// getChangeTimelines/getChangeAuthorship unchanged for per-change data —
 // this module only aggregates, it does not add any new git primitives.
 
 import {
   getChangeAuthorship,
-  getChangeTimeline,
+  getChangeTimelines,
+  readChangeAuthorships,
+  TIMELINE_BATCH,
+  type ChangeAuthorship,
   type ChangeTimelineRequestEntry,
   type CommitAuthor,
 } from "./change-timeline.js";
-import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 export interface SprintReportEntry {
   changeName: string;
@@ -51,6 +53,8 @@ export interface SprintReport {
   stats: SprintReportStats;
 }
 
+const NO_AUTHORSHIP: ChangeAuthorship = { primaryAuthor: null, contributors: [] };
+
 const WHY_SECTION_RE = /##\s*Why\s*\n+([\s\S]*?)(?:\n##\s|\s*$)/i;
 const MAX_WHY_SUMMARY_LENGTH = 400;
 
@@ -85,37 +89,54 @@ export async function buildSprintReport(
 ): Promise<SprintReport> {
   const rangeStartMs = new Date(rangeStart).getTime();
   const rangeEndMs = new Date(rangeEnd).getTime();
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot);
 
-  const reportEntries = await Promise.all(
-    entries.map(async (entry): Promise<SprintReportEntry> => {
-      const change = (entry.archived ? workspace.archivedChanges : workspace.changes).find(
-        (c) => c.name === entry.changeName,
-      );
-      const [timeline, authorship] = await Promise.all([
-        getChangeTimeline(workspaceRoot, entry.changeName, entry.archived),
-        change
-          ? getChangeAuthorship(workspaceRoot, change.path)
-          : Promise.resolve({ primaryAuthor: null, contributors: [] }),
-      ]);
-      const tasksCompletedInRange = timeline.tasks.filter((task) =>
-        isWithinRange(task.date, rangeStartMs, rangeEndMs),
-      ).length;
+  // The timelines as the Timeline tab reads them: in batches, with the
+  // archive's dates read once for the whole list. This read every
+  // change at once, each with its own archive-date call, and a whole
+  // workspace discovered on top: measured 2026-09-21 on this
+  // repository, 100 archived changes took 32 seconds and 20 took 4.6,
+  // and the owner's selection held a processor at 100% until the
+  // request gave up (the-sprint-report-reads-like-the-timeline).
+  const timelines = await getChangeTimelines(workspaceRoot, entries);
 
-      return {
-        changeName: timeline.changeName,
-        archived: timeline.archived,
-        createdDate: timeline.createdDate,
-        archivedDate: timeline.archivedDate,
-        whySummary: extractWhySummary(timeline.proposal),
-        completedTaskCount: timeline.tasks.filter((task) => task.done).length,
-        totalTaskCount: timeline.tasks.length,
-        tasksCompletedInRange,
-        primaryAuthor: authorship.primaryAuthor,
-        contributors: authorship.contributors,
-      };
-    }),
-  );
+  // Every change's authorship from one git call; per change, by its
+  // directory, only when that call could not be made.
+  const batched = await readChangeAuthorships(workspaceRoot);
+  const authorships: ChangeAuthorship[] = [];
+  for (let index = 0; index < entries.length; index += TIMELINE_BATCH) {
+    const batch = entries.slice(index, index + TIMELINE_BATCH);
+    authorships.push(...await Promise.all(batch.map((entry) => {
+      if (batched) {
+        return Promise.resolve(
+          (entry.archived ? batched.archived : batched.active).get(entry.changeName) ?? NO_AUTHORSHIP,
+        );
+      }
+      const directory = entry.archived
+        ? `openspec/changes/archive/${entry.changeName}`
+        : `openspec/changes/${entry.changeName}`;
+      return getChangeAuthorship(workspaceRoot, directory);
+    })));
+  }
+
+  const reportEntries = timelines.map((timeline, index): SprintReportEntry => {
+    const authorship = authorships[index] ?? NO_AUTHORSHIP;
+    const tasksCompletedInRange = timeline.tasks.filter((task) =>
+      isWithinRange(task.date, rangeStartMs, rangeEndMs),
+    ).length;
+
+    return {
+      changeName: timeline.changeName,
+      archived: timeline.archived,
+      createdDate: timeline.createdDate,
+      archivedDate: timeline.archivedDate,
+      whySummary: extractWhySummary(timeline.proposal),
+      completedTaskCount: timeline.tasks.filter((task) => task.done).length,
+      totalTaskCount: timeline.tasks.length,
+      tasksCompletedInRange,
+      primaryAuthor: authorship.primaryAuthor,
+      contributors: authorship.contributors,
+    };
+  });
 
   const authorCounts = new Map<string, SprintReportAuthorStat>();
   for (const entry of reportEntries) {
