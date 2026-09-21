@@ -221,6 +221,20 @@ describe("archiveLandedChanges", () => {
     ]);
   });
 
+  // the-sweep-finishes-what-it-starts: git commits nothing without failing
+  // where nothing was staged, and the branch pushed was the default branch
+  // under another name.
+  it("pushes nothing where archiving changed nothing", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge();
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge, { archive: async () => undefined }));
+
+    expect(result.failed).toBe("archiving changed nothing, so there was nothing to commit");
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
+    expect(await git(fixture.remote, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
+  });
+
   it("removes what it made when the push is refused, and says so", async () => {
     const fixture = await landed({ "first-done": DONE });
     const forge = fakeForge();

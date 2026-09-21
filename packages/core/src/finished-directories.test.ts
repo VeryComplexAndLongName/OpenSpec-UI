@@ -220,13 +220,35 @@ describe("the sweep", () => {
     expect(given.git.worktreeRemove).not.toHaveBeenCalled();
   });
 
-  it("reports a removal that failed rather than throwing", async () => {
+  // the-sweep-finishes-what-it-starts: git on Windows gave up on a long
+  // path after forgetting the worktree, and the half it left was never
+  // looked at again.
+  it("finishes a removal git gave up on, and has git forget the worktree", async () => {
+    const worktreePrune = vi.fn(async () => undefined);
+    const given = deps({
+      git: {
+        fetch: vi.fn(async () => undefined),
+        branchUpstreams: vi.fn(async () => [GONE]),
+        worktreeRemove: vi.fn(async () => { throw new Error("failed to delete: Filename too long"); }),
+        worktreePrune,
+      },
+    });
+
+    const swept = await sweepFinishedDirectories(survey([directory()]), given);
+
+    expect(given.removeShell).toHaveBeenCalledWith("/wt/demo");
+    expect(worktreePrune).toHaveBeenCalled();
+    expect(swept.removed[0]?.failed).toBeUndefined();
+  });
+
+  it("reports a removal that failed both ways rather than throwing, with git's reason", async () => {
     const given = deps({
       git: {
         fetch: vi.fn(async () => undefined),
         branchUpstreams: vi.fn(async () => [GONE]),
         worktreeRemove: vi.fn(async () => { throw new Error("in use"); }),
       },
+      removeShell: vi.fn(async () => { throw new Error("EBUSY"); }),
     });
 
     const swept = await sweepFinishedDirectories(survey([directory()]), given);

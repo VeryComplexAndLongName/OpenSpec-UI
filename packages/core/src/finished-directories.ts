@@ -204,7 +204,7 @@ export async function removeDirectoryShell(directoryPath: string): Promise<void>
 
 export interface SweepDeps {
   /** The repository's git, taken in the main working directory. */
-  git: Pick<GitWrapper, "fetch" | "branchUpstreams" | "worktreeRemove">;
+  git: Pick<GitWrapper, "fetch" | "branchUpstreams" | "worktreeRemove"> & Partial<Pick<GitWrapper, "worktreePrune">>;
   /** Removes whatever shell the worktree removal left. A link inside it
    * is unlinked, never followed. Defaults to `removeDirectoryShell`. */
   removeShell?: (directoryPath: string) => Promise<void>;
@@ -255,15 +255,28 @@ export async function sweepFinishedDirectories(
 
   const removed: SweptDirectory[] = [];
   for (const directory of states.finished) {
+    // `--force`: the tree was read as clean above, and a directory
+    // holding only ignored files - a module overlay, a downloaded editor -
+    // is refused without it.
+    let gitRefused: string | undefined;
     try {
-      // `--force`: the tree was read as clean above, and a directory
-      // holding only ignored files - a module overlay, a downloaded
-      // editor - is refused without it.
       await deps.git.worktreeRemove(directory.path, { force: true });
+    } catch (error) {
+      gitRefused = error instanceof Error ? error.message : String(error);
+    }
+    // Whatever git left, whether or not it finished. git on Windows gives
+    // up on a path longer than it can name - a downloaded editor in
+    // `.vscode-test` is one - after forgetting the worktree and deleting
+    // part of it, and the half it left behind was a directory no sweep
+    // would ever look at again (the-sweep-finishes-what-it-starts). The
+    // shell removal takes long paths, and unlinks a link without
+    // following it.
+    try {
       await (deps.removeShell ?? removeDirectoryShell)(directory.path);
+      if (gitRefused !== undefined) await deps.git.worktreePrune?.();
       removed.push(directory);
     } catch (error) {
-      removed.push({ ...directory, failed: error instanceof Error ? error.message : String(error) });
+      removed.push({ ...directory, failed: gitRefused ?? (error instanceof Error ? error.message : String(error)) });
     }
   }
 

@@ -149,13 +149,18 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
 
     const git = deps.gitIn(directory.path);
     await git.stagePath("openspec");
-    await git.commit(lines(
+    const committed = await git.commit(lines(
       archived.length === 1 ? `Archive ${archived[0]}` : `Archive the ${archived.length} changes that landed`,
       "",
       ...archived.map((name) => `- ${name}`),
       "",
       "Opened by the workspace sweep: each landed with nothing open (ADR 0035).",
     ));
+    // git commits nothing, and says so without failing, where nothing was
+    // staged. The branch would then be the default branch under another
+    // name, and a pull request of it would archive nothing
+    // (the-sweep-finishes-what-it-starts).
+    if (!committed.commit) throw new Error("archiving changed nothing, so there was nothing to commit");
     await git.push(remote, branch);
 
     const pullRequest = await deps.forge.openPullRequest({
