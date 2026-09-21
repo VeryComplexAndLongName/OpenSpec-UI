@@ -52,6 +52,9 @@ const SHELL_STARTING_TESTS = [
   "src/git.push.test.ts",
   "src/git-refs.test.ts",
   "src/finished-directories.removal.test.ts",
+  // Real git for init, commit and ls-tree against a temporary repository
+  // (a-change-is-archived-with-nothing-open).
+  "src/archived-since.test.ts",
 ];
 
 export default defineWorkspace([
