@@ -348,6 +348,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // pushed with a lease (git-says-a-working-directory-is-done, ADR 0034).
     // One core function, the same one the standalone runs, so the two hosts
     // cannot do different things with the same directories.
+    const warnedOwing = new Set<string>();
     const sweepDirectories = async () => {
       if (!workspaceRoot) return;
       try {
@@ -358,6 +359,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         for (const branch of swept.branches?.conflicted ?? []) {
           void vscode.window.showWarningMessage(
             `OpenSpec Workbench: ${branch.branch} needs a rebase by hand - it conflicts with ${branch.onto} in ${branch.conflicts.join(", ")}.`,
+          );
+        }
+        // The product pushed and opened a pull request without being asked
+        // at that moment (ADR 0035): said where it will be seen. And a change
+        // that landed still owing something is the one thing here a person
+        // has to settle.
+        const opened = swept.archive?.opened;
+        if (opened) {
+          void vscode.window.showInformationMessage(
+            `OpenSpec Workbench: opened #${opened.pullRequest.number} to archive ${opened.changes.join(", ")}; ${opened.merge.ok ? "it merges when its checks pass" : `merge it by hand (${opened.merge.reason})`}.`,
+          );
+        }
+        for (const owing of swept.archive?.owing ?? []) {
+          // Once a session: the sweep runs every half hour, and the output
+          // says it every time.
+          if (warnedOwing.has(owing.changeName)) continue;
+          warnedOwing.add(owing.changeName);
+          void vscode.window.showWarningMessage(
+            `OpenSpec Workbench: ${owing.changeName} landed in #${owing.pullRequest} but still owes ${owing.owes.length === 1 ? "an item" : `${owing.owes.length} items`}, so it is not archived.`,
           );
         }
       } catch (error) {

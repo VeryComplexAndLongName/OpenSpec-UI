@@ -20,6 +20,7 @@ import {
   readChangeHarnessConfig,
   readGlobalHarnessConfig,
   rebasesWhenBehind,
+  archivesWhenLanded,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
   TOP_LEVEL_CONFIG_KEYS,
@@ -988,6 +989,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     hints: { enabled: false },
     allowAgentMessages: true,
     branches: { rebaseWhenBehind: false },
+    archive: { whenLanded: false },
   };
 
   it("has a sample for every accepted key, and no others", () => {
@@ -1700,6 +1702,45 @@ describe("branches.rebaseWhenBehind", () => {
       .rejects.toThrow(/rebaseWhenBehind must be a boolean/);
     await expect(writeGlobalHarnessConfig(root, { branches: { mergeWhenBehind: true } } as never))
       .rejects.toThrow(/branches has no key "mergeWhenBehind"/);
+  });
+});
+
+// ADR 0035: the second workspace default that lets the product push,
+// and on unless it is turned off.
+describe("archive.whenLanded", () => {
+  it("is on where nothing says otherwise", async () => {
+    const root = await temporaryRoot();
+
+    expect(archivesWhenLanded(await readGlobalHarnessConfig(root))).toBe(true);
+  });
+
+  it("is off where the workspace turns it off", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { archive: { whenLanded: false } });
+
+    expect(archivesWhenLanded(await readGlobalHarnessConfig(root))).toBe(false);
+  });
+
+  it("lets one change turn it off for itself, and leaves the others on", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "kept-live"), { recursive: true });
+    await writeFile(
+      path.join(root, "openspec", "changes", "kept-live", "harness.json"),
+      JSON.stringify({ archive: { whenLanded: false } }),
+      "utf8",
+    );
+
+    expect(archivesWhenLanded(await resolveHarnessConfig(root, "kept-live"))).toBe(false);
+    expect(archivesWhenLanded(await resolveHarnessConfig(root, "another-change"))).toBe(true);
+  });
+
+  it("refuses a value that is not a boolean, and a key it does not know", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { archive: { whenLanded: "yes" } } as never))
+      .rejects.toThrow(/whenLanded must be a boolean/);
+    await expect(writeGlobalHarnessConfig(root, { archive: { whenMerged: true } } as never))
+      .rejects.toThrow(/archive has no key "whenMerged"/);
   });
 });
 

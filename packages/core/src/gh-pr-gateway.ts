@@ -285,3 +285,72 @@ export function createPullRequestGateway(options: PullRequestGatewayOptions): Pu
     },
   };
 }
+
+/** What the product asks of the server that hosts the repository, beyond
+ * git itself (ADR 0035): the pull requests there are, a new one, and a
+ * merge once its checks pass. Implemented for GitHub through `gh`; GitLab
+ * and Gitea implement the same, and nothing that uses it changes. */
+export interface Forge {
+  /** What the forge is called, for a sentence that names it. */
+  readonly name: string;
+  pullRequestsByBranch(): Promise<PullRequestsByBranch>;
+  openPullRequest(request: { head: string; base: string; title: string; body: string }): Promise<PullRequestRef>;
+  /** Asks for the pull request to merge once its checks pass. Merges
+   * nothing now. Says why where the forge would not. */
+  mergeWhenChecksPass(prNumber: number): Promise<{ ok: true; method: string } | { ok: false; reason: string }>;
+}
+
+export interface GitHubForgeOptions {
+  cwd: string;
+  ghBinary?: string;
+  /** Test seam: runs `gh`. */
+  exec?: (binary: string, args: string[], options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
+}
+
+/** The merge methods tried, in this order: a repository allows some of
+ * them, and `gh pr merge --auto` needs one named. Squash first, as this
+ * repository merges. */
+const AUTO_MERGE_METHODS = ["--squash", "--merge", "--rebase"] as const;
+
+export function buildGhPrAutoMergeInvocation(prNumber: number, method: string): { executable: string; args: string[] } {
+  return { executable: "gh", args: ["pr", "merge", String(prNumber), "--auto", method, "--delete-branch"] };
+}
+
+export function buildGhPrCreateWithBodyInvocation(request: { head: string; base: string; title: string; body: string }): { executable: string; args: string[] } {
+  return {
+    executable: "gh",
+    args: ["pr", "create", "--head", request.head, "--base", request.base, "--title", request.title, "--body", request.body],
+  };
+}
+
+export function createGitHubForge(options: GitHubForgeOptions): Forge {
+  const ghBinary = options.ghBinary ?? "gh";
+  const exec = options.exec ?? execFileAsync;
+  return {
+    name: "GitHub",
+    pullRequestsByBranch: () => listPullRequestsByBranch(options),
+    async openPullRequest(request) {
+      const invocation = buildGhPrCreateWithBodyInvocation(request);
+      const { stdout } = await exec(ghBinary, invocation.args, { cwd: options.cwd });
+      return parsePullRequestRef(stdout);
+    },
+    async mergeWhenChecksPass(prNumber) {
+      let reason = "no merge method was tried";
+      for (const method of AUTO_MERGE_METHODS) {
+        try {
+          await exec(ghBinary, buildGhPrAutoMergeInvocation(prNumber, method).args, { cwd: options.cwd });
+          return { ok: true, method: method.slice(2) };
+        } catch (error) {
+          reason = whyGhFailed(error);
+          // A method the repository does not allow: the next may be one it
+          // does. Anything else would fail the same way for every method.
+          // GitHub's words for one: "Squash merges are not allowed on this
+          // repository", "Merge commits are not allowed ...". Automatic
+          // merging itself being off is not one of them.
+          if (!/(squash|rebase) merges are not allowed|merge commits are not allowed/iu.test(reason)) break;
+        }
+      }
+      return { ok: false, reason };
+    },
+  };
+}

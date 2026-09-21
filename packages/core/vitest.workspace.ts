@@ -58,6 +58,8 @@ const SHELL_STARTING_TESTS = [
   // Real git with pushes to a local bare remote, which start the MSYS
   // shell this project exists to keep apart (ADR 0034).
   "src/branch-rebase.test.ts",
+  // The same, for the pass that archives what has landed (ADR 0035).
+  "src/landed-archive.test.ts",
 ];
 
 export default defineWorkspace([

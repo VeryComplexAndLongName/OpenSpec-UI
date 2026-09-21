@@ -168,6 +168,9 @@ export interface HarnessConfig {
   /** What this product does with a change's branch. Absent means every
    * default below. */
   branches?: HarnessBranches;
+  /** What this product does with a change that has landed. Absent means
+   * every default below. */
+  archive?: HarnessArchive;
   autonomyLevel: HarnessAutonomyLevel;
   reviewGate: HarnessReviewGate;
   /** Whether `HarnessChainRunner` pauses for an explicit human
@@ -309,7 +312,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches", "archive"] as const;
 
 /** What this product does with a change's branch (ADR 0034). */
 export interface HarnessBranches {
@@ -321,6 +324,25 @@ export interface HarnessBranches {
    * the lease makes it unable to take anything away. A team that shares
    * change branches turns it off. */
   rebaseWhenBehind?: boolean;
+}
+
+/** What this product does with a change that has landed (ADR 0035). */
+export interface HarnessArchive {
+  /** Whether a change that has landed on the default branch and owes
+   * nothing is archived for you: in one pull request per pass, which is
+   * asked to merge when its checks pass. Absent means `true`.
+   *
+   * The second workspace default that lets the product push, after
+   * `branches.rebaseWhenBehind`. It pushes only the result of
+   * `openspec archive` over changes the default branch says are
+   * finished, and that lands through a pull request and its checks. */
+  whenLanded?: boolean;
+}
+
+/** Whether a landed change is archived for you, as a configuration says.
+ * On unless it is turned off (ADR 0035). */
+export function archivesWhenLanded(config: Pick<HarnessConfig, "archive">): boolean {
+  return config.archive?.whenLanded !== false;
 }
 
 /** Whether a behind change branch is rebased, as a configuration says.
@@ -963,6 +985,19 @@ function assertValidHarnessConfigInput(
       throw new InvalidHarnessConfigError("branches.rebaseWhenBehind must be a boolean");
     }
   }
+  const archive = (input as { archive?: unknown }).archive;
+  if (archive !== undefined) {
+    if (archive === null || typeof archive !== "object" || Array.isArray(archive)) {
+      throw new InvalidHarnessConfigError("archive must be an object");
+    }
+    for (const key of Object.keys(archive)) {
+      if (key !== "whenLanded") throw new InvalidHarnessConfigError(`archive has no key "${key}"; the one it takes is whenLanded`);
+    }
+    const whenLanded = (archive as { whenLanded?: unknown }).whenLanded;
+    if (whenLanded !== undefined && typeof whenLanded !== "boolean") {
+      throw new InvalidHarnessConfigError("archive.whenLanded must be a boolean");
+    }
+  }
   assertValidBudget(input.budget);
   assertValidTimeout(input.timeout);
   assertValidMaxStageAttempts(input.maxStageAttempts);
@@ -1104,6 +1139,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     hints: input.hints ?? DEFAULT_HARNESS_CONFIG.hints,
     ...(input.allowAgentMessages !== undefined ? { allowAgentMessages: input.allowAgentMessages } : {}),
     ...(input.branches !== undefined ? { branches: input.branches } : {}),
+    ...(input.archive !== undefined ? { archive: input.archive } : {}),
     budget: input.budget ?? DEFAULT_HARNESS_CONFIG.budget,
     // A field added to `HarnessConfig` and to `TOP_LEVEL_CONFIG_KEYS` but
     // not to this list is accepted by validation and then silently
@@ -1171,6 +1207,11 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // leaves every other branch setting to the workspace.
     ...((override.branches ?? global.branches) !== undefined
       ? { branches: { ...global.branches, ...override.branches } }
+      : {}),
+    // Key by key, for the same reason: a change keeps itself out of the
+    // archive and leaves the rest to the workspace.
+    ...((override.archive ?? global.archive) !== undefined
+      ? { archive: { ...global.archive, ...override.archive } }
       : {}),
     // Whole-object override, like autonomyLevel/reviewGate/checkpoints
     // above — not a key-by-key merge like stepAgents. A per-change budget,

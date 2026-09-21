@@ -229,8 +229,13 @@ testing expertise".
     never resolved for you: the branch is left as it was and the files are
     named. `branches.rebaseWhenBehind` turns the rebase off; see
     [`HARNESS.md`](HARNESS.md#branches).
+  - A change that has landed with every task item closed is archived for
+    you, in one pull request per pass that merges when its checks pass.
+    One that landed still owing something is named, not archived.
+    `archive.whenLanded` turns it off; see
+    [`HARNESS.md`](HARNESS.md#archive).
 
-  See [`docs/adr/`](docs/adr/), 0025 to 0029 and 0034.
+  See [`docs/adr/`](docs/adr/), 0025 to 0029, 0034 and 0035.
 
 BMAD's pages were not found to describe spending limits, an audit log or
 parallel runs. That is not a claim that BMAD lacks them, only that this
