@@ -31,301 +31,301 @@
     "commands": [
       {
         "command": "openspec-ui.status",
-        "title": "OpenSpec UI: Status"
+        "title": "OpenSpec Workbench: Status"
       },
       {
         "command": "openspec-ui.initialize",
-        "title": "OpenSpec UI: Initialize Workspace"
+        "title": "OpenSpec Workbench: Initialize Workspace"
       },
       {
         "command": "openspec-ui.generateAgentInstructions",
-        "title": "OpenSpec UI: Generate Agent Instructions (CLAUDE.md / AGENTS.md)"
+        "title": "OpenSpec Workbench: Generate Agent Instructions (CLAUDE.md / AGENTS.md)"
       },
       {
         "command": "openspec-ui.setUpAgenticHarness",
-        "title": "OpenSpec UI: Set Up Agentic Harness"
+        "title": "OpenSpec Workbench: Set Up Agentic Harness"
       },
       {
         "command": "openspec-ui.configureDependabot",
-        "title": "OpenSpec UI: Configure Dependabot"
+        "title": "OpenSpec Workbench: Configure Dependabot"
       },
       {
         "command": "openspec-ui.generateSubtypeInstructions",
-        "title": "OpenSpec UI: Generate Path-Scoped Copilot Instructions"
+        "title": "OpenSpec Workbench: Generate Path-Scoped Copilot Instructions"
       },
       {
         "command": "openspec-ui.configureHarness",
-        "title": "OpenSpec UI: Configure Harness Settings"
+        "title": "OpenSpec Workbench: Configure Harness Settings"
       },
       {
         "command": "openspec-ui.configureHarnessForChange",
-        "title": "OpenSpec UI: Configure Harness for this Change"
+        "title": "OpenSpec Workbench: Configure Harness for this Change"
       },
       {
         "command": "openspec-ui.runWithHarness",
-        "title": "OpenSpec UI: Run"
+        "title": "OpenSpec Workbench: Run"
       },
       {
         "command": "openspec-ui.createChange",
-        "title": "OpenSpec UI: Create Change",
+        "title": "OpenSpec Workbench: Create Change",
         "icon": "$(add)"
       },
       {
         "command": "openspec-ui.createChangeTemplate",
-        "title": "OpenSpec UI: Create Change Template"
+        "title": "OpenSpec Workbench: Create Change Template"
       },
       {
         "command": "openspec-ui.validateSelectedChange",
-        "title": "OpenSpec UI: Validate Change",
+        "title": "OpenSpec Workbench: Validate Change",
         "icon": "$(pass)"
       },
       {
         "command": "openspec-ui.showChangeTimeline",
-        "title": "OpenSpec UI: Show Change Timeline",
+        "title": "OpenSpec Workbench: Show Change Timeline",
         "icon": "$(graph-line)"
       },
       {
         "command": "openspec-ui.showChangeAncestry",
-        "title": "OpenSpec UI: Show What This Change Follows",
+        "title": "OpenSpec Workbench: Show What This Change Follows",
         "icon": "$(type-hierarchy)"
       },
       {
         "command": "openspec-ui.showChangeCostReport",
-        "title": "OpenSpec UI: Show What This Change Cost",
+        "title": "OpenSpec Workbench: Show What This Change Cost",
         "icon": "$(graph)"
       },
       {
         "command": "openspec-ui.explainHarnessSettings",
-        "title": "OpenSpec UI: Explain Harness Settings",
+        "title": "OpenSpec Workbench: Explain Harness Settings",
         "icon": "$(question)"
       },
       {
         "command": "openspec-ui.recommendHarnessTemplate",
-        "title": "OpenSpec UI: Recommend a Harness Configuration",
+        "title": "OpenSpec Workbench: Recommend a Harness Configuration",
         "icon": "$(lightbulb)"
       },
       {
         "command": "openspec-ui.revealInChangeGraph",
-        "title": "OpenSpec UI: Reveal in Change Graph",
+        "title": "OpenSpec Workbench: Reveal in Change Graph",
         "icon": "$(type-hierarchy-sub)"
       },
       {
         "command": "openspec-ui.revealInChanges",
-        "title": "OpenSpec UI: Reveal in Changes",
+        "title": "OpenSpec Workbench: Reveal in Changes",
         "icon": "$(list-tree)"
       },
       {
         "command": "openspec-ui.openPipeline",
-        "title": "OpenSpec UI: Open Pipeline",
+        "title": "OpenSpec Workbench: Open Pipeline",
         "icon": "$(type-hierarchy)"
       },
       {
         "command": "openspec-ui.archiveChange",
-        "title": "OpenSpec UI: Archive Change",
+        "title": "OpenSpec Workbench: Archive Change",
         "icon": "$(archive)"
       },
       {
         "command": "openspec-ui.readChangeElsewhere",
-        "title": "OpenSpec UI: Read This Change As That Directory Has It",
+        "title": "OpenSpec Workbench: Read This Change As That Directory Has It",
         "icon": "$(book)"
       },
       {
         "command": "openspec-ui.openChangeDirectory",
-        "title": "OpenSpec UI: Open The Working Directory This Change Is Worked In",
+        "title": "OpenSpec Workbench: Open The Working Directory This Change Is Worked In",
         "icon": "$(folder-opened)"
       },
       {
         "command": "openspec-ui.pickChange",
-        "title": "OpenSpec UI: Pick A Change, And See Where Each Is Worked",
+        "title": "OpenSpec Workbench: Pick A Change, And See Where Each Is Worked",
         "icon": "$(list-selection)"
       },
       {
         "command": "openspec-ui.unarchiveChange",
-        "title": "OpenSpec UI: Unarchive Change",
+        "title": "OpenSpec Workbench: Unarchive Change",
         "icon": "$(unarchive)"
       },
       {
         "command": "openspec-ui.copyTasksAsTemplate",
-        "title": "OpenSpec UI: Copy Tasks as Template Into…",
+        "title": "OpenSpec Workbench: Copy Tasks as Template Into…",
         "icon": "$(copy)"
       },
       {
         "command": "openspec-ui.customizeTemplate",
-        "title": "OpenSpec UI: Customize Template",
+        "title": "OpenSpec Workbench: Customize Template",
         "icon": "$(edit)"
       },
       {
         "command": "openspec-ui.insertTemplateIntoChange",
-        "title": "OpenSpec UI: Insert Template Into…",
+        "title": "OpenSpec Workbench: Insert Template Into…",
         "icon": "$(add)"
       },
       {
         "command": "openspec-ui.deleteProjectTemplate",
-        "title": "OpenSpec UI: Delete Project Template",
+        "title": "OpenSpec Workbench: Delete Project Template",
         "icon": "$(trash)"
       },
       {
         "command": "openspec-ui.deleteChange",
-        "title": "OpenSpec UI: Delete Change",
+        "title": "OpenSpec Workbench: Delete Change",
         "icon": "$(trash)"
       },
       {
         "command": "openspec-ui.deleteTask",
-        "title": "OpenSpec UI: Delete Task",
+        "title": "OpenSpec Workbench: Delete Task",
         "icon": "$(trash)"
       },
       {
         "command": "openspec-ui.runDelegatedItem",
-        "title": "OpenSpec UI: Run This Delegated Item",
+        "title": "OpenSpec Workbench: Run This Delegated Item",
         "icon": "$(play)"
       },
       {
         "command": "openspec-ui.confirmEnrolment",
-        "title": "OpenSpec UI: It Was Me",
+        "title": "OpenSpec Workbench: It Was Me",
         "icon": "$(pass)"
       },
       {
         "command": "openspec-ui.openspecView",
-        "title": "OpenSpec UI: OpenSpec View (CLI)"
+        "title": "OpenSpec Workbench: OpenSpec View (CLI)"
       },
       {
         "command": "openspec-ui.showAllChangesTimeline",
-        "title": "OpenSpec UI: Show Change Comparison Timeline"
+        "title": "OpenSpec Workbench: Show Change Comparison Timeline"
       },
       {
         "command": "openspec-ui.generateSprintReport",
-        "title": "OpenSpec UI: Generate Sprint Report"
+        "title": "OpenSpec Workbench: Generate Sprint Report"
       },
       {
         "command": "openspec-ui.showChangeDetails",
-        "title": "OpenSpec UI: Show Change Details"
+        "title": "OpenSpec Workbench: Show Change Details"
       },
       {
         "command": "openspec-ui.validateChangeStrict",
-        "title": "OpenSpec UI: Validate Change (Strict)"
+        "title": "OpenSpec Workbench: Validate Change (Strict)"
       },
       {
         "command": "openspec-ui.listSpecsSummary",
-        "title": "OpenSpec UI: List Specs Summary"
+        "title": "OpenSpec Workbench: List Specs Summary"
       },
       {
         "command": "openspec-ui.openAiPanel",
-        "title": "OpenSpec UI: Open Process Dashboard",
+        "title": "OpenSpec Workbench: Open Process Dashboard",
         "icon": "$(pulse)"
       },
       {
         "command": "openspec-ui.refresh",
-        "title": "OpenSpec UI: Refresh",
+        "title": "OpenSpec Workbench: Refresh",
         "icon": "$(refresh)"
       },
       {
         "command": "openspec-ui.removeLeftover",
-        "title": "OpenSpec UI: Remove This Leftover Directory",
+        "title": "OpenSpec Workbench: Remove This Leftover Directory",
         "icon": "$(trash)"
       },
       {
         "command": "openspec-ui.removeWorkingDirectory",
-        "title": "OpenSpec UI: Remove This Working Directory",
+        "title": "OpenSpec Workbench: Remove This Working Directory",
         "icon": "$(trash)"
       },
       {
         "command": "openspec-ui.sayToRun",
-        "title": "OpenSpec UI: Say Something to This Run",
+        "title": "OpenSpec Workbench: Say Something to This Run",
         "icon": "$(comment)"
       },
       {
         "command": "openspec-ui.stopRunAfterTask",
-        "title": "OpenSpec UI: Stop This Run After a Task",
+        "title": "OpenSpec Workbench: Stop This Run After a Task",
         "icon": "$(debug-pause)"
       },
       {
         "command": "openspec-ui.addRelation",
-        "title": "OpenSpec UI: Add Relation",
+        "title": "OpenSpec Workbench: Add Relation",
         "icon": "$(link)"
       },
       {
         "command": "openspec-ui.removeRelation",
-        "title": "OpenSpec UI: Remove Relation",
+        "title": "OpenSpec Workbench: Remove Relation",
         "icon": "$(link-external)"
       },
       {
         "command": "openspec-ui.filterArchive",
-        "title": "OpenSpec UI: Filter Archive",
+        "title": "OpenSpec Workbench: Filter Archive",
         "icon": "$(search)"
       },
       {
         "command": "openspec-ui.clearArchiveFilter",
-        "title": "OpenSpec UI: Clear Archive Filter",
+        "title": "OpenSpec Workbench: Clear Archive Filter",
         "icon": "$(clear-all)"
       },
       {
         "command": "openspec-ui.filterSpecs",
-        "title": "OpenSpec UI: Filter Specs",
+        "title": "OpenSpec Workbench: Filter Specs",
         "icon": "$(search)"
       },
       {
         "command": "openspec-ui.clearSpecsFilter",
-        "title": "OpenSpec UI: Clear Specs Filter",
+        "title": "OpenSpec Workbench: Clear Specs Filter",
         "icon": "$(clear-all)"
       },
       {
         "command": "openspec-ui.filterChangeGraph",
-        "title": "OpenSpec UI: Filter Change Graph",
+        "title": "OpenSpec Workbench: Filter Change Graph",
         "icon": "$(search)"
       },
       {
         "command": "openspec-ui.clearChangeGraphFilter",
-        "title": "OpenSpec UI: Clear Change Graph Filter",
+        "title": "OpenSpec Workbench: Clear Change Graph Filter",
         "icon": "$(clear-all)"
       },
       {
         "command": "openspec-ui.showLandedRelations",
-        "title": "OpenSpec UI: Show Landed Relations",
+        "title": "OpenSpec Workbench: Show Landed Relations",
         "icon": "$(unfold)"
       },
       {
         "command": "openspec-ui.hideLandedRelations",
-        "title": "OpenSpec UI: Hide Landed Relations",
+        "title": "OpenSpec Workbench: Hide Landed Relations",
         "icon": "$(fold)"
       },
       {
         "command": "openspec-ui.reviewDiff",
-        "title": "OpenSpec UI: Review Diff (tasks.md vs HEAD)",
+        "title": "OpenSpec Workbench: Review Diff (tasks.md vs HEAD)",
         "icon": "$(diff)"
       },
       {
         "command": "openspec-ui.cancelProcess",
-        "title": "OpenSpec UI: Cancel Process",
+        "title": "OpenSpec Workbench: Cancel Process",
         "icon": "$(debug-stop)"
       },
       {
         "command": "openspec-ui.finishImplementation",
-        "title": "OpenSpec UI: Finish Implementation & Review",
+        "title": "OpenSpec Workbench: Finish Implementation & Review",
         "icon": "$(check-all)"
       },
       {
         "command": "openspec-ui.rollbackProcess",
-        "title": "OpenSpec UI: Rollback Process Changes",
+        "title": "OpenSpec Workbench: Rollback Process Changes",
         "icon": "$(discard)"
       },
       {
         "command": "openspec-ui.rollbackChange",
-        "title": "OpenSpec UI: Rollback Change",
+        "title": "OpenSpec Workbench: Rollback Change",
         "icon": "$(discard)"
       },
       {
         "command": "openspec-ui.runTypecheck",
-        "title": "OpenSpec UI: Run Typecheck",
+        "title": "OpenSpec Workbench: Run Typecheck",
         "icon": "$(check)"
       },
       {
         "command": "openspec-ui.runTest",
-        "title": "OpenSpec UI: Run Tests",
+        "title": "OpenSpec Workbench: Run Tests",
         "icon": "$(beaker)"
       },
       {
         "command": "openspec-ui.runLint",
-        "title": "OpenSpec UI: Run Lint",
+        "title": "OpenSpec Workbench: Run Lint",
         "icon": "$(law)"
       }
     ],
@@ -333,7 +333,7 @@
       "activitybar": [
         {
           "id": "openspec-ui",
-          "title": "OpenSpec UI",
+          "title": "OpenSpec Workbench",
           "icon": "media/icon.svg"
         }
       ]
@@ -670,7 +670,7 @@
       ]
     },
     "configuration": {
-      "title": "OpenSpec UI",
+      "title": "OpenSpec Workbench",
       "properties": {
         "openspec-ui.transport.localServer.enabled": {
           "type": "boolean",
@@ -691,7 +691,7 @@
         "openspec-ui.followSelectionInChangeGraph": {
           "type": "boolean",
           "default": false,
-          "description": "When on, selecting a change in Changes or Archive reveals it in the Change Graph automatically. Off by default: the graph shows only changes that state a relation (follows/supersedes/blocked_by), so for most changes there is nothing to reveal — use \"OpenSpec UI: Reveal in Change Graph\" on demand instead."
+          "description": "When on, selecting a change in Changes or Archive reveals it in the Change Graph automatically. Off by default: the graph shows only changes that state a relation (follows/supersedes/blocked_by), so for most changes there is nothing to reveal — use \"OpenSpec Workbench: Reveal in Change Graph\" on demand instead."
         },
         "openspec-ui.checks": {
           "type": "object",

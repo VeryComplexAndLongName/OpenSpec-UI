@@ -36,7 +36,7 @@ export function buildWorkbenchChatPrompt(params: WorkbenchChatPromptParams): str
   ];
   if (params.processId !== undefined) {
     lines.push(`A Workbench checkpoint is active as process ${params.processId}.`);
-    lines.push("When implementation is complete, use OpenSpec UI: Finish Implementation & Review.");
+    lines.push("When implementation is complete, use OpenSpec Workbench: Finish Implementation & Review.");
   }
   return lines.join("\n");
 }

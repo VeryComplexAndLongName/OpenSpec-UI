@@ -30,7 +30,7 @@ export class TimelineWebviewPanel {
    * timeline itself, under its own global — `ChangeTimelineView` reads
    * it as a prop, not baked into the `ChangeTimeline` data shape. */
   show(changeName: string, timeline: ChangeTimeline, staleThresholdDays: number): void {
-    const panel = this.createPanel(`OpenSpec UI: ${changeName} timeline`);
+    const panel = this.createPanel(`OpenSpec Workbench: ${changeName} timeline`);
     panel.webview.html = this.getHtml(panel.webview, {
       __OPENSPEC_UI_TIMELINE__: timeline,
       __OPENSPEC_UI_STALE_THRESHOLD_DAYS__: staleThresholdDays,
@@ -46,7 +46,7 @@ export class TimelineWebviewPanel {
    * rows at a time rather than for all 264 up front, and opening one
    * change's own timeline. */
   showComparison(spans: ChangeSpans, handlers: ComparisonHandlers): void {
-    const panel = this.createPanel("OpenSpec UI: change comparison");
+    const panel = this.createPanel("OpenSpec Workbench: change comparison");
     panel.webview.html = this.getHtml(panel.webview, {
       __OPENSPEC_UI_COMPARISON__: { spans: spans.spans, readAt: spans.readAt },
     });
@@ -106,7 +106,7 @@ export class TimelineWebviewPanel {
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <title>OpenSpec UI Timeline</title>
+    <title>OpenSpec Workbench Timeline</title>
   </head>
   <body>
     <div id="root"></div>

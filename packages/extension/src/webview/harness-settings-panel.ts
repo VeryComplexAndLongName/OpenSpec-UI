@@ -21,7 +21,7 @@ import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 /** Posted by a change's panel when someone asks for the global defaults. */
 export const EDIT_GLOBAL_HARNESS_MESSAGE_TYPE = "openspec-ui/edit-global-harness";
 
-export const GLOBAL_HARNESS_PANEL_TITLE = "OpenSpec UI: Harness Settings";
+export const GLOBAL_HARNESS_PANEL_TITLE = "OpenSpec Workbench: Harness Settings";
 
 export function changeHarnessPanelTitle(changeName: string): string {
   return `Harness: ${changeName}`;

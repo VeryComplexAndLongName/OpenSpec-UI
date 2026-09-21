@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "OpenSpec UI Agentic Harness — per-change override",
+  "title": "OpenSpec Workbench Agentic Harness — per-change override",
   "description": "Per-change override for openspec/changes/<id>/harness.json — deep-merged over the global openspec/agent-harness.json, key by key. Only set fields you want to override; everything else stays inherited.",
   "type": "object",
   "additionalProperties": false,

@@ -10,7 +10,7 @@ name is the agent's name.
 
 **2.** Select it for a stage beside that stage's agent: for one change, in
 its harness settings — the Change Editor's **Harness** tab, or **OpenSpec
-UI: Configure Harness for this Change** in VS Code; for every change, in
+Workbench: Configure Harness for this Change** in VS Code; for every change, in
 the global **Harness Settings**. Or by hand in
 `openspec/changes/<id>/harness.json`, creating that file if it is not
 there — most changes have none:

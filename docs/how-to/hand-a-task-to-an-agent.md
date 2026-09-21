@@ -13,7 +13,7 @@ the evidence that agent has to write back into the item.
 ```
 
 **2.** Run it from the inbox: the standalone shell's "Waiting on
-somebody" block, or **OpenSpec UI: Run This Delegated Item** in VS Code.
+somebody" block, or **OpenSpec Workbench: Run This Delegated Item** in VS Code.
 The row carries a **Run** only where the id names an agent this build
 carries — an item waiting on a person is offered no button, because
 there is nothing to press.

@@ -236,7 +236,7 @@ export class OpenSpecCliCompatibilityError extends Error {
   ) {
     super(
       `OpenSpec CLI returned ${code === "invalid-json" ? "invalid JSON" : "incompatible JSON"} for '${command}'. `
-      + `Expected ${expectedContract}. Update OpenSpec CLI or OpenSpec UI to compatible versions.`,
+      + `Expected ${expectedContract}. Update OpenSpec CLI or OpenSpec Workbench to compatible versions.`,
       { cause: options.cause },
     );
     this.name = "OpenSpecCliCompatibilityError";

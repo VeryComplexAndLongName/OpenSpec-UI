@@ -53,7 +53,7 @@ describe("the extension contributes one way to start a run", () => {
     // to sit beside a second entry named after another.
     const run = manifest.contributes.commands.find((entry) => entry.command === "openspec-ui.runWithHarness");
 
-    expect(run?.title).toBe("OpenSpec UI: Run");
+    expect(run?.title).toBe("OpenSpec Workbench: Run");
   });
 
   it("puts no second menu item beside Run for what the dialog already shows", () => {

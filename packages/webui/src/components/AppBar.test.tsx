@@ -8,7 +8,7 @@ describe("AppBar", () => {
     render(<AppBar workspacePath={"C:\\Prog\\OpenSpec-UI"} theme="light" onToggleTheme={vi.fn()} />);
 
     const bar = screen.getByTestId("app-bar");
-    expect(bar).toHaveTextContent("OpenSpec UI");
+    expect(bar).toHaveTextContent("OpenSpec Workbench");
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.getByTestId("app-bar-workspace")).toHaveTextContent("C:\\Prog\\OpenSpec-UI");
     expect(screen.getByRole("switch", { name: "Dark theme" })).toBeInTheDocument();

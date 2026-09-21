@@ -21,10 +21,10 @@ export function describeRunCompletionNotification(
 ): RunCompletionNotification | null {
   if (!AGENT_COMMANDS.includes(commandKind)) return null;
   if (event.kind === "completed") {
-    return { title: "OpenSpec UI", body: `${commandKind} completed${event.summary ? `: ${event.summary}` : ""}.` };
+    return { title: "OpenSpec Workbench", body: `${commandKind} completed${event.summary ? `: ${event.summary}` : ""}.` };
   }
   if (event.kind === "failed") {
-    return { title: "OpenSpec UI", body: `${commandKind} failed: ${event.reason}` };
+    return { title: "OpenSpec Workbench", body: `${commandKind} failed: ${event.reason}` };
   }
   return null;
 }

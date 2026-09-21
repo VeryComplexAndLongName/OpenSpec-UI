@@ -34,7 +34,7 @@ alongside and what any two would collide over — the capabilities their
 spec deltas name, and the files their branches have already changed.
 
 To watch both, open the Pipeline, in the standalone app's tab or the
-editor's "OpenSpec UI: Open Pipeline" panel. It draws every working
+editor's "OpenSpec Workbench: Open Pipeline" panel. It draws every working
 directory of the repository and what each run last said it was doing.
 `openspec-ui-cli status` prints the same from a terminal. To stop one of
 them, see [stop a run](stop-a-run.md).

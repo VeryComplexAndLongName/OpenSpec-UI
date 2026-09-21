@@ -76,11 +76,11 @@ describe("AnswerWatcher", () => {
 
 describe("describeAnswer", () => {
   it("names the stage and the run, because the words are that stage's own", () => {
-    expect(describeAnswer(answer())).toBe("OpenSpec UI: a run answered (verify, run run-9): on 4.6, and the checks pass");
+    expect(describeAnswer(answer())).toBe("OpenSpec Workbench: a run answered (verify, run run-9): on 4.6, and the checks pass");
   });
 
   it("says the words alone where the answer names neither", () => {
     expect(describeAnswer(answer({ stage: undefined, runId: undefined })))
-      .toBe("OpenSpec UI: a run answered: on 4.6, and the checks pass");
+      .toBe("OpenSpec Workbench: a run answered: on 4.6, and the checks pass");
   });
 });

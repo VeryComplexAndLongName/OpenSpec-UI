@@ -1,6 +1,6 @@
 # @openspec-ui/core
 
-The host-neutral source of truth for OpenSpec UI behavior. This package owns the
+The host-neutral source of truth for OpenSpec Workbench behavior. This package owns the
 command/event protocol, agent execution and security, OpenSpec and Git wrappers,
 change state, checkpoints, scheduling, persistence, and recovery. It has no HTTP
 framework or VS Code API dependency.

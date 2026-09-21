@@ -122,7 +122,7 @@ export function registerChangeElsewhere(context: vscode.ExtensionContext, deps: 
       const ownership = ownershipOf(item, item.changeName, await surveyOf(deps, workspaceRoot));
       if (!("path" in ownership)) {
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: ${item.changeName} is not worked in another working directory,`
+          `OpenSpec Workbench: ${item.changeName} is not worked in another working directory,`
           + " so this checkout's copy is the one to read.",
         );
         return;
@@ -135,7 +135,7 @@ export function registerChangeElsewhere(context: vscode.ExtensionContext, deps: 
       if (!workspaceRoot || !item) return;
       const ownership = ownershipOf(item, item.changeName, await surveyOf(deps, workspaceRoot));
       if (!("path" in ownership)) {
-        void vscode.window.showInformationMessage(`OpenSpec UI: ${item.changeName} is worked in this working directory.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: ${item.changeName} is worked in this working directory.`);
         return;
       }
       await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(ownership.path), { forceNewWindow: true });

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "OpenSpec UI project-level template manifest",
+  "title": "OpenSpec Workbench project-level template manifest",
   "description": "Manifest for openspec/templates/<id>/template.json — see the template-catalog capability.",
   "type": "object",
   "required": ["id", "title", "category", "version", "summary", "variables"],

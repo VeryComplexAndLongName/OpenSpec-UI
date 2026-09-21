@@ -432,7 +432,7 @@ export class AiPanel {
 
     const panel = vscode.window.createWebviewPanel(
       "openspecUiAiPanel",
-      "OpenSpec UI",
+      "OpenSpec Workbench",
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
@@ -663,7 +663,7 @@ export class AiPanel {
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <title>OpenSpec UI</title>
+    <title>OpenSpec Workbench</title>
   </head>
   <body>
     <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-run-plan="${runPlan}"></div>
@@ -699,7 +699,7 @@ export class AiPanel {
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />
-    <title>OpenSpec UI</title>
+    <title>OpenSpec Workbench</title>
     ${fill.element}
   </head>
   <body>

@@ -37,7 +37,7 @@ import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./emb
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
 import { ICON_FONT_SOURCE } from "./icon-font-source.js";
 
-export const PIPELINE_PANEL_TITLE = "OpenSpec UI: Pipeline";
+export const PIPELINE_PANEL_TITLE = "OpenSpec Workbench: Pipeline";
 
 /** Host to webview: a reading is out of date. */
 export const PIPELINE_CHANGED_MESSAGE_TYPE = "openspec-ui/pipeline-changed";
@@ -478,13 +478,13 @@ export class PipelinePanel {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot || this.deps.runChange === undefined) return;
     if (!isValidChangeName(changeName)) {
-      void vscode.window.showInformationMessage(`OpenSpec UI: "${String(changeName)}" is not a change name this workspace can have.`);
+      void vscode.window.showInformationMessage(`OpenSpec Workbench: "${String(changeName)}" is not a change name this workspace can have.`);
       return;
     }
     const change = await this.readers.findActiveChange(workspaceRoot, changeName);
     if (!change) {
       void vscode.window.showInformationMessage(
-        `OpenSpec UI: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
+        `OpenSpec Workbench: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
       );
       return;
     }
@@ -534,11 +534,11 @@ export class PipelinePanel {
     this.deps.refreshTrees?.();
     if (failures.length === 0) {
       void vscode.window.showInformationMessage(
-        `OpenSpec UI: archived ${archived.length === 1 ? archived[0] : `${archived.length} changes`}.`,
+        `OpenSpec Workbench: archived ${archived.length === 1 ? archived[0] : `${archived.length} changes`}.`,
       );
     } else {
       void vscode.window.showWarningMessage(
-        `OpenSpec UI: archived ${archived.length} of ${names.length}. ${failures.join("; ")}`,
+        `OpenSpec Workbench: archived ${archived.length} of ${names.length}. ${failures.join("; ")}`,
       );
     }
   }
@@ -561,13 +561,13 @@ export class PipelinePanel {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot) return;
     if (!isValidChangeName(changeName)) {
-      void vscode.window.showInformationMessage(`OpenSpec UI: "${String(changeName)}" is not a change name this workspace can have.`);
+      void vscode.window.showInformationMessage(`OpenSpec Workbench: "${String(changeName)}" is not a change name this workspace can have.`);
       return;
     }
     const change = await this.readers.findActiveChange(workspaceRoot, changeName);
     if (!change) {
       void vscode.window.showInformationMessage(
-        `OpenSpec UI: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
+        `OpenSpec Workbench: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
       );
       return;
     }

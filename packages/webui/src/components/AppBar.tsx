@@ -13,7 +13,7 @@ export function AppBar({ workspacePath, theme, onToggleTheme }: { workspacePath:
       <div className="openspec-app-bar-inner">
         <span className="openspec-app-bar-brand">
           <OwlLogo />
-          <span>OpenSpec UI</span>
+          <span>OpenSpec Workbench</span>
         </span>
         {workspacePath.length > 0
           ? <span className="openspec-app-bar-path" data-testid="app-bar-workspace" title={workspacePath}>{workspacePath}</span>

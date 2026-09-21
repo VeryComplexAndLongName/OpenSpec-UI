@@ -421,14 +421,14 @@ settings screen that doesn't have the control:
 
 | Setting | Standalone (webui) | VS Code |
 | --- | --- | --- |
-| `stepAgents.<stage>.agent`, `.effort`, `.budget`, `.customAgent` | The global file in the **Harness Settings** tab (`GlobalHarnessSettingsView.tsx`). A change's own file in the Change Editor's **Harness** tab, for the loaded change (`ChangeHarnessSettingsView.tsx`), where each inherit option names the value it resolves to. The effort, budget and custom-agent fields only appear once a stage's agent accepts them. | **OpenSpec UI: Configure Harness Settings** opens the global file in a panel of its own, `OpenSpec UI: Harness Settings`. **OpenSpec UI: Configure Harness for this Change** opens that change's file in its own panel, `Harness: <change>`, already loaded; each change gets its own. Both files stay hand-editable and each view names its file. |
+| `stepAgents.<stage>.agent`, `.effort`, `.budget`, `.customAgent` | The global file in the **Harness Settings** tab (`GlobalHarnessSettingsView.tsx`). A change's own file in the Change Editor's **Harness** tab, for the loaded change (`ChangeHarnessSettingsView.tsx`), where each inherit option names the value it resolves to. The effort, budget and custom-agent fields only appear once a stage's agent accepts them. | **OpenSpec Workbench: Configure Harness Settings** opens the global file in a panel of its own, `OpenSpec Workbench: Harness Settings`. **OpenSpec Workbench: Configure Harness for this Change** opens that change's file in its own panel, `Harness: <change>`, already loaded; each change gets its own. Both files stay hand-editable and each view names its file. |
 | `stepAgents.<stage>.model` | **Not editable in either UI.** Hand-edit the JSON file's object-form entry directly. | Same — not editable in either UI. |
-| `autonomyLevel` | Both views. `autonomous` is offered only in a change's view: a workspace-level file may not set it, and the global view says so beside the select. | Both panels, on the same rule. The separate **OpenSpec UI: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
+| `autonomyLevel` | Both views. `autonomous` is offered only in a change's view: a workspace-level file may not set it, and the global view says so beside the select. | Both panels, on the same rule. The separate **OpenSpec Workbench: Set Up Agentic Harness** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
 | `reviewGate.mode` | A change's view only (the global value is fixed at `"human-required"` and shown, not editable). | A change's panel only. |
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
-| `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec UI: Run This Delegated Item**. |
+| `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec Workbench: Run This Delegated Item**. |
 | `branches.rebaseWhenBehind` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep did with a branch is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel, and a conflict is also raised as a warning. |
 
 ### Standalone settings, in pictures
@@ -474,12 +474,12 @@ npm run test:browser -- harness-screenshots.spec.ts
 
 ### VS Code settings, in pictures
 
-Each file has a panel of its own. **OpenSpec UI: Configure Harness
+Each file has a panel of its own. **OpenSpec Workbench: Configure Harness
 Settings** opens the global one:
 
-[![VS Code panel titled OpenSpec UI: Harness Settings, showing the global harness settings](./docs/images/extension/harness-settings.png)](./docs/images/extension/harness-settings.png)
+[![VS Code panel titled OpenSpec Workbench: Harness Settings, showing the global harness settings](./docs/images/extension/harness-settings.png)](./docs/images/extension/harness-settings.png)
 
-**OpenSpec UI: Configure Harness for this Change**, from a change's context
+**OpenSpec Workbench: Configure Harness for this Change**, from a change's context
 menu, opens that change's own, titled with its name and already loaded:
 
 [![VS Code panel titled Harness: a-change-in-progress, showing one change's harness settings](./docs/images/extension/harness-change.png)](./docs/images/extension/harness-change.png)

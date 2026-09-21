@@ -277,7 +277,7 @@ async function runCheckCommand(deps: CommandsDeps, name: CheckScriptName): Promi
   const script = resolved[name];
   if (!script) {
     void vscode.window.showWarningMessage(
-      `OpenSpec UI: no "${name}" check is declared by this workspace ` +
+      `OpenSpec Workbench: no "${name}" check is declared by this workspace ` +
       `(no "openspec-ui.checks.${name}" setting, "osui-${name}" script, or "${name}" script).`,
     );
     return;
@@ -289,7 +289,7 @@ async function runCheckCommand(deps: CommandsDeps, name: CheckScriptName): Promi
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `OpenSpec UI: ${CHECK_TITLES[name]}`,
+      title: `OpenSpec Workbench: ${CHECK_TITLES[name]}`,
       cancellable: false,
     },
     async () => {
@@ -301,10 +301,10 @@ async function runCheckCommand(deps: CommandsDeps, name: CheckScriptName): Promi
       });
       deps.outputChannel.appendLine(result.reason);
       if (result.pass) {
-        void vscode.window.showInformationMessage(`OpenSpec UI: ${CHECK_TITLES[name]} passed (${script}).`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: ${CHECK_TITLES[name]} passed (${script}).`);
       } else {
         void vscode.window.showErrorMessage(
-          `OpenSpec UI: ${CHECK_TITLES[name]} failed — see the OpenSpec UI output channel for the command and its output.`,
+          `OpenSpec Workbench: ${CHECK_TITLES[name]} failed — see the OpenSpec Workbench output channel for the command and its output.`,
         );
       }
     },
@@ -313,11 +313,11 @@ async function runCheckCommand(deps: CommandsDeps, name: CheckScriptName): Promi
 
 async function showCommandError(action: string, error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message : String(error);
-  await vscode.window.showErrorMessage(`OpenSpec UI: ${action} failed (${message}).`);
+  await vscode.window.showErrorMessage(`OpenSpec Workbench: ${action} failed (${message}).`);
 }
 
 function warnNoWorkspace(): void {
-  void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+  void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
 }
 
 const TREE_LABELS: Record<"change" | "template" | "task", string> = {
@@ -328,7 +328,7 @@ const TREE_LABELS: Record<"change" | "template" | "task", string> = {
 
 function warnNoTreeSelection(kind: "change" | "template" | "task"): void {
   void vscode.window.showWarningMessage(
-    `OpenSpec UI: select a ${kind} in the ${TREE_LABELS[kind]} tree, or run this from its right-click menu.`,
+    `OpenSpec Workbench: select a ${kind} in the ${TREE_LABELS[kind]} tree, or run this from its right-click menu.`,
   );
 }
 
@@ -399,13 +399,13 @@ async function remindAboutPendingChangeset(workspaceRoot: string): Promise<void>
     const status = await checkChangesetReminder(workspaceRoot);
     if (!status.changesetsAdopted || status.pendingChangesetCount > 0) return;
     const action = await vscode.window.showInformationMessage(
-      "OpenSpec UI: this repository uses Changesets, but no pending changeset was found. " +
+      "OpenSpec Workbench: this repository uses Changesets, but no pending changeset was found. " +
       "If this change affects a published package's version or changelog, add one now.",
       "Run npx changeset",
       "Dismiss",
     );
     if (action !== "Run npx changeset") return;
-    const terminal = vscode.window.createTerminal({ name: "OpenSpec UI: changeset", cwd: workspaceRoot });
+    const terminal = vscode.window.createTerminal({ name: "OpenSpec Workbench: changeset", cwd: workspaceRoot });
     terminal.show(true);
     terminal.sendText("npx changeset", true);
   } catch {
@@ -423,7 +423,7 @@ async function suggestAgenticHarnessSetup(workspaceRoot: string): Promise<void> 
   );
   if (harnessConfigExists) return;
   const action = await vscode.window.showInformationMessage(
-    "OpenSpec UI: set up the Agentic Harness for this workspace now?",
+    "OpenSpec Workbench: set up the Agentic Harness for this workspace now?",
     "Set Up Agentic Harness",
   );
   if (action === "Set Up Agentic Harness") {
@@ -644,7 +644,7 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
         // An id the registry does not have writes nothing. Said in the log:
         // it means the two sides disagree about what exists.
         if (!AGENT_REGISTRY.some((agent) => agent.id === choice.agentId)) {
-          deps.outputChannel.appendLine(`OpenSpec UI: ignoring unknown agent "${choice.agentId}".`);
+          deps.outputChannel.appendLine(`OpenSpec Workbench: ignoring unknown agent "${choice.agentId}".`);
           return;
         }
         const existing = await readChangeHarnessConfig(workspaceRoot, changeName);
@@ -661,7 +661,7 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
         // A message naming no configuration writes nothing. Said in the
         // log rather than silently: it means the two sides disagree
         // about what exists.
-        deps.outputChannel.appendLine(`OpenSpec UI: ignoring unknown named configuration "${choice.templateId}".`);
+        deps.outputChannel.appendLine(`OpenSpec Workbench: ignoring unknown named configuration "${choice.templateId}".`);
         return;
       }
 
@@ -733,7 +733,7 @@ async function startVsCodeAgentImplementation(
     processId,
   });
   await vscode.commands.executeCommand("workbench.action.chat.open", { query: prompt, mode: "agent" });
-  void vscode.window.showInformationMessage(`OpenSpec UI: implementation session started for ${item.changeName}.`);
+  void vscode.window.showInformationMessage(`OpenSpec Workbench: implementation session started for ${item.changeName}.`);
 }
 
 /** `showQuickPick` has no real "preselected item" concept for a single
@@ -779,7 +779,7 @@ function warnOnClaudeCliVersionMismatch(detected: Record<string, DetectedAgent>)
   const version = detected["claude-cli"]?.version;
   if (version === undefined || version === VERIFIED_CLAUDE_CLI_VERSION) return;
   void vscode.window.showWarningMessage(
-    `OpenSpec UI: installed Claude CLI version ${version} differs from the version this project's ` +
+    `OpenSpec Workbench: installed Claude CLI version ${version} differs from the version this project's ` +
     `claude-cli ACP translation layer was last verified against (${VERIFIED_CLAUDE_CLI_VERSION}). ` +
     "See docs/adr/0013-acp-agent-adapters.md.",
     "Continue anyway",
@@ -812,7 +812,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
 
   if (detectedAgents.length === 0) {
     void vscode.window.showInformationMessage(
-      "OpenSpec UI: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
+      "OpenSpec Workbench: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
       "and autonomy-level questions.",
     );
     await offerGenerateAgentInstructions(workspaceRoot);
@@ -983,13 +983,13 @@ function resolveTaskLine(document: vscode.TextDocument, lineNumber: number, expe
 async function openMarkdownDocument(title: string, markdown: string): Promise<void> {
   const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: markdown });
   await vscode.window.showTextDocument(doc, { preview: false });
-  void vscode.window.showInformationMessage(`OpenSpec UI: opened ${title}.`);
+  void vscode.window.showInformationMessage(`OpenSpec Workbench: opened ${title}.`);
 }
 
 async function pickChange(workspaceRoot: string): Promise<{ name: string; changeDir: string } | undefined> {
   const result = await listChanges({ cwd: workspaceRoot });
   if (result.changes.length === 0) {
-    void vscode.window.showWarningMessage("OpenSpec UI: no changes found in openspec/changes/.");
+    void vscode.window.showWarningMessage("OpenSpec Workbench: no changes found in openspec/changes/.");
     return undefined;
   }
   const pick = await vscode.window.showQuickPick(
@@ -1015,7 +1015,7 @@ async function pickChangesForTimeline(
     ...workspace.archivedChanges.map((c) => ({ label: c.name, description: "archived", archived: true })),
   ];
   if (items.length === 0) {
-    void vscode.window.showWarningMessage("OpenSpec UI: no changes found in openspec/changes/.");
+    void vscode.window.showWarningMessage("OpenSpec Workbench: no changes found in openspec/changes/.");
     return undefined;
   }
   const picks = await vscode.window.showQuickPick(items, {
@@ -1149,7 +1149,7 @@ async function refusedAsAnothersChange(
   const refusal = ownership === undefined ? undefined : refuseToWrite(change, ownership);
   if (refusal === undefined) return false;
   const open = "Open that directory";
-  const answer = await vscode.window.showWarningMessage(`OpenSpec UI: ${refusal}`, open);
+  const answer = await vscode.window.showWarningMessage(`OpenSpec Workbench: ${refusal}`, open);
   if (answer === open && ownership !== undefined && "path" in ownership) {
     await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(ownership.path), { forceNewWindow: true });
   }
@@ -1158,7 +1158,7 @@ async function refusedAsAnothersChange(
 
 function warnArchivedRelation(change: string): void {
   void vscode.window.showWarningMessage(
-    `OpenSpec UI: ${change} is archived, and an archived change's relations are history.`,
+    `OpenSpec Workbench: ${change} is archived, and an archived change's relations are history.`,
   );
 }
 
@@ -1177,7 +1177,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         : (deps.changesView?.selection ?? []).find((row): row is LeftoverTreeItem => row instanceof LeftoverTreeItem);
       if (!item) {
         void vscode.window.showWarningMessage(
-          "OpenSpec UI: select a directory with no documents in the Changes view, or run this from its right-click menu.",
+          "OpenSpec Workbench: select a directory with no documents in the Changes view, or run this from its right-click menu.",
         );
         return;
       }
@@ -1186,7 +1186,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           .find((one) => one.name === item.leftoverName);
         if (!leftover) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${item.leftoverName} is no longer a directory without documents.`,
+            `OpenSpec Workbench: ${item.leftoverName} is no longer a directory without documents.`,
           );
           return;
         }
@@ -1199,7 +1199,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         if (answer !== "Remove") return;
         await vscode.workspace.fs.delete(vscode.Uri.file(leftover.path), { recursive: true, useTrash: true });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: removed ${leftover.name}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: removed ${leftover.name}.`);
       } catch (error) {
         await showCommandError("remove the leftover directory", error);
       }
@@ -1210,7 +1210,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // primary directory's packages with it.
     vscode.commands.registerCommand("openspec-ui.removeWorkingDirectory", async (directoryPath?: string) => {
       if (typeof directoryPath !== "string" || directoryPath.trim().length === 0) {
-        void vscode.window.showWarningMessage("OpenSpec UI: this command is run from a working directory's row.");
+        void vscode.window.showWarningMessage("OpenSpec Workbench: this command is run from a working directory's row.");
         return;
       }
       const answer = await vscode.window.showWarningMessage(
@@ -1222,11 +1222,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const result = await removeWorkingDirectory(directoryPath);
         if (!result.ok) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.reason}.`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.reason}.`);
           return;
         }
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: removed ${result.path}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: removed ${result.path}.`);
       } catch (error) {
         await showCommandError("remove the working directory", error);
       }
@@ -1252,7 +1252,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           && report.signature !== "does-not-check-out");
         if (!live) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: nothing is running on ${subject.name}, so there is nothing to ask.`,
+            `OpenSpec Workbench: nothing is running on ${subject.name}, so there is nothing to ask.`,
           );
           return;
         }
@@ -1279,11 +1279,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           afterTask: task,
         });
         if (!result.asked) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.why}.`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.why}.`);
           return;
         }
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: ${subject.name} will stop after ${task.trim()} (request ${result.messageId}).`,
+          `OpenSpec Workbench: ${subject.name} will stop after ${task.trim()} (request ${result.messageId}).`,
         );
       } catch (error) {
         await showCommandError("ask the run to stop after a task", error);
@@ -1309,7 +1309,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           && report.signature !== "does-not-check-out");
         if (!live) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: nothing is running on ${subject.name}, so there is nobody to say it to.`,
+            `OpenSpec Workbench: nothing is running on ${subject.name}, so there is nobody to say it to.`,
           );
           return;
         }
@@ -1335,13 +1335,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           words,
         });
         if (!result.sent) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.why}.`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.why}.`);
           return;
         }
         void vscode.window.showInformationMessage(
           kind.value === "ask"
-            ? `OpenSpec UI: asked the run on ${subject.name}; the answer arrives when its stage ends.`
-            : `OpenSpec UI: the run on ${subject.name} will read this when its next stage starts.`,
+            ? `OpenSpec Workbench: asked the run on ${subject.name}; the answer arrives when its stage ends.`
+            : `OpenSpec Workbench: the run on ${subject.name} will read this when its next stage starts.`,
         );
       } catch (error) {
         await showCommandError("say something to the run", error);
@@ -1364,12 +1364,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         if (!result.ok) {
           // The refusal core wrote, as it wrote it: a cycle names the
           // changes in it, and an unknown id names the id.
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.message}.`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.message}.`);
           return;
         }
         deps.refreshTrees();
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: ${subject.name} now states ${key} ${named}.`,
+          `OpenSpec Workbench: ${subject.name} now states ${key} ${named}.`,
         );
       } catch (error) {
         await showCommandError("add relation", error);
@@ -1392,12 +1392,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           remove: stated.id,
         });
         if (!result.ok) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${result.message}.`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${result.message}.`);
           return;
         }
         deps.refreshTrees();
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: ${subject.name} no longer states ${stated.key} ${stated.id}.`,
+          `OpenSpec Workbench: ${subject.name} no longer states ${stated.key} ${stated.id}.`,
         );
       } catch (error) {
         await showCommandError("remove relation", error);
@@ -1458,7 +1458,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await initOpenSpec({ cwd: workspaceRoot }, { tools: selected }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage("OpenSpec UI: workspace initialized.");
+        void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized.");
         void suggestAgenticHarnessSetup(workspaceRoot);
       } catch (error) {
         await showCommandError("initialize workspace", error);
@@ -1497,11 +1497,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         ].filter((name): name is string => name !== null);
         if (skipped.length > 0) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${skipped.join(", ")} already exists and is not managed by openspec-ui — left untouched.`,
+            `OpenSpec Workbench: ${skipped.join(", ")} already exists and is not managed by openspec-ui — left untouched.`,
           );
         }
         if (written.length > 0) {
-          void vscode.window.showInformationMessage(`OpenSpec UI: wrote ${written.join(", ")}.`);
+          void vscode.window.showInformationMessage(`OpenSpec Workbench: wrote ${written.join(", ")}.`);
         }
       } catch (error) {
         await showCommandError("generate agent instructions", error);
@@ -1591,7 +1591,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const change = (await discoverOpenSpecWorkspace(workspaceRoot)).changes.find((candidate) => candidate.name === invokedItem);
         if (!change) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${invokedItem} is not an active change of this workspace, so it cannot be run.`,
+            `OpenSpec Workbench: ${invokedItem} is not an active change of this workspace, so it cannot be run.`,
           );
           return;
         }
@@ -1662,7 +1662,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const result = await writeDependabotConfig(workspaceRoot, picked.map((p) => p.id));
         if (result === "skipped-foreign") {
           void vscode.window.showWarningMessage(
-            "OpenSpec UI: .github/dependabot.yml already exists and is not managed by openspec-ui — left untouched.",
+            "OpenSpec Workbench: .github/dependabot.yml already exists and is not managed by openspec-ui — left untouched.",
           );
           return;
         }
@@ -1670,7 +1670,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           vscode.Uri.file(path.join(workspaceRoot, ".github", "dependabot.yml")),
         );
         await vscode.window.showTextDocument(doc, { preview: false });
-        void vscode.window.showInformationMessage("OpenSpec UI: wrote .github/dependabot.yml.");
+        void vscode.window.showInformationMessage("OpenSpec Workbench: wrote .github/dependabot.yml.");
       } catch (error) {
         await showCommandError("configure dependabot", error);
       }
@@ -1700,13 +1700,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const relativePath = path.join(".github", "instructions", `${subtype.id}.instructions.md`);
         if (result === "skipped-foreign") {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${relativePath} already exists and is not managed by openspec-ui — left untouched.`,
+            `OpenSpec Workbench: ${relativePath} already exists and is not managed by openspec-ui — left untouched.`,
           );
           return;
         }
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(workspaceRoot, relativePath)));
         await vscode.window.showTextDocument(doc, { preview: false });
-        void vscode.window.showInformationMessage(`OpenSpec UI: wrote ${relativePath}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: wrote ${relativePath}.`);
       } catch (error) {
         await showCommandError("generate subtype instructions", error);
       }
@@ -1734,7 +1734,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await createChange(changeName, { cwd: workspaceRoot }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName}.`);
       } catch (error) {
         await showCommandError("create change", error);
       }
@@ -1774,25 +1774,25 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         title: `Agentic Harness for "${changeName}"`,
       });
       if (choice !== customize) {
-        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName}.`);
         return;
       }
 
       const config = await promptHarnessCustomization(changeName);
       if (config === undefined) {
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: created ${changeName}. Harness customization cancelled — this change inherits the global default.`,
+          `OpenSpec Workbench: created ${changeName}. Harness customization cancelled — this change inherits the global default.`,
         );
         return;
       }
       if (Object.keys(config).length === 0) {
-        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName}. No customization made — inherits the global default.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName}. No customization made — inherits the global default.`);
         return;
       }
 
       try {
         await writeChangeHarnessConfig(workspaceRoot, changeName, config);
-        void vscode.window.showInformationMessage(`OpenSpec UI: created ${changeName} with a customized Agentic Harness override.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName} with a customized Agentic Harness override.`);
       } catch (error) {
         await showCommandError("write per-change harness config", error);
       }
@@ -1982,7 +1982,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const rows = await findGraphRows(workspaceRoot, item.changeName);
         if (rows.length === 0) {
           void vscode.window.showInformationMessage(
-            `OpenSpec UI: ${item.changeName} states no relation — it does not appear in the Change Graph.`,
+            `OpenSpec Workbench: ${item.changeName} states no relation — it does not appear in the Change Graph.`,
           );
           return;
         }
@@ -1991,7 +1991,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         }
         if (rows.length > 1) {
           void vscode.window.showInformationMessage(
-            `OpenSpec UI: ${item.changeName} is shown in ${rows.length} places in the Change Graph.`,
+            `OpenSpec Workbench: ${item.changeName} is shown in ${rows.length} places in the Change Graph.`,
           );
         }
       } catch (error) {
@@ -2016,7 +2016,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const found = list.find((change) => change.name === item.node.id);
         if (!found) {
           void vscode.window.showInformationMessage(
-            `OpenSpec UI: ${item.node.id} is no longer ${item.node.archived ? "archived" : "active"} — `
+            `OpenSpec Workbench: ${item.node.id} is no longer ${item.node.archived ? "archived" : "active"} — `
             + "it may have been archived, restored, or deleted since the graph was last read.",
           );
           return;
@@ -2048,7 +2048,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await archiveChange(item.changeName, { cwd: workspaceRoot }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: archived ${item.changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: archived ${item.changeName}.`);
         void remindAboutPendingChangeset(workspaceRoot);
       } catch (error) {
         await showCommandError("archive change", error);
@@ -2074,7 +2074,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await unarchiveChange(workspaceRoot, item.changeName); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: unarchived ${item.changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: unarchived ${item.changeName}.`);
       } catch (error) {
         await showCommandError("unarchive change", error);
       }
@@ -2100,7 +2100,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await vscode.window.showTextDocument(document, { preview: false });
 
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: inserted tasks template from ${item.changeName} into ${target.name}.`,
+          `OpenSpec Workbench: inserted tasks template from ${item.changeName} into ${target.name}.`,
         );
       } catch (error) {
         await showCommandError("copy tasks as template", error);
@@ -2124,11 +2124,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
         const manifestDocument = await vscode.workspace.openTextDocument(manifestUri);
         await vscode.window.showTextDocument(manifestDocument, { preview: false });
-        void vscode.window.showInformationMessage(`OpenSpec UI: customized "${item.template.manifest.title}".`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: customized "${item.template.manifest.title}".`);
       } catch (error) {
         if (error instanceof TemplateAlreadyExistsError) {
           void vscode.window.showWarningMessage(
-            `OpenSpec UI: ${item.template.manifest.id} is already customized in this project.`,
+            `OpenSpec Workbench: ${item.template.manifest.id} is already customized in this project.`,
           );
           return;
         }
@@ -2181,7 +2181,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         );
         await vscode.window.showTextDocument(tasksDocument, { preview: false });
         void vscode.window.showInformationMessage(
-          `OpenSpec UI: inserted template "${item.template.manifest.title}" into ${target.name}.`,
+          `OpenSpec Workbench: inserted template "${item.template.manifest.title}" into ${target.name}.`,
         );
       } catch (error) {
         await showCommandError("insert template into change", error);
@@ -2202,10 +2202,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         await deleteProjectTemplate(workspaceRoot, item.template.manifest.id);
         deps.refreshTemplatesTree();
-        void vscode.window.showInformationMessage(`OpenSpec UI: deleted "${item.template.manifest.title}".`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: deleted "${item.template.manifest.title}".`);
       } catch (error) {
         if (error instanceof UnknownProjectTemplateError) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${error.message}`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${error.message}`);
           return;
         }
         await showCommandError("delete project template", error);
@@ -2231,7 +2231,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await deleteChange(workspaceRoot, item.changeName, item.archived ? "archive" : "active"); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: deleted ${item.changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: deleted ${item.changeName}.`);
       } catch (error) {
         await showCommandError("delete change", error);
       }
@@ -2265,10 +2265,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         await deleteTaskLine(workspaceRoot, item.changeName, item.archived, item.lineNumber, item.text);
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: deleted task from ${item.changeName}.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: deleted task from ${item.changeName}.`);
       } catch (error) {
         if (error instanceof TaskListChangedError) {
-          void vscode.window.showWarningMessage(`OpenSpec UI: ${error.message}`);
+          void vscode.window.showWarningMessage(`OpenSpec Workbench: ${error.message}`);
           return;
         }
         await showCommandError("delete task", error);
@@ -2282,7 +2282,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (processId && deps.implementationSessions.finish(processId)) {
         const workspaceRoot = deps.getWorkspaceRoot();
         if (workspaceRoot) deps.revealAiPanel(dashboardContext(workspaceRoot));
-        void vscode.window.showInformationMessage("OpenSpec UI: finalizing checkpoint for review.");
+        void vscode.window.showInformationMessage("OpenSpec Workbench: finalizing checkpoint for review.");
       }
     }),
     vscode.commands.registerCommand("openspec-ui.rollbackProcess", async (item?: { process?: { id?: string } }) => {
@@ -2290,7 +2290,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!processId) return;
       const delta = await deps.implementationSessions.getDelta(processId);
       if (!delta) {
-        void vscode.window.showWarningMessage("OpenSpec UI: this process has no finalized checkpoint.");
+        void vscode.window.showWarningMessage("OpenSpec Workbench: this process has no finalized checkpoint.");
         return;
       }
       const coverage = await deps.implementationSessions.getCoverage(processId);
@@ -2313,11 +2313,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const result = await deps.implementationSessions.rollback(processId);
         if (result.conflicts.length > 0) {
-          void vscode.window.showErrorMessage(`OpenSpec UI: rollback blocked by later changes: ${result.conflicts.join(", ")}`);
+          void vscode.window.showErrorMessage(`OpenSpec Workbench: rollback blocked by later changes: ${result.conflicts.join(", ")}`);
           return;
         }
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: restored ${result.restored.length} files.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: restored ${result.restored.length} files.`);
       } catch (error) {
         await showCommandError("rollback", error);
       }
@@ -2328,7 +2328,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (await refusedAsAnothersChange(item.changeName, item.ownership)) return;
       const details = await deps.implementationSessions.changeRollbackDetails(item.changeName);
       if (!details) {
-        void vscode.window.showWarningMessage(`OpenSpec UI: no rollback-eligible processes for ${item.changeName}.`);
+        void vscode.window.showWarningMessage(`OpenSpec Workbench: no rollback-eligible processes for ${item.changeName}.`);
         return;
       }
       const answer = await vscode.window.showWarningMessage(
@@ -2340,11 +2340,11 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       try {
         const result = await deps.implementationSessions.rollbackChange(item.changeName);
         if (result.conflicts.length > 0) {
-          void vscode.window.showErrorMessage(`OpenSpec UI: rollback blocked by later changes: ${result.conflicts.join(", ")}`);
+          void vscode.window.showErrorMessage(`OpenSpec Workbench: rollback blocked by later changes: ${result.conflicts.join(", ")}`);
           return;
         }
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec UI: restored ${result.restored.length} files.`);
+        void vscode.window.showInformationMessage(`OpenSpec Workbench: restored ${result.restored.length} files.`);
       } catch (error) {
         await showCommandError("rollback change", error);
       }
@@ -2355,7 +2355,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.status", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
 
@@ -2376,7 +2376,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `OpenSpec UI: status — ${selected.name}`,
+          title: `OpenSpec Workbench: status — ${selected.name}`,
           cancellable: false,
         },
         async () => {
@@ -2401,10 +2401,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.openspecView", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
-      const terminal = vscode.window.createTerminal({ name: "OpenSpec UI: openspec view", cwd: workspaceRoot });
+      const terminal = vscode.window.createTerminal({ name: "OpenSpec Workbench: openspec view", cwd: workspaceRoot });
       terminal.show(true);
       terminal.sendText("openspec view", true);
 
@@ -2417,7 +2417,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await openMarkdownDocument("openspec view summary", markdown);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        void vscode.window.showWarningMessage(`OpenSpec UI: failed to build parsed openspec view summary (${message}).`);
+        void vscode.window.showWarningMessage(`OpenSpec Workbench: failed to build parsed openspec view summary (${message}).`);
       }
     }),
   );
@@ -2426,7 +2426,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.showAllChangesTimeline", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
       try {
@@ -2468,7 +2468,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.generateSprintReport", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
       const entries = await pickChangesForTimeline(workspaceRoot);
@@ -2482,7 +2482,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         const report = await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: `OpenSpec UI: reading ${entries.length === 1 ? "one change" : `${entries.length} changes`} for the sprint report`,
+            title: `OpenSpec Workbench: reading ${entries.length === 1 ? "one change" : `${entries.length} changes`} for the sprint report`,
             cancellable: false,
           },
           () => buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd),
@@ -2500,7 +2500,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         if (!target) return;
         await vscode.workspace.fs.writeFile(target, Buffer.from(page, "utf8"));
         const action = await vscode.window.showInformationMessage(
-          `OpenSpec UI: sprint report saved to ${target.fsPath}. Open it and print to PDF.`,
+          `OpenSpec Workbench: sprint report saved to ${target.fsPath}. Open it and print to PDF.`,
           "Open",
         );
         if (action === "Open") await vscode.env.openExternal(target);
@@ -2514,7 +2514,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.showChangeDetails", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
       const selected = await pickChange(workspaceRoot);
@@ -2528,7 +2528,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.validateChangeStrict", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
       const selected = await pickChange(workspaceRoot);
@@ -2542,7 +2542,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("openspec-ui.listSpecsSummary", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec UI: open a folder or workspace first.");
+        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
         return;
       }
       const result = await listSpecs({ cwd: workspaceRoot });

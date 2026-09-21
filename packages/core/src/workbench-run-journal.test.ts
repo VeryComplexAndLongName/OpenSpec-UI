@@ -392,7 +392,7 @@ describe("WorkbenchRunJournal", () => {
             foundVersion: 99,
             supportedVersion: 3,
         });
-        expect((error as Error).message).toContain("Upgrade OpenSpec UI");
+        expect((error as Error).message).toContain("Upgrade OpenSpec Workbench");
         expect(await readFile(journal.filePath, "utf8")).toBe(unsupported);
     });
 
