@@ -15,6 +15,7 @@ const {
   buildGhPrCreateInvocation,
   buildGhPrMergeInvocation,
   buildGitPushInvocation,
+  createGitHubForge,
   createPullRequestGateway,
 } = await import("./gh-pr-gateway.js");
 
@@ -160,5 +161,56 @@ describe("createPullRequestGateway", () => {
       ["pr", "merge", "11", "--merge", "--delete-branch"],
       { cwd: "/workspace/repo" },
     );
+  });
+});
+
+describe("createGitHubForge", () => {
+  // ADR 0035. `gh pr merge --auto` needs a merge method named, and a
+  // repository allows only some; the forge tries them in order and stops
+  // at the first refusal that is not about the method.
+  function forgeWith(results: Array<{ code: number; stderr?: string; stdout?: string }>) {
+    const calls: string[][] = [];
+    const exec = vi.fn(async (_binary: string, args: string[]) => {
+      calls.push(args);
+      const next = results.shift() ?? { code: 0 };
+      if (next.code !== 0) throw new Error(`gh ${args.join(" ")} exited with code ${next.code}: ${next.stderr ?? ""}`);
+      return { stdout: next.stdout ?? "", stderr: "" };
+    });
+    return { forge: createGitHubForge({ cwd: "/repo", exec }), calls };
+  }
+
+  it("asks for an automatic squash merge first", async () => {
+    const { forge, calls } = forgeWith([{ code: 0 }]);
+
+    expect(await forge.mergeWhenChecksPass(7)).toEqual({ ok: true, method: "squash" });
+    expect(calls).toEqual([["pr", "merge", "7", "--auto", "--squash", "--delete-branch"]]);
+  });
+
+  it("tries the next method where the repository does not allow one", async () => {
+    const { forge, calls } = forgeWith([
+      { code: 1, stderr: "Squash merges are not allowed on this repository" },
+      { code: 0 },
+    ]);
+
+    expect(await forge.mergeWhenChecksPass(7)).toEqual({ ok: true, method: "merge" });
+    expect(calls.map((args) => args[4])).toEqual(["--squash", "--merge"]);
+  });
+
+  it("stops at a refusal that is not about the method, and says it", async () => {
+    const { forge, calls } = forgeWith([{ code: 1, stderr: "Auto merge is disabled for this repository" }]);
+
+    const answer = await forge.mergeWhenChecksPass(7);
+
+    expect(answer.ok).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("opens a pull request with the title and body it is given", async () => {
+    const { forge, calls } = forgeWith([{ code: 0, stdout: "https://github.com/o/r/pull/31" }]);
+
+    const ref = await forge.openPullRequest({ head: "archive-landed-x", base: "main", title: "Archive a", body: "Because." });
+
+    expect(ref).toEqual({ number: 31, url: "https://github.com/o/r/pull/31" });
+    expect(calls[0]).toEqual(["pr", "create", "--head", "archive-landed-x", "--base", "main", "--title", "Archive a", "--body", "Because."]);
   });
 });

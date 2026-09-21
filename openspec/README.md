@@ -116,8 +116,14 @@ branch, that branch carries exactly one change, and the pull request's
 title is the change id, verbatim. Nothing has to be decoded to see what a
 pull request is for.
 
-**Archiving is a second pull request**, one per change, titled
-`<change-id> (archive)`.
+**Archiving is a second pull request, and the product makes it.** Once a
+change has landed with every task item closed, the workspace sweep
+archives it together with every other such change, in one pull request
+on an `archive-landed-<date>` branch, which merges when its checks pass
+([ADR 0035](../docs/adr/0035-a-landed-change-is-archived-for-you.md),
+`archive.whenLanded`, on by default). Nobody archives a finished change by
+hand. A change that landed still owing something is named by the sweep
+and stays live until its record is put right.
 
 **Anything left to finish is a new change and a new pull request.** Not
 another commit on the open one. The owner merges quickly, and a commit

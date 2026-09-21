@@ -291,6 +291,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
       hints: { enabled: false },
       allowAgentMessages: true,
       branches: { rebaseWhenBehind: false },
+      archive: { whenLanded: false },
     };
     const api = createApi({ resolveGlobal: vi.fn().mockResolvedValue(everyKey) });
     render(<GlobalHarnessSettingsView api={api} />);

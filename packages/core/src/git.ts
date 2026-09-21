@@ -116,6 +116,11 @@ export interface GitWrapper {
    * says nothing about what to do next. */
   branchExists(name: string): Promise<boolean>;
   worktreeRemove(path: string, options?: { force?: boolean }): Promise<void>;
+  /** Stages everything under one path, deletions included. */
+  stagePath(pathInRepo: string): Promise<void>;
+  /** Deletes a local branch that is checked out nowhere. `-D`: the one
+   * caller pushed it first, and a squash merge never makes it "merged". */
+  deleteBranch(name: string): Promise<void>;
   /** Every local branch with the upstream it tracks and whether that
    * upstream is gone.
    *
@@ -275,6 +280,12 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // (git-says-a-working-directory-is-done).
       const force = options.force === true ? ["--force"] : [];
       await git.raw(["worktree", "remove", ...force, worktreePath]);
+    },
+    async stagePath(pathInRepo: string): Promise<void> {
+      await git.raw(["add", "--all", "--", pathInRepo]);
+    },
+    async deleteBranch(name: string): Promise<void> {
+      await git.raw(["branch", "-D", name]);
     },
     async branchUpstreams(): Promise<BranchUpstream[]> {
       const out = await git.raw([

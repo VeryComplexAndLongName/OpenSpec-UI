@@ -99,7 +99,7 @@ the reason if a global file tries:
 | Setting | Global file may set it? | Why |
 | --- | --- | --- |
 | `autonomyLevel: "autonomous"` | No — `GlobalAutonomousAutonomyLevelError` | An unattended chain (no checkpoint, ever) is a decision one change opts into deliberately, not something a workspace default should hand every change silently. |
-| `reviewGate.mode: "agent-sufficient"` | No — `GlobalAgentSufficientReviewGateError` | This is what allows the `git` stage to push/PR/merge without a human present. A workspace default must never grant that; only a specific change's own file can. The one exception is [`branches.rebaseWhenBehind`](#branches), which pushes only what the server already has, onto a newer base ([ADR 0034](docs/adr/0034-a-behind-branch-is-rebased-for-you.md)). |
+| `reviewGate.mode: "agent-sufficient"` | No — `GlobalAgentSufficientReviewGateError` | This is what allows the `git` stage to push/PR/merge without a human present. A workspace default must never grant that; only a specific change's own file can. Two exceptions, each narrow: [`branches.rebaseWhenBehind`](#branches), which pushes only what the server already has, onto a newer base ([ADR 0034](docs/adr/0034-a-behind-branch-is-rebased-for-you.md)); and [`archive.whenLanded`](#archive), which pushes only `openspec archive`'s result over changes the default branch says are finished, through a pull request and its checks ([ADR 0035](docs/adr/0035-a-landed-change-is-archived-for-you.md)). |
 | `checkpoints.requireConfirmationBetweenSteps: false` | No — `GlobalCheckpointsDisabledError` | Same reasoning as `autonomyLevel: "autonomous"`, one field over: skipping the pause between stages is a per-change opt-in. |
 | `gitStageAllowlist` (the key itself, any value) | No — `GlobalGitAllowlistError` | The allowlist is what a real `git push`/`gh pr create`/`gh pr merge` is checked against. A workspace-wide allowlist would apply to every change's git actions by default, which is exactly the blast radius this setting exists to avoid. |
 | `taskAgents` (the key itself, any value) | No — `GlobalTaskAgentsError` | Not too powerful, but meaningless: a task number belongs to the change whose `tasks.md` wrote it, so the same statement made workspace-wide is about a different piece of work in every change. |
@@ -276,8 +276,9 @@ Every host that sweeps says what it did: the editor in its output
 channel, and a warning for a conflict; the standalone under "Done for
 you".
 
-**This is the one workspace default that lets the product push**, and it
-is the exception to the rule in the table above. It is safe to have on
+**This is one of the two workspace defaults that let the product push**
+(the other is [`archive.whenLanded`](#archive)), and an exception to the
+rule in the table above. It is safe to have on
 because a rebase adds nothing to the server: it moves commits that are
 already there onto a newer base, and the lease makes it unable to take
 anything away. It does not widen `gitStageAllowlist` or `reviewGate`, and
@@ -287,6 +288,49 @@ Turn it off - `"branches": { "rebaseWhenBehind": false }` - where change
 branches are shared between people: somebody with the branch checked out
 elsewhere sees its history rewritten, and each rebase costs a full run of
 the pull request's checks.
+
+### `archive`
+
+`{ "whenLanded"?: <boolean> }`. Optional; absent means every default
+below. Allowed in the global file and in a change's own file, which
+overrides it key by key.
+
+**`whenLanded`** - absent means **`true`**. A change that has landed and
+owes nothing is archived for you, by the same sweep
+([ADR 0035](docs/adr/0035-a-landed-change-is-archived-for-you.md)). A
+change is finished when, on the default branch as the server has it:
+
+- its directory is still in `openspec/changes/`;
+- its `tasks.md` has at least one item, and every item is closed and says
+  how - the reading the merge gate and the archive command use;
+- no pull request from a branch named after it is open.
+
+Every finished change goes into **one pull request per pass**, on a branch
+named `archive-landed-<date>`. The pull request is made in a directory
+outside the workspace, then asked to merge when its checks pass. The
+directory and the local branch are removed. While such a pull request is
+open, no other is made. A change whose archive fails is left out and
+named. Where the repository does not allow automatic merges, the pull
+request stays open and the sweep says so.
+
+A change whose own pull request **merged while it still owes something**
+is never archived. The sweep names what it owes: in the editor as a
+warning, once a session, and in the standalone under "Done for you". The
+merge gate should make that impossible, so it is an alert, not a state.
+
+This is the **second workspace default that lets the product push**, after
+`branches.rebaseWhenBehind`. It pushes only the result of `openspec
+archive` over changes the default branch says are finished, and that
+lands only through a pull request and its checks. It does not widen
+`gitStageAllowlist` or `reviewGate`.
+
+Turn it off - `"archive": { "whenLanded": false }` - where archiving is
+somebody's deliberate step. Set it in one change's own file to keep that
+change live after it lands.
+
+It needs the openspec CLI and a forge the product can ask: GitHub through
+a signed-in `gh` today. Where either is missing, nothing is archived and
+the sweep says why.
 
 ### `allowAgentMessages`
 
@@ -429,6 +473,7 @@ settings screen that doesn't have the control:
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
 | `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec Workbench: Run This Delegated Item**. |
+| `archive.whenLanded` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep archived, and a change that landed owing something, is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel; an archive pull request it opened is also raised as a notification, and a change that landed owing something as a warning. |
 | `branches.rebaseWhenBehind` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep did with a branch is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel, and a conflict is also raised as a warning. |
 
 ### Standalone settings, in pictures
