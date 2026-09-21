@@ -9,7 +9,8 @@ too.
   page titles, the standalone's headline and `<title>`, the server's
   startup line, the schema titles, and the docs that quote them. 280
   occurrences in 45 files, plus one split across a line in
-  `docs/how-to/use-your-own-agent-definition.md`.
+  `docs/how-to/use-your-own-agent-definition.md`, and the sprint report's
+  progress title, which landed with #659 after this branch was cut.
 - [x] 1.2 No identifier changes: ids, settings, package names, the CLI and
   `.openspec-ui/` keep theirs.
 - [x] 1.3 Left as they are: `CHANGELOG.md` files, `docs/adr/`,
