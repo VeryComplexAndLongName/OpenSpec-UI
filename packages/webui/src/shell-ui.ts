@@ -3814,6 +3814,19 @@ export const shellThemeCss = `
   .openspec-pipeline-stop-form label { display: grid; gap: 4px; color: var(--heading); }
   .openspec-pipeline-stop-form-actions { display: flex; gap: 8px; margin-top: 8px; }
 
+  /* The changes a sprint report covers (the-sprint-picks-its-changes): a
+     list a person can read, with a way to take a range's worth at once. */
+  .openspec-change-checklist { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; margin: 8px 0; }
+  .openspec-change-checklist legend { color: var(--heading); padding: 0 4px; }
+  .openspec-change-checklist-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .openspec-change-checklist-tools input[type="search"] { flex: 1 1 200px; min-width: 160px; }
+  .openspec-change-checklist-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .openspec-change-checklist-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; border-top: 1px solid var(--line); }
+  .openspec-change-checklist-list li { border-bottom: 1px solid var(--line); }
+  .openspec-change-checklist-list label { display: flex; align-items: center; gap: 8px; padding: 4px 2px; cursor: pointer; }
+  .openspec-change-checklist-name { flex: 1 1 auto; overflow-wrap: anywhere; }
+  .openspec-change-checklist-note { color: var(--muted); font-size: 12px; }
+
   /* A change's run logs, opened from its card (a-change-shows-its-run-logs):
      the runs, then the one chosen, as the run said it. */
   .openspec-run-logs {

@@ -86,6 +86,7 @@ import { ChangeHarnessSettingsView } from "./components/ChangeHarnessSettingsVie
 import type { HarnessSettingsApi } from "./components/harness-settings-parts.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
+import { ChangeChecklist } from "./components/ChangeChecklist.js";
 import { RunLogsView } from "./components/RunLogsView.js";
 import { listChangeRunLogs, readChangeRunLog } from "./run-logs-client.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
@@ -2549,23 +2550,18 @@ function StandaloneApp() {
                 />
               </label>
             </div>
-            <label className="openspec-shell-field">
-              Changes in this sprint
-              <select
-                aria-label="Changes in this sprint"
-                multiple
-                value={multiSelection}
-                onChange={(e) => setMultiSelection(Array.from(e.target.selectedOptions, (o) => o.value))}
-                disabled={(overview?.changes.length ?? 0) + (overview?.archivedChanges.length ?? 0) === 0}
-              >
-                {(overview?.changes ?? []).map((change) => (
-                  <option key={`active:${change.name}`} value={`active:${change.name}`}>{change.name}</option>
-                ))}
-                {(overview?.archivedChanges ?? []).map((name) => (
-                  <option key={`archived:${name}`} value={`archived:${name}`}>{name} (archived)</option>
-                ))}
-              </select>
-            </label>
+            <ChangeChecklist
+              label="Changes in this sprint"
+              changes={[
+                ...(overview?.changes ?? []).map((change) => ({ value: `active:${change.name}`, name: change.name, archived: false })),
+                // Newest first: a sprint is usually the last few weeks.
+                ...[...(overview?.archivedChanges ?? [])].reverse().map((name) => ({ value: `archived:${name}`, name, archived: true })),
+              ]}
+              selected={multiSelection}
+              onChange={setMultiSelection}
+              rangeStart={multiRangeStart}
+              rangeEnd={multiRangeEnd}
+            />
             <div className="openspec-ai-panel-controls">
               <button className="button primary"
                 type="button"
