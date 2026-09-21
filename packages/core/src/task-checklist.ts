@@ -123,6 +123,35 @@ export function isUnrecordedTask(item: TaskChecklistItem): boolean {
   return (item.continued ?? "").trim().length === 0;
 }
 
+/** What a change's task list still owes before it may land or be
+ * archived: the items still open, and the human-only or delegated ones
+ * closed with nothing written under them. Each is said as its number and
+ * its text.
+ *
+ * One answer every reader takes - the merge gate, the archive, and
+ * anything else that asks - so that "finished" cannot mean two things
+ * (a-change-is-archived-with-nothing-open). */
+export interface TaskDebts {
+  open: string[];
+  unrecorded: string[];
+}
+
+export function describeTaskDebts(items: readonly TaskChecklistItem[]): TaskDebts {
+  const say = (item: { text: string }): string => {
+    const number = taskNumberOf(item.text);
+    return number === undefined ? item.text : `${number} ${item.text.slice(number.length).trim()}`;
+  };
+  return {
+    open: items.filter((item) => !item.done).map(say),
+    unrecorded: items.filter((item) => isUnrecordedTask(item)).map(say),
+  };
+}
+
+/** Whether a task list owes nothing. */
+export function owesNothing(debts: TaskDebts): boolean {
+  return debts.open.length === 0 && debts.unrecorded.length === 0;
+}
+
 export function isHumanOnlyTask(text: string): boolean {
   const match = text.match(HUMAN_ONLY_LEAD_RE);
   return match !== null && /^human-only/i.test(match[1] ?? "");

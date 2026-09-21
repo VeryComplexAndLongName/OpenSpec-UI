@@ -189,7 +189,7 @@ export interface MainOptions {
 }
 
 export interface MainDeps {
-  validateAll?: (cwd: string, options?: { change?: string }) => Promise<ValidateAllResult>;
+  validateAll?: (cwd: string, options?: { change?: string; archivedSince?: string }) => Promise<ValidateAllResult>;
   buildManifest?: typeof buildReleaseManifest;
   readReleasesFile?: (filePath: string) => Promise<string>;
   stdout?: (line: string) => void;
@@ -314,6 +314,14 @@ function formatText(result: ValidateAllResult): string {
     ];
     return [`${status}  ${r.id}${detail}`, ...owed].join(String.fromCharCode(10));
   });
+  for (const archived of result.archived ?? []) {
+    lines.push(`FAIL  archived ${archived.archiveName}`);
+    for (const item of archived.openItems ?? []) lines.push(`    still open: ${item}`);
+    for (const item of archived.unrecordedItems ?? []) lines.push(`    closed with nothing written under it: ${item}`);
+  }
+  if (result.archiveCheckFailed !== undefined) {
+    lines.push(`FAIL  could not compare the archive with the base: ${result.archiveCheckFailed}`);
+  }
   lines.push(result.ok ? "\nAll changes valid." : "\nOne or more changes failed validation.");
   return lines.join("\n");
 }
@@ -530,7 +538,13 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     // The change this pull request is for, where the caller says: the
     // open-item rule applies to it and to no other change
     // (a-change-lands-with-nothing-open).
-    result = await validateAll(cwd, options.change === undefined ? {} : { change: options.change });
+    // `--base` is the ref the pull request merges into: every change it
+    // archives is held to the same rule as the change it is for
+    // (a-change-is-archived-with-nothing-open).
+    result = await validateAll(cwd, {
+      ...(options.change !== undefined ? { change: options.change } : {}),
+      ...(options.base !== undefined ? { archivedSince: options.base } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     stderr(`openspec-ui-cli: could not complete validation: ${message}`);

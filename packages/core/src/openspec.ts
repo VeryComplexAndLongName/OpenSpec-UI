@@ -498,6 +498,38 @@ export async function archiveChange(
   options: OpenSpecCliOptions,
   archiveOptions: ArchiveChangeOptions = {},
 ): Promise<OpenSpecArchiveResult> {
+  // A change is archived only when it owes nothing
+  // (a-change-is-archived-with-nothing-open). Every way this product
+  // archives - the Pipeline, the editor, a harness stage, the standalone
+  // server - comes through here, so this is the one place the rule holds
+  // for all of them.
+  //
+  // Imported where it is needed: the checklist module reaches back here
+  // through the mechanical checks, and a static import would close that
+  // loop at load time.
+  //
+  // The task list is read by its path, not through the workspace
+  // discovery: discovery resolves each change's schema, which can start
+  // the very CLI this function is about to start, and all the guard needs
+  // is one file. A change with no task list owes nothing it could list.
+  const { describeTaskDebts, owesNothing, parseTaskChecklist } = await import("./task-checklist.js");
+  const { readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  let tasks = "";
+  try {
+    tasks = await readFile(join(options.cwd, "openspec", "changes", changeName, "tasks.md"), "utf8");
+  } catch {
+    tasks = "";
+  }
+  const debts = describeTaskDebts(parseTaskChecklist(tasks));
+  if (!owesNothing(debts)) {
+    const said = [
+      ...debts.open.map((item) => `still open: ${item}`),
+      ...debts.unrecorded.map((item) => `closed with nothing written under it: ${item}`),
+    ].join("; ");
+    throw new Error(`could not archive "${changeName}": it still owes ${said}`);
+  }
+
   const args = ["archive", changeName, "--yes", "--json"];
   if (archiveOptions.skipSpecs) args.push("--skip-specs");
   // `archive` refuses by printing a report and exiting non-zero — the

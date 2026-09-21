@@ -39,10 +39,15 @@ const {
  * (on the next tick) emits the given stdout and exits with code 0. */
 function mockSuccessfulSpawn(stdout: string): void {
   const child = new FakeChildProcess();
-  spawnMock.mockReturnValueOnce(child);
-  queueMicrotask(() => {
-    child.stdout.emit("data", Buffer.from(stdout, "utf8"));
-    child.emit("close", 0);
+  // The output arrives once the process has been started, as a real
+  // one's does: emitting before the call raced anything the caller
+  // awaits first (a-change-is-archived-with-nothing-open).
+  spawnMock.mockImplementationOnce(() => {
+    queueMicrotask(() => {
+      child.stdout.emit("data", Buffer.from(stdout, "utf8"));
+      child.emit("close", 0);
+    });
+    return child;
   });
 }
 
@@ -139,11 +144,16 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       root: { path: "/repo", source: "detected" },
     });
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: Importing JSON modules", "utf8"));
-      child.stdout.emit("data", Buffer.from(report, "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: Importing JSON modules", "utf8"));
+        child.stdout.emit("data", Buffer.from(report, "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     const result = await validateChange("no-delta", { cwd: "/repo" });
@@ -154,10 +164,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
   it("validateChange still fails where a non-zero exit carries no readable report", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     await expect(validateChange("x", { cwd: "/repo" })).rejects.toThrow(/not an openspec root/);
@@ -238,10 +253,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       }],
     });
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stdout.emit("data", Buffer.from(report, "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from(report, "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     // Asserted on content: this class of defect shipped with a
@@ -261,10 +281,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
       ],
     });
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stdout.emit("data", Buffer.from(report, "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from(report, "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     const error = await archiveChange("demo", { cwd: "/repo" }).catch((caught: unknown) => caught);
@@ -276,10 +301,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
   it("archiveChange says no reason was given when nothing usable came back", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     await expect(archiveChange("demo", { cwd: "/repo" })).rejects.toThrow(/no diagnosis reported/);
@@ -384,10 +414,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
   it("rejects when the process exits with a non-zero code", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("not an openspec root", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/exited with code 1/);
@@ -398,20 +433,25 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
     // test asserting an error message merely *exists* would have passed
     // throughout — the assertion has to be about content (tasks.md 3.3).
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      // Emitted as two chunks rather than one string with an escape, so
-      // the fixture is exactly the two lines the runtime prints.
-      child.stderr.emit("data", Buffer.from(
-        "(node:2496) ExperimentalWarning: Importing JSON modules is an experimental feature",
-        "utf8",
-      ));
-      child.stderr.emit("data", Buffer.from(
-        [EOL, "(Use `node --trace-warnings ...` to show where the warning was created)", EOL].join(""),
-        "utf8",
-      ));
-      child.stdout.emit("data", Buffer.from("not an openspec root", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        // Emitted as two chunks rather than one string with an escape, so
+        // the fixture is exactly the two lines the runtime prints.
+        child.stderr.emit("data", Buffer.from(
+          "(node:2496) ExperimentalWarning: Importing JSON modules is an experimental feature",
+          "utf8",
+        ));
+        child.stderr.emit("data", Buffer.from(
+          [EOL, "(Use `node --trace-warnings ...` to show where the warning was created)", EOL].join(""),
+          "utf8",
+        ));
+        child.stdout.emit("data", Buffer.from("not an openspec root", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/not an openspec root/);
@@ -419,10 +459,15 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
   it("says so when nothing but runtime noise was produced", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("(node:1) ExperimentalWarning: whatever", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow(/no diagnosis reported/);
@@ -430,9 +475,14 @@ describe("openspec CLI wrapper (real CLI fixtures — task 5.3)", () => {
 
   it("rejects when the process itself errors (e.g. binary not found)", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.emit("error", new Error("ENOENT"));
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.emit("error", new Error("ENOENT"));
+      });
+      return child;
     });
 
     await expect(listChanges({ cwd: "/repo" })).rejects.toThrow("ENOENT");
@@ -455,10 +505,15 @@ describe("instructionsForArtifact", () => {
 
   it("returns undefined when the subcommand exits non-zero", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.stderr.emit("data", Buffer.from("unknown artifact", "utf8"));
-      child.emit("close", 1);
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from("unknown artifact", "utf8"));
+        child.emit("close", 1);
+      });
+      return child;
     });
 
     const result = await instructionsForArtifact("tasks", "some-change", { cwd: "/repo" });
@@ -468,9 +523,14 @@ describe("instructionsForArtifact", () => {
 
   it("returns undefined when the process itself errors", async () => {
     const child = new FakeChildProcess();
-    spawnMock.mockReturnValueOnce(child);
-    queueMicrotask(() => {
-      child.emit("error", new Error("ENOENT"));
+    // The output arrives once the process has been started, as a real
+    // one's does: emitting before the call raced anything the caller
+    // awaits first (a-change-is-archived-with-nothing-open).
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.emit("error", new Error("ENOENT"));
+      });
+      return child;
     });
 
     const result = await instructionsForArtifact("tasks", "some-change", { cwd: "/repo" });

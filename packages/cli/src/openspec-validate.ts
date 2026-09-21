@@ -4,7 +4,17 @@
 // only ever returns active (non-archived) changes, so no extra filtering
 // is needed here.
 
-import { isUnrecordedTask, listChanges, readTaskChecklist, taskNumberOf, validateChange } from "@openspec-ui/core";
+import {
+  createGitWrapper,
+  describeTaskDebts,
+  listChanges,
+  owesNothing,
+  readArchivedSince,
+  readTaskChecklist,
+  validateChange,
+  type GitWrapper,
+  type TaskDebts,
+} from "@openspec-ui/core";
 
 export interface ChangeValidationResult {
   id: string;
@@ -27,6 +37,13 @@ export interface ChangeValidationResult {
 export interface ValidateAllResult {
   ok: boolean;
   results: ChangeValidationResult[];
+  /** The changes this pull request archives that still owe something,
+   * where a base was given (a-change-is-archived-with-nothing-open). */
+  archived?: Array<{ archiveName: string; openItems?: string[]; unrecordedItems?: string[] }>;
+  /** Why the archive could not be compared with the base, where it could
+   * not. The gate fails then: a check that could not run is not one that
+   * passed. */
+  archiveCheckFailed?: string;
 }
 
 /** The two calls that spawn the `openspec` CLI. Seams, because the job
@@ -65,27 +82,28 @@ async function validateOne(id: string, cwd: string, run: ValidateChange): Promis
   }
 }
 
-/** What a change's task list still owes, for the change a pull request
- * is for and for no other (a-change-lands-with-nothing-open).
+/** What the change a pull request is for still owes. The rule is core's
+ * (a-change-is-archived-with-nothing-open); this only reads the list.
  *
  * A pull request for change A must not fail because change B, merged
  * this morning and waiting on its owner, has an item open: that is the
  * ordinary state of this repository, not a fault in A. */
-async function taskDebts(cwd: string, changeName: string): Promise<{ open: string[]; unrecorded: string[] }> {
-  const items = await readTaskChecklist(cwd, changeName, false);
-  const say = (item: { text: string }): string => {
-    const number = taskNumberOf(item.text);
-    return number === undefined ? item.text : `${number} ${item.text.slice(number.length).trim()}`;
-  };
-  return {
-    open: items.filter((item) => !item.done).map(say),
-    unrecorded: items.filter((item) => isUnrecordedTask(item)).map(say),
-  };
+async function taskDebts(cwd: string, changeName: string): Promise<TaskDebts> {
+  return describeTaskDebts(await readTaskChecklist(cwd, changeName, false));
 }
 
 export async function runValidateAll(
   cwd: string,
-  options: { change?: string; validateChange?: ValidateChange; listChanges?: ListChanges } = {},
+  options: {
+    change?: string;
+    /** The ref the pull request merges into. Every change it archives is
+     * held to the same rule as the change it is for. */
+    archivedSince?: string;
+    validateChange?: ValidateChange;
+    listChanges?: ListChanges;
+    /** The git a base is read through. */
+    git?: Pick<GitWrapper, "listTreeNames">;
+  } = {},
 ): Promise<ValidateAllResult> {
   const run = options.validateChange ?? validateChange;
   const list = options.listChanges ?? listChanges;
@@ -106,5 +124,30 @@ export async function runValidateAll(
     if (debts.open.length > 0 || debts.unrecorded.length > 0) named.valid = false;
   }
 
-  return { ok: results.every((result) => result.valid), results };
+  let archived: ValidateAllResult["archived"];
+  let archiveCheckFailed: string | undefined;
+  if (options.archivedSince !== undefined) {
+    try {
+      const found = await readArchivedSince(cwd, options.archivedSince, options.git ?? createGitWrapper({ cwd }));
+      archived = found
+        .filter((one) => !owesNothing(one.debts))
+        .map((one) => ({
+          archiveName: one.archiveName,
+          ...(one.debts.open.length > 0 ? { openItems: one.debts.open } : {}),
+          ...(one.debts.unrecorded.length > 0 ? { unrecordedItems: one.debts.unrecorded } : {}),
+        }));
+    } catch (error) {
+      archiveCheckFailed = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  const ok = results.every((result) => result.valid)
+    && (archived === undefined || archived.length === 0)
+    && archiveCheckFailed === undefined;
+  return {
+    ok,
+    results,
+    ...(archived !== undefined && archived.length > 0 ? { archived } : {}),
+    ...(archiveCheckFailed !== undefined ? { archiveCheckFailed } : {}),
+  };
 }
