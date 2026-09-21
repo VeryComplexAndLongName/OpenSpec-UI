@@ -26,8 +26,8 @@ first by the owner on 2026-09-21.
 
 ## 3. Checks
 
-- [x] 3.1 The test fails on the schemas this replaces: 64 disagreements
-  in each scope, starting with a bare `claude-cli` entry.
+- [x] 3.1 The test fails on the schemas this replaces: 131 disagreements
+  across the two scopes, starting with a bare `claude-cli` entry.
 - [x] 3.2 The repository's own 16 harness files: the old schemas flag 10,
   the new ones none.
 - [x] 3.3 `npm run typecheck && npm run lint && npm run test` at the
