@@ -79,10 +79,13 @@ you have built, if there is one, and read the channel's rules first.
     a discussion to correct that entry: <link to the discussion>.
     Feedback welcome, especially from anyone running agents on OpenSpec changes.
 
-## 4. awesome-openspec (after the site has both articles)
+## 4. awesome-openspec (2026-09-25, one pull request, once all three articles are on the site)
 
 A pull request to https://github.com/speclib/awesome-openspec, editing only
-`README.md`. Its rules: the format is `[Name](URL) - Short description.`, one
+`README.md`. The owner has no write access there, so it goes through a fork of the
+repository in the owner's account, which is the ordinary way; the pull request
+itself is opened into speclib/awesome-openspec. The site regenerates from
+`README.md` after it is merged. Its rules: the format is `[Name](URL) - Short description.`, one
 sentence, the whole line under 150 characters, alphabetical order within the
 section, working links.
 
@@ -96,13 +99,14 @@ hyphen. Check the neighbours on the day.
 Under "Articles & Tutorials":
 
     - [A viewer is not a cockpit](https://openspec-ui.dev/articles/a-viewer-is-not-a-cockpit/) - Why showing a change is not supervising an agent.
+    - [One core, two hosts](https://openspec-ui.dev/articles/one-core-two-hosts/) - How one core keeps an extension and a web app from drifting.
     - [Supervise agents on OpenSpec changes](https://openspec-ui.dev/articles/supervise-agents-on-openspec-changes/) - Running and stopping agents.
 
-Pull request title: `Add OpenSpec Workbench and two articles`.
+Pull request title: `Add OpenSpec Workbench and three articles`.
 
 Body:
 
-    Adds OpenSpec Workbench under UIs, and its two articles under Articles &
+    Adds OpenSpec Workbench under UIs, and its three articles under Articles &
     Tutorials. It runs and supervises coding agents on OpenSpec changes, from a
     local web app and a VS Code extension. Actively maintained. Entries checked
     against the 150-character limit and placed alphabetically.
