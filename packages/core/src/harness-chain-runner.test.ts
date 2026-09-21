@@ -220,6 +220,7 @@ function makeGitStageDeps(options: {
     worktreeMove: vi.fn(async () => undefined),
     branchExists: vi.fn(async () => false),
     worktreeRemove: vi.fn(async () => undefined),
+    worktreePrune: vi.fn(async () => undefined),
     pathExistsInRef: vi.fn(async () => true),
     changedFilesBetween: vi.fn(async () => []),
     listTreeNames: vi.fn(async () => []),

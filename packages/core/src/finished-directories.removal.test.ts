@@ -108,6 +108,29 @@ describe("removing a working directory that is done with", () => {
     expect(await readFile(path.join(target, "precious.txt"), "utf8")).toBe("do not delete");
   });
 
+  // the-sweep-finishes-what-it-starts. git's own refusal is stood in for:
+  // a path too long to delete cannot be made portably, and what matters is
+  // what happens after git gives up.
+  it("finishes a removal git gave up on: the directory goes, git forgets it, the link's target stays", async () => {
+    const { work, worktree, target } = await repositoryWithWorktree();
+    const deps = depsFor(work);
+    const wrapper = createGitWrapper({ cwd: work });
+
+    const swept = await sweepFinishedDirectories(surveyOf(work, worktree), {
+      ...deps,
+      git: {
+        ...deps.git,
+        worktreeRemove: async () => { throw new Error("error: failed to delete: Filename too long"); },
+        worktreePrune: () => wrapper.worktreePrune(),
+      },
+    });
+
+    expect(swept.removed[0]?.failed).toBeUndefined();
+    expect(existsSync(worktree)).toBe(false);
+    expect((await wrapper.worktreeList()).map((one) => path.resolve(one.path))).not.toContain(path.resolve(worktree));
+    expect(await readFile(path.join(target, "precious.txt"), "utf8")).toBe("do not delete");
+  });
+
   it("leaves the branch, so nothing is lost where the remote was deleted unmerged", async () => {
     const { work, worktree } = await repositoryWithWorktree();
 
