@@ -1,7 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "OpenSpec Workbench Agentic Harness — global config",
-  "description": "Global default for openspec/agent-harness.json — see the agentic-harness capability. At this level: reviewGate.mode is fixed to human-required, autonomyLevel excludes autonomous, and checkpoints.requireConfirmationBetweenSteps is fixed to true. Only a per-change openspec/changes/<id>/harness.json may relax any of these.",
+  "$comment": "Generated from packages/core/src/harness-config-schema.ts. Do not edit: run npm run schemas --workspace packages/extension.",
+  "title": "OpenSpec Workbench Agentic Harness - global config",
+  "description": "openspec/agent-harness.json: the workspace's defaults. See HARNESS.md for every key. autonomous, agent-sufficient and checkpoints turned off are only valid in a change's own harness.json, and gitStageAllowlist, taskAgents and steps only there.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -9,39 +10,215 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "propose": { "$ref": "#/definitions/agentId" },
-        "review": { "$ref": "#/definitions/agentId" },
-        "apply": { "$ref": "#/definitions/agentId" },
-        "archive": { "$ref": "#/definitions/agentId" },
-        "git": { "$ref": "#/definitions/agentId" }
-      }
+        "propose": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "review": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "apply": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "verify": {
+          "$ref": "#/definitions/agentEntry"
+        },
+        "archive": {
+          "not": {},
+          "description": "\"archive\" is a mechanical stage and never invokes an agent."
+        },
+        "git": {
+          "not": {},
+          "description": "\"git\" is a mechanical stage and never invokes an agent."
+        }
+      },
+      "description": "Which agent runs each stage."
     },
     "autonomyLevel": {
       "type": "string",
-      "enum": ["assisted", "semi-autonomous"],
-      "description": "autonomous is only valid in a per-change harness.json, never here — see openspec/changes/agentic-harness-autonomy/design.md."
+      "enum": [
+        "assisted",
+        "semi-autonomous"
+      ],
+      "description": "How much runs without a person. autonomous is only valid in a change's own harness.json."
     },
     "reviewGate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode"],
+      "required": [
+        "mode"
+      ],
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["human-required"],
-          "description": "agent-sufficient is only valid in a per-change harness.json, never here."
+          "enum": [
+            "human-required"
+          ],
+          "description": "agent-sufficient is only valid in a change's own harness.json."
         }
       }
     },
     "checkpoints": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requireConfirmationBetweenSteps"],
+      "required": [
+        "requireConfirmationBetweenSteps"
+      ],
       "properties": {
         "requireConfirmationBetweenSteps": {
           "type": "boolean",
-          "enum": [true],
-          "description": "false is only valid in a per-change harness.json, never here — see openspec/changes/agentic-harness-autonomy/design.md."
+          "enum": [
+            true
+          ],
+          "description": "false is only valid in a change's own harness.json."
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Spending ceilings for the chain and for one stage. A stage ceiling above the chain's is refused by the product.",
+      "properties": {
+        "maxCostUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The chain's ceiling in USD."
+        },
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The chain's ceiling in input plus output tokens."
+        },
+        "maxCost": {
+          "type": "object",
+          "description": "The chain's ceiling per unit of account, such as credits: 500.",
+          "propertyNames": {
+            "minLength": 1,
+            "pattern": "[^ ]"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "A ceiling in this unit."
+          }
+        },
+        "maxStageCostUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "One stage's ceiling in USD, checked when the stage ends."
+        },
+        "maxStageTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One stage's ceiling in tokens, checked when the stage ends."
+        }
+      }
+    },
+    "timeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Time ceilings in seconds. A stage ceiling above the run's is refused by the product.",
+      "properties": {
+        "maxRunSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The chain's stages, summed."
+        },
+        "maxStageSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "One stage."
+        }
+      }
+    },
+    "maxStageAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many times one stage may be attempted, counting the first."
+    },
+    "gitStageAllowlist": {
+      "not": {},
+      "description": "Only a change's own harness.json may set this. A workspace default must never grant push."
+    },
+    "taskAgents": {
+      "not": {},
+      "description": "Only a change's own harness.json may set this. The tasks it names are one change's."
+    },
+    "steps": {
+      "not": {},
+      "description": "Only a change's own harness.json may set this. A chain's steps are one change's."
+    },
+    "hints": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether suggestions are computed at all."
+        }
+      }
+    },
+    "allowAgentMessages": {
+      "type": "boolean",
+      "description": "Whether a run takes notes written by another run. Absent means false."
+    },
+    "branches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rebaseWhenBehind": {
+          "type": "boolean",
+          "description": "Rebase a change's branch that has fallen behind, and push it with a lease (ADR 0034). Absent means true."
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "whenLanded": {
+          "type": "boolean",
+          "description": "Archive a change that has landed with nothing open, in a pull request that merges on green (ADR 0035). Absent means true."
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "autonomyLevel": {
+        "enum": [
+          "semi-autonomous",
+          "autonomous"
+        ]
+      }
+    },
+    "required": [
+      "autonomyLevel"
+    ]
+  },
+  "then": {
+    "properties": {
+      "stepAgents": {
+        "additionalProperties": {
+          "not": {
+            "anyOf": [
+              {
+                "const": "vscode-chat"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "const": "vscode-chat"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              }
+            ]
+          }
         }
       }
     }
@@ -49,8 +226,418 @@
   "definitions": {
     "agentId": {
       "type": "string",
-      "description": "Must match an AgentDescriptor.id from packages/core/src/agents/registry.ts — kept in sync by hand (a small, stable list).",
-      "enum": ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]
+      "enum": [
+        "claude-cli",
+        "copilot-cli",
+        "codex-cli",
+        "gemini-cli",
+        "local-llm",
+        "copilot-cli-acp",
+        "gemini-cli-acp",
+        "codex-cli-acp",
+        "claude-cli-acp",
+        "vscode-chat"
+      ],
+      "description": "A registered agent id (packages/core/src/agents/registry.ts), or vscode-chat, which hands the stage to VS Code chat."
+    },
+    "agentEntry": {
+      "description": "An agent id, or an object naming the agent with what it runs with.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/agentId"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent"
+          ],
+          "properties": {
+            "agent": {
+              "$ref": "#/definitions/agentId"
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "The model the agent runs. Only for an agent that takes a model flag."
+            },
+            "effort": {
+              "type": "string",
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "description": "Reasoning effort. Only the values the chosen agent accepts."
+            },
+            "budget": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "maxCostUsd": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "A cap in USD, for an agent that caps spending in dollars."
+                },
+                "maxAiCredits": {
+                  "type": "integer",
+                  "minimum": 30,
+                  "description": "A cap in AI credits, at least 30, for an agent that caps spending in credits."
+                }
+              }
+            },
+            "customAgent": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "A custom agent definition the agent loads. Only for an agent that takes one."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "vscode-chat"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {}
+                  },
+                  "effort": {
+                    "not": {}
+                  },
+                  "budget": {
+                    "not": {}
+                  },
+                  "customAgent": {
+                    "not": {}
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "claude-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values claude-cli accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxAiCredits": {
+                        "not": {},
+                        "description": "claude-cli caps spending in maxCostUsd only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "copilot-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values copilot-cli accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxCostUsd": {
+                        "not": {},
+                        "description": "copilot-cli caps spending in maxAiCredits only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "codex-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "codex-cli does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "codex-cli does not take a custom agent."
+                  },
+                  "effort": {
+                    "enum": [
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "description": "The effort values codex-cli accepts."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "codex-cli has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "gemini-cli"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "gemini-cli does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "gemini-cli does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "gemini-cli has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "gemini-cli has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "local-llm"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "local-llm does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "local-llm does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "local-llm has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "local-llm has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "copilot-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values copilot-cli-acp accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxCostUsd": {
+                        "not": {},
+                        "description": "copilot-cli-acp caps spending in maxAiCredits only."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "gemini-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "gemini-cli-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "gemini-cli-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "gemini-cli-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "gemini-cli-acp has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "codex-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "codex-cli-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "codex-cli-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "codex-cli-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "codex-cli-acp has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "claude-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "effort": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ],
+                    "description": "The effort values claude-cli-acp accepts."
+                  },
+                  "budget": {
+                    "type": "object",
+                    "properties": {
+                      "maxAiCredits": {
+                        "not": {},
+                        "description": "claude-cli-acp caps spending in maxCostUsd only."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 }
