@@ -190,6 +190,19 @@ export interface GitWrapper {
    * refuses otherwise. Runs exactly `git merge --ff-only <ref>`: it moves
    * a pointer and can conflict with nothing. */
   fastForward(ref: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Rebases the checked-out branch onto `onto`. On a conflict the rebase
+   * is aborted before this returns, so the branch is exactly as it was,
+   * and the files in conflict are named (ADR 0034). */
+  rebaseOnto(onto: string): Promise<{ ok: true } | { ok: false; conflicts: string[]; reason: string }>;
+  /** Pushes `branch` over its remote copy only while that copy is still
+   * at `expected`. A push somebody else made in the meantime refuses
+   * this one rather than being overwritten (ADR 0034). */
+  pushWithLease(remote: string, branch: string, expected: string): Promise<void>;
+  /** Puts the checked-out branch back at `commit`, discarding what moved
+   * it since. Used only to undo a rebase whose push was refused, on a tree
+   * that was clean before it, so nothing uncommitted can be lost
+   * (ADR 0034). */
+  restoreTo(commit: string): Promise<void>;
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
@@ -410,6 +423,36 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       } catch (error) {
         return { ok: false, reason: error instanceof Error ? error.message.trim() : String(error) };
       }
+    },
+    async rebaseOnto(onto: string): Promise<{ ok: true } | { ok: false; conflicts: string[]; reason: string }> {
+      try {
+        await git.raw(["rebase", onto]);
+        return { ok: true };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message.trim() : String(error);
+        // What conflicts, read before the abort puts the tree back.
+        let conflicts: string[] = [];
+        try {
+          const out = await git.raw(["diff", "--name-only", "--diff-filter=U"]);
+          conflicts = out.split(String.fromCharCode(10)).map((line) => line.trim()).filter((line) => line.length > 0);
+        } catch {
+          conflicts = [];
+        }
+        // Never left half-way: a sweep that stops mid-rebase leaves a
+        // working directory nobody can use until somebody notices.
+        try {
+          await git.raw(["rebase", "--abort"]);
+        } catch {
+          // Nothing was started, so there is nothing to abort.
+        }
+        return { ok: false, conflicts, reason };
+      }
+    },
+    async pushWithLease(remote: string, branch: string, expected: string): Promise<void> {
+      await git.raw(["push", `--force-with-lease=${branch}:${expected}`, remote, branch]);
+    },
+    async restoreTo(commit: string): Promise<void> {
+      await git.raw(["reset", "--hard", commit]);
     },
   };
 }

@@ -22,10 +22,8 @@ import {
   chainMessageHandlers,
   chainStopRequestHandlers,
   createGitWrapper,
-  describeFinished,
-  describeKept,
-  sweepFinishedDirectories,
-  surveyWorktrees,
+  describeWorkspaceSweep,
+  sweepWorkspace,
   forgetMessage,
   loadOrCreateMachineKey,
   messageDirectoryBeside,
@@ -343,29 +341,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
      // (git-says-a-working-directory-is-done). git settles it, so this
      // needs no token and answers for a directory whose change was
      // withdrawn as readily as for any other.
+    // The working directories: the ones whose work has landed are removed,
+    // and the change branches that have fallen behind are rebased and
+    // pushed with a lease (git-says-a-working-directory-is-done, ADR 0034).
+    // One core function, the same one the standalone runs, so the two hosts
+    // cannot do different things with the same directories.
     const sweepDirectories = async () => {
       if (!workspaceRoot) return;
-      const root = workspaceRoot;
       try {
-        const survey = await surveyWorktrees({ workspaceRoot: root });
-        const git = createGitWrapper({ cwd: root });
-        const swept = await sweepFinishedDirectories(survey, {
-          git,
-          isClean: async (directoryPath: string) => {
-            try {
-              return (await createGitWrapper({ cwd: directoryPath }).status()).isClean;
-            } catch {
-              return false;
-            }
-          },
-        });
-        for (const directory of swept.removed) {
-          outputChannel.appendLine(directory.failed === undefined
-            ? `OpenSpec UI: removed the working directory ${directory.label}, ${describeFinished(directory.reason)}.`
-            : `OpenSpec UI: could not remove ${directory.label} (${directory.failed}).`);
-        }
-        if (swept.fetchFailed !== undefined) {
-          outputChannel.appendLine(`OpenSpec UI: no working directory was removed, ${describeKept("the-fetch-failed")} (${swept.fetchFailed}).`);
+        const swept = await sweepWorkspace(workspaceRoot);
+        for (const line of describeWorkspaceSweep(swept)) outputChannel.appendLine(`OpenSpec UI: ${line}.`);
+        // A conflict is the one outcome a person has to act on, so it is
+        // said where they will see it, not only in the output.
+        for (const branch of swept.branches?.conflicted ?? []) {
+          void vscode.window.showWarningMessage(
+            `OpenSpec UI: ${branch.branch} needs a rebase by hand - it conflicts with ${branch.onto} in ${branch.conflicts.join(", ")}.`,
+          );
         }
       } catch (error) {
         outputChannel.appendLine(`OpenSpec UI: the working-directory sweep failed (${error instanceof Error ? error.message : String(error)})`);

@@ -1,13 +1,15 @@
 // What the workspace was left holding, said in the Summary
 // (the-workspace-clears-what-it-left-behind).
 //
-// Three lists, and each says a different thing. What went, went without
-// being asked: it is stated, because a product that removes something
-// quietly is a product that took something. What stays says what it
-// holds, so a person can see whether it is theirs, and offers the
-// removal as a press. A working directory with nothing left to do is
-// named with the branch and the reason it is finished with - never swept,
-// because a merged branch can still hold uncommitted work.
+// Each list says a different thing. What went, went without being
+// asked: it is stated, because a product that removes something quietly
+// is a product that took something. That now includes a working
+// directory whose work has landed and a change branch that was rebased
+// (git-says-a-working-directory-is-done, ADR 0034), under "Done for you".
+// What stays says what it holds, so a person can see whether it is
+// theirs, and offers the removal as a press. A working directory that is
+// named here with nothing left to do is one the sweep kept - its tree
+// holds uncommitted work - and removing it is the person's call.
 
 import type { WorkspaceLeftoverReading } from "../change-leftovers-client.js";
 
@@ -40,7 +42,10 @@ export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
   const kept = reading?.kept ?? [];
   const finished = reading?.finishedWith ?? [];
   const failures = reading?.failures ?? [];
-  if (cleared.length === 0 && kept.length === 0 && finished.length === 0 && failures.length === 0) return null;
+  const swept = reading?.swept ?? [];
+  if (cleared.length === 0 && kept.length === 0 && finished.length === 0 && failures.length === 0 && swept.length === 0) {
+    return null;
+  }
 
   return (
     <section className="openspec-panel" data-testid="leftovers">
@@ -48,6 +53,19 @@ export function LeftoverList({ reading, onRemove, error }: LeftoverListProps) {
         <h2>Left behind</h2>
         <span className="openspec-panel-head-note">directories with no documents in them</span>
       </div>
+
+      {swept.length > 0 ? (
+        // Done without being asked, so it is said: removed directories,
+        // rebased branches, and a conflict left for a person (ADR 0034).
+        <div className="openspec-leftovers-group" data-testid="leftovers-swept">
+          <h3>Done for you</h3>
+          <ul className="openspec-leftovers-list">
+            {swept.map((line) => (
+              <li key={line}><span className="openspec-leftovers-note">{line}</span></li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {cleared.length > 0 ? (
         <div className="openspec-leftovers-group" data-testid="leftovers-cleared">

@@ -71,3 +71,29 @@ describe("LeftoverList", () => {
     expect(screen.getByTestId("leftovers-failures").textContent).toContain("EBUSY");
   });
 });
+
+// a-behind-branch-is-rebased-for-you: what the working-directory sweep did
+// without being asked is said, first.
+describe("LeftoverList, what was done for you", () => {
+  it("says each thing the sweep did, in core's words", () => {
+    render(<LeftoverList reading={{
+      ...EMPTY,
+      swept: [
+        "rebased demo onto origin/main (2 behind) and pushed it; its checks will run again",
+        "other needs a rebase by hand: it conflicts with origin/main in shared.txt; it was left as it was",
+      ],
+    }} />);
+
+    const group = screen.getByTestId("leftovers-swept");
+    expect(group).toHaveTextContent("Done for you");
+    expect(group).toHaveTextContent("rebased demo onto origin/main");
+    expect(group).toHaveTextContent("needs a rebase by hand");
+  });
+
+  it("draws nothing where the sweep did nothing and nothing is left", () => {
+    const { container } = render(<LeftoverList reading={{ ...EMPTY, swept: [] }} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+

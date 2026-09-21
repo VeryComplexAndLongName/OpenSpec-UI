@@ -99,7 +99,7 @@ the reason if a global file tries:
 | Setting | Global file may set it? | Why |
 | --- | --- | --- |
 | `autonomyLevel: "autonomous"` | No — `GlobalAutonomousAutonomyLevelError` | An unattended chain (no checkpoint, ever) is a decision one change opts into deliberately, not something a workspace default should hand every change silently. |
-| `reviewGate.mode: "agent-sufficient"` | No — `GlobalAgentSufficientReviewGateError` | This is what allows the `git` stage to push/PR/merge without a human present. A workspace default must never grant that; only a specific change's own file can. |
+| `reviewGate.mode: "agent-sufficient"` | No — `GlobalAgentSufficientReviewGateError` | This is what allows the `git` stage to push/PR/merge without a human present. A workspace default must never grant that; only a specific change's own file can. The one exception is [`branches.rebaseWhenBehind`](#branches), which pushes only what the server already has, onto a newer base ([ADR 0034](docs/adr/0034-a-behind-branch-is-rebased-for-you.md)). |
 | `checkpoints.requireConfirmationBetweenSteps: false` | No — `GlobalCheckpointsDisabledError` | Same reasoning as `autonomyLevel: "autonomous"`, one field over: skipping the pause between stages is a per-change opt-in. |
 | `gitStageAllowlist` (the key itself, any value) | No — `GlobalGitAllowlistError` | The allowlist is what a real `git push`/`gh pr create`/`gh pr merge` is checked against. A workspace-wide allowlist would apply to every change's git actions by default, which is exactly the blast radius this setting exists to avoid. |
 | `taskAgents` (the key itself, any value) | No — `GlobalTaskAgentsError` | Not too powerful, but meaningless: a task number belongs to the change whose `tasks.md` wrote it, so the same statement made workspace-wide is about a different piece of work in every change. |
@@ -120,7 +120,8 @@ it matches a known stage name, suggesting `stepAgents.<key>` instead.
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
 `checkpoints`, `budget`, `timeout`, `maxStageAttempts`,
 `gitStageAllowlist`, `taskAgents`, `steps`, `hints`,
-`allowAgentMessages`. Nothing else is accepted, at either file.
+`allowAgentMessages`, `branches`. Nothing else is accepted, at either
+file.
 
 ### `stepAgents`
 
@@ -242,6 +243,50 @@ carries no suggestions at all. Read from the workspace file rather than
 from a change's — the report they come from is about the whole
 repository, so a per-change value would be answering a different
 question.
+
+### `branches`
+
+`{ "rebaseWhenBehind"?: <boolean> }`. Optional; absent means every
+default below. Allowed in the global file and in a change's own file,
+which overrides it key by key.
+
+**`rebaseWhenBehind`** - absent means **`true`**. A change's branch that
+has fallen behind the default branch is rebased onto it and pushed with
+`--force-with-lease`, by the sweep that also removes a working directory
+whose work has landed ([ADR 0034](docs/adr/0034-a-behind-branch-is-rebased-for-you.md)).
+Its pull request's checks then run again, against the current default
+branch - which is what closes the gap left by `main` no longer requiring
+an up-to-date branch: two pull requests green apart, broken together.
+
+It happens only when every one of these holds, and each is checked:
+
+- the branch bears the name of a change - a branch this product did not
+  name is never touched;
+- it was pushed, and is still on the server;
+- it is equal to its upstream: nothing of it exists only here, and
+  nothing of the server's is missing here;
+- its working tree is clean, and no run is recorded against it;
+- it is behind the default branch.
+
+A **conflict is never resolved**: the rebase is aborted, the branch is
+left as it was, and the sweep says which files conflict. A push the lease
+refuses - somebody else pushed first - puts the branch back where it was.
+
+Every host that sweeps says what it did: the editor in its output
+channel, and a warning for a conflict; the standalone under "Done for
+you".
+
+**This is the one workspace default that lets the product push**, and it
+is the exception to the rule in the table above. It is safe to have on
+because a rebase adds nothing to the server: it moves commits that are
+already there onto a newer base, and the lease makes it unable to take
+anything away. It does not widen `gitStageAllowlist` or `reviewGate`, and
+it cannot push a commit the server has never seen.
+
+Turn it off - `"branches": { "rebaseWhenBehind": false }` - where change
+branches are shared between people: somebody with the branch checked out
+elsewhere sees its history rewritten, and each rebase costs a full run of
+the pull request's checks.
 
 ### `allowAgentMessages`
 
@@ -384,6 +429,7 @@ settings screen that doesn't have the control:
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
 | `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec UI: Run This Delegated Item**. |
+| `branches.rebaseWhenBehind` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep did with a branch is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel, and a conflict is also raised as a warning. |
 
 ### Standalone settings, in pictures
 

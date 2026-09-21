@@ -223,8 +223,14 @@ testing expertise".
     and why the others cannot.
   - The Pipeline shows every working directory, and what each run says it
     is doing.
+  - A working directory whose work has landed is removed, and a change's
+    branch that has fallen behind is rebased and pushed with a lease, so
+    its checks run again against the current default branch. A conflict is
+    never resolved for you: the branch is left as it was and the files are
+    named. `branches.rebaseWhenBehind` turns the rebase off; see
+    [`HARNESS.md`](HARNESS.md#branches).
 
-  See [`docs/adr/`](docs/adr/), 0025 to 0029.
+  See [`docs/adr/`](docs/adr/), 0025 to 0029 and 0034.
 
 BMAD's pages were not found to describe spending limits, an audit log or
 parallel runs. That is not a claim that BMAD lacks them, only that this
