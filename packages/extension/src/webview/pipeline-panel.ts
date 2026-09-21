@@ -32,6 +32,9 @@ import {
   type LastRunsReport,
   type LiveRuns,
   type WorktreeSurvey,
+  isRunLogId,
+  listRunLogs,
+  readRunLog,
 } from "@openspec-ui/core";
 import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./embedded-page.js";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
@@ -198,13 +201,15 @@ export interface PipelinePanelDeps {
 interface PipelineRequest {
   id: string;
   op: string;
+  /** What a request names, where it names something: a change, a run. */
+  args?: unknown;
 }
 
 function asRequest(data: unknown): PipelineRequest | undefined {
   if (typeof data !== "object" || data === null) return undefined;
   const message = data as Record<string, unknown>;
   if (message.type !== REQUEST_MESSAGE_TYPE || typeof message.id !== "string") return undefined;
-  return { id: message.id, op: String(message.op) };
+  return { id: message.id, op: String(message.op), ...(message.args !== undefined ? { args: message.args } : {}) };
 }
 
 export class PipelinePanel {
@@ -424,6 +429,30 @@ export class PipelinePanel {
           const statusDirectory = await this.readers.statusDirectory(workspaceRoot).catch(() => undefined);
           const myLabel = statusDirectory === undefined ? undefined : await this.readers.myLabel(statusDirectory);
           reply({ ok: true, value: { runs, ...(myLabel !== undefined ? { myLabel } : {}) } });
+          return;
+        }
+        case "pipeline/run-logs": {
+          // For this host's own root, and the one change the card names.
+          const changeName = (request.args as { changeName?: unknown } | undefined)?.changeName;
+          if (typeof changeName !== "string" || changeName.length === 0) {
+            reply({ ok: false, error: "a change name is required" });
+            return;
+          }
+          reply({ ok: true, value: await listRunLogs(workspaceRoot, { changeName }) });
+          return;
+        }
+        case "pipeline/run-log": {
+          const runId = (request.args as { runId?: unknown } | undefined)?.runId;
+          if (typeof runId !== "string" || !isRunLogId(runId)) {
+            reply({ ok: false, error: "a run id is required" });
+            return;
+          }
+          const records = await readRunLog(workspaceRoot, runId);
+          if (records === undefined) {
+            reply({ ok: false, error: `no log is kept for run ${runId}` });
+            return;
+          }
+          reply({ ok: true, value: records });
           return;
         }
         case "pipeline/refresh": {

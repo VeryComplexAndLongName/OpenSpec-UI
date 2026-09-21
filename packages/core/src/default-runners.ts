@@ -8,6 +8,7 @@
 // this is not host business logic, it is configuration of the already
 // existing security.ts mechanism.
 
+import type { RunLogs } from "./run-log.js";
 import { ClaudeCliAdapter } from "./agents/claude.js";
 import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
@@ -29,6 +30,9 @@ export interface DefaultRunnersConfig {
   localLlmModel?: string;
   auditLog?: AuditLog;
   allowExternalCwd?: boolean;
+  /** Where each run's log is written (a-change-shows-its-run-logs). A host
+   * passes its workspace's; absent, nothing is written. */
+  runLogs?: RunLogs;
 }
 
 export { DEFAULT_AGENT_ID };
@@ -159,6 +163,7 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     allowlist,
     auditLog,
     allowExternalCwd: config.allowExternalCwd,
+    ...(config.runLogs !== undefined ? { runLogs: config.runLogs } : {}),
   };
 
   const adapters = {

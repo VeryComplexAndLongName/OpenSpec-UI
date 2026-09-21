@@ -19,6 +19,7 @@ import {
   auditLogPath,
   agentStopRequestHandlers,
   buildDefaultAgentRunners,
+  createFileRunLogs,
   chainAnswerWriter,
   chainMessageHandlers,
   chainStopRequestHandlers,
@@ -469,7 +470,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     }
 
     auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
-    runners = buildDefaultAgentRunners({ workspaceRoot, auditLog });
+    runners = buildDefaultAgentRunners({ workspaceRoot, auditLog, runLogs: createFileRunLogs(workspaceRoot) });
 
     // Running one delegated item, from the row that names its agent.
     // Bound to `RUNNABLE_INBOX_ITEM_CONTEXT` in package.json, so a row

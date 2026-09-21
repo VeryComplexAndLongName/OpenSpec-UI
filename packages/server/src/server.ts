@@ -35,6 +35,8 @@ import {
   handleCustomAgentsRequest,
   handleChangeReadinessRequest,
   handleChangeLastRunsRequest,
+  handleRunLogReadRequest,
+  handleRunLogsListRequest,
   handleLiveRunsRequest,
   handleAskToStopRequest,
   handleWorktreeSurveyRequest,
@@ -267,6 +269,14 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-last-runs") {
       void handleChangeLastRunsRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/run-logs/list") {
+      void handleRunLogsListRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/run-logs/read") {
+      void handleRunLogReadRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/live-runs") {

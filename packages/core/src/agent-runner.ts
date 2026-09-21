@@ -8,6 +8,8 @@
 // inline, BEFORE delegating to a specific adapter — no adapter is ever
 // invoked if a check fails (see security.ts).
 
+import { changeNameOf } from "./audit-runs.js";
+import type { RunLogs } from "./run-log.js";
 import {
   type AllowlistConfig,
   type AuditLog,
@@ -64,6 +66,10 @@ export interface AgentRunnerOptions {
   /** Who asks a run to stop, when the stop names no one: the configured git
    * identity for the run's working directory by default. A test seam. */
   readIdentity?: (cwd: string) => Promise<string | undefined>;
+  /** Where each run's log is written, so what it said outlives it
+   * (a-change-shows-its-run-logs). A host hands its workspace's logs; absent,
+   * nothing is written, as in a test. */
+  runLogs?: RunLogs;
 }
 
 /** The kinds that end at a sound point when asked to stop: they tick tasks.
@@ -171,6 +177,18 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         return;
       }
 
+      // Every run the runner is asked for gets a log, one it refused
+      // included: why nothing ran is what a person opening it wants to know.
+      const logStart = {
+        runId: command.runId,
+        agent: adapter.name,
+        kind: command.kind,
+        cwd: command.cwd,
+        ...(command.context.changeDir ? { changeName: changeNameOf(command.context.changeDir) } : {}),
+        ...(command.stage !== undefined ? { stage: command.stage } : {}),
+        ...(command.taskNumber !== undefined ? { taskNumber: command.taskNumber } : {}),
+      };
+
       const cwdDecision = checkCwdSandbox(command.cwd, workspaceRoot, { allowExternalCwd });
       if (!cwdDecision.allowed) {
         auditLog.record({
@@ -182,6 +200,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           changeDir: command.context.changeDir,
           reason: cwdDecision.reason,
         });
+        void options.runLogs?.open(logStart).end({ outcome: "blocked", reason: cwdDecision.reason ?? "cwd is outside the workspace" });
         yield* failedOnce(command.runId, cwdDecision.reason ?? "cwd is outside the workspace");
         return;
       }
@@ -199,6 +218,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           invocation,
           reason: allowlistDecision.reason,
         });
+        void options.runLogs?.open(logStart).end({ outcome: "blocked", reason: allowlistDecision.reason ?? "command not permitted by the allowlist" });
         yield* failedOnce(command.runId, allowlistDecision.reason ?? "command not permitted by the allowlist");
         return;
       }
@@ -228,6 +248,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         ...(command.effort !== undefined ? { effort: command.effort } : {}),
       });
 
+      const log = options.runLogs?.open(logStart);
       const controller = new AbortController();
       const active: NonNullable<ReturnType<typeof activeRuns.get>> = { controller, kind: command.kind };
       activeRuns.set(command.runId, active);
@@ -294,6 +315,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           // Last one wins: an agent may report progressively, and the
           // final report is the one describing the whole run.
           if (event.kind === "usageReported") lastUsage = event.usage;
+          log?.event(event);
           yield event;
         }
       } catch (err) {
@@ -310,6 +332,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           lastReason = activeRuns.get(command.runId)?.reason;
         }
         activeRuns.delete(command.runId);
+        void log?.end({
+          outcome: lastOutcome,
+          ...(lastReason !== undefined ? { reason: lastReason } : {}),
+          ...(lastSummary !== undefined ? { summary: lastSummary } : {}),
+        });
         auditLog.record({
           runId: command.runId,
           agent: adapter.name,

@@ -85,6 +85,7 @@ export { CHAIN_ENDING_AGENT_NAME, changeNameOf, isRunEntry, runTimestampsByChang
 // Pure shapes of how each change's last run ended; the reader opens the
 // audit logs and stays out.
 export * from "./last-runs-facts.js";
+export * from "./run-log-facts.js";
 // The shape of a run this host holds, which a card reads to offer its
 // controls (a-change-is-run-from-its-card). The registry is the hosts'.
 export type { LiveRun } from "./live-runs.js";

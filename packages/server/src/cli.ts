@@ -1,7 +1,7 @@
 // Entry point for actually running the server (dev/smoke test) — not part
 // of the package's public API. `npm run start -- <workspaceRoot> <port>`.
 
-import { FileAuditLog, auditLogPath, buildDefaultAgentRunners } from "@openspec-ui/core";
+import { FileAuditLog, auditLogPath, buildDefaultAgentRunners, createFileRunLogs } from "@openspec-ui/core";
 import { DEFAULT_HOST, DEFAULT_PORT, createServer } from "./server.js";
 
 const workspaceRoot = process.argv[2] ?? process.cwd();
@@ -20,7 +20,7 @@ const server = createServer({
   port,
   allowExternalCwd,
   auditLog,
-  runners: buildDefaultAgentRunners({ workspaceRoot, allowExternalCwd, auditLog }),
+  runners: buildDefaultAgentRunners({ workspaceRoot, allowExternalCwd, auditLog, runLogs: createFileRunLogs(workspaceRoot) }),
 });
 const address = await server.listen();
 console.log(

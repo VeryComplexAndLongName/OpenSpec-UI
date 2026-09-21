@@ -229,6 +229,24 @@ describe("PipelinePanel — answering the view", () => {
     }));
   });
 
+  // a-change-shows-its-run-logs: a card's Logs, answered from this host's
+  // own root, for the change and the run a request names and nothing else.
+  it("answers a change's run logs, and refuses a request that names no change or no run", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "g:0", op: "pipeline/run-logs", args: { changeName: "alpha" } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "g:1", op: "pipeline/run-logs" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "g:2", op: "pipeline/run-log", args: { runId: "../audit" } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "g:3", op: "pipeline/run-log", args: { runId: "never-ran" } });
+
+    const post = created[0]!.webview.postMessage;
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:0", ok: true, value: [] }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:1", ok: false, error: "a change name is required" }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:2", ok: false, error: "a run id is required" }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:3", ok: false, error: "no log is kept for run never-ran" }));
+  });
+
   it("answers where each change stands, against its own workspace root", async () => {
     const { pipeline, readers } = createPipelinePanel();
     pipeline.show();

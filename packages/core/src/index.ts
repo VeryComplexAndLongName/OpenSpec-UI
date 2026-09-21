@@ -38,6 +38,7 @@ export * from "./version-info.js";
 export * from "./template-catalog.js";
 export * from "./repo-bootstrap.js";
 export * from "./harness-config.js";
+export * from "./run-log.js";
 export * from "./harness-config-schema.js";
 export * from "./harness-chain-runner.js";
 export * from "./process-scheduler.js";

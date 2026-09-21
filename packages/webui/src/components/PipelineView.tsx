@@ -151,6 +151,9 @@ export interface PipelineViewProps {
   onRunControl?: (control: RunControl) => void;
   /** Starts a change: the host opens its run dialog. Absent, no Start. */
   onStart?: (changeName: string) => void;
+  /** Shows a change's run logs (a-change-shows-its-run-logs). Absent, no
+   * Logs button. */
+  onViewLogs?: (changeName: string) => void;
   /** Copies text — a run's folder, a hint's command — for a host that
    * allows it. */
   copyText?: (text: string) => Promise<void>;
@@ -352,6 +355,7 @@ export function PipelineView({
   liveRuns,
   onRunControl,
   onStart,
+  onViewLogs,
   copyText,
   viewState,
   onAskToStop,
@@ -481,6 +485,7 @@ export function PipelineView({
     heldRuns,
     ...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {}),
     ...(onStart !== undefined ? { onStart } : {}),
+    ...(onViewLogs !== undefined ? { onViewLogs } : {}),
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
     canAskToStop: onAskToStop !== undefined,
@@ -1080,6 +1085,7 @@ interface CardControlHandlers {
   heldRuns: Map<string, LiveRun>;
   onRunControl?: (control: RunControl) => void;
   onStart?: (changeName: string) => void;
+  onViewLogs?: (changeName: string) => void;
   copyText?: (text: string) => Promise<void>;
   onAskStop: (target: StopTarget) => void;
   /** The host can ask a run held elsewhere to stop. */
@@ -1093,6 +1099,20 @@ interface CardControlHandlers {
  * change forward is drawn as the primary one, a stop as a stopping one
  * (the-pipeline-cards-wear-metro). */
 function cardControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode[] {
+  const buttons = runControls(card, handlers);
+  // Last, and on every card: what a change's runs said is worth reading
+  // whatever the change is doing now (a-change-shows-its-run-logs).
+  if (handlers.onViewLogs !== undefined) {
+    const view = handlers.onViewLogs;
+    const name = card.changeName;
+    buttons.push(
+      <button key="logs" type="button" className="openspec-pipeline-button" data-testid={`pipeline-logs-${name}`} aria-label={`Logs of ${name}`} onClick={() => view(name)}><Icon meaning="log" />Logs</button>,
+    );
+  }
+  return buttons;
+}
+
+function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode[] {
   const name = card.changeName;
   const buttons: ReactNode[] = [];
   const run = card.run;
