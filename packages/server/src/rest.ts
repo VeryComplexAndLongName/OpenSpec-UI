@@ -94,6 +94,9 @@ import {
   createGitWrapper,
   myRosterLabel,
   resolveAgentStatusDirectory,
+  isRunLogId,
+  listRunLogs,
+  readRunLog,
 } from "@openspec-ui/core";
 import { isCommandLike } from "./wire.js";
 
@@ -1292,6 +1295,60 @@ export async function handleChangeLastRunsRequest(
 
   try {
     sendJson(res, 200, await readLastRuns({ workspaceRoot: parsed.cwd }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** The runs whose logs a workspace kept, newest first; one change's where
+ * the body names it (a-change-shows-its-run-logs). */
+export async function handleRunLogsListRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  const changeName = (parsed as { changeName?: unknown }).changeName;
+  if (changeName !== undefined && (typeof changeName !== "string" || changeName.length === 0)) {
+    sendJson(res, 400, { error: "changeName, when given, must be a non-empty string" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+  try {
+    sendJson(res, 200, await listRunLogs(parsed.cwd, changeName === undefined ? {} : { changeName }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** One run's log, record by record. */
+export async function handleRunLogReadRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  const runId = (parsed as { runId?: unknown } | null)?.runId;
+  if (!isWorkspaceRequest(parsed) || typeof runId !== "string" || !isRunLogId(runId)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd and a run id" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+  try {
+    const records = await readRunLog(parsed.cwd, runId);
+    if (records === undefined) {
+      sendJson(res, 404, { error: `no log is kept for run ${runId}` });
+      return;
+    }
+    sendJson(res, 200, records);
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }

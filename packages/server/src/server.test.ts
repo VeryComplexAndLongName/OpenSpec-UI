@@ -41,6 +41,7 @@ import {
   FileAuditLog,
   auditLogPath,
   createAgentRunner,
+  createFileRunLogs,
   getCoreVersion,
   OpenSpecCliCompatibilityError,
   WorkbenchRunJournal,
@@ -1572,6 +1573,35 @@ describe("server — REST /api/status", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  describe("run logs (a-change-shows-its-run-logs)", () => {
+    it("lists one change's runs and returns one run's log", async () => {
+      const cwd = await createTempWorkspace();
+      const logs = createFileRunLogs(cwd);
+      const log = logs.open({ runId: "run-a", agent: "claude-cli", kind: "implement", cwd, changeName: "demo" });
+      log.event({ kind: "stdout", runId: "run-a", timestamp: "2026-09-21T10:00:00.000Z", chunk: "hello" });
+      await log.end({ outcome: "completed" });
+      await logs.open({ runId: "run-b", agent: "claude-cli", kind: "plan", cwd, changeName: "other" }).end({ outcome: "completed" });
+
+      const listed = await fetch(`${baseUrl}/api/run-logs/list`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, changeName: "demo" }) });
+      const read = await fetch(`${baseUrl}/api/run-logs/read`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, runId: "run-a" }) });
+
+      expect(listed.status).toBe(200);
+      expect(((await listed.json()) as Array<{ runId: string }>).map((run) => run.runId)).toEqual(["run-a"]);
+      expect(read.status).toBe(200);
+      expect(await read.json()).toEqual(expect.arrayContaining([expect.objectContaining({ type: "line", stream: "stdout", text: "hello" })]));
+    });
+
+    it("refuses a run id that names anything but a log, and says when there is none", async () => {
+      const cwd = await createTempWorkspace();
+
+      const escaping = await fetch(`${baseUrl}/api/run-logs/read`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, runId: "../audit" }) });
+      const missing = await fetch(`${baseUrl}/api/run-logs/read`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd, runId: "never-ran" }) });
+
+      expect(escaping.status).toBe(400);
+      expect(missing.status).toBe(404);
+    });
   });
 
   describe("change last runs (a-card-says-what-its-change-is-doing)", () => {

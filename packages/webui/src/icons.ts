@@ -25,6 +25,7 @@ export const ICONS = {
   settings: "cog",
   agent: "robot",
   timeline: "timeline",
+  log: "file-text",
   warning: "warning",
   ok: "checkmark",
 } as const;

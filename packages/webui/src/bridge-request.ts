@@ -57,7 +57,10 @@ export type BridgeOperation =
     | "pipeline/catch-up"
     // The runs this host holds, whose cards get controls
     // (a-change-is-run-from-its-card).
-    | "pipeline/live-runs";
+    | "pipeline/live-runs"
+    // A change's run logs, and one run's (a-change-shows-its-run-logs).
+    | "pipeline/run-logs"
+    | "pipeline/run-log";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

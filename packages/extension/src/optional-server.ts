@@ -28,7 +28,7 @@ export class OptionalServerManager {
 
   async start(): Promise<string> {
     if (this.server && this.address) return this.launchUrl as string;
-    const [{ createServer }, { FileAuditLog, auditLogPath, buildDefaultAgentRunners }] = await Promise.all([
+    const [{ createServer }, { FileAuditLog, auditLogPath, buildDefaultAgentRunners, createFileRunLogs }] = await Promise.all([
       import("@openspec-ui/server"),
       import("@openspec-ui/core"),
     ]);
@@ -41,7 +41,7 @@ export class OptionalServerManager {
       host: "127.0.0.1",
       port: 0,
       auditLog,
-      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog }),
+      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog, runLogs: createFileRunLogs(this.workspaceRoot) }),
       staticAssets: {
         indexHtmlPath: path.join(this.distDir, "standalone", "index.html"),
         appJsPath: path.join(this.distDir, "standalone", "app.js"),

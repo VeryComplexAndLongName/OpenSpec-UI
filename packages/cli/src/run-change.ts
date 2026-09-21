@@ -16,6 +16,7 @@ import {
   WorkspaceLeaseManager,
   auditLogPath,
   buildDefaultAgentRunners,
+  createFileRunLogs,
   chainAnswerWriter,
   chainMessageHandlers,
   chainStopRequestHandlers,
@@ -76,7 +77,7 @@ export async function runChange(options: RunChangeOptions, deps: RunChangeDeps):
   const auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
   const runners = deps.createRunners
     ? deps.createRunners(workspaceRoot, auditLog)
-    : buildDefaultAgentRunners({ workspaceRoot, auditLog });
+    : buildDefaultAgentRunners({ workspaceRoot, auditLog, runLogs: createFileRunLogs(workspaceRoot) });
   const resolve = (agentId: string | undefined): AgentRunner | undefined => resolveRunner(runners, agentId);
 
   const start = await resolveChainStart({

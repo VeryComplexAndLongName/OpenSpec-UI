@@ -86,6 +86,8 @@ import { ChangeHarnessSettingsView } from "./components/ChangeHarnessSettingsVie
 import type { HarnessSettingsApi } from "./components/harness-settings-parts.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
+import { RunLogsView } from "./components/RunLogsView.js";
+import { listChangeRunLogs, readChangeRunLog } from "./run-logs-client.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
 import {
@@ -504,6 +506,11 @@ function StandaloneApp() {
     });
   }, [cwd, transport]);
   const pipelineCopyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
+  // A change's run logs, opened from its card beneath the picture
+  // (a-change-shows-its-run-logs).
+  const [logsFor, setLogsFor] = useState<string | null>(null);
+  const logsLoad = useCallback(() => listChangeRunLogs(apiFetch, cwd, logsFor ?? ""), [cwd, logsFor]);
+  const logsRead = useCallback((runId: string) => readChangeRunLog(apiFetch, cwd, runId), [cwd]);
   // `handleRunWithHarness` is a hoisted declaration further down and reads
   // `cwd` itself, as `loadChangeEditor` does for `openChangeInEditor` below.
   const pipelineStart = useCallback((changeName: string) => {
@@ -2600,12 +2607,16 @@ function StandaloneApp() {
                 onOpenChange={openChangeInEditor}
                 onRunControl={pipelineRunControl}
                 onStart={pipelineStart}
+                onViewLogs={setLogsFor}
                 copyText={pipelineCopyText}
                 viewState={pipelineViewState}
                 onAskToStop={pipelineAskToStop}
                 onArchive={pipelineArchive}
                 onReadingChange={setPipelineReading}
               />
+              {logsFor !== null
+                ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
+                : null}
               {runOpenedFrom === "pipeline" && runHarnessMessage
                 ? <p className="openspec-shell-note" data-testid="pipeline-run-message">{runHarnessMessage}</p>
                 : null}

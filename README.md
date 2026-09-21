@@ -223,6 +223,9 @@ testing expertise".
     and why the others cannot.
   - The Pipeline shows every working directory, and what each run says it
     is doing.
+  - Every run keeps a log of what it said, in `.openspec-ui/runs/`, and a
+    change's card opens them: its runs, newest first, and each one's output,
+    replies, tool calls and how it ended.
   - A working directory whose work has landed is removed, and a change's
     branch that has fallen behind is rebased and pushed with a lease, so
     its checks run again against the current default branch. A conflict is

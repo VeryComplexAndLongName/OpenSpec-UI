@@ -834,6 +834,28 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(screen.getByTestId("pipeline-node-alpha")).toHaveTextContent("answered where it was started");
   });
 
+  it("offers Logs on every card whose host can show them, running or not (a-change-shows-its-run-logs)", async () => {
+    const onViewLogs = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({ changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }], runs: [] }))}
+        onViewLogs={onViewLogs}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Logs of alpha" }));
+    expect(onViewLogs).toHaveBeenCalledWith("alpha");
+  });
+
+  it("offers no Logs where the host cannot show them", async () => {
+    renderCard({ record: null });
+
+    await screen.findByRole("button", { name: "Start alpha" });
+    expect(screen.queryByTestId("pipeline-logs-alpha")).toBeNull();
+  });
+
   it("offers Start on a change that is ready, for its host to open the run dialog", async () => {
     const { onStart } = renderCard({ record: null });
 

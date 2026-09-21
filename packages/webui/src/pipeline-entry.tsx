@@ -7,10 +7,11 @@
 // date: it watches the files, so the view does not poll git on a timer.
 
 import { createRoot } from "react-dom/client";
-import { useCallback, useEffect, useMemo } from "react";
-import type { CatchUpResult, ChangeReadinessReport, ChangeStandings, LastRunsReport, LiveRun, MainDrift, WorktreeSurvey } from "@openspec-ui/core/browser";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CatchUpResult, ChangeReadinessReport, ChangeStandings, LastRunsReport, LiveRun, MainDrift, RunLogRecord, RunLogSummary, WorktreeSurvey } from "@openspec-ui/core/browser";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
+import { RunLogsView } from "./components/RunLogsView.js";
 import { PipelineView, type AskToStop, type PipelineReading, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
@@ -65,7 +66,8 @@ function PipelineApp() {
   // (a-card-says-what-its-change-is-doing).
   const lastRuns = useCallback(() => bridge.request<LastRunsReport>("pipeline/last-runs"), [bridge]);
   // So a card says the word the Changes tree says (ADR 0029's amendment).
-  const standings = useCallback(() => bridge.request<ChangeStandings>("pipeline/standings"), [bridge]);
+  const standings = useCallback(() => bridge.request<ChangeStandings>("pipeline/standings"), [bridge]);
+
   // How far this checkout is behind what has landed, and the one press
   // that closes it (main-catches-up-with-what-landed).
   const drift = useCallback(
@@ -96,6 +98,11 @@ function PipelineApp() {
     [vscodeApi],
   );
   const copyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
+  // A change's run logs, beneath the picture, as the standalone shows them
+  // (a-change-shows-its-run-logs).
+  const [logsFor, setLogsFor] = useState<string | null>(null);
+  const logsLoad = useCallback(() => bridge.request<RunLogSummary[]>("pipeline/run-logs", { changeName: logsFor ?? "" }), [bridge, logsFor]);
+  const logsRead = useCallback((runId: string) => bridge.request<RunLogRecord[]>("pipeline/run-log", { runId }), [bridge]);
   // The zoom and the open cards, in the webview's own state: the panel does
   // not keep its page while hidden, so a view that kept them alone would
   // reset every time (a-card-opens-to-its-tasks). The view guards both.
@@ -127,7 +134,8 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} />
+        {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
       </section>
     </div>
   );

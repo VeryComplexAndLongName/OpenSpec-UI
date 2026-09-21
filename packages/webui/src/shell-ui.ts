@@ -3814,6 +3814,41 @@ export const shellThemeCss = `
   .openspec-pipeline-stop-form label { display: grid; gap: 4px; color: var(--heading); }
   .openspec-pipeline-stop-form-actions { display: flex; gap: 8px; margin-top: 8px; }
 
+  /* A change's run logs, opened from its card (a-change-shows-its-run-logs):
+     the runs, then the one chosen, as the run said it. */
+  .openspec-run-logs {
+    margin: 12px 0;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .openspec-run-logs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .openspec-run-logs-head h3 { margin: 0; color: var(--heading); }
+  .openspec-run-logs-list { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  .openspec-run-logs-list th, .openspec-run-logs-list td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  .openspec-run-logs-list tr[aria-selected="true"] td { background: var(--bg-accent); }
+  .openspec-run-logs-list button { font: inherit; }
+  .openspec-run-log {
+    margin: 8px 0 0;
+    max-height: 60vh;
+    overflow: auto;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .openspec-run-log-part { margin: 8px 0 4px; font-weight: 600; color: var(--heading); font-family: inherit; }
+  .openspec-run-log-line { margin: 0; }
+  .openspec-run-log-line--stderr, .openspec-run-log-end--failed, .openspec-run-log-end--blocked { color: var(--bad); }
+  .openspec-run-log-line--reasoning, .openspec-run-log-line--note { color: var(--muted); font-style: italic; }
+  .openspec-run-log-line--tool, .openspec-run-log-line--stage, .openspec-run-log-line--progress, .openspec-run-log-line--stop, .openspec-run-log-line--permission { color: var(--muted); }
+  .openspec-run-log-end { margin: 4px 0 8px; font-weight: 600; }
+
   /* The run a card's Start opened: its dialog, then its chain, beneath the
      picture where Start was pressed. */
   .openspec-pipeline-run-layer {
