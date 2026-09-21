@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.73.0
+
+### Minor Changes
+
+- 628069d: A change that has landed is archived for you
+  
+  Once a change's pull request has merged and every item in its task list
+  is closed, the workspace sweep archives it. It makes one pull request per
+  pass for every such change, on an `archive-landed-` branch, and asks it to
+  merge when its checks pass. The Pipeline and Changes then show only what
+  is still in flight. A change that landed while still owing something is
+  never archived; the editor warns about it, and the standalone lists it
+  under "Done for you".
+  
+  On by default; `"archive": { "whenLanded": false }` in
+  `openspec/agent-harness.json`, or in one change's `harness.json`, turns it
+  off. It needs the openspec CLI and a signed-in `gh`. See ADR 0035 and
+  `HARNESS.md`.
+
+### Patch Changes
+
+- Updated dependencies [628069d]
+  - @openspec-ui/core@0.111.0
+  - @openspec-ui/server@1.35.4
+  - @openspec-ui/webui@1.69.4
+
 ## 0.72.3
 
 ### Patch Changes

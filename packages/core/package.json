@@ -1,7 +1,7 @@
 {
   "name": "@openspec-ui/core",
   "private": true,
-  "version": "0.110.3",
+  "version": "0.111.0",
   "type": "module",
   "main": "src/index.ts",
   "exports": {
