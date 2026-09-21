@@ -1,7 +1,7 @@
 {
   "name": "@openspec-ui/webui",
   "private": true,
-  "version": "1.69.5",
+  "version": "1.70.0",
   "type": "module",
   "main": "src/index.ts",
   "dependencies": {
