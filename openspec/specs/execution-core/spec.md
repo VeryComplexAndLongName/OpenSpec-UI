@@ -2236,3 +2236,146 @@ archive date and each authorship separately.
 - **THEN** its proposal is dated from the commit that first added it,
   under its first name
 
+### Requirement: Every run keeps a log
+
+When a host hands its runners the workspace's run logs, `packages/core`
+SHALL write each run's log to `.openspec-ui/runs/<runId>.jsonl`. The log
+SHALL hold, for every stage the run id is given:
+
+- a start record naming the agent, the kind, the working directory, the
+  change, the stage and the task where there is one;
+- a line for each event that says something, read the way the hosts read
+  it;
+- an end record with the outcome, reason and summary.
+
+A run the sandbox or the allowlist refused SHALL get a log whose end says
+it was refused and why.
+
+A log SHALL stop at a size cap and say where it stopped, and its end SHALL
+still be written. The directory SHALL keep only the newest logs. Writing a
+log SHALL NOT delay or fail a run.
+
+Core SHALL list a workspace's logged runs, newest first, and one change's
+when asked, without reading each log whole. It SHALL read one run's log by
+its id, and SHALL refuse an id that could name a file outside the
+directory.
+
+#### Scenario: A run completes
+
+- **WHEN** a run writes to stdout and completes
+- **THEN** its log holds its start, what it wrote, and an end that says it
+  completed
+
+#### Scenario: A chain runs two stages
+
+- **WHEN** a chain's `propose` and `apply` stages run under one run id
+- **THEN** one log holds both, each with its own start and end
+- **AND** the list names both stages for that run
+
+#### Scenario: The allowlist refuses a run
+
+- **WHEN** the allowlist refuses a run's invocation
+- **THEN** the run's log ends as refused, with the reason
+
+#### Scenario: A run says too much
+
+- **WHEN** a run's output passes the cap
+- **THEN** the log says it stopped there, and still ends with the outcome
+
+#### Scenario: A request names a path
+
+- **WHEN** a log is asked for under the id `../audit`
+- **THEN** nothing is read
+
+### Requirement: A change that has landed is archived for you
+
+The workspace sweep in `packages/core` SHALL archive every change that has
+landed and owes nothing, unless `archive.whenLanded` is `false` for it. A
+change has landed and owes nothing when all of these hold on the default
+branch, as the server has it after a fetch:
+
+- its directory is in `openspec/changes/`;
+- its `tasks.md` has at least one item, and every item is closed and
+  recorded;
+- no pull request from a branch named after it is open.
+
+Every such change SHALL be archived in one pull request per pass. The pull
+request is made on a new `archive-landed-` branch, in a directory outside
+the workspace. It is pushed, opened through the forge and asked to merge
+when its checks pass. The directory and the local branch SHALL be removed
+afterwards, whatever happened. While a pull request from an
+`archive-landed-` branch is open, the sweep SHALL open no other.
+
+A change whose own pull request merged while its task list still owes
+something SHALL NOT be archived, and the sweep SHALL say what it owes.
+
+The forge SHALL be reached through one interface, implemented for GitHub
+through `gh`.
+
+#### Scenario: Two changes landed with nothing open
+
+- **WHEN** two changes' directories are on the default branch with every
+  item closed, and neither has an open pull request
+- **THEN** one branch reaches the server with both moved into the archive
+- **AND** one pull request is opened and asked to merge when its checks
+  pass
+- **AND** nothing of the pass is left on the machine
+
+#### Scenario: A change is still in review
+
+- **WHEN** a change's task list is closed but its own pull request is open
+- **THEN** it is not archived
+
+#### Scenario: An archive pull request is already open
+
+- **WHEN** a pull request from an `archive-landed-` branch is open
+- **THEN** no other is opened, and the sweep says what waits for it
+
+#### Scenario: A change landed owing something
+
+- **WHEN** a change's own pull request merged while an item is open
+- **THEN** it is not archived, and the sweep names the item
+
+#### Scenario: Nothing is finished
+
+- **WHEN** no change on the default branch has a task list to read
+- **THEN** the forge is not asked anything
+
+#### Scenario: One archive fails
+
+- **WHEN** `openspec archive` refuses one of the finished changes
+- **THEN** the others are archived, and the one is named with the reason
+
+### Requirement: The sweep finishes a removal git gave up on
+
+When the workspace sweep removes a working directory whose work has landed,
+it SHALL remove whatever is left of the directory after
+`git worktree remove`, whether that command succeeded or failed. Where git
+failed, the sweep SHALL then have git forget worktrees whose directories
+are gone. A removal SHALL be reported as failed only where the directory
+could not be removed either way, and then with git's reason.
+
+#### Scenario: git gives up on a long path
+
+- **WHEN** `git worktree remove` fails on a finished working directory
+- **THEN** the directory is removed anyway, git no longer lists it as a
+  worktree, and what a link inside it pointed at is untouched
+
+#### Scenario: The directory cannot be removed at all
+
+- **WHEN** both git and the shell removal fail
+- **THEN** the sweep reports the directory as not removed, with git's
+  reason
+
+### Requirement: The archive pass pushes only an archive
+
+The pass that archives landed changes SHALL push its branch only where its
+commit committed something. Where archiving changed nothing, the pass
+SHALL fail with that reason, push nothing and open nothing.
+
+#### Scenario: Archiving changes nothing
+
+- **WHEN** the archive step for every due change leaves the tree as it was
+- **THEN** no `archive-landed-` branch reaches the server and no pull
+  request is opened
+

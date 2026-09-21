@@ -1396,3 +1396,84 @@ many changes it reads, while it builds the report.
 - **THEN** a notification says the command is reading them until the save
   dialog opens
 
+### Requirement: The Pipeline panel opens a change's run logs
+
+The extension SHALL hand its runners the workspace's run logs, so every
+run it starts keeps one. Its Pipeline panel SHALL offer Logs on every
+change's card and show the same view the standalone shows. It reads
+through the bridge operations `pipeline/run-logs` and `pipeline/run-log`,
+which answer from the panel's own workspace root. A request that names no
+change, or no valid run id, SHALL be refused by name.
+
+#### Scenario: A person opens a change's logs in the editor
+
+- **WHEN** a person presses Logs on a card in the Pipeline panel
+- **THEN** the panel lists the change's runs and shows the newest run's log
+
+#### Scenario: A request names a path
+
+- **WHEN** the panel is asked for the log of run `../audit`
+- **THEN** it answers that a run id is required, and reads nothing
+
+### Requirement: The editor says what the archive pass did
+
+The editor SHALL write every line the workspace sweep says about the
+archive to its output channel. It SHALL raise a notification when the
+sweep opened an archive pull request, saying whether it merges when its
+checks pass. It SHALL raise a warning, once in a session per change, for a
+change that landed still owing something.
+
+#### Scenario: The sweep opened an archive pull request
+
+- **WHEN** the sweep archives two changes in pull request #700
+- **THEN** a notification names #700 and the two changes
+
+#### Scenario: A change landed owing something
+
+- **WHEN** the sweep finds a change that landed with an item open, twice
+  in one session
+- **THEN** a warning names the change once
+
+### Requirement: The harness schemas answer as the product does
+
+The JSON Schemas the extension contributes for `openspec/agent-harness.json`
+and `openspec/changes/<id>/harness.json` SHALL be built by `packages/core`
+from the lists its harness validator enforces, and the files the extension
+ships SHALL be that output. The build SHALL fail when a top-level key the
+validator accepts has no entry in the schema.
+
+A schema SHALL NOT refuse a file the validator accepts, except to mark a
+key inside an object that the product reads and ignores. Where it accepts
+a file the validator refuses, the case SHALL be written down with the
+reason, and a test SHALL assert it as a difference.
+
+#### Scenario: A key is added to the configuration
+
+- **WHEN** a top-level key is added to the validator's accepted keys and
+  not to the schema builder
+- **THEN** building the schema fails and names the key
+
+#### Scenario: A file the product reads
+
+- **WHEN** a harness file sets `budget`, `timeout`, `branches`, `archive`,
+  or a stage's agent as an object with a model and an effort the agent
+  accepts
+- **THEN** the editor marks nothing in it
+
+#### Scenario: An effort the agent does not accept
+
+- **WHEN** a stage names an agent with an effort that agent does not accept
+- **THEN** the editor marks it, as the product refuses it
+
+#### Scenario: A rule of the global file
+
+- **WHEN** `openspec/agent-harness.json` sets `autonomyLevel: "autonomous"`
+  or `taskAgents`
+- **THEN** the editor marks it and says that only a change's own file may
+  set it
+
+#### Scenario: The shipped files are out of date
+
+- **WHEN** the checked-in schema files differ from what core builds
+- **THEN** the extension's tests fail
+
