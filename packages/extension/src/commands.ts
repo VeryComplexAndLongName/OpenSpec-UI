@@ -2476,7 +2476,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       const range = await promptSprintRange();
       if (!range) return;
       try {
-        const report = await buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd);
+        // Said while it reads: a report over the whole archive takes a
+        // minute, and a command that says nothing for a minute reads as
+        // one that did nothing (the-sprint-report-reads-like-the-timeline).
+        const report = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `OpenSpec UI: reading ${entries.length === 1 ? "one change" : `${entries.length} changes`} for the sprint report`,
+            cancellable: false,
+          },
+          () => buildSprintReport(workspaceRoot, entries, range.rangeStart, range.rangeEnd),
+        );
         // A page in the product's own look, opened in a browser, where
         // Ctrl+P is the PDF. A webview would be the closer fit visually,
         // but a webview cannot print and the editor has no print command

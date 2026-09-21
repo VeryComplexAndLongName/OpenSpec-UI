@@ -12,6 +12,8 @@ import {
   getFileCreatedDate,
   getPathAddedDate,
   readArchiveCommitDates,
+  readChangeAuthorships,
+  readProposalCreatedDates,
 } from "./change-timeline.js";
 import { gitIsolationOptions } from "./test-support/git-isolation.js";
 
@@ -329,6 +331,124 @@ describe("getChangeAuthorship", () => {
     const authorship = await getChangeAuthorship(root, uncommittedDir);
 
     expect(authorship).toEqual({ primaryAuthor: null, contributors: [] });
+  });
+});
+
+describe("readProposalCreatedDates", () => {
+  // the-sprint-report-reads-like-the-timeline. What `getFileCreatedDate`
+  // answers per proposal, for every change from one git call: `--follow`
+  // per change was about 0.4 s each and most of a timeline's read.
+
+  it("returns undefined when git cannot be asked, so each change is asked on its own", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "my-change"), { recursive: true });
+
+    expect(await readProposalCreatedDates(root)).toBeUndefined();
+  });
+
+  it("dates an archived change from its proposal, through the move, as --follow does", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "demo", "- [ ] first\n");
+    await commitAll(root, "propose demo", "2026-03-01T10:00:00Z");
+    await writeChangeFiles(root, "still-open", "- [ ] first\n");
+    await commitAll(root, "propose still-open", "2026-03-02T10:00:00Z");
+    const archived = path.join(root, "openspec", "changes", "archive", "2026-03-04-demo");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(path.join(root, "openspec", "changes", "demo"), archived);
+    await commitAll(root, "archive demo", "2026-03-04T15:00:00Z");
+
+    const read = await readProposalCreatedDates(root);
+
+    expect(read?.archived.get("2026-03-04-demo")).toBe("2026-03-01T10:00:00Z");
+    expect(read?.archived.get("2026-03-04-demo")).toBe(await getFileCreatedDate(root, path.join(archived, "proposal.md")));
+    expect(read?.active.get("still-open")).toBe("2026-03-02T10:00:00Z");
+  });
+
+  it("follows a change renamed before it was archived", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    await writeChangeFiles(root, "first-name", "- [ ] first\n");
+    await commitAll(root, "propose", "2026-03-01T10:00:00Z");
+    await rename(path.join(root, "openspec", "changes", "first-name"), path.join(root, "openspec", "changes", "second-name"));
+    await commitAll(root, "rename", "2026-03-02T10:00:00Z");
+    const archived = path.join(root, "openspec", "changes", "archive", "2026-03-03-second-name");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(path.join(root, "openspec", "changes", "second-name"), archived);
+    await commitAll(root, "archive", "2026-03-03T10:00:00Z");
+
+    const read = await readProposalCreatedDates(root);
+
+    expect(read?.archived.get("2026-03-03-second-name")).toBe("2026-03-01T10:00:00Z");
+    expect(read?.archived.get("2026-03-03-second-name")).toBe(await getFileCreatedDate(root, path.join(archived, "proposal.md")));
+  });
+
+  it("reads a workspace nested under a subdirectory of the repository", async () => {
+    const repoRoot = await temporaryRoot();
+    await initRepo(repoRoot);
+    const workspaceRoot = path.join(repoRoot, "Core");
+    await writeChangeFiles(workspaceRoot, "nested", "- [ ] first\n");
+    await commitAll(repoRoot, "propose nested", "2026-03-01T10:00:00Z");
+
+    const read = await readProposalCreatedDates(workspaceRoot);
+
+    expect(read?.active.get("nested")).toBe("2026-03-01T10:00:00Z");
+  });
+});
+
+describe("readChangeAuthorships", () => {
+  // the-sprint-report-reads-like-the-timeline. One git call for every
+  // change, where the sprint report asked once per change: 8.6 s across
+  // 100 archived changes on this repository.
+
+  it("returns undefined when git cannot be asked, so a caller asks per change", async () => {
+    const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "my-change"), { recursive: true });
+
+    expect(await readChangeAuthorships(root)).toBeUndefined();
+  });
+
+  it("answers every change, active and archived, as the per-change call does", async () => {
+    const root = await temporaryRoot();
+    await initRepo(root);
+    const alpha = await writeChangeFiles(root, "alpha", "- [ ] first\n");
+    await commitAllAs(root, "propose alpha", "2026-01-01T00:00:00Z", "Alice", "alice@example.com");
+    // Two files of one change in one commit: one commit, counted once.
+    await writeFile(path.join(alpha, "tasks.md"), "- [x] first\n");
+    await writeFile(path.join(alpha, "design.md"), "## Context\n\nMore.\n");
+    await commitAllAs(root, "work on alpha", "2026-01-02T00:00:00Z", "Bob", "bob@example.com");
+    await writeChangeFiles(root, "beta", "- [ ] first\n");
+    await commitAllAs(root, "propose beta", "2026-01-03T00:00:00Z", "Carol", "carol@example.com");
+    const archived = path.join(root, "openspec", "changes", "archive", "2026-01-04-beta");
+    await mkdir(path.dirname(archived), { recursive: true });
+    await rename(path.join(root, "openspec", "changes", "beta"), archived);
+    await commitAllAs(root, "archive beta", "2026-01-04T00:00:00Z", "Dave", "dave@example.com");
+    // A file directly under `changes/` belongs to no change.
+    await writeFile(path.join(root, "openspec", "changes", "README.md"), "Changes.\n");
+    await commitAllAs(root, "describe changes", "2026-01-05T00:00:00Z", "Erin", "erin@example.com");
+
+    const read = await readChangeAuthorships(root);
+
+    expect(read?.active.get("alpha")).toEqual(await getChangeAuthorship(root, alpha));
+    expect(read?.active.get("alpha")?.contributors.map((c) => c.email)).toEqual(["alice@example.com", "bob@example.com"]);
+    expect(read?.archived.get("2026-01-04-beta")).toEqual(await getChangeAuthorship(root, archived));
+    expect(read?.archived.get("2026-01-04-beta")?.primaryAuthor?.email).toBe("dave@example.com");
+    // The archiving moved beta out of `changes/beta`; what was committed
+    // there is that path's history, as the per-change call would say.
+    expect(read?.active.get("beta")?.primaryAuthor?.email).toBe("dave@example.com");
+    expect([...read!.active.keys()].sort()).toEqual(["alpha", "beta"]);
+  });
+
+  it("reads a workspace nested under a subdirectory of the repository", async () => {
+    const repoRoot = await temporaryRoot();
+    await initRepo(repoRoot);
+    const workspaceRoot = path.join(repoRoot, "Core");
+    await writeChangeFiles(workspaceRoot, "nested", "- [ ] first\n");
+    await commitAllAs(repoRoot, "propose nested", "2026-03-01T10:00:00Z", "Alice", "alice@example.com");
+
+    const read = await readChangeAuthorships(workspaceRoot);
+
+    expect(read?.active.get("nested")?.primaryAuthor?.email).toBe("alice@example.com");
   });
 });
 
