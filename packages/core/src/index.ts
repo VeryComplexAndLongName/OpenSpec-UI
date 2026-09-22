@@ -58,6 +58,7 @@ export * from "./stop-request-handlers.js";
 export * from "./enrolment.js";
 export * from "./machine-key.js";
 export * from "./signed-envelope.js";
+export * from "./people.js";
 export * from "./signature-facts.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";

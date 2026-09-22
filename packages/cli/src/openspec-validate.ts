@@ -9,7 +9,11 @@ import {
   describeTaskDebts,
   listChanges,
   owesNothing,
+  comparePeople,
   readArchivedSince,
+  readPeople,
+  readPeopleAt,
+  type PeopleProblem,
   readTaskChecklist,
   validateChange,
   type GitWrapper,
@@ -44,6 +48,11 @@ export interface ValidateAllResult {
    * not. The gate fails then: a check that could not run is not one that
    * passed. */
   archiveCheckFailed?: string;
+  /** What is wrong with the people of the repository: a file that is not a
+   * person, one key in two files, and - where a base was given - a person
+   * or a key taken out, or a key changed (a-team-works-through-git,
+   * ADR 0037). */
+  peopleProblems?: PeopleProblem[];
 }
 
 /** The two calls that spawn the `openspec` CLI. Seams, because the job
@@ -102,7 +111,7 @@ export async function runValidateAll(
     validateChange?: ValidateChange;
     listChanges?: ListChanges;
     /** The git a base is read through. */
-    git?: Pick<GitWrapper, "listTreeNames">;
+    git?: Pick<GitWrapper, "listTreeNames" | "showFile">;
   } = {},
 ): Promise<ValidateAllResult> {
   const run = options.validateChange ?? validateChange;
@@ -141,13 +150,29 @@ export async function runValidateAll(
     }
   }
 
+  // The people are checked as they are here, and - against the base - for
+  // what a pull request may never do to them: a signature that verified
+  // yesterday has to verify tomorrow.
+  const people = await readPeople(cwd);
+  const peopleProblems: PeopleProblem[] = [...people.problems];
+  if (options.archivedSince !== undefined) {
+    try {
+      const base = await readPeopleAt(options.git ?? createGitWrapper({ cwd }), options.archivedSince);
+      peopleProblems.push(...comparePeople(base.people, people.people));
+    } catch (error) {
+      peopleProblems.push({ file: "openspec/people", problem: `could not be compared with the base: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  }
+
   const ok = results.every((result) => result.valid)
     && (archived === undefined || archived.length === 0)
-    && archiveCheckFailed === undefined;
+    && archiveCheckFailed === undefined
+    && peopleProblems.length === 0;
   return {
     ok,
     results,
     ...(archived !== undefined && archived.length > 0 ? { archived } : {}),
     ...(archiveCheckFailed !== undefined ? { archiveCheckFailed } : {}),
+    ...(peopleProblems.length > 0 ? { peopleProblems } : {}),
   };
 }

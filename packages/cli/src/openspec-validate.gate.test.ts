@@ -1,4 +1,6 @@
+import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { keyIdOf } from "@openspec-ui/core";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -110,5 +112,60 @@ describe("the open-item rule", () => {
     const result = await runValidateAll(root, { ...seams });
 
     expect(forChange(result, "the-change")?.openItems).toBeUndefined();
+  });
+});
+
+// a-team-works-through-git, ADR 0037: the people of a repository are
+// checked as they are, and against the base for what a pull request may
+// never do to them.
+describe("the people", () => {
+  function keyOf(): { keyId: string; publicKey: string } {
+    const { publicKey } = generateKeyPairSync("ed25519");
+    return { keyId: keyIdOf(publicKey), publicKey: publicKey.export({ type: "spki", format: "der" }).toString("base64") };
+  }
+
+  function personText(handle: string, keys: Array<{ keyId: string; publicKey: string }>): string {
+    return JSON.stringify({ handle, name: handle, keys: keys.map((key) => ({ ...key, addedAt: "2026-09-22" })) });
+  }
+
+  async function withPeople(files: Record<string, string>): Promise<string> {
+    const root = await workspace({ "the-change": CLOSED });
+    await mkdir(path.join(root, "openspec", "people"), { recursive: true });
+    for (const [name, text] of Object.entries(files)) await writeFile(path.join(root, "openspec", "people", name), text, "utf8");
+    return root;
+  }
+
+  it("passes people whose files are people", async () => {
+    const root = await withPeople({ "ada.json": personText("ada", [keyOf()]) });
+
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
+
+    expect(result.ok).toBe(true);
+    expect(result.peopleProblems).toBeUndefined();
+  });
+
+  it("fails a file that is not a person, and says which", async () => {
+    const root = await withPeople({ "ada.json": "{" });
+
+    const result = await runValidateAll(root, { change: "the-change", ...seams });
+
+    expect(result.ok).toBe(false);
+    expect(result.peopleProblems).toEqual([{ file: "openspec/people/ada.json", problem: "it is not valid JSON" }]);
+  });
+
+  it("fails a key taken out of a person the base has", async () => {
+    const kept = keyOf();
+    const removed = keyOf();
+    const root = await withPeople({ "ada.json": personText("ada", [kept]) });
+    const base = personText("ada", [kept, removed]);
+    const git = {
+      listTreeNames: async (_ref: string, tree: string) => (tree.startsWith("openspec/people") ? ["ada.json"] : []),
+      showFile: async (_ref: string, file: string) => (file === "openspec/people/ada.json" ? base : undefined),
+    };
+
+    const result = await runValidateAll(root, { change: "the-change", archivedSince: "origin/main", git, ...seams });
+
+    expect(result.ok).toBe(false);
+    expect(result.peopleProblems?.map((one) => one.problem)).toEqual([`key ${removed.keyId} was removed; retire it with retiredAt instead`]);
   });
 });

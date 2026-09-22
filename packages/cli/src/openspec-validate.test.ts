@@ -5,6 +5,9 @@ const validateChangeMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
   listChanges: (...args: unknown[]) => listChangesMock(...args),
   validateChange: (...args: unknown[]) => validateChangeMock(...args),
+  // A repository with nobody in openspec/people: the people check is
+  // openspec-validate.gate.test.ts's.
+  readPeople: async () => ({ people: [], problems: [] }),
 }));
 
 const { runValidateAll } = await import("./openspec-validate.js");

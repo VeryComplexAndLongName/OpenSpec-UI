@@ -1,6 +1,9 @@
 # 0028: Agents Coordinate Beside the Repository, Not Inside It
 
-Status: Accepted
+Status: Accepted. Operational coordination stays beside the repository;
+decisions about the work (who owns a change, who implements it, why it
+went back) and the people who make them are committed, by
+[ADR 0037](0037-a-team-works-through-git.md).
 
 Date: 2026-09-12
 

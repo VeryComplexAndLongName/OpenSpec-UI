@@ -38,6 +38,8 @@ import {
   rosterDirectoryBeside,
   rosterOf,
   confirmEnrolmentFor,
+  HANDLE_PATTERN,
+  joinTheTeam,
   readGitAuthor,
   resolveCheckScripts,
   resolveRunner as resolveAgentRunner,
@@ -602,6 +604,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           void vscode.window.showErrorMessage(`OpenSpec Workbench: not enrolled — ${reason}`);
+        }
+      }),
+      // A person puts themselves in the repository's people, with this
+      // machine's key, so the team can verify what they sign. What the file
+      // holds and whether it may be written is core's (ADR 0037,
+      // a-team-works-through-git). Nothing is committed here.
+      vscode.commands.registerCommand("openspec-ui.joinTheTeam", async () => {
+        const identity = await readGitAuthor(inboxRoot).catch(() => undefined);
+        const email = identity !== undefined && identity.includes("@") ? identity : undefined;
+        const suggested = (email?.split("@")[0] ?? "").toLowerCase().replace(/[^a-z0-9-]+/gu, "-").replace(/^-+|-+$/gu, "");
+        const handle = await vscode.window.showInputBox({
+          title: "Join the Team (1/3)",
+          prompt: "Your handle: lower-case letters, digits and single hyphens. Your file is openspec/people/<handle>.json.",
+          value: suggested,
+          validateInput: (value) => (HANDLE_PATTERN.test(value) ? undefined : "Lower-case letters, digits and single hyphens, up to 39 characters"),
+        });
+        if (handle === undefined) return;
+        const name = await vscode.window.showInputBox({
+          title: "Join the Team (2/3)",
+          prompt: "Your name, as the team reads it",
+          validateInput: (value) => (value.trim().length > 0 ? undefined : "A name is needed"),
+        });
+        if (name === undefined) return;
+        const address = await vscode.window.showInputBox({
+          title: "Join the Team (3/3)",
+          prompt: "A git e-mail address of yours. Optional: leave it empty to publish none.",
+          value: email ?? "",
+        });
+        if (address === undefined) return;
+        try {
+          const joined = await joinTheTeam(inboxRoot, { handle, name, ...(address.trim().length > 0 ? { email: address.trim() } : {}) });
+          const said = joined.outcome === "already"
+            ? `${joined.file} already holds this machine's key.`
+            : `${joined.outcome === "joined" ? "Wrote" : "Added this machine's key to"} ${joined.file}. Commit it in a pull request: once it merges, the team verifies what you sign.`;
+          const open = await vscode.window.showInformationMessage(`OpenSpec Workbench: ${said}`, "Open the File");
+          if (open === "Open the File") {
+            await vscode.window.showTextDocument(vscode.Uri.file(path.join(inboxRoot, joined.file)));
+          }
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          void vscode.window.showErrorMessage(`OpenSpec Workbench: did not join: ${reason}`);
         }
       }),
     );

@@ -123,6 +123,7 @@ export function openEnvelope(text: string, roster: Roster): OpenedEnvelope {
     keyId: enrolled.keyId,
     label: enrolled.label,
     ...(enrolled.gitAuthor !== undefined ? { gitAuthor: enrolled.gitAuthor } : {}),
+    ...(enrolled.handle !== undefined ? { handle: enrolled.handle } : {}),
   };
   return { state: "verified", bytes: new Uint8Array(bytes), person, signer };
 }

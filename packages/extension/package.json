@@ -188,6 +188,10 @@
         "icon": "$(pass)"
       },
       {
+        "command": "openspec-ui.joinTheTeam",
+        "title": "OpenSpec Workbench: Join the Team"
+      },
+      {
         "command": "openspec-ui.openspecView",
         "title": "OpenSpec Workbench: OpenSpec View (CLI)"
       },
