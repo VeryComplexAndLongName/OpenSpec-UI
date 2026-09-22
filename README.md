@@ -543,6 +543,7 @@ HTTP server and no webview. It started as a merge gate with one command,
 | `join --handle <handle> --name <text>` | Puts you in the repository's people, with this machine's key. |
 | `people` | Lists the repository's people, and what is wrong with their files. |
 | `history <change>` | Who owns and implements a change, and every event of its history. |
+| `stages [<change>]` | Where each change is, and how long it spent in each stage. |
 | `owner`, `implementer`, `send-back` | Records an event in a change's history, signed with this machine's key. |
 | `worktree add`, `list`, `move`, `remove` | A working directory per change. |
 | `change-graph` | What each change follows. |
@@ -696,6 +697,31 @@ committed: the files go in the change's pull request.
 
 `history <change>` prints who holds the change and every event, and marks
 any the rules refuse. It exits `1` when one does.
+
+### `stages`: where a change is, and for how long
+
+A change goes through six stages: **Proposed**, **Planned**, **In
+progress**, **In review**, **Landed** and **Archived**. Nobody sets the
+stage; each is proved by a dated fact:
+
+| Stage | Entered at |
+| --- | --- |
+| Proposed | the commit that adds `proposal.md` |
+| Planned | the commit that adds `tasks.md` |
+| In progress | a task item closed (its line's commit) or a run of the change |
+| In review | its pull request opened, or a commit pushed to its branch while the pull request is open |
+| Landed | its pull request merged |
+| Archived | the archive commit |
+
+A fact only moves a change forward. A `send-back` in its history moves it
+back, and after that only facts newer than the send-back move it on, so a
+change can visit a stage many times. `stages` lists every active change
+with its stage, how long it has been there, and its Owner and
+Implementer. `stages <change>` prints every stay in every stage with the
+fact that began it, and the time in each stage over all its visits. The
+pull request's times come from the forge `origin` is on: GitHub (through
+`gh` or its API), GitLab or Gitea.
+
 
 ```bash
 npm run start --workspace @openspec-ui/cli -- send-back my-change --stage in-progress --reason "review found a gap" --reopen "2.3:no test for the edge case" --cwd .

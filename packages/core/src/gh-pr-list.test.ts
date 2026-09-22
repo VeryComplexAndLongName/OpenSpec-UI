@@ -29,6 +29,20 @@ describe("listPullRequestsByBranch (a-change-says-where-it-stands 2.2)", () => {
     }
   });
 
+  // a-change-knows-its-stage: the times a change entered review and landed.
+  it("keeps when each pull request was opened and merged, where gh says", async () => {
+    const recorded = JSON.stringify([
+      { number: 9, state: "MERGED", headRefName: "alpha", createdAt: "2026-09-21T09:00:00Z", mergedAt: "2026-09-22T09:00:00Z" },
+      { number: 7, state: "OPEN", headRefName: "beta", createdAt: "2026-09-22T08:00:00Z", mergedAt: null },
+    ]);
+
+    const read = await listPullRequestsByBranch({ cwd: "/repo", exec: async () => ({ stdout: recorded, stderr: "" }) });
+
+    expect(buildGhPrListInvocation().args).toContain("number,state,headRefName,createdAt,mergedAt");
+    expect(read.available && read.byBranch.get("alpha")).toEqual({ number: 9, state: "MERGED", createdAt: "2026-09-21T09:00:00Z", mergedAt: "2026-09-22T09:00:00Z" });
+    expect(read.available && read.byBranch.get("beta")).toEqual({ number: 7, state: "OPEN", createdAt: "2026-09-22T08:00:00Z" });
+  });
+
   it("says gh is not installed, and guesses nothing", async () => {
     const read = await listPullRequestsByBranch({
       cwd: "/repo",

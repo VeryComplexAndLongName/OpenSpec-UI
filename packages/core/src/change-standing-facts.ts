@@ -55,6 +55,9 @@ export interface StandingBranch {
 export interface StandingPullRequest {
   number: number;
   state: "OPEN" | "CLOSED" | "MERGED";
+  /** When it was opened and when it merged, where the forge said. */
+  createdAt?: string;
+  mergedAt?: string;
 }
 
 /** Everything read about one change, each fact from a named source. */

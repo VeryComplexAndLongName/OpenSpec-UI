@@ -60,6 +60,9 @@ const SHELL_STARTING_TESTS = [
   "src/branch-rebase.test.ts",
   // The same, for the pass that archives what has landed (ADR 0035).
   "src/landed-archive.test.ts",
+  // Real git for init, commit, blame and checkout against a temporary
+  // repository, at the times a test names (a-change-knows-its-stage).
+  "src/change-stages.test.ts",
 ];
 
 export default defineWorkspace([

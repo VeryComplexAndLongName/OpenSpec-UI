@@ -7,6 +7,20 @@ export type BranchPullRequestState = "OPEN" | "CLOSED" | "MERGED";
 export interface BranchPullRequest {
   number: number;
   state: BranchPullRequestState;
+  /** When it was opened and when it merged, as the forge says, where it
+   * says: the times a change entered review and landed
+   * (a-change-knows-its-stage). */
+  createdAt?: string;
+  mergedAt?: string;
+}
+
+/** The two times of a pull request, from whatever a forge answered, kept
+ * only where they are text. */
+export function pullRequestTimes(createdAt: unknown, mergedAt: unknown): Pick<BranchPullRequest, "createdAt" | "mergedAt"> {
+  return {
+    ...(typeof createdAt === "string" && createdAt.length > 0 ? { createdAt } : {}),
+    ...(typeof mergedAt === "string" && mergedAt.length > 0 ? { mergedAt } : {}),
+  };
 }
 
 /** Every pull request by its head branch, or why none could be read. */
@@ -26,7 +40,7 @@ export interface ListPullRequestsOptions {
 export function buildGhPrListInvocation(): { executable: string; args: string[] } {
   return {
     executable: "gh",
-    args: ["pr", "list", "--state", "all", "--json", "number,state,headRefName", "--limit", "200"],
+    args: ["pr", "list", "--state", "all", "--json", "number,state,headRefName,createdAt,mergedAt", "--limit", "200"],
   };
 }
 
@@ -69,11 +83,11 @@ export async function listPullRequestsByBranch(options: ListPullRequestsOptions)
   const byBranch = new Map<string, BranchPullRequest>();
   for (const item of items as Array<Record<string, unknown>>) {
     if (typeof item !== "object" || item === null) continue;
-    const { number, state, headRefName } = item;
+    const { number, state, headRefName, createdAt, mergedAt } = item;
     if (typeof number !== "number" || typeof headRefName !== "string" || typeof state !== "string" || !PR_STATES.has(state)) continue;
     const seen = byBranch.get(headRefName);
     if (seen === undefined || (seen.state === "CLOSED" && state !== "CLOSED")) {
-      byBranch.set(headRefName, { number, state: state as BranchPullRequestState });
+      byBranch.set(headRefName, { number, state: state as BranchPullRequestState, ...pullRequestTimes(createdAt, mergedAt) });
     }
   }
   return { available: true, byBranch };
