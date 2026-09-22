@@ -41,12 +41,22 @@ the owner on 2026-09-22.
     in the git-subprocess project;
   - the times from `gh`, GitHub's API, GitLab and Gitea;
   - `stages-command.test.ts`, 3.
-- [ ] 4.2 Live, on this change itself: `stages a-change-knows-its-stage`
-  after its pull request is opened reads Proposed and Planned from its
-  commit, and In review from the pull request's time on GitHub.
-- [ ] 4.3 `npm run typecheck && npm run lint && npm run test` at the root,
-  after `git add`, run unpiped, exit code 0.
-- [ ] 4.4 The whole standalone browser suite passes.
+- [x] 4.2 Live, 2026-09-22, on this change itself, once its draft pull
+  request #715 was open. Both through `gh` and with `GITHUB_TOKEN` over
+  the API, `stages a-change-knows-its-stage` read:
+  - Proposed and Planned at 16:55:10Z, from the commit;
+  - In progress from "closed 1.1";
+  - In review at 16:55:52Z, from "#715 opened".
+
+  `stages` also listed `a-half-written-task-list-stops-nothing` and
+  `an-archive-keeps-up-with-main` as Landed: merged, with their archive
+  pull requests not yet merged, which is where they were.
+- [x] 4.3 `npm run typecheck && npm run lint && npm run test` at the root,
+  after `git add`, run unpiped, exit code 0: cli 192, core 1832 and 53,
+  extension 492, server 114, webui 651.
+- [x] 4.4 The whole standalone browser suite: 28 of 28.
 - [x] 4.5 A changeset: core and the CLI, minor.
-- [ ] 4.6 `openspec validate a-change-knows-its-stage --strict`, and the
-  merge gate locally with `--base origin/main`.
+- [x] 4.6 `openspec validate a-change-knows-its-stage --strict`: valid.
+  The merge gate locally with `--base origin/main`: ok. The gate failed on
+  the draft pull request while these items were open, which is the gate
+  doing its job.
