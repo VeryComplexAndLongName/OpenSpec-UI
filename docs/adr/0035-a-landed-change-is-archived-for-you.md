@@ -1,6 +1,6 @@
 # 0035: A Change That Has Landed Is Archived for You
 
-Status: Accepted
+Status: Accepted. Decision 5 is superseded by [ADR 0036](0036-the-product-merges-what-it-archives.md).
 
 Date: 2026-09-21
 
@@ -66,6 +66,8 @@ opens a pull request and asks for it to merge.
    archived by (`--base`). The sweep asks for an automatic merge and
    merges nothing itself. Where the repository does not allow automatic
    merges, the pull request is left open, and the sweep says so and why.
+   *Superseded by ADR 0036: the sweep follows the pull request's checks
+   and merges it itself, whatever the repository's settings.*
 
 6. **The forge is reached through an interface.** Listing pull requests,
    opening one and asking for an automatic merge go through one interface.

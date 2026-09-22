@@ -334,8 +334,9 @@ export interface HarnessBranches {
 /** What this product does with a change that has landed (ADR 0035). */
 export interface HarnessArchive {
   /** Whether a change that has landed on the default branch and owes
-   * nothing is archived for you: in one pull request per pass, which is
-   * asked to merge when its checks pass. Absent means `true`.
+   * nothing is archived for you: in one pull request per pass, which the
+   * sweep merges itself once its checks pass (ADR 0036). Absent means
+   * `true`.
    *
    * The second workspace default that lets the product push, after
    * `branches.rebaseWhenBehind`. It pushes only the result of

@@ -165,9 +165,8 @@ describe("createPullRequestGateway", () => {
 });
 
 describe("createGitHubForge", () => {
-  // ADR 0035. `gh pr merge --auto` needs a merge method named, and a
-  // repository allows only some; the forge tries them in order and stops
-  // at the first refusal that is not about the method.
+  // ADR 0036: the product reads the checks and merges now; `gh` is never
+  // asked to merge later by the repository's rules.
   function forgeWith(results: Array<{ code: number; stderr?: string; stdout?: string }>) {
     const calls: string[][] = [];
     const exec = vi.fn(async (_binary: string, args: string[]) => {
@@ -179,30 +178,27 @@ describe("createGitHubForge", () => {
     return { forge: createGitHubForge({ cwd: "/repo", exec }), calls };
   }
 
-  it("asks for an automatic squash merge first", async () => {
+  it("merges now by the method it is given, and never with --auto", async () => {
     const { forge, calls } = forgeWith([{ code: 0 }]);
 
-    expect(await forge.mergeWhenChecksPass(7)).toEqual({ ok: true, method: "squash" });
-    expect(calls).toEqual([["pr", "merge", "7", "--auto", "--squash", "--delete-branch"]]);
+    await forge.mergeNow(7, "squash");
+
+    expect(calls).toEqual([["pr", "merge", "7", "--squash", "--delete-branch"]]);
   });
 
-  it("tries the next method where the repository does not allow one", async () => {
-    const { forge, calls } = forgeWith([
-      { code: 1, stderr: "Squash merges are not allowed on this repository" },
-      { code: 0 },
-    ]);
+  it("reads checks through gh pr checks, and none where gh says there are none", async () => {
+    const passing = forgeWith([{ code: 0, stdout: JSON.stringify([{ name: "build", state: "SUCCESS" }]) }]);
+    expect(await passing.forge.checksOf(7)).toEqual({ state: "pass" });
+    expect(passing.calls[0]).toEqual(["pr", "checks", "7", "--json", "name,state"]);
 
-    expect(await forge.mergeWhenChecksPass(7)).toEqual({ ok: true, method: "merge" });
-    expect(calls.map((args) => args[4])).toEqual(["--squash", "--merge"]);
+    const none = forgeWith([{ code: 1, stderr: "no checks reported on the 'archive-landed-x' branch" }]);
+    expect(await none.forge.checksOf(7)).toEqual({ state: "none", reason: "no check result was available" });
   });
 
-  it("stops at a refusal that is not about the method, and says it", async () => {
-    const { forge, calls } = forgeWith([{ code: 1, stderr: "Auto merge is disabled for this repository" }]);
+  it("says a refused merge in the forge's words", async () => {
+    const { forge } = forgeWith([{ code: 1, stderr: "Squash merges are not allowed on this repository" }]);
 
-    const answer = await forge.mergeWhenChecksPass(7);
-
-    expect(answer.ok).toBe(false);
-    expect(calls).toHaveLength(1);
+    await expect(forge.mergeNow(7, "squash")).rejects.toThrow("Squash merges are not allowed");
   });
 
   it("opens a pull request with the title and body it is given", async () => {

@@ -119,8 +119,10 @@ pull request is for.
 **Archiving is a second pull request, and the product makes it.** Once a
 change has landed with every task item closed, the workspace sweep
 archives it together with every other such change, in one pull request
-on an `archive-landed-<date>` branch, which merges when its checks pass
+on an `archive-landed-<date>` branch, which the sweep itself merges once
+its checks pass
 ([ADR 0035](../docs/adr/0035-a-landed-change-is-archived-for-you.md),
+[ADR 0036](../docs/adr/0036-the-product-merges-what-it-archives.md),
 `archive.whenLanded`, on by default). Nobody archives a finished change by
 hand. A change that landed still owing something is named by the sweep
 and stays live until its record is put right.

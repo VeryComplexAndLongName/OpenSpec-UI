@@ -233,7 +233,8 @@ testing expertise".
     named. `branches.rebaseWhenBehind` turns the rebase off; see
     [`HARNESS.md`](HARNESS.md#branches).
   - A change that has landed with every task item closed is archived for
-    you, in one pull request per pass that merges when its checks pass.
+    you, in one pull request per pass, which the product itself merges
+    once its checks pass, on any forge and whatever its merge settings.
     One that landed still owing something is named, not archived. The
     main checkout's `main` then follows what landed, by fast-forward, when
     its tree is clean; `branches.followMain` turns that off.

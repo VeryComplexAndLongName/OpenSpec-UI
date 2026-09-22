@@ -83,12 +83,9 @@ function withTokenHint(forge: Forge): Forge {
 }
 
 /** The git stage's pull request gateway for a workspace: over the forge
- * `origin` is on where that forge can read checks and merge, through `gh`
- * otherwise (github-without-gh). */
+ * `origin` is on (github-without-gh). */
 export async function pullRequestGatewayFor(cwd: string, options: ForgeForOptions & { pollIntervalMs?: number; maxWaitMs?: number } = {}): Promise<PullRequestGateway> {
-  const forge = await forgeFor(cwd, options);
-  if (forge.checksOf && forge.mergeNow) return pullRequestGatewayOver(forge, options);
-  return createPullRequestGateway({ cwd, ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {}), ...(options.maxWaitMs !== undefined ? { maxWaitMs: options.maxWaitMs } : {}) });
+  return pullRequestGatewayOver(await forgeFor(cwd, options), options);
 }
 
 const known = new Map<string, Promise<Forge>>();

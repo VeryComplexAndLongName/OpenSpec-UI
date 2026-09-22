@@ -41,6 +41,7 @@ Alternatives / Consequences.
 | [0032](0032-the-standalone-shell-uses-more-of-metro.md) | The standalone shell uses more of Metro: panels, badges, a timeline and icons | Accepted; decision 4 superseded by [0033](0033-the-standalone-shell-looks-like-the-project-site.md) |
 | [0033](0033-the-standalone-shell-looks-like-the-project-site.md) | The standalone shell looks like the project site | Accepted |
 | [0034](0034-a-behind-branch-is-rebased-for-you.md) | A change's branch that falls behind is rebased for you | Accepted |
-| [0035](0035-a-landed-change-is-archived-for-you.md) | A change that has landed is archived for you | Accepted |
+| [0035](0035-a-landed-change-is-archived-for-you.md) | A change that has landed is archived for you | Accepted; decision 5 superseded by 0036 |
+| [0036](0036-the-product-merges-what-it-archives.md) | The product merges what it archives | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.
