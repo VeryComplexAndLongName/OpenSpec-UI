@@ -497,6 +497,29 @@ naming the changes in a cycle and the id that matches nothing.
 
 An archived change's relations SHALL be drawn and never edited.
 
+A directory under `openspec/changes/` that holds no document yet, and
+whose name no archived change has, SHALL take the same two edits. Its
+relations live in the metadata file it may already hold, and ordering work
+before writing it is when a relation is most useful. Its row SHALL say
+that the rest of a change's actions arrive with its first document.
+
+Removing a relation SHALL be offered only on a row whose change states
+one. An entry that opens only to say there is nothing to remove is a
+question whose every answer is no.
+
+#### Scenario: A change not written yet
+
+- **WHEN** a reader right-clicks a directory holding only its metadata
+  file, with no archived change of its name
+- **THEN** adding a relation is offered, and its row says the other
+  actions arrive with a proposal, design, tasks or specs
+
+#### Scenario: Nothing to remove
+
+- **WHEN** a change states no relation
+- **THEN** its row does not offer to remove one, and does again once a
+  relation is stated
+
 #### Scenario: Reading the graph
 
 - **WHEN** the relation view is opened
