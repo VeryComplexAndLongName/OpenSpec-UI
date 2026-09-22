@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.80.2
+
+### Patch Changes
+
+- 451f56c: An archive pull request is brought up to date when the forge asks for it
+  
+  Some repositories only merge pull requests that are up to date with the
+  default branch, such as GitHub's "require branches to be up to date",
+  GitLab's fast-forward merge, and Gitea's outdated-branch block. There, an
+  archive pull request the sweep opened could never merge once something
+  else landed first. Now, when the forge refuses it and the default branch
+  has moved on, the sweep rebuilds the archive on the current default
+  branch, updates its own branch, and merges it once the checks pass again.
+- Updated dependencies [8c2dadf]
+- Updated dependencies [451f56c]
+  - @openspec-ui/core@0.119.1
+  - @openspec-ui/server@1.41.4
+  - @openspec-ui/webui@1.70.11
+
 ## 0.80.1
 
 ### Patch Changes
