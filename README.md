@@ -540,6 +540,8 @@ HTTP server and no webview. It started as a merge gate with one command,
 | `status` | What every run of the repository last said it was doing. |
 | `stop <instanceId> --reason <text> [--after <task>]` | Asks a live run to stop where its work is sound, or after it finishes a named task. |
 | `enrol [<keyId>]` | Lists unenrolled keys signing live runs; confirms one was yours. |
+| `join --handle <handle> --name <text>` | Puts you in the repository's people, with this machine's key. |
+| `people` | Lists the repository's people, and what is wrong with their files. |
 | `worktree add`, `list`, `move`, `remove` | A working directory per change. |
 | `change-graph` | What each change follows. |
 | `release-manifest` | The manifest the project site reads; used by CI. |
@@ -567,6 +569,10 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
   "the tooling is broken."
 - One broken change never aborts the run — the report still covers every
   other change in the same pass.
+- It checks the people in `openspec/people/` too (see `join` below). With
+  `--base <ref>` it refuses a pull request that takes a person or a key
+  out, or changes a key: a signature that verified yesterday has to verify
+  tomorrow.
 - This repository's own CI (`.github/workflows/quality.yml`,
   `openspec-validate` job) runs it against `openspec/changes/` on every
   pull request, as the real merge gate; `main`'s ruleset requires it on a
@@ -636,6 +642,31 @@ are not enrolled, with where the run is, its machine and its git author.
 enrolled, and its runs then read as signed by you. The same confirmation
 is offered in the Human-Only Inbox of both hosts as "It was me". It exits
 `1` when the confirmation is refused.
+
+### `join` and `people`: the team, in git
+
+A team's people are files in the repository, one per person:
+`openspec/people/<handle>.json`, with a public key for each machine the
+person signs on ([ADR 0037](docs/adr/0037-a-team-works-through-git.md)).
+Every colleague and every machine can then verify what a person, or an
+agent working for them, signs. There is no server and no database.
+
+`openspec-ui-cli join --handle <handle> --name <text> [--email <address>]`
+writes your file with this machine's key, or adds the key to the file you
+already have. Nothing is committed: joining is the pull request that
+carries the file. The e-mail address is optional, so a public repository
+need not publish one. In the editor, run **OpenSpec Workbench: Join the
+Team**.
+
+A key is never taken out, only retired: add `"retiredAt": "<date>"` to it
+when a machine is lost or given up. What it signed before still verifies.
+
+`openspec-ui-cli people` lists the people and what is wrong with their
+files. It exits `1` when anything is.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- join --handle ada --name "Ada Lovelace" --cwd .
+```
 
 ## Getting Started
 

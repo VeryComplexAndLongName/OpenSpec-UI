@@ -17,6 +17,10 @@ export interface EnrolledPerson {
   keyId: string;
   label: string;
   gitAuthor?: string;
+  /** The person's handle, where the key is in their file in the repository
+   * (`openspec/people/`, ADR 0037) rather than only in this machine's
+   * roster. */
+  handle?: string;
 }
 
 /** A key that signs a live record and is not in the roster, with what a

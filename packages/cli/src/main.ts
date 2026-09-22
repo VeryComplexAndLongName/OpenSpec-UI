@@ -12,6 +12,7 @@ import { runChange, type CheckpointPrompt } from "./run-change.js";
 import { adviseCommand } from "./advise-command.js";
 import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
+import { joinCommand, peopleCommand } from "./team-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
 import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
@@ -43,6 +44,9 @@ Usage:
                        [--format text|json]
   openspec-ui-cli enrol [<keyId>] [--label <text>] [--cwd <path>]
                         [--format text|json]
+  openspec-ui-cli join --handle <handle> --name <text> [--email <address>]
+                       [--cwd <path>] [--format text|json]
+  openspec-ui-cli people [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -71,6 +75,10 @@ Options:
   --all               Include changes that state no relation
   --label <text>      The name an enrolled key's person is known by
                       (default: the run's git author)
+  --handle <handle>   The name 'join' files a person under: lower-case
+                      letters, digits and single hyphens
+  --name <text>       A person's name as the team reads it
+  --email <address>   A git e-mail address of the person's; optional
   --reason <text>     Why a run is asked to stop; the run records it
   --after <task>      Let the run finish this task first, as tasks.md numbers
                       it (for example 4.6), then stop where the work is sound
@@ -142,6 +150,13 @@ enrolled, with where the run is, its machine and git author. 'enrol
 <keyId>' says a listed run was yours: its key is enrolled, and its runs
 read as signed by you. It exits 1 when the confirmation is refused.
 
+'join' writes openspec/people/<handle>.json with this machine's public
+key, or adds the key to the file the person already has. Nothing is
+committed: joining the team is the pull request that carries the file
+(ADR 0037). It exits 1 when the key is already somebody else's or the
+handle is not one. 'people' lists the people of the repository and what
+is wrong with their files; it exits 1 when anything is.
+
 'doctor' exits 0 when nothing it found would stop a run, 1 when
 something would, and 2 when it could not look. A workspace held by a
 live run is reported and exits 0: being busy is not being broken.
@@ -177,6 +192,10 @@ export interface MainOptions {
   base?: string;
   /** `enrol`'s name for the person a key is enrolled for. */
   label?: string;
+  /** `join`'s person: the handle, the name and an optional address. */
+  handle?: string;
+  name?: string;
+  email?: string;
   /** `stop`'s reason for asking a run to stop. */
   reason?: string;
   /** The task a stop should let the run finish first. */
@@ -206,6 +225,8 @@ export interface MainDeps {
   statusCommand?: typeof statusCommand;
   stopCommand?: typeof stopCommand;
   enrolCommand?: typeof enrolCommand;
+  joinCommand?: typeof joinCommand;
+  peopleCommand?: typeof peopleCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
    * change configured to pause refuse to start rather than hang.
@@ -252,11 +273,14 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--reason" ||
       arg === "--after" ||
       arg === "--activity" ||
-      arg === "--wait"
+      arg === "--wait" ||
+      arg === "--handle" ||
+      arg === "--name" ||
+      arg === "--email"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email";
       options[key] = value;
       i += 1;
     } else if (arg === "--fingerprint") {
@@ -321,6 +345,9 @@ function formatText(result: ValidateAllResult): string {
   }
   if (result.archiveCheckFailed !== undefined) {
     lines.push(`FAIL  could not compare the archive with the base: ${result.archiveCheckFailed}`);
+  }
+  for (const problem of result.peopleProblems ?? []) {
+    lines.push(`FAIL  ${problem.file}: ${problem.problem}`);
   }
   lines.push(result.ok ? "\nAll changes valid." : "\nOne or more changes failed validation.");
   return lines.join("\n");
@@ -473,6 +500,34 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "join") {
+    if (options.handle === undefined || options.name === undefined) {
+      stderr("openspec-ui-cli: join requires --handle and --name");
+      stderr(USAGE);
+      return 2;
+    }
+    return await (deps.joinCommand ?? joinCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        handle: options.handle,
+        name: options.name,
+        ...(options.email !== undefined ? { email: options.email } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
+  if (command === "people") {
+    return await (deps.peopleCommand ?? peopleCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "move" && action !== "remove") {
@@ -524,7 +579,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;
