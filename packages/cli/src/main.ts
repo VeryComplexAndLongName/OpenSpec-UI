@@ -19,6 +19,7 @@ import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
 import { joinCommand, peopleCommand } from "./team-command.js";
 import { historyCommand, isSendBackStage, parseReopen, recordCommand } from "./history-command.js";
+import { stagesCommand } from "./stages-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
 import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
@@ -54,6 +55,7 @@ Usage:
                        [--cwd <path>] [--format text|json]
   openspec-ui-cli people [--cwd <path>] [--format text|json]
   openspec-ui-cli history <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli stages [<change>] [--cwd <path>] [--format text|json]
   openspec-ui-cli owner <change> [--to <handle>] [--agent <id>] [--cwd <path>]
   openspec-ui-cli implementer <change> [--to <handle> | --none] [--agent <id>]
                               [--cwd <path>]
@@ -187,6 +189,14 @@ Implementer sends a change back, reopening the items it names in
 tasks.md with the reason under each. Nothing is committed. They exit 1
 when the rules refuse the event.
 
+'stages' prints where each active change is - Proposed, Planned, In
+progress, In review, Landed or Archived - with its Owner and Implementer
+and how long it has been there. 'stages <change>' prints every stay in
+every stage, with the fact that began it, and the time in each stage over
+all its visits. A stage is derived from dated facts: commits, closed task
+lines, runs, the pull request's times, commits on the change's branch, and
+the change's history, whose send-backs move it back.
+
 'doctor' exits 0 when nothing it found would stop a run, 1 when
 something would, and 2 when it could not look. A workspace held by a
 live run is reported and exits 0: being busy is not being broken.
@@ -265,6 +275,7 @@ export interface MainDeps {
   joinCommand?: typeof joinCommand;
   peopleCommand?: typeof peopleCommand;
   historyCommand?: typeof historyCommand;
+  stagesCommand?: typeof stagesCommand;
   recordCommand?: typeof recordCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
@@ -580,6 +591,17 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "stages") {
+    return await (deps.stagesCommand ?? stagesCommand)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        ...(options.changeName !== undefined ? { changeName: options.changeName } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "history" || command === "owner" || command === "implementer" || command === "send-back") {
     const changeName = options.changeName;
     if (!changeName) {
@@ -671,7 +693,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, history, owner, implementer, send-back, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

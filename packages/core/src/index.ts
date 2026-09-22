@@ -61,6 +61,8 @@ export * from "./signed-envelope.js";
 export * from "./people.js";
 export * from "./change-history.js";
 export * from "./change-history-facts.js";
+export * from "./change-stages.js";
+export * from "./change-stage-facts.js";
 export * from "./signature-facts.js";
 export * from "./checkpoint.js";
 export * from "./workbench-run-journal.js";

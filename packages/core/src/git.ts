@@ -166,6 +166,10 @@ export interface GitWrapper {
    * relative paths, in one call. A path the ref does not have lists as
    * empty; a ref that does not exist rejects (a-change-keeps-its-history). */
   listFilesUnder(ref: string, pathInRepo: string): Promise<string[]>;
+  /** When each commit `ref` has and `base` does not was committed, newest
+   * first, as ISO date-times. Empty where either ref is missing
+   * (a-change-knows-its-stage). */
+  commitTimesBetween(base: string, ref: string): Promise<string[]>;
   /** A file's text at `ref`, or `undefined` where the ref or the path is not
    * there. */
   showFile(ref: string, pathInRepo: string): Promise<string | undefined>;
@@ -371,6 +375,14 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         // Only the second is an answer.
         if (await this.refExists(ref)) return [];
         throw error;
+      }
+    },
+    async commitTimesBetween(base: string, ref: string): Promise<string[]> {
+      try {
+        const out = await git.raw(["log", "--format=%cI", `${base}..${ref}`]);
+        return out.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+      } catch {
+        return [];
       }
     },
     async listFilesUnder(ref: string, pathInRepo: string): Promise<string[]> {

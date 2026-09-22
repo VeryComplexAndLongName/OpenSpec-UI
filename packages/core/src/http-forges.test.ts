@@ -76,7 +76,7 @@ describe("the Gitea forge", () => {
   it("lists pull requests by branch, a merged one by the name its label keeps", async () => {
     const { forge, asked } = forgeWith([["GET", `${REPO}/pulls?`, 200, [
       { number: 3, state: "open", merged: false, head: { ref: "feature", label: "feature" } },
-      { number: 2, state: "closed", merged: true, head: { ref: "refs/pull/2/head", label: "done" } },
+      { number: 2, state: "closed", merged: true, created_at: "2026-09-21T08:00:00+03:00", merged_at: "2026-09-22T08:00:00+03:00", head: { ref: "refs/pull/2/head", label: "done" } },
       { number: 1, state: "closed", merged: false, head: { ref: "refs/pull/1/head", label: "someone:dropped" } },
     ]]]);
 
@@ -84,7 +84,7 @@ describe("the Gitea forge", () => {
 
     expect(read.available && [...read.byBranch]).toEqual([
       ["feature", { number: 3, state: "OPEN" }],
-      ["done", { number: 2, state: "MERGED" }],
+      ["done", { number: 2, state: "MERGED", createdAt: "2026-09-21T08:00:00+03:00", mergedAt: "2026-09-22T08:00:00+03:00" }],
       ["dropped", { number: 1, state: "CLOSED" }],
     ]);
     expect(asked[0]?.headers.Authorization).toBe("token t0ken");
@@ -140,7 +140,7 @@ describe("the GitLab forge", () => {
   it("lists merge requests by source branch, with the token in its header", async () => {
     const { forge, asked } = forgeWith([["GET", `${PROJECT}/merge_requests?`, 200, [
       { iid: 5, state: "opened", source_branch: "feature" },
-      { iid: 4, state: "merged", source_branch: "done" },
+      { iid: 4, state: "merged", source_branch: "done", created_at: "2026-09-21T10:00:00.000Z", merged_at: "2026-09-22T10:00:00.000Z" },
       { iid: 3, state: "closed", source_branch: "dropped" },
     ]]]);
 
@@ -148,7 +148,7 @@ describe("the GitLab forge", () => {
 
     expect(read.available && [...read.byBranch]).toEqual([
       ["feature", { number: 5, state: "OPEN" }],
-      ["done", { number: 4, state: "MERGED" }],
+      ["done", { number: 4, state: "MERGED", createdAt: "2026-09-21T10:00:00.000Z", mergedAt: "2026-09-22T10:00:00.000Z" }],
       ["dropped", { number: 3, state: "CLOSED" }],
     ]);
     expect(asked[0]?.headers["PRIVATE-TOKEN"]).toBe("glpat");

@@ -5,7 +5,7 @@
 // a token the person keeps in their environment - `GITLAB_TOKEN`,
 // `GITEA_TOKEN` - which is read when asked and never written anywhere.
 
-import { parseCheckStatus, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { parseCheckStatus, pullRequestTimes, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
   ok: boolean;
@@ -107,7 +107,7 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
             const ref = giteaHeadBranch(item.head);
             if (typeof number !== "number" || ref === undefined) continue;
             const state: BranchPullRequestState = item.merged === true ? "MERGED" : item.state === "open" ? "OPEN" : "CLOSED";
-            keep(byBranch, ref, { number, state });
+            keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
         }
@@ -162,7 +162,7 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
             const ref = item.source_branch;
             if (typeof number !== "number" || typeof ref !== "string") continue;
             const state: BranchPullRequestState = item.state === "merged" ? "MERGED" : item.state === "opened" ? "OPEN" : "CLOSED";
-            keep(byBranch, ref, { number, state });
+            keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
         }
@@ -267,7 +267,7 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
             const ref = (item.head as { ref?: unknown } | undefined)?.ref;
             if (typeof number !== "number" || typeof ref !== "string") continue;
             const state: BranchPullRequestState = item.merged_at ? "MERGED" : item.state === "open" ? "OPEN" : "CLOSED";
-            keep(byBranch, ref, { number, state });
+            keep(byBranch, ref, { number, state, ...pullRequestTimes(item.created_at, item.merged_at) });
           }
           if (items.length < 50) break;
         }
