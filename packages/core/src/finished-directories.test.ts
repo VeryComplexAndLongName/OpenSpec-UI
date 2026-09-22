@@ -241,19 +241,21 @@ describe("the sweep", () => {
     expect(swept.removed[0]?.failed).toBeUndefined();
   });
 
-  it("reports a removal that failed both ways rather than throwing, with git's reason", async () => {
+  // the-sweep-never-opens-an-archive: git's "Filename too long" alone once
+  // hid a file the editor itself held open.
+  it("reports a removal that failed both ways rather than throwing, what stopped it first and git's reason after", async () => {
     const given = deps({
       git: {
         fetch: vi.fn(async () => undefined),
         branchUpstreams: vi.fn(async () => [GONE]),
-        worktreeRemove: vi.fn(async () => { throw new Error("in use"); }),
+        worktreeRemove: vi.fn(async () => { throw new Error("Filename too long"); }),
       },
-      removeShell: vi.fn(async () => { throw new Error("EBUSY"); }),
+      removeShell: vi.fn(async () => { throw new Error("EBUSY: resource busy or locked, rmdir 'node_modules.asar'"); }),
     });
 
     const swept = await sweepFinishedDirectories(survey([directory()]), given);
 
-    expect(swept.removed[0]?.failed).toContain("in use");
+    expect(swept.removed[0]?.failed).toBe("EBUSY: resource busy or locked, rmdir 'node_modules.asar' (git had said: Filename too long)");
   });
 });
 

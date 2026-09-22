@@ -14,7 +14,9 @@
 // `openspec/changes/my-idea/` and has not written the proposal yet keeps
 // their directory, because nothing of that name is archived.
 
-import { readdir, rm, stat, lstat, unlink, rmdir } from "node:fs/promises";
+// Through `original-fs` in the editor, so a `*.asar` in a directory is a
+// file to remove, not an archive to open (the-sweep-never-opens-an-archive).
+import { readdir, rm, stat, lstat, unlink, rmdir } from "./plain-fs.js";
 import path from "node:path";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 

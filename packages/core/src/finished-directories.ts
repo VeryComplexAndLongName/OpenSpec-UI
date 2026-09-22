@@ -16,7 +16,7 @@
 // Nothing here reads, moves or writes a change. A change is repository
 // content; archiving one is a separate act with its own commit.
 
-import { rm } from "node:fs/promises";
+import { removeTree } from "./plain-fs.js";
 
 import type { BranchUpstream, GitWrapper } from "./git.js";
 import type { ChangeStandings } from "./change-standing-facts.js";
@@ -197,9 +197,10 @@ function changeOf(directory: Extract<SurveyedDirectory, { readable: true }>): st
  * this call follows one. The link is unlinked and what it points at -
  * for this repository, the main checkout's `node_modules` - is
  * untouched. The test that holds it is why nobody needs to rediscover
- * this. */
+ * this. In the editor it goes through `original-fs`, so a `*.asar` inside
+ * is removed rather than opened and held (the-sweep-never-opens-an-archive). */
 export async function removeDirectoryShell(directoryPath: string): Promise<void> {
-  await rm(directoryPath, { recursive: true, force: true });
+  await removeTree(directoryPath);
 }
 
 export interface SweepDeps {
@@ -276,7 +277,10 @@ export async function sweepFinishedDirectories(
       if (gitRefused !== undefined) await deps.git.worktreePrune?.();
       removed.push(directory);
     } catch (error) {
-      removed.push({ ...directory, failed: gitRefused ?? (error instanceof Error ? error.message : String(error)) });
+      // What stopped the removal, first: git's reason alone once hid a
+      // file the editor itself held (the-sweep-never-opens-an-archive).
+      const said = error instanceof Error ? error.message : String(error);
+      removed.push({ ...directory, failed: gitRefused === undefined ? said : `${said} (git had said: ${gitRefused.trim()})` });
     }
   }
 
