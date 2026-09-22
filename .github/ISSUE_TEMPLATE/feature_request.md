@@ -6,7 +6,7 @@ labels: enhancement
 ---
 
 **What you are trying to do**
-The actual task, not the mechanism you imagine solving it — that helps more
+The actual task, not the mechanism you imagine solving it - that helps more
 than it might seem, since the mechanism is often ours to pick.
 
 **What you do today instead, if anything**

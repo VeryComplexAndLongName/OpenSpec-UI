@@ -26,18 +26,18 @@ none of those live in a tracked file; this change covers what does.
 - **`CONTRIBUTING.md`**, pointing a contributor at the real process: read
   `openspec/README.md`'s runbook first, every change goes through
   `openspec/changes/<id>/`, the checks in `package.json`'s `verify` script,
-  and that AI-assisted contributions are welcome if disclosed and tested —
+  and that AI-assisted contributions are welcome if disclosed and tested -
   matching the standard this project already holds itself to.
 - **`.github/ISSUE_TEMPLATE/bug_report.md`** and
   **`.github/ISSUE_TEMPLATE/feature_request.md`**, short enough that filing
   one costs less than staying silent.
 - **`.github/PULL_REQUEST_TEMPLATE.md`**, asking for the change id and which
-  checks were run — nothing this project's own reviewers would not already
+  checks were run - nothing this project's own reviewers would not already
   ask.
 - **`CODE_OF_CONDUCT.md`**, the Contributor Covenant, unmodified, the
   version most newcomers already recognize.
 - **`packages/extension/package.json`**: `categories` becomes
-  `["Machine Learning", "Other"]` — confirmed against VS Code's documented
+  `["Machine Learning", "Other"]` - confirmed against VS Code's documented
   category list, which does not include "AI" or "Chat" as of this writing,
   so this change does not guess an unlisted value. `keywords` becomes
   `["openspec", "spec-driven-development", "ai-agents", "coding-agent",
@@ -52,7 +52,7 @@ none of those live in a tracked file; this change covers what does.
 
 ### Modified Capabilities
 
-(none — a Marketplace listing's categories and keywords, and community
+(none - a Marketplace listing's categories and keywords, and community
 files, change nothing the product does)
 
 ## Impact

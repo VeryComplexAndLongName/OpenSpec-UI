@@ -26,6 +26,6 @@ Steps, or the smallest change/config that shows it.
   its own version:
 
 **Logs or a screenshot**
-Whatever the product itself printed — the event log, `openspec-ui-cli
+Whatever the product itself printed - the event log, `openspec-ui-cli
 status`, or a screenshot. Please redact any path or token that names your
 machine or account.
