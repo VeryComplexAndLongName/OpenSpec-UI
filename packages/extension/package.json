@@ -2,7 +2,7 @@
   "name": "openspec-ui-vscode",
   "private": true,
   "displayName": "OpenSpec Workbench",
-  "description": "A dashboard + VS Code extension for OpenSpec, with Claude, Copilot, Codex, and Gemini agents built in.",
+  "description": "A dashboard + VS Code extension for OpenSpec, with Claude, Copilot, Codex, Gemini and DeepSeek agents built in.",
   "publisher": "openspec-ui",
   "version": "0.75.1",
   "icon": "media/icon.png",

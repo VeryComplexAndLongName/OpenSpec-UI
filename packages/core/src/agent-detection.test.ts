@@ -145,6 +145,7 @@ describe("detectAvailableAgents", () => {
         "codex-cli",
         "codex-cli-acp",
         "copilot-cli",
+        "deepseek-cli-acp",
         "copilot-cli-acp",
         "gemini-cli",
         "gemini-cli-acp",

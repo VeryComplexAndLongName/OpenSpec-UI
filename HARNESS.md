@@ -664,6 +664,7 @@ carried here so a reader sees the value before choosing):
 | `copilot-cli` | `max` | `high` | `low` | `none` |
 | `copilot-cli-acp` | `max` | `high` | `low` | `none` |
 | `codex-cli-acp` | — | — | — | — |
+| `deepseek-cli-acp` | - | - | - | - |
 | `gemini-cli` | — | — | — | — |
 | `gemini-cli-acp` | — | — | — | — |
 | `local-llm` | — | — | — | — |
@@ -883,6 +884,7 @@ binary here" column repeats `README.md`'s own agent table.
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
 | `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
 | `gemini-cli-acp` | `gemini --experimental-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
+| `deepseek-cli-acp` | `dsh --profile acp` (the DeepSeek CLI, `@deepseek-ai/dsh`) | No: the model is an ACP session option, DeepSeek-V4-Flash by default | No mechanism | No mechanism | Yes: an implement run on 2026-09-22 wrote its file and ticked its task in 22 s. **Needs a Node newer than 22.11 first on the PATH**, see below |
 | `vscode-chat` | Dispatches the stage to VS Code's own Chat panel — spawns no CLI process at all | No | No mechanism | No mechanism | Not applicable — only valid under `autonomyLevel: "assisted"` |
 
 **On the "run against the real binary here" column, plainly: `codex` and
@@ -926,6 +928,18 @@ not something to rely on. Separately (not a documented exception, a
 live-verified fact): `copilot --acp` completes file writes and shell
 commands **without ever asking for permission** either, despite ACP
 supporting the mechanism — see `README.md`'s "Agent Selection" section.
+
+**`deepseek-cli-acp` needs a Node newer than 22.11.** `dsh` runs on whatever
+`node` its shim finds, and on 22.11 it exits with code 0 before answering,
+without a word; the same run on 24.18 completed. This repository pins
+22.11 with Volta, and Volta puts that Node first on the PATH of every
+process it starts, so a server started with `npm` inside the repository
+starts `dsh` on 22.11. The editor's host is not started by Volta and finds
+the system Node. A run that ends this way says which Node it met. Like
+`copilot --acp`, `dsh` wrote its file without asking for permission. Every
+prompt it is given starts with a short instruction to follow the steps
+literally and in order, since it does best with instructions taken that
+way.
 
 `codex-cli-acp` and `gemini-cli-acp` carry a deliberately empty
 capabilities entry (`{}`) — their adapters render neither an effort flag

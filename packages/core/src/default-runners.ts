@@ -14,6 +14,7 @@ import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
 import { CopilotCliAdapter } from "./agents/copilot.js";
 import { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
 import { CodexCliAdapter } from "./agents/codex.js";
+import { DEEPSEEK_ACP_ARGS, DeepSeekAcpAdapter } from "./agents/deepseek-acp.js";
 import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
@@ -141,6 +142,7 @@ export function buildDefaultAllowlist(): AllowlistConfig {
     }],
     "gemini-cli-acp": [{ executable: "gemini", argsAllowed: exact(["--experimental-acp"]) }],
     "codex-cli-acp": [{ executable: "codex-acp", argsAllowed: exact([]) }],
+    "deepseek-cli-acp": [{ executable: "dsh", argsAllowed: exact([...DEEPSEEK_ACP_ARGS]) }],
     "claude-cli-acp": [{
       executable: "claude",
       argsAllowed: exactWithOptionalArgs(
@@ -178,6 +180,7 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     "copilot-cli-acp": new CopilotCliAcpAdapter(),
     "gemini-cli-acp": new GeminiCliAcpAdapter(),
     "codex-cli-acp": new CodexCliAcpAdapter(),
+    "deepseek-cli-acp": new DeepSeekAcpAdapter(),
     "claude-cli-acp": new ClaudeCliAcpAdapter(),
   };
 

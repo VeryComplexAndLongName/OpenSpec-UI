@@ -382,6 +382,7 @@
         "copilot-cli-acp",
         "gemini-cli-acp",
         "codex-cli-acp",
+        "deepseek-cli-acp",
         "claude-cli-acp",
         "vscode-chat"
       ],
@@ -743,6 +744,38 @@
                   "budget": {
                     "not": {},
                     "description": "codex-cli-acp has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "deepseek-cli-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "deepseek-cli-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "deepseek-cli-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "deepseek-cli-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "deepseek-cli-acp has no spending cap of its own."
                   }
                 }
               }

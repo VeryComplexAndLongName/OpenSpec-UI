@@ -8,6 +8,7 @@ import { CopilotCliAdapter } from "./agents/copilot.js";
 import { CopilotCliAcpAdapter } from "./agents/copilot-acp.js";
 import { CodexCliAdapter } from "./agents/codex.js";
 import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
+import { DeepSeekAcpAdapter } from "./agents/deepseek-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
@@ -51,6 +52,9 @@ describe("buildDefaultAllowlist", () => {
 
     const codexAcpInvocation = new CodexCliAcpAdapter().buildInvocation(command);
     expect(checkAllowlist("codex-cli-acp", codexAcpInvocation, allowlist).allowed).toBe(true);
+
+    const deepseekAcpInvocation = new DeepSeekAcpAdapter().buildInvocation(command);
+    expect(checkAllowlist("deepseek-cli-acp", deepseekAcpInvocation, allowlist).allowed).toBe(true);
 
     const claudeAcpInvocation = new ClaudeCliAcpAdapter().buildInvocation(command);
     expect(checkAllowlist("claude-cli-acp", claudeAcpInvocation, allowlist).allowed).toBe(true);

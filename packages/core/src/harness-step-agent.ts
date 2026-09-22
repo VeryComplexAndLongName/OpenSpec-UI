@@ -207,6 +207,10 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // would be reporting a measurement nobody made.
   "codex-cli-acp": { reports: "unknown" },
   "gemini-cli-acp": { reports: "unknown" },
+  // No effort or budget flag: see agents/deepseek-acp.ts. Measured
+  // 2026-09-22 on a live implement run through dsh 0.1.5-rc.2: 24 session
+  // updates, no usage_update and no usage on the prompt's answer.
+  "deepseek-cli-acp": { reports: "none" },
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,

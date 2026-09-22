@@ -43,6 +43,8 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
   { id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
   { id: "codex-cli-acp", label: "Codex CLI (ACP)" },
+  // DeepSeek through its own CLI's ACP profile (deepseek-joins-as-an-acp-agent).
+  { id: "deepseek-cli-acp", label: "DeepSeek CLI (ACP)" },
   // Label states the limitation inline, not just in the picker's own
   // copy (webui's AiPanel.tsx) — see design.md's risk mitigation
   // "the UI presenting this adapter must say so explicitly ... not leave
