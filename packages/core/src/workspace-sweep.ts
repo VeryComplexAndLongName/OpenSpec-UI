@@ -15,7 +15,8 @@ import { describeFinished, describeKept, sweepFinishedDirectories, type SweepRes
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createGitHubForge, type Forge } from "./gh-pr-gateway.js";
+import type { Forge } from "./gh-pr-gateway.js";
+import { forgeFor } from "./forge.js";
 import { createGitWrapper } from "./git.js";
 import { archivesWhenLanded, followsMain, readGlobalHarnessConfig, rebasesWhenBehind, resolveHarnessConfig } from "./harness-config.js";
 import { catchUpWithMain } from "./main-drift.js";
@@ -132,7 +133,8 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
   const archive = await archiveLandedChanges({
     git,
     gitIn: (directoryPath) => createGitWrapper({ cwd: directoryPath }),
-    forge: options.forge ?? createGitHubForge({ cwd: workspaceRoot }),
+    // GitHub, GitLab or Gitea, as `origin` says (the-forge-is-gitlab-or-gitea-too).
+    forge: options.forge ?? await forgeFor(workspaceRoot),
     archive: options.archive ?? (async (changeName, directoryPath) => {
       await archiveChange(changeName, { cwd: directoryPath });
     }),

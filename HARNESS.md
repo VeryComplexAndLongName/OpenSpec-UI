@@ -341,9 +341,26 @@ Turn it off - `"archive": { "whenLanded": false }` - where archiving is
 somebody's deliberate step. Set it in one change's own file to keep that
 change live after it lands.
 
-It needs the openspec CLI and a forge the product can ask: GitHub through
-a signed-in `gh` today. Where either is missing, nothing is archived and
-the sweep says why.
+It needs the openspec CLI and a forge the product can ask. Where either is
+missing, nothing is archived and the sweep says why.
+
+**Which forge.** The one `origin` is on (the-forge-is-gitlab-or-gitea-too):
+
+| `origin` on | Asked through | Credentials |
+| --- | --- | --- |
+| github.com | `gh`, as before | a signed-in `gh` |
+| gitlab.com | GitLab's REST API (`/api/v4`) | `GITLAB_TOKEN`: a personal access token with `api`, or a fine-grained one that may read and create projects, read and write merge requests, and write the repository |
+| another host | whichever answers: Gitea's `/api/v1/version`, else GitLab's `/api/v4/version` | `GITEA_TOKEN` (repository and issue read and write) or `GITLAB_TOKEN` |
+
+An ssh `origin` does not say where the forge's web root is: set `GITEA_URL`
+or `GITLAB_URL` to it (for example `http://gitea.local:3000`). A host that
+answers neither is taken for GitHub, as every workspace was before. Tokens
+are read from the environment the host runs in - in the editor, restart it
+after setting one - and are sent only to the forge they belong to.
+
+The same forge answers the standings (which change's pull request is open
+or merged) and the directory sweep. The `git` stage's own pull request and
+merge still go through `gh`, so that stage is GitHub-only for now.
 
 ### `allowAgentMessages`
 
