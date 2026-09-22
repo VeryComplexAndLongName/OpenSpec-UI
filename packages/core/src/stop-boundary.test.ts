@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Event } from "./protocol.js";
-import { TaskMarkerReader, countTickedTasks, untilStopBoundary } from "./stop-boundary.js";
+import { TaskMarkerReader, countTickedTasks, readSettledTaskList, readTaskTickState, untilStopBoundary } from "./stop-boundary.js";
 
 // every-varying-check-has-a-budget: a task list in a temporary directory,
 // no process and no git. Measured 2026-09-14 under 40ms for the whole file.
@@ -73,6 +73,39 @@ describe("countTickedTasks", () => {
   it("counts ticked tasks, and says nothing for a list it cannot read", async () => {
     expect(await countTickedTasks(await changeWithTasks(2, 3))).toBe(2);
     expect(await countTickedTasks(path.join(os.tmpdir(), "no-such-change-here"))).toBeUndefined();
+  });
+});
+
+// a-half-written-task-list-stops-nothing: `tasks.md` is rewritten by
+// truncating it and writing it again, and a reading between the two saw a
+// task that is there as absent - which, on CI on 2026-09-22, made a run
+// told to stop after 2.2 read 2.2 as missing.
+describe("reading a task list somebody is writing", () => {
+  const FULL = "## 2. Tasks\n- [x] 2.1 one\n- [x] 2.2 two\n- [ ] 2.3 three\n";
+
+  it("waits for two readings to agree, so a list read mid-write is read again", async () => {
+    const readings = ["", "## 2. Tasks\n- [x] 2.1 one\n", FULL, FULL];
+    const read = async () => readings.shift() ?? FULL;
+
+    expect(await readSettledTaskList("/change", { read, settleMs: 0 })).toBe(FULL);
+    expect(readings).toEqual([]);
+  });
+
+  it("reads a list with no item as unreadable, never as a list without the task", async () => {
+    expect(await readSettledTaskList("/change", { read: async () => "", settleMs: 0 })).toBeUndefined();
+    expect(await readSettledTaskList("/change", { read: async () => "## 2. Tasks\n", settleMs: 0 })).toBeUndefined();
+  });
+
+  it("finds a named task in a list rewritten while it is read", async () => {
+    const dir = await changeWithTasks(0, 3);
+    await writeFile(path.join(dir, "tasks.md"), "", "utf8");
+    const writing = new Promise<void>((resolve) => {
+      setTimeout(() => void writeFile(path.join(dir, "tasks.md"), FULL, "utf8").then(() => resolve()), 20);
+    });
+
+    const [state] = await Promise.all([readTaskTickState(dir, "2.2"), writing]);
+
+    expect(state).toBe("ticked");
   });
 });
 

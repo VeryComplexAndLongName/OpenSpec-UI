@@ -33,15 +33,49 @@ export const STOP_CHECK_INTERVAL_MS = 2_000;
  * (a-run-is-told-where-to-stop). */
 export const STOP_AFTER_CHECK_INTERVAL_MS = 500;
 
+/** How long apart two readings of a task list must agree before it is
+ * believed, and how many readings are tried. */
+export const TASK_LIST_SETTLE_MS = 50;
+const TASK_LIST_READINGS = 6;
+
+/** A task list as it is once nobody is writing it, or `undefined` where it
+ * cannot be read or holds no item at all.
+ *
+ * An agent, an editor and a test all rewrite `tasks.md` by truncating it
+ * and writing it again. A reading that lands in between sees a list with
+ * some items, or none. Read that way, a task that is there looked absent,
+ * and a count taken then made the next full reading look like a new tick.
+ * Either could end a run where it had been told not to
+ * (a-half-written-task-list-stops-nothing). So the list is read again until
+ * two readings agree. A list with no item is never a list anybody meant. */
+export async function readSettledTaskList(
+  changeDir: string,
+  options: { settleMs?: number; read?: (file: string) => Promise<string> } = {},
+): Promise<string | undefined> {
+  const file = path.join(changeDir, "tasks.md");
+  const read = options.read ?? ((one: string) => readFile(one, "utf8"));
+  const settleMs = options.settleMs ?? TASK_LIST_SETTLE_MS;
+  let last: string | undefined;
+  for (let reading = 0; reading < TASK_LIST_READINGS; reading += 1) {
+    let content: string;
+    try {
+      content = await read(file);
+    } catch {
+      return undefined;
+    }
+    if (content === last) break;
+    last = content;
+    await new Promise<void>((resolve) => setTimeout(resolve, settleMs));
+  }
+  if (last === undefined) return undefined;
+  return last.split(/\r?\n/u).some((line) => TASK_CHECKBOX_LINE_RE.test(line)) ? last : undefined;
+}
+
 /** How many of a change's tasks are ticked, or `undefined` where its task
  * list cannot be read. */
 export async function countTickedTasks(changeDir: string): Promise<number | undefined> {
-  let content: string;
-  try {
-    content = await readFile(path.join(changeDir, "tasks.md"), "utf8");
-  } catch {
-    return undefined;
-  }
+  const content = await readSettledTaskList(changeDir);
+  if (content === undefined) return undefined;
   let ticked = 0;
   for (const line of content.split(/\r?\n/u)) {
     const match = line.match(TASK_CHECKBOX_LINE_RE);
@@ -58,12 +92,8 @@ export async function countTickedTasks(changeDir: string): Promise<number | unde
  * 4.6 is done, and nothing else in a run reads the list by name
  * (a-run-is-told-where-to-stop). */
 export async function readTaskTickState(changeDir: string, task: string): Promise<"ticked" | "open" | "absent" | "unreadable"> {
-  let content: string;
-  try {
-    content = await readFile(path.join(changeDir, "tasks.md"), "utf8");
-  } catch {
-    return "unreadable";
-  }
+  const content = await readSettledTaskList(changeDir);
+  if (content === undefined) return "unreadable";
   for (const line of content.split(/\r?\n/u)) {
     const match = line.match(TASK_CHECKBOX_LINE_RE);
     if (!match) continue;
