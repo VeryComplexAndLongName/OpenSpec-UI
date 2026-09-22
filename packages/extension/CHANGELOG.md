@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.78.1
+
+### Patch Changes
+
+- 4ff47f4: The Marketplace listing's `categories` and `keywords` now describe what the
+  extension actually is (`Machine Learning`/`Other`, and terms including
+  `ai-agents`/`coding-agent`), instead of the generic `Other` category and
+  three narrow keywords it shipped with. No behavior change.
+
 ## 0.78.0
 
 ### Minor Changes
