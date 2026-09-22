@@ -4,7 +4,12 @@
 // cli.ts so it can be unit-tested without spawning a real process —
 // cli.ts is just this function wired to process.argv/exit.
 
-import { readChangeGraph } from "@openspec-ui/core";
+import { personOfThisMachine, readChangeGraph, type HistoryRequest } from "@openspec-ui/core";
+
+/** The handle this machine's key is filed under, where it is. */
+async function handleOfThisMachine(workspaceRoot: string): Promise<string | undefined> {
+  return (await personOfThisMachine(workspaceRoot))?.handle;
+}
 import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js";
 import { checkChange } from "./check-change.js";
 import { leaseCommand } from "./lease-command.js";
@@ -13,6 +18,7 @@ import { adviseCommand } from "./advise-command.js";
 import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
 import { joinCommand, peopleCommand } from "./team-command.js";
+import { historyCommand, isSendBackStage, parseReopen, recordCommand } from "./history-command.js";
 import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
 import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
@@ -47,6 +53,13 @@ Usage:
   openspec-ui-cli join --handle <handle> --name <text> [--email <address>]
                        [--cwd <path>] [--format text|json]
   openspec-ui-cli people [--cwd <path>] [--format text|json]
+  openspec-ui-cli history <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli owner <change> [--to <handle>] [--agent <id>] [--cwd <path>]
+  openspec-ui-cli implementer <change> [--to <handle> | --none] [--agent <id>]
+                              [--cwd <path>]
+  openspec-ui-cli send-back <change> --stage <stage> --reason <text>
+                            [--reopen <task>:<why>]... [--agent <id>]
+                            [--cwd <path>]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -79,6 +92,14 @@ Options:
                       letters, digits and single hyphens
   --name <text>       A person's name as the team reads it
   --email <address>   A git e-mail address of the person's; optional
+  --to <handle>       Who 'owner' or 'implementer' names (default: you,
+                      as this machine's key says)
+  --none              'implementer': leave the change with nobody on it
+  --stage <stage>     Where 'send-back' returns a change: proposed,
+                      planned, in-progress or in-review
+  --reopen <task>:<why>  An item 'send-back' reopens, and why; repeatable
+  --agent <id>        The agent acting for you. Without it, the
+                      environment says (OPENSPEC_UI_AGENT, AI_AGENT)
   --reason <text>     Why a run is asked to stop; the run records it
   --after <task>      Let the run finish this task first, as tasks.md numbers
                       it (for example 4.6), then stop where the work is sound
@@ -157,6 +178,15 @@ committed: joining the team is the pull request that carries the file
 handle is not one. 'people' lists the people of the repository and what
 is wrong with their files; it exits 1 when anything is.
 
+'history <change>' prints who holds a change and every event of its
+history, with any that break a rule. 'owner', 'implementer' and
+'send-back' record an event, signed with this machine's key: only the
+Owner hands the ownership on, the Owner sets the Implementer, the
+Implementer may hand the work back with --none, and the Owner or the
+Implementer sends a change back, reopening the items it names in
+tasks.md with the reason under each. Nothing is committed. They exit 1
+when the rules refuse the event.
+
 'doctor' exits 0 when nothing it found would stop a run, 1 when
 something would, and 2 when it could not look. A workspace held by a
 live run is reported and exits 0: being busy is not being broken.
@@ -196,6 +226,13 @@ export interface MainOptions {
   handle?: string;
   name?: string;
   email?: string;
+  /** A change's history: who is named, where it is sent back to, what is
+   * reopened, and which agent acts. */
+  to?: string;
+  none?: boolean;
+  stage?: string;
+  reopen?: string[];
+  agent?: string;
   /** `stop`'s reason for asking a run to stop. */
   reason?: string;
   /** The task a stop should let the run finish first. */
@@ -227,6 +264,8 @@ export interface MainDeps {
   enrolCommand?: typeof enrolCommand;
   joinCommand?: typeof joinCommand;
   peopleCommand?: typeof peopleCommand;
+  historyCommand?: typeof historyCommand;
+  recordCommand?: typeof recordCommand;
   /** How a checkpoint is put to a person, and how their answer comes
    * back. Absent `ask` means nobody is there, which is what makes a
    * change configured to pause refuse to start rather than hang.
@@ -276,13 +315,23 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--wait" ||
       arg === "--handle" ||
       arg === "--name" ||
-      arg === "--email"
+      arg === "--email" ||
+      arg === "--to" ||
+      arg === "--stage" ||
+      arg === "--agent"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email" | "to" | "stage" | "agent";
       options[key] = value;
       i += 1;
+    } else if (arg === "--reopen") {
+      const value = argv[i + 1];
+      if (!value) return { command: undefined, options, error: "--reopen requires a value" };
+      options.reopen = [...(options.reopen ?? []), value];
+      i += 1;
+    } else if (arg === "--none") {
+      options.none = true;
     } else if (arg === "--fingerprint") {
       options.fingerprint = true;
     } else if (arg === "--all") {
@@ -347,6 +396,9 @@ function formatText(result: ValidateAllResult): string {
     lines.push(`FAIL  could not compare the archive with the base: ${result.archiveCheckFailed}`);
   }
   for (const problem of result.peopleProblems ?? []) {
+    lines.push(`FAIL  ${problem.file}: ${problem.problem}`);
+  }
+  for (const problem of result.historyProblems ?? []) {
     lines.push(`FAIL  ${problem.file}: ${problem.problem}`);
   }
   lines.push(result.ok ? "\nAll changes valid." : "\nOne or more changes failed validation.");
@@ -528,6 +580,46 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  if (command === "history" || command === "owner" || command === "implementer" || command === "send-back") {
+    const changeName = options.changeName;
+    if (!changeName) {
+      stderr(`openspec-ui-cli: ${command} requires a change name`);
+      stderr(USAGE);
+      return 2;
+    }
+    const workspaceRoot = options.cwd ?? process.cwd();
+    const format = options.format === "json" ? "json" : "text";
+    if (command === "history") {
+      return await (deps.historyCommand ?? historyCommand)({ workspaceRoot, changeName, format }, { stdout, stderr });
+    }
+    const actor = options.agent !== undefined ? { kind: "agent" as const, agent: options.agent } : undefined;
+    let request: HistoryRequest;
+    if (command === "send-back") {
+      if (!isSendBackStage(options.stage) || options.reason === undefined) {
+        stderr("openspec-ui-cli: send-back requires --stage proposed|planned|in-progress|in-review and --reason <text>");
+        return 2;
+      }
+      const reopened = parseReopen(options.reopen ?? []);
+      if (typeof reopened === "string") {
+        stderr(`openspec-ui-cli: ${reopened}`);
+        return 2;
+      }
+      request = { type: "sent-back", toStage: options.stage, reason: options.reason, reopened };
+    } else {
+      // Nobody named means the person this machine's key belongs to.
+      const to = options.to ?? (command === "implementer" && options.none === true ? null : await handleOfThisMachine(workspaceRoot));
+      if (to === undefined) {
+        stderr("openspec-ui-cli: this machine's key is in nobody's file in openspec/people: join the team first, or name someone with --to");
+        return 1;
+      }
+      request = command === "owner" ? { type: "owner-set", to: to as string } : { type: "implementer-set", to };
+    }
+    return await (deps.recordCommand ?? recordCommand)(
+      { workspaceRoot, changeName, request, ...(actor !== undefined ? { actor } : {}), format },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "worktree") {
     const action = options.changeName;
     if (action !== "add" && action !== "list" && action !== "move" && action !== "remove") {
@@ -579,7 +671,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, history, owner, implementer, send-back, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

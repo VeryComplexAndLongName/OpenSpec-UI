@@ -10,9 +10,11 @@ import {
   listChanges,
   owesNothing,
   comparePeople,
+  checkHistories,
   readArchivedSince,
   readPeople,
   readPeopleAt,
+  type HistoryProblem,
   type PeopleProblem,
   readTaskChecklist,
   validateChange,
@@ -53,6 +55,10 @@ export interface ValidateAllResult {
    * or a key taken out, or a key changed (a-team-works-through-git,
    * ADR 0037). */
   peopleProblems?: PeopleProblem[];
+  /** What is wrong with the changes' histories: a file on the base deleted
+   * or changed, and a file this pull request adds that does not check out
+   * or breaks a hand-over rule (a-change-keeps-its-history, ADR 0037). */
+  historyProblems?: HistoryProblem[];
 }
 
 /** The two calls that spawn the `openspec` CLI. Seams, because the job
@@ -111,7 +117,7 @@ export async function runValidateAll(
     validateChange?: ValidateChange;
     listChanges?: ListChanges;
     /** The git a base is read through. */
-    git?: Pick<GitWrapper, "listTreeNames" | "showFile">;
+    git?: Pick<GitWrapper, "listTreeNames" | "listFilesUnder" | "showFile">;
   } = {},
 ): Promise<ValidateAllResult> {
   const run = options.validateChange ?? validateChange;
@@ -164,15 +170,29 @@ export async function runValidateAll(
     }
   }
 
+  // History is only ever added to, and what is added keeps the rules.
+  let historyProblems: HistoryProblem[];
+  try {
+    historyProblems = await checkHistories(
+      cwd,
+      people.people,
+      options.archivedSince !== undefined ? { git: options.git ?? createGitWrapper({ cwd }), ref: options.archivedSince } : undefined,
+    );
+  } catch (error) {
+    historyProblems = [{ file: "openspec/changes", problem: `the histories could not be checked: ${error instanceof Error ? error.message : String(error)}` }];
+  }
+
   const ok = results.every((result) => result.valid)
     && (archived === undefined || archived.length === 0)
     && archiveCheckFailed === undefined
-    && peopleProblems.length === 0;
+    && peopleProblems.length === 0
+    && historyProblems.length === 0;
   return {
     ok,
     results,
     ...(archived !== undefined && archived.length > 0 ? { archived } : {}),
     ...(archiveCheckFailed !== undefined ? { archiveCheckFailed } : {}),
     ...(peopleProblems.length > 0 ? { peopleProblems } : {}),
+    ...(historyProblems.length > 0 ? { historyProblems } : {}),
   };
 }

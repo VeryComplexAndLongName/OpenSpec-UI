@@ -233,6 +233,9 @@ export * from "./worktree-survey-facts.js";
 // in the words every surface uses. A leaf with no imports; the key, the
 // envelope and the roster stay Node-only.
 export * from "./signature-facts.js";
+// A change's history and its rules, in the words every surface uses
+// (a-change-keeps-its-history). A leaf; reading the files stays Node-only.
+export * from "./change-history-facts.js";
 // How many lines a Pipeline card holds, from the same rem the stylesheet
 // uses — the-pipeline-shows-what-it-has-read. Arithmetic only.
 export * from "./pipeline-card.js";

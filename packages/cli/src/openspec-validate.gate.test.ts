@@ -160,6 +160,7 @@ describe("the people", () => {
     const base = personText("ada", [kept, removed]);
     const git = {
       listTreeNames: async (_ref: string, tree: string) => (tree.startsWith("openspec/people") ? ["ada.json"] : []),
+      listFilesUnder: async () => [],
       showFile: async (_ref: string, file: string) => (file === "openspec/people/ada.json" ? base : undefined),
     };
 
@@ -167,5 +168,23 @@ describe("the people", () => {
 
     expect(result.ok).toBe(false);
     expect(result.peopleProblems?.map((one) => one.problem)).toEqual([`key ${removed.keyId} was removed; retire it with retiredAt instead`]);
+  });
+
+  // a-change-keeps-its-history: the histories are checked in the same pass.
+  it("fails a history file the base has and the pull request deleted", async () => {
+    const root = await withPeople({ "ada.json": personText("ada", [keyOf()]) });
+    const git = {
+      listTreeNames: async () => [],
+      listFilesUnder: async () => ["openspec/changes/the-change/history/20260922T100000Z-aaaaaaaa-owner-set.json"],
+      showFile: async () => "{}",
+    };
+
+    const result = await runValidateAll(root, { change: "the-change", archivedSince: "origin/main", git, ...seams });
+
+    expect(result.ok).toBe(false);
+    expect(result.historyProblems).toEqual([{
+      file: "openspec/changes/the-change/history/20260922T100000Z-aaaaaaaa-owner-set.json",
+      problem: "a history file was deleted; history is only ever added to",
+    }]);
   });
 });

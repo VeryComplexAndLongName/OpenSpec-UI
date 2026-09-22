@@ -97,6 +97,17 @@ describe("GitWrapper — reading refs (a-change-says-where-it-stands 1.2)", () =
     await expect(wrapper.listTreeNames("no-such-branch", "openspec/changes")).rejects.toBeInstanceOf(Error);
   });
 
+  // a-change-keeps-its-history: the merge gate reads every history on the
+  // base in one call.
+  it("lists every file under a path at a ref, at any depth, and a missing path as empty", async () => {
+    const { work } = await repositoryWithRemote();
+    const wrapper = createGitWrapper({ cwd: work });
+
+    expect(await wrapper.listFilesUnder("beta", "openspec/changes")).toEqual(expect.arrayContaining(["openspec/changes/beta/tasks.md"]));
+    expect(await wrapper.listFilesUnder("main", "openspec/changes/archive")).toEqual([]);
+    await expect(wrapper.listFilesUnder("no-such-branch", "openspec/changes")).rejects.toBeInstanceOf(Error);
+  });
+
   it("moves lastFetchedAt with a fetch, lists refs in one call, and finds the merge base", async () => {
     const { work } = await repositoryWithRemote();
     const wrapper = createGitWrapper({ cwd: work });
