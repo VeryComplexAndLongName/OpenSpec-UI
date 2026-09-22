@@ -107,7 +107,7 @@ interface ExecResult {
   stderr: string;
 }
 
-interface CheckItem {
+export interface CheckItem {
   name?: string;
   state?: string;
   conclusion?: string;
@@ -134,9 +134,9 @@ function normalizeCheckState(item: CheckItem): string {
 
 /** The one non-final answer: it is what `waitForChecks` polls on, so it
  * is a named constant rather than a string compared in two places. */
-const PENDING_REASON = "checks are still pending";
+export const PENDING_REASON = "checks are still pending";
 
-function parseCheckStatus(items: CheckItem[]): PullRequestCheckStatus {
+export function parseCheckStatus(items: CheckItem[]): PullRequestCheckStatus {
   if (items.length === 0) return { state: "none", reason: "no check result was available" };
 
   const failed = items.find((item) => {
@@ -298,6 +298,42 @@ export interface Forge {
   /** Asks for the pull request to merge once its checks pass. Merges
    * nothing now. Says why where the forge would not. */
   mergeWhenChecksPass(prNumber: number): Promise<{ ok: true; method: string } | { ok: false; reason: string }>;
+  /** What the pull request's checks say now, as `parseCheckStatus` reads
+   * them - for the git stage, which merges only on a pass (ADR 0014).
+   * Absent on a forge the git stage cannot use (github-without-gh). */
+  checksOf?(prNumber: number): Promise<PullRequestCheckStatus>;
+  /** Merges the pull request now and deletes its branch. */
+  mergeNow?(prNumber: number): Promise<void>;
+}
+
+/** The git stage's gateway over a forge that can read checks and merge:
+ * the same three steps the `gh` gateway takes, with the same polling and
+ * the same refusal of anything but a pass. */
+export function pullRequestGatewayOver(forge: Forge, options: { pollIntervalMs?: number; maxWaitMs?: number; title?: (headBranch: string) => string } = {}): PullRequestGateway {
+  const pollIntervalMs = options.pollIntervalMs ?? 2000;
+  const maxWaitMs = options.maxWaitMs ?? 300000;
+  return {
+    createPullRequest: (headBranch, baseBranch) => forge.openPullRequest({
+      head: headBranch,
+      base: baseBranch,
+      title: (options.title ?? ((branch) => branch))(headBranch),
+      body: "Opened by the git stage of the Agentic Harness.",
+    }),
+    async waitForChecks(prNumber) {
+      if (!forge.checksOf) return { state: "none", reason: `${forge.name} cannot be asked for checks here` };
+      const startedAt = Date.now();
+      while (Date.now() - startedAt <= maxWaitMs) {
+        const status = await forge.checksOf(prNumber);
+        if (status.reason !== PENDING_REASON) return status;
+        await delay(pollIntervalMs);
+      }
+      return { state: "none", reason: "checks did not reach a terminal state before timeout" };
+    },
+    async mergePullRequest(prNumber) {
+      if (!forge.mergeNow) throw new Error(`${forge.name} cannot merge here`);
+      await forge.mergeNow(prNumber);
+    },
+  };
 }
 
 export interface GitHubForgeOptions {

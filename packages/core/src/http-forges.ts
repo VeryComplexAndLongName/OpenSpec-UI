@@ -5,7 +5,7 @@
 // a token the person keeps in their environment - `GITLAB_TOKEN`,
 // `GITEA_TOKEN` - which is read when asked and never written anywhere.
 
-import type { BranchPullRequest, BranchPullRequestState, Forge, PullRequestRef, PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { parseCheckStatus, type BranchPullRequest, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
   ok: boolean;
@@ -141,6 +141,19 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
       }
       return { ok: false, reason };
     },
+    async checksOf(prNumber): Promise<PullRequestCheckStatus> {
+      const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
+      const sha = pull?.head?.sha;
+      if (typeof sha !== "string") return { state: "none", reason: "Gitea did not say which commit the pull request is at" };
+      const combined = await call(options, headers(), "GET", `${api}/commits/${sha}/status`) as { statuses?: Array<{ context?: unknown; status?: unknown; state?: unknown }> };
+      return parseCheckStatus((combined?.statuses ?? []).map((one) => ({
+        name: typeof one.context === "string" ? one.context : "status",
+        state: giteaCheckWord(String(one.status ?? one.state ?? "")),
+      })));
+    },
+    async mergeNow(prNumber) {
+      await call(options, headers(), "POST", `${api}/pulls/${prNumber}/merge`, { Do: "merge", delete_branch_after_merge: true });
+    },
   };
 }
 
@@ -225,6 +238,141 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
         }
       }
       return { ok: false, reason };
+    },
+    async checksOf(prNumber): Promise<PullRequestCheckStatus> {
+      const request = await call(options, headers(), "GET", `${api}/merge_requests/${prNumber}`) as { head_pipeline?: { status?: unknown; id?: unknown } | null };
+      const pipeline = request?.head_pipeline;
+      if (!pipeline) return parseCheckStatus([]);
+      return parseCheckStatus([{ name: `pipeline ${String(pipeline.id ?? "")}`.trim(), state: gitlabPipelineWord(String(pipeline.status ?? "")) }]);
+    },
+    async mergeNow(prNumber) {
+      await call(options, headers(), "PUT", `${api}/merge_requests/${prNumber}/merge`, { should_remove_source_branch: true });
+    },
+  };
+}
+
+/** A Gitea commit status as `parseCheckStatus` reads it. A warning passed
+ * with a remark; nothing refused it. */
+function giteaCheckWord(status: string): string {
+  if (status === "error" || status === "failure") return "failure";
+  if (status === "warning") return "success";
+  return status;
+}
+
+/** A GitLab pipeline status as `parseCheckStatus` reads it. */
+function gitlabPipelineWord(status: string): string {
+  if (status === "success") return "success";
+  if (status === "skipped" || status === "manual") return "skipped";
+  if (["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"].includes(status)) return "pending";
+  return status.length > 0 ? status : "failure";
+}
+
+/** GitHub over its REST and GraphQL APIs, for a machine with no `gh`, or a
+ * workspace that would rather not depend on it (github-without-gh). The
+ * token is `GITHUB_TOKEN`, or `GH_TOKEN`, which `gh` reads too. */
+export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: string }): Forge {
+  const apiBase = (options.apiBase ?? "https://api.github.com").replace(/[/]+$/u, "");
+  const api = `${apiBase}/repos/${options.path.split("/").map(encodeURIComponent).join("/")}`;
+  const headers = (): Record<string, string> => ({
+    Authorization: `Bearer ${options.token ?? ""}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "openspec-workbench",
+  });
+  const graphql = async (query: string, variables: Record<string, unknown>): Promise<unknown> => {
+    const answer = await call(options, headers(), "POST", `${apiBase}/graphql`, { query, variables }) as { data?: unknown; errors?: Array<{ message?: unknown }> };
+    const error = answer?.errors?.[0];
+    if (error) throw new Error(typeof error.message === "string" ? error.message : "GitHub refused the request");
+    return answer?.data;
+  };
+  return {
+    name: "GitHub",
+    async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
+      if (!options.token) return { available: false, reason: `${options.tokenName} is not set` };
+      const byBranch = new Map<string, BranchPullRequest>();
+      try {
+        for (let page = 1; page <= PAGES; page += 1) {
+          const items = await call(options, headers(), "GET", `${api}/pulls?state=all&sort=created&direction=desc&per_page=50&page=${page}`) as Array<Record<string, unknown>>;
+          if (!Array.isArray(items) || items.length === 0) break;
+          for (const item of items) {
+            const number = item.number;
+            const ref = (item.head as { ref?: unknown } | undefined)?.ref;
+            if (typeof number !== "number" || typeof ref !== "string") continue;
+            const state: BranchPullRequestState = item.merged_at ? "MERGED" : item.state === "open" ? "OPEN" : "CLOSED";
+            keep(byBranch, ref, { number, state });
+          }
+          if (items.length < 50) break;
+        }
+      } catch (error) {
+        return { available: false, reason: why(error) };
+      }
+      return { available: true, byBranch };
+    },
+    async openPullRequest(request): Promise<PullRequestRef> {
+      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      const made = await call(options, headers(), "POST", `${api}/pulls`, { head: request.head, base: request.base, title: request.title, body: request.body }) as { number?: unknown; html_url?: unknown };
+      if (typeof made?.number !== "number") throw new Error("GitHub opened a pull request and did not say its number");
+      return { number: made.number, url: typeof made.html_url === "string" ? made.html_url : `https://github.com/${options.path}/pull/${made.number}` };
+    },
+    async mergeWhenChecksPass(prNumber) {
+      if (!options.token) return { ok: false, reason: `${options.tokenName} is not set` };
+      let nodeId: string;
+      try {
+        const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { node_id?: unknown };
+        if (typeof pull?.node_id !== "string") return { ok: false, reason: "GitHub did not say the pull request's id" };
+        nodeId = pull.node_id;
+      } catch (error) {
+        return { ok: false, reason: why(error) };
+      }
+      let reason = "no merge method was tried";
+      for (const method of ["SQUASH", "MERGE", "REBASE"]) {
+        try {
+          await graphql(
+            "mutation($id: ID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) { clientMutationId } }",
+            { id: nodeId, method },
+          );
+          return { ok: true, method: method.toLowerCase() };
+        } catch (error) {
+          reason = why(error);
+          // Nothing left to wait for: GitHub refuses automatic merging of a
+          // pull request that can merge now, so it is merged now.
+          if (/clean status/iu.test(reason)) {
+            try {
+              await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: method.toLowerCase() });
+              return { ok: true, method: method.toLowerCase() };
+            } catch (mergeError) {
+              reason = why(mergeError);
+            }
+          }
+          if (!/(squash|rebase) merges are not allowed|merge commits are not allowed/iu.test(reason)) break;
+        }
+      }
+      return { ok: false, reason };
+    },
+    async checksOf(prNumber): Promise<PullRequestCheckStatus> {
+      const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
+      const sha = pull?.head?.sha;
+      if (typeof sha !== "string") return { state: "none", reason: "GitHub did not say which commit the pull request is at" };
+      const runs = await call(options, headers(), "GET", `${api}/commits/${sha}/check-runs?per_page=100`) as { check_runs?: Array<{ name?: unknown; status?: unknown; conclusion?: unknown }> };
+      const statuses = await call(options, headers(), "GET", `${api}/commits/${sha}/status`) as { statuses?: Array<{ context?: unknown; state?: unknown }> };
+      return parseCheckStatus([
+        ...(runs?.check_runs ?? []).map((run) => ({
+          name: typeof run.name === "string" ? run.name : "check",
+          state: String(run.status === "completed" ? run.conclusion ?? "" : run.status ?? ""),
+        })),
+        ...(statuses?.statuses ?? []).map((one) => ({
+          name: typeof one.context === "string" ? one.context : "status",
+          state: String(one.state ?? ""),
+        })),
+      ]);
+    },
+    async mergeNow(prNumber) {
+      const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { ref?: unknown } };
+      await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: "merge" });
+      // As `gh pr merge --delete-branch` does.
+      const ref = pull?.head?.ref;
+      if (typeof ref === "string") {
+        await call(options, headers(), "DELETE", `${api}/git/refs/heads/${ref.split("/").map(encodeURIComponent).join("/")}`).catch(() => undefined);
+      }
     },
   };
 }

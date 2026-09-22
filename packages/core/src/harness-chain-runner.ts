@@ -27,6 +27,7 @@ import {
   createPullRequestGateway,
   type PullRequestGateway,
 } from "./gh-pr-gateway.js";
+import { pullRequestGatewayFor } from "./forge.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import {
   runDeclaredChecks,
@@ -1937,7 +1938,10 @@ export class HarnessChainRunner {
     }
 
     const git = (this.deps.createGitWrapper ?? createGitWrapper)({ cwd: command.cwd });
-    const prGateway = (this.deps.createPullRequestGateway ?? createPullRequestGateway)({ cwd: command.cwd });
+    // The forge `origin` is on: GitHub, GitLab or Gitea (github-without-gh).
+    const prGateway = this.deps.createPullRequestGateway
+      ? this.deps.createPullRequestGateway({ cwd: command.cwd })
+      : await pullRequestGatewayFor(command.cwd);
     const allowlist = this.buildGitStageAllowlist(harnessConfig);
 
     const branch = await git.currentBranch();

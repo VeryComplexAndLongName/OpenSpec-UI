@@ -13,10 +13,10 @@
 // The token is the person's, in their environment: `GITLAB_TOKEN`,
 // `GITEA_TOKEN`. It is read when a forge is made and passed nowhere else.
 
-import { createGitHubForge, type Forge } from "./gh-pr-gateway.js";
+import { createGitHubForge, createPullRequestGateway, pullRequestGatewayOver, type Forge, type PullRequestGateway } from "./gh-pr-gateway.js";
 import { createGitWrapper } from "./git.js";
 import { parseForgeRemote } from "./forge-remote.js";
-import { createGitLabForge, createGiteaForge, type FetchLike } from "./http-forges.js";
+import { createGitHubApiForge, createGitLabForge, createGiteaForge, type FetchLike } from "./http-forges.js";
 
 export type ForgeKind = "github" | "gitlab" | "gitea";
 
@@ -53,7 +53,8 @@ async function answers(fetchImpl: FetchLike, url: string, alsoUnauthorized: bool
 /** What kind of forge the remote is on, and where its web root is. */
 export async function detectForge(remoteUrl: string | undefined, options: ForgeForOptions = {}): Promise<{ kind: ForgeKind; base?: string; path?: string }> {
   const remote = remoteUrl === undefined ? undefined : parseForgeRemote(remoteUrl);
-  if (remote === undefined || remote.host === "github.com") return { kind: "github" };
+  if (remote === undefined) return { kind: "github" };
+  if (remote.host === "github.com") return { kind: "github", base: "https://api.github.com", path: remote.path };
   const env = options.env ?? process.env;
   if (remote.host === "gitlab.com") return { kind: "gitlab", base: "https://gitlab.com", path: remote.path };
   const giteaBase = sameHost(env.GITEA_URL, remote.host);
@@ -65,6 +66,29 @@ export async function detectForge(remoteUrl: string | undefined, options: ForgeF
   if (await answers(fetchImpl, `${base}/api/v1/version`, false)) return { kind: "gitea", base, path: remote.path };
   if (await answers(fetchImpl, `${base}/api/v4/version`, true)) return { kind: "gitlab", base, path: remote.path };
   return { kind: "github" };
+}
+
+/** `gh` saying it is not there says what else would do. */
+function withTokenHint(forge: Forge): Forge {
+  return {
+    ...forge,
+    async pullRequestsByBranch() {
+      const read = await forge.pullRequestsByBranch();
+      if (!read.available && /not installed|not signed in/iu.test(read.reason)) {
+        return { available: false, reason: `${read.reason}, and GITHUB_TOKEN is not set` };
+      }
+      return read;
+    },
+  };
+}
+
+/** The git stage's pull request gateway for a workspace: over the forge
+ * `origin` is on where that forge can read checks and merge, through `gh`
+ * otherwise (github-without-gh). */
+export async function pullRequestGatewayFor(cwd: string, options: ForgeForOptions & { pollIntervalMs?: number; maxWaitMs?: number } = {}): Promise<PullRequestGateway> {
+  const forge = await forgeFor(cwd, options);
+  if (forge.checksOf && forge.mergeNow) return pullRequestGatewayOver(forge, options);
+  return createPullRequestGateway({ cwd, ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {}), ...(options.maxWaitMs !== undefined ? { maxWaitMs: options.maxWaitMs } : {}) });
 }
 
 const known = new Map<string, Promise<Forge>>();
@@ -82,7 +106,14 @@ export function forgeFor(root: string, options: ForgeForOptions = {}): Promise<F
     if (found.kind === "gitlab" && found.base && found.path) {
       return createGitLabForge({ base: found.base, path: found.path, token: env.GITLAB_TOKEN, tokenName: "GITLAB_TOKEN", ...(options.fetch ? { fetch: options.fetch } : {}) });
     }
-    return createGitHubForge({ cwd: root });
+    // GitHub: through its API where a token is in the environment, which
+    // needs nothing installed; through `gh` otherwise, as before
+    // (github-without-gh).
+    const githubToken = env.GITHUB_TOKEN ?? env.GH_TOKEN;
+    if (found.kind === "github" && found.path && githubToken) {
+      return createGitHubApiForge({ base: "https://github.com", apiBase: found.base, path: found.path, token: githubToken, tokenName: env.GITHUB_TOKEN ? "GITHUB_TOKEN" : "GH_TOKEN", ...(options.fetch ? { fetch: options.fetch } : {}) });
+    }
+    return withTokenHint(createGitHubForge({ cwd: root }));
   };
   // Seams are a test's own: never shared with the cache.
   if (options.remoteUrl !== undefined || options.fetch !== undefined || options.env !== undefined) return read();

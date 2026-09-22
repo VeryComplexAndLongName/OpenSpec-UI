@@ -348,7 +348,7 @@ missing, nothing is archived and the sweep says why.
 
 | `origin` on | Asked through | Credentials |
 | --- | --- | --- |
-| github.com | `gh`, as before | a signed-in `gh` |
+| github.com | GitHub's REST and GraphQL APIs where `GITHUB_TOKEN` or `GH_TOKEN` is set; `gh` otherwise, as before | a token with `repo` (and `workflow` where the repository has workflows), or a signed-in `gh` |
 | gitlab.com | GitLab's REST API (`/api/v4`) | `GITLAB_TOKEN`: a personal access token with `api`, or a fine-grained one that may read and create projects, read and write merge requests, and write the repository |
 | another host | whichever answers: Gitea's `/api/v1/version`, else GitLab's `/api/v4/version` | `GITEA_TOKEN` (repository and issue read and write) or `GITLAB_TOKEN` |
 
@@ -359,8 +359,9 @@ are read from the environment the host runs in - in the editor, restart it
 after setting one - and are sent only to the forge they belong to.
 
 The same forge answers the standings (which change's pull request is open
-or merged) and the directory sweep. The `git` stage's own pull request and
-merge still go through `gh`, so that stage is GitHub-only for now.
+or merged), the directory sweep, and the `git` stage's pull request, its
+checks and its merge (github-without-gh). With neither a token nor `gh`,
+the product says so: "gh is not installed, and GITHUB_TOKEN is not set".
 
 ### `allowAgentMessages`
 
@@ -858,11 +859,14 @@ up.
 
 ### Prerequisites
 
-`gh` must already be on `PATH` and already authenticated
-(`gh auth login`) on the machine running the stage. This project never
-handles git-forge credentials itself; the `gh` session already
-authenticated on that machine is what authorises every push, pull-request
-creation, and merge this stage performs.
+The stage opens its pull request, reads its checks and merges it on the
+forge `origin` is on: GitHub, GitLab or Gitea (see `archive` above for how
+it is chosen). It needs that forge's token in the environment -
+`GITHUB_TOKEN` or `GH_TOKEN`, `GITLAB_TOKEN`, `GITEA_TOKEN` - or, for
+GitHub, a `gh` on `PATH` that is already authenticated (`gh auth login`).
+The push is git's own, with whatever credentials git has on that machine.
+This project stores no credential: a token is read from the environment
+when it is needed and sent only to its forge.
 
 ### Audit
 
