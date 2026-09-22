@@ -2716,3 +2716,47 @@ judged again.
 - **WHEN** a pull request changes one byte of a history file on the base
 - **THEN** the merge gate fails, saying history is only ever added to
 
+### Requirement: A task list read during a run is read once it is settled
+
+Where a run reads its change's `tasks.md` to decide where a stop may end,
+`packages/core` SHALL read the list again until two readings a moment
+apart agree. A list with no task item SHALL be read as unreadable. A
+named task SHALL be reported missing only where a settled list does not
+have it.
+
+#### Scenario: The list is rewritten while it is read
+
+- **WHEN** `tasks.md` is truncated and written again while a run told to
+  stop after 2.2 reads it, and 2.2 is ticked in what is written
+- **THEN** the run reads 2.2 as ticked, never as missing
+
+#### Scenario: An empty list
+
+- **WHEN** `tasks.md` holds no task item at the moment it is read
+- **THEN** the reading is unreadable, and neither ends nor moves the run
+
+### Requirement: An archive pull request keeps up with the default branch
+
+Where the forge refuses to merge an open archive pull request while the
+default branch has commits its branch does not, the sweep SHALL make the
+archive again on the default branch as it is now, for the changes that
+are due. It SHALL then move its own branch there with a lease on the
+branch's current commit, and report that it did. It SHALL NOT do so
+where a check failed, where the checks could not be read, or where the
+default branch has not moved on. A refusal it cannot act on SHALL still
+be reported with the forge's reason.
+
+#### Scenario: A repository that merges only what is up to date
+
+- **WHEN** another pull request lands after the archive pull request was
+  opened, and the forge refuses the archive because it is behind
+- **THEN** the archive branch is made again on the default branch and
+  pushed, its checks run again, and a later pass merges it
+
+#### Scenario: An approval is required
+
+- **WHEN** the forge refuses the merge for an approval and the default
+  branch has not moved
+- **THEN** the archive branch is left as it was, and the refusal is
+  reported
+
