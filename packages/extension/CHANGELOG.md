@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.80.0
+
+### Minor Changes
+
+- ffd38c0: A team's people are in the repository
+  
+  Each person on a team now has a file in the repository,
+  `openspec/people/<handle>.json`, holding their name and a public key for
+  each machine they work on. Every colleague and every machine can then
+  verify what a person, or an agent working for them, signs, with no
+  server. Join with **OpenSpec Workbench: Join the Team** in the editor, or
+  `openspec-ui-cli join --handle <handle> --name <text>`, then commit the
+  file in a pull request. The merge gate keeps these files sound: a key is
+  retired, never removed, so what it signed keeps verifying. This is the
+  first step of team work (ADR 0037).
+
+### Patch Changes
+
+- Updated dependencies [ffd38c0]
+  - @openspec-ui/core@0.118.0
+  - @openspec-ui/server@1.41.2
+  - @openspec-ui/webui@1.70.9
+
 ## 0.79.1
 
 ### Patch Changes
