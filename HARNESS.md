@@ -337,6 +337,14 @@ checks:
 | none ran at all | merges - an archive only moves what `openspec archive` wrote |
 | one failed | does not merge, and names it |
 
+A repository may merge only what is up to date with its default branch:
+GitHub's "require branches to be up to date", GitLab's fast-forward merge,
+Gitea's "block merge on an outdated branch". An archive pull request such a
+forge refuses while the default branch has moved on would be refused on
+every pass after. So the sweep makes the archive again on the default
+branch as it is now, and moves its own branch there with a lease; the
+checks run again, and the next pass merges it.
+
 A forge that refuses the merge for any other reason - a required
 approval, a protected branch, a token that may not merge - leaves the pull
 request open. The sweep says the forge's own reason (in the editor as a

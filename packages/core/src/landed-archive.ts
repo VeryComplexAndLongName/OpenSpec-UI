@@ -8,7 +8,11 @@
 // The pass follows that pull request itself and merges it once its checks
 // have decided (ADR 0036): no forge is asked to merge later by its own
 // rules, so the same thing happens on every forge, however the repository
-// is set up. While one is open, no other is made.
+// is set up. While one is open, no other is made. Where the forge refuses
+// it because the default branch moved on - a repository that merges only
+// what is up to date with it - the pass makes the archive again on the
+// default branch as it is now and updates its own branch
+// (an-archive-keeps-up-with-main).
 
 import type { GitWrapper } from "./git.js";
 import { isMergeMethodRefusal, PENDING_REASON, type Forge, type MergeMethod, type PullRequestRef } from "./gh-pr-gateway.js";
@@ -21,9 +25,9 @@ export const LANDED_ARCHIVE_BRANCH_PREFIX = "archive-landed-";
 
 export interface LandedArchiveDeps {
   /** Git in the workspace's own repository. */
-  git: Pick<GitWrapper, "listTreeNames" | "showFile" | "worktreeAdd" | "worktreeRemove" | "deleteBranch">;
+  git: Pick<GitWrapper, "listTreeNames" | "showFile" | "worktreeAdd" | "worktreeRemove" | "deleteBranch" | "aheadBehind" | "resolveCommit">;
   /** Git in the directory the archive is made in. */
-  gitIn: (directoryPath: string) => Pick<GitWrapper, "stagePath" | "commit" | "push">;
+  gitIn: (directoryPath: string) => Pick<GitWrapper, "stagePath" | "commit" | "push" | "pushWithLease">;
   forge: Forge;
   /** Runs `openspec archive` for one change in the given directory. */
   archive: (changeName: string, directoryPath: string) => Promise<void>;
@@ -65,14 +69,20 @@ export interface LandedArchiveResult {
   failed?: string;
 }
 
-/** What following an open archive pull request came to. `merged`: this pass
- * merged it. `waiting`: its checks are still running. `blocked`: a check
- * failed, or the forge refused the merge, and the reason is the forge's own;
- * the pass reads it again next time, and merges it once it can. */
+/** What following an open archive pull request came to.
+ * - `merged`: this pass merged it.
+ * - `waiting`: its checks are still running.
+ * - `blocked`: a check failed, its checks could not be read, or the forge
+ *   refused the merge, with the forge's own reason. The pass reads it again
+ *   next time, and merges it once it can.
+ * - `rebuilt`: the forge refused it and the default branch had moved on, so
+ *   the archive was made again on the default branch and its branch
+ *   updated; its checks run again, and the next pass follows them. */
 export type ArchiveFollowOutcome =
   | { state: "merged"; method: MergeMethod }
   | { state: "waiting" }
-  | { state: "blocked"; reason: string };
+  | { state: "blocked"; reason: string; cause: "check-failed" | "checks-unreadable" | "refused" }
+  | { state: "rebuilt"; behind: number };
 
 /** How often a host sweeps while an archive pull request is open: its
  * checks are read that often, and it is merged that soon after they pass. */
@@ -98,10 +108,10 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
   try {
     checks = await forge.checksOf(number);
   } catch (error) {
-    return { state: "blocked", reason: `its checks could not be read: ${errorText(error)}` };
+    return { state: "blocked", reason: `its checks could not be read: ${errorText(error)}`, cause: "checks-unreadable" };
   }
   if (checks.state === "none" && checks.reason === PENDING_REASON) return { state: "waiting" };
-  if (checks.state === "fail") return { state: "blocked", reason: checks.reason ?? "a check failed" };
+  if (checks.state === "fail") return { state: "blocked", reason: checks.reason ?? "a check failed", cause: "check-failed" };
   let reason = "no merge method was tried";
   for (const method of ARCHIVE_MERGE_METHODS) {
     try {
@@ -112,7 +122,7 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
       if (!isMergeMethodRefusal(reason)) break;
     }
   }
-  return { state: "blocked", reason: `${forge.name} refused the merge: ${reason}` };
+  return { state: "blocked", reason: `${forge.name} refused the merge: ${reason}`, cause: "refused" };
 }
 
 function stamp(now: Date): string {
@@ -136,6 +146,68 @@ function errorText(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error);
   const first = text.split(String.fromCharCode(10)).map((line) => line.trim()).find((line) => line.length > 0);
   return first ?? "no reason given";
+}
+
+/** Makes the archive of `changes` on a branch cut from `base`, in a
+ * directory of its own, commits it and hands the branch to `push`. Returns
+ * the changes it archived; one whose archive fails is left out and named.
+ * The directory and the local branch are removed whatever happens. */
+async function makeArchive(
+  deps: LandedArchiveDeps,
+  branch: string,
+  base: string,
+  changes: readonly string[],
+  notArchived: LandedArchiveResult["notArchived"],
+  push: (git: ReturnType<LandedArchiveDeps["gitIn"]>) => Promise<void>,
+): Promise<string[]> {
+  const directory = await deps.makeDirectory();
+  let checkedOut = false;
+  try {
+    // A local branch of this name left by a pass that could not clean up
+    // would refuse the checkout; it is this pass's own, and nothing of it
+    // is needed.
+    await deps.git.deleteBranch(branch).catch(() => undefined);
+    await deps.git.worktreeAdd({ path: directory.path, branch, base });
+    checkedOut = true;
+
+    const archived: string[] = [];
+    for (const name of changes) {
+      try {
+        await deps.archive(name, directory.path);
+        archived.push(name);
+      } catch (error) {
+        notArchived.push({ changeName: name, reason: errorText(error) });
+      }
+    }
+    if (archived.length === 0) return archived;
+
+    const git = deps.gitIn(directory.path);
+    await git.stagePath("openspec");
+    const committed = await git.commit(lines(
+      landedArchiveTitle(archived),
+      "",
+      ...archived.map((name) => `- ${name}`),
+      "",
+      "Opened by the workspace sweep: each landed with nothing open (ADR 0035).",
+    ));
+    // git commits nothing, and says so without failing, where nothing was
+    // staged. The branch would then be the default branch under another
+    // name, and a pull request of it would archive nothing
+    // (the-sweep-finishes-what-it-starts).
+    if (!committed.commit) throw new Error("archiving changed nothing, so there was nothing to commit");
+    await push(git);
+    return archived;
+  } finally {
+    // The directory and the local branch are this pass's own, and nothing
+    // of them is needed once the branch is on the server - or once it
+    // could not be put there, when the next pass starts again from the
+    // default branch.
+    if (checkedOut) {
+      await deps.git.worktreeRemove(directory.path, { force: true }).catch(() => undefined);
+      await deps.git.deleteBranch(branch).catch(() => undefined);
+    }
+    await directory.remove().catch(() => undefined);
+  }
 }
 
 /** Archives every change that has landed and owes nothing, in one pull
@@ -191,45 +263,36 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
   // merges, the next pass reads a default branch without them.
   for (const [branch, pullRequest] of byBranch) {
     if (branch.startsWith(LANDED_ARCHIVE_BRANCH_PREFIX) && pullRequest.state === "OPEN") {
-      result.followed = { branch, number: pullRequest.number, outcome: await followArchivePullRequest(deps.forge, pullRequest.number) };
+      let outcome = await followArchivePullRequest(deps.forge, pullRequest.number);
+      // Refused while the default branch has moved on: a repository that
+      // merges only what is up to date with it would refuse it on every
+      // pass from now on. The archive is mechanical, so it is made again on
+      // the default branch as it is, and its own branch is moved there with
+      // a lease - a push somebody else made meanwhile refuses this one.
+      if (outcome.state === "blocked" && outcome.cause === "refused" && result.due.length > 0) {
+        const refused = outcome;
+        const remoteBranch = `${remote}/${branch}`;
+        const behind = (await deps.git.aheadBehind(remoteBranch, ref))?.behind ?? 0;
+        const leased = behind > 0 ? await deps.git.resolveCommit(remoteBranch) : undefined;
+        if (leased !== undefined) {
+          try {
+            const archived = await makeArchive(deps, branch, ref, result.due, result.notArchived, (git) => git.pushWithLease(remote, branch, leased));
+            if (archived.length > 0) outcome = { state: "rebuilt", behind };
+          } catch (error) {
+            outcome = { ...refused, reason: `${refused.reason}; making it again on ${ref} failed too: ${errorText(error)}` };
+          }
+        }
+      }
+      result.followed = { branch, number: pullRequest.number, outcome };
       return result;
     }
   }
   if (result.due.length === 0) return result;
 
   const branch = `${LANDED_ARCHIVE_BRANCH_PREFIX}${stamp((deps.now ?? (() => new Date()))())}`;
-  const directory = await deps.makeDirectory();
-  let checkedOut = false;
   try {
-    await deps.git.worktreeAdd({ path: directory.path, branch, base: ref });
-    checkedOut = true;
-
-    const archived: string[] = [];
-    for (const name of result.due) {
-      try {
-        await deps.archive(name, directory.path);
-        archived.push(name);
-      } catch (error) {
-        result.notArchived.push({ changeName: name, reason: errorText(error) });
-      }
-    }
+    const archived = await makeArchive(deps, branch, ref, result.due, result.notArchived, (git) => git.push(remote, branch));
     if (archived.length === 0) return result;
-
-    const git = deps.gitIn(directory.path);
-    await git.stagePath("openspec");
-    const committed = await git.commit(lines(
-      landedArchiveTitle(archived),
-      "",
-      ...archived.map((name) => `- ${name}`),
-      "",
-      "Opened by the workspace sweep: each landed with nothing open (ADR 0035).",
-    ));
-    // git commits nothing, and says so without failing, where nothing was
-    // staged. The branch would then be the default branch under another
-    // name, and a pull request of it would archive nothing
-    // (the-sweep-finishes-what-it-starts).
-    if (!committed.commit) throw new Error("archiving changed nothing, so there was nothing to commit");
-    await git.push(remote, branch);
 
     const pullRequest = await deps.forge.openPullRequest({
       head: branch,
@@ -248,16 +311,6 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
   } catch (error) {
     result.failed = errorText(error);
     return result;
-  } finally {
-    // The directory and the local branch are this pass's own, and nothing
-    // of them is needed once the branch is on the server - or once it
-    // could not be put there, when the next pass starts again from the
-    // default branch.
-    if (checkedOut) {
-      await deps.git.worktreeRemove(directory.path, { force: true }).catch(() => undefined);
-      await deps.git.deleteBranch(branch).catch(() => undefined);
-    }
-    await directory.remove().catch(() => undefined);
   }
 }
 
@@ -274,7 +327,9 @@ export function describeLandedArchive(result: LandedArchiveResult): string[] {
     const { number, outcome } = result.followed;
     if (outcome.state === "merged") said.push(`merged #${number} by ${outcome.method}: its checks passed, or none ran`);
     else if (outcome.state === "waiting") said.push(`#${number} is waiting for its checks`);
-    else said.push(`#${number} cannot merge yet: ${outcome.reason}`);
+    else if (outcome.state === "rebuilt") {
+      said.push(`#${number} was refused while ${outcome.behind} commit${outcome.behind === 1 ? "" : "s"} behind the default branch, so the archive was made again on it and pushed; its checks run again`);
+    } else said.push(`#${number} cannot merge yet: ${outcome.reason}`);
   }
   for (const entry of result.notArchived) {
     said.push(`could not archive ${entry.changeName}: ${entry.reason}`);
