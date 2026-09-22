@@ -143,7 +143,7 @@ conversion happens at all, so nothing to silently drift.
 | --- | --- | --- | --- |
 | `claude-cli`, `claude-cli-acp` | `maxCostUsd` | `--max-budget-usd` | Requires Claude Code v2.1.217 or later. |
 | `copilot-cli`, `copilot-cli-acp` | `maxAiCredits` | `--max-ai-credits` | Minimum 30 — a configured value below this is rejected before any run starts. |
-| `codex-cli`, `gemini-cli`, `local-llm`, `codex-cli-acp`, `gemini-cli-acp`, `vscode-chat` | Neither | — | No spending-cap mechanism at all; a `stepAgents` entry setting either field for one of these is rejected. |
+| `codex-cli`, `gemini-cli`, `local-llm`, `codex-cli-acp`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Neither | — | No spending-cap mechanism at all; a `stepAgents` entry setting either field for one of these is rejected. |
 
 **A mismatched field is refused when the configuration resolves, not
 minutes into a run.** Setting `stepAgents.apply.budget.maxAiCredits` while
@@ -292,6 +292,7 @@ and update both**, or the warning and this page will disagree.
 | `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |
 | `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | **Measured** — see below | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
 | `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
+| `deepseek-cli-acp` | Nothing | **Measured** 2026-09-22: an implement run through `dsh` 0.1.5-rc.2 sent 24 session updates, no `usage_update`, and no usage on the prompt's answer | ACP's `PromptResponse.usage` and `usage_update` notifications |
 | `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Certain — plain text carries no figure to record | Plain text output |
 | `vscode-chat` | Nothing | Certain | The run is handed to VS Code chat; this project never sees its cost |
 

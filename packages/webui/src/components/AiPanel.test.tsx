@@ -122,6 +122,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "copilot-cli-acp",
             "gemini-cli-acp",
             "codex-cli-acp",
+            "deepseek-cli-acp",
             "claude-cli-acp",
         ]);
     });
@@ -187,6 +188,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "copilot-cli-acp",
             "gemini-cli-acp",
             "codex-cli-acp",
+            "deepseek-cli-acp",
             "claude-cli-acp",
         ]);
         expect(options.find((o) => o.value === "claude-cli")?.textContent).toContain("(detected)");
