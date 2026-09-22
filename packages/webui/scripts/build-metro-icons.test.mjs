@@ -33,9 +33,16 @@ describe("the shipped icon stylesheet", () => {
   it("is what the build script produces from the vendored subset", async () => {
     // A vendored file or the kept-glyph list changed without running
     // `npm run build:metro-icons` fails here, not in a picture.
+    //
+    // Compared with line endings made alike: git on Windows checks the
+    // generated module out with CRLF, the script writes LF, and the two
+    // are the same file. Without this the check failed on every Windows
+    // checkout and was read past as "the known one"
+    // (the-icon-stylesheet-check-ignores-line-endings).
     const { subsetBuffer, codepoints } = await readVendoredSubset();
     const { css } = deriveMetroIconsCss(subsetBuffer, codepoints);
-    expect(await readFile(OUTPUT, "utf8")).toBe(moduleText(css));
+    const CR = String.fromCharCode(13);
+    expect((await readFile(OUTPUT, "utf8")).split(CR).join("")).toBe(moduleText(css));
   });
 
   it("inlines the subset as a data: URI rather than fetching it", async () => {
