@@ -53,7 +53,3 @@ Asked by the owner on 2026-09-22: everything must be removed, whatever
 - [x] 3.5 A changeset: core, the server and the extension, patch.
 - [x] 3.6 `openspec validate the-sweep-never-opens-an-archive --strict`:
   valid.
-- [ ] 3.7 The directory the failed removal left on 2026-09-22,
-  `C:\Prog\.worktrees\OpenSpec-UI\the-product-merges-what-it-archives`, is
-  removed. The owner's editor holds its `node_modules.asar` until its
-  extension host restarts.

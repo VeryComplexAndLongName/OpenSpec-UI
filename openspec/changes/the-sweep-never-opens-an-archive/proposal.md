@@ -65,5 +65,7 @@ unpatched `original-fs` removed the same tree cleanly.
 - **A directory an earlier failed removal left behind.** Git no longer
   lists it and it still holds files, so the shell sweep keeps it as
   somebody's, as it always has. This change keeps such a directory from
-  arising in the first place. The one left on this machine on 2026-09-22
-  is removed by hand.
+  arising in the first place. The one left on the owner's machine on
+  2026-09-22 is removed by hand, once the editor holding its
+  `node_modules.asar` restarts: housekeeping on one machine, not part of
+  this change.
