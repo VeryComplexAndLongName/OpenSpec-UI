@@ -1,5 +1,27 @@
 # @openspec-ui/core
 
+## 0.119.1
+
+### Patch Changes
+
+- 8c2dadf: A task list caught mid-write no longer misleads a stop
+  
+  Agents and editors often save `tasks.md` by emptying it and then writing
+  it again. A run that read the list in that moment could decide the task
+  it was told to stop after was missing, or mistake the next full reading
+  for a newly ticked task and stop too early. The list is now read again
+  until two readings agree, and an empty list is treated as not readable
+  yet.
+- 451f56c: An archive pull request is brought up to date when the forge asks for it
+  
+  Some repositories only merge pull requests that are up to date with the
+  default branch, such as GitHub's "require branches to be up to date",
+  GitLab's fast-forward merge, and Gitea's outdated-branch block. There, an
+  archive pull request the sweep opened could never merge once something
+  else landed first. Now, when the forge refuses it and the default branch
+  has moved on, the sweep rebuilds the archive on the current default
+  branch, updates its own branch, and merges it once the checks pass again.
+
 ## 0.119.0
 
 ### Minor Changes
