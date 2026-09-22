@@ -12,7 +12,7 @@
 
 import { isChangeBranch, rebaseBehindBranches, describeRebaseSkipped, type RebaseSweepResult } from "./branch-rebase.js";
 import { describeFinished, describeKept, sweepFinishedDirectories, type SweepResult } from "./finished-directories.js";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Forge } from "./gh-pr-gateway.js";
@@ -23,6 +23,7 @@ import { catchUpWithMain } from "./main-drift.js";
 import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
 import { ARCHIVE_FOLLOW_INTERVAL_MS, archiveLandedChanges, describeLandedArchive, landedArchiveIsOpen, type LandedArchiveResult } from "./landed-archive.js";
 import { archiveChange } from "./openspec.js";
+import { removeTree } from "./plain-fs.js";
 import { surveyWorktrees } from "./worktree-survey.js";
 
 export interface WorkspaceSweep {
@@ -151,7 +152,7 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
       const parent = await mkdtemp(path.join(os.tmpdir(), "openspec-archive-"));
       return {
         path: path.join(parent, "tree"),
-        remove: () => rm(parent, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+        remove: () => removeTree(parent),
       };
     },
   });

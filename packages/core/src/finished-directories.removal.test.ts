@@ -131,6 +131,33 @@ describe("removing a working directory that is done with", () => {
     expect(await readFile(path.join(target, "precious.txt"), "utf8")).toBe("do not delete");
   });
 
+  // the-sweep-never-opens-an-archive: git for Windows gave up with
+  // "Filename too long" on a downloaded editor in `.vscode-test`. Without
+  // long paths turned on for the removal, this fails on Windows; elsewhere
+  // it passes either way.
+  it("has git remove a worktree holding a path longer than Windows allows", async () => {
+    // No link inside: git leaves the shell of one behind on Windows, which
+    // the sweep removes after it and which is not what is asked here.
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-long-"));
+    roots.push(root);
+    const work = path.join(root, "work");
+    await mkdir(work);
+    await git(work, ["init", "-q", "-b", "main"]);
+    await writeFile(path.join(work, "a.txt"), "one", "utf8");
+    await git(work, ["add", "."]);
+    await git(work, ["commit", "-q", "-m", "first"]);
+    const worktree = path.join(root, "side");
+    await git(work, ["worktree", "add", "-q", "-b", "side", worktree]);
+    const deep = path.join(worktree, "packages", "extension", ".vscode-test", ...Array.from({ length: 12 }, (_, index) => `a-directory-named-long-enough-${index}`));
+    await mkdir(deep, { recursive: true });
+    await writeFile(path.join(deep, "file.txt"), "x", "utf8");
+    expect(path.join(deep, "file.txt").length).toBeGreaterThan(260);
+
+    await createGitWrapper({ cwd: work }).worktreeRemove(worktree, { force: true });
+
+    expect(existsSync(worktree)).toBe(false);
+  });
+
   it("leaves the branch, so nothing is lost where the remote was deleted unmerged", async () => {
     const { work, worktree } = await repositoryWithWorktree();
 

@@ -281,7 +281,11 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
       // a module overlay, a downloaded editor - is refused otherwise
       // (git-says-a-working-directory-is-done).
       const force = options.force === true ? ["--force"] : [];
-      await git.raw(["worktree", "remove", ...force, worktreePath]);
+      // Long paths: git for Windows otherwise gives up on a path longer
+      // than 260 characters - a downloaded editor in `.vscode-test` holds
+      // several - part-way through (the-sweep-never-opens-an-archive).
+      // Other platforms ignore the setting.
+      await git.raw(["-c", "core.longpaths=true", "worktree", "remove", ...force, worktreePath]);
     },
     async worktreePrune(): Promise<void> {
       await git.raw(["worktree", "prune"]);

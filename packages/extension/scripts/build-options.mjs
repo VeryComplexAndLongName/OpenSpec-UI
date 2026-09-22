@@ -95,6 +95,7 @@ export function testSuiteBuildOptions() {
       path.resolve(here, "../src/test/suite/index.ts"),
       path.resolve(here, "../src/test/suite/extension.test.ts"),
       path.resolve(here, "../src/test/suite/chat-dispatch.test.ts"),
+      path.resolve(here, "../src/test/suite/removal.test.ts"),
     ],
     outdir: path.resolve(here, "../dist/test-suite"),
     bundle: true,

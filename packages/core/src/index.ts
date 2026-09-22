@@ -11,6 +11,7 @@ export * from "./change-standing.js";
 export * from "./deferred-items.js";
 export * from "./archived-since.js";
 export * from "./branch-rebase.js";
+export { readsArchivesAsFiles, removeTree } from "./plain-fs.js";
 export { sweepWorkspace, describeWorkspaceSweep, createArchiveFollower, type ArchiveFollower, type WorkspaceSweep } from "./workspace-sweep.js";
 export { ARCHIVE_FOLLOW_INTERVAL_MS, followArchivePullRequest, landedArchiveIsOpen, type ArchiveFollowOutcome, type LandedArchiveResult } from "./landed-archive.js";
 export * from "./finished-directories.js";
