@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-22T02:50:28.230Z",
+  "generated_at": "2026-09-22T05:52:10.132Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "6202f35337e4e0f469ad5e9a833836f61153b95d",
+  "commit": "ef76c04cd2fd091b8df12f0d852f09ba37c5516a",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.76.0",
-      "released_at": "2026-09-22T02:50:28.230Z",
-      "tag": "openspec-ui-vscode@0.76.0",
+      "version": "0.77.0",
+      "released_at": "2026-09-22T05:52:10.132Z",
+      "tag": "openspec-ui-vscode@0.77.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.76.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.77.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.76.0/openspec-ui-vscode-0.76.0.vsix",
-          "size_bytes": 6440513
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.77.0/openspec-ui-vscode-0.77.0.vsix",
+          "size_bytes": 6450429
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "DeepSeek is an agent"
+          "summary": "GitLab and Gitea, as well as GitHub"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.38.0",
-      "released_at": "2026-09-22T02:50:28.230Z",
+      "version": "1.39.0",
+      "released_at": "2026-09-22T05:52:10.132Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +50,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "DeepSeek is an agent"
+          "summary": "GitLab and Gitea, as well as GitHub"
         }
       ]
     },
@@ -59,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.114.0",
-      "released_at": "2026-09-22T02:50:28.230Z",
+      "version": "0.115.0",
+      "released_at": "2026-09-22T05:52:10.132Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "DeepSeek is an agent"
+          "summary": "GitLab and Gitea, as well as GitHub"
         }
       ]
     },
@@ -80,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.70.4",
-      "released_at": "2026-09-22T02:50:28.230Z",
+      "version": "1.70.5",
+      "released_at": "2026-09-22T05:52:10.132Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -96,7 +96,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.19.0",
-      "released_at": "2026-09-22T02:50:28.230Z",
+      "released_at": "2026-09-22T05:52:10.132Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
