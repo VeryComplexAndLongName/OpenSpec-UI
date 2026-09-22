@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-22
+# Community files, an issue/PR template, and a Marketplace listing's
+# categories and keywords: no requirement of any capability changes.
+skip_specs: true
