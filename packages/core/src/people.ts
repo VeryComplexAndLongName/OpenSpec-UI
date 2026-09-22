@@ -235,6 +235,13 @@ export function comparePeople(base: readonly Person[], head: readonly Person[]):
   return problems;
 }
 
+/** The person this machine's key belongs to, where it is in somebody's
+ * file. Loads the key, making it if the machine has none yet. */
+export async function personOfThisMachine(root: string, options: { key?: Pick<MachineKey, "keyId"> } = {}): Promise<Person | undefined> {
+  const key = options.key ?? await loadOrCreateMachineKey();
+  return (await readPeople(root)).people.find((person) => person.keys.some((one) => one.keyId === key.keyId));
+}
+
 export class JoinRefusedError extends Error {}
 
 export interface JoinOptions {

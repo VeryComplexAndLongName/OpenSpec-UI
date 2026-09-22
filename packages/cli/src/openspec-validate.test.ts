@@ -8,6 +8,7 @@ vi.mock("@openspec-ui/core", () => ({
   // A repository with nobody in openspec/people: the people check is
   // openspec-validate.gate.test.ts's.
   readPeople: async () => ({ people: [], problems: [] }),
+  checkHistories: async () => [],
 }));
 
 const { runValidateAll } = await import("./openspec-validate.js");

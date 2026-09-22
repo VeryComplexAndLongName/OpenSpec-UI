@@ -162,6 +162,10 @@ export interface GitWrapper {
    * alike. A path the ref does not have lists as empty; a ref that does not
    * exist rejects (a-change-says-where-it-stands). */
   listTreeNames(ref: string, pathInRepo: string): Promise<string[]>;
+  /** Every file under `pathInRepo` at `ref`, at any depth, as repository-
+   * relative paths, in one call. A path the ref does not have lists as
+   * empty; a ref that does not exist rejects (a-change-keeps-its-history). */
+  listFilesUnder(ref: string, pathInRepo: string): Promise<string[]>;
   /** A file's text at `ref`, or `undefined` where the ref or the path is not
    * there. */
   showFile(ref: string, pathInRepo: string): Promise<string | undefined>;
@@ -368,6 +372,11 @@ export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
         if (await this.refExists(ref)) return [];
         throw error;
       }
+    },
+    async listFilesUnder(ref: string, pathInRepo: string): Promise<string[]> {
+      if (!await this.refExists(ref)) throw new Error(`${ref} is not a commit`);
+      const out = await git.raw(["ls-tree", "-r", "--name-only", ref, "--", pathInRepo.replace(/\/+$/u, "")]);
+      return out.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
     },
     async showFile(ref: string, pathInRepo: string): Promise<string | undefined> {
       try {

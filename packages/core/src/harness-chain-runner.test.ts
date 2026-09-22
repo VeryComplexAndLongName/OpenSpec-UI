@@ -224,6 +224,7 @@ function makeGitStageDeps(options: {
     pathExistsInRef: vi.fn(async () => true),
     changedFilesBetween: vi.fn(async () => []),
     listTreeNames: vi.fn(async () => []),
+    listFilesUnder: vi.fn(async () => []),
     showFile: vi.fn(async () => undefined),
     refExists: vi.fn(async () => false),
     listRefs: vi.fn(async () => []),

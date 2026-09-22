@@ -542,6 +542,8 @@ HTTP server and no webview. It started as a merge gate with one command,
 | `enrol [<keyId>]` | Lists unenrolled keys signing live runs; confirms one was yours. |
 | `join --handle <handle> --name <text>` | Puts you in the repository's people, with this machine's key. |
 | `people` | Lists the repository's people, and what is wrong with their files. |
+| `history <change>` | Who owns and implements a change, and every event of its history. |
+| `owner`, `implementer`, `send-back` | Records an event in a change's history, signed with this machine's key. |
 | `worktree add`, `list`, `move`, `remove` | A working directory per change. |
 | `change-graph` | What each change follows. |
 | `release-manifest` | The manifest the project site reads; used by CI. |
@@ -573,6 +575,9 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
   `--base <ref>` it refuses a pull request that takes a person or a key
   out, or changes a key: a signature that verified yesterday has to verify
   tomorrow.
+- It checks every change's history (see `history` below). With `--base`
+  it refuses a history file deleted or changed, and a new one that does
+  not check out or breaks a hand-over rule.
 - This repository's own CI (`.github/workflows/quality.yml`,
   `openspec-validate` job) runs it against `openspec/changes/` on every
   pull request, as the real merge gate; `main`'s ruleset requires it on a
@@ -666,6 +671,34 @@ files. It exits `1` when anything is.
 
 ```bash
 npm run start --workspace @openspec-ui/cli -- join --handle ada --name "Ada Lovelace" --cwd .
+```
+
+### `history`, `owner`, `implementer`, `send-back`: a change's history
+
+A change has an **Owner**, who answers for it, and an **Implementer**, who
+does the work, by hand or through agents. Both are people on the team.
+Who holds a change is played forward from its history: one signed file
+per event in `openspec/changes/<id>/history/`, committed with the change.
+Nothing edits or deletes a history file, and the merge gate refuses a pull
+request that does.
+
+| Command | Records |
+| --- | --- |
+| `owner <change> [--to <handle>]` | The Owner. Anyone on the team sets the first; after that only the Owner hands it on. |
+| `implementer <change> [--to <handle> \| --none]` | The Implementer, set by the Owner. The Implementer may hand the work back with `--none`. |
+| `send-back <change> --stage <stage> --reason <text> [--reopen <task>:<why>]` | A change sent back to `proposed`, `planned`, `in-progress` or `in-review`, by its Owner or Implementer. Each reopened item is unticked in `tasks.md`, with the reason under it. |
+
+Without `--to`, the person named is you, as this machine's key says. An
+event recorded by an agent reads as that agent's, working for you: the
+agent is taken from `--agent`, or from the environment the agent runs in
+(`OPENSPEC_UI_AGENT`, or `AI_AGENT` as Claude Code sets it). Nothing is
+committed: the files go in the change's pull request.
+
+`history <change>` prints who holds the change and every event, and marks
+any the rules refuse. It exits `1` when one does.
+
+```bash
+npm run start --workspace @openspec-ui/cli -- send-back my-change --stage in-progress --reason "review found a gap" --reopen "2.3:no test for the edge case" --cwd .
 ```
 
 ## Getting Started
