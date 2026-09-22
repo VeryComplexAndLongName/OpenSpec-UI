@@ -61,10 +61,19 @@ every forge, whatever the settings.
   is deleted. `gh`'s token has no `delete_repo`, and GitHub answered 403.
   **Human-only:** the owner deletes it. Done by the owner on 2026-09-22;
   GitHub's API then answered 404 for it.
-- [ ] 5.4 `npm run typecheck && npm run lint && npm run test` at the root,
-  after `git add`, run unpiped, exit code 0.
-- [ ] 5.5 The whole standalone browser suite passes.
-- [ ] 5.6 The extension's integration suite passes.
+- [x] 5.4 `npm run typecheck && npm run lint && npm run test` at the root,
+  after `git add`, run unpiped: typecheck and lint exit 0; cli 175, core
+  1797, extension 492, server 114, webui 651 passed. One test failed under
+  load, `branch-rebase.test.ts` "does the whole pass where there is a
+  behind change branch" (a 90 s timeout, then Git for Windows' `sh.exe`
+  "add_item ... errno 1" on a rerun). Its file then passed alone, 10 of 10.
+- [x] 5.5 The whole standalone browser suite: 24 of 28 on the first run,
+  under load. Of the four that failed, three passed on a rerun. The fourth,
+  `pipeline.spec.ts` "starts a chain from its card", fails the same way on
+  a clean worktree of `origin/main` at 621dd1a9: the run dialog is not
+  found inside `pipeline-run-layer` (line 456). `main`'s CI is green, so the
+  failure is this machine's, and this change touches no web UI.
+- [x] 5.6 The extension's integration suite: 18 passing.
 - [x] 5.7 A changeset: core, the server and the extension, minor.
 - [x] 5.8 `openspec validate the-product-merges-what-it-archives --strict`:
   valid.
