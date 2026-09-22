@@ -217,7 +217,7 @@ describe("archiveLandedChanges", () => {
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
-    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: "check failed: build (failure)" });
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: "check failed: build (failure)", cause: "check-failed" });
     expect(forge.mergeNow).not.toHaveBeenCalled();
     expect(describeLandedArchive(result)).toEqual(["#650 cannot merge yet: check failed: build (failure)"]);
   });
@@ -229,8 +229,53 @@ describe("archiveLandedChanges", () => {
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
-    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: `TestForge refused the merge: ${refusal}` });
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: `TestForge refused the merge: ${refusal}`, cause: "refused" });
     expect(forge.mergeNow).toHaveBeenCalledTimes(1);
+  });
+
+  // an-archive-keeps-up-with-main: a repository that merges only what is
+  // up to date with its default branch refuses an archive once the branch
+  // moves on, and would refuse it on every pass after.
+  it("makes the archive again on the default branch where the forge refused it and the branch had moved on", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const first = await archiveLandedChanges(depsFor(fixture, fakeForge()));
+    const branch = first.opened!.branch;
+    const before = await git(fixture.remote, ["rev-parse", branch]);
+    await landElsewhere(fixture, "landed.txt");
+    await git(fixture.work, ["fetch", "-q", "origin"]);
+    const behindRefusal = "Head branch is not up to date with the base branch";
+    const forge = fakeForge({ [branch]: { number: 700, state: "OPEN" } }, { refuse: { squash: behindRefusal, merge: behindRefusal, rebase: behindRefusal } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "rebuilt", behind: 1 });
+    const after = await git(fixture.remote, ["rev-parse", branch]);
+    expect(after).not.toBe(before);
+    // On the default branch as it is now, still archiving the change.
+    await git(fixture.remote, ["merge-base", "--is-ancestor", "main", branch]);
+    const onServer = await git(fixture.remote, ["ls-tree", "-r", "--name-only", branch]);
+    expect(onServer).toContain("landed.txt");
+    expect(onServer).toContain("openspec/changes/archive/2026-09-21-first-done/tasks.md");
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
+    expect(describeLandedArchive(result)).toEqual([
+      "#700 was refused while 1 commit behind the default branch, so the archive was made again on it and pushed; its checks run again",
+    ]);
+    // Nothing of the pass is left on this machine.
+    expect(await git(fixture.work, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
+  });
+
+  it("leaves a refused archive as it is where the default branch has not moved on", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const first = await archiveLandedChanges(depsFor(fixture, fakeForge()));
+    const branch = first.opened!.branch;
+    const before = await git(fixture.remote, ["rev-parse", branch]);
+    const refusal = "At least 1 approving review is required";
+    const forge = fakeForge({ [branch]: { number: 700, state: "OPEN" } }, { refuse: { squash: refusal, merge: refusal, rebase: refusal } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toMatchObject({ state: "blocked", cause: "refused" });
+    expect(await git(fixture.remote, ["rev-parse", branch])).toBe(before);
   });
 
   it("never archives a change that landed owing something, and says what it owes", async () => {

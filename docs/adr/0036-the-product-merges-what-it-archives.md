@@ -57,6 +57,13 @@ must be able to trust that it finishes what it has started.
    reads the pull request again on the next pass, and merges once it can
    or once a person has closed it.
 
+   *Amended by `an-archive-keeps-up-with-main`:* a refusal while the
+   default branch has moved on past the archive's branch is not left
+   standing. A repository that merges only what is up to date would
+   refuse it on every pass. The sweep makes the archive again on the
+   default branch as it is now and moves its own branch there with a
+   lease, and the checks run again.
+
 4. **A new pull request is read from the next pass on.** A moment after
    opening, a forge may not yet have started the checks it will run, and
    would read as having none. Merging then would skip them.
