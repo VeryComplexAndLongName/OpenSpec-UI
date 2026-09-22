@@ -63,6 +63,7 @@ import { ProcessesTreeProvider } from "./tree/processes-tree.js";
 import { TemplatesTreeProvider } from "./tree/templates-tree.js";
 import { ChangeGraphTreeProvider } from "./tree/change-graph-tree.js";
 import type { GraphTreeNode } from "./tree/change-graph-tree.js";
+import { readChangesStatingRelations } from "./relations-context.js";
 import {
   HumanOnlyInboxTreeProvider,
   type EnrolmentRequestTreeItem,
@@ -317,6 +318,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     sayWhatIsFiltered(archiveTreeView as unknown as vscode.TreeView<unknown>, archiveTree);
     sayWhatIsFiltered(specsTreeView as unknown as vscode.TreeView<unknown>, specsTree);
     sayWhatIsFiltered(changeGraphTreeView as unknown as vscode.TreeView<unknown>, changeGraphTree);
+    // Which Changes rows offer Remove Relation: read on activation and
+    // whenever the graph's files change, below
+    // (relations-and-leftovers-explain-themselves).
+    const markChangesStatingRelations = async () => {
+      if (!workspaceRoot || !changesTree) return;
+      const ids = await readChangesStatingRelations(workspaceRoot);
+      if (ids !== undefined) changesTree.setStatingRelations(ids);
+    };
     // What this product left behind, swept on activation and on core's
     // interval, and said in the Changes view: a directory with no
     // documents was listed there as a change with no tasks
@@ -402,6 +411,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     };
 
     void sweepLeftovers();
+    void markChangesStatingRelations();
     const sweepTimer = setInterval(() => { void sweepLeftovers(); }, LEFTOVER_SWEEP_INTERVAL_MS);
     context.subscriptions.push({ dispose: () => clearInterval(sweepTimer) });
 
@@ -462,7 +472,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       // change directory appearing or going. A task ticked changes nothing
       // in it, and each tick used to re-read the whole archive once per
       // open row (the-change-graph-reads-once).
-      if (changeGraphReads(path.relative(workspaceRoot, uri.fsPath))) changeGraphTree?.refresh();
+      if (changeGraphReads(path.relative(workspaceRoot, uri.fsPath))) {
+        changeGraphTree?.refresh();
+        void markChangesStatingRelations();
+      }
       humanOnlyInboxTree?.refresh();
     };
     context.subscriptions.push(

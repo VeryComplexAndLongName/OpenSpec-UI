@@ -477,7 +477,55 @@ describe("ChangesTreeProvider - what the sweep left to say", () => {
     expect(labels).toContain("my-idea");
     const kept = items.find((item) => String(item.label) === "my-idea");
     expect(kept?.description).toBe("notes.txt");
+    // No change of its name is archived, so it may be one not written
+    // yet, and takes a relation (relations-and-leftovers-explain-themselves).
+    expect(kept?.contextValue).toBe("openspec-ui.unwrittenChange");
+    expect(String(kept?.tooltip)).toContain("Relations can be stated on it now");
+  });
+
+  it("keeps an archived change's leavings to removal alone", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      initialized: true,
+      configExists: true,
+      configPath: "/workspace/repo/openspec/config.yaml",
+      changes: [],
+      archivedChanges: [],
+    });
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    provider.setLeftovers({
+      cleared: [],
+      kept: [{ name: "done-once", path: "/workspace/repo/openspec/changes/done-once", files: ["notes.txt"], archived: true }],
+    });
+
+    const items = await provider.getChildren();
+    const kept = items.find((item) => String(item.label) === "done-once");
+
     expect(kept?.contextValue).toBe("openspec-ui.leftover");
+    expect(String(kept?.tooltip)).not.toContain("Relations");
+  });
+
+  it("marks a change not written yet that states a relation, so it offers Remove Relation", async () => {
+    discoverOpenSpecWorkspaceMock.mockResolvedValue({
+      initialized: true,
+      configExists: true,
+      configPath: "/workspace/repo/openspec/config.yaml",
+      changes: [],
+      archivedChanges: [],
+    });
+    const provider = new ChangesTreeProvider("/workspace/repo");
+    provider.setLeftovers({
+      cleared: [],
+      kept: [
+        { name: "my-idea", path: "/workspace/repo/openspec/changes/my-idea", files: [".openspec.yaml"], archived: false },
+        { name: "other-idea", path: "/workspace/repo/openspec/changes/other-idea", files: [".openspec.yaml"], archived: false },
+      ],
+    });
+    provider.setStatingRelations(["my-idea"]);
+
+    const items = await provider.getChildren();
+
+    expect(items.find((item) => String(item.label) === "my-idea")?.contextValue).toBe("openspec-ui.unwrittenChange.related");
+    expect(items.find((item) => String(item.label) === "other-idea")?.contextValue).toBe("openspec-ui.unwrittenChange");
   });
 
   it("says nothing where the sweep found nothing", async () => {

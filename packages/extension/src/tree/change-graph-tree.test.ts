@@ -141,6 +141,16 @@ describe("ChangeGraphTreeProvider", () => {
     expect(items[0]?.command).toBeUndefined();
   });
 
+  it("marks a row whose change states a relation, and only it (relations-and-leftovers-explain-themselves)", async () => {
+    const tree = provider({ first: {}, second: { follows: ["first"] } });
+    const [root] = await tree.getChildren();
+    const [child] = await tree.getChildren(root);
+
+    expect(root?.contextValue).toBe("openspec-ui.graphActiveChange");
+    expect(child?.label).toBe("second");
+    expect(child?.contextValue).toBe("openspec-ui.graphActiveChange.related");
+  });
+
   describe("getParent", () => {
     it("resolves a root row to undefined", async () => {
       const tree = provider({ first: {}, second: { follows: ["first"] } });
