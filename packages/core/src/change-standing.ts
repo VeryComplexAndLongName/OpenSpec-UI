@@ -16,7 +16,8 @@ import {
   type StandingOnMain,
   type StandingSources,
 } from "./change-standing-facts.js";
-import { listPullRequestsByBranch, type PullRequestsByBranch } from "./gh-pr-gateway.js";
+import type { PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { forgeFor } from "./forge.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { surveyWorktrees, type SurveyedDirectory, type WorktreeSurvey } from "./worktree-survey.js";
 import { standingRunsOf } from "./worktree-survey-facts.js";
@@ -122,7 +123,8 @@ export async function readChangeStandings(workspaceRoot: string, options: Change
 
   let pullRequests = pullRequestReadings.get(root);
   if (pullRequests === undefined || fetch.attempted || options.listPullRequests !== undefined) {
-    pullRequests = await (options.listPullRequests ?? ((cwd: string) => listPullRequestsByBranch({ cwd })))(root);
+    // From whichever forge `origin` is on (the-forge-is-gitlab-or-gitea-too).
+    pullRequests = await (options.listPullRequests ?? (async (cwd: string) => (await forgeFor(cwd)).pullRequestsByBranch()))(root);
     pullRequestReadings.set(root, pullRequests);
   }
 

@@ -239,6 +239,10 @@ testing expertise".
     its tree is clean; `branches.followMain` turns that off.
     `archive.whenLanded` turns it off; see
     [`HARNESS.md`](HARNESS.md#archive).
+  - The repository can live on GitHub, GitLab or Gitea: the pull requests
+    are read from, and archive pull requests opened on, whichever `origin`
+    is on, with `GITLAB_TOKEN` or `GITEA_TOKEN` from the environment; see
+    [`HARNESS.md`](HARNESS.md#archive).
 
   See [`docs/adr/`](docs/adr/), 0025 to 0029, 0034 and 0035.
 
