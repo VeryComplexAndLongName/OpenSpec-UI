@@ -38,9 +38,10 @@ the current version finished before a breaking change.
     asked again and #1 merged by squash.
   - The `git` stage's gateway opened #2 and read its checks as "no check
     result was available", so it would not merge.
-- [ ] 4.3 The throwaway repository `VeryComplexAndLongName/openspec-workbench-forge-test`
+- [x] 4.3 The throwaway repository `VeryComplexAndLongName/openspec-workbench-forge-test`
   is deleted. `gh`'s token has no `delete_repo`, and GitHub answered 403.
-  **Human-only:** the owner deletes it.
+  **Human-only:** the owner deletes it. Done by the owner on 2026-09-22
+  through the repository's settings; GitHub's API then answered 404 for it.
 - [x] 4.4 `npm run typecheck && npm run lint && npm run test` at the root,
   after `git add`, run unpiped, exit code 0: cli 175, core 1798 and 37,
   extension 492, server 114, webui 651.
