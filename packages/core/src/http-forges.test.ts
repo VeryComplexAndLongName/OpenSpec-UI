@@ -38,7 +38,7 @@ describe("parseForgeRemote", () => {
 describe("detectForge", () => {
   it("knows github.com and gitlab.com without asking", async () => {
     const { fetch, asked } = fetchFrom([]);
-    expect(await detectForge("https://github.com/o/r.git", { fetch, env: {} })).toEqual({ kind: "github" });
+    expect(await detectForge("https://github.com/o/r.git", { fetch, env: {} })).toEqual({ kind: "github", base: "https://api.github.com", path: "o/r" });
     expect(await detectForge("git@gitlab.com:o/r.git", { fetch, env: {} })).toMatchObject({ kind: "gitlab", base: "https://gitlab.com", path: "o/r" });
     expect(asked).toEqual([]);
   });
