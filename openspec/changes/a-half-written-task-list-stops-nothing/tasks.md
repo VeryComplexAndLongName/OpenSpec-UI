@@ -20,8 +20,10 @@ a ticked 2.2 as `absent`.
     `absent`.
 
   `stop-boundary.test.ts` passed 3 runs of 3 in a row, 16 of 16 each.
-- [ ] 2.2 `npm run typecheck && npm run lint && npm run test` at the root,
-  after `git add`, run unpiped, exit code 0.
+- [x] 2.2 `npm run typecheck && npm run lint && npm run test` at the root,
+  after `git add`, run unpiped, exit code 0: cli 182, core 1811 and 46,
+  extension 492, server 114, webui 651. The whole standalone browser
+  suite, after a rebase onto `main` at #709: 28 of 28.
 - [x] 2.3 A changeset: core, patch.
-- [ ] 2.4 `openspec validate a-half-written-task-list-stops-nothing
-  --strict`, and the merge gate locally with `--base origin/main`.
+- [x] 2.4 `openspec validate a-half-written-task-list-stops-nothing
+  --strict`: valid. The merge gate locally with `--base origin/main`: ok.
