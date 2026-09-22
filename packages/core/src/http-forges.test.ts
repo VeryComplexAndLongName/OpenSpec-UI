@@ -106,15 +106,15 @@ describe("the Gitea forge", () => {
     expect(read.available).toBe(false);
   });
 
-  it("opens a pull request, and asks for a squash merge once checks pass", async () => {
+  it("opens a pull request, and merges it now by the method it is given", async () => {
     const { forge, asked } = forgeWith([
       ["POST", `${REPO}/pulls/7/merge`, 200, undefined],
       ["POST", `${REPO}/pulls`, 201, { number: 7, html_url: `${GITEA}/root/demo/pulls/7` }],
     ]);
 
     expect(await forge.openPullRequest({ head: "a", base: "main", title: "Archive a", body: "b" })).toEqual({ number: 7, url: `${GITEA}/root/demo/pulls/7` });
-    expect(await forge.mergeWhenChecksPass(7)).toEqual({ ok: true, method: "squash" });
-    expect(asked.at(-1)?.body).toEqual({ Do: "squash", merge_when_checks_succeed: true, delete_branch_after_merge: true });
+    await forge.mergeNow(7, "squash");
+    expect(asked.at(-1)?.body).toEqual({ Do: "squash", delete_branch_after_merge: true });
   });
 
   it("says what a refused token is", async () => {
@@ -154,7 +154,7 @@ describe("the GitLab forge", () => {
     expect(asked[0]?.headers["PRIVATE-TOKEN"]).toBe("glpat");
   });
 
-  it("opens a merge request that removes its branch, and asks for an automatic merge", async () => {
+  it("opens a merge request that removes its branch, and merges it now", async () => {
     const { forge, asked } = forgeWith([
       ["GET", `${PROJECT}/merge_requests/8`, 200, { detailed_merge_status: "mergeable" }],
       ["PUT", `${PROJECT}/merge_requests/8/merge`, 200, { state: "merged" }],
@@ -163,8 +163,8 @@ describe("the GitLab forge", () => {
 
     expect(await forge.openPullRequest({ head: "a", base: "main", title: "Archive a", body: "b" })).toEqual({ number: 8, url: "https://gitlab.com/group/app/-/merge_requests/8" });
     expect(asked.at(-1)?.body).toMatchObject({ source_branch: "a", target_branch: "main", remove_source_branch: true });
-    expect(await forge.mergeWhenChecksPass(8)).toEqual({ ok: true, method: "squash" });
-    expect(asked.at(-1)?.body).toMatchObject({ auto_merge: true, should_remove_source_branch: true });
+    await forge.mergeNow(8, "squash");
+    expect(asked.at(-1)?.body).toEqual({ should_remove_source_branch: true, squash: true });
   });
 
   // Seen live on gitlab.com, 2026-09-22: a merge asked for a moment after
@@ -185,7 +185,7 @@ describe("the GitLab forge", () => {
     };
     const forge = createGitLabForge({ base: "https://gitlab.com", path: "group/app", token: "glpat", tokenName: "GITLAB_TOKEN", fetch, sleep: async (ms) => { slept.push(ms); } });
 
-    expect(await forge.mergeWhenChecksPass(8)).toEqual({ ok: true, method: "squash" });
+    await forge.mergeNow(8);
     expect(readings).toBe(3);
     expect(merges).toBe(2);
     expect(slept.length).toBe(3);
@@ -195,9 +195,6 @@ describe("the GitLab forge", () => {
     const made = fetchFrom([["PUT", `${PROJECT}/merge_requests/8/merge`, 405, { message: "405 Method Not Allowed" }]]);
     const forge = createGitLabForge({ base: "https://gitlab.com", path: "group/app", token: "glpat", tokenName: "GITLAB_TOKEN", fetch: made.fetch, sleep: async () => undefined });
 
-    const answer = await forge.mergeWhenChecksPass(8);
-
-    expect(answer.ok).toBe(false);
-    expect(answer.ok === false && answer.reason).toContain("405");
+    await expect(forge.mergeNow(8)).rejects.toThrow("405");
   });
 });

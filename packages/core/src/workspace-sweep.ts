@@ -21,7 +21,7 @@ import { createGitWrapper } from "./git.js";
 import { archivesWhenLanded, followsMain, readGlobalHarnessConfig, rebasesWhenBehind, resolveHarnessConfig } from "./harness-config.js";
 import { catchUpWithMain } from "./main-drift.js";
 import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
-import { archiveLandedChanges, describeLandedArchive, type LandedArchiveResult } from "./landed-archive.js";
+import { ARCHIVE_FOLLOW_INTERVAL_MS, archiveLandedChanges, describeLandedArchive, landedArchiveIsOpen, type LandedArchiveResult } from "./landed-archive.js";
 import { archiveChange } from "./openspec.js";
 import { surveyWorktrees } from "./worktree-survey.js";
 
@@ -155,6 +155,10 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
       };
     },
   });
+  // An archive this pass merged is on the server and not yet in the refs
+  // the fetch above left: fetched, so it reaches the checkout now rather
+  // than a sweep later (ADR 0036).
+  if (archive.followed?.outcome.state === "merged") await git.fetch("origin", { prune: true }).catch(() => undefined);
   // Last: what landed - an archive among it - comes to the checkout a
   // person watches, so the views show what the server has
   // (main-follows-what-landed).
@@ -191,6 +195,45 @@ export function describeWorkspaceSweep(sweep: WorkspaceSweep): string[] {
       : `${DEFAULT_BRANCH} is ${sweep.main.behind} commit${sweep.main.behind === 1 ? "" : "s"} behind ${DEFAULT_REMOTE}/${DEFAULT_BRANCH} and was left there: ${sweep.main.why}`);
   }
   return lines;
+}
+
+export interface ArchiveFollower {
+  /** Looks at a sweep of a workspace, and sweeps it again in a few minutes
+   * where it left an archive pull request open. */
+  observe(workspaceRoot: string, sweep: WorkspaceSweep): void;
+  dispose(): void;
+}
+
+/** Sweeps a workspace again every few minutes while its archive pull
+ * request is open, so the product itself merges it soon after its checks
+ * pass, whatever else asks for a sweep and however seldom (ADR 0036). One
+ * timer per workspace. */
+export function createArchiveFollower(options: {
+  sweep?: (workspaceRoot: string) => Promise<WorkspaceSweep>;
+  onSwept?: (workspaceRoot: string, sweep: WorkspaceSweep) => void;
+  intervalMs?: number;
+} = {}): ArchiveFollower {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const sweep = options.sweep ?? ((workspaceRoot: string) => sweepWorkspace(workspaceRoot));
+  const follower: ArchiveFollower = {
+    observe(workspaceRoot, swept) {
+      if (!landedArchiveIsOpen(swept.archive) || timers.has(workspaceRoot)) return;
+      const timer = setTimeout(() => {
+        timers.delete(workspaceRoot);
+        void sweep(workspaceRoot).then((again) => {
+          options.onSwept?.(workspaceRoot, again);
+          follower.observe(workspaceRoot, again);
+        }, () => undefined);
+      }, options.intervalMs ?? ARCHIVE_FOLLOW_INTERVAL_MS);
+      timer.unref?.();
+      timers.set(workspaceRoot, timer);
+    },
+    dispose() {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    },
+  };
+  return follower;
 }
 
 /** Why a behind branch was left alone, for a surface that lists them. */

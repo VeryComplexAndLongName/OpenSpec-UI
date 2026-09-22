@@ -46,34 +46,26 @@ describe("GitHub through its API", () => {
     ]);
   });
 
-  it("asks for an automatic merge through GraphQL, by the pull request's id", async () => {
+  it("merges by the method it is given, and never asks GitHub for an automatic merge", async () => {
     const { forge, asked } = github([
-      ["GET", `${REPO}/pulls/5`, 200, { node_id: "PR_abc" }],
-      ["POST", `${API}/graphql`, 200, { data: { enablePullRequestAutoMerge: { clientMutationId: null } } }],
-    ]);
-
-    expect(await forge.mergeWhenChecksPass(5)).toEqual({ ok: true, method: "squash" });
-    expect(asked.at(-1)?.body).toMatchObject({ variables: { id: "PR_abc", method: "SQUASH" } });
-  });
-
-  it("merges at once a pull request GitHub calls clean, since nothing is left to wait for", async () => {
-    const { forge, asked } = github([
-      ["GET", `${REPO}/pulls/5`, 200, { node_id: "PR_abc" }],
-      ["POST", `${API}/graphql`, 200, { errors: [{ message: "Pull request Pull request is in clean status" }] }],
+      ["GET", `${REPO}/pulls/5`, 200, { head: { ref: "archive-landed-x" } }],
       ["PUT", `${REPO}/pulls/5/merge`, 200, { merged: true }],
+      ["DELETE", `${REPO}/git/refs/heads/archive-landed-x`, 204, undefined],
     ]);
 
-    expect(await forge.mergeWhenChecksPass(5)).toEqual({ ok: true, method: "squash" });
-    expect(asked.at(-1)).toMatchObject({ method: "PUT", body: { merge_method: "squash" } });
+    await forge.mergeNow(5, "squash");
+
+    expect(asked.find((one) => one.method === "PUT")?.body).toEqual({ merge_method: "squash" });
+    expect(asked.some((one) => one.url.endsWith("/graphql"))).toBe(false);
   });
 
-  it("says why where the repository does not allow automatic merging", async () => {
+  it("says GitHub's own reason where it refuses a merge", async () => {
     const { forge } = github([
-      ["GET", `${REPO}/pulls/5`, 200, { node_id: "PR_abc" }],
-      ["POST", `${API}/graphql`, 200, { errors: [{ message: "Auto merge is not allowed for this repository" }] }],
+      ["GET", `${REPO}/pulls/5`, 200, { head: { ref: "x" } }],
+      ["PUT", `${REPO}/pulls/5/merge`, 405, { message: "Squash merges are not allowed on this repository." }],
     ]);
 
-    expect(await forge.mergeWhenChecksPass(5)).toEqual({ ok: false, reason: "Auto merge is not allowed for this repository" });
+    await expect(forge.mergeNow(5, "squash")).rejects.toThrow("Squash merges are not allowed on this repository.");
   });
 
   it("reads checks from check runs and commit statuses together", async () => {
@@ -83,7 +75,7 @@ describe("GitHub through its API", () => {
       ["GET", `${REPO}/commits/abc/status`, 200, { statuses: [{ context: "deploy", state: "failure" }] }],
     ]);
 
-    expect(await forge.checksOf!(5)).toEqual({ state: "fail", reason: "check failed: deploy (failure)" });
+    expect(await forge.checksOf(5)).toEqual({ state: "fail", reason: "check failed: deploy (failure)" });
   });
 
   it("merges now and deletes the branch, as gh pr merge --delete-branch does", async () => {
@@ -93,7 +85,7 @@ describe("GitHub through its API", () => {
       ["DELETE", `${REPO}/git/refs/heads/feature/x`, 204, undefined],
     ]);
 
-    await forge.mergeNow!(5);
+    await forge.mergeNow(5);
 
     expect(asked.map((one) => one.method)).toEqual(["GET", "PUT", "DELETE"]);
   });
@@ -109,10 +101,11 @@ describe("which way to GitHub", () => {
     expect(typeof forge.checksOf).toBe("function");
   });
 
-  it("goes through gh where none is, which has no API-side checks of its own", async () => {
+  it("goes through gh where none is, and says so where gh is missing", async () => {
     const forge = await forgeFor("/repo", { remoteUrl, env: {} });
 
-    expect(forge.checksOf).toBeUndefined();
+    expect(forge.name).toBe("GitHub");
+    expect(typeof forge.mergeNow).toBe("function");
   });
 });
 
@@ -122,7 +115,6 @@ describe("the git stage's gateway over a forge", () => {
       name: "Test",
       pullRequestsByBranch: async () => ({ available: true, byBranch: new Map() }),
       openPullRequest: async () => ({ number: 9, url: "u" }),
-      mergeWhenChecksPass: async () => ({ ok: true, method: "squash" }),
       checksOf: async () => answers.shift() ?? { state: "none", reason: "no more" },
       mergeNow: async () => undefined,
     };
@@ -153,7 +145,7 @@ describe("checks on GitLab and Gitea", () => {
     const made = fetchFrom([["GET", "https://gitlab.com/api/v4/projects/group%2Fapp/merge_requests/4", 200, { head_pipeline: { id: 77, status: "running" } }]]);
     const forge = createGitLabForge({ base: "https://gitlab.com", path: "group/app", token: "t", tokenName: "GITLAB_TOKEN", fetch: made.fetch });
 
-    expect(await forge.checksOf!(4)).toEqual({ state: "none", reason: PENDING_REASON });
+    expect(await forge.checksOf(4)).toEqual({ state: "none", reason: PENDING_REASON });
   });
 
   it("reads a Gitea commit's statuses, and none as none", async () => {
@@ -164,6 +156,6 @@ describe("checks on GitLab and Gitea", () => {
     ]);
     const forge = createGiteaForge({ base: "http://gitea.test:3000", path: "root/demo", token: "t", tokenName: "GITEA_TOKEN", fetch: made.fetch });
 
-    expect(await forge.checksOf!(2)).toEqual({ state: "pass" });
+    expect(await forge.checksOf(2)).toEqual({ state: "pass" });
   });
 });

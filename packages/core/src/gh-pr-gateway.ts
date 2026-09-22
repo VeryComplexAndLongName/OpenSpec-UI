@@ -295,15 +295,24 @@ export interface Forge {
   readonly name: string;
   pullRequestsByBranch(): Promise<PullRequestsByBranch>;
   openPullRequest(request: { head: string; base: string; title: string; body: string }): Promise<PullRequestRef>;
-  /** Asks for the pull request to merge once its checks pass. Merges
-   * nothing now. Says why where the forge would not. */
-  mergeWhenChecksPass(prNumber: number): Promise<{ ok: true; method: string } | { ok: false; reason: string }>;
   /** What the pull request's checks say now, as `parseCheckStatus` reads
-   * them - for the git stage, which merges only on a pass (ADR 0014).
-   * Absent on a forge the git stage cannot use (github-without-gh). */
-  checksOf?(prNumber: number): Promise<PullRequestCheckStatus>;
-  /** Merges the pull request now and deletes its branch. */
-  mergeNow?(prNumber: number): Promise<void>;
+   * them. The product decides on this itself - the git stage (ADR 0014)
+   * and the archive pass (ADR 0036) alike - and never asks a forge to
+   * merge later by its own rules. */
+  checksOf(prNumber: number): Promise<PullRequestCheckStatus>;
+  /** Merges the pull request now, by the given method, and deletes its
+   * branch. Throws with the forge's reason where it will not. */
+  mergeNow(prNumber: number, method?: MergeMethod): Promise<void>;
+}
+
+export type MergeMethod = "squash" | "merge" | "rebase";
+
+/** Whether a forge's refusal was of the method only, so another method
+ * may still be allowed. GitHub: "Squash merges are not allowed on this
+ * repository", "Merge commits are not allowed". Gitea and GitLab say the
+ * style or the squash is not allowed. */
+export function isMergeMethodRefusal(reason: string): boolean {
+  return /(squash|rebase) merges are not allowed|merge commits are not allowed|merge style|squash.*not allowed|not allowed.*squash/iu.test(reason);
 }
 
 /** The git stage's gateway over a forge that can read checks and merge:
@@ -320,7 +329,6 @@ export function pullRequestGatewayOver(forge: Forge, options: { pollIntervalMs?:
       body: "Opened by the git stage of the Agentic Harness.",
     }),
     async waitForChecks(prNumber) {
-      if (!forge.checksOf) return { state: "none", reason: `${forge.name} cannot be asked for checks here` };
       const startedAt = Date.now();
       while (Date.now() - startedAt <= maxWaitMs) {
         const status = await forge.checksOf(prNumber);
@@ -330,8 +338,7 @@ export function pullRequestGatewayOver(forge: Forge, options: { pollIntervalMs?:
       return { state: "none", reason: "checks did not reach a terminal state before timeout" };
     },
     async mergePullRequest(prNumber) {
-      if (!forge.mergeNow) throw new Error(`${forge.name} cannot merge here`);
-      await forge.mergeNow(prNumber);
+      await forge.mergeNow(prNumber, "merge");
     },
   };
 }
@@ -341,15 +348,6 @@ export interface GitHubForgeOptions {
   ghBinary?: string;
   /** Test seam: runs `gh`. */
   exec?: (binary: string, args: string[], options: { cwd: string }) => Promise<{ stdout: string; stderr: string }>;
-}
-
-/** The merge methods tried, in this order: a repository allows some of
- * them, and `gh pr merge --auto` needs one named. Squash first, as this
- * repository merges. */
-const AUTO_MERGE_METHODS = ["--squash", "--merge", "--rebase"] as const;
-
-export function buildGhPrAutoMergeInvocation(prNumber: number, method: string): { executable: string; args: string[] } {
-  return { executable: "gh", args: ["pr", "merge", String(prNumber), "--auto", method, "--delete-branch"] };
 }
 
 export function buildGhPrCreateWithBodyInvocation(request: { head: string; base: string; title: string; body: string }): { executable: string; args: string[] } {
@@ -370,23 +368,18 @@ export function createGitHubForge(options: GitHubForgeOptions): Forge {
       const { stdout } = await exec(ghBinary, invocation.args, { cwd: options.cwd });
       return parsePullRequestRef(stdout);
     },
-    async mergeWhenChecksPass(prNumber) {
-      let reason = "no merge method was tried";
-      for (const method of AUTO_MERGE_METHODS) {
-        try {
-          await exec(ghBinary, buildGhPrAutoMergeInvocation(prNumber, method).args, { cwd: options.cwd });
-          return { ok: true, method: method.slice(2) };
-        } catch (error) {
-          reason = whyGhFailed(error);
-          // A method the repository does not allow: the next may be one it
-          // does. Anything else would fail the same way for every method.
-          // GitHub's words for one: "Squash merges are not allowed on this
-          // repository", "Merge commits are not allowed ...". Automatic
-          // merging itself being off is not one of them.
-          if (!/(squash|rebase) merges are not allowed|merge commits are not allowed/iu.test(reason)) break;
-        }
+    async checksOf(prNumber) {
+      try {
+        const { stdout } = await exec(ghBinary, ["pr", "checks", String(prNumber), "--json", "name,state"], { cwd: options.cwd });
+        return parseCheckStatus(JSON.parse(stdout) as CheckItem[]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (extractNoChecks(message)) return { state: "none", reason: "no check result was available" };
+        throw error;
       }
-      return { ok: false, reason };
+    },
+    async mergeNow(prNumber, method = "merge") {
+      await exec(ghBinary, ["pr", "merge", String(prNumber), `--${method}`, "--delete-branch"], { cwd: options.cwd });
     },
   };
 }

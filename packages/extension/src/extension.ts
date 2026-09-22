@@ -25,7 +25,9 @@ import {
   chainStopRequestHandlers,
   createGitWrapper,
   changeGraphReads,
+  ARCHIVE_FOLLOW_INTERVAL_MS,
   describeWorkspaceSweep,
+  landedArchiveIsOpen,
   sweepWorkspace,
   forgetMessage,
   loadOrCreateMachineKey,
@@ -147,10 +149,6 @@ export interface ExtensionTestApi {
    * revealed. */
   onWebviewEvent: (listener: (event: Event) => void) => vscode.Disposable;
 }
-
-/** How long after opening an archive pull request the sweep looks again:
- * about as long as that pull request's checks take here. */
-const ARCHIVE_RESWEEP_MS = 15 * 60_000;
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
@@ -363,6 +361,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // One core function, the same one the standalone runs, so the two hosts
     // cannot do different things with the same directories.
     const warnedOwing = new Set<string>();
+    const warnedBlocked = new Set<string>();
     let resweep: ReturnType<typeof setTimeout> | undefined;
     context.subscriptions.push({ dispose: () => { if (resweep !== undefined) clearTimeout(resweep); } });
     const sweepDirectories = async () => {
@@ -384,17 +383,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         const opened = swept.archive?.opened;
         if (opened) {
           void vscode.window.showInformationMessage(
-            `OpenSpec Workbench: opened #${opened.pullRequest.number} to archive ${opened.changes.join(", ")}; ${opened.merge.ok ? "it merges when its checks pass" : `merge it by hand (${opened.merge.reason})`}.`,
+            `OpenSpec Workbench: opened #${opened.pullRequest.number} to archive ${opened.changes.join(", ")}; it is merged once its checks pass.`,
           );
-          // Swept again once its checks have had time to pass, so the
-          // archive reaches this checkout then rather than half an hour
-          // later (main-follows-what-landed). One timer at a time.
-          if (resweep === undefined) {
-            resweep = setTimeout(() => {
-              resweep = undefined;
-              void sweepDirectories();
-            }, ARCHIVE_RESWEEP_MS);
+        }
+        // The sweep follows its own archive pull request and merges it
+        // (ADR 0036). A merge is said; a pull request that cannot merge is
+        // warned about once per reason, since it is read every few minutes.
+        const followed = swept.archive?.followed;
+        if (followed?.outcome.state === "merged") {
+          void vscode.window.showInformationMessage(`OpenSpec Workbench: merged #${followed.number}, which archives the changes that landed.`);
+        } else if (followed?.outcome.state === "blocked") {
+          const key = `${followed.number}:${followed.outcome.reason}`;
+          if (!warnedBlocked.has(key)) {
+            warnedBlocked.add(key);
+            void vscode.window.showWarningMessage(`OpenSpec Workbench: #${followed.number} cannot merge yet: ${followed.outcome.reason}. It is read again every few minutes.`);
           }
+        }
+        // Swept again soon while an archive pull request is open, so it is
+        // merged, and reaches this checkout, minutes after its checks pass
+        // rather than half an hour later. One timer at a time.
+        if (landedArchiveIsOpen(swept.archive) && resweep === undefined) {
+          resweep = setTimeout(() => {
+            resweep = undefined;
+            void sweepDirectories();
+          }, ARCHIVE_FOLLOW_INTERVAL_MS);
         }
         for (const owing of swept.archive?.owing ?? []) {
           // Once a session: the sweep runs every half hour, and the output

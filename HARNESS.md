@@ -320,11 +320,30 @@ change is finished when, on the default branch as the server has it:
 
 Every finished change goes into **one pull request per pass**, on a branch
 named `archive-landed-<date>`. The pull request is made in a directory
-outside the workspace, then asked to merge when its checks pass. The
-directory and the local branch are removed. While such a pull request is
-open, no other is made. A change whose archive fails is left out and
-named. Where the repository does not allow automatic merges, the pull
-request stays open and the sweep says so.
+outside the workspace, and the directory and the local branch are
+removed. While such a pull request is open, no other is made. A change
+whose archive fails is left out and named.
+
+**The product merges it itself**
+([ADR 0036](docs/adr/0036-the-product-merges-what-it-archives.md)). No
+forge is asked for an automatic merge, so a repository's merge settings
+change nothing. From the next pass on, the sweep reads the pull request's
+checks:
+
+| The checks | The sweep |
+| --- | --- |
+| still running | waits |
+| every one that ran passed | merges: squash, else merge, else rebase, as the repository allows |
+| none ran at all | merges - an archive only moves what `openspec archive` wrote |
+| one failed | does not merge, and names it |
+
+A forge that refuses the merge for any other reason - a required
+approval, a protected branch, a token that may not merge - leaves the pull
+request open. The sweep says the forge's own reason (in the editor as a
+warning, once per reason) and merges once it can. While an archive pull
+request is open, the editor and the standalone sweep again every five
+minutes. A merge is fetched at once, so it reaches the main checkout in
+the same pass.
 
 A change whose own pull request **merged while it still owes something**
 is never archived. The sweep names what it owes: in the editor as a
@@ -348,7 +367,7 @@ missing, nothing is archived and the sweep says why.
 
 | `origin` on | Asked through | Credentials |
 | --- | --- | --- |
-| github.com | GitHub's REST and GraphQL APIs where `GITHUB_TOKEN` or `GH_TOKEN` is set; `gh` otherwise, as before | a token with `repo` (and `workflow` where the repository has workflows), or a signed-in `gh` |
+| github.com | GitHub's REST API where `GITHUB_TOKEN` or `GH_TOKEN` is set; `gh` otherwise, as before | a token with `repo` (and `workflow` where the repository has workflows), or a signed-in `gh` |
 | gitlab.com | GitLab's REST API (`/api/v4`) | `GITLAB_TOKEN`: a personal access token with `api`, or a fine-grained one that may read and create projects, read and write merge requests, and write the repository |
 | another host | whichever answers: Gitea's `/api/v1/version`, else GitLab's `/api/v4/version` | `GITEA_TOKEN` (repository and issue read and write) or `GITLAB_TOKEN` |
 

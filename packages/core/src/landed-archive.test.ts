@@ -4,11 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BranchPullRequest, Forge } from "./gh-pr-gateway.js";
+import { PENDING_REASON, type BranchPullRequest, type Forge, type MergeMethod, type PullRequestCheckStatus } from "./gh-pr-gateway.js";
 import { createGitWrapper } from "./git.js";
 import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, landedArchiveTitle, type LandedArchiveDeps } from "./landed-archive.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
-import { describeWorkspaceSweep, sweepWorkspace } from "./workspace-sweep.js";
+import { createArchiveFollower, describeWorkspaceSweep, sweepWorkspace, type WorkspaceSweep } from "./workspace-sweep.js";
 
 // ADR 0035, a-landed-change-is-archived-for-you. Real git against a bare
 // remote, because what is asserted is what reaches the server: one branch
@@ -78,11 +78,18 @@ async function fakeArchive(changeName: string, directoryPath: string): Promise<v
   await rename(from, to);
 }
 
-type FakeForge = Forge & { opened: Array<{ head: string; title: string; body: string }>; merged: number[] };
+type FakeForge = Forge & { opened: Array<{ head: string; title: string; body: string }>; merged: Array<[number, MergeMethod]> };
 
-function fakeForge(byBranch: Record<string, BranchPullRequest> = {}): FakeForge {
+interface FakeForgeBehaviour {
+  checks?: PullRequestCheckStatus;
+  /** Refuses a merge by each of these methods, with this reason. */
+  refuse?: Partial<Record<MergeMethod, string>>;
+  onMerge?: () => Promise<void>;
+}
+
+function fakeForge(byBranch: Record<string, BranchPullRequest> = {}, behaviour: FakeForgeBehaviour = {}): FakeForge {
   const opened: Array<{ head: string; title: string; body: string }> = [];
-  const merged: number[] = [];
+  const merged: Array<[number, MergeMethod]> = [];
   return {
     name: "TestForge",
     opened,
@@ -92,12 +99,17 @@ function fakeForge(byBranch: Record<string, BranchPullRequest> = {}): FakeForge 
       opened.push(request);
       return { number: 700, url: "https://example.test/pull/700" };
     }),
-    mergeWhenChecksPass: vi.fn(async (prNumber: number) => {
-      merged.push(prNumber);
-      return { ok: true as const, method: "squash" };
+    checksOf: vi.fn(async () => behaviour.checks ?? { state: "pass" as const }),
+    mergeNow: vi.fn(async (prNumber: number, method: MergeMethod = "merge") => {
+      const refused = behaviour.refuse?.[method];
+      if (refused !== undefined) throw new Error(refused);
+      merged.push([prNumber, method]);
+      await behaviour.onMerge?.();
     }),
   };
 }
+
+const OPEN_ARCHIVE = `${LANDED_ARCHIVE_BRANCH_PREFIX}2026-09-20-101010`;
 
 function depsFor(fixture: Fixture, forge: Forge, overrides: Partial<LandedArchiveDeps> = {}): LandedArchiveDeps {
   return {
@@ -120,7 +132,7 @@ async function exists(file: string): Promise<boolean> {
 }
 
 describe("archiveLandedChanges", () => {
-  it("archives every change that landed with nothing open, in one pull request asked to merge", async () => {
+  it("archives every change that landed with nothing open, in one pull request", async () => {
     const fixture = await landed({ "first-done": DONE, "second-done": DONE, "still-open": OPEN, "in-review": DONE });
     const forge = fakeForge({ "in-review": { number: 12, state: "OPEN" } });
 
@@ -129,7 +141,10 @@ describe("archiveLandedChanges", () => {
     expect(result.due).toEqual(["first-done", "second-done"]);
     expect(result.opened?.changes).toEqual(["first-done", "second-done"]);
     expect(result.opened?.branch).toBe(`${LANDED_ARCHIVE_BRANCH_PREFIX}2026-09-21-123456`);
-    expect(forge.merged).toEqual([700]);
+    // Its checks are read from the next pass on: a moment after opening, a
+    // forge may not yet have started them (ADR 0036).
+    expect(forge.checksOf).not.toHaveBeenCalled();
+    expect(forge.merged).toEqual([]);
     // What reached the server: the two moved, the other two where they were.
     const onServer = await git(fixture.remote, ["ls-tree", "-r", "--name-only", result.opened!.branch, "openspec/changes"]);
     expect(onServer).toContain("openspec/changes/archive/2026-09-21-first-done/tasks.md");
@@ -153,15 +168,69 @@ describe("archiveLandedChanges", () => {
     expect(forge.pullRequestsByBranch).not.toHaveBeenCalled();
   });
 
-  it("waits while an archive pull request is open, and says what is waiting", async () => {
+  it("waits while an open archive pull request's checks are running, and opens no other", async () => {
     const fixture = await landed({ "first-done": DONE });
-    const forge = fakeForge({ [`${LANDED_ARCHIVE_BRANCH_PREFIX}2026-09-20-101010`]: { number: 650, state: "OPEN" } });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, { checks: { state: "none", reason: PENDING_REASON } });
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
-    expect(result.waitingFor).toEqual({ branch: `${LANDED_ARCHIVE_BRANCH_PREFIX}2026-09-20-101010`, number: 650 });
+    expect(result.followed).toEqual({ branch: OPEN_ARCHIVE, number: 650, outcome: { state: "waiting" } });
     expect(forge.openPullRequest).not.toHaveBeenCalled();
-    expect(describeLandedArchive(result)).toEqual(["first-done will be archived after #650 merges"]);
+    expect(forge.merged).toEqual([]);
+    expect(describeLandedArchive(result)).toEqual(["#650 is waiting for its checks"]);
+  });
+
+  it("merges an open archive pull request itself once its checks pass, by squash", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "merged", method: "squash" });
+    expect(forge.merged).toEqual([[650, "squash"]]);
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
+    expect(describeLandedArchive(result)).toEqual(["merged #650 by squash: its checks passed, or none ran"]);
+  });
+
+  it("merges where no check ran, since an archive only moves what openspec archive wrote", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, { checks: { state: "none", reason: "no check result was available" } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "merged", method: "squash" });
+  });
+
+  it("merges by another method where the repository does not allow squash", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, { refuse: { squash: "Squash merges are not allowed on this repository." } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "merged", method: "merge" });
+    expect(forge.merged).toEqual([[650, "merge"]]);
+  });
+
+  it("does not merge where a check failed, and says which", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, { checks: { state: "fail", reason: "check failed: build (failure)" } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: "check failed: build (failure)" });
+    expect(forge.mergeNow).not.toHaveBeenCalled();
+    expect(describeLandedArchive(result)).toEqual(["#650 cannot merge yet: check failed: build (failure)"]);
+  });
+
+  it("says the forge's own reason where it refuses the merge, and tries no other method for it", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const refusal = "At least 1 approving review is required by reviewers with write access.";
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, { refuse: { squash: refusal, merge: refusal, rebase: refusal } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(result.followed?.outcome).toEqual({ state: "blocked", reason: `TestForge refused the merge: ${refusal}` });
+    expect(forge.mergeNow).toHaveBeenCalledTimes(1);
   });
 
   it("never archives a change that landed owing something, and says what it owes", async () => {
@@ -209,16 +278,17 @@ describe("archiveLandedChanges", () => {
     expect(result.failed).toBe("TestForge could not be asked about pull requests: gh is not signed in");
   });
 
-  it("leaves the pull request open, and says why, where the forge will not merge it", async () => {
+  it("says what it opened, and that the sweep merges it", async () => {
     const fixture = await landed({ "first-done": DONE });
-    const forge: Forge = { ...fakeForge(), mergeWhenChecksPass: async () => ({ ok: false as const, reason: "auto-merge is not allowed for this repository" }) };
+    const forge = fakeForge();
 
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
     expect(describeLandedArchive(result)).toEqual([
       "opened #700 to archive first-done, which landed with nothing open",
-      "#700 was left open to merge by hand: auto-merge is not allowed for this repository",
+      "#700 is merged by the sweep once its checks pass",
     ]);
+    expect(forge.opened[0]?.body).toContain("ADR 0036");
   });
 
   // the-sweep-finishes-what-it-starts: git commits nothing without failing
@@ -329,6 +399,21 @@ describe("the workspace sweep", () => {
     expect(describeWorkspaceSweep(swept)).toContain("opened #700 to archive first-done, which landed with nothing open");
   });
 
+  // ADR 0036: the archive this pass merged reaches the checkout in the same
+  // pass, not one sweep later.
+  it("brings main up to an archive it merged, in the same pass", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 650, state: "OPEN" } }, {
+      onMerge: () => landElsewhere(fixture, "archived.txt"),
+    });
+
+    const swept = await sweepWorkspace(fixture.work, { forge, archive: fakeArchive });
+
+    expect(swept.archive?.followed?.outcome).toEqual({ state: "merged", method: "squash" });
+    expect(swept.main).toEqual({ moved: 1 });
+    expect(await exists(path.join(fixture.work, "archived.txt"))).toBe(true);
+  });
+
   it("leaves a finished change alone where the workspace turns the archive off", async () => {
     const fixture = await landed({ "first-done": DONE });
     await write(path.join(fixture.work, "openspec", "agent-harness.json"), JSON.stringify({ archive: { whenLanded: false } }));
@@ -338,5 +423,46 @@ describe("the workspace sweep", () => {
 
     expect(swept.archive?.due).toEqual([]);
     expect(forge.openPullRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("the archive follower (ADR 0036)", () => {
+  const open: WorkspaceSweep = { directories: { removed: [], kept: [] }, archive: { due: [], notArchived: [], owing: [], followed: { branch: OPEN_ARCHIVE, number: 650, outcome: { state: "waiting" } } } };
+  const merged: WorkspaceSweep = { directories: { removed: [], kept: [] }, archive: { due: [], notArchived: [], owing: [], followed: { branch: OPEN_ARCHIVE, number: 650, outcome: { state: "merged", method: "squash" } } } };
+
+  it("sweeps again while an archive pull request is open, and stops once it has merged", async () => {
+    vi.useFakeTimers();
+    try {
+      const answers = [open, merged];
+      const sweep = vi.fn(async () => answers.shift() ?? merged);
+      const follower = createArchiveFollower({ sweep, intervalMs: 1000 });
+
+      follower.observe("/repo", open);
+      follower.observe("/repo", open);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sweep).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sweep).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sweep).toHaveBeenCalledTimes(2);
+      follower.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does nothing for a sweep that left nothing open", async () => {
+    vi.useFakeTimers();
+    try {
+      const sweep = vi.fn(async () => merged);
+      const follower = createArchiveFollower({ sweep, intervalMs: 1000 });
+
+      follower.observe("/repo", merged);
+      follower.observe("/repo", { directories: { removed: [], kept: [] } });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sweep).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -56,6 +56,7 @@ import {
   clearWorkspaceLeftovers,
   describeWorkspaceSweep,
   sweepWorkspace,
+  createArchiveFollower,
   clearWorktreeShells,
   finishedWorkingDirectories,
   readWorkspaceLeftovers,
@@ -251,6 +252,11 @@ interface OpenSpecInitRequest {
   cwd: string;
   tools: string[];
 }
+
+/** Sweeps a workspace again every few minutes while the sweep has an
+ * archive pull request open, so the standalone merges it as the editor
+ * does (ADR 0036). Its timers never hold the process open. */
+const archiveFollower = createArchiveFollower();
 
 const SUPPORTED_INIT_TOOLS = new Set([
   "amazon-q",
@@ -1591,7 +1597,9 @@ export async function handleWorkspaceLeftoversRequest(
     // without it.
     let swept: string[] = [];
     try {
-      swept = describeWorkspaceSweep(await sweepWorkspace(parsed.cwd));
+      const done = await sweepWorkspace(parsed.cwd);
+      archiveFollower.observe(parsed.cwd, done);
+      swept = describeWorkspaceSweep(done);
     } catch (error) {
       swept = [`the working-directory sweep failed: ${error instanceof Error ? error.message : String(error)}`];
     }

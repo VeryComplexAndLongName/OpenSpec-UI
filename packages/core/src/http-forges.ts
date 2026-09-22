@@ -1,11 +1,11 @@
 // GitLab and Gitea as forges, over their REST APIs
 // (the-forge-is-gitlab-or-gitea-too). The same `Forge` GitHub is through
-// `gh` (ADR 0035): the pull requests by branch, a new one, and a merge
-// asked for once checks pass. Nothing is installed for them: `fetch`, and
+// `gh` (ADR 0035): the pull requests by branch, a new one, its checks, and
+// a merge now (ADR 0036). Nothing is installed for them: `fetch`, and
 // a token the person keeps in their environment - `GITLAB_TOKEN`,
 // `GITEA_TOKEN` - which is read when asked and never written anywhere.
 
-import { parseCheckStatus, type BranchPullRequest, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
+import { parseCheckStatus, type BranchPullRequest, type MergeMethod, type BranchPullRequestState, type Forge, type PullRequestCheckStatus, type PullRequestRef, type PullRequestsByBranch } from "./gh-pr-gateway.js";
 
 export type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
   ok: boolean;
@@ -122,25 +122,6 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
       if (typeof made?.number !== "number") throw new Error("Gitea opened a pull request and did not say its number");
       return { number: made.number, url: typeof made.html_url === "string" ? made.html_url : `${options.base}/${options.path}/pulls/${made.number}` };
     },
-    async mergeWhenChecksPass(prNumber) {
-      if (!options.token) return { ok: false, reason: `${options.tokenName} is not set` };
-      let reason = "no merge method was tried";
-      // A repository allows some methods; squash first, as ADR 0035 asks.
-      for (const method of ["squash", "merge", "rebase"]) {
-        try {
-          await call(options, headers(), "POST", `${api}/pulls/${prNumber}/merge`, {
-            Do: method,
-            merge_when_checks_succeed: true,
-            delete_branch_after_merge: true,
-          });
-          return { ok: true, method };
-        } catch (error) {
-          reason = why(error);
-          if (!/not allowed|merge style|405/iu.test(reason)) break;
-        }
-      }
-      return { ok: false, reason };
-    },
     async checksOf(prNumber): Promise<PullRequestCheckStatus> {
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
       const sha = pull?.head?.sha;
@@ -151,8 +132,9 @@ export function createGiteaForge(options: HttpForgeOptions): Forge {
         state: giteaCheckWord(String(one.status ?? one.state ?? "")),
       })));
     },
-    async mergeNow(prNumber) {
-      await call(options, headers(), "POST", `${api}/pulls/${prNumber}/merge`, { Do: "merge", delete_branch_after_merge: true });
+    async mergeNow(prNumber, method: MergeMethod = "merge") {
+      if (!options.token) throw new Error(`${options.tokenName} is not set`);
+      await call(options, headers(), "POST", `${api}/pulls/${prNumber}/merge`, { Do: method, delete_branch_after_merge: true });
     },
   };
 }
@@ -202,8 +184,14 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
       if (typeof made?.iid !== "number") throw new Error("GitLab opened a merge request and did not say its number");
       return { number: made.iid, url: typeof made.web_url === "string" ? made.web_url : `${options.base}/${options.path}/-/merge_requests/${made.iid}` };
     },
-    async mergeWhenChecksPass(prNumber) {
-      if (!options.token) return { ok: false, reason: `${options.tokenName} is not set` };
+    async checksOf(prNumber): Promise<PullRequestCheckStatus> {
+      const request = await call(options, headers(), "GET", `${api}/merge_requests/${prNumber}`) as { head_pipeline?: { status?: unknown; id?: unknown } | null };
+      const pipeline = request?.head_pipeline;
+      if (!pipeline) return parseCheckStatus([]);
+      return parseCheckStatus([{ name: `pipeline ${String(pipeline.id ?? "")}`.trim(), state: gitlabPipelineWord(String(pipeline.status ?? "")) }]);
+    },
+    async mergeNow(prNumber, method: MergeMethod = "merge") {
+      if (!options.token) throw new Error(`${options.tokenName} is not set`);
       const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
       // GitLab works out whether a new merge request can merge after it
       // answers, and refuses a merge meanwhile with 422 "Branch cannot be
@@ -220,33 +208,20 @@ export function createGitLabForge(options: HttpForgeOptions): Forge {
         }
         await sleep(GITLAB_WAIT_MS);
       }
-      let reason = "no merge was asked for";
-      for (let attempt = 0; attempt < GITLAB_ATTEMPTS; attempt += 1) {
+      // GitLab merges by the project's own method; a rebase is its own
+      // endpoint, so "rebase" merges as the project says.
+      for (let attempt = 1; ; attempt += 1) {
         try {
-          // `auto_merge` merges when the pipeline passes, and at once where
-          // the project runs none.
           await call(options, headers(), "PUT", `${api}/merge_requests/${prNumber}/merge`, {
-            auto_merge: true,
             should_remove_source_branch: true,
-            squash: true,
+            squash: method === "squash",
           });
-          return { ok: true, method: "squash" };
+          return;
         } catch (error) {
-          reason = why(error);
-          if (!(error instanceof ForgeRefusal) || error.status !== 422) break;
+          if (!(error instanceof ForgeRefusal) || error.status !== 422 || attempt >= GITLAB_ATTEMPTS) throw error;
           await sleep(GITLAB_WAIT_MS);
         }
       }
-      return { ok: false, reason };
-    },
-    async checksOf(prNumber): Promise<PullRequestCheckStatus> {
-      const request = await call(options, headers(), "GET", `${api}/merge_requests/${prNumber}`) as { head_pipeline?: { status?: unknown; id?: unknown } | null };
-      const pipeline = request?.head_pipeline;
-      if (!pipeline) return parseCheckStatus([]);
-      return parseCheckStatus([{ name: `pipeline ${String(pipeline.id ?? "")}`.trim(), state: gitlabPipelineWord(String(pipeline.status ?? "")) }]);
-    },
-    async mergeNow(prNumber) {
-      await call(options, headers(), "PUT", `${api}/merge_requests/${prNumber}/merge`, { should_remove_source_branch: true });
     },
   };
 }
@@ -267,7 +242,7 @@ function gitlabPipelineWord(status: string): string {
   return status.length > 0 ? status : "failure";
 }
 
-/** GitHub over its REST and GraphQL APIs, for a machine with no `gh`, or a
+/** GitHub over its REST API, for a machine with no `gh`, or a
  * workspace that would rather not depend on it (github-without-gh). The
  * token is `GITHUB_TOKEN`, or `GH_TOKEN`, which `gh` reads too. */
 export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: string }): Forge {
@@ -278,12 +253,6 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
     "X-GitHub-Api-Version": "2022-11-28",
     "User-Agent": "openspec-workbench",
   });
-  const graphql = async (query: string, variables: Record<string, unknown>): Promise<unknown> => {
-    const answer = await call(options, headers(), "POST", `${apiBase}/graphql`, { query, variables }) as { data?: unknown; errors?: Array<{ message?: unknown }> };
-    const error = answer?.errors?.[0];
-    if (error) throw new Error(typeof error.message === "string" ? error.message : "GitHub refused the request");
-    return answer?.data;
-  };
   return {
     name: "GitHub",
     async pullRequestsByBranch(): Promise<PullRequestsByBranch> {
@@ -313,41 +282,6 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
       if (typeof made?.number !== "number") throw new Error("GitHub opened a pull request and did not say its number");
       return { number: made.number, url: typeof made.html_url === "string" ? made.html_url : `https://github.com/${options.path}/pull/${made.number}` };
     },
-    async mergeWhenChecksPass(prNumber) {
-      if (!options.token) return { ok: false, reason: `${options.tokenName} is not set` };
-      let nodeId: string;
-      try {
-        const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { node_id?: unknown };
-        if (typeof pull?.node_id !== "string") return { ok: false, reason: "GitHub did not say the pull request's id" };
-        nodeId = pull.node_id;
-      } catch (error) {
-        return { ok: false, reason: why(error) };
-      }
-      let reason = "no merge method was tried";
-      for (const method of ["SQUASH", "MERGE", "REBASE"]) {
-        try {
-          await graphql(
-            "mutation($id: ID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) { clientMutationId } }",
-            { id: nodeId, method },
-          );
-          return { ok: true, method: method.toLowerCase() };
-        } catch (error) {
-          reason = why(error);
-          // Nothing left to wait for: GitHub refuses automatic merging of a
-          // pull request that can merge now, so it is merged now.
-          if (/clean status/iu.test(reason)) {
-            try {
-              await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: method.toLowerCase() });
-              return { ok: true, method: method.toLowerCase() };
-            } catch (mergeError) {
-              reason = why(mergeError);
-            }
-          }
-          if (!/(squash|rebase) merges are not allowed|merge commits are not allowed/iu.test(reason)) break;
-        }
-      }
-      return { ok: false, reason };
-    },
     async checksOf(prNumber): Promise<PullRequestCheckStatus> {
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { sha?: unknown } };
       const sha = pull?.head?.sha;
@@ -365,9 +299,10 @@ export function createGitHubApiForge(options: HttpForgeOptions & { apiBase?: str
         })),
       ]);
     },
-    async mergeNow(prNumber) {
+    async mergeNow(prNumber, method: MergeMethod = "merge") {
+      if (!options.token) throw new Error(`${options.tokenName} is not set`);
       const pull = await call(options, headers(), "GET", `${api}/pulls/${prNumber}`) as { head?: { ref?: unknown } };
-      await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: "merge" });
+      await call(options, headers(), "PUT", `${api}/pulls/${prNumber}/merge`, { merge_method: method });
       // As `gh pr merge --delete-branch` does.
       const ref = pull?.head?.ref;
       if (typeof ref === "string") {

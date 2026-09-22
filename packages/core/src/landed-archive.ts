@@ -4,12 +4,14 @@
 // directory is still in `openspec/changes/` there, whose task list there
 // is closed item by item, and whose own pull request is not open, is
 // finished and not yet archived. Every such change goes into one pull
-// request per pass, made in a directory of its own outside the workspace
-// and asked to merge when its checks pass. While one is open, no other is
-// made.
+// request per pass, made in a directory of its own outside the workspace.
+// The pass follows that pull request itself and merges it once its checks
+// have decided (ADR 0036): no forge is asked to merge later by its own
+// rules, so the same thing happens on every forge, however the repository
+// is set up. While one is open, no other is made.
 
 import type { GitWrapper } from "./git.js";
-import type { Forge, PullRequestRef } from "./gh-pr-gateway.js";
+import { isMergeMethodRefusal, PENDING_REASON, type Forge, type MergeMethod, type PullRequestRef } from "./gh-pr-gateway.js";
 import { describeTaskDebts, owesNothing, parseTaskChecklist } from "./task-checklist.js";
 
 const CHANGES = "openspec/changes";
@@ -38,16 +40,21 @@ export interface LandedArchiveDeps {
 export interface LandedArchiveResult {
   /** The changes that were due, in the order they were found. */
   due: string[];
-  /** The pull request this pass opened, and what the forge said to the
-   * request that it merge when its checks pass. */
+  /** The pull request this pass opened. Its checks are read from the next
+   * pass on: a moment after opening, a forge may not yet have started the
+   * checks it will run, and would read as having none. */
   opened?: {
     branch: string;
     pullRequest: PullRequestRef;
     changes: string[];
-    merge: { ok: true; method: string } | { ok: false; reason: string };
   };
-  /** An archive pull request already open, which this pass waited on. */
-  waitingFor?: { branch: string; number: number };
+  /** An archive pull request already open, which this pass followed, and
+   * what came of it. While it is open, no other is made. */
+  followed?: {
+    branch: string;
+    number: number;
+    outcome: ArchiveFollowOutcome;
+  };
   /** A change that was due and was not archived, and why. */
   notArchived: Array<{ changeName: string; reason: string }>;
   /** A change whose own pull request has merged while it still owes
@@ -56,6 +63,56 @@ export interface LandedArchiveResult {
   owing: Array<{ changeName: string; pullRequest: number; owes: string[] }>;
   /** Why the pass could do nothing at all, where it had something to do. */
   failed?: string;
+}
+
+/** What following an open archive pull request came to. `merged`: this pass
+ * merged it. `waiting`: its checks are still running. `blocked`: a check
+ * failed, or the forge refused the merge, and the reason is the forge's own;
+ * the pass reads it again next time, and merges it once it can. */
+export type ArchiveFollowOutcome =
+  | { state: "merged"; method: MergeMethod }
+  | { state: "waiting" }
+  | { state: "blocked"; reason: string };
+
+/** How often a host sweeps while an archive pull request is open: its
+ * checks are read that often, and it is merged that soon after they pass. */
+export const ARCHIVE_FOLLOW_INTERVAL_MS = 5 * 60_000;
+
+/** Whether a pass left an archive pull request open that the next pass
+ * will follow - what a host re-sweeps sooner for (ADR 0036). */
+export function landedArchiveIsOpen(result: LandedArchiveResult | undefined): boolean {
+  if (!result) return false;
+  return result.opened !== undefined || (result.followed !== undefined && result.followed.outcome.state !== "merged");
+}
+
+/** The methods tried, in this order: a repository allows some of them, and
+ * squash keeps one commit per archive on the default branch. */
+const ARCHIVE_MERGE_METHODS: readonly MergeMethod[] = ["squash", "merge", "rebase"];
+
+/** Reads an archive pull request's checks and merges it where they have
+ * decided. Where no check ran it merges too: an archive only moves
+ * directories `openspec archive` wrote, and a repository with no checks
+ * would otherwise keep it open forever. */
+export async function followArchivePullRequest(forge: Forge, number: number): Promise<ArchiveFollowOutcome> {
+  let checks;
+  try {
+    checks = await forge.checksOf(number);
+  } catch (error) {
+    return { state: "blocked", reason: `its checks could not be read: ${errorText(error)}` };
+  }
+  if (checks.state === "none" && checks.reason === PENDING_REASON) return { state: "waiting" };
+  if (checks.state === "fail") return { state: "blocked", reason: checks.reason ?? "a check failed" };
+  let reason = "no merge method was tried";
+  for (const method of ARCHIVE_MERGE_METHODS) {
+    try {
+      await forge.mergeNow(number, method);
+      return { state: "merged", method };
+    } catch (error) {
+      reason = errorText(error);
+      if (!isMergeMethodRefusal(reason)) break;
+    }
+  }
+  return { state: "blocked", reason: `${forge.name} refused the merge: ${reason}` };
 }
 
 function stamp(now: Date): string {
@@ -128,14 +185,17 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
     if (!await deps.allowed(name)) continue;
     result.due.push(name);
   }
-  if (result.due.length === 0) return result;
 
+  // An archive pull request already open is followed first, whatever is
+  // due now: it holds changes that were due when it was made. After it
+  // merges, the next pass reads a default branch without them.
   for (const [branch, pullRequest] of byBranch) {
     if (branch.startsWith(LANDED_ARCHIVE_BRANCH_PREFIX) && pullRequest.state === "OPEN") {
-      result.waitingFor = { branch, number: pullRequest.number };
+      result.followed = { branch, number: pullRequest.number, outcome: await followArchivePullRequest(deps.forge, pullRequest.number) };
       return result;
     }
   }
+  if (result.due.length === 0) return result;
 
   const branch = `${LANDED_ARCHIVE_BRANCH_PREFIX}${stamp((deps.now ?? (() => new Date()))())}`;
   const directory = await deps.makeDirectory();
@@ -180,11 +240,10 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
         "",
         ...archived.map((name) => `- \`${name}\``),
         "",
-        "Opened by the workspace sweep (ADR 0035). It merges when its checks pass; the merge gate holds each change to the rule it was archived by.",
+        "Opened by the workspace sweep (ADR 0035). The sweep follows it and merges it itself once its checks pass, or where none run (ADR 0036); the merge gate holds each change to the rule it was archived by.",
       ),
     });
-    const merge = await deps.forge.mergeWhenChecksPass(pullRequest.number);
-    result.opened = { branch, pullRequest, changes: archived, merge };
+    result.opened = { branch, pullRequest, changes: archived };
     return result;
   } catch (error) {
     result.failed = errorText(error);
@@ -207,14 +266,15 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
 export function describeLandedArchive(result: LandedArchiveResult): string[] {
   const said: string[] = [];
   if (result.opened) {
-    const { pullRequest, changes, merge } = result.opened;
+    const { pullRequest, changes } = result.opened;
     said.push(`opened #${pullRequest.number} to archive ${changes.join(", ")}, which landed with nothing open`);
-    said.push(merge.ok
-      ? `#${pullRequest.number} merges by ${merge.method} when its checks pass`
-      : `#${pullRequest.number} was left open to merge by hand: ${merge.reason}`);
+    said.push(`#${pullRequest.number} is merged by the sweep once its checks pass`);
   }
-  if (result.waitingFor && result.due.length > 0) {
-    said.push(`${result.due.join(", ")} will be archived after #${result.waitingFor.number} merges`);
+  if (result.followed) {
+    const { number, outcome } = result.followed;
+    if (outcome.state === "merged") said.push(`merged #${number} by ${outcome.method}: its checks passed, or none ran`);
+    else if (outcome.state === "waiting") said.push(`#${number} is waiting for its checks`);
+    else said.push(`#${number} cannot merge yet: ${outcome.reason}`);
   }
   for (const entry of result.notArchived) {
     said.push(`could not archive ${entry.changeName}: ${entry.reason}`);
