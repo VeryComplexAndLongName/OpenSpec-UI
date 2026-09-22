@@ -27,6 +27,7 @@ import {
   type WorktreeSurvey,
 } from "@openspec-ui/core";
 import { readRepoSetupFacts } from "../repo-setup-facts.js";
+import { statingRelation } from "../relations-context.js";
 import { changeUri, standingThemeColour, type ChangeStandingDecorations } from "./change-standing-decorations.js";
 
 // Every TreeItem subclass here sets an explicit, stable `.id`. Without one,
@@ -343,15 +344,23 @@ export class LeftoverTreeItem extends vscode.TreeItem {
     public readonly leftoverName: string,
     public readonly leftoverPath: string,
     files: string[],
-    archived: boolean,
+    /** A change of this name is archived, so this is what it left behind
+     * rather than a change somebody is about to write. */
+    public readonly archived: boolean,
   ) {
     super(leftoverName, vscode.TreeItemCollapsibleState.None);
     this.id = `leftover:${leftoverName}`;
     this.description = files.length === 0 ? "empty directory" : files.join(", ");
     this.tooltip = archived
       ? "No document in it, and it holds a file this product did not write"
-      : "No document in it, and no change of this name is archived - it may be a change you have not written yet";
-    this.contextValue = "openspec-ui.leftover";
+      : "No document in it, and no change of this name is archived - it may be a change you have not written yet.\n\n"
+        + "Relations can be stated on it now. The rest of a change's menu arrives with its first "
+        + "proposal.md, design.md, tasks.md or specs/.";
+    // A change not written yet takes a relation: relations live in the
+    // `.openspec.yaml` it may already hold, and the order of work is often
+    // settled before the proposal is written
+    // (relations-and-leftovers-explain-themselves).
+    this.contextValue = archived ? "openspec-ui.leftover" : "openspec-ui.unwrittenChange";
     this.iconPath = new vscode.ThemeIcon("question");
     this.resourceUri = vscode.Uri.file(leftoverPath);
   }
@@ -564,6 +573,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     cleared: [],
     kept: [],
   };
+  private statingRelations = new Set<string>();
 
   constructor(private readonly workspaceRoot: string, private readonly options: ChangesTreeOptions = {}) { }
 
@@ -576,6 +586,21 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
   }): void {
     this.leftovers = reading;
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  /** The active changes that state a relation, read by the host from
+   * core's graph. Only they offer Remove Relation
+   * (relations-and-leftovers-explain-themselves). */
+  setStatingRelations(ids: readonly string[]): void {
+    const next = new Set(ids);
+    if (next.size === this.statingRelations.size && [...next].every((id) => this.statingRelations.has(id))) return;
+    this.statingRelations = next;
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  private markStatingRelation<T extends vscode.TreeItem>(item: T, name: string): T {
+    if (this.statingRelations.has(name)) item.contextValue = statingRelation(item.contextValue);
+    return item;
   }
 
   /** The change this working directory is for, where the survey says it
@@ -720,7 +745,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     items.push(new HarnessSettingsRootTreeItem());
     if (this.leftovers.cleared.length > 0) items.push(new LeftoversClearedTreeItem(this.leftovers.cleared));
     for (const kept of this.leftovers.kept) {
-      items.push(new LeftoverTreeItem(kept.name, kept.path, kept.files, kept.archived));
+      items.push(this.markStatingRelation(new LeftoverTreeItem(kept.name, kept.path, kept.files, kept.archived), kept.name));
     }
     // Whose each change is, from the survey the standings reading already
     // took: no extra git, no extra watcher
@@ -728,7 +753,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
     const survey = this.held?.survey;
     const ownerships = changeOwnerships(workspace.changes.map((change) => change.name), survey);
     for (const change of orderedByOwner(workspace.changes, ownerships)) {
-      items.push(new ChangeTreeItem(
+      items.push(this.markStatingRelation(new ChangeTreeItem(
         change.name,
         change.path,
         change.state,
@@ -737,7 +762,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<WorkbenchTre
         this.states?.get(change.name),
         change.schema,
         ownerships.get(change.name),
-      ));
+      ), change.name));
     }
     // Changes that exist only in another working directory: this checkout
     // was cut before they were proposed, so no row above can carry them.

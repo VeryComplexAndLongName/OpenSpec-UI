@@ -495,37 +495,42 @@
       "view/item/context": [
         {
           "command": "openspec-ui.removeLeftover",
-          "when": "viewItem == openspec-ui.leftover",
+          "when": "viewItem == openspec-ui.leftover || viewItem == openspec-ui.unwrittenChange || viewItem == openspec-ui.unwrittenChange.related",
           "group": "inline"
         },
         {
+          "command": "openspec-ui.removeLeftover",
+          "when": "viewItem == openspec-ui.leftover || viewItem == openspec-ui.unwrittenChange || viewItem == openspec-ui.unwrittenChange.related",
+          "group": "leftover@1"
+        },
+        {
           "command": "openspec-ui.sayToRun",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphActiveChange.related || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "relation@3"
         },
         {
           "command": "openspec-ui.stopRunAfterTask",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphActiveChange.related || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "relation@3"
         },
         {
           "command": "openspec-ui.addRelation",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphActiveChange.related || viewItem == openspec-ui.unwrittenChange || viewItem == openspec-ui.unwrittenChange.related",
           "group": "relation@1"
         },
         {
           "command": "openspec-ui.removeRelation",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.graphActiveChange",
+          "when": "viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.graphActiveChange.related || viewItem == openspec-ui.unwrittenChange.related",
           "group": "relation@2"
         },
         {
           "command": "openspec-ui.reviewDiff",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "inline"
         },
         {
           "command": "openspec-ui.validateSelectedChange",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "inline"
         },
         {
@@ -540,7 +545,7 @@
         },
         {
           "command": "openspec-ui.archiveChange",
-          "when": "viewItem == openspec-ui.activeChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related",
           "group": "openspec@1"
         },
         {
@@ -555,22 +560,22 @@
         },
         {
           "command": "openspec-ui.rollbackChange",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange",
           "group": "openspec@3"
         },
         {
           "command": "openspec-ui.showChangeTimeline",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "openspec@4"
         },
         {
           "command": "openspec-ui.showChangeAncestry",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "openspec@5"
         },
         {
           "command": "openspec-ui.showChangeCostReport",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "openspec@6"
         },
         {
@@ -585,22 +590,22 @@
         },
         {
           "command": "openspec-ui.revealInChangeGraph",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange || viewItem == openspec-ui.activeChange.elsewhere",
           "group": "openspec@5"
         },
         {
           "command": "openspec-ui.revealInChanges",
-          "when": "viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphArchivedChange",
+          "when": "viewItem == openspec-ui.graphActiveChange || viewItem == openspec-ui.graphActiveChange.related || viewItem == openspec-ui.graphArchivedChange",
           "group": "openspec@1"
         },
         {
           "command": "openspec-ui.configureHarnessForChange",
-          "when": "viewItem == openspec-ui.activeChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related",
           "group": "openspec@5"
         },
         {
           "command": "openspec-ui.runWithHarness",
-          "when": "viewItem == openspec-ui.activeChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related",
           "group": "openspec@6"
         },
         {
@@ -620,7 +625,7 @@
         },
         {
           "command": "openspec-ui.deleteChange",
-          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.archivedChange",
+          "when": "viewItem == openspec-ui.activeChange || viewItem == openspec-ui.activeChange.related || viewItem == openspec-ui.archivedChange",
           "group": "openspec@9"
         },
         {

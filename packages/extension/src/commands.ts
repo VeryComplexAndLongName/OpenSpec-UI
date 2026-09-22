@@ -105,6 +105,7 @@ import { describeEvent } from "./describe-event.js";
 import { readConfig } from "./config.js";
 import { openDiffAgainstHead } from "./native/diff.js";
 import { ChangeTreeItem, LeftoverTreeItem } from "./tree/changes-tree.js";
+import { withoutRelationMark } from "./relations-context.js";
 import { pickChangeToRelate, pickRelationKind, pickRelationToRemove } from "./relation-edit.js";
 import type { ViewFilterState } from "./tree/view-filter-state.js";
 import type { TaskTreeItem } from "./tree/changes-tree.js";
@@ -350,7 +351,9 @@ const GRAPH_ROW_CONTEXT_VALUES = new Set(["openspec-ui.graphActiveChange", "open
 function contextValueOf(candidate: unknown): string | undefined {
   if (typeof candidate !== "object" || candidate === null) return undefined;
   const value = (candidate as { contextValue?: unknown }).contextValue;
-  return typeof value === "string" ? value : undefined;
+  // A row stating a relation is the same kind of row
+  // (relations-and-leftovers-explain-themselves).
+  return typeof value === "string" ? withoutRelationMark(value) : undefined;
 }
 
 function isChangeTreeItem(candidate: unknown): candidate is ChangeTreeItem {
@@ -470,7 +473,7 @@ const REVIEW_GATE_PICKS: readonly vscode.QuickPickItem[] = [
   { label: "human-required", description: "Default" },
   {
     label: "agent-sufficient",
-    detail: "Currently a no-op — the git stepAgent's commit/push action does not exist yet.",
+    detail: "The git stage may push, open and merge a pull request without a person, within this change's gitStageAllowlist.",
   },
 ];
 
@@ -1119,7 +1122,18 @@ function relationSubject(
   // twice with two kind checks would read a graph row as a Changes row.
   if (isChangeTreeItem(item)) return { name: item.changeName, archived: item.archived, ownership: item.ownership };
   if (isChangeGraphTreeItem(item)) return { name: item.node.id, archived: item.node.archived };
+  // A change not written yet: its relations live in the `.openspec.yaml`
+  // it holds, which core edits as it would any other. One whose change is
+  // archived is that change's leavings, and answers as archived
+  // (relations-and-leftovers-explain-themselves).
+  if (item instanceof LeftoverTreeItem) return { name: item.leftoverName, archived: item.archived };
   if (item !== undefined) return undefined;
+  const selectedLeftover = resolveTreeItem(
+    undefined,
+    deps.changesView,
+    (row): row is LeftoverTreeItem => row instanceof LeftoverTreeItem,
+  );
+  if (selectedLeftover) return { name: selectedLeftover.leftoverName, archived: selectedLeftover.archived };
   const selectedChange = resolveTreeItem(undefined, deps.changesView, isChangeTreeItem);
   if (selectedChange) {
     return { name: selectedChange.changeName, archived: selectedChange.archived, ownership: selectedChange.ownership };

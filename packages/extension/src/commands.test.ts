@@ -2905,6 +2905,27 @@ describe("the relation commands (a-relation-is-set-where-it-is-read)", () => {
       change: "second", key: "follows", add: "first",
     });
   });
+
+  it("states a relation on a change not written yet (relations-and-leftovers-explain-themselves)", async () => {
+    readChangeGraphMock.mockResolvedValue(graphOf({ first: {}, "my-idea": {} }));
+    vscodeMock.window.showQuickPick
+      .mockResolvedValueOnce({ key: "blocked_by", label: "Blocked by" })
+      .mockResolvedValueOnce({ id: "first", label: "first" });
+    editChangeRelationMock.mockResolvedValue({
+      ok: true, change: "my-idea", key: "blocked_by", ids: ["first"], metadataPath: "x", written: true,
+    });
+    const deps = makeDeps();
+    registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, deps);
+
+    await vscodeMock._registeredCommands.get("openspec-ui.addRelation")?.(
+      new LeftoverTreeItem("my-idea", "/workspace/repo/openspec/changes/my-idea", [".openspec.yaml"], false),
+    );
+
+    expect(editChangeRelationMock).toHaveBeenCalledWith("/workspace/repo", {
+      change: "my-idea", key: "blocked_by", add: "first",
+    });
+    expect(deps.refreshTrees).toHaveBeenCalled();
+  });
 });
 
 describe("the leftover commands (the-workspace-clears-what-it-left-behind)", () => {

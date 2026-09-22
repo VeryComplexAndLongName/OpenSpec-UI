@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import { readConfig } from "./config.js";
 import { findGraphRows } from "./tree/change-graph-tree.js";
 import type { GraphTreeNode } from "./tree/change-graph-tree.js";
+import { withoutRelationMark } from "./relations-context.js";
 
 /** The part of a `vscode.TreeView` this needs from Changes/Archive: an
  * event fired with the new selection. */
@@ -30,7 +31,7 @@ const CHANGE_CONTEXT_VALUES = new Set(["openspec-ui.activeChange", "openspec-ui.
 function changeNameOf(candidate: unknown): string | undefined {
   if (typeof candidate !== "object" || candidate === null) return undefined;
   const { contextValue, changeName } = candidate as { contextValue?: unknown; changeName?: unknown };
-  if (typeof contextValue !== "string" || !CHANGE_CONTEXT_VALUES.has(contextValue)) return undefined;
+  if (typeof contextValue !== "string" || !CHANGE_CONTEXT_VALUES.has(withoutRelationMark(contextValue))) return undefined;
   return typeof changeName === "string" ? changeName : undefined;
 }
 

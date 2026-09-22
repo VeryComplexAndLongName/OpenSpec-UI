@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { landedBranches, readChangeGraph, type ChangeGraph, type ChangeGraphNode } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
 import { ViewFilterState } from "./view-filter-state.js";
+import { statingRelation } from "../relations-context.js";
 
 /** A change as it appears in the relation view.
  *
@@ -30,7 +31,7 @@ export class ChangeGraphTreeItem extends vscode.TreeItem {
       hasChildren ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None,
     );
     this.id = [...ancestry, node.id].join(">");
-    this.description = [
+    const description = [
       node.archived ? "archived" : undefined,
       waitingOn.length > 0 ? `waiting on ${waitingOn.join(", ")}` : undefined,
       node.supersedes.length > 0 ? `supersedes ${node.supersedes.join(", ")}` : undefined,
@@ -38,9 +39,14 @@ export class ChangeGraphTreeItem extends vscode.TreeItem {
     ]
       .filter(Boolean)
       .join(" · ");
+    this.description = description;
+    // A row whose change states a relation says so in its context value,
+    // which is all a menu clause can read of a row
+    // (relations-and-leftovers-explain-themselves).
+    const states = node.follows.length + node.supersedes.length + node.blockedBy.length > 0;
     this.contextValue = node.archived
       ? "openspec-ui.graphArchivedChange"
-      : "openspec-ui.graphActiveChange";
+      : states ? statingRelation("openspec-ui.graphActiveChange") : "openspec-ui.graphActiveChange";
     this.iconPath = new vscode.ThemeIcon(
       ancestry.includes(node.id) ? "warning" : waitingOn.length > 0 ? "watch" : node.archived ? "archive" : "circle-outline",
     );
