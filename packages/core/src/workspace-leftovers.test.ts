@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LEFTOVER_SWEEP_INTERVAL_MS,
+  changeNamesKnown,
   clearWorktreeShells,
   holdsNoFile,
   readWorktreeShells,
@@ -248,6 +249,56 @@ describe("the shells under the worktree root", () => {
     expect(await namesUnder(root, ".")).toEqual(["still-working"]);
   });
 
+  // the-sweep-comes-back-for-what-it-left. Emptiness alone left behind
+  // exactly the shell a removal actually leaves: one holding a file some
+  // process had locked.
+  it("counts a shell named after a change of this repository as ours, whatever is in it", async () => {
+    const root = await worktreeRootWith({
+      "a-change/packages/extension/.vscode-test/editor.txt": "a downloaded editor",
+      "somebody-elses/notes.txt": "mine",
+    });
+
+    const shells = await readWorktreeShells(root, [], new Set(["a-change"]));
+
+    expect(shells.map((shell) => [shell.name, shell.empty, shell.ours]))
+      .toEqual([["a-change", false, true], ["somebody-elses", false, false]]);
+  });
+
+  it("removes a shell of ours that holds something, and keeps what is not ours", async () => {
+    const root = await worktreeRootWith({
+      "a-change/packages/extension/.vscode-test/editor.txt": "a downloaded editor",
+      "somebody-elses/notes.txt": "mine",
+    });
+
+    const sweep = await clearWorktreeShells(root, [], new Set(["a-change"]));
+
+    expect(sweep.removed.map((one) => one.name)).toEqual(["a-change"]);
+    expect(sweep.kept.map((one) => one.name)).toEqual(["somebody-elses"]);
+    expect(await namesUnder(root, ".")).toEqual(["somebody-elses"]);
+  });
+
+  // A checkout of its own is not a shell, whatever it is named: a worktree
+  // writes `.git` as a file, a clone as a directory.
+  it("leaves a directory holding a checkout of its own, by either spelling", async () => {
+    const root = await worktreeRootWith({
+      "a-change/.git": "gitdir: elsewhere",
+      "another-change/.git/HEAD": "ref: refs/heads/main",
+    });
+
+    const shells = await readWorktreeShells(root, [], new Set(["a-change", "another-change"]));
+
+    expect(shells.map((shell) => shell.ours)).toEqual([false, false]);
+    expect((await clearWorktreeShells(root, [], new Set(["a-change", "another-change"]))).removed).toEqual([]);
+  });
+
+  // The old rule still stands on its own: an empty shell goes even where
+  // nothing of that name was ever a change.
+  it("still removes an empty shell nobody named after a change", async () => {
+    const root = await worktreeRootWith({ "a-shell/packages": null });
+
+    expect((await clearWorktreeShells(root, [])).removed.map((one) => one.name)).toEqual(["a-shell"]);
+  });
+
   it("calls a directory of empty directories empty, and one with a file deep inside not", async () => {
     const root = await worktreeRootWith({
       "deep-empty/one/two/three": null,
@@ -256,6 +307,26 @@ describe("the shells under the worktree root", () => {
 
     expect(await holdsNoFile(path.join(root, "deep-empty"))).toBe(true);
     expect(await holdsNoFile(path.join(root, "deep-file"))).toBe(false);
+  });
+});
+
+describe("changeNamesKnown", () => {
+  it("reads the active changes and the archived ones, without their dates", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-names-"));
+    roots.push(root);
+    const changes = path.join(root, "openspec", "changes");
+    await mkdir(path.join(changes, "a-change"), { recursive: true });
+    await mkdir(path.join(changes, "archive", "2026-09-22-an-old-change"), { recursive: true });
+    await writeFile(path.join(changes, "loose-note.md"), "x", "utf8");
+
+    expect([...await changeNamesKnown(root)].sort()).toEqual(["a-change", "an-old-change"]);
+  });
+
+  it("knows no names in a repository that has no changes at all", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-names-"));
+    roots.push(root);
+
+    expect([...await changeNamesKnown(root)]).toEqual([]);
   });
 });
 

@@ -178,9 +178,52 @@ export async function clearWorkspaceLeftovers(root: string): Promise<LeftoverSwe
 export interface WorktreeShell {
   name: string;
   path: string;
-  /** Whether it holds no file at any depth. Only an empty one is cleared;
-   * anything else is somebody's. */
+  /** Whether it holds no file at any depth. */
   empty: boolean;
+  /** Whether this product is the only thing that could have put it there:
+   * it is named after a change this repository knows, active or archived,
+   * and holds no `.git` of its own, so it is not a checkout of anything
+   * (the-sweep-comes-back-for-what-it-left).
+   *
+   * Emptiness alone was the rule, and it left behind exactly the case the
+   * removals actually fail on: a shell holding a downloaded editor under
+   * `.vscode-test`, 54 MB of it, which git had already forgotten and which
+   * no later pass would look at again. What is in the shell says nothing
+   * about whose it is; its name and the absence of a checkout do. */
+  ours: boolean;
+}
+
+/** Whether a shell may be cleared without anybody pressing for it. */
+export function isShellClearable(shell: WorktreeShell): boolean {
+  return shell.empty || shell.ours;
+}
+
+/** Every change name this repository knows, active or archived. Directory
+ * names only: this asks whether a name was ever a change here, and
+ * reading 256 archived changes to answer it would cost most of a second
+ * on this repository alone. */
+export async function changeNamesKnown(root: string): Promise<Set<string>> {
+  const changesRoot = path.join(root, "openspec", "changes");
+  const [active, archived] = await Promise.all([
+    directoriesUnder(changesRoot),
+    directoriesUnder(path.join(changesRoot, "archive")),
+  ]);
+  return new Set([
+    ...active.filter((name) => name !== "archive"),
+    ...archived.map((name) => name.replace(ARCHIVE_PREFIX, "")),
+  ]);
+}
+
+/** A worktree's `.git` is a file, a clone's is a directory; either says
+ * git has a checkout here, so this is not a shell anybody left. A
+ * directory that cannot be read answers the same way: nothing here
+ * removes what it cannot look at. */
+async function holdsAGitOfItsOwn(directory: string): Promise<boolean> {
+  try {
+    return (await readdir(directory)).some((entry) => entry === ".git");
+  } catch {
+    return true;
+  }
 }
 
 /** Whether a directory holds no file at any depth. A directory of empty
@@ -212,6 +255,7 @@ export async function holdsNoFile(directory: string): Promise<boolean> {
 export async function readWorktreeShells(
   worktreeRoot: string,
   known: readonly string[],
+  changeNames: ReadonlySet<string> = new Set(),
 ): Promise<WorktreeShell[]> {
   const root = path.resolve(worktreeRoot);
   const listed = new Set(known.map((one) => pathKeyOf(one)));
@@ -230,7 +274,12 @@ export async function readWorktreeShells(
     if (name.startsWith(".")) continue;
     const full = path.join(root, name);
     if (listed.has(pathKeyOf(full))) continue;
-    shells.push({ name, path: full, empty: await holdsNoFile(full) });
+    shells.push({
+      name,
+      path: full,
+      empty: await holdsNoFile(full),
+      ours: changeNames.has(name) && !await holdsAGitOfItsOwn(full),
+    });
   }
   return shells;
 }
@@ -248,21 +297,29 @@ export interface ShellSweep {
   failures: LeftoverRemovalFailure[];
 }
 
-/** Removes the empty shells and reports the rest.
+/** Removes the shells this product left and reports the rest.
  *
- * Only the empty ones: a shell is empty by definition, and a directory
- * with a file in it is somebody's, whatever git thinks of it. */
+ * An empty one, or one named after a change of this repository that holds
+ * no checkout of its own. Anything else is somebody's, whatever git
+ * thinks of it. */
 export async function clearWorktreeShells(
   worktreeRoot: string,
   known: readonly string[],
+  changeNames: ReadonlySet<string> = new Set(),
 ): Promise<ShellSweep> {
   const sweep: ShellSweep = { removed: [], kept: [], failures: [] };
-  for (const shell of await readWorktreeShells(worktreeRoot, known)) {
-    if (!shell.empty) {
+  for (const shell of await readWorktreeShells(worktreeRoot, known, changeNames)) {
+    if (!isShellClearable(shell)) {
       sweep.kept.push(shell);
       continue;
     }
     try {
+      // A shell that is not empty can hold the module overlay's junctions,
+      // and what they point at is the primary directory's own packages.
+      // `rm` unlinks a junction rather than walking it, and this makes
+      // sure of it before the walk starts - the same order
+      // `removeWorkingDirectory` uses, and for the same reason.
+      await unlinkLinks(shell.path);
       await rm(shell.path, { recursive: true, force: true });
       sweep.removed.push(shell);
     } catch (error) {

@@ -225,6 +225,25 @@ describe("a workspace with nothing to act on", () => {
       .toMatchObject({ rebased: ["demo"] });
     expect(describeWorkspaceSweep(swept).join(" ")).toContain("rebased demo onto origin/main");
   });
+
+  // the-sweep-comes-back-for-what-it-left. git forgets a worktree before
+  // the deletion finishes, so a deletion that half-finished leaves a shell
+  // no survey of what git lists can ever see again.
+  it("comes back for a shell an earlier pass left behind", async () => {
+    const fixture = await behindBranch();
+    const worktreeRoot = path.join(fixture.root, "worktrees");
+    vi.stubEnv("OPENSPEC_UI_WORKTREE_ROOT", worktreeRoot);
+    await write(path.join(fixture.work, "openspec", "changes", "left-behind", "proposal.md"), "## Why\n\nBecause.\n");
+    const shell = path.join(worktreeRoot, path.basename(fixture.work), "left-behind");
+    await write(path.join(shell, "packages", "extension", ".vscode-test", "editor.txt"), "a downloaded editor\n");
+
+    const swept = await sweepWorkspace(fixture.work);
+
+    expect(swept.shells?.removed.map((one) => one.path)).toEqual([shell]);
+    expect(describeWorkspaceSweep(swept)).toContain("removed what an earlier pass left behind of left-behind");
+    await expect(rm(shell, { recursive: true })).rejects.toThrow();
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("a rebase that stops without a conflict", () => {
