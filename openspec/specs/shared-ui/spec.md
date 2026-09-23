@@ -1773,6 +1773,19 @@ arrangement folds those away, which is right where landing is not a place;
 on a board Landed is a column, so folding empties it by construction and
 hides the one thing the board exists to show.
 
+Each of the board's columns SHALL be separated from the next by a rule,
+and SHALL carry, in its heading: the stage's word, a picture that stands
+for that stage, how many changes stand in the column, and a colour of that
+stage's own. The other arrangement SHALL carry none of these: its columns
+are a sequence, and a rule there would assert a boundary nothing has.
+
+The colour SHALL be a palette token named once, for every surface, and
+each palette SHALL give that token a value - in the editor, from the
+editor's own theme. Colour SHALL NOT be the only thing that carries the
+distinction: the word is always there, and the picture agrees with it. The
+count SHALL be readable by a reader who hears the heading rather than
+seeing it.
+
 The arrangement SHALL be offered only where the host reads the stages, and
 SHALL be kept for the next visit with the zoom and the open cards.
 
@@ -1794,6 +1807,23 @@ SHALL be kept for the next visit with the zoom and the open cards.
 - **WHEN** a change has landed and the board is chosen
 - **THEN** its card stands in the Landed column rather than being folded
   away
+
+#### Scenario: A column's heading
+
+- **WHEN** two changes stand in In progress and none in Proposed
+- **THEN** the In progress heading carries its word, its picture, its own
+  colour and the figure 2, and the Proposed heading carries the figure 0
+
+#### Scenario: The rules between columns
+
+- **WHEN** the board is drawn
+- **THEN** a rule stands between each column and the next, and none before
+  the first
+
+#### Scenario: The other arrangement
+
+- **WHEN** the arrangement by declared order is chosen
+- **THEN** no rule, picture, colour or count is drawn on its headings
 
 #### Scenario: A host that does not read the stages
 
