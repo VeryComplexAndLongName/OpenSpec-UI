@@ -47,7 +47,7 @@ import {
   EnrolmentRefusedError,
   catchUpWithMain,
   readChangeStandings,
-  readChangeStages,
+  readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
   STANDING_FETCH_INTERVAL_MS,
@@ -1230,7 +1230,7 @@ export async function handleChangeStagesRequest(req: IncomingMessage, res: Serve
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    const readings = await readChangeStages(parsed.cwd);
+    const readings = await readChangeStagesOfWorkspace(parsed.cwd);
     sendJson(res, 200, readings.map((reading) => summariseStage(reading)));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });

@@ -23,6 +23,7 @@ import { blameLineDates, getFileCreatedDate } from "./change-timeline.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { parseTaskChecklist } from "./task-checklist.js";
+import { surveyWorktrees } from "./worktree-survey.js";
 
 const CHANGES = "openspec/changes";
 
@@ -167,4 +168,49 @@ export async function readChangeStages(root: string, options: { standings?: read
     }));
   }
   return readings;
+}
+
+/** Every active change of this repository, wherever it is worked: this
+ * working directory and every other one of the same repository, merged by
+ * name (a-change-is-one-card-wherever-it-is).
+ *
+ * A change is one card wherever it is worked (ADR 0029), so a name read in
+ * two directories is kept once, and the first root given wins - the host
+ * passes its own first, and that is the reading whose runs are in this
+ * machine's audit log.
+ *
+ * A directory that cannot be read is passed over rather than failing the
+ * lot: one worktree mid-checkout must not empty the board. */
+export async function readChangeStagesEverywhere(
+  roots: readonly string[],
+  options: { standings?: readonly ChangeStanding[]; now?: () => Date } = {},
+): Promise<ChangeStageReading[]> {
+  const byName = new Map<string, ChangeStageReading>();
+  for (const root of roots) {
+    const readings = await readChangeStages(root, options).catch(() => [] as ChangeStageReading[]);
+    for (const reading of readings) {
+      if (!byName.has(reading.changeName)) byName.set(reading.changeName, reading);
+    }
+  }
+  return [...byName.values()]
+    .sort((left, right) => (left.changeName < right.changeName ? -1 : left.changeName > right.changeName ? 1 : 0));
+}
+
+/** The same, for a host that has only the workspace root: the working
+ * directories are surveyed here rather than asked of the caller, so both
+ * hosts read the same set without each assembling it
+ * (a-change-is-one-card-wherever-it-is).
+ *
+ * This directory first, so its own reading is the one kept for a change
+ * worked in two places. A survey that fails leaves this reading exactly
+ * what it was before: this directory's changes. */
+export async function readChangeStagesOfWorkspace(
+  workspaceRoot: string,
+  options: { standings?: readonly ChangeStanding[]; now?: () => Date } = {},
+): Promise<ChangeStageReading[]> {
+  const survey = await surveyWorktrees({ workspaceRoot }).catch(() => undefined);
+  const others = (survey?.directories ?? [])
+    .filter((directory) => directory.readable && !directory.isThis)
+    .map((directory) => directory.path);
+  return readChangeStagesEverywhere([workspaceRoot, ...others], options);
 }

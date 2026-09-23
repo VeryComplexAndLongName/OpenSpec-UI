@@ -517,7 +517,27 @@ export function PipelineView({
     .filter((change) => !foldLanded || !landed.has(change.changeName));
   const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
   const foldedCount = foldLanded ? landedHere.length : 0;
-  const nothingToDraw = shownReport === undefined || shownReport.changes.length === 0;
+  // The board is of the work, not of one folder: every change of every
+  // working directory of this repository stands on it, one card per change
+  // (ADR 0029, a-change-is-one-card-wherever-it-is). The arrangement by
+  // declared order keeps to this checkout - an order is what this
+  // repository declares here, and another directory's is its own.
+  const namesHere = new Set((report?.changes ?? []).map((change) => change.changeName));
+  const elsewhere = new Map<string, { directory: Extract<SurveyedDirectory, { readable: true }>; change: SurveyedChange }>();
+  if (onBoard) {
+    for (const one of others.value?.directories ?? []) {
+      if (!one.readable || one.isThis) continue;
+      for (const change of one.changes) {
+        if (namesHere.has(change.changeName) || elsewhere.has(change.changeName)) continue;
+        if (!matches(change.changeName)) continue;
+        elsewhere.set(change.changeName, { directory: one, change });
+      }
+    }
+  }
+  const boardReport = shownReport === undefined
+    ? undefined
+    : { ...shownReport, changes: [...shownReport.changes, ...[...elsewhere.values()].map((one) => asLayoutInput(one.change))] };
+  const nothingToDraw = boardReport === undefined || boardReport.changes.length === 0;
   const onCards = runsShownOnCards(cardList);
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
   // A control changes what the run's record says within moments. The card
@@ -652,11 +672,14 @@ export function PipelineView({
         ? <p className="openspec-shell-error" role="alert" data-testid="pipeline-refresh-error">{`Refresh failed: ${refreshError}`}</p>
         : null}
 
-      <section className="openspec-panel openspec-pipeline-panel" aria-label="Changes in this checkout">
+      {/* The board is of the work, so it is named for the work; the
+          arrangement by declared order draws this checkout's own changes
+          and says so (a-change-is-one-card-wherever-it-is). */}
+      <section className="openspec-panel openspec-pipeline-panel" aria-label={onBoard ? "Changes" : "Changes in this checkout"}>
         <div className="openspec-panel-head">
-          <h2>Changes in this checkout</h2>
+          <h2>{onBoard ? "Changes" : "Changes in this checkout"}</h2>
           <span className="openspec-panel-head-note">
-            {onBoard ? "a column is where a change is now" : "a column starts after the ones before it"}
+            {onBoard ? "a column is where a change is now, wherever it is worked" : "a column starts after the ones before it"}
           </span>
         </div>
         <div className="openspec-pipeline-panel-body">
@@ -740,7 +763,7 @@ export function PipelineView({
                       nothing about the way through, and a person pressing
                       "By stage" on an empty queue would see no board at
                       all (the-board-is-of-every-change). */}
-                  <LocalPicture report={shownReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} />
+                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} />
                   {nothingToDraw ? (
                     <p className="openspec-shell-note" data-testid="pipeline-board-empty">
                       {report.changes.length === 0
@@ -757,7 +780,7 @@ export function PipelineView({
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
       {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -854,7 +877,7 @@ function hasProgress(card: ChangeCard): boolean {
   return card.progress !== undefined && card.progress.total > 0;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, labels, archivedOnMain }: {
   report: ChangeReadinessReport;
   cards: Map<string, ChangeCard>;
   now: Date;
@@ -868,12 +891,31 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   stages: Map<string, ChangeStageSummary>;
   /** Whether the cards are arranged as a board of the stages. */
   onBoard: boolean;
+  /** The changes of this repository's other working directories, by name,
+   * each with the directory that holds it. They stand on the board beside
+   * this checkout's own, read-only, because a board is of the work and not
+   * of one folder (a-change-is-one-card-wherever-it-is). Empty in the
+   * arrangement by declared order, which draws this checkout alone. */
+  elsewhere: Map<string, { directory: Extract<SurveyedDirectory, { readable: true }>; change: SurveyedChange }>;
+  labels: Map<string, string>;
+  archivedOnMain: ReadonlySet<string>;
 }) {
   // Every card's height is derived from what it holds, and a column stacks
   // by those heights: only the cards below a card that grows move, and
   // nothing is measured (the-pipeline-cards-wear-metro).
   const models = new Map<string, LocalCardModel>();
   const heights = new Map<string, number>();
+  for (const [name, { directory: where, change }] of elsewhere) {
+    const openRows = openParts(change.tasks ?? [], openCards.isOpen(where.path, name));
+    heights.set(name, pipelineCardHeight({
+      hasState: false,
+      hasProgress: !change.tasksUnreadable && change.tasksTotal > 0,
+      hasCallout: false,
+      detailLines: elsewhereDetails(change, where, labels, archivedOnMain, stages.get(name), now).length,
+      hasControls: false,
+      ...(openRows !== undefined ? { open: openRows } : {}),
+    }));
+  }
   for (const change of report.changes) {
     const card = cards.get(change.changeName);
     if (card === undefined) continue;
@@ -900,8 +942,29 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
         testIdPrefix="pipeline-"
         laneHeading="h3"
         renderNode={(node) => {
-          // Every change of the report has a card: they are derived from it.
           const name = node.change.changeName;
+          // A change of another working directory: read here and never
+          // acted on from here, so its card offers nothing but its tasks
+          // (ADR 0026).
+          const foreign = elsewhere.get(name);
+          if (foreign !== undefined) {
+            return (
+              <ElsewhereNode
+                key={name}
+                node={node}
+                change={foreign.change}
+                where={foreign.directory}
+                labels={labels}
+                archivedOnMain={archivedOnMain}
+                stage={stages.get(name)}
+                now={now}
+                testId={`pipeline-node-${name}`}
+                open={openCards.isOpen(foreign.directory.path, name)}
+                onToggle={() => openCards.toggle(foreign.directory.path, name)}
+              />
+            );
+          }
+          // Every change of the report has a card: they are derived from it.
           const model = models.get(name);
           return model === undefined ? null : (
             <Node
@@ -1429,13 +1492,17 @@ function describeChange(change: ChangeReadiness): CardDetail[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain }: {
+function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain, drawsChanges }: {
   survey: WorktreeSurvey;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
   openCards: OpenCards;
   archivedOnMain: ReadonlySet<string>;
+  /** Whether this section draws its directories' change cards. On the
+   * board they stand in the columns above, and a change is one card
+   * wherever it is worked (a-change-is-one-card-wherever-it-is). */
+  drawsChanges: boolean;
 }) {
   const others = survey.directories.filter((directory) => !directory.isThis);
   if (others.length === 0 && survey.runsElsewhere.length === 0) return null;
@@ -1450,7 +1517,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
           Nothing below can be opened, run or changed from this checkout.
         </p>
         {others.map((directory, index) => (
-          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} />
+          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} drawsChanges={drawsChanges} />
         ))}
         {survey.runsElsewhere.length > 0 ? (
           <div data-testid="pipeline-runs-elsewhere">
@@ -1467,7 +1534,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
   );
 }
 
-function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain }: {
+function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges }: {
   directory: SurveyedDirectory;
   index: number;
   labels: Map<string, string>;
@@ -1475,6 +1542,9 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards, arc
   onCards: ReadonlySet<string>;
   openCards: OpenCards;
   archivedOnMain: ReadonlySet<string>;
+  /** Whether this directory's change cards are drawn here. On the board
+   * they stand in the columns above (a-change-is-one-card-wherever-it-is). */
+  drawsChanges: boolean;
 }) {
   const testId = `pipeline-directory-${index}`;
   return (
@@ -1505,7 +1575,7 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards, arc
       <ul className="openspec-shell-note openspec-pipeline-directory-runs" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
-      {directory.readable ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} /> : null}
+      {directory.readable && drawsChanges ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} /> : null}
     </section>
   );
 }
@@ -1593,6 +1663,66 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain }
         )}
       />
     </>
+  );
+}
+
+/** What a card of another working directory says on the board: where it is
+ * worked, where it stands, and that nothing here acts on it
+ * (a-change-is-one-card-wherever-it-is). */
+function elsewhereDetails(
+  change: SurveyedChange,
+  where: Extract<SurveyedDirectory, { readable: true }>,
+  labels: Map<string, string>,
+  archivedOnMain: ReadonlySet<string>,
+  stage: ChangeStageSummary | undefined,
+  now: Date,
+): CardDetail[] {
+  return [
+    { kind: "where", text: `worked in ${where.label}` },
+    ...(stage !== undefined ? [{ kind: "where" as const, text: describeStageLine(stage, now) }] : []),
+    ...foreignDetails(change, change.blockers, labels, archivedOnMain),
+  ];
+}
+
+/** A change of another working directory, drawn on this board. Read here
+ * and never acted on from here: a change is the pair (directory, name),
+ * and nothing on this card may reach the change of that name in this
+ * checkout (ADR 0026). Its one control shows or hides its tasks. */
+function ElsewhereNode({ node, change, where, labels, archivedOnMain, stage, now, testId, open, onToggle }: {
+  node: ChangeLayoutNode;
+  change: SurveyedChange;
+  where: Extract<SurveyedDirectory, { readable: true }>;
+  labels: Map<string, string>;
+  archivedOnMain: ReadonlySet<string>;
+  stage: ChangeStageSummary | undefined;
+  now: Date;
+  testId: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const rows = change.tasks !== undefined ? describeTaskRows(change.tasks, undefined) : [];
+  const name = node.change.changeName;
+  const details = elsewhereDetails(change, where, labels, archivedOnMain, stage, now);
+  const counted = !change.tasksUnreadable && change.tasksTotal > 0;
+  return (
+    <div
+      className="openspec-pipeline-node openspec-pipeline-node--foreign"
+      data-testid={testId}
+      data-state="foreign"
+      data-open={open && rows.length > 0 ? "true" : "false"}
+      style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
+      title={`${name} — ${[...(counted ? [`${change.tasksDone} of ${change.tasksTotal} tasks done`] : []), ...details.map((detail) => detail.text)].join(" ")}`}
+    >
+      <div className="openspec-pipeline-node-head">
+        <span className="openspec-pipeline-node-name">{name}</span>
+        {rows.length > 0
+          ? <TasksToggle name={name} open={open} listId={`${testId}-tasks`} testId={`${testId}-tasks-toggle`} onToggle={onToggle} />
+          : null}
+      </div>
+      {counted ? <Progress done={change.tasksDone} total={change.tasksTotal} /> : null}
+      <CardDetails details={details} />
+      {rows.length > 0 ? <TaskList id={`${testId}-tasks`} rows={rows} open={open} testId={`${testId}-tasks`} /> : null}
+    </div>
   );
 }
 
