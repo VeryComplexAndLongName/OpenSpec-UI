@@ -1045,22 +1045,57 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
         style={{ "--pipeline-w": layout.width, "--pipeline-h": layout.height } as Record<string, number>}
       >
         <Edges edges={layout.edges} width={layout.width} height={layout.height} testIdPrefix={testIdPrefix} />
-        {byColumn.map((nodes, column) => (
-          <div className="openspec-pipeline-lane" key={column}>
-            {/* Numbered where the arrangement is the declared order: the
-                repository states an order there, and each card says what
-                it waits on. The board heads its columns with the stages
-                core names (the-board-shows-the-stages). Placed by the same
-                units as the cards, in the strip core leaves above them. */}
-            <Heading
-              className="openspec-pipeline-lane-heading"
-              style={{ "--x": column * (NODE_WIDTH + COLUMN_GAP), "--w": NODE_WIDTH, "--h": LANE_HEADING } as Record<string, number>}
-            >
-              {layout.lanes?.[column] ?? describeLane(column)}
-            </Heading>
-            {nodes.map(renderNode)}
-          </div>
-        ))}
+        {byColumn.map((nodes, column) => {
+          // The board dresses its columns: a stage's picture and its own
+          // colour beside its word, and how many stand in it
+          // (the-board-wears-its-stages). Absent in the arrangement by
+          // declared order, whose columns are a sequence rather than six
+          // named places.
+          const look = layout.laneLooks?.[column];
+          const x = column * (NODE_WIDTH + COLUMN_GAP);
+          return (
+            <div className={`openspec-pipeline-lane${look ? " openspec-pipeline-stage-lane" : ""}`} key={column}>
+              {/* A rule between stages, never before the first. */}
+              {look && column > 0 ? (
+                <div
+                  className="openspec-pipeline-stage-rule"
+                  aria-hidden="true"
+                  style={{ "--x": x - COLUMN_GAP / 2 } as Record<string, number>}
+                />
+              ) : null}
+              {/* Numbered where the arrangement is the declared order: the
+                  repository states an order there, and each card says what
+                  it waits on. The board heads its columns with the stages
+                  core names (the-board-shows-the-stages). Placed by the same
+                  units as the cards, in the strip core leaves above them. */}
+              <Heading
+                className={`openspec-pipeline-lane-heading${look ? " openspec-pipeline-stage-heading" : ""}`}
+                style={{
+                  "--x": x,
+                  "--w": NODE_WIDTH,
+                  "--h": LANE_HEADING,
+                  ...(look
+                    ? { "--stage-colour": `var(--${look.token})`, "--stage-ink": `var(--${look.token}-ink)` }
+                    : {}),
+                } as Record<string, number | string>}
+              >
+                {look ? <span className="openspec-pipeline-stage-mark"><Icon meaning={look.icon} /></span> : null}
+                <span className={look ? "openspec-pipeline-stage-word" : undefined}>
+                  {layout.lanes?.[column] ?? describeLane(column)}
+                </span>
+                {/* Said in words for a reader who hears the heading, and
+                    shown as a figure for one who scans it. */}
+                {look ? (
+                  <span className="openspec-pipeline-stage-count" data-testid={`${testIdPrefix}stage-count-${column}`}>
+                    <span className="openspec-visually-hidden">{`, ${nodes.length} ${nodes.length === 1 ? "change" : "changes"}`}</span>
+                    <span aria-hidden="true">{nodes.length}</span>
+                  </span>
+                ) : null}
+              </Heading>
+              {nodes.map(renderNode)}
+            </div>
+          );
+        })}
       </div>
     </div>
     </>

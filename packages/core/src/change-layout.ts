@@ -10,7 +10,7 @@
 // Nothing here reads the filesystem, git, or a lease. Every fact it
 // arranges was derived once, by `readChangeReadiness`.
 
-import { CHANGE_STAGES, describeStage, type ChangeStage } from "./change-history-facts.js";
+import { CHANGE_STAGES, describeStage, stageLook, type ChangeStage, type StageLook } from "./change-history-facts.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
 import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
@@ -95,6 +95,10 @@ export interface ChangeLayout {
    * board's stages. Absent in the arrangement by declared order, whose
    * headings are numbered (`describeLane`). */
   lanes?: string[];
+  /** How each column's heading is drawn, where its columns are named
+   * places rather than a sequence: the board's stages. Absent in the
+   * arrangement by declared order (the-board-wears-its-stages). */
+  laneLooks?: StageLook[];
 }
 
 export interface ChangeLayoutOptions {
@@ -175,6 +179,7 @@ export function layoutChangesByStage(report: ChangeReadinessReport, options: Sta
     // (the-board-is-of-every-change).
     height: Math.max(gridHeight, LANE_HEADING + NODE_HEIGHT),
     lanes: CHANGE_STAGES.map((stage) => describeStage(stage)),
+    laneLooks: CHANGE_STAGES.map((stage) => stageLook(stage)),
   };
 }
 

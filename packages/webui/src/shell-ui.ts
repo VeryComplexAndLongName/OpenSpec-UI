@@ -109,6 +109,37 @@ export const shellThemeCss = `
     --mauve: #76608a;
     --mauve-ink: #ffffff;
 
+    /* One colour per stage of a change, for the board's column headings
+       (the-board-wears-its-stages). Aliases of the accents above rather
+       than six new hues: those are already measured, already repeated in
+       the dark palette, and already mapped to the editor's own theme, so a
+       stage cannot end up with a colour that exists in one place and not
+       another.
+
+       A FILL with its ink, never a text colour. These accents were
+       measured as grounds that carry ink, not as ink: teal on white is
+       2.09:1 and amber 1.53:1, and the standalone's own accessibility
+       check fails a heading written in them. So the stage's colour fills
+       the small square its picture sits in, and the heading's words stay
+       the colour every heading is.
+
+       Never alone, either way: the word is always there and the picture
+       agrees with it (ADR 0023 decision 4, and this project's own rule
+       that colour may agree with words and never replace them). */
+    --stage-proposed: var(--steel);
+    --stage-proposed-ink: var(--steel-ink);
+    --stage-planned: var(--teal);
+    --stage-planned-ink: var(--teal-ink);
+    --stage-in-progress: var(--amber);
+    --stage-in-progress-ink: var(--amber-ink);
+    --stage-in-review: var(--mauve);
+    --stage-in-review-ink: var(--mauve-ink);
+    --stage-landed: var(--emerald);
+    --stage-landed-ink: var(--emerald-ink);
+    /* Quiet, and distinct from Proposed at the other end of the board. */
+    --stage-archived: var(--surface-3);
+    --stage-archived-ink: var(--muted);
+
     /* A radius that softens a corner rather than announcing a card,
        and ONE shadow, spent only on what genuinely overlays — see ADR
        0023 decision 2. Border and fill do the separating. */
@@ -202,6 +233,22 @@ export const shellThemeCss = `
     --steel-ink: #ffffff;
     --mauve: #76608a;
     --mauve-ink: #ffffff;
+
+    /* The stage fills follow the accents here as they do in light, which
+       this palette repeats unchanged; --surface-3 and --muted are the two
+       it does redefine, so Archived stays quiet against a dark ground. */
+    --stage-proposed: var(--steel);
+    --stage-proposed-ink: var(--steel-ink);
+    --stage-planned: var(--teal);
+    --stage-planned-ink: var(--teal-ink);
+    --stage-in-progress: var(--amber);
+    --stage-in-progress-ink: var(--amber-ink);
+    --stage-in-review: var(--mauve);
+    --stage-in-review-ink: var(--mauve-ink);
+    --stage-landed: var(--emerald);
+    --stage-landed-ink: var(--emerald-ink);
+    --stage-archived: var(--surface-3);
+    --stage-archived-ink: var(--muted);
 
     --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
@@ -3389,6 +3436,74 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  /* The board's heading: the stage's picture, its word, and how many
+     stand in it, all in the stage's own colour
+     (the-board-wears-its-stages). A row rather than a line of text, so
+     the picture keeps its place while the word is clipped. */
+  .openspec-pipeline .openspec-pipeline-lane-heading.openspec-pipeline-stage-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* The stage's colour, as the ground its picture stands on. A fill rather
+     than a text colour: these accents were measured as grounds that carry
+     ink, and written as words they fail the contrast this project's own
+     accessibility check enforces. */
+  .openspec-pipeline-stage-mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: ${Z(1.125)};
+    height: ${Z(1.125)};
+    border-radius: var(--radius-sm, 4px);
+    background: var(--stage-colour, var(--surface-3));
+    color: var(--stage-ink, var(--ink));
+  }
+
+  /* Every glyph class the generated font carries begins this way; there is
+     no base class to hang this on, so the attribute selector is what
+     reaches them. */
+  .openspec-pipeline-stage-mark [class^="openspec-icon-"] {
+    font-size: ${Z(0.6875)};
+    line-height: 1;
+  }
+
+  .openspec-pipeline-stage-word {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* How many changes stand in this column. Beside the word rather than
+     inside it, so a reader hears "In progress, 3" and a filter that hides
+     one changes the number under the same heading. */
+  .openspec-pipeline-stage-count {
+    flex: none;
+    margin-left: auto;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface-3, var(--surface-2));
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One rule between stages, drawn on the lane rather than between the
+     cards: a board's columns are places, and a place has an edge. Only on
+     the board - in the arrangement by declared order the columns are a
+     sequence, and a rule there would assert a boundary nothing has. */
+  .openspec-pipeline-lane.openspec-pipeline-stage-lane { display: contents; }
+
+  .openspec-pipeline-stage-rule {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--u) * var(--x));
+    width: 1px;
+    background: var(--line);
+    pointer-events: none;
+  }
+
   .openspec-pipeline-edges {
     position: absolute;
     inset: 0;
@@ -4240,6 +4355,27 @@ export const vscodeThemeCss = `
     --steel-ink: var(--vscode-editor-background);
     --mauve: var(--vscode-charts-purple, var(--vscode-button-background));
     --mauve-ink: var(--vscode-button-foreground);
+
+    /* The board's stage fills, from the editor's own chart palette rather
+       than from ours: a theme that repaints its charts repaints these with
+       them (the-board-wears-its-stages). Each is a ground that carries the
+       editor's background as its ink, which is what a chart colour is for.
+
+       Proposed and Archived are named apart here on purpose. Following the
+       shell's aliases would give both the description foreground, and two
+       columns at opposite ends of the board would look alike. */
+    --stage-proposed: var(--vscode-charts-lines, var(--vscode-descriptionForeground));
+    --stage-proposed-ink: var(--vscode-editor-background);
+    --stage-planned: var(--vscode-charts-blue);
+    --stage-planned-ink: var(--vscode-editor-background);
+    --stage-in-progress: var(--vscode-charts-yellow);
+    --stage-in-progress-ink: var(--vscode-editor-background);
+    --stage-in-review: var(--vscode-charts-purple, var(--vscode-button-background));
+    --stage-in-review-ink: var(--vscode-button-foreground);
+    --stage-landed: var(--vscode-charts-green);
+    --stage-landed-ink: var(--vscode-editor-background);
+    --stage-archived: var(--vscode-input-background, var(--vscode-editorWidget-background));
+    --stage-archived-ink: var(--vscode-descriptionForeground);
 
     /* The day grid's tracks are lengths, not colours, so they are the
        shell's values verbatim here too. */
