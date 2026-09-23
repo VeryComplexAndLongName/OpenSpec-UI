@@ -1,5 +1,46 @@
 # @openspec-ui/core
 
+## 0.123.0
+
+### Minor Changes
+
+- 90902e9: A new ceiling, `budget.maxContextShare`: how much of its context window a
+  run may fill, as a share between 0 and 1. It reads ACP's `usage_update`,
+  which arrives during a stage, so unlike every spending ceiling it stops a
+  stage that is already running - ending the run as cancelled, with the
+  ceiling, its value and the reading all named. A value outside that range
+  is refused where the configuration resolves.
+  
+  The figure is still not counted as a spend: it falls after a compaction,
+  so counting it as consumption would under-count exactly the long runs
+  that compact. What it says is that the conversation has outgrown the
+  task, and every further turn carries the whole of it again.
+  
+  This matters most where nothing else can act. `deepseek-cli-acp` reports
+  no cost, no credits and no token split, so before this only `timeout`
+  bounded it at all. Agent capabilities now record `contextGauge` beside
+  `reports` - a different question, answered from evidence - and the
+  settings surfaces say before a run when this ceiling cannot act, and stop
+  calling a stage unbounded when it can.
+- c6c53a3: The sweep comes back for what an earlier pass left behind. Removing a
+  working directory leaves a shell where a file was locked at that moment,
+  and git has already forgotten it, so no later pass could see it: one such
+  shell sat under the worktree root for a day holding 54 MB of downloaded
+  editor, and went the moment it was asked a second time.
+  
+  A shell is now this product's own where it is named after a change this
+  repository knows, active or archived, and holds no `.git` of its own - and
+  such a shell is cleared whatever is inside it, rather than only when it is
+  empty. An empty one is still cleared whatever it is named; anything else
+  is reported and left alone. Links inside are unlinked before the walk, so
+  a module overlay's junctions cannot carry the removal into the directory
+  they point at.
+  
+  The periodic workspace sweep now does this itself, on the worktree root as
+  this product resolves it, and says what it removed and what is still held;
+  a shell it could not remove is asked again on the next pass. Until now it
+  ran only from the standalone's tidy button.
+
 ## 0.122.0
 
 ### Minor Changes
