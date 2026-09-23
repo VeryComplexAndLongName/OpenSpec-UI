@@ -1662,13 +1662,26 @@ for.
 
 The sweep SHALL also read the root the working directories live under, and
 SHALL report every directory there that git does not list as a working
-directory and that holds no file at any depth. Those SHALL be cleared with
-the rest. A directory holding one file at any depth SHALL be reported and
-never cleared.
+directory. Such a directory SHALL be cleared where it holds no file at any
+depth, and SHALL also be cleared, whatever it holds, where it is named
+after a change this repository knows - active or archived - and holds no
+`.git` of its own. Any other SHALL be reported and never cleared.
 
 Removing a working directory leaves such a shell behind where a link was
 inside it, and git stops listing it, so nothing else in the product can
-see what the product itself left.
+see what the product itself left. Emptiness alone excused the only case
+this exists for: what a half-finished removal leaves is exactly the files
+that could not be deleted. What is in a directory says nothing about whose
+it is; its name and the absence of a checkout of its own do.
+
+Links inside such a directory SHALL be unlinked before it is walked, so a
+module overlay's junctions cannot carry the removal into the directory
+they point at.
+
+The periodic workspace sweep SHALL do this itself, on the worktree root as
+this product resolves it, and SHALL say what it removed and what is still
+held. A directory it could not remove SHALL be tried again on a later
+pass rather than reported once and forgotten.
 
 #### Scenario: An empty directory whose change is archived
 
@@ -1690,8 +1703,26 @@ see what the product itself left.
 
 #### Scenario: A directory with something in it
 
-- **WHEN** such a directory holds a file at any depth
+- **WHEN** such a directory holds a file at any depth, and no change of
+  this repository carries its name
 - **THEN** it is reported and never cleared
+
+#### Scenario: A shell a locked file was left in
+
+- **WHEN** a directory under the worktree root holds files, git does not
+  list it, it is named after a change this repository knows, and it holds
+  no `.git` of its own
+- **THEN** the sweep clears it
+
+#### Scenario: A checkout of its own
+
+- **WHEN** such a directory holds a `.git`, as a file or as a directory
+- **THEN** it is reported and never cleared
+
+#### Scenario: A shell something still holds
+
+- **WHEN** the sweep cannot remove such a directory
+- **THEN** it says what stopped it, and the next pass tries again
 
 ### Requirement: A directory that cannot be removed says what is holding it
 
@@ -2833,4 +2864,62 @@ guessed.
 - **WHEN** GitLab lists a merged merge request with `created_at` and
   `merged_at`
 - **THEN** the pull request read for its branch carries both
+
+### Requirement: A ceiling on how full a run's context may get
+
+The system SHALL support a configured ceiling on how much of its context
+window a run may fill, as a share of that window. A value outside the
+range above zero and at most one SHALL be refused where the configuration
+resolves, rather than accepted as a ceiling that could never act.
+
+Where an agent says during a run how many tokens are in its context and
+how large that window is, and the share of the two passes the ceiling,
+the system SHALL stop the run. It SHALL do so **while the stage is
+running**, which is possible here and not for a spending ceiling: the
+figure arrives during the run rather than at its end.
+
+The run SHALL end as cancelled, not as failed, and the reason SHALL name
+the ceiling, its value, and the reading it was judged on. A ceiling doing
+its job is not a defect, and a reader has to tell a rule firing from a
+person's click.
+
+The figure SHALL NOT be counted as usage against any spending ceiling. It
+falls after a compaction, so counting it as consumption would under-count
+exactly the long runs that compact.
+
+Where the agent running a stage cannot send that figure at all, the
+system SHALL say so from the configuration, before any run under it. Where
+whether it sends one has never been observed, the system SHALL say
+nothing either way.
+
+#### Scenario: A run fills more of its window than the ceiling allows
+
+- **WHEN** a stage is running under a context ceiling and the agent
+  reports a context fuller than it
+- **THEN** the run is cancelled while that stage is still going, with a
+  reason naming the ceiling, its value and the reading
+
+#### Scenario: A run stays under the ceiling
+
+- **WHEN** every reading a stage reports is below the ceiling
+- **THEN** nothing is cancelled and the chain goes on
+
+#### Scenario: A share that is not a share
+
+- **WHEN** a configuration sets the ceiling to a value of zero or below,
+  or above one
+- **THEN** the configuration is refused, naming the field and the range
+
+#### Scenario: An agent that cannot report a context at all
+
+- **WHEN** a stage's agent sends no such figure by construction and a
+  context ceiling is configured
+- **THEN** the configuration reports that the ceiling cannot act on that
+  stage
+
+#### Scenario: An agent nobody has watched
+
+- **WHEN** a stage's agent has never been observed either sending or not
+  sending that figure
+- **THEN** nothing is claimed about it, and no warning is raised
 
