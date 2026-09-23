@@ -10,7 +10,7 @@ server, and a database. OpenSpec Workbench now answers three questions a
 team actually asks - whose change is this, why did it go back a step, how
 long did it spend in each step - and it does it with neither.
 
-![The Pipeline arranged by stage: Proposed, Planned, In progress, In review, Landed, Archived, each a column, with a toggle between this arrangement and the order changes declare](a-team-works-through-git-article/board.png)
+![The Pipeline arranged by stage: Proposed, Planned, In progress, In review, Landed, Archived, each a column, with a toggle between this arrangement and the order changes declare](a-team-works-through-git/board.png)
 
 ## The three questions
 
