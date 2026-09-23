@@ -1,7 +1,7 @@
 # LinkedIn post: a team works through git
 
 Publish on 2026-10-02: a few days after the site page (2026-09-27), not the same day.
-Attach: `docs/articles/site/a-team-works-through-git-article/board.png`.
+Attach: `docs/articles/site/a-team-works-through-git/board.png`.
 Put the repository link in the first comment, not in the post.
 
 ## Post
