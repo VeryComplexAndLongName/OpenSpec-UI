@@ -17,6 +17,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { describeContextShare, formatTokenCount, readAcpContextGauge } from "./acp-context-gauge.js";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import type { AdapterInvocation, AgentRunner } from "./agent-runner.js";
 import { captureCheckpoint, finalizeCheckpoint, type WorkbenchCheckpoint } from "./checkpoint.js";
@@ -303,8 +304,10 @@ function describeStageOverspend(
   if (maxTokens !== undefined) {
     const used = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
     if ((usage.inputTokens !== undefined || usage.outputTokens !== undefined) && used > maxTokens) {
-      return `stopped after "${stage}": it reported ${used.toLocaleString()} tokens,`
-        + ` over budget.maxStageTokens of ${maxTokens.toLocaleString()}`;
+      // Explicitly grouped: a bare `toLocaleString` made this one line of
+      // text read two ways, by whose machine wrote it.
+      return `stopped after "${stage}": it reported ${formatTokenCount(used)} tokens,`
+        + ` over budget.maxStageTokens of ${formatTokenCount(maxTokens)}`;
     }
   }
   return undefined;
@@ -1719,7 +1722,18 @@ export class HarnessChainRunner {
           continue;
         }
         if (event.kind === "stdout") remember(event.chunk);
-        if (event.kind === "agentUpdate") remember(readAcpStreamedText(event.update)?.text ?? "");
+        if (event.kind === "agentUpdate") {
+          remember(readAcpStreamedText(event.update)?.text ?? "");
+          // The one ceiling besides `timeout` that can stop a stage
+          // already running: the gauge arrives during the run, where a
+          // cost only arrives at its end (a-run-can-outgrow-its-context).
+          const ceiling = harnessConfig.budget?.maxContextShare;
+          const gauge = ceiling === undefined ? undefined : readAcpContextGauge(event.update);
+          if (ceiling !== undefined && gauge !== undefined && gauge.share > ceiling && state.cancelReason === undefined) {
+            state.cancelReason = describeContextShare(gauge, ceiling);
+            this.cancel(runId);
+          }
+        }
         if (event.kind === "usageReported") state.lastStageUsage = event.usage;
         if (event.kind === "failed") outcome = "failed";
         if (event.kind === "cancelled") {

@@ -411,6 +411,24 @@ describe("stepAgents chat-runner strictness and legacy dispatch migration", () =
     await expect(readGlobalHarnessConfig(root)).rejects.toThrow(/accepted keys: agent, model, effort, budget/);
   });
 
+  // a-run-can-outgrow-its-context. A share, not a count: somebody who
+  // means eighty percent and writes 80 is told, rather than handed a
+  // ceiling that could never fire.
+  it.each([80, 0, -0.5, 1.5, Number.NaN, "0.8"])("refuses %p as a context share", async (value) => {
+    const root = await temporaryRoot();
+
+    await expect(writeChangeHarnessConfig(root, "demo", {
+      budget: { maxContextShare: value },
+    } as never)).rejects.toThrow(/maxContextShare must be a share above 0 and at most 1/);
+  });
+
+  it.each([0.8, 1])("takes %p as a context share", async (value) => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "demo", { budget: { maxContextShare: value } });
+
+    expect((await resolveHarnessConfig(root, "demo")).budget?.maxContextShare).toBe(value);
+  });
+
   it("rejects an unknown budget key, naming the key and accepted set", async () => {
     const root = await temporaryRoot();
     await mkdir(path.join(root, "openspec"), { recursive: true });

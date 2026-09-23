@@ -216,7 +216,7 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
     budget: {
       type: "object",
       additionalProperties: false,
-      description: "Spending ceilings for the chain and for one stage. A stage ceiling above the chain's is refused by the product.",
+      description: "Ceilings for the chain and for one stage: what it may spend, and how much of its context it may fill. A stage ceiling above the chain's is refused by the product.",
       properties: {
         maxCostUsd: positiveNumber("The chain's ceiling in USD."),
         maxTokens: positiveInteger("The chain's ceiling in input plus output tokens."),
@@ -228,6 +228,12 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
         },
         maxStageCostUsd: positiveNumber("One stage's ceiling in USD, checked when the stage ends."),
         maxStageTokens: positiveInteger("One stage's ceiling in tokens, checked when the stage ends."),
+        maxContextShare: {
+          type: "number",
+          exclusiveMinimum: 0,
+          maximum: 1,
+          description: "How much of its context window a run may fill before the chain stops, as a share: 0.8 is eighty percent. Not a spend, and the only ceiling besides timeout that stops a stage already running.",
+        },
       },
     },
     timeout: {

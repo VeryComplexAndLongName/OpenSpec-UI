@@ -212,6 +212,7 @@ export * from "./verified-agent-versions.js";
 // Node imports. Both hosts render this stream and both need the same
 // answer before they can show a streamed reply as prose rather than as
 // the slices it arrived in.
+export * from "./acp-context-gauge.js";
 export * from "./acp-streamed-text.js";
 // Reading the rest of an ACP update — a tool call, a failure, a plan — as
 // one line. The same kind of leaf, for the same reason: every surface that

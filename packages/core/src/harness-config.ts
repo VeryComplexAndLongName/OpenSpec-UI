@@ -124,6 +124,23 @@ export interface HarnessBudget {
    * agent it sees a fraction of what moved, and on one that reports
    * nothing it sees nothing at all. */
   maxStageTokens?: number;
+  /** How much of its context window a run may fill before the chain is
+   * stopped, as a share between 0 and 1 (`0.8` is eighty percent).
+   *
+   * Not a spending ceiling, and deliberately not counted as one. ACP's
+   * `usage_update` carries how many tokens are in the session's context
+   * against the model's window; it goes down after a compaction, so it
+   * says nothing about what was spent. What it does say is that the
+   * conversation has outgrown the task: every further turn carries the
+   * whole of it again, slower and worse than the same work started
+   * fresh.
+   *
+   * Unlike every other field here it **stops a stage already running**,
+   * because the gauge arrives during the run rather than at its end -
+   * the same property that lets `timeout` act. On an agent that reports
+   * no cost and no tokens it is the only ceiling besides `timeout` that
+   * can act at all (see LIMITS.md). */
+  maxContextShare?: number;
 }
 
 /** Time ceilings, in seconds. Both optional and independent, the same
@@ -856,6 +873,17 @@ function assertValidBudget(value: unknown): asserts value is HarnessBudget | und
   if (maxStageTokens !== undefined
     && !(typeof maxStageTokens === "number" && Number.isInteger(maxStageTokens) && maxStageTokens > 0)) {
     throw new InvalidHarnessConfigError("budget.maxStageTokens must be a positive integer");
+  }
+  // A share, not a count: refused outside (0, 1] so a person who meant
+  // eighty percent and wrote 80 is told, rather than given a ceiling that
+  // can never fire.
+  const { maxContextShare } = value as { maxContextShare?: unknown };
+  if (maxContextShare !== undefined
+    && !(typeof maxContextShare === "number" && Number.isFinite(maxContextShare)
+      && maxContextShare > 0 && maxContextShare <= 1)) {
+    throw new InvalidHarnessConfigError(
+      "budget.maxContextShare must be a share above 0 and at most 1, such as 0.8 for eighty percent",
+    );
   }
   // A stage ceiling above the whole-chain ceiling can never fire: the
   // chain ceiling stops the run first. Refused here for the same reason

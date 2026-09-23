@@ -57,6 +57,7 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
     || perUnit.length > 0;
   const hasTokenCeiling = config.budget?.maxTokens !== undefined || config.budget?.maxStageTokens !== undefined;
   const hasTimeCeiling = config.timeout?.maxRunSeconds !== undefined || config.timeout?.maxStageSeconds !== undefined;
+  const contextCeiling = config.budget?.maxContextShare;
 
   for (const stage of STAGES) {
     if (!isHarnessStepAgentStage(stage)) continue;
@@ -67,6 +68,24 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
     // one used.
     if (agent === undefined) continue;
     const reports = HARNESS_AGENT_CAPABILITIES[agent]?.reports ?? "unknown";
+
+    // A context ceiling is answered by a different question from a
+    // spending one, so it is judged before the branches below rather
+    // than inside them: an agent that reports no usage may still send a
+    // gauge, and one that reports cost may send none
+    // (a-run-can-outgrow-its-context). Said only where it is certain -
+    // an agent that speaks no ACP at all - because an ACP agent nobody
+    // has watched might send one, and warning about that would be a
+    // guess dressed as a finding.
+    if (contextCeiling !== undefined && HARNESS_AGENT_CAPABILITIES[agent]?.contextGauge === "none") {
+      findings.push({
+        kind: "ceiling-cannot-act",
+        stage,
+        agent,
+        message: `"${agent}" never says how full its context is, so budget.maxContextShare cannot act on "${stage}".`
+          + " That ceiling reads a figure only an ACP agent sends.",
+      });
+    }
 
     if (reports === "unknown") {
       findings.push({
@@ -89,7 +108,11 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
             + " however large the spend.",
         });
       }
-      if (!hasTimeCeiling) {
+      // A context ceiling bounds a stage this agent runs where the agent
+      // does send a gauge, so the stage is not unbounded after all.
+      const contextBinds = contextCeiling !== undefined
+        && HARNESS_AGENT_CAPABILITIES[agent]?.contextGauge === "sends";
+      if (!hasTimeCeiling && !contextBinds) {
         findings.push({
           kind: "stage-unbounded",
           stage,

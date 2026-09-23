@@ -88,6 +88,7 @@ export * from "./stale-tasks.js";
 export * from "./sprint-report.js";
 export * from "./agent-usage.js";
 export * from "./verified-agent-versions.js";
+export * from "./acp-context-gauge.js";
 export * from "./acp-streamed-text.js";
 export * from "./acp-update-line.js";
 export * from "./usage-report.js";

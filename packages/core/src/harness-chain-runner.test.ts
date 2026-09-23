@@ -1341,6 +1341,40 @@ describe("HarnessChainRunner — time limits (run-has-a-time-limit)", () => {
     return { runner, calls, release: () => releaseStage?.() };
   }
 
+  /** A runner that streams the given ACP updates and then waits, so a
+   * ceiling reading those updates has a running stage to stop. */
+  function gaugedRunner(updates: readonly Record<string, unknown>[]): { runner: AgentRunner; calls: Command[] } {
+    const calls: Command[] = [];
+    let releaseStage: (() => void) | undefined;
+    let cancelSignalled = false;
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") {
+          cancelSignalled = true;
+          releaseStage?.();
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        for (const update of updates) {
+          yield { kind: "agentUpdate", runId: command.runId, timestamp: "t", update };
+        }
+        // Released either by the cancel the ceiling sends, or at once when
+        // no ceiling fired, so the stage that is not cut still finishes.
+        if (!cancelSignalled) {
+          await Promise.race([
+            new Promise<void>((resolve) => { releaseStage = resolve; }),
+            new Promise<void>((resolve) => { setTimeout(resolve, 50); }),
+          ]);
+        }
+        yield cancelSignalled
+          ? { kind: "cancelled", runId: command.runId, timestamp: "t" }
+          : { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    return { runner, calls };
+  }
+
   it("cuts a stage that outlives the stage ceiling, and asks the runner to cancel", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 } });
@@ -1392,6 +1426,54 @@ describe("HarnessChainRunner — time limits (run-has-a-time-limit)", () => {
 
     expect(events.some((e) => e.kind === "cancelled")).toBe(true);
     expect(events.some((e) => e.kind === "failed")).toBe(false);
+  });
+
+  // a-run-can-outgrow-its-context. The context gauge arrives during the
+  // run, so this ceiling can do what only `timeout` could: stop a stage
+  // that is already going.
+  it("cuts a stage whose context passes the ceiling, naming the ceiling and the reading", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", budget: { maxContextShare: 0.8 } });
+    mockStatus(false);
+
+    const { runner, calls } = gaugedRunner([
+      { sessionUpdate: "usage_update", used: 100_000, size: 1_000_000 },
+      { sessionUpdate: "usage_update", used: 850_000, size: 1_000_000 },
+    ]);
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    // The ceiling has to reach the process, not merely end the generator.
+    expect(calls.some((one) => one.kind === "cancel")).toBe(true);
+    const cancelled = events.find((event) => event.kind === "cancelled");
+    expect((cancelled as { reason?: string }).reason)
+      .toBe("stopped at the context ceiling: budget.maxContextShare is 80.0%"
+        + ", and the agent reported 850,000 of 1,000,000 tokens in its context (85.0%)");
+    expect(events.some((event) => event.kind === "failed")).toBe(false);
+  });
+
+  it.each([
+    ["a reading under the ceiling", { maxContextShare: 0.9 } as Record<string, number>],
+    ["no ceiling configured at all", undefined],
+  ])("leaves a run alone on %s", async (_what, budget) => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      ...(budget !== undefined ? { budget } : {}),
+    });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    mockStatus(false);
+
+    const { runner, calls } = gaugedRunner([{ sessionUpdate: "usage_update", used: 850_000, size: 1_000_000 }]);
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(calls.some((one) => one.kind === "cancel")).toBe(false);
+    expect(events.some((event) => event.kind === "cancelled")).toBe(false);
   });
 
   it("carries no reason when a person cancels, which is what an absent reason has always meant", async () => {

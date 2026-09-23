@@ -39,6 +39,52 @@ describe("findHarnessConfigLimits", () => {
     expect(finding?.message).toContain("1,693,507");
   });
 
+  // a-run-can-outgrow-its-context. A gauge is a different question from a
+  // spend, so it is answered separately.
+  it("says a context ceiling cannot act on an agent that speaks no ACP", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "claude-cli" },
+      budget: { maxContextShare: 0.8 },
+      timeout: { maxRunSeconds: 60 },
+    }));
+
+    const finding = findings.find((one) => one.stage === "apply");
+    expect(finding?.kind).toBe("ceiling-cannot-act");
+    expect(finding?.message).toContain("never says how full its context is");
+  });
+
+  it("says nothing about a context ceiling on an agent that sends the gauge", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "deepseek-cli-acp" },
+      budget: { maxContextShare: 0.8 },
+    }));
+
+    expect(findings.filter((one) => one.stage === "apply")).toEqual([]);
+  });
+
+  // An ACP agent nobody has watched might send one: warning would be a
+  // guess dressed as a finding.
+  it("says nothing about a context ceiling on an agent nobody has watched", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "codex-cli-acp" },
+      budget: { maxContextShare: 0.8 },
+      timeout: { maxRunSeconds: 60 },
+    }));
+
+    expect(findings.filter((one) => one.kind === "ceiling-cannot-act")).toEqual([]);
+  });
+
+  // The stage is bounded after all: the ceiling reads a figure this agent
+  // does send, and it stops a stage already running.
+  it("does not call a stage unbounded where a context ceiling binds it", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { apply: "deepseek-cli-acp" },
+      budget: { maxContextShare: 0.8 },
+    }));
+
+    expect(findings.filter((one) => one.kind === "stage-unbounded")).toEqual([]);
+  });
+
   it("reports a stage with a silent agent and no timeout as unbounded", () => {
     const findings = findHarnessConfigLimits(config({
       stepAgents: { apply: "codex-cli" },

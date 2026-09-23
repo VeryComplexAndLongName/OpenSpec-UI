@@ -163,6 +163,17 @@ export interface HarnessAgentCapabilities {
    * have never been observed here, and recording them as silent would
    * assert a measurement nobody made. */
   reports?: "cost-and-tokens" | "tokens-only" | "none" | "unknown";
+  /** Whether this agent says, during a run, how much of its context
+   * window is filled - ACP's `usage_update`, carrying `used` and `size`.
+   * It is what `budget.maxContextShare` reads, and it is a different
+   * question from `reports`: a gauge is not a spend
+   * (a-run-can-outgrow-its-context).
+   *
+   * `"none"` with certainty for an agent that speaks no ACP at all: there
+   * is no stream for such an update to arrive on. `"unknown"` for an ACP
+   * agent nobody has watched, for the same reason `reports` is.
+   * Absent means `"unknown"`. */
+  contextGauge?: "sends" | "none" | "unknown";
 }
 
 /** Live-verified for `claude-cli`/`copilot-cli` (`--help` on this
@@ -187,14 +198,15 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // `reports` values come from LIMITS.md's "Which agents report usage",
   // which carries the evidence for each. The raw-text agents are `"none"`
   // with certainty rather than by measurement: plain text output carries
-  // no figure to record.
-  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none" },
-  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none" },
-  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none" },
-  "gemini-cli": { reports: "none" },
-  "local-llm": { reports: "none" },
+  // no figure to record. Their `contextGauge` is certain the same way -
+  // they speak no ACP at all, so no update of any kind arrives.
+  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none", contextGauge: "none" },
+  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none", contextGauge: "none" },
+  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none" },
+  "gemini-cli": { reports: "none", contextGauge: "none" },
+  "local-llm": { reports: "none", contextGauge: "none" },
   // The run is handed to VS Code chat; this project never sees its cost.
-  [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none" },
+  [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none", contextGauge: "none" },
   // Measured 2026-09-04 from this repository's own audit.jsonl: one run
   // recorded 786,966 input, 4,732 output and 1,308 thought tokens, and no
   // cost field of any kind.
@@ -208,9 +220,13 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   "codex-cli-acp": { reports: "unknown" },
   "gemini-cli-acp": { reports: "unknown" },
   // No effort or budget flag: see agents/deepseek-acp.ts. Measured
-  // 2026-09-22 on a live implement run through dsh 0.1.5-rc.2: 24 session
-  // updates, no usage_update and no usage on the prompt's answer.
-  "deepseek-cli-acp": { reports: "none" },
+  // 2026-09-23 on a live implement run through dsh 0.1.5-rc.2, correcting
+  // the day before: no usage on the prompt's answer, which carries only a
+  // stop reason, but `usage_update` on every turn - carrying how much of
+  // a 1,000,000-token context window is filled, and nothing else. A gauge
+  // is not a spend, so `reports` stays "none" and the gauge is recorded
+  // beside it.
+  "deepseek-cli-acp": { reports: "none", contextGauge: "sends" },
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,
