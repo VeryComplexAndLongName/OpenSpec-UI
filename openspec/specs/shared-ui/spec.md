@@ -1773,6 +1773,21 @@ arrangement folds those away, which is right where landing is not a place;
 on a board Landed is a column, so folding empties it by construction and
 hides the one thing the board exists to show.
 
+**The board SHALL show every active change of the repository, wherever it
+is worked**: this working directory's and every other working directory's,
+one card per change. A change worked in two places SHALL stand on the
+board once. A card for a change of another working directory SHALL say
+which directory works it, and SHALL offer no action on it: a change is the
+pair of a directory and a name, and nothing drawn here may reach the
+change of that name in this checkout. Such a card SHALL NOT also be drawn
+under the other working directories, which is where it stood before.
+
+A board is of the work and not of one folder: one person with several
+working directories has one flow of work, and splitting it by folder hides
+the board's whole subject. The arrangement by declared order SHALL keep to
+this checkout: an order is what this repository declares here, and another
+directory's order is its own.
+
 Each of the board's columns SHALL be separated from the next by a rule,
 and SHALL carry, in its heading: the stage's word, a picture that stands
 for that stage, how many changes stand in the column, and a colour of that
@@ -1808,6 +1823,19 @@ SHALL be kept for the next visit with the zoom and the open cards.
 - **THEN** its card stands in the Landed column rather than being folded
   away
 
+#### Scenario: A change worked in another directory
+
+- **WHEN** another working directory of this repository holds a change
+  this checkout does not, and the board is chosen
+- **THEN** its card stands in its own stage's column, says which directory
+  works it, offers no action on it, and is not drawn again under the other
+  working directories
+
+#### Scenario: A change worked in two directories
+
+- **WHEN** the same change is worked here and in another directory
+- **THEN** one card stands on the board, this checkout's own
+
 #### Scenario: A column's heading
 
 - **WHEN** two changes stand in In progress and none in Proposed
@@ -1823,7 +1851,8 @@ SHALL be kept for the next visit with the zoom and the open cards.
 #### Scenario: The other arrangement
 
 - **WHEN** the arrangement by declared order is chosen
-- **THEN** no rule, picture, colour or count is drawn on its headings
+- **THEN** no rule, picture, colour or count is drawn on its headings, and
+  the other working directories' changes are drawn under them as before
 
 #### Scenario: A host that does not read the stages
 
