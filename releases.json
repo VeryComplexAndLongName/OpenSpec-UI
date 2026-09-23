@@ -1,29 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-23T10:21:16.562Z",
+  "generated_at": "2026-09-23T11:57:25.997Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "5ecdbde364e01acfc12bce872a025516b67fa423",
+  "commit": "1cff5e386a498a701c8c59092c7e7434e1b1d551",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.82.0",
-      "released_at": "2026-09-23T10:21:16.562Z",
-      "tag": "openspec-ui-vscode@0.82.0",
+      "version": "0.82.1",
+      "released_at": "2026-09-23T11:57:25.997Z",
+      "tag": "openspec-ui-vscode@0.82.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.82.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.82.1"
       },
-      "artifacts": [],
+      "artifacts": [
+        {
+          "kind": "vsix",
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.82.1/openspec-ui-vscode-0.82.1.vsix",
+          "size_bytes": 6531447
+        }
+      ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A new ceiling, `budget.maxContextShare`: how much of its context window a"
+          "kind": "patch",
+          "summary": "The Pipeline's board is drawn whenever it is chosen, even with nothing on"
         }
       ]
     },
@@ -32,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.43.0",
-      "released_at": "2026-09-23T10:21:16.562Z",
+      "version": "1.43.1",
+      "released_at": "2026-09-23T11:57:25.997Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -43,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The sweep comes back for what an earlier pass left behind. Removing a"
+          "kind": "patch",
+          "summary": "The Pipeline's board is drawn whenever it is chosen, even with nothing on"
         }
       ]
     },
@@ -53,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.123.0",
-      "released_at": "2026-09-23T10:21:16.562Z",
+      "version": "0.123.1",
+      "released_at": "2026-09-23T11:57:25.997Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -64,12 +70,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A new ceiling, `budget.maxContextShare`: how much of its context window a"
-        },
-        {
-          "kind": "minor",
-          "summary": "The sweep comes back for what an earlier pass left behind. Removing a"
+          "kind": "patch",
+          "summary": "The Pipeline's board is drawn whenever it is chosen, even with nothing on"
         }
       ]
     },
@@ -78,15 +80,20 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.71.2",
-      "released_at": "2026-09-23T10:21:16.562Z",
+      "version": "1.71.3",
+      "released_at": "2026-09-23T11:57:25.997Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "patch",
+          "summary": "The Pipeline's board is drawn whenever it is chosen, even with nothing on"
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -94,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-23T10:21:16.562Z",
+      "released_at": "2026-09-23T11:57:25.997Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
