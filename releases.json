@@ -1,40 +1,45 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-22T18:05:41.724Z",
+  "generated_at": "2026-09-23T05:56:30.034Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "fd320f38c597ecba4889a5bdcb2c33c179a135b1",
+  "commit": "0e7364a1caa727588310dcc76922a96c0829ee2a",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.80.3",
-      "released_at": "2026-09-22T18:05:41.724Z",
-      "tag": "openspec-ui-vscode@0.80.3",
+      "version": "0.81.0",
+      "released_at": "2026-09-23T05:56:30.034Z",
+      "tag": "openspec-ui-vscode@0.81.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.80.3"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.81.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.80.3/openspec-ui-vscode-0.80.3.vsix",
-          "size_bytes": 6495948
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.81.0/openspec-ui-vscode-0.81.0.vsix",
+          "size_bytes": 6515699
         }
       ],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline becomes a board of the stages"
+        }
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.41.5",
-      "released_at": "2026-09-22T18:05:41.724Z",
+      "version": "1.42.0",
+      "released_at": "2026-09-23T05:56:30.034Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -42,15 +47,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline becomes a board of the stages"
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.120.0",
-      "released_at": "2026-09-22T18:05:41.724Z",
+      "version": "0.121.0",
+      "released_at": "2026-09-23T05:56:30.034Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -61,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Every change has a stage, and you can see how long it spent in each"
+          "summary": "The Pipeline becomes a board of the stages"
         }
       ]
     },
@@ -70,15 +80,20 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.70.12",
-      "released_at": "2026-09-22T18:05:41.724Z",
+      "version": "1.71.0",
+      "released_at": "2026-09-23T05:56:30.034Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The Pipeline becomes a board of the stages"
+        }
+      ]
     },
     {
       "id": "ci-cli",
@@ -86,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-22T18:05:41.724Z",
+      "released_at": "2026-09-23T05:56:30.034Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
