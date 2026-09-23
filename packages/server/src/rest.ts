@@ -47,6 +47,7 @@ import {
   EnrolmentRefusedError,
   catchUpWithMain,
   readChangeStandings,
+  readArchivedChanges,
   readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
@@ -1215,6 +1216,29 @@ interface ChangeStandingsRequest {
  * (the-board-shows-the-stages). The visits themselves are left out: a
  * board draws none of them, and one change's history view asks for its
  * own. */
+export async function handleArchivedChangesRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    // The default branch on the server, so every machine sees the same
+    // archive (the-board-remembers-what-was-archived).
+    sendJson(res, 200, await readArchivedChanges(parsed.cwd, { git: createGitWrapper({ cwd: parsed.cwd }) }));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 export async function handleChangeStagesRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
   let parsed: unknown;
   try {

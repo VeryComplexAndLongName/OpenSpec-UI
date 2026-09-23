@@ -1566,6 +1566,69 @@ describe("the board", () => {
     expect(screen.getByRole("heading", { name: "Changes in this checkout" })).toBeTruthy();
   });
 
+  // the-board-remembers-what-was-archived. A change leaves
+  // `openspec/changes` when it is archived, so without this reading the
+  // last column is empty by construction.
+  it("stands what was archived lately in its own column, and counts the rest", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        stages={stages(summary("alpha", "planned"))}
+        archived={async () => ({
+          recent: [{ changeName: "filed-away", archivedAs: "2026-09-22-filed-away", archivedOn: "2026-09-22" }],
+          older: 318,
+          from: "default-branch" as const,
+        })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const card = await screen.findByTestId("pipeline-node-filed-away");
+    expect(card.getAttribute("data-state")).toBe("archived");
+    expect(card.textContent).toContain("archived on 2026-09-22");
+    expect(screen.getByTestId("pipeline-stage-count-5").textContent).toBe(", 1 change1");
+    // The archive holds more than a board should draw: the rest is
+    // counted, never listed.
+    expect(screen.getByTestId("pipeline-archive-more").textContent).toBe("318 more in the archive");
+  });
+
+  it("says where the archive was read where the server's branch could not be", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        stages={stages(summary("alpha", "planned"))}
+        archived={async () => ({ recent: [], older: 2, from: "working-directory" as const })}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-archive-more").textContent)
+      .toBe("2 more in the archive, as this working directory has it"));
+  });
+
+  it("draws no archived card in the arrangement by declared order", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        stages={stages(summary("alpha", "planned"))}
+        archived={async () => ({
+          recent: [{ changeName: "filed-away", archivedAs: "2026-09-22-filed-away", archivedOn: "2026-09-22" }],
+          older: 0,
+          from: "default-branch" as const,
+        })}
+      />,
+    );
+
+    await screen.findByTestId("pipeline-node-alpha");
+    expect(screen.queryByTestId("pipeline-node-filed-away")).toBeNull();
+    expect(screen.queryByTestId("pipeline-archive-more")).toBeNull();
+  });
+
   it("rules one column off from the next, and never before the first", async () => {
     render(
       <PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "planned"))} />,

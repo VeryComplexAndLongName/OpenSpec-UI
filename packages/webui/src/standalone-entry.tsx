@@ -97,7 +97,7 @@ import {
   runDelegatedItem as runDelegatedItemApi,
 } from "./human-only-inbox-client.js";
 import { loadChangeStandings } from "./change-standings-client.js";
-import { loadChangeStages } from "./change-stages-client.js";
+import { loadArchivedChanges, loadChangeStages } from "./change-stages-client.js";
 import { catchUpWithMainOverHttp, loadMainDrift } from "./main-drift-client.js";
 import { EnrolmentRequests } from "./components/EnrolmentRequests.js";
 import { DelegatedReply } from "./components/DelegatedReply.js";
@@ -462,6 +462,9 @@ function StandaloneApp() {
   // Where each change is on the board, and who holds it
   // (the-board-shows-the-stages).
   const pipelineStages = useCallback(() => loadChangeStages(apiFetch, cwd), [cwd]);
+  // What this repository archived, as the server's default branch has it
+  // (the-board-remembers-what-was-archived).
+  const pipelineArchived = useCallback(() => loadArchivedChanges(apiFetch, cwd), [cwd]);
   // How far this checkout is behind what has landed, and the one press
   // that closes it (main-catches-up-with-what-landed).
   const pipelineDrift = useCallback(() => loadMainDrift(apiFetch, cwd), [cwd]);
@@ -2600,6 +2603,7 @@ function StandaloneApp() {
                 lastRuns={pipelineLastRuns}
                 standings={pipelineStandings}
                 stages={pipelineStages}
+                archived={pipelineArchived}
                 drift={pipelineDrift}
                 onCatchUp={pipelineCatchUp}
                 liveRuns={pipelineLiveRuns}

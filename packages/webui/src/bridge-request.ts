@@ -56,6 +56,7 @@ export type BridgeOperation =
     // Where each change is on the board, and who holds it
     // (the-board-shows-the-stages).
     | "pipeline/stages"
+    | "pipeline/archived"
     | "pipeline/drift"
     | "pipeline/catch-up"
     // The runs this host holds, whose cards get controls
