@@ -238,6 +238,7 @@ export * from "./signature-facts.js";
 // (a-change-keeps-its-history). A leaf; reading the files stays Node-only.
 export * from "./change-history-facts.js";
 // Where a change is, and how long in each stage (a-change-knows-its-stage).
+export * from "./archived-changes-facts.js";
 export * from "./change-stage-facts.js";
 // How many lines a Pipeline card holds, from the same rem the stylesheet
 // uses — the-pipeline-shows-what-it-has-read. Arithmetic only.

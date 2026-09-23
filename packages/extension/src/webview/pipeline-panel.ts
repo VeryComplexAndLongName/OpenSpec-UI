@@ -19,6 +19,7 @@ import {
   isValidChangeName,
   catchUpWithMain,
   readChangeStandings,
+  readArchivedChanges,
   readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
@@ -30,6 +31,7 @@ import {
   surveyWorktrees,
   type CatchUpResult,
   type ChangeStageReading,
+  type ArchiveReading,
   type ChangeStandings,
   type MainDrift,
   type LastRunsReport,
@@ -143,6 +145,9 @@ export interface PipelineReaders {
   /** Where each change is on the board, and who holds it
    * (the-board-shows-the-stages). */
   stages: (workspaceRoot: string) => Promise<ChangeStageReading[]>;
+  /** What this repository archived, as the server's default branch has
+   * it (the-board-remembers-what-was-archived). */
+  archived: (workspaceRoot: string) => Promise<ArchiveReading>;
   /** How far this checkout is behind what has landed, and what of it the
    * default branch already carries archived
    * (main-catches-up-with-what-landed). */
@@ -162,6 +167,7 @@ const DEFAULT_READERS: PipelineReaders = {
   lastRuns: (workspaceRoot) => readLastRuns({ workspaceRoot }),
   standings: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: { ifOlderThan: STANDING_FETCH_INTERVAL_MS } }),
   stages: (workspaceRoot) => readChangeStagesOfWorkspace(workspaceRoot),
+  archived: (workspaceRoot) => readArchivedChanges(workspaceRoot, { git: createGitWrapper({ cwd: workspaceRoot }) }),
   drift: async (workspaceRoot, standings) => readMainDrift({
     root: workspaceRoot,
     ...(standings !== undefined ? { standings } : {}),
@@ -407,6 +413,9 @@ export class PipelinePanel {
           return;
         case "pipeline/standings":
           reply({ ok: true, value: await this.readers.standings(workspaceRoot) });
+          return;
+        case "pipeline/archived":
+          reply({ ok: true, value: await this.readers.archived(workspaceRoot) });
           return;
         case "pipeline/stages":
           reply({ ok: true, value: (await this.readers.stages(workspaceRoot)).map((reading) => summariseStage(reading)) });

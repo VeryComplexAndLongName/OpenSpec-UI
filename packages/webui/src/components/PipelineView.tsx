@@ -33,6 +33,7 @@ import {
   describeCollision,
   describeDirectoryRuns,
   describeLane,
+  describeOlderArchive,
   describeStageLine,
   describeRun,
   describeTaskRows,
@@ -53,6 +54,8 @@ import {
   type ChangeReadiness,
   type ChangeReadinessReport,
   driftWords,
+  type ArchiveReading,
+  type ArchivedChange,
   type ChangeStageSummary,
   type ChangeStandings,
   type CatchUpResult,
@@ -148,6 +151,11 @@ export interface PipelineViewProps {
    * (the-board-shows-the-stages). Absent, the arrangement by stage is not
    * offered and a card says nothing about its stage. */
   stages?: () => Promise<ChangeStageSummary[]>;
+  /** Reads what this repository archived, as the server's default branch
+   * has it (the-board-remembers-what-was-archived). Absent, the board's
+   * Archived column stands empty - a change leaves `openspec/changes`
+   * when it is archived, so nothing else ever puts one there. */
+  archived?: () => Promise<ArchiveReading>;
   /** Reads the runs this host started and holds. A card offers to answer,
    * stop or stop now only a run among these (a-change-is-run-from-its-card).
    * Absent, no card offers any of them. `myLabel` is the roster label of the
@@ -373,6 +381,7 @@ export function PipelineView({
   lastRuns,
   standings,
   stages,
+  archived,
   drift,
   onCatchUp,
   onArchive,
@@ -393,6 +402,9 @@ export function PipelineView({
   // Where each change is on the board, read with the survey: a stage moves
   // when a run, a commit or a pull request moves (the-board-shows-the-stages).
   const staged = usePolledReading(stages, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  // What the repository archived, read with the survey: the archive moves
+  // when a change is archived (the-board-remembers-what-was-archived).
+  const filed = usePolledReading(archived, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const [caughtUp, setCaughtUp] = useState<string | null>(null);
   // The runs this host holds, read with the survey: a card offers controls
   // only for these (a-change-is-run-from-its-card).
@@ -534,9 +546,24 @@ export function PipelineView({
       }
     }
   }
+  // What was archived lately, in the column it ends in. A change leaves
+  // `openspec/changes` when it is archived, so without this reading the
+  // last column of the board is empty by construction - and a column that
+  // can never hold anything says nothing about the way through
+  // (the-board-remembers-what-was-archived).
+  const filedRecently = onBoard
+    ? (filed.value?.recent ?? []).filter((one) => !namesHere.has(one.changeName) && !elsewhere.has(one.changeName) && matches(one.changeName))
+    : [];
   const boardReport = shownReport === undefined
     ? undefined
-    : { ...shownReport, changes: [...shownReport.changes, ...[...elsewhere.values()].map((one) => asLayoutInput(one.change))] };
+    : {
+      ...shownReport,
+      changes: [
+        ...shownReport.changes,
+        ...[...elsewhere.values()].map((one) => asLayoutInput(one.change)),
+        ...filedRecently.map((one) => asArchivedLayoutInput(one.changeName)),
+      ],
+    };
   const nothingToDraw = boardReport === undefined || boardReport.changes.length === 0;
   const onCards = runsShownOnCards(cardList);
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
@@ -763,7 +790,12 @@ export function PipelineView({
                       nothing about the way through, and a person pressing
                       "By stage" on an empty queue would see no board at
                       all (the-board-is-of-every-change). */}
-                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} />
+                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} />
+                  {/* The archive holds more than a board should draw: the
+                      rest is counted, never listed. */}
+                  {onBoard && describeOlderArchive(filed.value) !== undefined ? (
+                    <p className="openspec-shell-note" data-testid="pipeline-archive-more">{describeOlderArchive(filed.value)}</p>
+                  ) : null}
                   {nothingToDraw ? (
                     <p className="openspec-shell-note" data-testid="pipeline-board-empty">
                       {report.changes.length === 0
@@ -877,7 +909,7 @@ function hasProgress(card: ChangeCard): boolean {
   return card.progress !== undefined && card.progress.total > 0;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, labels, archivedOnMain }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, filed, labels, archivedOnMain }: {
   report: ChangeReadinessReport;
   cards: Map<string, ChangeCard>;
   now: Date;
@@ -897,6 +929,10 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
    * of one folder (a-change-is-one-card-wherever-it-is). Empty in the
    * arrangement by declared order, which draws this checkout alone. */
   elsewhere: Map<string, { directory: Extract<SurveyedDirectory, { readable: true }>; change: SurveyedChange }>;
+  /** What was archived lately, for the column it ends in. Empty in the
+   * arrangement by declared order, which draws what can still be run
+   * (the-board-remembers-what-was-archived). */
+  filed: readonly ArchivedChange[];
   labels: Map<string, string>;
   archivedOnMain: ReadonlySet<string>;
 }) {
@@ -931,8 +967,16 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
+  const filedByName = new Map(filed.map((one) => [one.changeName, one]));
+  for (const one of filed) {
+    heights.set(one.changeName, pipelineCardHeight({ hasState: false, hasProgress: false, hasCallout: false, detailLines: 1, hasControls: false }));
+  }
+  // An archived change is in the Archived column by what it is, not by a
+  // fact anybody reads for it: it is in the archive.
+  const stageOf = stagesByName([...stages.values()]);
+  for (const one of filed) stageOf.set(one.changeName, "archived");
   const layout = onBoard
-    ? layoutChangesByStage(report, { heights, stages: stagesByName([...stages.values()]) })
+    ? layoutChangesByStage(report, { heights, stages: stageOf })
     : layoutChanges(report, { heights });
   return (
     <>
@@ -943,6 +987,27 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
         laneHeading="h3"
         renderNode={(node) => {
           const name = node.change.changeName;
+          // A change that is done: its card says when it was filed away
+          // and offers nothing at all
+          // (the-board-remembers-what-was-archived).
+          const wasFiled = filedByName.get(name);
+          if (wasFiled !== undefined) {
+            return (
+              <div
+                key={name}
+                className="openspec-pipeline-node openspec-pipeline-node--foreign"
+                data-testid={`pipeline-node-${name}`}
+                data-state="archived"
+                style={{ "--x": node.x, "--y": node.y, "--w": node.width, "--h": node.height } as Record<string, number>}
+                title={`${name} — archived on ${wasFiled.archivedOn}`}
+              >
+                <div className="openspec-pipeline-node-head">
+                  <span className="openspec-pipeline-node-name">{name}</span>
+                </div>
+                <CardDetails details={[{ kind: "where", text: `archived on ${wasFiled.archivedOn}` }]} />
+              </div>
+            );
+          }
           // A change of another working directory: read here and never
           // acted on from here, so its card offers nothing but its tasks
           // (ADR 0026).
@@ -1583,6 +1648,12 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards, arc
 /** A surveyed change as the layout's input. Only its own blockers are
  * relations; nothing is known about collisions in another directory, and
  * nothing is computed. */
+/** An archived change, as the layout needs it. It waits for nothing and
+ * blocks nothing: it is done (the-board-remembers-what-was-archived). */
+function asArchivedLayoutInput(changeName: string): ChangeReadiness {
+  return { changeName, blockers: [], run: { state: "ready" }, capabilities: [], canJoin: [], blockedFrom: [] };
+}
+
 function asLayoutInput(change: SurveyedChange): ChangeReadiness {
   return {
     changeName: change.changeName,
