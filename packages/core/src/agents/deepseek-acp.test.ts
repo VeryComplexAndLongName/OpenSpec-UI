@@ -19,7 +19,7 @@ afterEach(() => {
   resolvePermissionMock.mockReset();
 });
 
-const { DEEPSEEK_PREAMBLE, DeepSeekAcpAdapter } = await import("./deepseek-acp.js");
+const { DEEPSEEK_PREAMBLE, DSH_NODE_FLOOR_TEXT, DeepSeekAcpAdapter, nodeCanRunDsh } = await import("./deepseek-acp.js");
 
 async function drain(iterable: AsyncIterable<Event>): Promise<Event[]> {
   const events: Event[] = [];
@@ -50,6 +50,7 @@ describe("DeepSeekAcpAdapter", () => {
     }
     runProcessMock.mockReturnValue(fakeEvents());
     const adapter = new DeepSeekAcpAdapter();
+    adapter.nodeVersion = async () => "v24.18.0";
 
     const events: Event[] = [];
     for await (const event of adapter.execute(adapter.buildInvocation(command), command, "THE CHANGE", new AbortController().signal)) {
@@ -64,8 +65,9 @@ describe("DeepSeekAcpAdapter", () => {
     expect(given.prompt).toContain("THE CHANGE");
   });
 
-  // dsh exits with code 0 and no word on Node 22.11, which this
-  // repository pins; "ACP connection closed" alone says nothing to act on.
+  // A Node above the floor that still says nothing: the version is no
+  // longer the explanation, but "ACP connection closed" alone still says
+  // nothing to act on.
   it("says which Node it met where dsh closed before saying anything", async () => {
     async function* closedAtOnce(): AsyncGenerator<Event> {
       yield { kind: "started", runId: "run-deepseek-1", timestamp: "t", command: "implement", cwd: "/workspace/repo" };
@@ -73,12 +75,13 @@ describe("DeepSeekAcpAdapter", () => {
     }
     runProcessMock.mockReturnValue(closedAtOnce());
     const adapter = new DeepSeekAcpAdapter();
-    adapter.nodeVersion = async () => "v22.11.0";
+    adapter.nodeVersion = async () => "v24.18.0";
 
     const events = await drain(adapter.execute(adapter.buildInvocation(command), command, "p", new AbortController().signal));
 
     const failed = events.find((event) => event.kind === "failed") as { reason: string };
-    expect(failed.reason).toContain("ACP connection closed: dsh exited before answering, and the Node on this PATH is v22.11.0");
+    expect(failed.reason).toContain("ACP connection closed: dsh exited before answering, and the Node on this PATH is v24.18.0");
+    expect(failed.reason).toContain(DSH_NODE_FLOOR_TEXT);
   });
 
   it("leaves a failure alone once the agent has spoken", async () => {
@@ -88,11 +91,66 @@ describe("DeepSeekAcpAdapter", () => {
     }
     runProcessMock.mockReturnValue(spokeThenFailed());
     const adapter = new DeepSeekAcpAdapter();
-    adapter.nodeVersion = async () => { throw new Error("not asked"); };
+    adapter.nodeVersion = async () => "v24.18.0";
 
     const events = await drain(adapter.execute(adapter.buildInvocation(command), command, "p", new AbortController().signal));
 
     expect((events.at(-1) as { reason: string }).reason).toBe("tests failed");
+  });
+
+  // The whole point of asking first: dsh's entry is guarded by
+  // `import.meta.main`, which Node carries from 22.18 and 24.2 on.
+  describe("the Node dsh would be started on", () => {
+    it.each([
+      ["v20.19.0", false],
+      ["v22.11.0", false],
+      ["v22.17.9", false],
+      ["v22.18.0", true],
+      ["v22.20.1", true],
+      ["v23.11.0", false],
+      ["v24.1.0", false],
+      ["v24.2.0", true],
+      ["v24.18.0", true],
+      ["v25.0.0", true],
+      ["24.2.0", true],
+    ])("reads %s as %s", (version, answer) => {
+      expect(nodeCanRunDsh(version)).toBe(answer);
+    });
+
+    it("cannot tell from something that is not a version", () => {
+      expect(nodeCanRunDsh("")).toBeUndefined();
+      expect(nodeCanRunDsh("unknown")).toBeUndefined();
+      expect(nodeCanRunDsh("v24")).toBeUndefined();
+    });
+  });
+
+  it("refuses before spawning dsh where that Node cannot run it", async () => {
+    const adapter = new DeepSeekAcpAdapter();
+    adapter.nodeVersion = async () => "v22.11.0";
+
+    const events = await drain(adapter.execute(adapter.buildInvocation(command), command, "p", new AbortController().signal));
+
+    expect(runProcessMock).not.toHaveBeenCalled();
+    expect(events.map((event) => event.kind)).toEqual(["started", "failed"]);
+    const failed = events.at(-1) as { reason: string };
+    expect(failed.reason).toContain("v22.11.0");
+    expect(failed.reason).toContain(DSH_NODE_FLOOR_TEXT);
+    expect(failed.reason).toContain("import.meta.main");
+  });
+
+  // A Node nobody can read is not a reason to refuse a run that may work.
+  it("runs anyway where the Node cannot be asked its version", async () => {
+    async function* fine(): AsyncGenerator<Event> {
+      yield { kind: "completed", runId: "run-deepseek-1", timestamp: "t" };
+    }
+    runProcessMock.mockReturnValue(fine());
+    const adapter = new DeepSeekAcpAdapter();
+    adapter.nodeVersion = async () => undefined;
+
+    const events = await drain(adapter.execute(adapter.buildInvocation(command), command, "p", new AbortController().signal));
+
+    expect(runProcessMock).toHaveBeenCalledTimes(1);
+    expect(events.map((event) => event.kind)).toEqual(["completed"]);
   });
 
   it("resolves a permission through the shared driver", () => {
