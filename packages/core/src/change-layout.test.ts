@@ -336,6 +336,19 @@ describe("layoutChangesByStage", () => {
     expect(layout.columns[CHANGE_STAGES.indexOf("archived")]).toEqual([]);
   });
 
+  // the-board-is-of-every-change: a height taken from the cards alone
+  // collapses the board to nothing exactly when it most needs to show the
+  // way through.
+  it("is a board with nothing on it: every column, and room to see them", () => {
+    const layout = layoutChangesByStage(report(), { stages: stagesOf({}) });
+
+    expect(layout.columns).toEqual(CHANGE_STAGES.map(() => []));
+    expect(layout.lanes).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    expect(layout.nodes).toEqual([]);
+    expect(layout.width).toBe(CHANGE_STAGES.length * NODE_WIDTH + (CHANGE_STAGES.length - 1) * COLUMN_GAP);
+    expect(layout.height).toBe(LANE_HEADING + NODE_HEIGHT);
+  });
+
   it("draws no line, and reports no cycle, whatever the changes declare", () => {
     const layout = layoutChangesByStage(
       report(

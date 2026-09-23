@@ -193,6 +193,12 @@ export interface PipelineViewProps {
 /** What the Pipeline says while its first report has not returned. */
 export const PIPELINE_FIRST_READING = "Reading what is running…";
 
+/** What a card calls the main checkout where the same change is also
+ * worked. Its own label is the name of the folder somebody cloned into,
+ * which says nothing about the place and, on this repository, reads as
+ * the product's own name (the-board-is-of-every-change). */
+export const MAIN_DIRECTORY_LABEL = "the main working directory";
+
 /** The zoom steps the picture offers, as factors of its unit. */
 export const PIPELINE_ZOOM_STEPS: readonly number[] = [0.75, 0.9, 1, 1.25, 1.5];
 const DEFAULT_ZOOM = 1;
@@ -448,7 +454,14 @@ export function PipelineView({
   const firstReading = report === undefined && local.error === undefined ? PIPELINE_FIRST_READING : null;
   useEffect(() => { onReadingChange?.(firstReading); }, [firstReading, onReadingChange]);
   const here = others.value?.directories.find((directory) => directory.isThis);
-  const labels = new Map((others.value?.directories ?? []).map((directory) => [directory.path, directory.label]));
+  // What a card calls another directory holding the same change. The main
+  // checkout is named for what it is rather than for the folder it sits
+  // in: that folder's name is whatever somebody cloned into, and on this
+  // repository it reads as the product's own - "also in OpenSpec-UI" says
+  // nothing about a place (the-board-is-of-every-change). A directory's
+  // own heading still carries its own label, which is what it is for.
+  const labels = new Map((others.value?.directories ?? []).map((directory) =>
+    [directory.path, directory.isMain ? MAIN_DIRECTORY_LABEL : directory.label]));
   // One card per change, derived in core from the three readings; this
   // view draws what it returns (a-card-says-what-its-change-is-doing).
   const cardList = report === undefined ? [] : describeChangeCards({
@@ -486,20 +499,26 @@ export function PipelineView({
   };
   const matches = (changeName: string) => matchesFilter(filter, wordsOf(changeName));
   const landedHere = (report?.changes ?? []).filter((change) => landed.has(change.changeName));
-  // A filter reaching into the folded group opens it, as the Change
-  // Graph's fold does.
-  const foldLanded = !showLanded && !landedHere.some((change) => filter.trim().length > 0 && matches(change.changeName));
-  const shownChanges = (report?.changes ?? [])
-    .filter((change) => matches(change.changeName))
-    .filter((change) => !foldLanded || !landed.has(change.changeName));
-  const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
-  const foldedCount = foldLanded ? landedHere.length : 0;
-  const onCards = runsShownOnCards(cardList);
   // The board only where the stages were read: an arrangement by stage
   // with no stage read would put every change in one column and say
   // nothing (the-board-shows-the-stages).
   const stageSummaries = new Map((staged.value ?? []).map((summary) => [summary.changeName, summary]));
   const onBoard = arrangement === "stages" && staged.value !== undefined;
+  // A filter reaching into the folded group opens it, as the Change
+  // Graph's fold does.
+  //
+  // The board never folds. Landed is a column of it, so hiding what
+  // landed empties that column by construction and leaves a board that
+  // cannot show the one thing it exists to show - where each change is
+  // (the-board-is-of-every-change).
+  const foldLanded = !onBoard && !showLanded && !landedHere.some((change) => filter.trim().length > 0 && matches(change.changeName));
+  const shownChanges = (report?.changes ?? [])
+    .filter((change) => matches(change.changeName))
+    .filter((change) => !foldLanded || !landed.has(change.changeName));
+  const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
+  const foldedCount = foldLanded ? landedHere.length : 0;
+  const nothingToDraw = shownReport === undefined || shownReport.changes.length === 0;
+  const onCards = runsShownOnCards(cardList);
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
   // A control changes what the run's record says within moments. The card
   // reads it again then, rather than on the next survey half a minute
@@ -707,14 +726,30 @@ export function PipelineView({
             ? (local.error === undefined
               ? <p className="openspec-shell-note" data-testid="pipeline-loading">{PIPELINE_FIRST_READING}</p>
               : null)
-            : report.changes.length === 0
+            : nothingToDraw && !onBoard
               // Names the branch it read where the survey says which: an
               // empty queue and a reading taken on a stale checkout
               // otherwise look identical.
-              ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
-              : shownReport === undefined || shownReport.changes.length === 0
-                ? <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>
-                : <LocalPicture report={shownReport} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} />}
+              ? (report.changes.length === 0
+                ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
+                : <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>)
+              : (
+                <>
+                  {/* Drawn even with nothing on it. A board whose columns
+                      appeared only once something stood in them would say
+                      nothing about the way through, and a person pressing
+                      "By stage" on an empty queue would see no board at
+                      all (the-board-is-of-every-change). */}
+                  <LocalPicture report={shownReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} />
+                  {nothingToDraw ? (
+                    <p className="openspec-shell-note" data-testid="pipeline-board-empty">
+                      {report.changes.length === 0
+                        ? `No active changes${here ? ` on ${branchPhrase(here)}` : ""}: every column is empty.`
+                        : "Every column is empty: nothing here matches the filter."}
+                    </p>
+                  ) : null}
+                </>
+              )}
         </div>
       </section>
 
