@@ -18,6 +18,8 @@ import path from "node:path";
 import type { Forge } from "./gh-pr-gateway.js";
 import { forgeFor } from "./forge.js";
 import { createGitWrapper } from "./git.js";
+import { claimDirectoryBeside, releaseClaim, takeClaim } from "./resource-claim.js";
+import { resolveAgentStatusDirectory } from "./agent-status.js";
 import { archivesWhenLanded, followsMain, readGlobalHarnessConfig, rebasesWhenBehind, resolveHarnessConfig } from "./harness-config.js";
 import { catchUpWithMain } from "./main-drift.js";
 import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
@@ -38,9 +40,13 @@ export interface WorkspaceSweep {
    * of the server is exactly what the lease exists to refuse, and there is
    * no point asking it to. */
   branches?: RebaseSweepResult;
-  /** Absent where the server could not be read, or no change was
-   * finished (ADR 0035). */
+  /** Absent where the server could not be read, no change was finished
+   * (ADR 0035), or another host holds the archive claim. */
   archive?: LandedArchiveResult;
+  /** Who was archiving while this pass wanted to: the archive was left to
+   * them rather than attempted beside them
+   * (the-sweep-finishes-the-archive-it-opened). */
+  archiveHeldBy?: string;
   /** What became of the main working directory's default branch, where
    * there was something to say (main-follows-what-landed). */
   main?: MainFollowed;
@@ -114,6 +120,53 @@ async function isClean(directoryPath: string): Promise<boolean> {
 /** A sweep that did nothing, and said nothing. */
 const NOTHING: WorkspaceSweep = { directories: { removed: [], kept: [] } };
 
+/** The resource one archive pass at a time holds.
+ *
+ * Two hosts sweeping one workspace within a minute of each other each
+ * opened an archive pull request for the same two changes on 2026-09-23
+ * (#729 and #730, 43 seconds apart): each had read the forge's branches
+ * before either had pushed, so neither could see the other
+ * (the-sweep-finishes-the-archive-it-opened). */
+export const ARCHIVE_CLAIM = "archive";
+
+/** Runs the archive pass while this host holds the claim, and says who
+ * holds it where somebody else does.
+ *
+ * Advisory, as every claim here is: a host that never asks holds nothing
+ * back, and a claim expires by heartbeat, so a host that died mid-pass
+ * does not stop the next one for ever. It coordinates the hosts on one
+ * machine, which is where the editor and the standalone both sweep; two
+ * machines are a question this cannot answer and does not pretend to.
+ *
+ * Anything that goes wrong reaching the claim leaves the pass as it was
+ * before claims: archiving is the point, and coordination is the help. */
+async function whileHoldingTheArchive<T>(
+  workspaceRoot: string,
+  run: () => Promise<T>,
+): Promise<{ ran: true; value: T } | { ran: false; heldBy: string }> {
+  let directory: string | undefined;
+  try {
+    directory = claimDirectoryBeside(
+      await resolveAgentStatusDirectory(createGitWrapper({ cwd: workspaceRoot }), workspaceRoot),
+    );
+  } catch {
+    return { ran: true, value: await run() };
+  }
+  const taken = await takeClaim({
+    directory,
+    resource: ARCHIVE_CLAIM,
+    holder: os.userInfo().username,
+    machine: os.hostname(),
+  }).catch(() => undefined);
+  if (taken === undefined) return { ran: true, value: await run() };
+  if (!taken.taken) return { ran: false, heldBy: taken.held.holder };
+  try {
+    return { ran: true, value: await run() };
+  } finally {
+    await releaseClaim(directory, ARCHIVE_CLAIM).catch(() => undefined);
+  }
+}
+
 /** Removes what is done, rebases what is behind, and archives what has
  * landed.
  *
@@ -162,7 +215,7 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
     }
   }
 
-  const archive = await archiveLandedChanges({
+  const attempt = await whileHoldingTheArchive(workspaceRoot, async () => archiveLandedChanges({
     git,
     gitIn: (directoryPath) => createGitWrapper({ cwd: directoryPath }),
     // GitHub, GitLab or Gitea, as `origin` says (the-forge-is-gitlab-or-gitea-too).
@@ -186,11 +239,13 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
         remove: () => removeTree(parent),
       };
     },
-  });
+  }));
+  const archive = attempt.ran ? attempt.value : undefined;
+  const archiveHeldBy = attempt.ran ? undefined : attempt.heldBy;
   // An archive this pass merged is on the server and not yet in the refs
   // the fetch above left: fetched, so it reaches the checkout now rather
   // than a sweep later (ADR 0036).
-  if (archive.followed?.outcome.state === "merged") await git.fetch("origin", { prune: true }).catch(() => undefined);
+  if (archive?.followed?.outcome.state === "merged") await git.fetch("origin", { prune: true }).catch(() => undefined);
   // Last: what landed - an archive among it - comes to the checkout a
   // person watches, so the views show what the server has
   // (main-follows-what-landed).
@@ -203,7 +258,8 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
   const saidAnything = shells.removed.length > 0 || shells.failures.length > 0;
   return {
     ...sweep,
-    archive,
+    ...(archive !== undefined ? { archive } : {}),
+    ...(archiveHeldBy !== undefined ? { archiveHeldBy } : {}),
     ...(saidAnything ? { shells } : {}),
     ...(followed !== undefined ? { main: followed } : {}),
   };
@@ -236,6 +292,9 @@ export function describeWorkspaceSweep(sweep: WorkspaceSweep): string[] {
   }
   for (const failure of sweep.shells?.failures ?? []) {
     lines.push(`what an earlier pass left behind of ${failure.name} is still there: ${failure.reason}; it will be asked again`);
+  }
+  if (sweep.archiveHeldBy !== undefined) {
+    lines.push(`left the archive to ${sweep.archiveHeldBy}, who is archiving this workspace now`);
   }
   if (sweep.archive) lines.push(...describeLandedArchive(sweep.archive));
   if (sweep.main !== undefined) {

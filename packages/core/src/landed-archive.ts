@@ -25,7 +25,12 @@ export const LANDED_ARCHIVE_BRANCH_PREFIX = "archive-landed-";
 
 export interface LandedArchiveDeps {
   /** Git in the workspace's own repository. */
-  git: Pick<GitWrapper, "listTreeNames" | "showFile" | "worktreeAdd" | "worktreeRemove" | "deleteBranch" | "aheadBehind" | "resolveCommit">;
+  git: Pick<GitWrapper, "listTreeNames" | "showFile" | "worktreeAdd" | "worktreeRemove" | "deleteBranch" | "aheadBehind" | "resolveCommit">
+  /** Optional, and asked only to learn whether an archive branch of ours
+   * is still on the server. A host that passes none keeps the behaviour
+   * this had before: a pass with nothing to archive asks the forge
+   * nothing (the-sweep-finishes-the-archive-it-opened). */
+  & Partial<Pick<GitWrapper, "listRefs">>;
   /** Git in the directory the archive is made in. */
   gitIn: (directoryPath: string) => Pick<GitWrapper, "stagePath" | "commit" | "push" | "pushWithLease">;
   forge: Forge;
@@ -210,6 +215,26 @@ async function makeArchive(
   }
 }
 
+/** The archive branches this product made that are still on the server,
+ * read from the refs a pruning fetch left behind rather than from the
+ * forge: a pass over an ordinary workspace must stay offline, and a
+ * branch that is gone took its pull request with it.
+ *
+ * Answers an empty list where the refs cannot be read at all: a reading
+ * nobody could take is not evidence that something is open, and the pass
+ * behaves as it did before this existed. */
+async function archiveBranchesOnServer(deps: LandedArchiveDeps, remote: string): Promise<string[]> {
+  if (deps.git.listRefs === undefined) return [];
+  try {
+    const prefix = `refs/remotes/${remote}/${LANDED_ARCHIVE_BRANCH_PREFIX}`;
+    return (await deps.git.listRefs([`refs/remotes/${remote}`]))
+      .filter((ref) => ref.name.startsWith(prefix))
+      .map((ref) => ref.name.slice(`refs/remotes/${remote}/`.length));
+  } catch {
+    return [];
+  }
+}
+
 /** Archives every change that has landed and owes nothing, in one pull
  * request, and says what it did. */
 export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<LandedArchiveResult> {
@@ -237,7 +262,16 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
   // Nothing finished, and nothing that could have landed owing: the forge
   // is not asked, so a pass over an ordinary workspace costs two git reads
   // per change and no network.
-  if (closed.length === 0 && debts.size === 0) return result;
+  //
+  // Unless this pass, or another host's, left an archive pull request open.
+  // That early return is what orphaned #729: once its changes were
+  // archived by a second pull request there was nothing left to archive,
+  // so every later pass returned here and the open one was never looked at
+  // again. A branch of ours still on the server after a pruning fetch is
+  // the offline sign that one may be open, and it costs one ref listing
+  // (the-sweep-finishes-the-archive-it-opened).
+  const ours = await archiveBranchesOnServer(deps, remote);
+  if (closed.length === 0 && debts.size === 0 && ours.length === 0) return result;
 
   const pullRequests = await deps.forge.pullRequestsByBranch();
   if (!pullRequests.available) {
