@@ -18,7 +18,7 @@ OpenSpec Workbench does. From one card in the Pipeline you can:
 - see what the run last said it was doing, and how long ago. It never calls a run "stuck": a long turn and a hang look the same, and that call stays yours
 - answer a checkpoint, or ask the run to stop, with a reason
 
-A limit, stated plainly: Claude CLI and Copilot CLI have been run against the real binaries. Codex and Gemini never have, and the article says so.
+A limit, stated plainly: Claude CLI, Copilot CLI and DeepSeek CLI have been run against the real binaries. Codex and Gemini never have, and the article says so.
 
 The tour and the details are here: https://openspec-ui.dev/articles/supervise-agents-on-openspec-changes/
 
