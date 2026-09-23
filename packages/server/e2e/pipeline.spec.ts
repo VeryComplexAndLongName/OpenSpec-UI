@@ -343,8 +343,17 @@ test("arranges the same cards as a board of the stages, and keeps it", async ({ 
 
   // A column per stage, headed by its own word, and no line between cards:
   // a stage says where a change is, not what it waits for.
-  const headings = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-lane-heading");
-  await expect(headings).toHaveText(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+  // The board waits on a reading that goes to git and the forge, so it
+  // arrives after the press rather than with it.
+  const headings = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-word");
+  await expect(headings).toHaveText(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"], { timeout: 15000 });
+  // And dressed: a rule between each column and the next, a picture and a
+  // colour of the stage's own, and how many stand in it
+  // (the-board-wears-its-stages).
+  await expect(page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-rule")).toHaveCount(5);
+  const inProgress = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-heading").nth(2);
+  await expect(inProgress.locator(".openspec-pipeline-stage-mark [class^=\"openspec-icon-\"]")).toHaveCount(1);
+  await expect(inProgress).toHaveAttribute("style", /--stage-colour: ?var\(--stage-in-progress\)/);
   await expect(page.getByTestId("pipeline-edge-pipeline-first-to-pipeline-second")).toHaveCount(0);
   await expect(page.getByTestId("pipeline-node-pipeline-first")).toBeVisible();
   // Every card says where its change is, in either arrangement. Nobody

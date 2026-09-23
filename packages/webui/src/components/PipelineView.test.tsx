@@ -1456,7 +1456,7 @@ describe("the board", () => {
     fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
 
     await waitFor(() => expect(screen.queryByTestId("pipeline-edge-alpha-to-beta")).toBeNull());
-    const headings = [...screen.getByTestId("pipeline-picture").querySelectorAll(".openspec-pipeline-lane-heading")]
+    const headings = [...screen.getByTestId("pipeline-picture").querySelectorAll(".openspec-pipeline-stage-word")]
       .map((heading) => heading.textContent);
     expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true");
@@ -1490,6 +1490,46 @@ describe("the board", () => {
     await waitFor(() => expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true"));
   });
 
+  // the-board-wears-its-stages. Colour never alone: the word is always
+  // there, the picture agrees with it, and the colour agrees with both.
+  it("heads each column with the stage's picture, its own colour and how many stand in it", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"), change("beta"))}
+        stages={stages(summary("alpha", "in-progress"), summary("beta", "in-progress"))}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const picture = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-heading")).toHaveLength(6));
+    const inProgress = [...picture.querySelectorAll(".openspec-pipeline-stage-heading")]
+      .find((one) => one.textContent?.startsWith("In progress")) as HTMLElement;
+    // The stage's own token, never a colour written here.
+    expect(inProgress.style.getPropertyValue("--stage-colour")).toBe("var(--stage-in-progress)");
+    expect(inProgress.querySelector(".openspec-pipeline-stage-mark [class^=openspec-icon-]")).not.toBeNull();
+    // Counted for the eye, and said for a reader who hears the heading.
+    expect(screen.getByTestId("pipeline-stage-count-2").textContent).toBe(", 2 changes2");
+    expect(screen.getByTestId("pipeline-stage-count-0").textContent).toBe(", 0 changes0");
+  });
+
+  it("rules one column off from the next, and never before the first", async () => {
+    render(
+      <PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "planned"))} />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const picture = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-rule")).toHaveLength(5));
+
+    // The other arrangement's columns are a sequence, not places: no rule.
+    fireEvent.click(screen.getByTestId("pipeline-arrangement-steps"));
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-rule")).toHaveLength(0));
+  });
+
   // the-board-is-of-every-change. A board whose columns appeared only once
   // something stood in them would say nothing about the way through, and a
   // person pressing "By stage" on an empty queue saw no board at all.
@@ -1500,7 +1540,7 @@ describe("the board", () => {
 
     const picture = await screen.findByTestId("pipeline-picture");
     await waitFor(() => {
-      const headings = [...picture.querySelectorAll(".openspec-pipeline-lane-heading")].map((one) => one.textContent);
+      const headings = [...picture.querySelectorAll(".openspec-pipeline-stage-word")].map((one) => one.textContent);
       expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     });
     expect((await screen.findByTestId("pipeline-board-empty")).textContent).toContain("every column is empty");

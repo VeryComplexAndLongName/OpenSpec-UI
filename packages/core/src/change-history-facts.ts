@@ -204,6 +204,45 @@ export function describeStage(stage: ChangeStage): string {
   return STAGE_WORDS[stage];
 }
 
+/** How a stage is drawn beside its word: which picture stands for it, and
+ * which of the palette's stage colours is its own.
+ *
+ * Named here rather than chosen by a surface, so the editor and the
+ * standalone cannot come to disagree about what Planned looks like. The
+ * colour is a token's name, never a colour: each palette gives that token
+ * a value, and in the editor it is the editor's own theme that does
+ * (ADR 0023 decision 4).
+ *
+ * Neither is ever alone. The word is always there, the picture agrees
+ * with it, and the colour agrees with both: a distinction carried by
+ * colour alone is one a reader of a high-contrast theme never gets
+ * (the-board-wears-its-stages). */
+export interface StageLook {
+  /** What the picture means, in the vocabulary the surfaces already share
+   * for icons. A meaning, never a glyph: which glyph draws a meaning is
+   * the drawing surface's own business, and naming one here would put a
+   * font's names in a module that has no font. */
+  icon: "spec" | "task" | "run" | "review" | "ok" | "archive";
+  /** The palette token, without its leading dashes. */
+  token: `stage-${ChangeStage}`;
+}
+
+const STAGE_LOOKS: Record<ChangeStage, StageLook> = {
+  // A proposal is a document; a plan is a list of tasks; work is a run;
+  // review is being looked at; landed is done; archived is put away.
+  proposed: { icon: "spec", token: "stage-proposed" },
+  planned: { icon: "task", token: "stage-planned" },
+  "in-progress": { icon: "run", token: "stage-in-progress" },
+  "in-review": { icon: "review", token: "stage-in-review" },
+  landed: { icon: "ok", token: "stage-landed" },
+  archived: { icon: "archive", token: "stage-archived" },
+};
+
+/** How a stage is drawn, for a surface that draws one. */
+export function stageLook(stage: ChangeStage): StageLook {
+  return STAGE_LOOKS[stage];
+}
+
 /** One event, in the words every surface uses. The reason is quoted as
  * given: it is data, never instructions. */
 export function describeHistoryEvent(event: HistoryEvent): string {
