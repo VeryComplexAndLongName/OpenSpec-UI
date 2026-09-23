@@ -65,6 +65,7 @@ const initOpenSpecMock = vi.fn();
 const detectAvailableAgentsMock = vi.fn();
 const confirmEnrolmentForMock = vi.fn();
 const readChangeStandingsMock = vi.fn();
+const readChangeStagesMock = vi.fn();
 vi.mock("@openspec-ui/core", async () => {
   const actual = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
   return {
@@ -74,6 +75,7 @@ vi.mock("@openspec-ui/core", async () => {
     listSpecs: (...args: unknown[]) => listSpecsMock(...args),
     confirmEnrolmentFor: (...args: unknown[]) => confirmEnrolmentForMock(...args),
     readChangeStandings: (...args: unknown[]) => readChangeStandingsMock(...args),
+    readChangeStages: (...args: unknown[]) => readChangeStagesMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
     detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
   };
@@ -1452,6 +1454,43 @@ describe("server — REST /api/status", () => {
 
       expect(response.status).toBe(400);
       expect(readChangeStandingsMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // the-board-shows-the-stages: where each change is, and who holds it,
+  // without the visits a board draws none of.
+  describe("POST /api/change-stages", () => {
+    it("answers a summary per change, leaving the visits behind", async () => {
+      const cwd = await createTempWorkspace();
+      readChangeStagesMock.mockResolvedValue([{
+        changeName: "alpha",
+        stage: "in-review",
+        since: "2026-09-22T10:00:00.000Z",
+        roles: { owner: "ada" },
+        totals: [{ stage: "in-review", visits: 1, ms: 3_600_000 }],
+        visits: [{ stage: "in-review", from: "2026-09-22T10:00:00.000Z", enteredBy: { stage: "in-review", at: "2026-09-22T10:00:00.000Z", source: "forge", what: "#1 opened" } }],
+      }]);
+
+      const response = await fetch(`${baseUrl}/api/change-stages`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual([{
+        changeName: "alpha",
+        stage: "in-review",
+        since: "2026-09-22T10:00:00.000Z",
+        roles: { owner: "ada" },
+        totals: [{ stage: "in-review", visits: 1, ms: 3_600_000 }],
+      }]);
+      expect(readChangeStagesMock.mock.calls[0]?.[0]).toBe(cwd);
+    });
+
+    it("refuses a body with no cwd, before reading anything", async () => {
+      readChangeStagesMock.mockClear();
+
+      const response = await fetch(`${baseUrl}/api/change-stages`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({}) });
+
+      expect(response.status).toBe(400);
+      expect(readChangeStagesMock).not.toHaveBeenCalled();
     });
   });
 

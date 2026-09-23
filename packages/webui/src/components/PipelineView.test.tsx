@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   ChangeReadiness,
   ChangeReadinessReport,
+  ChangeStageSummary,
   ChangeStandings,
   LiveRun,
   MainDrift,
@@ -197,7 +198,9 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
 
     expect(await screen.findByRole("button", { name: "Hide tasks of alpha" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 90%");
-    expect(memory).toEqual({ zoom: 0.9, open: [{ directory: "/repo", changeName: "alpha" }] });
+    // The arrangement is kept with them, and stays the declared order
+    // until somebody chooses the board (the-board-shows-the-stages).
+    expect(memory).toEqual({ zoom: 0.9, open: [{ directory: "/repo", changeName: "alpha" }], arrangement: "steps" });
   });
 
   it("keeps working with a viewState that throws, at the default zoom and with every card closed", async () => {
@@ -1401,5 +1404,83 @@ describe("PipelineView - how far behind this checkout is", () => {
 
     const card = await screen.findByTestId("pipeline-directory-0-node-gamma");
     expect(card).toHaveTextContent("archived on main");
+  });
+});
+
+// the-board-shows-the-stages: the same cards, arranged as a board of the
+// stages a change goes through, with who holds it on each card.
+describe("the board", () => {
+  const summary = (changeName: string, stage: ChangeStageSummary["stage"], overrides: Partial<ChangeStageSummary> = {}): ChangeStageSummary => ({
+    changeName,
+    stage,
+    since: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    roles: {},
+    totals: [],
+    ...overrides,
+  });
+
+  const stages = (...summaries: ChangeStageSummary[]) => async () => summaries;
+
+  it("offers the arrangement only where a host reads the stages", async () => {
+    const { unmount } = render(<PipelineView isActive load={async () => report(change("alpha"))} />);
+    await screen.findByTestId("pipeline-picture");
+    expect(screen.queryByTestId("pipeline-arrangement")).toBeNull();
+    unmount();
+
+    render(<PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "planned"))} />);
+
+    await screen.findByTestId("pipeline-arrangement");
+  });
+
+  it("heads its columns with the stages, and drops the lines between cards", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(
+          change("alpha"),
+          change("beta", { blockers: ["alpha"], run: { state: "blocked", blockedBy: ["alpha"] } }),
+        )}
+        stages={stages(summary("alpha", "in-review"), summary("beta", "planned"))}
+      />,
+    );
+    await screen.findByTestId("pipeline-picture");
+    // By step first: a line from alpha to beta.
+    expect(screen.getByTestId("pipeline-edge-alpha-to-beta")).toBeTruthy();
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    await waitFor(() => expect(screen.queryByTestId("pipeline-edge-alpha-to-beta")).toBeNull());
+    const headings = [...screen.getByTestId("pipeline-picture").querySelectorAll(".openspec-pipeline-lane-heading")]
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("says on each card where the change is and who holds it, in either arrangement", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        stages={stages(summary("alpha", "in-review", { roles: { owner: "ada", implementer: "bob" } }))}
+      />,
+    );
+
+    const card = await screen.findByTestId("pipeline-node-alpha");
+    await waitFor(() => expect(card.textContent).toContain("In review for 2h, ada owns it, bob implements it"));
+  });
+
+  it("keeps the arrangement the viewer left", async () => {
+    const memory: { value?: PipelineViewMemory } = {};
+    const viewState = { read: () => memory.value, write: (next: PipelineViewMemory) => { memory.value = next; } };
+    const { unmount } = render(
+      <PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "landed"))} viewState={viewState} />,
+    );
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+    await waitFor(() => expect(memory.value?.arrangement).toBe("stages"));
+    unmount();
+
+    render(<PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "landed"))} viewState={viewState} />);
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true"));
   });
 });

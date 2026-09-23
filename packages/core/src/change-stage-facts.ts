@@ -11,7 +11,7 @@
 // history moves it back, and after one, only facts newer than it move it on.
 // A change can visit a stage many times, and each visit is kept.
 
-import { CHANGE_STAGES, describeStage, type ChangeStage } from "./change-history-facts.js";
+import { CHANGE_STAGES, describeStage, type ChangeRoles, type ChangeStage } from "./change-history-facts.js";
 
 export type StageFactSource = "git-commit" | "git-blame" | "audit-log" | "forge" | "history";
 
@@ -42,6 +42,37 @@ export interface StageTotal {
   stage: ChangeStage;
   visits: number;
   ms: number;
+}
+
+/** What a surface needs to show a change on the board: where it is, since
+ * when, who holds it, and how long it has spent in each stage. The visits
+ * themselves stay where they were read - a board draws none of them. */
+export interface ChangeStageSummary {
+  changeName: string;
+  stage: ChangeStage;
+  since?: string;
+  roles: ChangeRoles;
+  totals: StageTotal[];
+}
+
+/** The stage of each change, by name, as a layout wants it. */
+export function stagesByName(summaries: readonly ChangeStageSummary[]): Map<string, ChangeStage> {
+  return new Map(summaries.map((one) => [one.changeName, one.stage]));
+}
+
+/** Where a change is and who holds it, in the words every surface uses:
+ * "In review for 4h, ada owns it, bob implements it".
+ *
+ * A change nobody holds says only where it is. A card has one line for
+ * this, and "nobody owns it, nobody implements it" filled it with the
+ * absence of two facts (seen in the board's first capture). */
+export function describeStageLine(summary: ChangeStageSummary, now: Date): string {
+  const since = summary.since === undefined ? "" : ` for ${describeDuration(now.getTime() - Date.parse(summary.since))}`;
+  const held = [
+    ...(summary.roles.owner !== undefined ? [`${summary.roles.owner} owns it`] : []),
+    ...(summary.roles.implementer !== undefined ? [`${summary.roles.implementer} implements it`] : []),
+  ];
+  return [`${describeStage(summary.stage)}${since}`, ...held].join(", ");
 }
 
 function rankOf(stage: ChangeStage): number {

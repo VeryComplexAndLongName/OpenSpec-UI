@@ -3303,7 +3303,8 @@ export const shellThemeCss = `
     line-height: 1;
   }
 
-  .openspec-pipeline-zoom {
+  .openspec-pipeline-zoom,
+  .openspec-pipeline-arrangement {
     display: inline-flex;
     align-items: stretch;
     height: 30px;
@@ -3312,7 +3313,8 @@ export const shellThemeCss = `
     border-radius: var(--radius-sm);
   }
 
-  .openspec-pipeline .openspec-pipeline-zoom button {
+  .openspec-pipeline .openspec-pipeline-zoom button,
+  .openspec-pipeline .openspec-pipeline-arrangement button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -3329,8 +3331,15 @@ export const shellThemeCss = `
     cursor: pointer;
   }
 
-  .openspec-pipeline .openspec-pipeline-zoom button + button { border-left: 1px solid var(--line-strong); }
+  .openspec-pipeline .openspec-pipeline-zoom button + button,
+  .openspec-pipeline .openspec-pipeline-arrangement button + button { border-left: 1px solid var(--line-strong); }
   .openspec-pipeline .openspec-pipeline-zoom button:disabled { cursor: default; color: var(--muted); }
+  /* Which arrangement the picture is in: the pressed one is filled, the
+     way a chosen tab is (the-board-shows-the-stages). */
+  .openspec-pipeline .openspec-pipeline-arrangement button[aria-pressed="true"] {
+    background: var(--primary);
+    color: var(--primary-ink);
+  }
   /* The level is always read, whether or not it can be reset. */
   .openspec-pipeline .openspec-pipeline-zoom button[data-testid="pipeline-zoom-reset"]:disabled { color: var(--heading); }
 

@@ -19,6 +19,8 @@ import {
   isValidChangeName,
   catchUpWithMain,
   readChangeStandings,
+  readChangeStages,
+  summariseStage,
   readMainDrift,
   readLastRuns,
   readPipelineReadiness,
@@ -27,6 +29,7 @@ import {
   STANDING_FETCH_INTERVAL_MS,
   surveyWorktrees,
   type CatchUpResult,
+  type ChangeStageReading,
   type ChangeStandings,
   type MainDrift,
   type LastRunsReport,
@@ -137,6 +140,9 @@ export interface PipelineReaders {
   /** Where every change stands, fetching refs only on the interval, so a
    * card's word is the Changes tree's (a-card-says-what-its-change-is-doing). */
   standings: (workspaceRoot: string) => Promise<ChangeStandings>;
+  /** Where each change is on the board, and who holds it
+   * (the-board-shows-the-stages). */
+  stages: (workspaceRoot: string) => Promise<ChangeStageReading[]>;
   /** How far this checkout is behind what has landed, and what of it the
    * default branch already carries archived
    * (main-catches-up-with-what-landed). */
@@ -155,6 +161,7 @@ const DEFAULT_READERS: PipelineReaders = {
   standingsNow: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: "now" }),
   lastRuns: (workspaceRoot) => readLastRuns({ workspaceRoot }),
   standings: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: { ifOlderThan: STANDING_FETCH_INTERVAL_MS } }),
+  stages: (workspaceRoot) => readChangeStages(workspaceRoot),
   drift: async (workspaceRoot, standings) => readMainDrift({
     root: workspaceRoot,
     ...(standings !== undefined ? { standings } : {}),
@@ -400,6 +407,9 @@ export class PipelinePanel {
           return;
         case "pipeline/standings":
           reply({ ok: true, value: await this.readers.standings(workspaceRoot) });
+          return;
+        case "pipeline/stages":
+          reply({ ok: true, value: (await this.readers.stages(workspaceRoot)).map((reading) => summariseStage(reading)) });
           return;
         case "pipeline/drift": {
           // The standings are read for the one thing the drift needs from

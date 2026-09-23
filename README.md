@@ -74,7 +74,10 @@ Both hosts also carry, beyond the views above:
 - **The Pipeline** - every change as a card in the order the changes
   declare, with what a live run last said and what can start alongside
   what. A card starts a run, answers a checkpoint, and asks a run to stop
-  with a reason.
+  with a reason. **By stage** arranges the same cards as a board, a column
+  per stage from Proposed to Archived, and each card says where its change
+  is, for how long, and who owns and implements it (ADR 0037). The
+  arrangement is kept for the next visit.
 - **The Timeline** - one change as a line of moments read from git, and a
   comparison of every change on a grid of days.
 - **What waits on somebody** - every task marked human-only or delegated
@@ -698,7 +701,7 @@ committed: the files go in the change's pull request.
 `history <change>` prints who holds the change and every event, and marks
 any the rules refuse. It exits `1` when one does.
 
-### `stages`: where a change is, and for how long
+### The board, and `stages`: where a change is, and for how long
 
 A change goes through six stages: **Proposed**, **Planned**, **In
 progress**, **In review**, **Landed** and **Archived**. Nobody sets the
@@ -721,6 +724,12 @@ Implementer. `stages <change>` prints every stay in every stage with the
 fact that began it, and the time in each stage over all its visits. The
 pull request's times come from the forge `origin` is on: GitHub (through
 `gh` or its API), GitLab or Gitea.
+
+The Pipeline draws the same stages as a board in both hosts: press **By
+stage** for a column per stage, or **By step** for the arrangement by what
+each change waits for. There are no lines between cards on the board: a
+stage says where a change is, not what it waits for, and what blocks a
+change is written on its card in either arrangement.
 
 
 ```bash

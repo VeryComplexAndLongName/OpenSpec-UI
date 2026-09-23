@@ -10,6 +10,7 @@
 // Nothing here reads the filesystem, git, or a lease. Every fact it
 // arranges was derived once, by `readChangeReadiness`.
 
+import { CHANGE_STAGES, describeStage, type ChangeStage } from "./change-history-facts.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
 import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
@@ -34,7 +35,9 @@ export const ROW_GAP = 1;
 export const LANE_HEADING = 2;
 
 /** A column's heading: its place in the order, and what that place means.
- * Numbered rather than named: the repository states an order, not stages. */
+ * Numbered rather than named: in this arrangement the repository states an
+ * order, not stages. The board arranges by stage instead, and heads its
+ * columns with the stages' own words (`layoutChangesByStage`). */
 export function describeLane(column: number): string {
   return column === 0 ? "Step 1 · can start now" : `Step ${column + 1} · after step ${column}`;
 }
@@ -88,6 +91,10 @@ export interface ChangeLayout {
    * that turns outside the columns is not clipped. */
   width: number;
   height: number;
+  /** A heading for each column, where the arrangement names them: the
+   * board's stages. Absent in the arrangement by declared order, whose
+   * headings are numbered (`describeLane`). */
+  lanes?: string[];
 }
 
 export interface ChangeLayoutOptions {
@@ -95,6 +102,75 @@ export interface ChangeLayoutOptions {
    * what the card holds (the-pipeline-cards-wear-metro). A change not named
    * here is `NODE_HEIGHT` tall. */
   heights?: ReadonlyMap<string, number>;
+}
+
+/** Where each card goes, given the column each change belongs in. Shared
+ * by both arrangements: the columns differ, the stacking does not. */
+function placeInColumns(
+  byName: ReadonlyMap<string, ChangeReadiness>,
+  columns: readonly string[][],
+  heights: ReadonlyMap<string, number> | undefined,
+): { nodes: ChangeLayoutNode[]; placed: Map<string, ChangeLayoutNode>; gridWidth: number; gridHeight: number } {
+  const nodes: ChangeLayoutNode[] = [];
+  const placed = new Map<string, ChangeLayoutNode>();
+  columns.forEach((names, column) => {
+    // Each card starts below the one above it, however tall that one is,
+    // so opening a card moves only the cards beneath it in its column. The
+    // first starts below the column's heading.
+    let y = LANE_HEADING;
+    names.forEach((name, row) => {
+      const height = heights?.get(name) ?? NODE_HEIGHT;
+      const node: ChangeLayoutNode = {
+        change: byName.get(name) as ChangeReadiness,
+        column,
+        row,
+        x: column * (NODE_WIDTH + COLUMN_GAP),
+        y,
+        width: NODE_WIDTH,
+        height,
+      };
+      y += height + ROW_GAP;
+      nodes.push(node);
+      placed.set(name, node);
+    });
+  });
+  const gridWidth = columns.length === 0 ? 0 : columns.length * NODE_WIDTH + (columns.length - 1) * COLUMN_GAP;
+  const gridHeight = nodes.reduce((tallest, node) => Math.max(tallest, node.y + node.height), 0);
+  return { nodes, placed, gridWidth, gridHeight };
+}
+
+export interface StageLayoutOptions extends ChangeLayoutOptions {
+  /** The stage each change is in. A change none names is Proposed: it has
+   * a proposal, since it is in the report. */
+  stages: ReadonlyMap<string, ChangeStage>;
+}
+
+/** The board: the same cards, arranged by the stage each change is in
+ * (ADR 0037 decision 7).
+ *
+ * Every stage is a column, even an empty one: a board whose columns came
+ * and went as changes moved would be read wrong at a glance. There are no
+ * edges. A stage says where a change is, not what it waits for, and a line
+ * across a board would assert an order the columns already state; what
+ * blocks a change is on its card, as it is in the other arrangement. */
+export function layoutChangesByStage(report: ChangeReadinessReport, options: StageLayoutOptions): ChangeLayout {
+  const byName = new Map(report.changes.map((change) => [change.changeName, change]));
+  const columns: string[][] = CHANGE_STAGES.map(() => []);
+  for (const change of [...report.changes].sort((left, right) => (left.changeName < right.changeName ? -1 : left.changeName > right.changeName ? 1 : 0))) {
+    const stage = options.stages.get(change.changeName) ?? "proposed";
+    (columns[CHANGE_STAGES.indexOf(stage)] as string[]).push(change.changeName);
+  }
+  const { nodes, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights);
+  return {
+    columns,
+    nodes,
+    edges: [],
+    cycles: [],
+    unplaced: [],
+    width: gridWidth,
+    height: gridHeight,
+    lanes: CHANGE_STAGES.map((stage) => describeStage(stage)),
+  };
 }
 
 export function layoutChanges(report: ChangeReadinessReport, options: ChangeLayoutOptions = {}): ChangeLayout {
@@ -126,34 +202,7 @@ export function layoutChanges(report: ChangeReadinessReport, options: ChangeLayo
     (columns[depth] as string[]).push(name);
   }
 
-  const nodes: ChangeLayoutNode[] = [];
-  const placed = new Map<string, ChangeLayoutNode>();
-  columns.forEach((names, column) => {
-    // Each card starts below the one above it, however tall that one is,
-    // so opening a card moves only the cards beneath it in its column. The
-    // first starts below the column's heading.
-    let y = LANE_HEADING;
-    names.forEach((name, row) => {
-      const height = options.heights?.get(name) ?? NODE_HEIGHT;
-      const node: ChangeLayoutNode = {
-        change: byName.get(name) as ChangeReadiness,
-        column,
-        row,
-        x: column * (NODE_WIDTH + COLUMN_GAP),
-        y,
-        width: NODE_WIDTH,
-        height,
-      };
-      y += height + ROW_GAP;
-      nodes.push(node);
-      placed.set(name, node);
-    });
-  });
-
-  const gridWidth = columns.length === 0
-    ? 0
-    : columns.length * NODE_WIDTH + (columns.length - 1) * COLUMN_GAP;
-  const gridHeight = nodes.reduce((tallest, node) => Math.max(tallest, node.y + node.height), 0);
+  const { nodes, placed, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights);
 
   const edges: ChangeLayoutEdge[] = [];
   let detours = 0;

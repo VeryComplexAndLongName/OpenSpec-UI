@@ -30,6 +30,7 @@ import {
   handleDelegatedItemRunRequest,
   handleEnrolmentConfirmRequest,
   handleChangeStandingsRequest,
+  handleChangeStagesRequest,
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
   handleCustomAgentsRequest,
@@ -317,6 +318,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/change-standings") {
       void handleChangeStandingsRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-stages") {
+      void handleChangeStagesRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/enrolment/confirm") {

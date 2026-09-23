@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeDuration, describeVisit, playStages, stageFromFiles, totalsOf, type StageFact } from "./change-stage-facts.js";
+import { describeDuration, describeStageLine, describeVisit, playStages, stageFromFiles, totalsOf, type StageFact } from "./change-stage-facts.js";
 
 // a-change-knows-its-stage, ADR 0037 decisions 5 and 6.
 
@@ -71,5 +71,28 @@ describe("the words", () => {
     expect(stageFromFiles({ total: 0, done: 0 })).toBe("proposed");
     expect(stageFromFiles({ total: 3, done: 0 })).toBe("planned");
     expect(stageFromFiles({ total: 3, done: 1 })).toBe("in-progress");
+  });
+});
+
+// the-board-shows-the-stages: one line per card, and no line filled with
+// what nobody is.
+describe("where a change is, on a card", () => {
+  const summary = (roles: { owner?: string; implementer?: string }) => ({
+    changeName: "demo",
+    stage: "in-review" as const,
+    since: at(6),
+    roles,
+    totals: [],
+  });
+
+  it("says the stage, how long, and whoever holds it", () => {
+    expect(describeStageLine(summary({ owner: "ada", implementer: "bob" }), new Date(at(10))))
+      .toBe("In review for 4h, ada owns it, bob implements it");
+    expect(describeStageLine(summary({ owner: "ada" }), new Date(at(10)))).toBe("In review for 4h, ada owns it");
+    expect(describeStageLine(summary({}), new Date(at(10)))).toBe("In review for 4h");
+  });
+
+  it("says only the stage where nothing dates it", () => {
+    expect(describeStageLine({ changeName: "demo", stage: "planned", roles: {}, totals: [] }, new Date(at(10)))).toBe("Planned");
   });
 });

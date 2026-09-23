@@ -97,6 +97,7 @@ import {
   runDelegatedItem as runDelegatedItemApi,
 } from "./human-only-inbox-client.js";
 import { loadChangeStandings } from "./change-standings-client.js";
+import { loadChangeStages } from "./change-stages-client.js";
 import { catchUpWithMainOverHttp, loadMainDrift } from "./main-drift-client.js";
 import { EnrolmentRequests } from "./components/EnrolmentRequests.js";
 import { DelegatedReply } from "./components/DelegatedReply.js";
@@ -458,6 +459,9 @@ function StandaloneApp() {
   const pipelineSurvey = useCallback(() => loadWorktreeSurvey(apiFetch, cwd), [cwd]);
   const pipelineLastRuns = useCallback(() => loadChangeLastRuns(apiFetch, cwd), [cwd]);
   const pipelineStandings = useCallback(() => loadChangeStandings(apiFetch, cwd), [cwd]);
+  // Where each change is on the board, and who holds it
+  // (the-board-shows-the-stages).
+  const pipelineStages = useCallback(() => loadChangeStages(apiFetch, cwd), [cwd]);
   // How far this checkout is behind what has landed, and the one press
   // that closes it (main-catches-up-with-what-landed).
   const pipelineDrift = useCallback(() => loadMainDrift(apiFetch, cwd), [cwd]);
@@ -2595,6 +2599,7 @@ function StandaloneApp() {
                 survey={pipelineSurvey}
                 lastRuns={pipelineLastRuns}
                 standings={pipelineStandings}
+                stages={pipelineStages}
                 drift={pipelineDrift}
                 onCatchUp={pipelineCatchUp}
                 liveRuns={pipelineLiveRuns}

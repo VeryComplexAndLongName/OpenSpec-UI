@@ -141,6 +141,16 @@ function createPipelinePanel(overrides: {
       standings: [{ changeName: "alpha", elsewhere: [], main: { kind: "archived", archiveName: "2026-09-14-alpha" } }],
       sources: { fetch: { attempted: false }, pullRequests: { read: true } },
     })),
+    // Where each change is on the board (the-board-shows-the-stages). The
+    // reading carries its visits; the answer does not.
+    stages: vi.fn(async () => [{
+      changeName: "alpha",
+      stage: "in-review",
+      since: "2026-09-22T10:00:00.000Z",
+      roles: { owner: "ada", implementer: "bob" },
+      totals: [{ stage: "in-review", visits: 1, ms: 3_600_000 }],
+      visits: [{ stage: "in-review", from: "2026-09-22T10:00:00.000Z", enteredBy: { stage: "in-review", at: "2026-09-22T10:00:00.000Z", source: "forge", what: "#1 opened" } }],
+    }]),
     drift: vi.fn(async (_root: string, standings: { standings: Array<{ changeName: string }> } | undefined) => ({
       branch: "main",
       defaultBranch: "main",
@@ -245,6 +255,28 @@ describe("PipelinePanel — answering the view", () => {
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:1", ok: false, error: "a change name is required" }));
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:2", ok: false, error: "a run id is required" }));
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:3", ok: false, error: "no log is kept for run never-ran" }));
+  });
+
+  // the-board-shows-the-stages: the board's reading, against this host's
+  // own root, without the visits.
+  it("answers where each change is on the board, and who holds it", async () => {
+    const { pipeline, readers } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "b:0", op: "pipeline/stages", args: { cwd: "/elsewhere" } });
+
+    expect(readers.stages).toHaveBeenCalledWith("/repo");
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "b:0",
+      ok: true,
+      value: [{
+        changeName: "alpha",
+        stage: "in-review",
+        since: "2026-09-22T10:00:00.000Z",
+        roles: { owner: "ada", implementer: "bob" },
+        totals: [{ stage: "in-review", visits: 1, ms: 3_600_000 }],
+      }],
+    }));
   });
 
   it("answers where each change stands, against its own workspace root", async () => {

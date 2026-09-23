@@ -47,6 +47,8 @@ import {
   EnrolmentRefusedError,
   catchUpWithMain,
   readChangeStandings,
+  readChangeStages,
+  summariseStage,
   readMainDrift,
   STANDING_FETCH_INTERVAL_MS,
   readPipelineReadiness,
@@ -1206,6 +1208,32 @@ export async function handleEnrolmentConfirmRequest(req: IncomingMessage, res: S
 interface ChangeStandingsRequest {
   cwd: string;
   fetch?: "now" | "interval";
+}
+
+/** Where each active change is on the board, and who holds it
+ * (the-board-shows-the-stages). The visits themselves are left out: a
+ * board draws none of them, and one change's history view asks for its
+ * own. */
+export async function handleChangeStagesRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+
+  try {
+    const readings = await readChangeStages(parsed.cwd);
+    sendJson(res, 200, readings.map((reading) => summariseStage(reading)));
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 function isChangeStandingsRequest(value: unknown): value is ChangeStandingsRequest {
