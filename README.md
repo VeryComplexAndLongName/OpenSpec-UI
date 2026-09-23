@@ -453,7 +453,7 @@ streams events over the same protocol already used for
 | GitHub Copilot CLI (ACP) | `copilot --acp` | Yes |
 | Codex CLI (ACP) | externally installed `codex-acp` | **No — never** |
 | Gemini CLI (ACP) | `gemini --experimental-acp` | **No — never** |
-| DeepSeek CLI (ACP) | `dsh --profile acp` (`@deepseek-ai/dsh`) | Yes: needs a Node newer than 22.11 first on the host's PATH, see `HARNESS.md` |
+| DeepSeek CLI (ACP) | `dsh --profile acp` (`@deepseek-ai/dsh`) | Yes: needs Node 22.18+ on the 22 line, or 24.2+, first on the host's PATH, see `HARNESS.md` |
 
 **On that last column, plainly: `codex` and `gemini` have never been run
 by this project at all.** Neither CLI is installed on the maintainer's
