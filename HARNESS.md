@@ -424,6 +424,15 @@ rather than by the agent's CLI. Checked when a stage ends and stopping
 the chain — not the stage, which a spending ceiling cannot do. Neither
 may exceed its whole-chain counterpart.
 
+`maxContextShare` is the one field here that is not a spending ceiling:
+a share between 0 and 1 (`0.8` is eighty percent) of how much of the
+model's context window the run may fill. It reads ACP's `usage_update`,
+which arrives during a stage, so unlike every other field here it
+**stops a stage already running**, ending the run as cancelled with the
+ceiling and the reading named. It acts only over an agent that sends
+that update; see [`LIMITS.md`](LIMITS.md) for which do, and for why a
+context gauge is not counted as a spend.
+
 ### `timeout`
 
 `{ "maxRunSeconds"?: <positive integer>, "maxStageSeconds"?: <positive

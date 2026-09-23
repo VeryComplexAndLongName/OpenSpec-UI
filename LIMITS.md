@@ -11,22 +11,26 @@ everything else the harness can be configured to do, see
 | --- | --- | --- | --- |
 | Whole chain | `budget.maxCostUsd` / `budget.maxTokens` | USD and/or tokens | Before each stage starts — **only for agents that report usage** (see below) |
 | One agent invocation | `stepAgents.<stage>.budget` | The selected agent's native unit | By that agent's CLI |
-| Elapsed time | `timeout.maxRunSeconds` / `timeout.maxStageSeconds` | Seconds | Before each stage **and during one** — the only ceiling that stops a stage already running |
+| Elapsed time | `timeout.maxRunSeconds` / `timeout.maxStageSeconds` | Seconds | Before each stage **and during one** — a ceiling that stops a stage already running |
+| Context filled | `budget.maxContextShare` | A share of the model's window | **During a stage**, as the agent reports it — **only for agents that send a context gauge** (see below) |
 
 Two boundaries matter, and both are easy to assume away:
 
 1. A **spending** ceiling can prevent the next stage from starting; it
    cannot interrupt the stage already running, because a run's cost is
-   not known until it ends. A **time** ceiling can, and is the only one
-   that does.
+   not known until it ends. A **time** ceiling can. So can a **context**
+   ceiling, for the same reason: both read something known during the run
+   rather than at its end.
 2. A spending ceiling counts only what an agent **reported**. Over an
    agent that reports nothing, it counts nothing and never fires — see
    [Which agents report usage](#which-agents-report-usage). A time
-   ceiling needs no report and works over every agent.
+   ceiling needs no report and works over every agent. A context ceiling
+   needs a report of a different kind, which fewer agents send and which
+   is not a spend.
 
-## Three independent levels
+## Four independent levels
 
-There are exactly three ceilings, checked in different places, in
+There are exactly four ceilings, checked in different places, in
 different units, and none substitutes for another.
 
 ### 1. `HarnessConfig.budget` — caps a whole chain, between stages
@@ -187,6 +191,38 @@ That stage waits up to five minutes for a pull request's checks
 (`gh-pr-gateway.ts`'s `maxWaitMs`), and that wait is the stage doing its
 work, so it counts against the ceiling like any other.
 
+### 4. `budget.maxContextShare` — caps how full the context gets, during a stage
+
+```json
+{ "budget": { "maxContextShare": 0.8 } }
+```
+
+A share between 0 and 1: `0.8` is eighty percent of the model's window.
+A value outside that range is refused where the configuration resolves,
+so somebody who means eighty percent and writes `80` is told, rather than
+handed a ceiling that could never fire.
+
+**This is not a spending ceiling, and it is deliberately not counted as
+one.** ACP's `usage_update` carries `used` and `size`: the tokens now in
+the session's context, against the model's window. It goes *down* after a
+compaction, so counting it as consumption would under-count exactly the
+long runs that compact — which is why nothing here records it as usage.
+
+What it does say is that the conversation has outgrown the task. Every
+further turn carries the whole of it again: slower, dearer, and worse at
+the work than the same task started fresh.
+
+Like `timeout`, and unlike every spending ceiling, **it stops a stage
+already running** — the gauge arrives during the run rather than at its
+end. Reaching it ends the run as **cancelled, with the reason naming the
+ceiling, the reading it was judged on and both figures**, exactly as a
+time ceiling does.
+
+It reads a figure only an ACP-flavored agent sends. Over an agent that
+speaks no ACP at all it can never fire, and the settings surfaces say so
+before the run rather than after it. Over an ACP agent nobody here has
+watched, nothing is claimed either way — see the table below.
+
 ## What does not exist
 
 **There is no ceiling on a single task**, only on a stage and on a chain.
@@ -287,6 +323,17 @@ in `HARNESS_AGENT_CAPABILITIES` (`harness-step-agent.ts`) — the product
 warns about a ceiling that cannot act by reading it. **Measure an agent
 and update both**, or the warning and this page will disagree.
 
+Beside it, `contextGauge` records a different question: whether the agent
+says *during* a run how full its context is, which is what
+`budget.maxContextShare` reads. An agent can send a gauge and report no
+spend, as `deepseek-cli-acp` does; the two are not the same column.
+
+| Agent | Sends a context gauge | Evidence |
+| --- | --- | --- |
+| `deepseek-cli-acp` | Yes, on every turn | **Measured** 2026-09-23: `{"used":8202,"size":1000000,"sessionUpdate":"usage_update"}`, and `dsh-acp`'s own `usageUpdate` builds it from a context meter |
+| `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm`, `vscode-chat` | No | Certain — they speak no ACP at all, so no update of any kind arrives |
+| `copilot-cli-acp`, `claude-cli-acp`, `gemini-cli-acp`, `codex-cli-acp` | Not known | *Unobserved here.* Nothing is claimed either way, and no warning is raised: an ACP agent nobody has watched may well send one |
+
 | Agent | Reports usage | Evidence | Source |
 | --- | --- | --- | --- |
 | `copilot-cli-acp` | Input, output and thought **tokens**. **No cost.** | **Measured** — see below | ACP's `PromptResponse.usage` |
@@ -344,10 +391,14 @@ underlying `claude` binary, but only the latter asks for the structured
 output the figure lives in. If a chain ceiling matters to you, that
 choice of agent is what decides whether it can act at all.
 
-One figure is deliberately **not** recorded: an ACP `usage_update`'s
-`used` is how much of the context window is currently occupied, and it
-goes *down* after a compaction. Counting it as consumption would
-under-count exactly the long runs that compact.
+One figure is deliberately **not** recorded as usage: an ACP
+`usage_update`'s `used` is how much of the context window is currently
+occupied, and it goes *down* after a compaction. Counting it as
+consumption would under-count exactly the long runs that compact.
+
+It is not ignored either. `budget.maxContextShare` reads it as what it
+is - a gauge, not a bill - and is the only ceiling besides `timeout` that
+can act on an agent reporting no spend at all.
 
 ## Watching it while it runs
 
