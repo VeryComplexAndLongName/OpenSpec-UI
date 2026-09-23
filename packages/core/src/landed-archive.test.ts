@@ -8,7 +8,9 @@ import { PENDING_REASON, type BranchPullRequest, type Forge, type MergeMethod, t
 import { createGitWrapper } from "./git.js";
 import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, landedArchiveTitle, type LandedArchiveDeps } from "./landed-archive.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
-import { createArchiveFollower, describeWorkspaceSweep, sweepWorkspace, type WorkspaceSweep } from "./workspace-sweep.js";
+import { ARCHIVE_CLAIM, createArchiveFollower, describeWorkspaceSweep, sweepWorkspace, type WorkspaceSweep } from "./workspace-sweep.js";
+import { claimDirectoryBeside, releaseClaim, takeClaim } from "./resource-claim.js";
+import { resolveAgentStatusDirectory } from "./agent-status.js";
 
 // ADR 0035, a-landed-change-is-archived-for-you. Real git against a bare
 // remote, because what is asserted is what reaches the server: one branch
@@ -165,6 +167,32 @@ describe("archiveLandedChanges", () => {
     const result = await archiveLandedChanges(depsFor(fixture, forge));
 
     expect(result).toEqual({ due: [], notArchived: [], owing: [] });
+    expect(forge.pullRequestsByBranch).not.toHaveBeenCalled();
+  });
+
+  // the-sweep-finishes-the-archive-it-opened. Once the changes an open
+  // archive pull request held are archived by another, there is nothing
+  // left to archive - and the pass used to return before it ever looked at
+  // the open one again, which is how #729 sat for an hour.
+  it("comes back for an archive pull request of ours even with nothing left to archive", async () => {
+    const fixture = await landed({});
+    await git(fixture.work, ["push", "-q", "origin", `main:${OPEN_ARCHIVE}`]);
+    await git(fixture.work, ["fetch", "-q", "--prune", "origin"]);
+    const forge = fakeForge({ [OPEN_ARCHIVE]: { number: 729, state: "OPEN" } });
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge));
+
+    expect(forge.pullRequestsByBranch).toHaveBeenCalled();
+    expect(result.followed?.number).toBe(729);
+    expect(forge.merged).toEqual([[729, "squash"]]);
+  });
+
+  it("still asks the forge nothing where no archive branch of ours is on the server", async () => {
+    const fixture = await landed({});
+    const forge = fakeForge({ "somebody-elses-branch": { number: 5, state: "OPEN" } });
+
+    await archiveLandedChanges(depsFor(fixture, forge));
+
     expect(forge.pullRequestsByBranch).not.toHaveBeenCalled();
   });
 
@@ -457,6 +485,31 @@ describe("the workspace sweep", () => {
     expect(swept.archive?.followed?.outcome).toEqual({ state: "merged", method: "squash" });
     expect(swept.main).toEqual({ moved: 1 });
     expect(await exists(path.join(fixture.work, "archived.txt"))).toBe(true);
+  });
+
+  // the-sweep-finishes-the-archive-it-opened. Two hosts sweeping one
+  // workspace opened two archive pull requests for the same two changes,
+  // 43 seconds apart: each had read the forge before either had pushed.
+  it("leaves the archive to the host already doing it, and says who", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const claims = claimDirectoryBeside(
+      await resolveAgentStatusDirectory(createGitWrapper({ cwd: fixture.work }), fixture.work),
+    );
+    const held = await takeClaim({ directory: claims, resource: ARCHIVE_CLAIM, holder: "the other host", machine: "a-machine" });
+    expect(held.taken).toBe(true);
+    const forge = fakeForge();
+
+    const swept = await sweepWorkspace(fixture.work, { forge, archive: fakeArchive });
+
+    expect(swept.archive).toBeUndefined();
+    expect(swept.archiveHeldBy).toBe("the other host");
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
+    expect(describeWorkspaceSweep(swept)).toContain("left the archive to the other host, who is archiving this workspace now");
+
+    // Released, the next pass archives as it always did.
+    await releaseClaim(claims, ARCHIVE_CLAIM);
+    const again = await sweepWorkspace(fixture.work, { forge, archive: fakeArchive });
+    expect(again.archive?.opened?.changes).toEqual(["first-done"]);
   });
 
   it("leaves a finished change alone where the workspace turns the archive off", async () => {
