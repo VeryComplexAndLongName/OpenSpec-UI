@@ -1,40 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-23T07:37:24.239Z",
+  "generated_at": "2026-09-23T10:21:16.562Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "9a563bc516f129de1b3d204216ea0dc27715587a",
+  "commit": "5ecdbde364e01acfc12bce872a025516b67fa423",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.81.1",
-      "released_at": "2026-09-23T07:37:24.239Z",
-      "tag": "openspec-ui-vscode@0.81.1",
+      "version": "0.82.0",
+      "released_at": "2026-09-23T10:21:16.562Z",
+      "tag": "openspec-ui-vscode@0.82.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.81.1"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.82.0"
       },
-      "artifacts": [
+      "artifacts": [],
+      "changes": [
         {
-          "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.81.1/openspec-ui-vscode-0.81.1.vsix",
-          "size_bytes": 6517396
+          "kind": "minor",
+          "summary": "A new ceiling, `budget.maxContextShare`: how much of its context window a"
         }
-      ],
-      "changes": []
+      ]
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.42.1",
-      "released_at": "2026-09-23T07:37:24.239Z",
+      "version": "1.43.0",
+      "released_at": "2026-09-23T10:21:16.562Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -42,15 +41,20 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": []
+      "changes": [
+        {
+          "kind": "minor",
+          "summary": "The sweep comes back for what an earlier pass left behind. Removing a"
+        }
+      ]
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.122.0",
-      "released_at": "2026-09-23T07:37:24.239Z",
+      "version": "0.123.0",
+      "released_at": "2026-09-23T10:21:16.562Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -61,7 +65,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "DeepSeek runs are refused before they start on a Node that cannot run"
+          "summary": "A new ceiling, `budget.maxContextShare`: how much of its context window a"
+        },
+        {
+          "kind": "minor",
+          "summary": "The sweep comes back for what an earlier pass left behind. Removing a"
         }
       ]
     },
@@ -70,8 +78,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.71.1",
-      "released_at": "2026-09-23T07:37:24.239Z",
+      "version": "1.71.2",
+      "released_at": "2026-09-23T10:21:16.562Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -86,7 +94,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-23T07:37:24.239Z",
+      "released_at": "2026-09-23T10:21:16.562Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
