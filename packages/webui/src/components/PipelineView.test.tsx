@@ -457,7 +457,13 @@ describe("PipelineView — other working directories", () => {
     );
 
     expect(await screen.findByTestId("pipeline-node-shared")).toHaveTextContent("also in theirs");
-    expect(await screen.findByTestId("pipeline-directory-0-node-shared")).toHaveTextContent("also in repo");
+    // the-board-is-of-every-change: the main checkout is named for what it
+    // is. Its label is the name of the folder somebody cloned into, which
+    // says nothing about the place - on this repository it reads as the
+    // product's own name. The directory's own heading keeps its label.
+    expect(await screen.findByTestId("pipeline-directory-0-node-shared"))
+      .toHaveTextContent("also in the main working directory");
+    expect(screen.getByTestId("pipeline-directory-0").textContent).toContain("theirs");
   });
 
   // a-change-is-running-when-its-run-says-so 4.6
@@ -1482,5 +1488,47 @@ describe("the board", () => {
     render(<PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "landed"))} viewState={viewState} />);
 
     await waitFor(() => expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true"));
+  });
+
+  // the-board-is-of-every-change. A board whose columns appeared only once
+  // something stood in them would say nothing about the way through, and a
+  // person pressing "By stage" on an empty queue saw no board at all.
+  it("draws every column with nothing on it, and says why it is empty", async () => {
+    render(<PipelineView isActive load={async () => report()} stages={stages()} />);
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const picture = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => {
+      const headings = [...picture.querySelectorAll(".openspec-pipeline-lane-heading")].map((one) => one.textContent);
+      expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    });
+    expect((await screen.findByTestId("pipeline-board-empty")).textContent).toContain("every column is empty");
+    // The step arrangement still says what it always said.
+    fireEvent.click(screen.getByTestId("pipeline-arrangement-steps"));
+    await waitFor(() => expect(screen.queryByTestId("pipeline-picture")).toBeNull());
+    expect(screen.getByTestId("pipeline-empty")).toBeTruthy();
+  });
+
+  // Landed is a column of the board, so folding what landed empties that
+  // column by construction.
+  it("puts a change that landed in its column rather than folding it away", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        standings={async (): Promise<ChangeStandings> => ({
+          readAt: new Date().toISOString(),
+          standings: [{ changeName: "alpha", elsewhere: [], main: { kind: "archived", archiveName: "2026-09-19-alpha" } }],
+          sources: { fetch: { attempted: false }, pullRequests: { read: true } },
+        })}
+        stages={stages(summary("alpha", "landed"))}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
+    expect(screen.queryByTestId("pipeline-board-empty")).toBeNull();
   });
 });

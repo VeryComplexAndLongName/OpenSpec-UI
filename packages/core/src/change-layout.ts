@@ -168,7 +168,12 @@ export function layoutChangesByStage(report: ChangeReadinessReport, options: Sta
     cycles: [],
     unplaced: [],
     width: gridWidth,
-    height: gridHeight,
+    // At least the strip the headings stand in and a card's worth beneath
+    // it, so a board with nothing on it is still a board: six named
+    // columns, empty. A height taken from the cards alone collapses to
+    // nothing exactly when the board most needs to show the way through
+    // (the-board-is-of-every-change).
+    height: Math.max(gridHeight, LANE_HEADING + NODE_HEIGHT),
     lanes: CHANGE_STAGES.map((stage) => describeStage(stage)),
   };
 }
