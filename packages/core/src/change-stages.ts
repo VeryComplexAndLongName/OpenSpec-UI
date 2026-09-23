@@ -18,7 +18,7 @@ import { runTimestampsByChange } from "./audit-runs.js";
 import { readChangeHistory, type ChangeHistory } from "./change-history.js";
 import type { ChangeRoles, ChangeStage } from "./change-history-facts.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
-import { playStages, stageFromFiles, totalsOf, type StageFact, type StageTotal, type StageVisit } from "./change-stage-facts.js";
+import { playStages, stageFromFiles, totalsOf, type ChangeStageSummary, type StageFact, type StageTotal, type StageVisit } from "./change-stage-facts.js";
 import { blameLineDates, getFileCreatedDate } from "./change-timeline.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
@@ -129,6 +129,18 @@ export async function readChangeStage(root: string, changeName: string, options:
     visits,
     totals: totalsOf(visits, now),
     roles: history.roles,
+  };
+}
+
+/** One reading, as a surface needs it: without the visits, which only a
+ * change's own history view draws. */
+export function summariseStage(reading: ChangeStageReading): ChangeStageSummary {
+  return {
+    changeName: reading.changeName,
+    stage: reading.stage,
+    ...(reading.since !== undefined ? { since: reading.since } : {}),
+    roles: reading.roles,
+    totals: reading.totals,
   };
 }
 

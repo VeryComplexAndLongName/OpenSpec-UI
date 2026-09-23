@@ -7,8 +7,10 @@ import {
   ROW_GAP,
   describeLane,
   layoutChanges,
+  layoutChangesByStage,
   type ChangeLayoutEdge,
 } from "./change-layout.js";
+import { CHANGE_STAGES, type ChangeStage } from "./change-history-facts.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness.js";
 import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
@@ -313,3 +315,50 @@ function holder(author?: string) {
     ...(author !== undefined ? { author } : {}),
   };
 }
+
+// the-board-shows-the-stages, ADR 0037 decision 7: the same cards, in a
+// column per stage.
+describe("layoutChangesByStage", () => {
+  const stagesOf = (entries: Record<string, ChangeStage>) => new Map(Object.entries(entries));
+
+  it("gives every stage a column of its own, in order, and heads each with its own word", () => {
+    const layout = layoutChangesByStage(
+      report(change("alpha"), change("beta"), change("gamma")),
+      { stages: stagesOf({ alpha: "in-review", beta: "planned", gamma: "in-review" }) },
+    );
+
+    expect(layout.columns.length).toBe(CHANGE_STAGES.length);
+    expect(layout.columns[CHANGE_STAGES.indexOf("planned")]).toEqual(["beta"]);
+    expect(layout.columns[CHANGE_STAGES.indexOf("in-review")]).toEqual(["alpha", "gamma"]);
+    expect(layout.lanes).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    // An empty column stays: a board whose columns came and went would be
+    // read wrong at a glance.
+    expect(layout.columns[CHANGE_STAGES.indexOf("archived")]).toEqual([]);
+  });
+
+  it("draws no line, and reports no cycle, whatever the changes declare", () => {
+    const layout = layoutChangesByStage(
+      report(
+        change("first"),
+        change("second", { blockers: ["first"], run: { state: "blocked", blockedBy: ["first"] } }),
+      ),
+      { stages: stagesOf({ first: "in-progress", second: "planned" }) },
+    );
+
+    expect(layout.edges).toEqual([]);
+    expect(layout.cycles).toEqual([]);
+    expect(layout.unplaced).toEqual([]);
+  });
+
+  it("stacks a column by each card's own height, below the heading, and puts a change with no stage in Proposed", () => {
+    const layout = layoutChangesByStage(
+      report(change("alpha"), change("beta")),
+      { stages: stagesOf({ alpha: "proposed" }), heights: new Map([["alpha", 9]]) },
+    );
+
+    const [alpha, beta] = layout.nodes;
+    expect(alpha).toMatchObject({ column: CHANGE_STAGES.indexOf("proposed"), x: 0, y: LANE_HEADING, height: 9 });
+    expect(beta).toMatchObject({ column: CHANGE_STAGES.indexOf("proposed"), y: LANE_HEADING + 9 + ROW_GAP, height: NODE_HEIGHT });
+    expect(layout.width).toBe(CHANGE_STAGES.length * NODE_WIDTH + (CHANGE_STAGES.length - 1) * COLUMN_GAP);
+  });
+});

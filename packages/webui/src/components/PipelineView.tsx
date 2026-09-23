@@ -33,11 +33,14 @@ import {
   describeCollision,
   describeDirectoryRuns,
   describeLane,
+  describeStageLine,
   describeRun,
   describeTaskRows,
   fitPipelineCardDetails,
   describeChangeState,
   layoutChanges,
+  layoutChangesByStage,
+  stagesByName,
   matchesFilter,
   pipelineCardHeight,
   runsShownOnCards,
@@ -50,6 +53,7 @@ import {
   type ChangeReadiness,
   type ChangeReadinessReport,
   driftWords,
+  type ChangeStageSummary,
   type ChangeStandings,
   type CatchUpResult,
   type MainDrift,
@@ -140,6 +144,10 @@ export interface PipelineViewProps {
    * (ADR 0029's amendment of 2026-09-13). Absent, a card's word is asked
    * about this checkout's copy alone. */
   standings?: () => Promise<ChangeStandings>;
+  /** Reads where each change is on the board, and who holds it
+   * (the-board-shows-the-stages). Absent, the arrangement by stage is not
+   * offered and a card says nothing about its stage. */
+  stages?: () => Promise<ChangeStageSummary[]>;
   /** Reads the runs this host started and holds. A card offers to answer,
    * stop or stop now only a run among these (a-change-is-run-from-its-card).
    * Absent, no card offers any of them. `myLabel` is the roster label of the
@@ -194,7 +202,14 @@ const DEFAULT_ZOOM = 1;
 export interface PipelineViewMemory {
   zoom: number;
   open: Array<{ directory: string; changeName: string }>;
+  /** Which arrangement the picture was left in: by declared order, or the
+   * board by stage (the-board-shows-the-stages). */
+  arrangement?: PipelineArrangement;
 }
+
+/** How the picture is arranged: `steps` by what each change waits for,
+ * `stages` as a board of the stages a change goes through. */
+export type PipelineArrangement = "steps" | "stages";
 
 /** Which cards are open, by the directory a card is drawn for and its
  * change's name: a change is the pair, never the name alone (ADR 0026). */
@@ -207,10 +222,10 @@ function openKey(directory: string, changeName: string): string {
   return JSON.stringify([directory, changeName]);
 }
 
-function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: number; open: string[] } {
+function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: number; open: string[]; arrangement: PipelineArrangement } {
   try {
     const memory = viewState?.read() as Partial<PipelineViewMemory> | undefined;
-    if (typeof memory !== "object" || memory === null) return { zoom: DEFAULT_ZOOM, open: [] };
+    if (typeof memory !== "object" || memory === null) return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps" };
     const zoom = typeof memory.zoom === "number" && PIPELINE_ZOOM_STEPS.includes(memory.zoom) ? memory.zoom : DEFAULT_ZOOM;
     const entries: unknown[] = Array.isArray(memory.open) ? memory.open : [];
     const open = entries.flatMap((entry) => {
@@ -218,17 +233,19 @@ function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: numb
       const { directory, changeName } = entry as { directory?: unknown; changeName?: unknown };
       return typeof directory === "string" && typeof changeName === "string" ? [openKey(directory, changeName)] : [];
     });
-    return { zoom, open };
+    const arrangement: PipelineArrangement = memory.arrangement === "stages" ? "stages" : "steps";
+    return { zoom, open, arrangement };
   } catch {
-    return { zoom: DEFAULT_ZOOM, open: [] };
+    return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps" };
   }
 }
 
-function writeViewMemory(viewState: PipelineViewProps["viewState"], zoom: number, open: ReadonlySet<string>): void {
+function writeViewMemory(viewState: PipelineViewProps["viewState"], zoom: number, open: ReadonlySet<string>, arrangement: PipelineArrangement): void {
   if (viewState === undefined) return;
   try {
     viewState.write({
       zoom,
+      arrangement,
       open: [...open].map((key) => {
         const [directory, changeName] = JSON.parse(key) as [string, string];
         return { directory, changeName };
@@ -349,6 +366,7 @@ export function PipelineView({
   refresh,
   lastRuns,
   standings,
+  stages,
   drift,
   onCatchUp,
   onArchive,
@@ -366,6 +384,9 @@ export function PipelineView({
   const ended = usePolledReading(lastRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const stands = usePolledReading(standings, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const behind = usePolledReading(drift, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  // Where each change is on the board, read with the survey: a stage moves
+  // when a run, a commit or a pull request moves (the-board-shows-the-stages).
+  const staged = usePolledReading(stages, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const [caughtUp, setCaughtUp] = useState<string | null>(null);
   // The runs this host holds, read with the survey: a card offers controls
   // only for these (a-change-is-run-from-its-card).
@@ -379,8 +400,9 @@ export function PipelineView({
   // (a-card-opens-to-its-tasks).
   const [remembered] = useState(() => readViewMemory(viewState));
   const [zoom, setZoom] = useState(remembered.zoom);
+  const [arrangement, setArrangement] = useState<PipelineArrangement>(remembered.arrangement);
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(remembered.open));
-  useEffect(() => writeViewMemory(viewState, zoom, open), [viewState, zoom, open]);
+  useEffect(() => writeViewMemory(viewState, zoom, open, arrangement), [viewState, zoom, open, arrangement]);
   const openCards = useMemo<OpenCards>(() => ({
     isOpen: (directory, changeName) => open.has(openKey(directory, changeName)),
     toggle: (directory, changeName) => setOpen((current) => {
@@ -407,7 +429,7 @@ export function PipelineView({
     setRefreshError(undefined);
     try {
       setRefs(await refresh());
-      await Promise.all([local.read(), others.read(), ended.read(), stands.read(), held.read(), behind.read()]);
+      await Promise.all([local.read(), others.read(), ended.read(), stands.read(), held.read(), behind.read(), staged.read()]);
     } catch (cause) {
       setRefreshError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -473,6 +495,11 @@ export function PipelineView({
   const shownReport = report === undefined ? undefined : { ...report, changes: shownChanges };
   const foldedCount = foldLanded ? landedHere.length : 0;
   const onCards = runsShownOnCards(cardList);
+  // The board only where the stages were read: an arrangement by stage
+  // with no stage read would put every change in one column and say
+  // nothing (the-board-shows-the-stages).
+  const stageSummaries = new Map((staged.value ?? []).map((summary) => [summary.changeName, summary]));
+  const onBoard = arrangement === "stages" && staged.value !== undefined;
   const heldRuns = new Map((held.value?.runs ?? []).map((run) => [run.runId, run]));
   // A control changes what the run's record says within moments. The card
   // reads it again then, rather than on the next survey half a minute
@@ -558,6 +585,30 @@ export function PipelineView({
               <PlusIcon />
             </button>
           </div>
+          {/* Two arrangements of the same cards: by what each change waits
+              for, or as a board of the stages it goes through
+              (the-board-shows-the-stages). Offered only where a host reads
+              the stages. */}
+          {stages ? (
+            <div className="openspec-pipeline-arrangement" role="group" aria-label="Arrangement" data-testid="pipeline-arrangement">
+              <button
+                type="button"
+                data-testid="pipeline-arrangement-steps"
+                aria-pressed={arrangement === "steps"}
+                onClick={() => setArrangement("steps")}
+              >
+                By step
+              </button>
+              <button
+                type="button"
+                data-testid="pipeline-arrangement-stages"
+                aria-pressed={arrangement === "stages"}
+                onClick={() => setArrangement("stages")}
+              >
+                By stage
+              </button>
+            </div>
+          ) : null}
           {refresh ? (
             <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
               <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh"}
@@ -585,7 +636,9 @@ export function PipelineView({
       <section className="openspec-panel openspec-pipeline-panel" aria-label="Changes in this checkout">
         <div className="openspec-panel-head">
           <h2>Changes in this checkout</h2>
-          <span className="openspec-panel-head-note">a column starts after the ones before it</span>
+          <span className="openspec-panel-head-note">
+            {onBoard ? "a column is where a change is now" : "a column starts after the ones before it"}
+          </span>
         </div>
         <div className="openspec-pipeline-panel-body">
           {filter.trim().length > 0 && report !== undefined ? (
@@ -661,7 +714,7 @@ export function PipelineView({
               ? <p className="openspec-shell-note" data-testid="pipeline-empty">No active changes{here ? ` on ${branchPhrase(here)}` : ""}.</p>
               : shownReport === undefined || shownReport.changes.length === 0
                 ? <p className="openspec-shell-note" data-testid="pipeline-none-shown">Nothing to draw here.</p>
-                : <LocalPicture report={shownReport} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} />}
+                : <LocalPicture report={shownReport} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} />}
         </div>
       </section>
 
@@ -738,24 +791,27 @@ interface LocalCardModel {
   title: string;
 }
 
-function localCardModel(change: ChangeReadiness, card: ChangeCard, now: Date, alsoIn: string[] | undefined, controls: CardControlHandlers): LocalCardModel {
+function localCardModel(change: ChangeReadiness, card: ChangeCard, now: Date, alsoIn: string[] | undefined, controls: CardControlHandlers, stage?: ChangeStageSummary): LocalCardModel {
   const described = describeChangeCard(card, now);
   const waiting = described.details.find((detail) => detail.kind === "waiting");
   // The card's own facts first — what the change is doing — then what
   // readiness says about starting it beside the others.
   const readiness = describeChange(change);
   const also: CardDetail[] = alsoIn && alsoIn.length > 0 ? [{ kind: "where", text: `also in ${alsoIn.join(", ")}` }] : [];
+  // Where the change is and who holds it, in core's words, on every card
+  // in either arrangement (the-board-shows-the-stages).
+  const onStage: CardDetail[] = stage === undefined ? [] : [{ kind: "where", text: describeStageLine(stage, now) }];
   return {
     change,
     card,
     described,
     ...(waiting !== undefined ? { callout: waiting.text } : {}),
-    details: [...described.details.filter((detail) => detail !== waiting), ...readiness, ...also],
+    details: [...described.details.filter((detail) => detail !== waiting), ...onStage, ...readiness, ...also],
     buttons: cardControls(card, controls),
     startedHere: card.run?.ownedHere === true,
     rows: card.tasks ?? [],
     // The whole of the text, for a reader whose card cut a line.
-    title: `${change.changeName} — ${[described.stateWords, ...described.lines, ...readiness.map((detail) => detail.text), ...also.map((detail) => detail.text)].join(" ")}`,
+    title: `${change.changeName} — ${[described.stateWords, ...described.lines, ...onStage.map((detail) => detail.text), ...readiness.map((detail) => detail.text), ...also.map((detail) => detail.text)].join(" ")}`,
   };
 }
 
@@ -763,7 +819,7 @@ function hasProgress(card: ChangeCard): boolean {
   return card.progress !== undefined && card.progress.total > 0;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard }: {
   report: ChangeReadinessReport;
   cards: Map<string, ChangeCard>;
   now: Date;
@@ -773,6 +829,10 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   /** The path this picture is drawn for, which its open cards are kept by. */
   directory: string;
   openCards: OpenCards;
+  /** Where each change is and who holds it, where the host read it. */
+  stages: Map<string, ChangeStageSummary>;
+  /** Whether the cards are arranged as a board of the stages. */
+  onBoard: boolean;
 }) {
   // Every card's height is derived from what it holds, and a column stacks
   // by those heights: only the cards below a card that grows move, and
@@ -782,7 +842,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   for (const change of report.changes) {
     const card = cards.get(change.changeName);
     if (card === undefined) continue;
-    const model = localCardModel(change, card, now, alsoIn.get(change.changeName), controls);
+    const model = localCardModel(change, card, now, alsoIn.get(change.changeName), controls, stages.get(change.changeName));
     models.set(change.changeName, model);
     const openRows = openParts(model.rows, openCards.isOpen(directory, change.changeName));
     heights.set(change.changeName, pipelineCardHeight({
@@ -794,7 +854,9 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
-  const layout = layoutChanges(report, { heights });
+  const layout = onBoard
+    ? layoutChangesByStage(report, { heights, stages: stagesByName([...stages.values()]) })
+    : layoutChanges(report, { heights });
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}
@@ -950,16 +1012,16 @@ function Picture({ layout, testIdPrefix, laneHeading, renderNode }: {
         <Edges edges={layout.edges} width={layout.width} height={layout.height} testIdPrefix={testIdPrefix} />
         {byColumn.map((nodes, column) => (
           <div className="openspec-pipeline-lane" key={column}>
-            {/* Numbered rather than named: the repository states an
-                order, not stages, and a heading that invented stage names
-                would be inventing something. Each card says what it
-                waits on. Placed by the same units as the cards, in the
-                strip core leaves above them. */}
+            {/* Numbered where the arrangement is the declared order: the
+                repository states an order there, and each card says what
+                it waits on. The board heads its columns with the stages
+                core names (the-board-shows-the-stages). Placed by the same
+                units as the cards, in the strip core leaves above them. */}
             <Heading
               className="openspec-pipeline-lane-heading"
               style={{ "--x": column * (NODE_WIDTH + COLUMN_GAP), "--w": NODE_WIDTH, "--h": LANE_HEADING } as Record<string, number>}
             >
-              {describeLane(column)}
+              {layout.lanes?.[column] ?? describeLane(column)}
             </Heading>
             {nodes.map(renderNode)}
           </div>

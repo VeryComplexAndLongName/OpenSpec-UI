@@ -326,6 +326,49 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+// the-board-shows-the-stages: the same cards, arranged as a board of the
+// stages a change goes through, with who holds each on its card.
+test("arranges the same cards as a board of the stages, and keeps it", async ({ page }) => {
+  test.setTimeout(60000);
+  const pageErrors: Error[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error));
+
+  await page.goto(`${baseUrl}/#token=${encodeURIComponent(server.accessToken)}`);
+  await page.getByLabel("Workspace root (cwd)").fill(workspaceRoot);
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+  await expect(page.getByTestId("pipeline-node-pipeline-first")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("pipeline-edge-pipeline-first-to-pipeline-second")).toBeAttached();
+
+  await page.getByTestId("pipeline-arrangement-stages").click();
+
+  // A column per stage, headed by its own word, and no line between cards:
+  // a stage says where a change is, not what it waits for.
+  const headings = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-lane-heading");
+  await expect(headings).toHaveText(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+  await expect(page.getByTestId("pipeline-edge-pipeline-first-to-pipeline-second")).toHaveCount(0);
+  await expect(page.getByTestId("pipeline-node-pipeline-first")).toBeVisible();
+  // Every card says where its change is, in either arrangement. Nobody
+  // holds these, so each says only where it is.
+  await expect(page.getByTestId("pipeline-node-pipeline-first")).toContainText("In progress for");
+  expect(await cutLinesIn(page)).toEqual([]);
+
+  const fixturePaths = [workspaceRoot, worktreeRoot];
+  await expectNoAccountIn(page, "pipeline", fixturePaths);
+  await page.screenshot({
+    path: path.join(IMAGES_DIR, "pipeline-board.png"),
+    fullPage: true,
+    mask: pictureMasks(page, fixturePaths),
+    maskColor: "#94a3b8",
+  });
+  await expectNoBlockingViolations(page);
+
+  // Kept for the next visit: the tab is left and opened again.
+  await page.getByRole("tab", { name: "OpenSpec view summary" }).click();
+  await page.getByRole("tab", { name: "Pipeline" }).click();
+  await expect(page.getByTestId("pipeline-arrangement-stages")).toHaveAttribute("aria-pressed", "true");
+  expect(pageErrors).toEqual([]);
+});
+
 // a-card-opens-to-its-tasks 5.1 and 5.2: a card open to its tasks draws
 // every row whole, moves the card below it in its column, passes axe, and
 // still cuts no line at 150%. The picture in the documentation is taken
