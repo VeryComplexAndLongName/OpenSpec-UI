@@ -24,10 +24,16 @@ import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
 import { ARCHIVE_FOLLOW_INTERVAL_MS, archiveLandedChanges, describeLandedArchive, landedArchiveIsOpen, type LandedArchiveResult } from "./landed-archive.js";
 import { archiveChange } from "./openspec.js";
 import { removeTree } from "./plain-fs.js";
+import { changeNamesKnown, clearWorktreeShells, type ShellSweep } from "./workspace-leftovers.js";
+import { resolveWorktreeRoot } from "./worktree-root.js";
 import { surveyWorktrees } from "./worktree-survey.js";
 
 export interface WorkspaceSweep {
   directories: SweepResult;
+  /** What an earlier pass left behind under the worktree root, and what
+   * became of it this time. Absent where there was nothing
+   * (the-sweep-comes-back-for-what-it-left). */
+  shells?: ShellSweep;
   /** Absent where the pruning fetch failed: a rebase from a stale reading
    * of the server is exactly what the lease exists to refuse, and there is
    * no point asking it to. */
@@ -70,6 +76,31 @@ export interface WorkspaceSweepOptions {
   forge?: Forge;
   /** Test seam: runs `openspec archive`. */
   archive?: (changeName: string, directoryPath: string) => Promise<void>;
+}
+
+/** Comes back for what an earlier pass could not delete.
+ *
+ * The worktrees directory is read directly rather than through the
+ * survey: a removal that half-finished leaves a shell git has already
+ * forgotten, and a survey of what git lists can never see it again. Until
+ * now this ran only when somebody pressed the standalone's tidy button,
+ * and only on a shell that was empty - so the one kind of shell a removal
+ * actually leaves, the kind holding a file that was locked, sat there for
+ * good (the-sweep-comes-back-for-what-it-left). */
+async function sweepWhatWasLeft(
+  workspaceRoot: string,
+  survey: Awaited<ReturnType<typeof surveyWorktrees>>,
+): Promise<ShellSweep> {
+  // Named for the main checkout, whichever directory this host is in:
+  // every working directory of one repository sits under one name
+  // (ADR 0027).
+  const main = survey.directories.find((directory) => directory.isMain)?.path ?? workspaceRoot;
+  const { root } = await resolveWorktreeRoot(main);
+  return clearWorktreeShells(
+    path.join(root, path.basename(path.resolve(main))),
+    survey.directories.map((directory) => directory.path),
+    await changeNamesKnown(workspaceRoot),
+  );
 }
 
 async function isClean(directoryPath: string): Promise<boolean> {
@@ -163,8 +194,19 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
   // Last: what landed - an archive among it - comes to the checkout a
   // person watches, so the views show what the server has
   // (main-follows-what-landed).
-  const followed = await followMainIn(workspaceRoot, await surveyWorktrees({ workspaceRoot }));
-  return { ...sweep, archive, ...(followed !== undefined ? { main: followed } : {}) };
+  const last = await surveyWorktrees({ workspaceRoot });
+  const followed = await followMainIn(workspaceRoot, last);
+  // After everything above, so a directory this pass removed is gone from
+  // the survey before what was left behind is looked for.
+  const shells = await sweepWhatWasLeft(workspaceRoot, last)
+    .catch((): ShellSweep => ({ removed: [], kept: [], failures: [] }));
+  const saidAnything = shells.removed.length > 0 || shells.failures.length > 0;
+  return {
+    ...sweep,
+    archive,
+    ...(saidAnything ? { shells } : {}),
+    ...(followed !== undefined ? { main: followed } : {}),
+  };
 }
 
 /** What a sweep did, in the sentences every host says. Nothing is said
@@ -188,6 +230,12 @@ export function describeWorkspaceSweep(sweep: WorkspaceSweep): string[] {
   }
   for (const branch of sweep.branches?.failed ?? []) {
     lines.push(`${branch.branch} was not rebased, and is as it was: ${branch.reason}`);
+  }
+  for (const shell of sweep.shells?.removed ?? []) {
+    lines.push(`removed what an earlier pass left behind of ${shell.name}`);
+  }
+  for (const failure of sweep.shells?.failures ?? []) {
+    lines.push(`what an earlier pass left behind of ${failure.name} is still there: ${failure.reason}; it will be asked again`);
   }
   if (sweep.archive) lines.push(...describeLandedArchive(sweep.archive));
   if (sweep.main !== undefined) {

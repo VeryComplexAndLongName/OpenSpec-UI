@@ -59,6 +59,7 @@ import {
   describeWorkspaceSweep,
   sweepWorkspace,
   createArchiveFollower,
+  changeNamesKnown,
   clearWorktreeShells,
   finishedWorkingDirectories,
   readWorkspaceLeftovers,
@@ -1661,6 +1662,10 @@ export async function handleWorkspaceLeftoversRequest(
       ? await clearWorktreeShells(
         path.dirname(path.resolve(candidates[0]?.path ?? parsed.cwd)),
         survey.directories.map((directory) => directory.path),
+        // Named after a change of this repository, holding no checkout of
+        // its own: this product's leaving, whatever is inside it
+        // (the-sweep-comes-back-for-what-it-left).
+        await changeNamesKnown(parsed.cwd),
       )
       : { removed: [], kept: [], failures: [] };
     sendJson(res, 200, {
