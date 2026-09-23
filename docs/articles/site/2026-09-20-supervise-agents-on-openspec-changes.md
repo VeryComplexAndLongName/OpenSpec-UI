@@ -59,17 +59,18 @@ sound point after it.
 ## Your agent, per stage
 
 The picker drives the agent CLIs you already have: Claude CLI, GitHub Copilot
-CLI, Codex CLI, Gemini CLI, and a local model behind an OpenAI-compatible
-endpoint. The CLI-based ones also come in a variant that speaks the Agent
-Client Protocol, which carries structured progress instead of scraped text.
-The tool never handles an API key: each CLI keeps its own login.
+CLI, Codex CLI, Gemini CLI, DeepSeek CLI, and a local model behind an
+OpenAI-compatible endpoint. The CLI-based ones also come in a variant that
+speaks the Agent Client Protocol, which carries structured progress instead of
+scraped text. The tool never handles an API key: each CLI keeps its own login.
 
 Here is what has actually been run. Claude CLI and Copilot CLI have been run
-against the real binaries. Codex and Gemini never have, raw or over ACP: their
-adapters are written to the vendors' documented interfaces and tested against
-a mocked peer, and if either misbehaves for you, that is the likeliest reason
-and a report would be useful. Two ACP caveats are worth knowing before you
-choose one: the Claude adapter never asks for permission, and `copilot --acp`
+against the real binaries, and so has DeepSeek CLI over ACP, on Node 22.18+ or
+24.2+. Codex and Gemini never have, raw or over ACP: their adapters are
+written to the vendors' documented interfaces and tested against a mocked
+peer, and if either misbehaves for you, that is the likeliest reason and a
+report would be useful. Two ACP caveats are worth knowing before you choose
+one: the Claude adapter never asks for permission, and `copilot --acp`
 completed file writes and shell commands here without asking either.
 
 ## Checkpoints, ceilings and a record
