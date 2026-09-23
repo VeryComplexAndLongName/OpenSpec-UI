@@ -19,7 +19,7 @@ import {
   isValidChangeName,
   catchUpWithMain,
   readChangeStandings,
-  readChangeStages,
+  readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
   readLastRuns,
@@ -161,7 +161,7 @@ const DEFAULT_READERS: PipelineReaders = {
   standingsNow: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: "now" }),
   lastRuns: (workspaceRoot) => readLastRuns({ workspaceRoot }),
   standings: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: { ifOlderThan: STANDING_FETCH_INTERVAL_MS } }),
-  stages: (workspaceRoot) => readChangeStages(workspaceRoot),
+  stages: (workspaceRoot) => readChangeStagesOfWorkspace(workspaceRoot),
   drift: async (workspaceRoot, standings) => readMainDrift({
     root: workspaceRoot,
     ...(standings !== undefined ? { standings } : {}),

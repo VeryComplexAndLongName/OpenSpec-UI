@@ -75,7 +75,7 @@ vi.mock("@openspec-ui/core", async () => {
     listSpecs: (...args: unknown[]) => listSpecsMock(...args),
     confirmEnrolmentFor: (...args: unknown[]) => confirmEnrolmentForMock(...args),
     readChangeStandings: (...args: unknown[]) => readChangeStandingsMock(...args),
-    readChangeStages: (...args: unknown[]) => readChangeStagesMock(...args),
+    readChangeStagesOfWorkspace: (...args: unknown[]) => readChangeStagesMock(...args),
     initOpenSpec: (...args: unknown[]) => initOpenSpecMock(...args),
     detectAvailableAgents: (...args: unknown[]) => detectAvailableAgentsMock(...args),
   };

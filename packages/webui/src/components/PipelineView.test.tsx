@@ -1515,6 +1515,57 @@ describe("the board", () => {
     expect(screen.getByTestId("pipeline-stage-count-0").textContent).toBe(", 0 changes0");
   });
 
+  // a-change-is-one-card-wherever-it-is. A board is of the work, not of
+  // one folder: one person with several worktrees has one flow of work.
+  it("stands another working directory's changes on the board, once each, read-only", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("mine"))}
+        survey={async () => survey(
+          directory({ changes: [{ changeName: "mine", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [] }] }),
+          theirs({ changes: [{ changeName: "theirs", tasksDone: 1, tasksTotal: 2, blockers: [], alsoIn: [] }] }),
+        )}
+        stages={stages(summary("mine", "planned"), summary("theirs", "in-review"))}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const board = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => expect(board.querySelector("[data-testid='pipeline-node-theirs']")).not.toBeNull());
+    // One in Planned, one in In review.
+    expect(screen.getByTestId("pipeline-stage-count-1").textContent).toBe(", 1 change1");
+    expect(screen.getByTestId("pipeline-stage-count-3").textContent).toBe(", 1 change1");
+    // Read here, never acted on from here: it says where it is worked, and
+    // offers no control but its tasks.
+    const card = screen.getByTestId("pipeline-node-theirs");
+    expect(card.getAttribute("data-state")).toBe("foreign");
+    expect(card.textContent).toContain("worked in theirs");
+    expect(card.textContent).toContain("In review");
+    // And never drawn a second time below.
+    expect(screen.queryByTestId("pipeline-directory-0-node-theirs")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Changes" })).toBeTruthy();
+  });
+
+  it("leaves the other directories' cards where they were in the other arrangement", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("mine"))}
+        survey={async () => survey(
+          directory({ changes: [{ changeName: "mine", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [] }] }),
+          theirs({ changes: [{ changeName: "theirs", tasksDone: 1, tasksTotal: 2, blockers: [], alsoIn: [] }] }),
+        )}
+        stages={stages(summary("mine", "planned"))}
+      />,
+    );
+
+    expect(await screen.findByTestId("pipeline-directory-0-node-theirs")).toBeTruthy();
+    expect(screen.queryByTestId("pipeline-node-theirs")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Changes in this checkout" })).toBeTruthy();
+  });
+
   it("rules one column off from the next, and never before the first", async () => {
     render(
       <PipelineView isActive load={async () => report(change("alpha"))} stages={stages(summary("alpha", "planned"))} />,
