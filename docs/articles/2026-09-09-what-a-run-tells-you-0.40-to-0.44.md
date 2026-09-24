@@ -98,7 +98,7 @@ and where each number came from. They are named by the one thing the
 product can set honestly: how much effort the agent is asked for.
 
 ![The per-change settings section, with the named configurations and the
-stage controls below them](../images/standalone/harness-change-override.png)
+stage controls below them](images/standalone/harness-change-override.png)
 
 Every ceiling in them is drawn from this repository's own audit log,
 measured on 2026-09-08: **49 runs with a recorded duration** — median 7.7
@@ -152,7 +152,7 @@ change, the first looked like it only changed tabs.
 show, and what it took 0.44 to actually show, is this:
 
 ![The Run dialog: the resolved path, the setting it read, each stage's
-agent, and the ceilings that cannot act](../images/standalone/run-dialog.png)
+agent, and the ceilings that cannot act](images/standalone/run-dialog.png)
 
 Read what that picture actually says. The chain will run, because
 `autonomyLevel` is `semi-autonomous` — the setting is named, not implied.

@@ -309,7 +309,7 @@ directory where no run reports is said to be one, never called idle.
 The picture also says what it read: the branch of this checkout, and when
 each reading was taken.
 
-![The standalone Pipeline tab: a failed change opened to its tasks, a blocked change waiting on it, a ready change, a suggestion, and two other working directories with their paths masked](../images/standalone/pipeline.png)
+![The standalone Pipeline tab: a failed change opened to its tasks, a blocked change waiting on it, a ready change, a suggestion, and two other working directories with their paths masked](images/standalone/pipeline.png)
 
 *From `2026-09-13-what-the-others-are-doing/` and
 `2026-09-13-the-pipeline-shows-what-it-has-read/`.*
@@ -325,7 +325,7 @@ The panel does not poll. While it is visible, the editor watches
 and tells the picture which reading is out of date. A reading every minute
 covers anything that raises no file event.
 
-![The Pipeline panel in VS Code with two ready changes as cards, each with Start and Show tasks, and a suggested command for each](../images/extension/pipeline-panel.png)
+![The Pipeline panel in VS Code with two ready changes as cards, each with Start and Show tasks, and a suggested command for each](images/extension/pipeline-panel.png)
 
 *From `2026-09-14-the-pipeline-opens-in-vs-code/`.*
 
@@ -348,7 +348,7 @@ surfaces disagree. Hovering a change in the tree shows where each part of
 the word was read from. The run dialog leads with the word, and asks
 before starting a change that is running, settled on `main`, or merged.
 
-![The VS Code Changes tree with a standing word beside each change: in-progress — Ready and draft — Ready](../images/extension/changes-standings.png)
+![The VS Code Changes tree with a standing word beside each change: in-progress — Ready and draft — Ready](images/extension/changes-standings.png)
 
 *From `2026-09-14-a-change-says-where-it-stands/`.*
 
@@ -440,9 +440,9 @@ next task marker that names another task, or the next ticked task.
 Nothing is cut off mid-edit. The status record states the request, and
 the chain's ending audit entry carries the reason and who asked.
 
-![The Ask to stop form on a Pipeline card, with the reason wrong branch typed](../images/standalone/pipeline-stop-ask.png)
+![The Ask to stop form on a Pipeline card, with the reason wrong branch typed](images/standalone/pipeline-stop-ask.png)
 
-![A running change's card saying it was asked to stop, and by whom, with Stop now](../images/standalone/pipeline-stop.png)
+![A running change's card saying it was asked to stop, and by whom, with Stop now](images/standalone/pipeline-stop.png)
 
 A run held somewhere else, before 0.55, offered only its folder path to
 copy.

@@ -1,7 +1,7 @@
 # LinkedIn post: supervise agents on OpenSpec changes
 
 Publish after the site page is live (see the site article of the same name).
-Attach: `docs/images/standalone/tour.gif` (or `tour.webm` for a video upload).
+Attach: `docs/articles/images/standalone/tour.gif` (or `docs/articles/site/supervise-agents-on-openspec-changes/tour.webm` for a video upload).
 Put the repository link in the first comment, not in the post.
 
 ## Post
