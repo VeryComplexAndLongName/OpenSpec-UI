@@ -32,7 +32,7 @@
   "devDependencies": {
     "@openspec-ui/core": "*",
     "esbuild": "^0.28.2",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.15"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
