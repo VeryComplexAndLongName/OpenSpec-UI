@@ -68,10 +68,20 @@ export function RunLogsView({ changeName, load, read, onClose }: RunLogsViewProp
   const [readFailed, setReadFailed] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
 
-  // Opened beneath a picture that can be taller than the window: brought
-  // into view, so the press is seen to have done something.
+  // Drawn over the board, along the window's right side, so the press is
+  // seen to have done something whatever the board's height and scroll:
+  // opened beneath the picture, it showed 82 pixels of itself at the
+  // window's bottom edge (logs-open-when-asked). It takes the focus, and
+  // on closing gives it back to what had it - the Logs button pressed.
   useEffect(() => {
-    panel.current?.scrollIntoView?.({ block: "nearest" });
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    panel.current?.focus();
   }, [changeName]);
 
   useEffect(() => {
@@ -104,7 +114,20 @@ export function RunLogsView({ changeName, load, read, onClose }: RunLogsViewProp
   }, [chosen, read]);
 
   return (
-    <section ref={panel} className="openspec-run-logs" role="dialog" aria-label={`Logs of ${changeName}`} data-testid="run-logs">
+    <section
+      ref={panel}
+      className="openspec-run-logs"
+      role="dialog"
+      aria-label={`Logs of ${changeName}`}
+      data-testid="run-logs"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <div className="openspec-run-logs-head">
         <h3>Logs of {changeName}</h3>
         <button type="button" className="button" data-testid="run-logs-close" onClick={onClose}>Close</button>
