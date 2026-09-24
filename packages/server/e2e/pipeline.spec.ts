@@ -596,7 +596,7 @@ test("becomes headed lanes at phone width, with no lines", async ({ page }) => {
   await expect(page.getByTestId("pipeline-edges")).toBeHidden();
   // Scoped to this directory's picture: every other working directory's
   // picture has a first step of its own.
-  await expect(page.getByTestId("pipeline-picture").getByRole("heading", { name: "Step 1 · can start now" })).toBeVisible();
+  await expect(page.getByTestId("pipeline-picture").getByRole("heading", { name: "Step 1 - waits for nothing" })).toBeVisible();
 
   // a-card-opens-to-its-tasks 3.7: an open card lists its rows in its
   // lane, with no fixed height, so none of them is cut.
