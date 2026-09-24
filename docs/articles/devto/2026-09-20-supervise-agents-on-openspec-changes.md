@@ -19,7 +19,7 @@ agent. OpenSpec Workbench does: it runs an agent CLI on a change, says what
 the run is doing while it does it, and lets a person stop it. This is a short
 tour of how, and of what it will not promise.
 
-![A run started from a change's card, stopping at a checkpoint, and a stop asked for with a reason](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/images/standalone/tour.gif)
+![A run started from a change's card, stopping at a checkpoint, and a stop asked for with a reason](https://raw.githubusercontent.com/VeryComplexAndLongName/OpenSpec-UI/main/docs/articles/images/standalone/tour.gif)
 
 ## A change becomes a card
 
