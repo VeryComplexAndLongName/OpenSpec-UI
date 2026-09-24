@@ -1555,7 +1555,11 @@ the change forward SHALL look different from a control that stops a run, and
 both from a control that only copies. A control's accessible name SHALL NOT
 change with its look.
 
-Each column of the picture SHALL be headed by its place in the order.
+Each column of the picture SHALL be headed by its place in the order, in
+words true of every change in it whatever that change is doing: the first
+column waits for nothing, and each other comes after the one before it. A
+first column headed "can start now" read, over a change with every task
+done, as advice to start it again (reported on 2026-09-23).
 
 #### Scenario: A failed change beside a running one
 
@@ -1572,8 +1576,8 @@ Each column of the picture SHALL be headed by its place in the order.
 #### Scenario: Two columns
 
 - **WHEN** one change waits on another
-- **THEN** the first column is headed as the one that can start now, and the
-  second as the one after it
+- **THEN** the first column is headed "Step 1 - waits for nothing", and the
+  second "Step 2 - after step 1"
 
 ### Requirement: A legend says what a line between cards means
 
