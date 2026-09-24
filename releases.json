@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-24T06:42:03.296Z",
+  "generated_at": "2026-09-24T07:58:51.102Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "734c3348c7fce48a86b7bcfb7a31328ff166af41",
+  "commit": "31622c7cae2661b6e5b411a29d7a9641a875cd9e",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.84.1",
-      "released_at": "2026-09-24T06:42:03.296Z",
-      "tag": "openspec-ui-vscode@0.84.1",
+      "version": "0.84.2",
+      "released_at": "2026-09-24T07:58:51.102Z",
+      "tag": "openspec-ui-vscode@0.84.2",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.84.1"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.84.2"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.84.1/openspec-ui-vscode-0.84.1.vsix",
-          "size_bytes": 6576193
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.84.2/openspec-ui-vscode-0.84.2.vsix",
+          "size_bytes": 6576338
         }
       ],
       "changes": [
         {
           "kind": "patch",
-          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
+          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.45.1",
-      "released_at": "2026-09-24T06:42:03.296Z",
+      "version": "1.45.2",
+      "released_at": "2026-09-24T07:58:51.102Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +50,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
+          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
         }
       ]
     },
@@ -59,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.125.0",
-      "released_at": "2026-09-24T06:42:03.296Z",
+      "version": "0.125.1",
+      "released_at": "2026-09-24T07:58:51.102Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +70,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The board's Archived column now holds what was archived. It could not"
+          "kind": "patch",
+          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
         }
       ]
     },
@@ -80,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.73.1",
-      "released_at": "2026-09-24T06:42:03.296Z",
+      "version": "1.73.2",
+      "released_at": "2026-09-24T07:58:51.102Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +91,7 @@
       "changes": [
         {
           "kind": "patch",
-          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
+          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
         }
       ]
     },
@@ -101,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-24T06:42:03.296Z",
+      "released_at": "2026-09-24T07:58:51.102Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
