@@ -6,14 +6,12 @@
       "effort": "high"
     },
     "review": {
-      "agent": "claude-cli-acp",
-      "model": "claude-opus-5",
+      "agent": "copilot-cli-acp",
+      "model": "gpt-5.3-codex",
       "effort": "high"
     },
     "apply": {
-      "agent": "claude-cli-acp",
-      "model": "claude-sonnet-5",
-      "effort": "medium"
+      "agent": "deepseek-cli-acp"
     },
     "verify": {
       "agent": "claude-cli-acp",
@@ -27,5 +25,9 @@
   },
   "budget": {
     "maxCostUsd": 15
+  },
+  "timeout": {
+    "maxRunSeconds": 10800,
+    "maxStageSeconds": 3600
   }
 }
