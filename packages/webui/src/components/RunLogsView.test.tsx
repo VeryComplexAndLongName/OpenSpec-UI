@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RunLogRecord, RunLogSummary } from "@openspec-ui/core/browser";
@@ -66,6 +67,32 @@ describe("RunLogsView", () => {
     render(<RunLogsView changeName="alpha" load={async () => []} read={async () => []} onClose={() => undefined} />);
 
     expect(await screen.findByTestId("run-logs-none")).toHaveTextContent("No run of this change has left a log");
+  });
+
+  // logs-open-when-asked: opened beneath the picture, the view showed 82
+  // pixels of itself and the press seemed to do nothing.
+  it("takes the focus, closes on Escape, and gives the focus back to the button pressed", async () => {
+    function Host() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Logs of alpha</button>
+          {open ? <RunLogsView changeName="alpha" load={async () => []} read={async () => []} onClose={() => setOpen(false)} /> : null}
+        </>
+      );
+    }
+    render(<Host />);
+    const opener = screen.getByRole("button", { name: "Logs of alpha" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    const view = screen.getByRole("dialog", { name: "Logs of alpha" });
+    expect(view).toHaveFocus();
+    await screen.findByTestId("run-logs-none");
+
+    fireEvent.keyDown(view, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
   });
 
   it("says why where the logs could not be read, and closes", async () => {

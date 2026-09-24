@@ -3952,14 +3952,25 @@ export const shellThemeCss = `
   .openspec-change-checklist-note { color: var(--muted); font-size: 12px; }
 
   /* A change's run logs, opened from its card (a-change-shows-its-run-logs):
-     the runs, then the one chosen, as the run said it. */
+     the runs, then the one chosen, as the run said it. Over the board,
+     along the window's right side, whatever the board's height and scroll
+     (logs-open-when-asked). */
   .openspec-run-logs {
-    margin: 12px 0;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    width: min(760px, 100vw);
+    box-sizing: border-box;
+    overflow: auto;
     padding: 12px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-left: 1px solid var(--line-strong);
     background: var(--surface);
+    box-shadow: var(--shadow);
   }
+  .openspec-run-logs:focus { outline: none; }
+  .openspec-run-logs:focus-visible { outline: 2px solid var(--primary-bg); outline-offset: -2px; }
   .openspec-run-logs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .openspec-run-logs-head h3 { margin: 0; color: var(--heading); }
   .openspec-run-logs-list { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
@@ -4620,6 +4631,12 @@ export const vscodeThemeCss = `
   .openspec-extension-app ::selection {
     color: var(--vscode-editor-selectionForeground);
     background: var(--vscode-editor-selectionBackground);
+  }
+
+  /* The run logs lie over the board (logs-open-when-asked); the editor's
+     own widgets are told apart from what is under them by this shadow. */
+  .openspec-extension-app .openspec-run-logs {
+    box-shadow: -6px 0 16px var(--vscode-widget-shadow, transparent);
   }
 
   @media (forced-colors: active) {
