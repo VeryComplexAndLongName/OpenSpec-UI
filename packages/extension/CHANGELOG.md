@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.84.2
+
+### Patch Changes
+
+- 4483ff2: The Pipeline picture's first column is headed "Step 1 - waits for nothing"
+  instead of "can start now". The old words read, over a change with every
+  task done, as advice to start it again; the column only ever meant that
+  nothing active blocks its changes. The other columns read "Step N - after
+  step N-1", with a plain hyphen where a middle dot was.
+- Updated dependencies [4483ff2]
+  - @openspec-ui/core@0.125.1
+  - @openspec-ui/webui@1.73.2
+  - @openspec-ui/server@1.45.2
+
 ## 0.84.1
 
 ### Patch Changes
