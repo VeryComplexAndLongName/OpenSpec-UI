@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-24
+# The workspace's own harness file: no requirement of any capability
+# changes.
+skip_specs: true
