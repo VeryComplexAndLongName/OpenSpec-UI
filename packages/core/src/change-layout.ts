@@ -39,7 +39,7 @@ export const LANE_HEADING = 2;
  * order, not stages. The board arranges by stage instead, and heads its
  * columns with the stages' own words (`layoutChangesByStage`). */
 export function describeLane(column: number): string {
-  return column === 0 ? "Step 1 · can start now" : `Step ${column + 1} · after step ${column}`;
+  return column === 0 ? "Step 1 - waits for nothing" : `Step ${column + 1} - after step ${column}`;
 }
 
 export interface ChangeLayoutNode {

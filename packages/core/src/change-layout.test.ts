@@ -166,7 +166,7 @@ describe("layoutChanges", () => {
 
   // the-pipeline-cards-wear-metro 1.2: each column is headed, above its cards.
   it("heads each column by its place in the order, in the strip above the cards", () => {
-    expect([0, 1, 2].map(describeLane)).toEqual(["Step 1 · can start now", "Step 2 · after step 1", "Step 3 · after step 2"]);
+    expect([0, 1, 2].map(describeLane)).toEqual(["Step 1 - waits for nothing", "Step 2 - after step 1", "Step 3 - after step 2"]);
     const layout = layoutChanges(report(change("only")));
     expect(Math.min(...layout.nodes.map((node) => node.y))).toBe(LANE_HEADING);
   });
