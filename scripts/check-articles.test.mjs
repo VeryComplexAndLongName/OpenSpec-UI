@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { checkAll, checkArticleLinks, imageLinksIn, isRemote } from "./check-articles.mjs";
+import { checkAll, checkArticleLinks, imageLinksIn, isRemote, isSvg } from "./check-articles.mjs";
 
 // A lint that passes whatever it is given has checked nothing, so each
 // guarantee is broken once here and the failure is asserted by its words.
@@ -120,6 +120,45 @@ test("passes a cover beside an article in its venue, and one in shared", async (
     );
 
     assert.deepEqual(await checkAll(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// an-article-picture-is-never-svg: the site's standard is PNG.
+test("knows an SVG by its name, whatever its query or anchor", () => {
+  assert.equal(isSvg("diagram.svg"), true);
+  assert.equal(isSvg("DIAGRAM.SVG"), true);
+  assert.equal(isSvg("https://example.com/diagram.svg?v=2#top"), true);
+  assert.equal(isSvg("diagram.png"), false);
+  assert.equal(isSvg("an-svg-explained.png"), false);
+});
+
+test("fails a link to an SVG, beside the article or remote", async () => {
+  const text = [
+    "![A diagram](diagram.svg)",
+    "![A badge](https://example.com/badge.svg)",
+  ].join("\n");
+
+  const problems = await checkArticleLinks("a-piece.md", text, present);
+
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /a-piece\.md links "diagram\.svg", an SVG: an article's pictures are PNG/u);
+  assert.match(problems[1], /badge\.svg/u);
+});
+
+test("fails an SVG file under docs/articles that nothing links", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "openspec-articles-"));
+  try {
+    await mkdir(path.join(root, "docs", "articles", "site", "a-piece"), { recursive: true });
+    await writeFile(path.join(root, "docs", "articles", "site", "a-piece", "diagram.svg"), "<svg/>", "utf8");
+    await writeFile(path.join(root, "docs", "articles", "site", "a-piece", "diagram.png"), "x", "utf8");
+    await writeFile(path.join(root, "docs", "articles", "site", "a-piece.md"), "![A diagram](a-piece/diagram.png)\n", "utf8");
+
+    const problems = await checkAll(root);
+
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^site\/a-piece\/diagram\.svg is an SVG/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
