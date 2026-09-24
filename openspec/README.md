@@ -237,6 +237,12 @@ description.
 - **A cover or a diagram** - a drawing that is not of the product - is
   the one hand-made picture there is, and it lives beside its article,
   never in `docs/images/`.
+- **No SVG, anywhere under `docs/articles/`.** The site's standard is PNG.
+  A drawing made as an SVG is rendered to PNG, and only the PNG is
+  committed and linked; the SVG stays wherever it was drawn. `lint:articles`
+  fails an `.svg` file under `docs/articles/` and a link to one, local or
+  remote. The covers already published as `.jpg` and the tour's `.gif`
+  and `.webm` stay as they are; a new picture is a PNG.
 - **The branch rules above.** One piece of work, one pull request, and the
   branch ends when it merges.
 - **A claim about the product cites where it comes from.** A version, a

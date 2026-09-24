@@ -18,6 +18,11 @@
 // Linking a picture that `docs/images/` already holds is fine, and is the
 // point: an article showing the product should show what a capture took,
 // not a hand-made drawing of it.
+//
+// No picture is an SVG (an-article-picture-is-never-svg): the site's
+// standard is PNG. An `.svg` file anywhere under `docs/articles/`, and a
+// link to one, local or remote, fail. A drawing made as an SVG is
+// rendered to PNG, and only the PNG is committed.
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
@@ -52,12 +57,21 @@ export function isRemote(target) {
   return /^[a-z][a-z0-9+.-]*:/iu.test(target) || target.startsWith("//");
 }
 
+/** Whether a path or a link names an SVG, whatever its query or anchor. */
+export function isSvg(target) {
+  return /\.svg$/iu.test(target.split(/[?#]/u)[0] ?? target);
+}
+
 /** What is wrong with one article's links, as messages. `exists` answers
  * whether a repository-relative path is a file, so the check is testable
  * without a repository. */
 export async function checkArticleLinks(articleName, text, exists) {
   const problems = [];
   for (const target of imageLinksIn(text)) {
+    if (isSvg(target)) {
+      problems.push(`${articleName} links "${target}", an SVG: an article's pictures are PNG. Render it to PNG and link that.`);
+      continue;
+    }
     if (isRemote(target) || target.startsWith("#")) continue;
     const withoutAnchor = target.split("#")[0] ?? target;
     if (withoutAnchor.length === 0) continue;
@@ -86,7 +100,13 @@ export async function checkArticleLinks(articleName, text, exists) {
  * per venue. A check that read only the root would have stopped seeing
  * every article the moment they moved, and passed for ever
  * (an-article-directory-per-venue). */
-async function articleNames(directory, within = "") {
+async function articleNames(directory) {
+  return filesUnder(directory, (name) => name.toLowerCase().endsWith(".md"));
+}
+
+/** Every file under `directory`, at any depth, whose name `wanted`
+ * accepts, as a path relative to it. */
+async function filesUnder(directory, wanted, within = "") {
   let entries;
   try {
     entries = await readdir(path.join(directory, within), { withFileTypes: true });
@@ -96,8 +116,8 @@ async function articleNames(directory, within = "") {
   const names = [];
   for (const entry of entries) {
     const next = within.length === 0 ? entry.name : `${within}/${entry.name}`;
-    if (entry.isDirectory()) names.push(...await articleNames(directory, next));
-    else if (entry.name.toLowerCase().endsWith(".md")) names.push(next);
+    if (entry.isDirectory()) names.push(...await filesUnder(directory, wanted, next));
+    else if (wanted(entry.name)) names.push(next);
   }
   return names.sort();
 }
@@ -118,6 +138,10 @@ export async function checkAll(root = repoRoot) {
   for (const name of names) {
     const text = await readFile(path.join(directory, name), "utf8");
     problems.push(...await checkArticleLinks(name, text, exists));
+  }
+  // An SVG nobody links yet is one somebody is about to.
+  for (const name of await filesUnder(directory, isSvg)) {
+    problems.push(`${name} is an SVG: an article's pictures are PNG. Render it to PNG, commit the PNG, and leave the SVG out.`);
   }
   return problems;
 }
