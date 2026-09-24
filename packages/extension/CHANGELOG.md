@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.84.1
+
+### Patch Changes
+
+- c28ca71: Logs on a Pipeline card now opens where it can be seen. It opened beneath
+  the board and brought only its nearest edge into view, so on a board taller
+  than the window it showed 82 pixels of itself at the bottom edge, saying
+  "Reading the logs...", and the press seemed to do nothing. The logs now
+  open over the board, along the right side of the window, whatever its
+  height and scroll. The panel takes the focus, Escape closes it as Close
+  does, and the focus goes back to the Logs button that opened it. The
+  standalone and the editor's Pipeline panel both get this.
+- Updated dependencies [c28ca71]
+  - @openspec-ui/webui@1.73.1
+  - @openspec-ui/server@1.45.1
+
 ## 0.84.0
 
 ### Minor Changes
