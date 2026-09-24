@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-23T21:35:42.905Z",
+  "generated_at": "2026-09-24T06:42:03.296Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "a549277f5a0055ed0a3f2bfab95500a2a87edd00",
+  "commit": "734c3348c7fce48a86b7bcfb7a31328ff166af41",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.84.0",
-      "released_at": "2026-09-23T21:35:42.905Z",
-      "tag": "openspec-ui-vscode@0.84.0",
+      "version": "0.84.1",
+      "released_at": "2026-09-24T06:42:03.296Z",
+      "tag": "openspec-ui-vscode@0.84.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.84.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.84.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.84.0/openspec-ui-vscode-0.84.0.vsix",
-          "size_bytes": 6572693
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.84.1/openspec-ui-vscode-0.84.1.vsix",
+          "size_bytes": 6576193
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The board's Archived column now holds what was archived. It could not"
+          "kind": "patch",
+          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.45.0",
-      "released_at": "2026-09-23T21:35:42.905Z",
+      "version": "1.45.1",
+      "released_at": "2026-09-24T06:42:03.296Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The board's Archived column now holds what was archived. It could not"
+          "kind": "patch",
+          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
         }
       ]
     },
@@ -60,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.125.0",
-      "released_at": "2026-09-23T21:35:42.905Z",
+      "released_at": "2026-09-24T06:42:03.296Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -80,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.73.0",
-      "released_at": "2026-09-23T21:35:42.905Z",
+      "version": "1.73.1",
+      "released_at": "2026-09-24T06:42:03.296Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -90,8 +90,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The board's Archived column now holds what was archived. It could not"
+          "kind": "patch",
+          "summary": "Logs on a Pipeline card now opens where it can be seen. It opened beneath"
         }
       ]
     },
@@ -101,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-23T21:35:42.905Z",
+      "released_at": "2026-09-24T06:42:03.296Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
