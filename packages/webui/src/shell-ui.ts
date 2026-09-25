@@ -972,6 +972,30 @@ export const shellThemeCss = `
     outline-offset: 1px;
   }
 
+  /* The order within each column (the-board-sorts-its-cards), drawn as
+     the filter beside it is. */
+  .openspec-pipeline-order {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .openspec-pipeline-order select {
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .openspec-pipeline-order select:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 1px;
+  }
+
   .openspec-panel-fine {
     margin: 0;
     padding: 10px 16px 12px;

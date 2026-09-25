@@ -112,6 +112,7 @@ export * from "./task-marker.js";
 export * from "./pipeline-card.js";
 export * from "./hints.js";
 export * from "./change-layout.js";
+export * from "./change-order.js";
 export * from "./repo-setup-actions.js";
 
 export { ClaudeCliAdapter } from "./agents/claude.js";
