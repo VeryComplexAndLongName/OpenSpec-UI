@@ -152,6 +152,10 @@ export interface ExtensionTestApi {
   onWebviewEvent: (listener: (event: Event) => void) => vscode.Disposable;
 }
 
+/** Where the local LLM's API key is kept: the editor's secret storage, by
+ * this name (the-local-llm-is-where-you-say). */
+const LOCAL_LLM_API_KEY_SECRET = "openspec-ui.localLlm.apiKey";
+
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
   context.subscriptions.push(outputChannel);
@@ -512,7 +516,43 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     }
 
     auditLog = new FileAuditLog(auditLogPath(workspaceRoot));
-    runners = buildDefaultAgentRunners({ workspaceRoot, auditLog, runLogs: createFileRunLogs(workspaceRoot) });
+    // Where the local LLM is and its key: the settings and the secret
+    // storage, then the environment core reads for whatever is not set
+    // here (the-local-llm-is-where-you-say). The key is never in a file.
+    const localLlm = vscode.workspace.getConfiguration("openspec-ui.localLlm");
+    const localLlmBaseUrl = localLlm.get<string>("baseUrl", "").trim();
+    const localLlmModel = localLlm.get<string>("model", "").trim();
+    const localLlmApiKey = await context.secrets.get(LOCAL_LLM_API_KEY_SECRET).then((value) => value, () => undefined);
+    runners = buildDefaultAgentRunners({
+      workspaceRoot,
+      auditLog,
+      runLogs: createFileRunLogs(workspaceRoot),
+      ...(localLlmBaseUrl.length > 0 ? { localLlmBaseUrl } : {}),
+      ...(localLlmModel.length > 0 ? { localLlmModel } : {}),
+      ...(localLlmApiKey !== undefined && localLlmApiKey.length > 0 ? { localLlmApiKey } : {}),
+    });
+    context.subscriptions.push(
+      vscode.commands.registerCommand("openspec-ui.setLocalLlmApiKey", async () => {
+        const key = await vscode.window.showInputBox({
+          title: "Local LLM API key",
+          prompt: "Kept in the editor's secret storage, never in a file or a log. Leave it empty to remove the key.",
+          password: true,
+          ignoreFocusOut: true,
+        });
+        if (key === undefined) return;
+        if (key.trim().length === 0) {
+          await context.secrets.delete(LOCAL_LLM_API_KEY_SECRET);
+        } else {
+          await context.secrets.store(LOCAL_LLM_API_KEY_SECRET, key.trim());
+        }
+        // Read when the window opens, as the address and the model are.
+        const reload = await vscode.window.showInformationMessage(
+          `OpenSpec Workbench: the local LLM API key was ${key.trim().length === 0 ? "removed" : "saved"}. Reload the window for runs to use it.`,
+          "Reload Window",
+        );
+        if (reload === "Reload Window") await vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }),
+    );
 
     // Running one delegated item, from the row that names its agent.
     // Bound to `RUNNABLE_INBOX_ITEM_CONTEXT` in package.json, so a row

@@ -19,6 +19,7 @@ import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
+import { resolveLocalLlmSettings } from "./local-llm-settings.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { HARNESS_AGENT_CAPABILITIES, MODEL_ID_PATTERN } from "./harness-config.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
@@ -27,8 +28,12 @@ import { InMemoryAuditLog } from "./security.js";
 
 export interface DefaultRunnersConfig {
   workspaceRoot: string;
+  /** Where the local LLM is, its model and its key, where the host was
+   * told them; each one it was not told comes from the environment
+   * (`resolveLocalLlmSettings`, the-local-llm-is-where-you-say). */
   localLlmBaseUrl?: string;
   localLlmModel?: string;
+  localLlmApiKey?: string;
   auditLog?: AuditLog;
   allowExternalCwd?: boolean;
   /** Where each run's log is written (a-change-shows-its-run-logs). A host
@@ -174,8 +179,11 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     "codex-cli": new CodexCliAdapter(),
     "gemini-cli": new GeminiCliAdapter(),
     "local-llm": new LocalLlmAdapter({
-      baseUrl: config.localLlmBaseUrl ?? "http://localhost:30000",
-      model: config.localLlmModel ?? "default",
+      ...resolveLocalLlmSettings({
+        ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
+        ...(config.localLlmModel !== undefined ? { model: config.localLlmModel } : {}),
+        ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
+      }),
     }),
     "copilot-cli-acp": new CopilotCliAcpAdapter(),
     "gemini-cli-acp": new GeminiCliAcpAdapter(),

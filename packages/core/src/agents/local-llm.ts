@@ -8,15 +8,19 @@
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
 import { commandInstruction } from "./shared.js";
+import { chatCompletionsUrl, localLlmHeaders } from "../local-llm-settings.js";
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
 export interface LocalLlmAdapterOptions {
-  /** The server's base URL, e.g. http://hppii-gpu:30000. */
+  /** The server's base URL, with its `/v1` or without, e.g.
+   * http://hppii-gpu:30000 or http://hppii-gpu:8000/v1. */
   baseUrl: string;
   model: string;
+  /** Sent as a bearer token, and nowhere else (the-local-llm-is-where-you-say). */
+  apiKey?: string;
 }
 
 interface ChatCompletionChunk {
@@ -33,7 +37,7 @@ export class LocalLlmAdapter implements AgentAdapter {
   constructor(private readonly options: LocalLlmAdapterOptions) {}
 
   buildInvocation(_command: Command): AdapterInvocation {
-    return { kind: "http", url: `${this.options.baseUrl}/v1/chat/completions`, method: "POST" };
+    return { kind: "http", url: chatCompletionsUrl(this.options.baseUrl), method: "POST" };
   }
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
@@ -56,7 +60,7 @@ export class LocalLlmAdapter implements AgentAdapter {
     try {
       response = await fetch(invocation.url, {
         method: invocation.method,
-        headers: { "content-type": "application/json" },
+        headers: localLlmHeaders(this.options),
         body: JSON.stringify({
           model: this.options.model,
           stream: true,
