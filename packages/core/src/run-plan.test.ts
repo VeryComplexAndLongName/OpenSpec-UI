@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js";
-import { agentForChosenPath, buildRunPlan } from "./run-plan.js";
+import { agentForChosenPath, buildRunPlan, describeRunStart, runStartFactsFrom, runStartStage } from "./run-plan.js";
 
 // one-way-in-to-run:
 // pure over in-memory data — no files, no processes.
@@ -122,5 +122,54 @@ describe("buildRunPlan — what it advises", () => {
     const plan = buildRunPlan(config({ stepAgents: { apply: "claude-cli-acp" } }), { hasVsCodeAgent: false });
 
     expect(plan.findings).toEqual([]);
+  });
+});
+
+// the-run-dialog-says-where-it-starts. A user with a change 65 of 66 done
+// could not tell from the dialog what a press would do.
+describe("where a run begins", () => {
+  it("begins at propose without a proposal and a task list, at apply while a task is open, at verify once none is", () => {
+    expect(runStartStage({ proposeDone: false })).toBe("propose");
+    expect(runStartStage({ proposeDone: true, openTasks: 1 })).toBe("apply");
+    expect(runStartStage({ proposeDone: true, openTasks: 0 })).toBe("verify");
+    // Unknown progress picks the reversible stage.
+    expect(runStartStage({ proposeDone: true })).toBe("apply");
+  });
+
+  it("says where it begins and why, in one sentence", () => {
+    expect(describeRunStart({ proposeDone: false })).toBe("Starts at propose: there is no proposal and task list yet.");
+    expect(describeRunStart({ proposeDone: true, openTasks: 1 })).toBe("Continues at apply: 1 task still open.");
+    expect(describeRunStart({ proposeDone: true, openTasks: 3 })).toBe("Continues at apply: 3 tasks still open.");
+    expect(describeRunStart({ proposeDone: true, openTasks: 0 })).toBe("Continues at verify: every task is done.");
+    expect(describeRunStart({ proposeDone: true })).toBe("Continues at apply: the task list could not be read.");
+  });
+
+  it("reads the facts from a proposal and a task list, an empty list being no plan yet", () => {
+    const done = { done: true };
+    const open = { done: false };
+
+    expect(runStartFactsFrom({ hasProposal: true, tasks: [done, open] })).toEqual({ proposeDone: true, openTasks: 1 });
+    expect(runStartFactsFrom({ hasProposal: true, tasks: [] })).toEqual({ proposeDone: false, openTasks: 0 });
+    expect(runStartFactsFrom({ hasProposal: false, tasks: [open] })).toEqual({ proposeDone: false, openTasks: 1 });
+    expect(runStartFactsFrom({ hasProposal: true })).toEqual({ proposeDone: true });
+  });
+
+  it("carries where it begins in the plan, where the host read the change", () => {
+    const plan = buildRunPlan(config(), { hasVsCodeAgent: false, runStart: { proposeDone: true, openTasks: 1 } });
+    const unread = buildRunPlan(config(), { hasVsCodeAgent: false });
+
+    expect(plan.startsAt).toEqual({ stage: "apply", says: "Continues at apply: 1 task still open." });
+    expect(unread.startsAt).toBeUndefined();
+  });
+
+  it("does not offer a chain the configuration would refuse, and says why", () => {
+    const assisted = buildRunPlan(config({ autonomyLevel: "assisted" }), { hasVsCodeAgent: true });
+    const chained = buildRunPlan(config({ autonomyLevel: "semi-autonomous" }), { hasVsCodeAgent: true });
+
+    expect(assisted.offered.map((path) => path.id)).toEqual(["single-stage", "vscode-agent"]);
+    expect(assisted.withheld?.path).toBe("chain");
+    expect(assisted.withheld?.says).toContain('autonomyLevel "assisted" runs one stage at a time');
+    expect(chained.offered.map((path) => path.id)).toEqual(["chain", "single-stage", "vscode-agent"]);
+    expect(chained.withheld).toBeUndefined();
   });
 });

@@ -129,6 +129,20 @@ describe("resolveRunWithHarnessDispatch — what it advises", () => {
     const result = await resolveRunWithHarnessDispatch(request, "/repo", "demo");
 
     expect(result.plan.advice).toBeUndefined();
+    // Nor where it begins: nothing was read to say it from.
+    expect(result.plan.startsAt).toBeUndefined();
+  });
+
+  // the-run-dialog-says-where-it-starts: from the same reading.
+  it("says where the run begins, from the proposal and the open tasks", async () => {
+    const written = { ...timelineWith(1, 65), proposal: "## Why\n\nBecause.\n" };
+    const unwritten = timelineWith(0, 0);
+
+    const continuing = await resolveRunWithHarnessDispatch(fakeRequest(ASSISTED, written), "/repo", "demo");
+    const starting = await resolveRunWithHarnessDispatch(fakeRequest(ASSISTED, unwritten), "/repo", "demo");
+
+    expect(continuing.plan.startsAt?.says).toBe("Continues at apply: 1 task still open.");
+    expect(starting.plan.startsAt?.stage).toBe("propose");
   });
 });
 

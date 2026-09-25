@@ -60,6 +60,64 @@ export interface RunPlan {
    * "no recommendation" and "a recommendation with no grounds" are
    * different, and only the first is honest. */
   advice?: HarnessRecommendation;
+  /** Where a run of this change begins, and why, in one sentence: "Continues
+   * at apply: 1 task still open." Absent where the host could not read the
+   * change's files. The dialog described the whole sequence and never said
+   * where it would start, so a person with a change almost done could not
+   * tell what a press would do (the-run-dialog-says-where-it-starts). */
+  startsAt?: { stage: RunStartStage; says: string };
+  /** A path this configuration would refuse, left out of `offered` and said
+   * here instead: a chain under `assisted` fails the moment it starts, and a
+   * button that only fails is a button that does nothing. */
+  withheld?: { path: RunPathId; says: string };
+}
+
+/** The stage a run of a change begins at: what a chain resumes from. */
+export type RunStartStage = "propose" | "apply" | "verify";
+
+/** What decides where a run begins, read from the change's own files. */
+export interface RunStartFacts {
+  /** Its proposal and its task list are both written. */
+  proposeDone: boolean;
+  /** Task items still open; undefined where the task list could not be
+   * read. */
+  openTasks?: number;
+}
+
+/** Where a run begins: propose until there is a proposal and a task list,
+ * apply while a task is open or the count is unknown, and verify once every
+ * task is closed. The chain runner decides with this same function, so the
+ * dialog cannot say one stage and the run start at another.
+ *
+ * Unknown progress picks the reversible stage: a redundant `apply` costs one
+ * run, a wrong `archive` costs an unimplemented change. A change whose
+ * tasks are all closed resumes at `verify`, not `archive`: an agent exiting
+ * 0 is not evidence the work was done. */
+export function runStartStage(facts: RunStartFacts): RunStartStage {
+  if (!facts.proposeDone) return "propose";
+  if (facts.openTasks === undefined || facts.openTasks > 0) return "apply";
+  return "verify";
+}
+
+/** The facts, from what every host can read: whether the proposal is
+ * written, and the task list's items, or undefined where it could not be
+ * read. An empty task list is not a plan yet, so propose has more to do;
+ * an unreadable one is left to apply, as the runner leaves it. */
+export function runStartFactsFrom(input: { hasProposal: boolean; tasks?: ReadonlyArray<{ done: boolean }> }): RunStartFacts {
+  const proposeDone = input.hasProposal && (input.tasks === undefined || input.tasks.length > 0);
+  return {
+    proposeDone,
+    ...(input.tasks !== undefined ? { openTasks: input.tasks.filter((task) => !task.done).length } : {}),
+  };
+}
+
+/** Where a run begins, as the dialog says it. */
+export function describeRunStart(facts: RunStartFacts): string {
+  const stage = runStartStage(facts);
+  if (stage === "propose") return "Starts at propose: there is no proposal and task list yet.";
+  if (stage === "verify") return "Continues at verify: every task is done.";
+  if (facts.openTasks === undefined) return "Continues at apply: the task list could not be read.";
+  return `Continues at apply: ${facts.openTasks === 1 ? "1 task" : `${facts.openTasks} tasks`} still open.`;
 }
 
 /** Whether the host can open VS Code Chat. The standalone UI cannot, and
@@ -71,6 +129,9 @@ export interface RunPlanHost {
    * list or the audit log has nothing to reason from, and should say so
    * by omission rather than by recommending from nothing. */
   recommendationInput?: RecommendationInput;
+  /** Whether the change has a proposal and a task list, and how many tasks
+   * are open, for where a run begins. Optional for the same reason. */
+  runStart?: RunStartFacts;
 }
 
 const CHAIN_STAGES: readonly HarnessStepAgentStage[] = ["propose", "review", "apply", "verify"];
@@ -116,7 +177,10 @@ function agentFor(config: HarnessConfig, stage: HarnessStepAgentStage): string |
  * opinion. */
 export function buildRunPlan(config: HarnessConfig, host: RunPlanHost): RunPlan {
   const resolved: RunPathId = resolveRunWithHarnessTarget(config) === "chain" ? "chain" : "single-stage";
-  const offered: RunPath[] = [PATHS.chain, PATHS["single-stage"]];
+  // A chain is refused under `assisted` the moment it starts: not offered,
+  // and said instead (the-run-dialog-says-where-it-starts).
+  const chainRefused = resolved !== "chain";
+  const offered: RunPath[] = chainRefused ? [PATHS["single-stage"]] : [PATHS.chain, PATHS["single-stage"]];
   if (host.hasVsCodeAgent) offered.push(PATHS["vscode-agent"]);
 
   return {
@@ -127,6 +191,17 @@ export function buildRunPlan(config: HarnessConfig, host: RunPlanHost): RunPlan 
     findings: findHarnessConfigLimits(config),
     ...(host.recommendationInput !== undefined
       ? { advice: recommendTemplate(host.recommendationInput) }
+      : {}),
+    ...(host.runStart !== undefined
+      ? { startsAt: { stage: runStartStage(host.runStart), says: describeRunStart(host.runStart) } }
+      : {}),
+    ...(chainRefused
+      ? {
+        withheld: {
+          path: "chain" as const,
+          says: `A chain is not offered: autonomyLevel "${config.autonomyLevel}" runs one stage at a time. Choose Semi-autonomous in Harness settings to run a chain.`,
+        },
+      }
       : {}),
   };
 }
