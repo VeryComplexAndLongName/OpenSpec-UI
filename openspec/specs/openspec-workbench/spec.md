@@ -698,6 +698,14 @@ It SHALL be readable as what it is instead: a leftover, carrying the names
 of the files it holds, whether every one of them is a file the product
 writes, and whether a change of the same name is already archived.
 
+Where a caller asks for drafts, as the Pipeline's reading of what can be
+started does, a directory with no documents whose name was never archived
+SHALL be read as a change: somebody's start, Drafted until its proposal is
+written (ADR 0037, amended 2026-09-25). One whose name was archived SHALL
+stay a leftover. The Pipeline drew no card for a change made before its
+proposal, so propose, the one thing it wants, could not be started from
+it (reported by a user on 2026-09-24).
+
 #### Scenario: A directory holding only what the product wrote
 
 - **WHEN** a change has been archived and its directory still holds a file
@@ -715,6 +723,18 @@ writes, and whether a change of the same name is already archived.
 
 - **WHEN** a directory holds any of the change's documents
 - **THEN** it is a change, whatever else it holds
+
+#### Scenario: A change being started, read for the Pipeline
+
+- **WHEN** a directory holds a change's schema declaration and nothing else,
+  nothing of its name is archived, and drafts are asked for
+- **THEN** it is read as a change
+
+#### Scenario: A leftover, read for the Pipeline
+
+- **WHEN** a directory holds only a file the product wrote, a change of its
+  name is archived, and drafts are asked for
+- **THEN** it is not read as a change
 
 ### Requirement: What the product left behind is cleared, and what might be someone's work is not
 
