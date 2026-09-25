@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.86.0
+
+### Minor Changes
+
+- 5f8dbe9: A change made before its proposal is on the Pipeline, in a new first
+  column, Drafted. A change directory holding only `.openspec.yaml`, or
+  nothing yet, was taken for what an archive leaves behind and left off the
+  board, so propose, the one thing it wants, could not be started from it.
+  It is now a card, and Start on it begins at propose. A directory is still
+  a leftover where a change of its name was archived. The Changes tree is
+  unchanged. ADR 0037 is amended with the new stage.
+
+### Patch Changes
+
+- Updated dependencies [5f8dbe9]
+  - @openspec-ui/core@0.127.0
+  - @openspec-ui/webui@1.75.0
+  - @openspec-ui/server@1.47.0
+
 ## 0.85.0
 
 ### Minor Changes
