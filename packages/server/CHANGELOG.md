@@ -1,5 +1,29 @@
 # @openspec-ui/server
 
+## 1.48.0
+
+### Minor Changes
+
+- 4b621c6: The run dialog says where a run begins, and why: "Continues at apply: 1
+  task still open.", "Starts at propose: there is no proposal and task list
+  yet.", or "Continues at verify: every task is done." The chain resumes
+  with the same function, so the dialog cannot name one stage and the run
+  begin at another. Under the `assisted` autonomy level the dialog no longer
+  offers "Run the chain", which the runner refused the moment it started;
+  it says instead that a chain is not offered and that Semi-autonomous
+  offers one.
+
+### Patch Changes
+
+- e6acba0: What a configuration cannot do is said once. The same finding on several
+  stages, such as an agent that reports no usage on all four, was four lines
+  differing in one word, in Harness settings and again in the run dialog; it
+  is now one sentence naming every stage: "no spending ceiling can act on
+  "propose", "review", "apply" and "verify"".
+- Updated dependencies [e6acba0]
+- Updated dependencies [4b621c6]
+  - @openspec-ui/core@0.128.0
+
 ## 1.47.0
 
 ### Minor Changes
