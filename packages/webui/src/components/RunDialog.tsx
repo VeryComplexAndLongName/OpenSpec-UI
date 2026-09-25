@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   checkScheduleTime,
+  groupHarnessFindings,
   resolveEffortLevel,
   type ChangeStateKey,
   type DescribedChangeState,
@@ -200,8 +201,10 @@ export function RunDialog(
       <p className="openspec-shell-note"><strong>What this configuration cannot do</strong></p>
       {plan.findings.length > 0 ? (
         <ul className="openspec-shell-note" data-testid="run-dialog-findings">
-          {plan.findings.map((finding) => (
-            <li key={`${finding.kind}-${finding.stage}`}>{finding.stage}: {finding.message}</li>
+          {/* Said once each, naming every stage it holds on
+              (a-warning-is-said-once). */}
+          {groupHarnessFindings(plan.findings).map((group) => (
+            <li key={`${group.kind}-${group.agent}-${group.stages.join("-")}`}>{group.message}</li>
           ))}
         </ul>
       ) : (

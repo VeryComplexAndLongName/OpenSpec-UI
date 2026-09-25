@@ -1,6 +1,66 @@
 import { describe, expect, it } from "vitest";
-import { findHarnessConfigLimits } from "./harness-config-findings.js";
+import { findHarnessConfigLimits, groupHarnessFindings } from "./harness-config-findings.js";
 import type { HarnessConfig } from "./harness-config.js";
+
+// a-warning-is-said-once: the user's own configuration, claude-cli on every
+// stage and a dollar budget, gave four lines differing in one word.
+describe("groupHarnessFindings", () => {
+  const everyStage = {
+    propose: "claude-cli",
+    review: "claude-cli",
+    apply: "claude-cli",
+    verify: "claude-cli",
+  } as const;
+
+  it("says one thing once, naming every stage it holds on", () => {
+    const findings = findHarnessConfigLimits({
+      stepAgents: everyStage,
+      autonomyLevel: "assisted",
+      reviewGate: { mode: "human-required" },
+      budget: { maxCostUsd: 5 },
+      timeout: { maxStageSeconds: 600 },
+    });
+
+    expect(findings).toHaveLength(4);
+    expect(groupHarnessFindings(findings)).toEqual([{
+      kind: "ceiling-cannot-act",
+      agent: "claude-cli",
+      stages: ["propose", "review", "apply", "verify"],
+      message: '"claude-cli" reports no usage at all, so no spending ceiling can act on "propose", "review", "apply" and "verify" however large the spend.',
+    }]);
+  });
+
+  it("keeps apart what differs in kind or in agent, in the order the stages run", () => {
+    const findings = findHarnessConfigLimits({
+      stepAgents: { propose: "claude-cli", review: "copilot-cli-acp", apply: "claude-cli" },
+      autonomyLevel: "assisted",
+      reviewGate: { mode: "human-required" },
+      budget: { maxCostUsd: 5 },
+    });
+
+    const groups = groupHarnessFindings(findings);
+
+    expect(groups.map((group) => [group.kind, group.agent, group.stages])).toEqual([
+      ["ceiling-cannot-act", "claude-cli", ["propose", "apply"]],
+      ["stage-unbounded", "claude-cli", ["propose", "apply"]],
+      ["ceiling-cannot-act", "copilot-cli-acp", ["review"]],
+    ]);
+    expect(groups[1]?.message).toBe(
+      '"propose" and "apply" can run without any bound: "claude-cli" reports nothing for a spending ceiling to compare, and no timeout is configured. A time ceiling is the only one that applies here.',
+    );
+  });
+
+  it("leaves a single finding's words as they were", () => {
+    const findings = findHarnessConfigLimits({
+      stepAgents: { apply: "copilot-cli-acp" },
+      autonomyLevel: "assisted",
+      reviewGate: { mode: "human-required" },
+      budget: { maxCostUsd: 5 },
+    });
+
+    expect(groupHarnessFindings(findings).map((group) => group.message)).toEqual(findings.map((finding) => finding.message));
+  });
+});
 
 // settings-say-what-they-cannot-do:
 // pure over an in-memory config — no files, no processes. Measured
