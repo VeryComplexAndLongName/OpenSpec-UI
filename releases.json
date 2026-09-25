@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-25T11:11:43.147Z",
+  "generated_at": "2026-09-25T14:23:40.897Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "8848e5dfa14375a4718d8b01557bb9f8c3e0c690",
+  "commit": "e5ea1af33e22df034d091989f990b3542aafdb8e",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.86.0",
-      "released_at": "2026-09-25T11:11:43.147Z",
-      "tag": "openspec-ui-vscode@0.86.0",
+      "version": "0.87.0",
+      "released_at": "2026-09-25T14:23:40.897Z",
+      "tag": "openspec-ui-vscode@0.87.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.86.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.87.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.86.0/openspec-ui-vscode-0.86.0.vsix",
-          "size_bytes": 6605513
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.87.0/openspec-ui-vscode-0.87.0.vsix",
+          "size_bytes": 6613287
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change made before its proposal is on the Pipeline, in a new first"
+          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
+        },
+        {
+          "kind": "patch",
+          "summary": "What a configuration cannot do is said once. The same finding on several"
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.47.0",
-      "released_at": "2026-09-25T11:11:43.147Z",
+      "version": "1.48.0",
+      "released_at": "2026-09-25T14:23:40.897Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +54,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change made before its proposal is on the Pipeline, in a new first"
+          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
+        },
+        {
+          "kind": "patch",
+          "summary": "What a configuration cannot do is said once. The same finding on several"
         }
       ]
     },
@@ -59,8 +67,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.127.0",
-      "released_at": "2026-09-25T11:11:43.147Z",
+      "version": "0.128.0",
+      "released_at": "2026-09-25T14:23:40.897Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +79,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change made before its proposal is on the Pipeline, in a new first"
+          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
+        },
+        {
+          "kind": "patch",
+          "summary": "What a configuration cannot do is said once. The same finding on several"
         }
       ]
     },
@@ -80,8 +92,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.75.0",
-      "released_at": "2026-09-25T11:11:43.147Z",
+      "version": "1.76.0",
+      "released_at": "2026-09-25T14:23:40.897Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +103,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "A change made before its proposal is on the Pipeline, in a new first"
+          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
+        },
+        {
+          "kind": "patch",
+          "summary": "What a configuration cannot do is said once. The same finding on several"
         }
       ]
     },
@@ -101,7 +117,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-25T11:11:43.147Z",
+      "released_at": "2026-09-25T14:23:40.897Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
