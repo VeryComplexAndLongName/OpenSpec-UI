@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-24T07:58:51.102Z",
+  "generated_at": "2026-09-25T03:16:01.531Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "31622c7cae2661b6e5b411a29d7a9641a875cd9e",
+  "commit": "6a3f867249346124aacbb100f4c504c515f1f15e",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.84.2",
-      "released_at": "2026-09-24T07:58:51.102Z",
-      "tag": "openspec-ui-vscode@0.84.2",
+      "version": "0.85.0",
+      "released_at": "2026-09-25T03:16:01.531Z",
+      "tag": "openspec-ui-vscode@0.85.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.84.2"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.85.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.84.2/openspec-ui-vscode-0.84.2.vsix",
-          "size_bytes": 6576338
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.85.0/openspec-ui-vscode-0.85.0.vsix",
+          "size_bytes": 6593141
         }
       ],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
+          "kind": "minor",
+          "summary": "The Pipeline's cards can be sorted. A Sort control beside the arrangement"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.45.2",
-      "released_at": "2026-09-24T07:58:51.102Z",
+      "version": "1.46.0",
+      "released_at": "2026-09-25T03:16:01.531Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
+          "kind": "minor",
+          "summary": "The Pipeline's cards can be sorted. A Sort control beside the arrangement"
         }
       ]
     },
@@ -59,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.125.1",
-      "released_at": "2026-09-24T07:58:51.102Z",
+      "version": "0.126.0",
+      "released_at": "2026-09-25T03:16:01.531Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +70,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
+          "kind": "minor",
+          "summary": "The Pipeline's cards can be sorted. A Sort control beside the arrangement"
         }
       ]
     },
@@ -80,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.73.2",
-      "released_at": "2026-09-24T07:58:51.102Z",
+      "version": "1.74.0",
+      "released_at": "2026-09-25T03:16:01.531Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -90,8 +90,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "The Pipeline picture's first column is headed \"Step 1 - waits for nothing\""
+          "kind": "minor",
+          "summary": "The Pipeline's cards can be sorted. A Sort control beside the arrangement"
         }
       ]
     },
@@ -101,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-24T07:58:51.102Z",
+      "released_at": "2026-09-25T03:16:01.531Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
