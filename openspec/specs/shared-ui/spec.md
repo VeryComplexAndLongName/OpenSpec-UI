@@ -1760,8 +1760,8 @@ shadows, a page margin, and no single change split across a page break.
 
 The Pipeline SHALL offer two arrangements of the same cards: by what each
 change waits for, and as a board with a column per stage. The board SHALL
-keep a column for every stage, empty or not, in the order Proposed,
-Planned, In progress, In review, Landed, Archived, each headed by that
+keep a column for every stage, empty or not, in the order Drafted,
+Proposed, Planned, In progress, In review, Landed, Archived, each headed by that
 stage's word. It SHALL draw no line between cards on the board, and report
 no cycle there: what blocks a change is on its card, in either
 arrangement.
@@ -1863,6 +1863,12 @@ SHALL be kept for the next visit with the zoom and the open cards.
 - **WHEN** a host passes no reading of the stages
 - **THEN** no arrangement is offered, and the picture is the declared
   order as before
+
+#### Scenario: A change made before its proposal
+
+- **WHEN** a change's directory holds no proposal and the board is chosen
+- **THEN** its card stands in the Drafted column, and Start on it begins at
+  propose
 
 ### Requirement: A card says where its change is and who holds it
 
