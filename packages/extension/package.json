@@ -38,23 +38,23 @@
       },
       {
         "command": "openspec-ui.initialize",
-        "title": "OpenSpec Workbench: Initialize Workspace"
+        "title": "OpenSpec Workbench: Initialize Workspace..."
       },
       {
         "command": "openspec-ui.generateAgentInstructions",
-        "title": "OpenSpec Workbench: Generate Agent Instructions (CLAUDE.md / AGENTS.md)"
+        "title": "OpenSpec Workbench: Generate Agent Instructions (CLAUDE.md / AGENTS.md)..."
       },
       {
         "command": "openspec-ui.setUpAgenticHarness",
-        "title": "OpenSpec Workbench: Set Up Agentic Harness"
+        "title": "OpenSpec Workbench: Set Up Agentic Harness..."
       },
       {
         "command": "openspec-ui.configureDependabot",
-        "title": "OpenSpec Workbench: Configure Dependabot"
+        "title": "OpenSpec Workbench: Configure Dependabot..."
       },
       {
         "command": "openspec-ui.generateSubtypeInstructions",
-        "title": "OpenSpec Workbench: Generate Path-Scoped Copilot Instructions"
+        "title": "OpenSpec Workbench: Generate Path-Scoped Copilot Instructions..."
       },
       {
         "command": "openspec-ui.configureHarness",
@@ -66,16 +66,16 @@
       },
       {
         "command": "openspec-ui.runWithHarness",
-        "title": "OpenSpec Workbench: Run"
+        "title": "OpenSpec Workbench: Run..."
       },
       {
         "command": "openspec-ui.createChange",
-        "title": "OpenSpec Workbench: Create Change",
+        "title": "OpenSpec Workbench: Create Change...",
         "icon": "$(add)"
       },
       {
         "command": "openspec-ui.createChangeTemplate",
-        "title": "OpenSpec Workbench: Create Change Template"
+        "title": "OpenSpec Workbench: Create Change Template..."
       },
       {
         "command": "openspec-ui.validateSelectedChange",
@@ -129,7 +129,7 @@
       },
       {
         "command": "openspec-ui.readChangeElsewhere",
-        "title": "OpenSpec Workbench: Read This Change As That Directory Has It",
+        "title": "OpenSpec Workbench: Read This Change As That Directory Has It...",
         "icon": "$(book)"
       },
       {
@@ -139,7 +139,7 @@
       },
       {
         "command": "openspec-ui.pickChange",
-        "title": "OpenSpec Workbench: Pick A Change, And See Where Each Is Worked",
+        "title": "OpenSpec Workbench: Pick A Change, And See Where Each Is Worked...",
         "icon": "$(list-selection)"
       },
       {
@@ -149,7 +149,7 @@
       },
       {
         "command": "openspec-ui.copyTasksAsTemplate",
-        "title": "OpenSpec Workbench: Copy Tasks as Template Into…",
+        "title": "OpenSpec Workbench: Copy Tasks as Template Into...",
         "icon": "$(copy)"
       },
       {
@@ -159,7 +159,7 @@
       },
       {
         "command": "openspec-ui.insertTemplateIntoChange",
-        "title": "OpenSpec Workbench: Insert Template Into…",
+        "title": "OpenSpec Workbench: Insert Template Into...",
         "icon": "$(add)"
       },
       {
@@ -184,12 +184,12 @@
       },
       {
         "command": "openspec-ui.confirmEnrolment",
-        "title": "OpenSpec Workbench: It Was Me",
+        "title": "OpenSpec Workbench: It Was Me...",
         "icon": "$(pass)"
       },
       {
         "command": "openspec-ui.joinTheTeam",
-        "title": "OpenSpec Workbench: Join the Team"
+        "title": "OpenSpec Workbench: Join the Team..."
       },
       {
         "command": "openspec-ui.openspecView",
@@ -201,7 +201,7 @@
       },
       {
         "command": "openspec-ui.generateSprintReport",
-        "title": "OpenSpec Workbench: Generate Sprint Report"
+        "title": "OpenSpec Workbench: Generate Sprint Report..."
       },
       {
         "command": "openspec-ui.showChangeDetails",
@@ -237,27 +237,27 @@
       },
       {
         "command": "openspec-ui.sayToRun",
-        "title": "OpenSpec Workbench: Say Something to This Run",
+        "title": "OpenSpec Workbench: Say Something to This Run...",
         "icon": "$(comment)"
       },
       {
         "command": "openspec-ui.stopRunAfterTask",
-        "title": "OpenSpec Workbench: Stop This Run After a Task",
+        "title": "OpenSpec Workbench: Stop This Run After a Task...",
         "icon": "$(debug-pause)"
       },
       {
         "command": "openspec-ui.addRelation",
-        "title": "OpenSpec Workbench: Add Relation",
+        "title": "OpenSpec Workbench: Add Relation...",
         "icon": "$(link)"
       },
       {
         "command": "openspec-ui.removeRelation",
-        "title": "OpenSpec Workbench: Remove Relation",
+        "title": "OpenSpec Workbench: Remove Relation...",
         "icon": "$(link-external)"
       },
       {
         "command": "openspec-ui.filterArchive",
-        "title": "OpenSpec Workbench: Filter Archive",
+        "title": "OpenSpec Workbench: Filter Archive...",
         "icon": "$(search)"
       },
       {
@@ -267,7 +267,7 @@
       },
       {
         "command": "openspec-ui.filterSpecs",
-        "title": "OpenSpec Workbench: Filter Specs",
+        "title": "OpenSpec Workbench: Filter Specs...",
         "icon": "$(search)"
       },
       {
@@ -277,7 +277,7 @@
       },
       {
         "command": "openspec-ui.filterChangeGraph",
-        "title": "OpenSpec Workbench: Filter Change Graph",
+        "title": "OpenSpec Workbench: Filter Change Graph...",
         "icon": "$(search)"
       },
       {

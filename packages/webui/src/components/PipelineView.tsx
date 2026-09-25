@@ -1424,7 +1424,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
         // Every control here carries its own `aria-label`, so an icon before
         // the word cannot move the name a test or a voice command uses
         // (the-web-ui-screens-wear-metro 4.2).
-        <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start</button>,
+        <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start...</button>,
       );
     }
     return buttons;
@@ -1439,7 +1439,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     if (!run.ownedHere && run.stoppableByMe && handlers.canAskToStop && run.stopAskedAt === undefined && run.stopRequested === null) {
       const instanceId = run.instanceId;
       buttons.push(
-        <button key="ask-stop" type="button" className={stopping} data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop</button>,
+        <button key="ask-stop" type="button" className={stopping} data-testid={`pipeline-ask-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, instanceId })}><Icon meaning="stop" />Stop...</button>,
       );
     }
     // Answered where it was started: the card names the folder, and offers
@@ -1475,7 +1475,7 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
     );
   }
   buttons.push(
-    <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop</button>,
+    <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop...</button>,
   );
   return buttons;
 }
