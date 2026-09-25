@@ -2164,7 +2164,7 @@ function StandaloneApp() {
             onClick={() => void handleRunWithHarness()}
             disabled={runHarnessLoading || cwd.trim().length === 0 || editorChangeName.trim().length === 0}
           >
-            {runHarnessLoading ? "Resolving..." : "Run with Agentic Harness"}
+            {runHarnessLoading ? "Resolving..." : "Run with Agentic Harness..."}
           </button>
           {editorMessage ? <span className="openspec-shell-note">{editorMessage}</span> : null}
           {runHarnessMessage ? <span className="openspec-shell-note" data-testid="run-with-harness-message">{runHarnessMessage}</span> : null}

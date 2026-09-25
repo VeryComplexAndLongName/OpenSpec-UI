@@ -879,7 +879,8 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     renderCard({ record: null });
 
     const start = await screen.findByRole("button", { name: "Start alpha" });
-    expect(start.textContent).toBe("Start");
+    // It opens the run dialog, and says so (a-control-that-asks-first-says-so).
+    expect(start.textContent).toBe("Start...");
     expect(start.querySelector("[aria-hidden='true']")).not.toBeNull();
     expect(start).toHaveClass("openspec-pipeline-button--forward");
 
@@ -892,7 +893,9 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     renderCard({ held: [heldRun()] });
 
     const stop = await screen.findByRole("button", { name: "Stop alpha" });
-    expect(stop.textContent).toBe("Stop");
+    // It asks for a reason before it stops, and says so as a menu would
+    // (a-control-that-asks-first-says-so).
+    expect(stop.textContent).toBe("Stop...");
     expect(stop.querySelector("[aria-hidden='true']")).not.toBeNull();
     expect(stop).toHaveClass("openspec-pipeline-button--stop");
     // A run this host started says so in its footer.

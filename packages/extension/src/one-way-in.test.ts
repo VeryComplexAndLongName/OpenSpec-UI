@@ -53,7 +53,7 @@ describe("the extension contributes one way to start a run", () => {
     // to sit beside a second entry named after another.
     const run = manifest.contributes.commands.find((entry) => entry.command === "openspec-ui.runWithHarness");
 
-    expect(run?.title).toBe("OpenSpec Workbench: Run");
+    expect(run?.title).toBe("OpenSpec Workbench: Run...");
   });
 
   it("puts no second menu item beside Run for what the dialog already shows", () => {
@@ -83,5 +83,36 @@ describe("the extension contributes one way to start a run", () => {
     // Renaming it would have been tidier and would have silently broken
     // every keybinding someone had chosen deliberately.
     expect(contributed.has("openspec-ui.runWithHarness")).toBe(true);
+  });
+});
+
+// a-control-that-asks-first-says-so. A menu item that asks for something
+// before it acts says so with three dots, as every menu does; one that only
+// shows, opens a view, or confirms what was chosen does not.
+describe("a command that asks before it acts says so", () => {
+  const ASKS_FIRST = [
+    "initialize", "generateAgentInstructions", "setUpAgenticHarness", "configureDependabot",
+    "generateSubtypeInstructions", "runWithHarness", "createChange", "createChangeTemplate",
+    "readChangeElsewhere", "pickChange", "copyTasksAsTemplate", "insertTemplateIntoChange",
+    "confirmEnrolment", "joinTheTeam", "generateSprintReport", "sayToRun", "stopRunAfterTask",
+    "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterChangeGraph",
+  ].map((name) => `openspec-ui.${name}`);
+
+  it("ends the title of every command that asks first with three dots", () => {
+    const titles = new Map(manifest.contributes.commands.map((entry) => [entry.command, entry.title]));
+
+    expect(ASKS_FIRST.filter((command) => !titles.get(command)?.endsWith("..."))).toEqual([]);
+  });
+
+  it("gives no other command three dots", () => {
+    const others = manifest.contributes.commands.filter((entry) => !ASKS_FIRST.includes(entry.command));
+
+    expect(others.filter((entry) => entry.title.endsWith("...")).map((entry) => entry.command)).toEqual([]);
+  });
+
+  it("writes the dots as three full stops, never the single ellipsis character", () => {
+    const ellipsis = String.fromCharCode(0x2026);
+
+    expect(manifest.contributes.commands.filter((entry) => entry.title.includes(ellipsis)).map((entry) => entry.command)).toEqual([]);
   });
 });
