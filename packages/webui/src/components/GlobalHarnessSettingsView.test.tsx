@@ -229,6 +229,27 @@ describe("GlobalHarnessSettingsView — what the configuration cannot do", () =>
     expect(screen.getByTestId("harness-findings").textContent).toContain("will be saved");
   });
 
+  // a-warning-is-said-once: a user's four lines, differing in one word.
+  it("says what holds on every stage once, naming the stages", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli", verify: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        budget: { maxCostUsd: 5 },
+        timeout: { maxStageSeconds: 600 },
+      }),
+    });
+    render(<GlobalHarnessSettingsView api={api} />);
+
+    await waitFor(() => expect(screen.getByTestId("harness-findings")).toBeTruthy());
+    const lines = screen.getByTestId("harness-findings").querySelectorAll("li");
+    expect(lines).toHaveLength(1);
+    expect(screen.getByTestId("harness-finding-propose-review-apply-verify").textContent).toBe(
+      '"claude-cli" reports no usage at all, so no spending ceiling can act on "propose", "review", "apply" and "verify" however large the spend.',
+    );
+  });
+
   it("renders nothing when every configured ceiling can act", async () => {
     const api = createApi({
       resolveGlobal: vi.fn().mockResolvedValue({

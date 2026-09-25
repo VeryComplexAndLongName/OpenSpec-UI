@@ -3,6 +3,7 @@ import {
   AGENT_REGISTRY,
   autonomyLevelsFor,
   customAgentFamilyFor,
+  groupHarnessFindings,
   HARNESS_AGENT_CAPABILITIES,
   isHarnessStepAgentStage,
   normalizeStepAgent,
@@ -672,9 +673,11 @@ export function HarnessFindingsPanel({ findings }: { findings: readonly HarnessF
       <div className="openspec-callout-body">
         <h3>What this configuration cannot do</h3>
         <ul>
-          {findings.map((finding) => (
-            <li key={`${finding.kind}:${finding.stage}`} data-testid={`harness-finding-${finding.stage}`}>
-              {finding.message}
+          {/* Said once each, naming every stage it holds on: four lines that
+              differed in one word read as four problems (a-warning-is-said-once). */}
+          {groupHarnessFindings(findings).map((group) => (
+            <li key={`${group.kind}:${group.agent}:${group.stages.join("-")}`} data-testid={`harness-finding-${group.stages.join("-")}`}>
+              {group.message}
             </li>
           ))}
         </ul>
