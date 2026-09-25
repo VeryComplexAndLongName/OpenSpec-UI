@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.85.0
+
+### Minor Changes
+
+- 13f25e8: The Pipeline's cards can be sorted. A Sort control beside the arrangement
+  stacks each column's cards by Name, by Progress (the change furthest along
+  first), or by Recently changed (the change worked on last first, counting
+  a task list's last change as well as a run's end, so work done by hand
+  counts too). The choice is kept with the zoom and the arrangement.
+  
+  Names are now compared as a person reads them: digits as numbers, case
+  aside. A numbered change stands in its place, "change-2" before
+  "change-10", where before the column put "change-10" first.
+
+### Patch Changes
+
+- Updated dependencies [13f25e8]
+  - @openspec-ui/core@0.126.0
+  - @openspec-ui/webui@1.74.0
+  - @openspec-ui/server@1.46.0
+
 ## 0.84.2
 
 ### Patch Changes
