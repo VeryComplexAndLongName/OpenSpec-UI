@@ -1308,6 +1308,13 @@ A configuration SHALL NOT be refused for this. An operator may knowingly
 set a ceiling that binds some stages and not others; that judgement is
 theirs, and refusing would trade a real use for it.
 
+The report SHALL say each thing once. Findings of one kind about one
+agent, whose words differ only in the stage they name, SHALL be said as
+one sentence naming every stage they hold on, in the order the stages run,
+wherever findings are shown: in the settings and in the run dialog. An
+agent on every stage that reports nothing gave four lines differing in one
+word, which read as four problems (reported by a user on 2026-09-24).
+
 The report SHALL state what cannot happen and SHALL NOT recommend a
 value. What cannot act follows from what an agent reports; what to set
 instead needs history the editor does not consult here.
@@ -1341,6 +1348,18 @@ instead needs history the editor does not consult here.
   agent is billed in
 - **THEN** the editor reports that ceiling as one that cannot act, naming
   the unit
+
+#### Scenario: The same finding on every stage
+
+- **WHEN** every stage runs an agent that reports no usage, and a dollar
+  ceiling is set
+- **THEN** one sentence says that no spending ceiling can act on
+  "propose", "review", "apply" and "verify"
+
+#### Scenario: Findings that differ
+
+- **WHEN** two stages' findings differ in kind or in agent
+- **THEN** each is said on its own
 
 ### Requirement: What a change cost can be read after the run
 
@@ -1702,7 +1721,20 @@ the two look identical, because the wrong choice mostly changes which
 panel is visible.
 
 The entry SHALL pre-select what the configuration resolves to and SHALL
-allow it to be changed for this run.
+allow it to be changed for this run, to any path the configuration would
+not refuse. A chain under `assisted` is refused the moment it starts, so
+the entry SHALL NOT offer one there, and SHALL say instead that a chain is
+not offered, why, and which setting offers it. A button that only fails
+is a button that does nothing (reported by a user on 2026-09-24).
+
+The entry SHALL say where a run begins and why, in one sentence, wherever
+the host can read the change's files: at propose while there is no
+proposal and task list, at apply while a task is open or the task list
+cannot be read, and at verify once every task is closed. The chain SHALL
+decide where it begins with the same function, so the entry cannot name
+one stage and the run begin at another. The entry described the whole
+sequence and never said where it would start, so a person with a change
+almost done could not tell what a press would do.
 
 An override of the path SHALL NOT be written to the change's
 configuration. A run is not a configuration change, and a later run
@@ -1805,6 +1837,23 @@ here can act" indistinguishable from "nothing was examined".
 - **WHEN** the entry is shown in either host
 - **THEN** it is rendered in a surface that shows each configuration's
   full text, rather than in one that truncates it
+
+#### Scenario: A change almost done
+
+- **WHEN** a run is started for a change with a proposal and one task of
+  sixty-six open
+- **THEN** the entry says "Continues at apply: 1 task still open."
+
+#### Scenario: A change with no proposal yet
+
+- **WHEN** a run is started for a change with no proposal
+- **THEN** the entry says it starts at propose
+
+#### Scenario: A chain under assisted
+
+- **WHEN** a run is started for a change resolving to `assisted`
+- **THEN** no chain is offered, and the entry says a chain is not offered
+  under `assisted` and that Semi-autonomous offers one
 
 ### Requirement: Applying a named configuration preserves what it does not set
 
