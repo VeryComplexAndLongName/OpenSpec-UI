@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.87.1
+
+### Patch Changes
+
+- c7a1e9a: A control that asks for something before it acts now says so with three
+  dots, as every menu does: a Pipeline card's "Start..." (it opens the run
+  dialog) and "Stop..." (it asks for a reason), the standalone's "Run with
+  Agentic Harness...", and the twenty-two editor commands that ask for a
+  name, a pick, a filter or a file, such as "Run...", "Create Change..." and
+  "Add Relation...". Controls that act or show at once keep their words, and
+  accessible names are unchanged.
+- Updated dependencies [c7a1e9a]
+  - @openspec-ui/webui@1.76.1
+  - @openspec-ui/server@1.48.1
+
 ## 0.87.0
 
 ### Minor Changes
