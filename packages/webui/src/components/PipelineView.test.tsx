@@ -200,7 +200,9 @@ describe("PipelineView — a card opens to its tasks (a-card-opens-to-its-tasks 
     expect(screen.getByTestId("pipeline-zoom-level")).toHaveTextContent("Zoom 90%");
     // The arrangement is kept with them, and stays the declared order
     // until somebody chooses the board (the-board-shows-the-stages).
-    expect(memory).toEqual({ zoom: 0.9, open: [{ directory: "/repo", changeName: "alpha" }], arrangement: "steps" });
+    // So is the order, by name until somebody picks another
+    // (the-board-sorts-its-cards).
+    expect(memory).toEqual({ zoom: 0.9, open: [{ directory: "/repo", changeName: "alpha" }], arrangement: "steps", order: "name" });
   });
 
   it("keeps working with a viewState that throws, at the default zoom and with every card closed", async () => {
@@ -1684,5 +1686,65 @@ describe("the board", () => {
 
     await waitFor(() => expect(screen.getByTestId("pipeline-node-alpha")).toBeTruthy());
     expect(screen.queryByTestId("pipeline-board-empty")).toBeNull();
+  });
+});
+
+// the-board-sorts-its-cards. A column's cards stand in the order the viewer
+// picks, top to bottom, and the pick is kept.
+describe("PipelineView - the order within a column", () => {
+  const yOf = (name: string) => Number(screen.getByTestId(`pipeline-node-${name}`).style.getPropertyValue("--y"));
+  const load = async () => report(change("change-10"), change("change-2"), change("change-1"));
+  const surveyed = async () => survey(directory({
+    changes: [
+      { changeName: "change-10", tasksDone: 4, tasksTotal: 5, blockers: [], alsoIn: [], tasksModifiedAt: "2026-09-20T10:00:00.000Z" },
+      { changeName: "change-2", tasksDone: 1, tasksTotal: 5, blockers: [], alsoIn: [], tasksModifiedAt: "2026-09-24T10:00:00.000Z" },
+      { changeName: "change-1", tasksDone: 0, tasksTotal: 0, blockers: [], alsoIn: [] },
+    ],
+  }));
+
+  it("stands numbered names in their places by default", async () => {
+    render(<PipelineView isActive load={load} survey={surveyed} />);
+    await screen.findByTestId("pipeline-node-change-10");
+
+    expect(yOf("change-1")).toBeLessThan(yOf("change-2"));
+    expect(yOf("change-2")).toBeLessThan(yOf("change-10"));
+  });
+
+  it("puts the change furthest along first by progress, and the one worked on last first by recent", async () => {
+    render(<PipelineView isActive load={load} survey={surveyed} />);
+    await waitFor(() => expect(screen.getByTestId("pipeline-node-change-10")).toBeTruthy());
+
+    fireEvent.change(screen.getByTestId("pipeline-order"), { target: { value: "progress" } });
+    await waitFor(() => expect(yOf("change-10")).toBeLessThan(yOf("change-2")));
+    expect(yOf("change-2")).toBeLessThan(yOf("change-1"));
+
+    fireEvent.change(screen.getByTestId("pipeline-order"), { target: { value: "recent" } });
+    await waitFor(() => expect(yOf("change-2")).toBeLessThan(yOf("change-10")));
+    expect(yOf("change-10")).toBeLessThan(yOf("change-1"));
+  });
+
+  it("offers the three orders by name, and keeps the one picked", async () => {
+    const memory: { value?: PipelineViewMemory } = {};
+    const viewState = { read: () => memory.value, write: (next: PipelineViewMemory) => { memory.value = next; } };
+    const { unmount } = render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+    const control = await screen.findByTestId("pipeline-order");
+
+    expect(within(control).getAllByRole("option").map((option) => option.textContent)).toEqual(["Name", "Progress", "Recently changed"]);
+    fireEvent.change(control, { target: { value: "recent" } });
+    await waitFor(() => expect(memory.value?.order).toBe("recent"));
+    unmount();
+
+    render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+
+    expect(await screen.findByTestId("pipeline-order")).toHaveValue("recent");
+  });
+
+  it("reads an order it does not know as by name", async () => {
+    // What an older or a hand-edited store may hold, which the type rules out.
+    const stored = { zoom: 1, open: [], order: "by-colour" } as unknown as PipelineViewMemory;
+    const viewState = { read: () => stored, write: () => undefined };
+    render(<PipelineView isActive load={load} survey={surveyed} viewState={viewState} />);
+
+    expect(await screen.findByTestId("pipeline-order")).toHaveValue("name");
   });
 });

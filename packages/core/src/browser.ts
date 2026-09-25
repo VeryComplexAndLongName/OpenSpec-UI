@@ -248,6 +248,7 @@ export * from "./pipeline-card.js";
 // a-hint-says-what-can-run-together.
 export * from "./hints.js";
 export * from "./change-layout.js";
+export * from "./change-order.js";
 // What a reader can find, and which branch of the declared order has
 // landed: one rule for every list and tree in both hosts
 // (the-views-are-searched-and-landed-relations-fold).

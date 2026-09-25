@@ -39,8 +39,14 @@ import {
   describeTaskRows,
   fitPipelineCardDetails,
   describeChangeState,
+  CHANGE_ORDERS,
+  describeChangeOrder,
   layoutChanges,
   layoutChangesByStage,
+  orderFactsOf,
+  rankChanges,
+  type ChangeOrder,
+  type ChangeOrderFacts,
   stagesByName,
   matchesFilter,
   pipelineCardHeight,
@@ -219,6 +225,8 @@ export interface PipelineViewMemory {
   /** Which arrangement the picture was left in: by declared order, or the
    * board by stage (the-board-shows-the-stages). */
   arrangement?: PipelineArrangement;
+  /** The order each column's cards stand in (the-board-sorts-its-cards). */
+  order?: ChangeOrder;
 }
 
 /** How the picture is arranged: `steps` by what each change waits for,
@@ -236,10 +244,10 @@ function openKey(directory: string, changeName: string): string {
   return JSON.stringify([directory, changeName]);
 }
 
-function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: number; open: string[]; arrangement: PipelineArrangement } {
+function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: number; open: string[]; arrangement: PipelineArrangement; order: ChangeOrder } {
   try {
     const memory = viewState?.read() as Partial<PipelineViewMemory> | undefined;
-    if (typeof memory !== "object" || memory === null) return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps" };
+    if (typeof memory !== "object" || memory === null) return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps", order: "name" };
     const zoom = typeof memory.zoom === "number" && PIPELINE_ZOOM_STEPS.includes(memory.zoom) ? memory.zoom : DEFAULT_ZOOM;
     const entries: unknown[] = Array.isArray(memory.open) ? memory.open : [];
     const open = entries.flatMap((entry) => {
@@ -248,18 +256,20 @@ function readViewMemory(viewState: PipelineViewProps["viewState"]): { zoom: numb
       return typeof directory === "string" && typeof changeName === "string" ? [openKey(directory, changeName)] : [];
     });
     const arrangement: PipelineArrangement = memory.arrangement === "stages" ? "stages" : "steps";
-    return { zoom, open, arrangement };
+    const order: ChangeOrder = CHANGE_ORDERS.find((one) => one === memory.order) ?? "name";
+    return { zoom, open, arrangement, order };
   } catch {
-    return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps" };
+    return { zoom: DEFAULT_ZOOM, open: [], arrangement: "steps", order: "name" };
   }
 }
 
-function writeViewMemory(viewState: PipelineViewProps["viewState"], zoom: number, open: ReadonlySet<string>, arrangement: PipelineArrangement): void {
+function writeViewMemory(viewState: PipelineViewProps["viewState"], zoom: number, open: ReadonlySet<string>, arrangement: PipelineArrangement, order: ChangeOrder): void {
   if (viewState === undefined) return;
   try {
     viewState.write({
       zoom,
       arrangement,
+      order,
       open: [...open].map((key) => {
         const [directory, changeName] = JSON.parse(key) as [string, string];
         return { directory, changeName };
@@ -419,8 +429,9 @@ export function PipelineView({
   const [remembered] = useState(() => readViewMemory(viewState));
   const [zoom, setZoom] = useState(remembered.zoom);
   const [arrangement, setArrangement] = useState<PipelineArrangement>(remembered.arrangement);
+  const [order, setOrder] = useState<ChangeOrder>(remembered.order);
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(remembered.open));
-  useEffect(() => writeViewMemory(viewState, zoom, open, arrangement), [viewState, zoom, open, arrangement]);
+  useEffect(() => writeViewMemory(viewState, zoom, open, arrangement, order), [viewState, zoom, open, arrangement, order]);
   const openCards = useMemo<OpenCards>(() => ({
     isOpen: (directory, changeName) => open.has(openKey(directory, changeName)),
     toggle: (directory, changeName) => setOpen((current) => {
@@ -675,6 +686,15 @@ export function PipelineView({
               </button>
             </div>
           ) : null}
+          {/* The order within each column (the-board-sorts-its-cards). Names
+              are read as a person reads numbers, so a numbered change stands
+              in its place. */}
+          <label className="openspec-pipeline-order">
+            <span>Sort</span>
+            <select value={order} data-testid="pipeline-order" onChange={(event) => setOrder(event.target.value as ChangeOrder)}>
+              {CHANGE_ORDERS.map((one) => <option key={one} value={one}>{describeChangeOrder(one)}</option>)}
+            </select>
+          </label>
           {refresh ? (
             <button className="openspec-pipeline-button" type="button" data-testid="pipeline-refresh" disabled={refreshing} onClick={() => void refreshNow()}>
               <RefreshIcon />{refreshing ? "Refreshing…" : "Refresh"}
@@ -790,7 +810,7 @@ export function PipelineView({
                       nothing about the way through, and a person pressing
                       "By stage" on an empty queue would see no board at
                       all (the-board-is-of-every-change). */}
-                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} />
+                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} order={order} surveyedHere={here !== undefined && here.readable ? here.changes : []} />
                   {/* The archive holds more than a board should draw: the
                       rest is counted, never listed. */}
                   {onBoard && describeOlderArchive(filed.value) !== undefined ? (
@@ -812,7 +832,7 @@ export function PipelineView({
           suggestion computed here — `buildHints` derived them in core
           before the payload was sent. */}
       {report !== undefined ? <HintList hints={report.hints} {...(copyText !== undefined ? { copyText } : {})} /> : null}
-      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} /> : null}
+      {others.value ? <OtherDirectories survey={others.value} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnDefault} drawsChanges={!onBoard} order={order} /> : null}
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
@@ -909,8 +929,13 @@ function hasProgress(card: ChangeCard): boolean {
   return card.progress !== undefined && card.progress.total > 0;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, filed, labels, archivedOnMain }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, filed, labels, archivedOnMain, order, surveyedHere }: {
   report: ChangeReadinessReport;
+  /** The order each column's cards stand in (the-board-sorts-its-cards). */
+  order: ChangeOrder;
+  /** This checkout's own changes as the survey read them: when each task
+   * list last changed, for the order by what was worked on last. */
+  surveyedHere: readonly SurveyedChange[];
   cards: Map<string, ChangeCard>;
   now: Date;
   onOpenChange?: (name: string) => void;
@@ -975,9 +1000,21 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   // fact anybody reads for it: it is in the archive.
   const stageOf = stagesByName([...stages.values()]);
   for (const one of filed) stageOf.set(one.changeName, "archived");
+  // Every card's place in its column, from what each card knows; the
+  // facts are core's, as the comparison is (the-board-sorts-its-cards).
+  const surveyedByName = new Map(surveyedHere.map((change) => [change.changeName, change]));
+  const orderFacts = new Map<string, ChangeOrderFacts>();
+  for (const change of report.changes) {
+    const card = cards.get(change.changeName);
+    const surveyed = surveyedByName.get(change.changeName);
+    orderFacts.set(change.changeName, orderFactsOf({ ...(card !== undefined ? { card } : {}), ...(surveyed !== undefined ? { surveyed } : {}) }));
+  }
+  for (const [name, { change }] of elsewhere) orderFacts.set(name, orderFactsOf({ surveyed: change }));
+  for (const one of filed) orderFacts.set(one.changeName, orderFactsOf({ archivedOn: one.archivedOn }));
+  const rank = rankChanges([...orderFacts.keys()], order, orderFacts);
   const layout = onBoard
-    ? layoutChangesByStage(report, { heights, stages: stageOf })
-    : layoutChanges(report, { heights });
+    ? layoutChangesByStage(report, { heights, stages: stageOf, rank })
+    : layoutChanges(report, { heights, rank });
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}
@@ -1557,8 +1594,9 @@ function describeChange(change: ChangeReadiness): CardDetail[] {
 
 /** Every working directory other than this one, each in its own
  * recessed section with its own picture. */
-function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain, drawsChanges }: {
+function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order }: {
   survey: WorktreeSurvey;
+  order: ChangeOrder;
   labels: Map<string, string>;
   now: Date;
   onCards: ReadonlySet<string>;
@@ -1582,7 +1620,7 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
           Nothing below can be opened, run or changed from this checkout.
         </p>
         {others.map((directory, index) => (
-          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} drawsChanges={drawsChanges} />
+          <OtherDirectory key={directory.path} directory={directory} index={index} labels={labels} now={now} onCards={onCards} openCards={openCards} archivedOnMain={archivedOnMain} drawsChanges={drawsChanges} order={order} />
         ))}
         {survey.runsElsewhere.length > 0 ? (
           <div data-testid="pipeline-runs-elsewhere">
@@ -1599,8 +1637,9 @@ function OtherDirectories({ survey, labels, now, onCards, openCards, archivedOnM
   );
 }
 
-function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges }: {
+function OtherDirectory({ directory, index, labels, now, onCards, openCards, archivedOnMain, drawsChanges, order }: {
   directory: SurveyedDirectory;
+  order: ChangeOrder;
   index: number;
   labels: Map<string, string>;
   now: Date;
@@ -1640,7 +1679,7 @@ function OtherDirectory({ directory, index, labels, now, onCards, openCards, arc
       <ul className="openspec-shell-note openspec-pipeline-directory-runs" data-testid={`${testId}-runs`}>
         {describeDirectoryRuns(directory, now, onCards).map((line, lineIndex) => <li key={lineIndex}>{line}</li>)}
       </ul>
-      {directory.readable && drawsChanges ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} /> : null}
+      {directory.readable && drawsChanges ? <ForeignChanges directory={directory} testId={testId} labels={labels} openCards={openCards} archivedOnMain={archivedOnMain} order={order} /> : null}
     </section>
   );
 }
@@ -1683,8 +1722,9 @@ function foreignDetails(
   ];
 }
 
-function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain }: {
+function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain, order }: {
   directory: Extract<SurveyedDirectory, { readable: true }>;
+  order: ChangeOrder;
   testId: string;
   labels: Map<string, string>;
   openCards: OpenCards;
@@ -1712,7 +1752,8 @@ function ForeignChanges({ directory, testId, labels, openCards, archivedOnMain }
       ...(openRows !== undefined ? { open: openRows } : {}),
     }));
   }
-  const layout = layoutChanges({ changes: changes.map(asLayoutInput) }, { heights });
+  const rank = rankChanges(changes.map((change) => change.changeName), order, new Map(changes.map((change) => [change.changeName, orderFactsOf({ surveyed: change })])));
+  const layout = layoutChanges({ changes: changes.map(asLayoutInput) }, { heights, rank });
   return (
     <>
       {layout.cycles.length > 0 ? <Cycles cycles={layout.cycles} /> : null}

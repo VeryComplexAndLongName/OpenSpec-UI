@@ -11,6 +11,7 @@
 // arranges was derived once, by `readChangeReadiness`.
 
 import { CHANGE_STAGES, describeStage, stageLook, type ChangeStage, type StageLook } from "./change-history-facts.js";
+import { compareChangeNames } from "./change-order.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
 import { PIPELINE_CARD_HEAD } from "./pipeline-card.js";
 
@@ -106,6 +107,11 @@ export interface ChangeLayoutOptions {
    * what the card holds (the-pipeline-cards-wear-metro). A change not named
    * here is `NODE_HEIGHT` tall. */
   heights?: ReadonlyMap<string, number>;
+  /** Each change's place within its column, from `rankChanges`, lowest
+   * first (the-board-sorts-its-cards). A change not named here goes after
+   * every change that is, and changes are otherwise in name order, read
+   * as a person reads numbers. */
+  rank?: ReadonlyMap<string, number>;
 }
 
 /** Where each card goes, given the column each change belongs in. Shared
@@ -114,9 +120,14 @@ function placeInColumns(
   byName: ReadonlyMap<string, ChangeReadiness>,
   columns: readonly string[][],
   heights: ReadonlyMap<string, number> | undefined,
+  rank: ReadonlyMap<string, number> | undefined,
 ): { nodes: ChangeLayoutNode[]; placed: Map<string, ChangeLayoutNode>; gridWidth: number; gridHeight: number } {
   const nodes: ChangeLayoutNode[] = [];
   const placed = new Map<string, ChangeLayoutNode>();
+  const placeOf = (name: string): number => rank?.get(name) ?? Number.POSITIVE_INFINITY;
+  for (const names of columns) {
+    names.sort((left, right) => placeOf(left) - placeOf(right) || compareChangeNames(left, right));
+  }
   columns.forEach((names, column) => {
     // Each card starts below the one above it, however tall that one is,
     // so opening a card moves only the cards beneath it in its column. The
@@ -160,11 +171,11 @@ export interface StageLayoutOptions extends ChangeLayoutOptions {
 export function layoutChangesByStage(report: ChangeReadinessReport, options: StageLayoutOptions): ChangeLayout {
   const byName = new Map(report.changes.map((change) => [change.changeName, change]));
   const columns: string[][] = CHANGE_STAGES.map(() => []);
-  for (const change of [...report.changes].sort((left, right) => (left.changeName < right.changeName ? -1 : left.changeName > right.changeName ? 1 : 0))) {
+  for (const change of report.changes) {
     const stage = options.stages.get(change.changeName) ?? "proposed";
     (columns[CHANGE_STAGES.indexOf(stage)] as string[]).push(change.changeName);
   }
-  const { nodes, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights);
+  const { nodes, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights, options.rank);
   return {
     columns,
     nodes,
@@ -212,7 +223,7 @@ export function layoutChanges(report: ChangeReadinessReport, options: ChangeLayo
     (columns[depth] as string[]).push(name);
   }
 
-  const { nodes, placed, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights);
+  const { nodes, placed, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights, options.rank);
 
   const edges: ChangeLayoutEdge[] = [];
   let detours = 0;
