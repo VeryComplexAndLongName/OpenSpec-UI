@@ -255,3 +255,44 @@ the owner ruled out a server.
 **Unsigned history.** Anyone could write an event in anyone's name. The
 signatures already exist for messages and status records, so signing costs
 almost nothing.
+
+## Amendment, 2026-09-25: a change before its proposal
+
+Decision 5's list began at Proposed, "the change has a proposal". A change
+directory made before its proposal - by `openspec new change`, or by hand,
+holding `.openspec.yaml` or nothing yet - is a change too, and had no
+stage. Worse, the reading of what can run passed it over entirely: a
+directory with no change document was taken for a leftover of an archive,
+though the leftover rule itself (`workspace-leftovers.ts`) already said a
+directory is a leftover only where a change of its name was archived. The
+board drew no card for it, so the one action it wants, propose, could not
+be started from the Pipeline. Reported by a user on 2026-09-24, with three
+such directories and none of them on the board.
+
+The list gains a first stage:
+
+| Stage | Reached when |
+| --- | --- |
+| Drafted | the change's directory exists and holds no proposal |
+
+Decision 6 gains its row:
+
+| Stage | Entered at | Source |
+| --- | --- | --- |
+| Drafted | the first commit that adds anything under the change's directory, where it came before the proposal's | git commit |
+
+A change committed together with its proposal was never a draft and has no
+Drafted visit: a visit of no length would be a stage it never stood in. A
+directory not yet committed is Drafted with no entry date, as decision 6
+requires of any fact that cannot be read.
+
+A change without a proposal is Drafted whatever else its directory holds.
+A directory with no change document is a leftover, not a Drafted change,
+only where a change of the same name is already archived. The Changes tree
+keeps listing such a start apart, as a change nobody has written yet; the
+Pipeline reads it as a change. Starting a Drafted change begins at propose,
+which is where a chain already begins for a change with no proposal.
+
+A Drafted change cannot be sent back to: decision 4's `sent-back` event
+names a stage a change has left, and nothing leaves a proposal to go back
+to having none.

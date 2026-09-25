@@ -19,10 +19,11 @@ import { readChangeHistory, type ChangeHistory } from "./change-history.js";
 import type { ChangeRoles, ChangeStage } from "./change-history-facts.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
 import { playStages, stageFromFiles, totalsOf, type ChangeStageSummary, type StageFact, type StageTotal, type StageVisit } from "./change-stage-facts.js";
-import { blameLineDates, getFileCreatedDate } from "./change-timeline.js";
+import { blameLineDates, getDirectoryCreatedDate, getFileCreatedDate } from "./change-timeline.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { parseTaskChecklist } from "./task-checklist.js";
+import { archivedChangeNames, isChangeDirectory } from "./workspace-leftovers.js";
 import { surveyWorktrees } from "./worktree-survey.js";
 
 const CHANGES = "openspec/changes";
@@ -57,6 +58,13 @@ export async function readStageFacts(root: string, changeName: string, options: 
   const directory = `${CHANGES}/${changeName}`;
 
   const proposed = await getFileCreatedDate(root, `${directory}/proposal.md`);
+  // The directory's first commit dates Drafted only where it came before
+  // the proposal's: a change committed with its proposal was never a draft,
+  // and a visit of no length would be a stage it never stood in.
+  const drafted = await getDirectoryCreatedDate(root, directory);
+  if (drafted !== null && (proposed === null || Date.parse(drafted) < Date.parse(proposed))) {
+    facts.push({ stage: "drafted", at: drafted, source: "git-commit", what: "its directory committed" });
+  }
   if (proposed !== null) facts.push({ stage: "proposed", at: proposed, source: "git-commit", what: "proposal.md committed" });
   const planned = await getFileCreatedDate(root, `${directory}/tasks.md`);
   if (planned !== null) facts.push({ stage: "planned", at: planned, source: "git-commit", what: "tasks.md committed" });
@@ -113,8 +121,13 @@ export async function readChangeStage(root: string, changeName: string, options:
   const history = options.history ?? await readChangeHistory(root, changeName);
   const facts = await readStageFacts(root, changeName, { ...options, history });
   const visits = playStages(facts);
+  const hasProposal = await readFile(path.join(root, CHANGES, changeName, "proposal.md"), "utf8").then(() => true, () => false);
   let stage: ChangeStage;
-  if (visits.length > 0) {
+  if (!hasProposal) {
+    // Without a proposal a change is a draft, whatever else its directory
+    // holds (ADR 0037, amended 2026-09-25).
+    stage = "drafted";
+  } else if (visits.length > 0) {
     stage = (visits.at(-1) as StageVisit).stage;
   } else {
     const tasks = parseTaskChecklist(await readFile(path.join(root, CHANGES, changeName, "tasks.md"), "utf8").catch(() => ""));
@@ -148,11 +161,15 @@ export function summariseStage(reading: ChangeStageReading): ChangeStageSummary 
 /** Every active change of a working tree, where it is and how long it spent
  * in each stage. The standings and the audit log are read once for all. */
 export async function readChangeStages(root: string, options: { standings?: readonly ChangeStanding[]; now?: () => Date } = {}): Promise<ChangeStageReading[]> {
+  // Every change, a draft included; a directory left behind by an archive
+  // is not one (ADR 0037, amended 2026-09-25).
   const names: string[] = [];
-  for (const name of await readdir(path.join(root, CHANGES)).catch(() => [] as string[])) {
-    if (name === "archive") continue;
-    const proposal = await readFile(path.join(root, CHANGES, name, "proposal.md"), "utf8").catch(() => undefined);
-    if (proposal !== undefined) names.push(name);
+  const changesRoot = path.join(root, CHANGES);
+  const archived = await archivedChangeNames(changesRoot);
+  for (const entry of await readdir(changesRoot, { withFileTypes: true }).catch(() => [])) {
+    if (!entry.isDirectory() || entry.name === "archive") continue;
+    const entries = await readdir(path.join(changesRoot, entry.name)).catch(() => [] as string[]);
+    if (isChangeDirectory(entry.name, entries, archived)) names.push(entry.name);
   }
   const git = createGitWrapper({ cwd: root });
   const audit = await readRepositoryAuditEntries({ git, workspaceRoot: root }).catch(() => []);

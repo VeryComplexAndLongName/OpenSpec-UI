@@ -87,6 +87,20 @@ async function directoriesUnder(directory: string): Promise<string[]> {
   }
 }
 
+/** The names of the changes a changes directory has archived, without the
+ * date `openspec archive` puts in front. */
+export async function archivedChangeNames(changesRoot: string): Promise<Set<string>> {
+  return new Set((await directoriesUnder(path.join(changesRoot, "archive"))).map((name) => name.replace(ARCHIVE_PREFIX, "")));
+}
+
+/** Whether a directory under `openspec/changes/` is a change: it carries a
+ * document, or it carries none and nothing of its name was ever archived -
+ * somebody's start, which is Drafted (ADR 0037, amended 2026-09-25). A
+ * directory with no document whose name was archived is a leftover. */
+export function isChangeDirectory(name: string, entries: readonly string[], archived: ReadonlySet<string>): boolean {
+  return holdsChangeDocuments(entries) || !archived.has(name);
+}
+
 /** Every directory under `openspec/changes/` that carries no document.
  *
  * The archive is read too, but only for its names: the check that tells a

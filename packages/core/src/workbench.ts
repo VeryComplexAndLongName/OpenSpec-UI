@@ -1,7 +1,7 @@
 import { access, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { mapBounded } from "./bounded-map.js";
-import { holdsChangeDocuments } from "./workspace-leftovers.js";
+import { archivedChangeNames, holdsChangeDocuments, isChangeDirectory } from "./workspace-leftovers.js";
 import { readChangeState, type ChangeState } from "./change-state.js";
 import {
   assertValidChangeName,
@@ -272,6 +272,7 @@ async function discoverChanges(
   cache: SchemaCache,
   environment: SchemaEnvironment,
   only?: ReadonlySet<string>,
+  drafts = false,
 ): Promise<WorkbenchChange[]> {
   const root = archived ? path.join(changesRoot, "archive") : changesRoot;
   const named = (await directoryNames(root))
@@ -282,9 +283,12 @@ async function discoverChanges(
   // the CLI does not move, and it was listed beside real work with no
   // tasks and no state (the-workspace-clears-what-it-left-behind). The
   // rule is `workspace-leftovers.ts`'s, read rather than restated.
-  const names = (await mapBounded(named, CHANGES_READ_AT_ONCE, async (name) => (
-    holdsChangeDocuments(await directoryNames(path.join(root, name), { files: true })) ? name : undefined
-  ))).filter((name): name is string => name !== undefined);
+  const archivedNames = drafts && !archived ? await archivedChangeNames(changesRoot) : undefined;
+  const names = (await mapBounded(named, CHANGES_READ_AT_ONCE, async (name) => {
+    const entries = await directoryNames(path.join(root, name), { files: true });
+    const isChange = archivedNames === undefined ? holdsChangeDocuments(entries) : isChangeDirectory(name, entries, archivedNames);
+    return isChange ? name : undefined;
+  })).filter((name): name is string => name !== undefined);
   // A few changes at a time, not all of them: every change opens several
   // files, and 256 archived changes started together took every file handle
   // the editor's extension host had (the-pipeline-reads-each-workspace-once).
@@ -320,6 +324,11 @@ export interface DiscoverOpenSpecWorkspaceOptions {
    * rest of each list is left out. The directories are listed first, so a
    * name that is not there costs nothing. */
   names?: readonly string[];
+  /** Also reads the active changes nobody has written a document for yet,
+   * whose name was never archived: Drafted, on the Pipeline's board (ADR
+   * 0037, amended 2026-09-25). Off by default, since the Changes tree lists
+   * them apart, as changes nobody has written yet. */
+  drafts?: boolean;
 }
 
 /** The changes of a workspace with these names, by name: the active change
@@ -364,7 +373,7 @@ export async function discoverOpenSpecWorkspace(
   const which = options.changes ?? "all";
   const only = options.names === undefined ? undefined : new Set(options.names);
   const [changes, archivedChanges] = await Promise.all([
-    which === "archived" ? [] : discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment, only),
+    which === "archived" ? [] : discoverChanges(changesRoot, false, resolvedRoot, schemaCache, environment, only, options.drafts === true),
     which === "active" ? [] : discoverChanges(changesRoot, true, resolvedRoot, schemaCache, environment, only),
   ]);
 

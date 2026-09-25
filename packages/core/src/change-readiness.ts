@@ -144,7 +144,9 @@ export async function readChangeReadiness(options: ChangeReadinessOptions): Prom
 
   // Active changes only: the report is about what can run, and the archive
   // is most of a whole reading's cost.
-  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active" });
+  // Drafts too: a change made before its proposal is on the board, and
+  // starting it begins at propose (ADR 0037, amended 2026-09-25).
+  const workspace = await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active", drafts: true });
   const byName = new Map(workspace.changes.map((change) => [change.name, change]));
   const active = [...byName.keys()].sort();
   const activeSet = new Set(active);

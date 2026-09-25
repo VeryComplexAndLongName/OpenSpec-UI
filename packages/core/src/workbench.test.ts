@@ -62,6 +62,25 @@ describe("discoverOpenSpecWorkspace", () => {
     expect(workspace.changes.map((change) => change.name)).toEqual(["tasks-only"]);
   });
 
+  // a-change-before-its-proposal: a directory with no document whose name
+  // was never archived is somebody's start, and the Pipeline asks for it.
+  it("reads a change nobody has written yet when asked for drafts, and never a leftover of an archived one", async () => {
+    const root = await temporaryRoot();
+    const draft = path.join(root, "openspec", "changes", "new-idea");
+    await mkdir(draft, { recursive: true });
+    await writeFile(path.join(draft, ".openspec.yaml"), "schema: spec-driven\n", "utf8");
+    const leftover = path.join(root, "openspec", "changes", "shipped");
+    await mkdir(leftover, { recursive: true });
+    await writeFile(path.join(leftover, "harness.json"), "{}", "utf8");
+    await changeDirectory(root, "archive", "2026-09-20-shipped");
+
+    const without = await discoverOpenSpecWorkspace(root, { changes: "active" });
+    const withDrafts = await discoverOpenSpecWorkspace(root, { changes: "active", drafts: true });
+
+    expect(without.changes.map((change) => change.name)).toEqual([]);
+    expect(withDrafts.changes.map((change) => change.name)).toEqual(["new-idea"]);
+  });
+
   // the-pipeline-reads-each-workspace-once 1.1: a caller that needs one list
   // reads only that list, and the other is empty.
   it("reads only the active changes, or only the archived ones, when asked", async () => {

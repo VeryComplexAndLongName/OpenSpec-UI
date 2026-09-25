@@ -330,7 +330,7 @@ describe("layoutChangesByStage", () => {
     expect(layout.columns.length).toBe(CHANGE_STAGES.length);
     expect(layout.columns[CHANGE_STAGES.indexOf("planned")]).toEqual(["beta"]);
     expect(layout.columns[CHANGE_STAGES.indexOf("in-review")]).toEqual(["alpha", "gamma"]);
-    expect(layout.lanes).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    expect(layout.lanes).toEqual(["Drafted", "Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     // An empty column stays: a board whose columns came and went would be
     // read wrong at a glance.
     expect(layout.columns[CHANGE_STAGES.indexOf("archived")]).toEqual([]);
@@ -343,7 +343,7 @@ describe("layoutChangesByStage", () => {
     const layout = layoutChangesByStage(report(), { stages: stagesOf({}) });
 
     expect(layout.columns).toEqual(CHANGE_STAGES.map(() => []));
-    expect(layout.lanes).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    expect(layout.lanes).toEqual(["Drafted", "Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     expect(layout.nodes).toEqual([]);
     expect(layout.width).toBe(CHANGE_STAGES.length * NODE_WIDTH + (CHANGE_STAGES.length - 1) * COLUMN_GAP);
     expect(layout.height).toBe(LANE_HEADING + NODE_HEIGHT);
@@ -370,7 +370,7 @@ describe("layoutChangesByStage", () => {
     );
 
     const [alpha, beta] = layout.nodes;
-    expect(alpha).toMatchObject({ column: CHANGE_STAGES.indexOf("proposed"), x: 0, y: LANE_HEADING, height: 9 });
+    expect(alpha).toMatchObject({ column: CHANGE_STAGES.indexOf("proposed"), x: CHANGE_STAGES.indexOf("proposed") * (NODE_WIDTH + COLUMN_GAP), y: LANE_HEADING, height: 9 });
     expect(beta).toMatchObject({ column: CHANGE_STAGES.indexOf("proposed"), y: LANE_HEADING + 9 + ROW_GAP, height: NODE_HEIGHT });
     expect(layout.width).toBe(CHANGE_STAGES.length * NODE_WIDTH + (CHANGE_STAGES.length - 1) * COLUMN_GAP);
   });

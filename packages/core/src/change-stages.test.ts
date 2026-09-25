@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangeHistory } from "./change-history.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
-import { readChangeStage } from "./change-stages.js";
+import { readChangeStage, readChangeStages } from "./change-stages.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
 // a-change-knows-its-stage: real git, with commits at the times a test
@@ -139,5 +139,46 @@ describe("reading a change's stages", () => {
 
     expect(reading.stage).toBe("planned");
     expect(reading.visits).toEqual([]);
+  });
+
+  // a-change-before-its-proposal (ADR 0037, amended 2026-09-25).
+  it("reads a change made before its proposal as Drafted, dated by its directory's first commit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-stages-"));
+    roots.push(root);
+    await git(root, ["init", "-q", "-b", "main"]);
+    await commitFile(root, "openspec/changes/new-idea/.openspec.yaml", "schema: spec-driven\n", at(1));
+
+    const draft = await readChangeStage(root, "new-idea", { history: { ...noHistory, changeName: "new-idea" }, now: () => new Date(at(3)) });
+
+    expect(draft.stage).toBe("drafted");
+    expect(draft.since).toBe(at(1));
+    expect(draft.totals).toEqual([{ stage: "drafted", visits: 1, ms: 2 * 3600_000 }]);
+
+    await commitFile(root, "openspec/changes/new-idea/proposal.md", "## Why\n", at(2));
+    const proposed = await readChangeStage(root, "new-idea", { history: { ...noHistory, changeName: "new-idea" } });
+
+    expect(proposed.stage).toBe("proposed");
+    expect(proposed.visits.map((visit) => visit.stage)).toEqual(["drafted", "proposed"]);
+  });
+
+  it("gives a change committed with its proposal no Drafted visit", async () => {
+    const root = await repository();
+
+    const reading = await readChangeStage(root, "demo", { history: noHistory });
+
+    expect(reading.visits[0]?.stage).toBe("proposed");
+  });
+
+  it("lists a draft among a working tree's changes, and not a leftover of an archived change", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-stages-"));
+    roots.push(root);
+    await git(root, ["init", "-q", "-b", "main"]);
+    await commitFile(root, "openspec/changes/new-idea/.openspec.yaml", "schema: spec-driven\n", at(1));
+    await commitFile(root, "openspec/changes/shipped/harness.json", "{}\n", at(1));
+    await commitFile(root, "openspec/changes/archive/2026-09-20-shipped/proposal.md", "## Why\n", at(1));
+
+    const readings = await readChangeStages(root);
+
+    expect(readings.map((one) => [one.changeName, one.stage])).toEqual([["new-idea", "drafted"]]);
   });
 });

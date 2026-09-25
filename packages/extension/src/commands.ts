@@ -1602,7 +1602,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         // A Pipeline card's Start names its change rather than a tree row
         // (a-change-is-run-from-its-card). Only an active change of this
         // workspace runs; anything else is refused, and said.
-        const change = (await discoverOpenSpecWorkspace(workspaceRoot)).changes.find((candidate) => candidate.name === invokedItem);
+        // A Drafted card is a change too, and its Start begins at propose
+        // (a-change-before-its-proposal).
+        const change = (await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active", drafts: true })).changes.find((candidate) => candidate.name === invokedItem);
         if (!change) {
           void vscode.window.showWarningMessage(
             `OpenSpec Workbench: ${invokedItem} is not an active change of this workspace, so it cannot be run.`,

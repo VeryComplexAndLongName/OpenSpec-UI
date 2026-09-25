@@ -71,6 +71,22 @@ describe("the words", () => {
     expect(stageFromFiles({ total: 0, done: 0 })).toBe("proposed");
     expect(stageFromFiles({ total: 3, done: 0 })).toBe("planned");
     expect(stageFromFiles({ total: 3, done: 1 })).toBe("in-progress");
+    // a-change-before-its-proposal: without a proposal it is a draft,
+    // whatever else is there.
+    expect(stageFromFiles({ total: 0, done: 0 }, false)).toBe("drafted");
+    expect(stageFromFiles({ total: 3, done: 1 }, false)).toBe("drafted");
+  });
+
+  it("moves a draft on to Proposed when its proposal is committed", () => {
+    const visits = playStages([
+      { stage: "drafted", at: "2026-09-20T10:00:00.000Z", source: "git-commit", what: "its directory committed" },
+      { stage: "proposed", at: "2026-09-21T10:00:00.000Z", source: "git-commit", what: "proposal.md committed" },
+    ]);
+
+    expect(visits.map((visit) => [visit.stage, visit.from, visit.to])).toEqual([
+      ["drafted", "2026-09-20T10:00:00.000Z", "2026-09-21T10:00:00.000Z"],
+      ["proposed", "2026-09-21T10:00:00.000Z", undefined],
+    ]);
   });
 });
 

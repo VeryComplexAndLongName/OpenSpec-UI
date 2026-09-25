@@ -6,8 +6,9 @@
 
 /** The stages of a change, in order (ADR 0037 decision 5). Derived from
  * facts, never declared; listed here because a change is sent back to one
- * of them. */
-export const CHANGE_STAGES = ["proposed", "planned", "in-progress", "in-review", "landed", "archived"] as const;
+ * of them. Drafted comes first: a change's directory made before its
+ * proposal is a change too (ADR 0037, amended 2026-09-25). */
+export const CHANGE_STAGES = ["drafted", "proposed", "planned", "in-progress", "in-review", "landed", "archived"] as const;
 export type ChangeStage = (typeof CHANGE_STAGES)[number];
 
 /** The stages a change can be sent back to: not the archive, which is
@@ -191,6 +192,7 @@ export function playHistory(changeName: string, entries: readonly HistoryEntry[]
 }
 
 const STAGE_WORDS: Record<ChangeStage, string> = {
+  drafted: "Drafted",
   proposed: "Proposed",
   planned: "Planned",
   "in-progress": "In progress",
@@ -222,14 +224,16 @@ export interface StageLook {
    * for icons. A meaning, never a glyph: which glyph draws a meaning is
    * the drawing surface's own business, and naming one here would put a
    * font's names in a module that has no font. */
-  icon: "spec" | "task" | "run" | "review" | "ok" | "archive";
+  icon: "change" | "spec" | "task" | "run" | "review" | "ok" | "archive";
   /** The palette token, without its leading dashes. */
   token: `stage-${ChangeStage}`;
 }
 
 const STAGE_LOOKS: Record<ChangeStage, StageLook> = {
   // A proposal is a document; a plan is a list of tasks; work is a run;
-  // review is being looked at; landed is done; archived is put away.
+  // review is being looked at; landed is done; archived is put away. A
+  // draft is a change and nothing yet.
+  drafted: { icon: "change", token: "stage-drafted" },
   proposed: { icon: "spec", token: "stage-proposed" },
   planned: { icon: "task", token: "stage-planned" },
   "in-progress": { icon: "run", token: "stage-in-progress" },
