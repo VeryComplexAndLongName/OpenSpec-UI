@@ -3,15 +3,17 @@
     "propose": {
       "agent": "claude-cli-acp",
       "model": "claude-opus-5",
-      "effort": "high"
+      "effort": "xhigh"
     },
     "review": {
-      "agent": "copilot-cli-acp",
-      "model": "gpt-5.3-codex",
+      "agent": "claude-cli-acp",
+      "model": "claude-opus-5",
       "effort": "high"
     },
     "apply": {
-      "agent": "deepseek-cli-acp"
+      "agent": "claude-cli-acp",
+      "model": "claude-sonnet-5",
+      "effort": "high"
     },
     "verify": {
       "agent": "claude-cli-acp",
