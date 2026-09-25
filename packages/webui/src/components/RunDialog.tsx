@@ -173,6 +173,15 @@ export function RunDialog(
         </div>
       ) : null}
       <p className="openspec-shell-note" data-testid="run-dialog-because">{plan.because}.</p>
+      {/* Where a press begins, before what runs each stage: a change almost
+          done read as a change about to be proposed again
+          (the-run-dialog-says-where-it-starts). */}
+      {plan.startsAt ? (
+        <p className="openspec-shell-note" data-testid="run-dialog-starts-at"><strong>{plan.startsAt.says}</strong></p>
+      ) : null}
+      {plan.withheld ? (
+        <p className="openspec-shell-note" data-testid="run-dialog-withheld">{plan.withheld.says}</p>
+      ) : null}
 
       {/* Headed, because the two lists below are both bullets and read as
           one list without them. */}

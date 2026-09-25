@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { agentForEveryStageToWrite, buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { agentForEveryStageToWrite, buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, runStartFactsFrom, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -77,10 +77,15 @@ async function readOpenTaskCount(
   request: ChangeEditorRequest,
   cwd: string,
   changeName: string,
-): Promise<{ recommendationInput?: { openTaskCount: number } }> {
+): Promise<{ recommendationInput?: { openTaskCount: number }; runStart?: ReturnType<typeof runStartFactsFrom> }> {
   try {
     const timeline = await loadChangeTimeline(request, cwd, changeName, false);
-    return { recommendationInput: { openTaskCount: openTaskCount(timeline.tasks) } };
+    return {
+      recommendationInput: { openTaskCount: openTaskCount(timeline.tasks) },
+      // Where the run begins, from the same reading
+      // (the-run-dialog-says-where-it-starts).
+      runStart: runStartFactsFrom({ hasProposal: timeline.proposal.trim().length > 0, tasks: timeline.tasks }),
+    };
   } catch {
     return {};
   }

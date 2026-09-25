@@ -16,6 +16,7 @@
 // targets and could not outlive a closed webview).
 
 import { readFile } from "node:fs/promises";
+import { runStartStage } from "./run-plan.js";
 import path from "node:path";
 import { describeContextShare, formatTokenCount, readAcpContextGauge } from "./acp-context-gauge.js";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
@@ -498,12 +499,12 @@ async function determineStartStage(cwd: string, changeName: string, changeDir: s
   // yet, which `tasks` already answers.
   // See design-is-optional-for-resume.
   const proposeDone = isDone("proposal") && isDone("tasks");
-  if (!proposeDone) return "propose";
+  if (!proposeDone) return runStartStage({ proposeDone });
   const tasks = await countTasks(changeDir);
-  // Unknown progress picks the reversible stage: a redundant `apply` costs
-  // one run, a wrong `archive` costs an unimplemented change.
-  if (!tasks) return "apply";
-  return tasks.unchecked > 0 ? "apply" : "verify";
+  // The same decision the run dialog states (the-run-dialog-says-where-it-
+  // starts): one function, so the dialog cannot name one stage and the run
+  // begin at another.
+  return runStartStage({ proposeDone, ...(tasks ? { openTasks: tasks.unchecked } : {}) });
 }
 
 /** One entry in the sequence a chain actually runs: a fixed stage, or a

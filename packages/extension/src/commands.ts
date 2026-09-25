@@ -28,7 +28,7 @@ import {
   type DescribedChangeState,
   changeTemplateConfigToWrite,
   templatesForScope,
-  type RecommendationInput,
+  type RecommendationInput,  type RunStartFacts,
   recommendTemplate,
   checkChangesetReminder,
   createChange,
@@ -39,7 +39,7 @@ import {
   detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
-  openTaskCount,
+  openTaskCount,  runStartFactsFrom,
   runTimestampsByChange,
   readChangeGraph,
   refuseToWrite,
@@ -701,7 +701,7 @@ async function readRecommendationInput(
   deps: CommandsDeps,
   workspaceRoot: string,
   item: ChangeTreeItem,
-): Promise<{ recommendationInput?: RecommendationInput }> {
+): Promise<{ recommendationInput?: RecommendationInput; runStart?: RunStartFacts }> {
   try {
     const tasks = await readTaskChecklist(workspaceRoot, item.changeName, item.archived);
     const entries = deps.readAuditEntries ? await deps.readAuditEntries() : [];
@@ -710,6 +710,12 @@ async function readRecommendationInput(
         openTaskCount: openTaskCount(tasks),
         history: buildChangeCostReport(entries, item.changeDir),
       },
+      // Where the run begins, from the same reading
+      // (the-run-dialog-says-where-it-starts).
+      runStart: runStartFactsFrom({
+        hasProposal: item.artifacts.some((artifact) => artifact.kind === "proposal" && artifact.exists),
+        tasks,
+      }),
     };
   } catch {
     // An unreadable task list is not a reason to refuse the run — it is a

@@ -45,6 +45,31 @@ describe("RunDialog", () => {
     expect(screen.getByRole("button", { name: "Run one stage (configured)" })).toBeTruthy();
   });
 
+  // the-run-dialog-says-where-it-starts.
+  it("says where the run begins, and why a chain is not offered", () => {
+    render(
+      <RunDialog
+        {...baseProps()}
+        plan={plan({
+          offered: [{ id: "single-stage", title: "Run one stage", describes: "Runs a single stage you pick." }],
+          startsAt: { stage: "apply", says: "Continues at apply: 1 task still open." },
+          withheld: { path: "chain", says: 'A chain is not offered: autonomyLevel "assisted" runs one stage at a time.' },
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("run-dialog-starts-at").textContent).toBe("Continues at apply: 1 task still open.");
+    expect(screen.getByTestId("run-dialog-withheld").textContent).toContain("A chain is not offered");
+    expect(screen.queryByRole("button", { name: /Run the chain/u })).toBeNull();
+  });
+
+  it("says nothing about where it begins where the host could not read the change", () => {
+    render(<RunDialog {...baseProps()} />);
+
+    expect(screen.queryByTestId("run-dialog-starts-at")).toBeNull();
+    expect(screen.queryByTestId("run-dialog-withheld")).toBeNull();
+  });
+
   it("says which stages have no agent rather than omitting them", () => {
     render(<RunDialog {...baseProps()} />);
 

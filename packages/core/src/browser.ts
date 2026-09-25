@@ -149,8 +149,8 @@ export { agentsAcceptingCustomAgents, customAgentFamilyFor } from "./custom-agen
 export type { CustomAgent, CustomAgentFamily } from "./custom-agent-family.js";
 export type { RunRecommendation, RunRecommendationGap, RunRecommendationKind, RunRecommendations } from "./run-recommendations.js";
 export type { AgentRunGroup, KnownChanges, RunGroupFigures, WorkspaceRunStats } from "./workspace-run-stats.js";
-export { agentForChosenPath, buildRunPlan } from "./run-plan.js";
-export type { RunPath, RunPathId, RunPlan, RunPlanHost } from "./run-plan.js";
+export { agentForChosenPath, buildRunPlan, describeRunStart, runStartFactsFrom, runStartStage } from "./run-plan.js";
+export type { RunPath, RunPathId, RunPlan, RunPlanHost, RunStartFacts, RunStartStage } from "./run-plan.js";
 export type { HarnessRecommendation, RecommendationInput } from "./harness-recommendation.js";
 export type { HarnessTemplate, HarnessTemplateScope } from "./harness-templates.js";
 export type { HarnessFinding, HarnessFindingGroup, HarnessFindingKind } from "./harness-config-findings.js";
