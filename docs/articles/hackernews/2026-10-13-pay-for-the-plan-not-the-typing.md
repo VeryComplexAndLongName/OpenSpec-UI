@@ -1,31 +1,12 @@
 # Hacker News: Pay for the plan, not the typing
 
-For the owner to post. Nothing is posted by merging this file. This is a
-**regular submission**, not a second Show HN - the guidelines say a Show HN is
-for something people can run, and a blog post belongs as an ordinary story.
-Show HN was already used for the project's launch on 2026-09-29 and is a
-once-per-project thing; a second one for the same repository would likely be
-flagged.
-
-## When
-
-Sunday 2026-10-13, between 08:00 and 10:00 in New York (15:00-17:00 in
-Moscow) - two days after the site article (2026-10-11), so this does not
-read as the same announcement landing on three platforms in one day. Not the
-same day as the Reddit posts (2026-10-14).
-
 ## Title
 
     Pay for the plan, not the typing
 
-(33 characters. Unchanged from the article's own title, on purpose - HN's
-guidelines ask for a title "close to the original" and warn against
-editorializing; changing it to sound more clickable is the kind of thing that
-gets a title replaced by a moderator.)
-
 URL: https://openspec-ui.dev/articles/pay-for-the-plan-not-the-typing/
 
-## First comment (a draft, to be rewritten by the owner)
+## First comment
 
     I write about OpenSpec Workbench, a harness that runs coding agents
     (Claude, Copilot, Codex, Gemini, DeepSeek) through a chain of stages -
@@ -53,13 +34,42 @@ URL: https://openspec-ui.dev/articles/pay-for-the-plan-not-the-typing/
     what did not work (Codex and Gemini are in the product but have never
     been run against real binaries here).
 
-## After posting
+---
+
+## Not for posting
+
+Everything below the line stays out of the submission and the comment. The
+first comment above is a draft: rewrite it in your own words before posting.
+
+### What this is
+
+A **regular submission**, not a second Show HN - the guidelines say a Show HN
+is for something people can run, and a blog post belongs as an ordinary story.
+Show HN was already used for the project's launch on 2026-09-29 and is a
+once-per-project thing; a second one for the same repository would likely be
+flagged.
+
+### When
+
+Sunday 2026-10-13, between 08:00 and 10:00 in New York (15:00-17:00 in
+Moscow) - two days after the site article (2026-10-11), so this does not
+read as the same announcement landing on three platforms in one day. Not the
+same day as the Reddit posts (2026-10-14).
+
+### The title
+
+33 characters. Unchanged from the article's own title, on purpose - HN's
+guidelines ask for a title "close to the original" and warn against
+editorializing; changing it to sound more clickable is the kind of thing that
+gets a title replaced by a moderator.
+
+### After posting
 
 - Answer plainly, and say "I don't know" or "I haven't tried that" when true.
 - Do not edit the title after it is posted.
 - Do not ask anyone to upvote or comment, here or anywhere else.
 
-## Where each claim comes from
+### Where each claim comes from
 
 - The article itself: `docs/articles/site/2026-10-11-pay-for-the-plan-not-the-typing.md`.
 - That a Show HN is for something people can run, and a blog post is a

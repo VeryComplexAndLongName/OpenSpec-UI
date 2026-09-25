@@ -1,9 +1,5 @@
 # LinkedIn post: one interface, three forges
 
-Publish on 2026-09-30: a few days after the site page (2026-09-26), not the same day.
-Attach: `docs/articles/site/one-interface-three-forges/diagram.png`.
-Put the repository link in the first comment, not in the post.
-
 ## Post
 
 "Support GitLab too" usually means one more if-statement wrapped around code that still only really knows GitHub.
@@ -27,9 +23,19 @@ If you've built against more than one git host's API, what's the quirk nobody wa
 The code, the issues and the extension: https://github.com/VeryComplexAndLongName/OpenSpec-UI
 (The product is OpenSpec Workbench. The repository and packages are still called OpenSpec-UI.)
 
-## Where each claim comes from
+---
 
-Not for posting.
+## Not for posting
+
+Everything below the line stays out of the post and the comment.
+
+### When, and what to attach
+
+Publish on 2026-09-30: a few days after the site page (2026-09-26), not the same day.
+Attach: `docs/articles/site/one-interface-three-forges/diagram.png`.
+Put the repository link in the first comment, not in the post.
+
+### Where each claim comes from
 
 - The Forge interface and how it picks a host: the archived changes
   `the-forge-is-gitlab-or-gitea-too` and `github-without-gh`.

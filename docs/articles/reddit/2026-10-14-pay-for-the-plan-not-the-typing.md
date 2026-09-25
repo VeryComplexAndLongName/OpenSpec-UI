@@ -1,38 +1,12 @@
 # Reddit: Pay for the plan, not the typing
 
-For the owner to post, by hand, in each subreddit's own posting form. Nothing
-is posted by merging this file. This is the first piece in `reddit/` - the
-directory was reserved for the campaign but never used before this.
-
-**I could not read either subreddit's current rules from here**: reddit.com
-is blocked for this session's tools (browser and fetch both refused it), so
-nothing below about "what is allowed" is a claim this campaign can source the
-way it sources everything else. Read each subreddit's sidebar/rules page
-yourself immediately before posting, not from anything written here - Reddit
-communities rewrite their self-promotion policy often enough that a rule read
-even a month ago is not safe to rely on.
-
-What the post follows regardless of the exact current wording, because it is
-close to universal Reddit etiquette rather than one subreddit's rule: framed
-as the finding, not the product; says up front that you built this; no
-link-only submission; a title that is the finding, not an ad; genuinely
-answer replies, including critical ones.
-
-## When
-
-Monday 2026-10-14, morning in the subreddit's own busiest timezone (both of
-these skew US) - three days after the site article, one day after the Hacker
-News submission, so this is not the same day as either.
-
----
-
 ## r/LocalLLaMA
 
-**Title:**
+### Title
 
     Splitting a coding agent chain by stage: expensive model plans, DeepSeek types it. Here's what I could and couldn't verify about the cost.
 
-**Body:**
+### Body
 
     I maintain OpenSpec Workbench, a harness that runs coding agent CLIs
     through a chain: propose, review, apply, verify. Each stage can run a
@@ -61,17 +35,13 @@ News submission, so this is not the same day as either.
     between a cheap and expensive agent on the *same* apply-stage task - my
     article is explicit that I have not, and it's the obvious next question.
 
-**Attach:** none - this is a text post, no image required.
-
----
-
 ## r/ClaudeAI
 
-**Title:**
+### Title
 
     I stopped running Claude Code on every stage of my agent chain - here's what its own cost reporting could and couldn't tell me
 
-**Body:**
+### Body
 
     Using Claude Code (via `claude-cli`/`claude-cli-acp`) as the planner and
     reviewer in an agent chain, and a cheaper CLI (DeepSeek, over ACP) for
@@ -80,18 +50,18 @@ News submission, so this is not the same day as either.
     mechanical.
 
     What I actually wanted to share here: Claude Code's own cost reporting is
-    the one piece of this that is fully trustworthy. `claude-cli-acp` reports
-    a real dollar figure per stage - I measured one at $1.57 - and a
-    `maxCostUsd` ceiling compares against exactly that number. That's not
-    true of the other two agents in the chain: Copilot reports its own
-    credit unit (still real money, just a different currency), and DeepSeek
+    the most trustworthy piece of this. `claude-cli-acp` reports a real
+    dollar figure per stage - I measured one at $1.57 - and a `maxCostUsd`
+    ceiling compares against exactly that number. Copilot, the second agent
+    in the chain, reports its own credit unit (still real money, just a
+    different currency, so a credit ceiling works too). DeepSeek, the third,
     reports nothing at all - no cost, no tokens, nothing a ceiling can act
     on.
 
-    So the honest takeaway wasn't "look how much I'm saving" - it's that
-    Claude's cost reporting is the only one I'd trust to actually stop a run
-    before it gets expensive. Full write-up, with the exact config and
-    today's Claude Pro/Max prices:
+    So the honest takeaway wasn't "look how much I'm saving" - it's that only
+    two of the three agents can be stopped by money before a run gets
+    expensive, and Claude's is the one that reports in plain dollars. Full
+    write-up, with the exact config and today's Claude Pro/Max prices:
     https://openspec-ui.dev/articles/pay-for-the-plan-not-the-typing/
 
     Would like to hear if anyone else has looked closely at what Claude Code
@@ -99,11 +69,39 @@ News submission, so this is not the same day as either.
     most of what one measured stage moved here, and they're excluded from
     the token ceiling entirely.
 
-**Attach:** none - this is a text post, no image required.
-
 ---
 
-## After posting, either subreddit
+## Not for posting
+
+Everything below the line stays out of both posts.
+
+### What this is
+
+For the owner to post, by hand, in each subreddit's own posting form. Both are
+text posts; no image is attached. This is the first piece in `reddit/` - the
+directory was reserved for the campaign but never used before this.
+
+**I could not read either subreddit's current rules from here**: reddit.com
+is blocked for this session's tools (browser and fetch both refused it), so
+nothing here about "what is allowed" is a claim this campaign can source the
+way it sources everything else. Read each subreddit's sidebar/rules page
+yourself immediately before posting, not from anything written here - Reddit
+communities rewrite their self-promotion policy often enough that a rule read
+even a month ago is not safe to rely on.
+
+What the posts follow regardless of the exact current wording, because it is
+close to universal Reddit etiquette rather than one subreddit's rule: framed
+as the finding, not the product; says up front that you built this; no
+link-only submission; a title that is the finding, not an ad; genuinely
+answer replies, including critical ones.
+
+### When
+
+Monday 2026-10-14, morning in the subreddit's own busiest timezone (both of
+these skew US) - three days after the site article, one day after the Hacker
+News submission, so this is not the same day as either.
+
+### After posting, either subreddit
 
 - Reply to real questions and real disagreement; do not reply only to
   agreement.
@@ -112,7 +110,7 @@ News submission, so this is not the same day as either.
 - If either post is removed, do not repost it - read why it was removed and
   either drop it or come back with something materially different.
 
-## Where each claim comes from
+### Where each claim comes from
 
 - The article itself: `docs/articles/site/2026-10-11-pay-for-the-plan-not-the-typing.md`.
 - That reddit.com could not be read from this session, checked 2026-09-24:
