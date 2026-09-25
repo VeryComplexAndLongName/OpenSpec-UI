@@ -138,7 +138,7 @@ export type {
 export type { ChangeDateEvidence, ChangeDateSource, ChangeDates, DatedFact } from "./change-dates.js";
 // Pure over a resolved config, with only type imports from the Node-side
 // modules — safe in the browser bundle, unlike harness-config.js itself.
-export { findHarnessConfigLimits } from "./harness-config-findings.js";
+export { findHarnessConfigLimits, groupHarnessFindings } from "./harness-config-findings.js";
 export { agentForEveryStageToWrite, changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 export { HARNESS_EFFORT_LEVELS, effortLevelCollisions, resolveEffortLevel } from "./harness-effort-level.js";
 export type { HarnessEffortLevel, ResolvedEffort } from "./harness-effort-level.js";
@@ -153,7 +153,7 @@ export { agentForChosenPath, buildRunPlan } from "./run-plan.js";
 export type { RunPath, RunPathId, RunPlan, RunPlanHost } from "./run-plan.js";
 export type { HarnessRecommendation, RecommendationInput } from "./harness-recommendation.js";
 export type { HarnessTemplate, HarnessTemplateScope } from "./harness-templates.js";
-export type { HarnessFinding, HarnessFindingKind } from "./harness-config-findings.js";
+export type { HarnessFinding, HarnessFindingGroup, HarnessFindingKind } from "./harness-config-findings.js";
 export type {
   HarnessAutonomyLevel,
   HarnessBudget,

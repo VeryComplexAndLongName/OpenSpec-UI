@@ -167,6 +167,49 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
   return findings;
 }
 
+/** One thing a configuration cannot do, said once for every stage it
+ * holds on. */
+export interface HarnessFindingGroup {
+  kind: HarnessFindingKind;
+  agent: string;
+  /** The stages, in the order they run. */
+  stages: HarnessStage[];
+  /** The finding's own sentence, naming every stage in it. */
+  message: string;
+}
+
+/** Findings said once each: those of one kind, about one agent, whose words
+ * differ only in the stage they name, become one sentence naming all of
+ * them.
+ *
+ * Asked for by a user on 2026-09-24: an agent on every stage that reports
+ * no usage filled the warning with four lines differing in one word, "on
+ * \"propose\"", "on \"review\"", and so on, in the settings and again in the
+ * run dialog (a-warning-is-said-once). */
+export function groupHarnessFindings(findings: readonly HarnessFinding[]): HarnessFindingGroup[] {
+  const groups: Array<HarnessFindingGroup & { template: string }> = [];
+  for (const finding of findings) {
+    const template = finding.message.split(`"${finding.stage}"`).join(STAGE_SLOT);
+    const same = groups.find((group) => group.kind === finding.kind && group.agent === finding.agent && group.template === template);
+    if (same === undefined) {
+      groups.push({ kind: finding.kind, agent: finding.agent, stages: [finding.stage], message: finding.message, template });
+      continue;
+    }
+    same.stages.push(finding.stage);
+    same.message = template.split(STAGE_SLOT).join(listOfStages(same.stages));
+  }
+  return groups.map(({ kind, agent, stages, message }) => ({ kind, agent, stages, message }));
+}
+
+/** Where a stage's name stood in a finding's words; no finding writes it. */
+const STAGE_SLOT = "{{stage}}";
+
+/** "propose", "review" and "apply", each quoted as a finding quotes one. */
+function listOfStages(stages: readonly HarnessStage[]): string {
+  const quoted = stages.map((stage) => `"${stage}"`);
+  return quoted.length <= 1 ? (quoted[0] ?? "") : `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1) as string}`;
+}
+
 /** The default agent's label, for a surface that wants to say why an
  * unset stage produced no finding. */
 export const UNSET_STAGE_AGENT_LABEL = DEFAULT_AGENT_LABEL;
