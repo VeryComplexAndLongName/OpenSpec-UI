@@ -1,39 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-25T14:23:40.897Z",
+  "generated_at": "2026-09-25T14:50:36.735Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "e5ea1af33e22df034d091989f990b3542aafdb8e",
+  "commit": "dd83a2640708d273a47ba87b3cdd68cf707c1014",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.87.0",
-      "released_at": "2026-09-25T14:23:40.897Z",
-      "tag": "openspec-ui-vscode@0.87.0",
+      "version": "0.87.1",
+      "released_at": "2026-09-25T14:50:36.735Z",
+      "tag": "openspec-ui-vscode@0.87.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.87.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.87.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.87.0/openspec-ui-vscode-0.87.0.vsix",
-          "size_bytes": 6613287
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.87.1/openspec-ui-vscode-0.87.1.vsix",
+          "size_bytes": 6613498
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
-        },
-        {
           "kind": "patch",
-          "summary": "What a configuration cannot do is said once. The same finding on several"
+          "summary": "A control that asks for something before it acts now says so with three"
         }
       ]
     },
@@ -42,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.48.0",
-      "released_at": "2026-09-25T14:23:40.897Z",
+      "version": "1.48.1",
+      "released_at": "2026-09-25T14:50:36.735Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -53,12 +49,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
-        },
-        {
           "kind": "patch",
-          "summary": "What a configuration cannot do is said once. The same finding on several"
+          "summary": "A control that asks for something before it acts now says so with three"
         }
       ]
     },
@@ -68,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.128.0",
-      "released_at": "2026-09-25T14:23:40.897Z",
+      "released_at": "2026-09-25T14:50:36.735Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -92,8 +84,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.76.0",
-      "released_at": "2026-09-25T14:23:40.897Z",
+      "version": "1.76.1",
+      "released_at": "2026-09-25T14:50:36.735Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -102,12 +94,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
-        },
-        {
           "kind": "patch",
-          "summary": "What a configuration cannot do is said once. The same finding on several"
+          "summary": "A control that asks for something before it acts now says so with three"
         }
       ]
     },
@@ -117,7 +105,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-25T14:23:40.897Z",
+      "released_at": "2026-09-25T14:50:36.735Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
