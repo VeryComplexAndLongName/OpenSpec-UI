@@ -346,12 +346,13 @@ test("arranges the same cards as a board of the stages, and keeps it", async ({ 
   // The board waits on a reading that goes to git and the forge, so it
   // arrives after the press rather than with it.
   const headings = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-word");
-  await expect(headings).toHaveText(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"], { timeout: 15000 });
+  await expect(headings).toHaveText(["Drafted", "Proposed", "Planned", "In progress", "In review", "Landed", "Archived"], { timeout: 15000 });
   // And dressed: a rule between each column and the next, a picture and a
   // colour of the stage's own, and how many stand in it
   // (the-board-wears-its-stages).
-  await expect(page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-rule")).toHaveCount(5);
-  const inProgress = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-heading").nth(2);
+  await expect(page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-rule")).toHaveCount(6);
+  // Drafted is the first column (a-change-before-its-proposal).
+  const inProgress = page.getByTestId("pipeline-picture").locator(".openspec-pipeline-stage-heading").nth(3);
   await expect(inProgress.locator(".openspec-pipeline-stage-mark [class^=\"openspec-icon-\"]")).toHaveCount(1);
   await expect(inProgress).toHaveAttribute("style", /--stage-colour: ?var\(--stage-in-progress\)/);
   await expect(page.getByTestId("pipeline-edge-pipeline-first-to-pipeline-second")).toHaveCount(0);

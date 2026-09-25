@@ -1460,7 +1460,7 @@ describe("the board", () => {
     await waitFor(() => expect(screen.queryByTestId("pipeline-edge-alpha-to-beta")).toBeNull());
     const headings = [...screen.getByTestId("pipeline-picture").querySelectorAll(".openspec-pipeline-stage-word")]
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+    expect(headings).toEqual(["Drafted", "Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     expect(screen.getByTestId("pipeline-arrangement-stages").getAttribute("aria-pressed")).toBe("true");
   });
 
@@ -1506,14 +1506,14 @@ describe("the board", () => {
     fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
 
     const picture = await screen.findByTestId("pipeline-picture");
-    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-heading")).toHaveLength(6));
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-heading")).toHaveLength(7));
     const inProgress = [...picture.querySelectorAll(".openspec-pipeline-stage-heading")]
       .find((one) => one.textContent?.startsWith("In progress")) as HTMLElement;
     // The stage's own token, never a colour written here.
     expect(inProgress.style.getPropertyValue("--stage-colour")).toBe("var(--stage-in-progress)");
     expect(inProgress.querySelector(".openspec-pipeline-stage-mark [class^=openspec-icon-]")).not.toBeNull();
     // Counted for the eye, and said for a reader who hears the heading.
-    expect(screen.getByTestId("pipeline-stage-count-2").textContent).toBe(", 2 changes2");
+    expect(screen.getByTestId("pipeline-stage-count-3").textContent).toBe(", 2 changes2");
     expect(screen.getByTestId("pipeline-stage-count-0").textContent).toBe(", 0 changes0");
   });
 
@@ -1537,8 +1537,8 @@ describe("the board", () => {
     const board = await screen.findByTestId("pipeline-picture");
     await waitFor(() => expect(board.querySelector("[data-testid='pipeline-node-theirs']")).not.toBeNull());
     // One in Planned, one in In review.
-    expect(screen.getByTestId("pipeline-stage-count-1").textContent).toBe(", 1 change1");
-    expect(screen.getByTestId("pipeline-stage-count-3").textContent).toBe(", 1 change1");
+    expect(screen.getByTestId("pipeline-stage-count-2").textContent).toBe(", 1 change1");
+    expect(screen.getByTestId("pipeline-stage-count-4").textContent).toBe(", 1 change1");
     // Read here, never acted on from here: it says where it is worked, and
     // offers no control but its tasks.
     const card = screen.getByTestId("pipeline-node-theirs");
@@ -1590,7 +1590,7 @@ describe("the board", () => {
     const card = await screen.findByTestId("pipeline-node-filed-away");
     expect(card.getAttribute("data-state")).toBe("archived");
     expect(card.textContent).toContain("archived on 2026-09-22");
-    expect(screen.getByTestId("pipeline-stage-count-5").textContent).toBe(", 1 change1");
+    expect(screen.getByTestId("pipeline-stage-count-6").textContent).toBe(", 1 change1");
     // The archive holds more than a board should draw: the rest is
     // counted, never listed.
     expect(screen.getByTestId("pipeline-archive-more").textContent).toBe("318 more in the archive");
@@ -1639,7 +1639,7 @@ describe("the board", () => {
     fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
 
     const picture = await screen.findByTestId("pipeline-picture");
-    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-rule")).toHaveLength(5));
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-rule")).toHaveLength(6));
 
     // The other arrangement's columns are a sequence, not places: no rule.
     fireEvent.click(screen.getByTestId("pipeline-arrangement-steps"));
@@ -1657,7 +1657,7 @@ describe("the board", () => {
     const picture = await screen.findByTestId("pipeline-picture");
     await waitFor(() => {
       const headings = [...picture.querySelectorAll(".openspec-pipeline-stage-word")].map((one) => one.textContent);
-      expect(headings).toEqual(["Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
+      expect(headings).toEqual(["Drafted", "Proposed", "Planned", "In progress", "In review", "Landed", "Archived"]);
     });
     expect((await screen.findByTestId("pipeline-board-empty")).textContent).toContain("every column is empty");
     // The step arrangement still says what it always said.

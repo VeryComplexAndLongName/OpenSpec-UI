@@ -178,6 +178,19 @@ export async function getFileCreatedDate(cwd: string, filePath: string): Promise
   }
 }
 
+/** When anything under a directory was first committed, as git printed it,
+ * or null where nothing under it ever was. A directory has no history of
+ * its own to follow, so there is no `--follow`: this is what dates a
+ * change made before its proposal (ADR 0037, amended 2026-09-25). */
+export async function getDirectoryCreatedDate(cwd: string, directoryPath: string): Promise<string | null> {
+  try {
+    const output = await simpleGit(cwd).raw(["log", "--diff-filter=A", "--format=%aI", "--", directoryPath]);
+    return oldestDateIn(output);
+  } catch {
+    return null;
+  }
+}
+
 /** The last non-empty line of a `git log` output, as git printed it.
  * `git log` prints newest first, so the oldest commit is the last line. */
 function oldestDateIn(output: string): string | null {

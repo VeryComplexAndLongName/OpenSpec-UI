@@ -122,8 +122,9 @@ export function totalsOf(visits: readonly StageVisit[], now: Date): StageTotal[]
 }
 
 /** The stage a change's own files say, for a change nothing is dated for
- * yet: a proposal only, or a task list written. */
-export function stageFromFiles(tasks: { total: number; done: number }): ChangeStage {
+ * yet: no proposal, a proposal only, or a task list written. */
+export function stageFromFiles(tasks: { total: number; done: number }, proposal = true): ChangeStage {
+  if (!proposal) return "drafted";
   if (tasks.done > 0) return "in-progress";
   return tasks.total > 0 ? "planned" : "proposed";
 }

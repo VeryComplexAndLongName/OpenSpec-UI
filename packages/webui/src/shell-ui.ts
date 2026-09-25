@@ -126,6 +126,10 @@ export const shellThemeCss = `
        Never alone, either way: the word is always there and the picture
        agrees with it (ADR 0023 decision 4, and this project's own rule
        that colour may agree with words and never replace them). */
+    /* A draft is nothing yet: no fill, and its picture in the quiet ink
+       (ADR 0037, amended 2026-09-25). */
+    --stage-drafted: transparent;
+    --stage-drafted-ink: var(--muted);
     --stage-proposed: var(--steel);
     --stage-proposed-ink: var(--steel-ink);
     --stage-planned: var(--teal);
@@ -237,6 +241,10 @@ export const shellThemeCss = `
     /* The stage fills follow the accents here as they do in light, which
        this palette repeats unchanged; --surface-3 and --muted are the two
        it does redefine, so Archived stays quiet against a dark ground. */
+    /* A draft is nothing yet: no fill, and its picture in the quiet ink
+       (ADR 0037, amended 2026-09-25). */
+    --stage-drafted: transparent;
+    --stage-drafted-ink: var(--muted);
     --stage-proposed: var(--steel);
     --stage-proposed-ink: var(--steel-ink);
     --stage-planned: var(--teal);
@@ -4399,6 +4407,8 @@ export const vscodeThemeCss = `
        Proposed and Archived are named apart here on purpose. Following the
        shell's aliases would give both the description foreground, and two
        columns at opposite ends of the board would look alike. */
+    --stage-drafted: transparent;
+    --stage-drafted-ink: var(--vscode-descriptionForeground);
     --stage-proposed: var(--vscode-charts-lines, var(--vscode-descriptionForeground));
     --stage-proposed-ink: var(--vscode-editor-background);
     --stage-planned: var(--vscode-charts-blue);
