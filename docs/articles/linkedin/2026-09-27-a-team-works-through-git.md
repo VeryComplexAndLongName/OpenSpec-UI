@@ -1,9 +1,5 @@
 # LinkedIn post: a team works through git
 
-Publish on 2026-10-02: a few days after the site page (2026-09-27), not the same day.
-Attach: `docs/articles/site/a-team-works-through-git/board.png`.
-Put the repository link in the first comment, not in the post.
-
 ## Post
 
 Every "we added team support" pitch reaches for the same two things first: a server, and a database.
@@ -23,9 +19,19 @@ If you've tried to add "team" to a tool without a server, what did you give up t
 The code, the issues and the extension: https://github.com/VeryComplexAndLongName/OpenSpec-UI
 (The product is OpenSpec Workbench. The repository and packages are still called OpenSpec-UI.)
 
-## Where each claim comes from
+---
 
-Not for posting.
+## Not for posting
+
+Everything below the line stays out of the post and the comment.
+
+### When, and what to attach
+
+Publish on 2026-10-02: a few days after the site page (2026-09-27), not the same day.
+Attach: `docs/articles/site/a-team-works-through-git/board.png`.
+Put the repository link in the first comment, not in the post.
+
+### Where each claim comes from
 
 - The decision and what it rules out on purpose: `docs/adr/0037-a-team-works-through-git.md`.
 - People as files, signed history, derived stages, the board: the archived

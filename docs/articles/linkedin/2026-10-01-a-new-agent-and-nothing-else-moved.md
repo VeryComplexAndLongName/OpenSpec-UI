@@ -1,9 +1,5 @@
 # LinkedIn post: a new agent, and nothing else moved
 
-Publish on 2026-10-05: a few days after the site page (2026-10-01), not the same day.
-Attach: `docs/articles/site/a-new-agent-and-nothing-else-moved/diagram.png`.
-Put the repository link in the first comment, not in the post.
-
 ## Post
 
 Adding a tenth agent should be boring. Here it was, except for one thing nobody could have read in the documentation.
@@ -26,9 +22,19 @@ Has a dependency ever exited silently on the wrong runtime version, and cost you
 The code, the issues and the extension: https://github.com/VeryComplexAndLongName/OpenSpec-UI
 (The product is OpenSpec Workbench. The repository and packages are still called OpenSpec-UI.)
 
-## Where each claim comes from
+---
 
-Not for posting.
+## Not for posting
+
+Everything below the line stays out of the post and the comment.
+
+### When, and what to attach
+
+Publish on 2026-10-05: a few days after the site page (2026-10-01), not the same day.
+Attach: `docs/articles/site/a-new-agent-and-nothing-else-moved/diagram.png`.
+Put the repository link in the first comment, not in the post.
+
+### Where each claim comes from
 
 - The adapter, the live findings and the Node 22.11 exit:
   `packages/core/src/agents/deepseek-acp.ts`.

@@ -1,24 +1,5 @@
 # LinkedIn Article (long-form): Pay for the plan, not the typing
 
-This is LinkedIn's own long-form Article feature, not the short post-with-link
-pattern the other files in `docs/articles/linkedin/` use - LinkedIn renders
-this on its own page, with its own title and cover image, so it carries the
-full piece rather than a teaser.
-
-Publish on 2026-10-15: a few days after the site page (2026-10-11), and after
-the dev.to mirror if one goes out. Cover image: reuse
-`docs/articles/site/pay-for-the-plan-not-the-typing/cover.png`.
-After publishing, share it to the feed once with the short text under "Feed
-share text" below - LinkedIn Articles get little reach without at least one
-share, and a second share later reads as spam.
-
-Put the repository link in the article's own body (below), not withheld to a
-comment the way the short posts do - a long-form Article is read as a
-destination in itself, and hiding the only link a reader would act on serves
-no purpose here.
-
----
-
 ## Title
 
 Pay for the plan, not the typing
@@ -139,28 +120,51 @@ If you have split a coding agent's work across models or vendors by stage
 rather than by project, I would like to know what you put where, and what
 you found you could not actually verify once you did.
 
----
-
 ## Feed share text
-
-*Not part of the Article itself - the short update to post once, linking to
-it, when sharing to the feed.*
 
 A chain has four stages. Two of them need judgement, one is mostly typing,
 and they do not have to run on the same agent - or cost the same.
 
 I wrote up the split I am using in OpenSpec Workbench: an expensive model on
 propose and review, a near-free one on apply. The part worth reading past the
-headline saving: of the ten agents this project supports, only one reports
-its cost back to the harness. The cheap one reports nothing at all - no cost,
-no tokens, no credits - so there is no ceiling in this tool that can stop it
-once it starts. That balance lives on the vendor's own dashboard, not here.
+headline saving: two of the three agents in the split report something that
+converts to money - one in dollars, one in the vendor's own credit unit - so
+the harness can put a ceiling on them. The cheap one reports nothing at all -
+no cost, no tokens, no credits - so there is no ceiling in this tool that can
+stop it once it starts. That balance lives on the vendor's own dashboard,
+not here.
 
 https://openspec-ui.dev/articles/pay-for-the-plan-not-the-typing/
 
-## Where each claim comes from
+---
 
-Not for posting.
+## Not for posting
+
+Everything below the line stays out of the Article and the feed share.
+
+### What this is
+
+LinkedIn's own long-form Article feature, not the short post-with-link
+pattern the files in `docs/articles/linkedin/` use. LinkedIn renders it on its
+own page, with its own title and cover image, so it carries the full piece
+rather than a teaser. The Title and the Body are pasted into the Article; the
+Feed share text is a separate, short post that links to it.
+
+### When, and what to attach
+
+Publish on 2026-10-15: a few days after the site page (2026-10-11), and after
+the dev.to mirror if one goes out.
+Cover image: `docs/articles/site/pay-for-the-plan-not-the-typing/cover.png`.
+After publishing, share it to the feed once with the Feed share text above -
+LinkedIn Articles get little reach without at least one share, and a second
+share later reads as spam.
+
+The repository link is in the Article's own body, not withheld to a first
+comment the way the short posts do it: a long-form Article is read as a
+destination in itself, and hiding the only link a reader would act on serves
+no purpose here.
+
+### Where each claim comes from
 
 Identical to the site article's own "Where each claim comes from":
 `docs/articles/site/2026-10-11-pay-for-the-plan-not-the-typing.md`.

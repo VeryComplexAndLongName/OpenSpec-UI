@@ -1,9 +1,5 @@
 # LinkedIn post: two things nobody was watching
 
-Publish on 2026-10-10: a few days after the site page (2026-10-06), not the same day.
-No image is required; a bare link produces an auto-generated preview card from the cover.
-Put the repository link in the first comment, not in the post.
-
 ## Post
 
 Neither of these bugs was code doing the wrong thing. Both were something already true that nothing had been asked to look at.
@@ -21,9 +17,19 @@ What's a number your own tooling has been sending you the whole time, that nothi
 The code, the issues and the extension: https://github.com/VeryComplexAndLongName/OpenSpec-UI
 (The product is OpenSpec Workbench. The repository and packages are still called OpenSpec-UI.)
 
-## Where each claim comes from
+---
 
-Not for posting.
+## Not for posting
+
+Everything below the line stays out of the post and the comment.
+
+### When, and what to attach
+
+Publish on 2026-10-10: a few days after the site page (2026-10-06), not the same day.
+No image is required; a bare link produces an auto-generated preview card from the cover.
+Put the repository link in the first comment, not in the post.
+
+### Where each claim comes from
 
 - The leftover shell and the fix: the archived change
   `the-sweep-comes-back-for-what-it-left`.
