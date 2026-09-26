@@ -1,7 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { describeDuration, describeStageLine, describeVisit, playStages, stageFromFiles, totalsOf, type StageFact } from "./change-stage-facts.js";
+import { describeDuration, describeStageLine, describeVisit, playStages, settleOnDefaultBranch, stageFromFiles, totalsOf, type StageFact } from "./change-stage-facts.js";
 
 // a-change-knows-its-stage, ADR 0037 decisions 5 and 6.
+
+// a-landed-change-leaves-the-board: the default branch's archive wins over
+// a checkout that has not caught up.
+describe("settleOnDefaultBranch", () => {
+  it("stands a change the default branch archived in Archived, with no since, and leaves the rest", () => {
+    const summaries = [
+      { changeName: "landed", stage: "in-progress" as const, since: "2026-09-25T10:00:00.000Z", roles: { owner: "ada" }, totals: [] },
+      { changeName: "working", stage: "in-progress" as const, since: "2026-09-26T10:00:00.000Z", roles: {}, totals: [] },
+    ];
+
+    expect(settleOnDefaultBranch(summaries, new Set(["landed"]))).toEqual([
+      { changeName: "landed", stage: "archived", roles: { owner: "ada" }, totals: [] },
+      summaries[1],
+    ]);
+    expect(settleOnDefaultBranch(summaries, new Set())).toEqual(summaries);
+  });
+});
 
 const at = (hour: number) => new Date(Date.UTC(2026, 8, 22, hour)).toISOString();
 const fact = (stage: StageFact["stage"], hour: number, what = stage): StageFact => ({ stage, at: at(hour), source: "git-commit", what });

@@ -49,6 +49,7 @@ import {
   type BoardColumnsReading,
   type ChangeOrder,
   type ChangeOrderFacts,
+  settleOnDefaultBranch,
   stagesByName,
   matchesFilter,
   pipelineCardHeight,
@@ -537,7 +538,9 @@ export function PipelineView({
   // The board only where the stages were read: an arrangement by stage
   // with no stage read would put every change in one column and say
   // nothing (the-board-shows-the-stages).
-  const stageSummaries = new Map((staged.value ?? []).map((summary) => [summary.changeName, summary]));
+  // A change the default branch already carries archived is Archived,
+  // whatever a checkout behind it still holds (a-landed-change-leaves-the-board).
+  const stageSummaries = new Map(settleOnDefaultBranch(staged.value ?? [], archivedOnDefault).map((summary) => [summary.changeName, summary]));
   const onBoard = arrangement === "stages" && staged.value !== undefined;
   // A filter reaching into the folded group opens it, as the Change
   // Graph's fold does.
@@ -564,6 +567,10 @@ export function PipelineView({
       if (!one.readable || one.isThis) continue;
       for (const change of one.changes) {
         if (namesHere.has(change.changeName) || elsewhere.has(change.changeName)) continue;
+        // A copy left in a worktree after its change was archived on the
+        // default branch is not work: the archive's own card stands for it
+        // (a-landed-change-leaves-the-board).
+        if (archivedOnDefault.has(change.changeName)) continue;
         if (!matches(change.changeName)) continue;
         elsewhere.set(change.changeName, { directory: one, change });
       }

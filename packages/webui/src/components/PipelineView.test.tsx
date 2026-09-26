@@ -1798,3 +1798,56 @@ describe("PipelineView - a team's own columns", () => {
       .toBe('openspec/board.json is not used: No column holds "archived": its cards would stand nowhere.');
   });
 });
+
+// a-landed-change-leaves-the-board: reported by the owner on 2026-09-26,
+// finished changes stood In progress long after main archived them.
+describe("PipelineView - what the default branch archived", () => {
+  const summary = (changeName: string, stage: ChangeStageSummary["stage"]): ChangeStageSummary => ({
+    changeName,
+    stage,
+    since: new Date(Date.now() - 3_600_000).toISOString(),
+    roles: {},
+    totals: [],
+  });
+  const archivedOnMain = (...names: string[]) => async (): Promise<ChangeStandings> => ({
+    readAt: new Date().toISOString(),
+    standings: names.map((changeName) => ({ changeName, elsewhere: [], main: { kind: "archived" as const, archiveName: `2026-09-26-${changeName}` } })),
+    sources: { fetch: { attempted: false }, pullRequests: { read: true } },
+  });
+
+  it("stands a change of this checkout that main archived in Archived, not where the checkout left it", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("landed"), change("working"))}
+        stages={async () => [summary("landed", "in-progress"), summary("working", "in-progress")]}
+        standings={archivedOnMain("landed")}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    // In progress holds the one still worked; Archived holds the landed one.
+    await waitFor(() => expect(screen.getByTestId("pipeline-stage-count-6").textContent).toBe(", 1 change1"));
+    expect(screen.getByTestId("pipeline-stage-count-3").textContent).toBe(", 1 change1");
+  });
+
+  it("draws no card for a copy left in another worktree after main archived its change", async () => {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("working"))}
+        survey={async () => survey(
+          directory({ changes: [{ changeName: "working", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [] }] }),
+          theirs({ changes: [{ changeName: "gone", tasksDone: 3, tasksTotal: 3, blockers: [], alsoIn: [] }] }),
+        )}
+        stages={async () => [summary("working", "in-progress"), summary("gone", "in-progress")]}
+        standings={archivedOnMain("gone")}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    await screen.findByTestId("pipeline-node-working");
+    await waitFor(() => expect(screen.getByTestId("pipeline-stage-count-3").textContent).toBe(", 1 change1"));
+    expect(screen.queryByTestId("pipeline-node-gone")).toBeNull();
+  });
+});
