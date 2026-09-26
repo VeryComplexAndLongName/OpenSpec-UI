@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-26T15:35:51.278Z",
+  "generated_at": "2026-09-26T22:24:20.014Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "91c532fb11e8ee81b62130006896e2a81daabf35",
+  "commit": "336a3e399ce4fef752f0d430bf1934c8801e8597",
   "products": [
     {
       "id": "vscode-extension",
@@ -10,7 +10,7 @@
       "package": "openspec-ui-vscode",
       "public": true,
       "version": "0.88.2",
-      "released_at": "2026-09-26T15:35:51.278Z",
+      "released_at": "2026-09-26T22:24:20.014Z",
       "tag": "openspec-ui-vscode@0.88.2",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
@@ -39,7 +39,7 @@
       "package": "@openspec-ui/server",
       "public": true,
       "version": "1.49.2",
-      "released_at": "2026-09-26T15:35:51.278Z",
+      "released_at": "2026-09-26T22:24:20.014Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -60,7 +60,7 @@
       "package": "@openspec-ui/core",
       "public": true,
       "version": "0.129.2",
-      "released_at": "2026-09-26T15:35:51.278Z",
+      "released_at": "2026-09-26T22:24:20.014Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -81,7 +81,7 @@
       "package": "@openspec-ui/webui",
       "public": false,
       "version": "1.77.2",
-      "released_at": "2026-09-26T15:35:51.278Z",
+      "released_at": "2026-09-26T22:24:20.014Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -100,8 +100,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.22.0",
-      "released_at": "2026-09-26T15:35:51.278Z",
+      "version": "0.22.1",
+      "released_at": "2026-09-26T22:24:20.014Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -110,8 +110,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "Every change has a stage, and you can see how long it spent in each"
+          "kind": "patch",
+          "summary": "Fix the packaged CLI ESM bundle so it resolves `yaml` without a dynamic require error."
         }
       ]
     }
