@@ -1,5 +1,11 @@
 # @openspec-ui/cli
 
+## 0.22.1
+
+### Patch Changes
+
+- c92b45e: Fix the packaged CLI ESM bundle so it resolves `yaml` without a dynamic require error.
+
 ## 0.22.0
 
 ### Minor Changes
