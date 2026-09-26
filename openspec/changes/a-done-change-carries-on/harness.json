@@ -1,0 +1,13 @@
+{
+  "stepAgents": {
+    "apply": {
+      "agent": "deepseek-cli-acp"
+    },
+    "verify": {
+      "agent": "copilot-cli-acp",
+      "model": "gpt-5.3-codex",
+      "effort": "high"
+    }
+  },
+  "autonomyLevel": "semi-autonomous"
+}
