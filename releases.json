@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-25T14:50:36.735Z",
+  "generated_at": "2026-09-26T11:46:17.674Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "dd83a2640708d273a47ba87b3cdd68cf707c1014",
+  "commit": "384200a563f415a6c216302b777b6a8fcfac9d37",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.87.1",
-      "released_at": "2026-09-25T14:50:36.735Z",
-      "tag": "openspec-ui-vscode@0.87.1",
+      "version": "0.88.0",
+      "released_at": "2026-09-26T11:46:17.674Z",
+      "tag": "openspec-ui-vscode@0.88.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.87.1"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.88.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.87.1/openspec-ui-vscode-0.87.1.vsix",
-          "size_bytes": 6613498
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.88.0/openspec-ui-vscode-0.88.0.vsix",
+          "size_bytes": 6625613
         }
       ],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A control that asks for something before it acts now says so with three"
+          "kind": "minor",
+          "summary": "A team can name the board's columns. `openspec/board.json` lists columns,"
+        },
+        {
+          "kind": "minor",
+          "summary": "The local LLM (agent `local-llm`) can be told where it is, which model to"
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.48.1",
-      "released_at": "2026-09-25T14:50:36.735Z",
+      "version": "1.49.0",
+      "released_at": "2026-09-26T11:46:17.674Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +53,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A control that asks for something before it acts now says so with three"
+          "kind": "minor",
+          "summary": "A team can name the board's columns. `openspec/board.json` lists columns,"
         }
       ]
     },
@@ -59,8 +63,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.128.0",
-      "released_at": "2026-09-25T14:50:36.735Z",
+      "version": "0.129.0",
+      "released_at": "2026-09-26T11:46:17.674Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,11 +75,11 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "The run dialog says where a run begins, and why: \"Continues at apply: 1"
+          "summary": "A team can name the board's columns. `openspec/board.json` lists columns,"
         },
         {
-          "kind": "patch",
-          "summary": "What a configuration cannot do is said once. The same finding on several"
+          "kind": "minor",
+          "summary": "The local LLM (agent `local-llm`) can be told where it is, which model to"
         }
       ]
     },
@@ -84,8 +88,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.76.1",
-      "released_at": "2026-09-25T14:50:36.735Z",
+      "version": "1.77.0",
+      "released_at": "2026-09-26T11:46:17.674Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -94,8 +98,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "patch",
-          "summary": "A control that asks for something before it acts now says so with three"
+          "kind": "minor",
+          "summary": "A team can name the board's columns. `openspec/board.json` lists columns,"
         }
       ]
     },
@@ -105,7 +109,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.0",
-      "released_at": "2026-09-25T14:50:36.735Z",
+      "released_at": "2026-09-26T11:46:17.674Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
