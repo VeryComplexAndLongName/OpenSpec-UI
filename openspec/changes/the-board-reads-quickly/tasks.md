@@ -18,10 +18,13 @@ Asked by the owner on 2026-09-26: the board's reads are slow. Measured:
 - [x] 2.2 Measured live against this repository on 2026-09-26, the
   standalone server from this worktree, each read alone: `change-stages`
   9.8 s and 9.1 s before, 1.9 s and 2.1 s after; the other reads unchanged.
-- [ ] 2.3 `npm run typecheck && npm run lint && npm run test` at the root,
-  after `git add`, run unpiped, exit code 0.
-- [ ] 2.4 The extension's integration suite, and the whole standalone
-  browser suite.
-- [ ] 2.5 `openspec validate the-board-reads-quickly --strict`, and the
-  merge gate locally with `--base origin/main`.
+- [x] 2.3 `npm run typecheck && npm run lint && npm run test` at the root,
+  after `git add`, run unpiped, exit code 0. Typecheck 0, lint 0, test 0
+  (core 1932, server 497, extension 118, webui 675).
+- [x] 2.4 The extension's integration suite, and the whole standalone
+  browser suite. Integration: 19 passing. Browser: 29 of 29; no screen
+  changes, and its regenerated pictures were left out.
+- [x] 2.5 `openspec validate the-board-reads-quickly --strict`, and the
+  merge gate locally with `--base origin/main`. Validate: valid; the gate
+  exit 0.
 - [x] 2.6 A changeset: core and the extension, patch.
