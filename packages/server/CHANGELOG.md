@@ -1,5 +1,23 @@
 # @openspec-ui/server
 
+## 1.49.0
+
+### Minor Changes
+
+- 8830c9f: A team can name the board's columns. `openspec/board.json` lists columns,
+  each a title and the neighbouring stages it holds, such as "Backlog" for
+  Drafted and Proposed; the Pipeline's board then draws those columns, with
+  each card where its stage is. A column is a view of the stages: every
+  stage in exactly one column, in their order, and a card still says its own
+  stage and moves only when its facts do. A file that breaks a rule is not
+  used, and the board says why. See docs/how-to/name-the-board-columns.md.
+
+### Patch Changes
+
+- Updated dependencies [8830c9f]
+- Updated dependencies [f0764af]
+  - @openspec-ui/core@0.129.0
+
 ## 1.48.1
 
 ### Patch Changes
