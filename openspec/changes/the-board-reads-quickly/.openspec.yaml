@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-26
+# The same readings, sooner: no requirement of any capability changes.
+skip_specs: true
