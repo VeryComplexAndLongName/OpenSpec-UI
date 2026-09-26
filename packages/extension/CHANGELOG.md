@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.88.2
+
+### Patch Changes
+
+- 28ade4a: A change the default branch has archived no longer hangs on the board.
+  A worktree branched before the archive still held the change as it was,
+  and the board drew it In progress. It now stands in Archived, and a copy
+  left in another worktree draws no card of its own.
+- Updated dependencies [28ade4a]
+  - @openspec-ui/core@0.129.2
+  - @openspec-ui/webui@1.77.2
+  - @openspec-ui/server@1.49.2
+
 ## 0.88.1
 
 ### Patch Changes
