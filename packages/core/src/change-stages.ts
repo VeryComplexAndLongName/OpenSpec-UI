@@ -12,14 +12,15 @@
 // Nothing is guessed: a source that cannot be read gives no fact, and the
 // stage then comes from what is left.
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { runTimestampsByChange } from "./audit-runs.js";
 import { readChangeHistory, type ChangeHistory } from "./change-history.js";
 import type { ChangeRoles, ChangeStage } from "./change-history-facts.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
 import { playStages, stageFromFiles, totalsOf, type ChangeStageSummary, type StageFact, type StageTotal, type StageVisit } from "./change-stage-facts.js";
-import { blameLineDates, getDirectoryCreatedDate, getFileCreatedDate } from "./change-timeline.js";
+import { mapBounded } from "./bounded-map.js";
+import { blameLineDates, getAddedFileDates, getDirectoryCreatedDate, getFileCreatedDate } from "./change-timeline.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import { readRepositoryAuditEntries } from "./repository-audit.js";
 import { parseTaskChecklist } from "./task-checklist.js";
@@ -47,9 +48,23 @@ export interface ChangeStageOptions {
   runTimes?: readonly string[];
   history?: ChangeHistory;
   git?: Pick<GitWrapper, "commitTimesBetween">;
+  /** When each file under `openspec/changes` was added, read once for a
+   * whole working tree (`getAddedFileDates`). Absent, each date is asked
+   * of git on its own (the-board-reads-quickly). */
+  added?: ReadonlyMap<string, string>;
   remote?: string;
   defaultBranch?: string;
   now?: () => Date;
+}
+
+/** The oldest date among the files under `prefix`, as git printed it. */
+function oldestUnder(added: ReadonlyMap<string, string>, prefix: string): string | null {
+  let oldest: string | null = null;
+  for (const [file, at] of added) {
+    if (!file.startsWith(prefix)) continue;
+    if (oldest === null || Date.parse(at) < Date.parse(oldest)) oldest = at;
+  }
+  return oldest;
 }
 
 /** The facts that date a change's stages, oldest first. */
@@ -57,16 +72,27 @@ export async function readStageFacts(root: string, changeName: string, options: 
   const facts: StageFact[] = [];
   const directory = `${CHANGES}/${changeName}`;
 
-  const proposed = await getFileCreatedDate(root, `${directory}/proposal.md`);
+  // From the one reading of the tree where there is one. A file on disk
+  // that it does not name may have been renamed into place, which only a
+  // `--follow` of that file dates (the-board-reads-quickly).
+  const added = options.added;
+  const addedAt = async (file: string): Promise<string | null> => {
+    if (added === undefined) return getFileCreatedDate(root, file);
+    const known = added.get(file);
+    if (known !== undefined) return known;
+    const onDisk = await stat(path.join(root, file)).then(() => true, () => false);
+    return onDisk ? getFileCreatedDate(root, file) : null;
+  };
+  const proposed = await addedAt(`${directory}/proposal.md`);
   // The directory's first commit dates Drafted only where it came before
   // the proposal's: a change committed with its proposal was never a draft,
   // and a visit of no length would be a stage it never stood in.
-  const drafted = await getDirectoryCreatedDate(root, directory);
+  const drafted = added === undefined ? await getDirectoryCreatedDate(root, directory) : oldestUnder(added, `${directory}/`);
   if (drafted !== null && (proposed === null || Date.parse(drafted) < Date.parse(proposed))) {
     facts.push({ stage: "drafted", at: drafted, source: "git-commit", what: "its directory committed" });
   }
   if (proposed !== null) facts.push({ stage: "proposed", at: proposed, source: "git-commit", what: "proposal.md committed" });
-  const planned = await getFileCreatedDate(root, `${directory}/tasks.md`);
+  const planned = await addedAt(`${directory}/tasks.md`);
   if (planned !== null) facts.push({ stage: "planned", at: planned, source: "git-commit", what: "tasks.md committed" });
 
   // Each closed task line, dated by the commit that last touched it: the
@@ -158,6 +184,10 @@ export function summariseStage(reading: ChangeStageReading): ChangeStageSummary 
   };
 }
 
+/** How many changes' stages are read at once: each is a `git blame` and a
+ * few reads, and a whole working tree's worth at once would contend. */
+const STAGE_READS_AT_ONCE = 6;
+
 /** Every active change of a working tree, where it is and how long it spent
  * in each stage. The standings and the audit log are read once for all. */
 export async function readChangeStages(root: string, options: { standings?: readonly ChangeStanding[]; now?: () => Date } = {}): Promise<ChangeStageReading[]> {
@@ -172,19 +202,23 @@ export async function readChangeStages(root: string, options: { standings?: read
     if (isChangeDirectory(entry.name, entries, archived)) names.push(entry.name);
   }
   const git = createGitWrapper({ cwd: root });
-  const audit = await readRepositoryAuditEntries({ git, workspaceRoot: root }).catch(() => []);
+  // The audit and every file's addition, each read once for the tree; the
+  // changes then side by side, a few at a time (the-board-reads-quickly).
+  const [audit, added] = await Promise.all([
+    readRepositoryAuditEntries({ git, workspaceRoot: root }).catch(() => []),
+    getAddedFileDates(root, CHANGES),
+  ]);
   const runs = runTimestampsByChange(audit);
-  const readings: ChangeStageReading[] = [];
-  for (const name of names.sort()) {
+  return mapBounded(names.sort(), STAGE_READS_AT_ONCE, (name) => {
     const standing = options.standings?.find((one) => one.changeName === name);
-    readings.push(await readChangeStage(root, name, {
+    return readChangeStage(root, name, {
       ...(standing !== undefined ? { standing } : {}),
       runTimes: runs.get(name) ?? [],
       git,
+      added,
       ...(options.now !== undefined ? { now: options.now } : {}),
-    }));
-  }
-  return readings;
+    });
+  });
 }
 
 /** Every active change of this repository, wherever it is worked: this
@@ -203,8 +237,11 @@ export async function readChangeStagesEverywhere(
   options: { standings?: readonly ChangeStanding[]; now?: () => Date } = {},
 ): Promise<ChangeStageReading[]> {
   const byName = new Map<string, ChangeStageReading>();
-  for (const root of roots) {
-    const readings = await readChangeStages(root, options).catch(() => [] as ChangeStageReading[]);
+  // Every working tree at once, and merged in the order given, so the
+  // first root's reading still wins (the-board-reads-quickly). Read one
+  // after another, five trees took nine seconds on this repository.
+  const everyRoot = await Promise.all(roots.map((root) => readChangeStages(root, options).catch(() => [] as ChangeStageReading[])));
+  for (const readings of everyRoot) {
     for (const reading of readings) {
       if (!byName.has(reading.changeName)) byName.set(reading.changeName, reading);
     }

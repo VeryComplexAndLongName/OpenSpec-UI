@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangeHistory } from "./change-history.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
 import { readChangeStage, readChangeStages } from "./change-stages.js";
+import { getAddedFileDates } from "./change-timeline.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
 // a-change-knows-its-stage: real git, with commits at the times a test
@@ -180,5 +181,32 @@ describe("reading a change's stages", () => {
     const readings = await readChangeStages(root);
 
     expect(readings.map((one) => [one.changeName, one.stage])).toEqual([["new-idea", "drafted"]]);
+  });
+
+  // the-board-reads-quickly: one reading of the tree's additions, and the
+  // same dates as asking git about each file.
+  it("dates a working tree's changes from one reading of its additions, as it did file by file", async () => {
+    const root = await repository();
+    await commitFile(root, "openspec/changes/second/proposal.md", "## Why\n", at(5));
+
+    const added = await getAddedFileDates(root, "openspec/changes");
+    const all = await readChangeStages(root);
+    const alone = await readChangeStage(root, "demo", { history: noHistory });
+
+    expect(new Date(added.get("openspec/changes/demo/proposal.md") as string).toISOString()).toBe(at(1));
+    expect(new Date(added.get("openspec/changes/demo/tasks.md") as string).toISOString()).toBe(at(2));
+    expect(all.find((one) => one.changeName === "demo")?.visits).toEqual(alone.visits);
+    expect(all.find((one) => one.changeName === "second")?.stage).toBe("proposed");
+  });
+
+  it("still dates a proposal renamed into place from its first commit", async () => {
+    const root = await repository();
+    await git(root, ["mv", "openspec/changes/demo", "openspec/changes/renamed"]);
+    await git(root, ["commit", "-q", "-m", "rename"], at(6));
+
+    const [renamed] = await readChangeStages(root);
+
+    expect(renamed?.changeName).toBe("renamed");
+    expect(renamed?.visits[0]).toMatchObject({ stage: "proposed", from: at(1) });
   });
 });

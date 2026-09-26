@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.88.1
+
+### Patch Changes
+
+- f636c91: The board reads its stages about four times sooner: 9.1 s to 2.0 s on this
+  repository. Every change's proposal, task list and first commit are dated
+  from one `git log` of the working tree instead of three git runs per
+  change, a change renamed into place still keeps its first date, and the
+  working trees and their changes are read side by side.
+- Updated dependencies [f636c91]
+  - @openspec-ui/core@0.129.1
+  - @openspec-ui/server@1.49.1
+  - @openspec-ui/webui@1.77.1
+
 ## 0.88.0
 
 ### Minor Changes
