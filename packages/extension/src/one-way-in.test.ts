@@ -96,6 +96,7 @@ describe("a command that asks before it acts says so", () => {
     "readChangeElsewhere", "pickChange", "copyTasksAsTemplate", "insertTemplateIntoChange",
     "confirmEnrolment", "joinTheTeam", "generateSprintReport", "sayToRun", "stopRunAfterTask",
     "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterChangeGraph",
+    "setLocalLlmApiKey",
   ].map((name) => `openspec-ui.${name}`);
 
   it("ends the title of every command that asks first with three dots", () => {

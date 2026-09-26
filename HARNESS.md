@@ -936,7 +936,7 @@ binary here" column repeats `README.md`'s own agent table.
 | `copilot-cli` | `copilot` | Yes (`--model`) | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `maxAiCredits` (`--max-ai-credits`, minimum 30) | Yes |
 | `codex-cli` | `codex` | No | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config, not live-verified here) | No | **No — never** |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
-| `local-llm` | HTTP to `http://localhost:30000` by default | No | No mechanism | No | Not exercised live |
+| `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | No: the model is set with the address | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Chat only: it answers in text and edits no file |
 | `claude-cli-acp` | `claude --input-format stream-json --output-format stream-json` | Yes (`--model`) | Same as `claude-cli` | Same as `claude-cli` (`maxCostUsd`) | Progress only — no permission gate, see below |
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
 | `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
@@ -944,6 +944,17 @@ binary here" column repeats `README.md`'s own agent table.
 | `deepseek-cli-acp` | `dsh --profile acp` (the DeepSeek CLI, `@deepseek-ai/dsh`) | No: the model is an ACP session option, DeepSeek-V4-Flash by default | No mechanism | No mechanism | Yes: an implement run on 2026-09-22 wrote its file and ticked its task in 22 s. **Needs Node 22.18+ on the 22 line, or 24.2+, first on the PATH**, see below |
 | `vscode-chat` | Dispatches the stage to VS Code's own Chat panel — spawns no CLI process at all | No | No mechanism | No mechanism | Not applicable — only valid under `autonomyLevel: "assisted"` |
 
+### The local LLM
+
+`local-llm` is set outside `agent-harness.json`: that file is committed, an address on the LAN is one machine's, and a key committed is a key published.
+
+| Setting | In VS Code | In the standalone and the CLI | When unset |
+| --- | --- | --- | --- |
+| Base URL, with its `/v1` or without | `openspec-ui.localLlm.baseUrl` | `OPENSPEC_UI_LOCAL_LLM_BASE_URL` | `http://localhost:30000` |
+| Model, as its server names it | `openspec-ui.localLlm.model` | `OPENSPEC_UI_LOCAL_LLM_MODEL` | `default` |
+| API key | **OpenSpec Workbench: Set Local LLM API Key...**, kept in the editor's secret storage | `OPENSPEC_UI_LOCAL_LLM_API_KEY` | no `Authorization` header |
+
+In VS Code the editor's value wins and the environment variable is the fallback. All three are read when the window opens, or when the server or the CLI starts. The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log. The agent answers in text: it can review, and it cannot write a proposal or tick a task.
 **On the "run against the real binary here" column, plainly: `codex` and
 `gemini` have never been run by this project at all**, raw or
 ACP-flavored — see `README.md`'s "Agent Selection" section for the full

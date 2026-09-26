@@ -61,6 +61,10 @@
         "title": "OpenSpec Workbench: Configure Harness Settings"
       },
       {
+        "command": "openspec-ui.setLocalLlmApiKey",
+        "title": "OpenSpec Workbench: Set Local LLM API Key..."
+      },
+      {
         "command": "openspec-ui.configureHarnessForChange",
         "title": "OpenSpec Workbench: Configure Harness for this Change"
       },
@@ -699,6 +703,16 @@
           "default": 14,
           "minimum": 1,
           "description": "Days a pending task can sit untouched (per git blame on tasks.md) before the Change Timeline view flags it as stale."
+        },
+        "openspec-ui.localLlm.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Where the local LLM (agent local-llm) answers: an OpenAI-compatible server's base URL, with its /v1 or without, such as http://192.168.1.10:8000/v1. Empty means the environment variable OPENSPEC_UI_LOCAL_LLM_BASE_URL, and then http://localhost:30000. Its API key is set with \"OpenSpec Workbench: Set Local LLM API Key...\" and kept in the editor's secret storage, never here. Read when the window opens."
+        },
+        "openspec-ui.localLlm.model": {
+          "type": "string",
+          "default": "",
+          "description": "The model the local LLM (agent local-llm) is asked for, as its server names it. Empty means the environment variable OPENSPEC_UI_LOCAL_LLM_MODEL, and then \"default\". Read when the window opens."
         },
         "openspec-ui.followSelectionInChangeGraph": {
           "type": "boolean",

@@ -66,6 +66,26 @@ describe("LocalLlmAdapter", () => {
     expect(parsedBody.messages[1]?.content).toContain("FILE CONTENT HERE");
   });
 
+  // the-local-llm-is-where-you-say: a server that wants a key, reached at
+  // a base URL written with its /v1.
+  it("sends its key as a bearer token to a base written with /v1, and none without a key", async () => {
+    // A stream per call: one read to its end cannot be read again.
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => ({ ok: true, status: 200, statusText: "OK", body: sseStream(["data: [DONE]"]) })));
+    const keyed = new LocalLlmAdapter({ baseUrl: "http://gpu.lan:8000/v1", model: "qwen", apiKey: "secret" });
+    const keyless = new LocalLlmAdapter({ baseUrl: "http://gpu.lan:8000/v1", model: "qwen" });
+
+    for (const adapter of [keyed, keyless]) {
+      for await (const _event of adapter.execute(adapter.buildInvocation(command), command, "p", new AbortController().signal)) { /* drained */ }
+    }
+
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const [keyedUrl, keyedInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [, keylessInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(keyedUrl).toBe("http://gpu.lan:8000/v1/chat/completions");
+    expect(keyedInit.headers).toEqual({ "content-type": "application/json", authorization: "Bearer secret" });
+    expect(keylessInit.headers).toEqual({ "content-type": "application/json" });
+  });
+
   it("passes through malformed SSE payloads as stdout without crashing", async () => {
     const body = sseStream(["not-a-data-line", "data: not-json", "data: [DONE]"]);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body }));

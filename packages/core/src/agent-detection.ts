@@ -9,6 +9,7 @@
 
 import crossSpawn from "cross-spawn";
 import { buildDefaultAllowlist } from "./default-runners.js";
+import { localLlmHeaders, resolveLocalLlmSettings, type LocalLlmSettings } from "./local-llm-settings.js";
 
 /** Presence plus a best-effort version — see design.md, "Detection
  * reports a version; it does not gate on one". `version` is absent when
@@ -44,6 +45,7 @@ const HTTP_TIMEOUT_MS = 1500;
 
 export interface AgentDetectionConfig {
   localLlmBaseUrl?: string;
+  localLlmApiKey?: string;
 }
 
 /** Spawns `<executable> --version` exactly once (ADR 0017 decision 6 — no
@@ -106,9 +108,11 @@ function detectCliAgent(executable: string): Promise<DetectedAgent> {
   });
 }
 
-async function detectLocalLlm(baseUrl: string): Promise<DetectedAgent> {
+async function detectLocalLlm(settings: LocalLlmSettings): Promise<DetectedAgent> {
   try {
-    await fetch(baseUrl, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+    // Any answer at all is a server there; the key goes with the question
+    // so a server that wants one does not hang up (the-local-llm-is-where-you-say).
+    await fetch(settings.baseUrl, { headers: localLlmHeaders(settings), signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
     return { detected: true };
   } catch {
     return { detected: false };
@@ -129,7 +133,10 @@ export async function detectAvailableAgentsDetailed(
       const executable = rules[0]?.executable;
       if (!executable) return [id, { detected: false }] as const;
       if (executable === HTTP_SENTINEL) {
-        return [id, await detectLocalLlm(config.localLlmBaseUrl ?? "http://localhost:30000")] as const;
+        return [id, await detectLocalLlm(resolveLocalLlmSettings({
+          ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
+          ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
+        }))] as const;
       }
       return [id, await detectCliAgent(executable)] as const;
     }),
