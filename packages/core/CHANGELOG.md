@@ -1,5 +1,25 @@
 # @openspec-ui/core
 
+## 0.129.0
+
+### Minor Changes
+
+- 8830c9f: A team can name the board's columns. `openspec/board.json` lists columns,
+  each a title and the neighbouring stages it holds, such as "Backlog" for
+  Drafted and Proposed; the Pipeline's board then draws those columns, with
+  each card where its stage is. A column is a view of the stages: every
+  stage in exactly one column, in their order, and a card still says its own
+  stage and moves only when its facts do. A file that breaks a rule is not
+  used, and the board says why. See docs/how-to/name-the-board-columns.md.
+- f0764af: The local LLM (agent `local-llm`) can be told where it is, which model to
+  ask for, and its API key. In VS Code: the settings
+  `openspec-ui.localLlm.baseUrl` and `openspec-ui.localLlm.model`, and the
+  command **Set Local LLM API Key...**, which keeps the key in the editor's
+  secret storage. In the standalone server and the CLI:
+  `OPENSPEC_UI_LOCAL_LLM_BASE_URL`, `OPENSPEC_UI_LOCAL_LLM_MODEL` and
+  `OPENSPEC_UI_LOCAL_LLM_API_KEY`. The key is sent as a bearer token and
+  written nowhere. A base URL is accepted with its `/v1` or without it.
+
 ## 0.128.0
 
 ### Minor Changes
