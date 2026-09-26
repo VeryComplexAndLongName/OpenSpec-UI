@@ -55,6 +55,26 @@ export interface ChangeStageSummary {
   totals: StageTotal[];
 }
 
+/** The readings with every change the default branch already carries
+ * archived moved to Archived, with no "since" of its own.
+ *
+ * A change's stage is read from the directory it is worked in, and a
+ * checkout behind the default branch still holds a change as it was before
+ * its archive: the board stood such changes In progress after they were
+ * archived on main (reported by the owner on 2026-09-26). The default branch
+ * is where the work ends, so its archive wins over any copy
+ * (a-landed-change-leaves-the-board). */
+export function settleOnDefaultBranch(
+  summaries: readonly ChangeStageSummary[],
+  archivedOnDefault: ReadonlySet<string>,
+): ChangeStageSummary[] {
+  return summaries.map((summary) => {
+    if (!archivedOnDefault.has(summary.changeName) || summary.stage === "archived") return summary;
+    const { changeName, roles, totals } = summary;
+    return { changeName, stage: "archived", roles, totals };
+  });
+}
+
 /** The stage of each change, by name, as a layout wants it. */
 export function stagesByName(summaries: readonly ChangeStageSummary[]): Map<string, ChangeStage> {
   return new Map(summaries.map((one) => [one.changeName, one.stage]));
