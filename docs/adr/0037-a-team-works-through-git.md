@@ -296,3 +296,41 @@ which is where a chain already begins for a change with no proposal.
 A Drafted change cannot be sent back to: decision 4's `sent-back` event
 names a stage a change has left, and nothing leaves a proposal to go back
 to having none.
+
+## Amendment, 2026-09-26: a team's own columns
+
+Decision 11 deferred "boards with columns of the team's own choosing"
+until people outside this repository asked. A user did on 2026-09-24, and
+the owner agreed on 2026-09-25.
+
+A team names its columns in `openspec/board.json`, committed beside
+`agent-harness.json`, so every member sees one board:
+
+```json
+{ "columns": [
+  { "title": "Backlog", "stages": ["drafted", "proposed"] },
+  { "title": "Ready",   "stages": ["planned"] },
+  { "title": "Doing",   "stages": ["in-progress"] },
+  { "title": "Review",  "stages": ["in-review"] },
+  { "title": "Done",    "stages": ["landed", "archived"] } ] }
+```
+
+A column is a view of stages, never a stage. Decision 5 stands: a change's
+stage is derived from facts, and a card moves when a fact moves it, never
+by being dragged. So:
+
+- every stage is in exactly one column: a stage in none leaves its cards
+  nowhere, a stage in two puts one card in two places;
+- the columns keep the stages' order: a column may join neighbouring
+  stages, never reorder them, since a card moves left to right;
+- a stage is never split between columns: which of two a card stands in
+  would be declared, not derived.
+
+A file that breaks any of these is refused whole: the board says what is
+wrong and draws the stages' own columns. A column is headed by its title,
+counts every card in its stages, and takes the picture and colour of its
+first stage. A card still says its own stage, and the history, the CLI
+and the time in stage keep the stages' words.
+
+Transition policies, columns by other facts, and one-way sync to an outside
+board stay deferred, for the reason decision 11 gave.

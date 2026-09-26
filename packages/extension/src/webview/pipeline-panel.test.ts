@@ -257,6 +257,22 @@ describe("PipelinePanel — answering the view", () => {
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:3", ok: false, error: "no log is kept for run never-ran" }));
   });
 
+  // a-team-names-its-columns: the team's columns, from this host's own root.
+  it("answers the team's own columns, from its own root whatever the page names", async () => {
+    const columns = vi.fn(async () => ({ kind: "refused", reason: "not in this test" }));
+    const { pipeline } = createPipelinePanel({ readers: { columns } });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "k:0", op: "pipeline/board-columns", args: { cwd: "/elsewhere" } });
+
+    expect(columns).toHaveBeenCalledWith("/repo");
+    expect(created[0]!.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      id: "k:0",
+      ok: true,
+      value: { kind: "refused", reason: "not in this test" },
+    }));
+  });
+
   // the-board-shows-the-stages: the board's reading, against this host's
   // own root, without the visits.
   it("answers where each change is on the board, and who holds it", async () => {

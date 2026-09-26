@@ -48,6 +48,7 @@ import {
   catchUpWithMain,
   readChangeStandings,
   readArchivedChanges,
+  readBoardColumns,
   readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
@@ -1210,6 +1211,24 @@ export async function handleEnrolmentConfirmRequest(req: IncomingMessage, res: S
 interface ChangeStandingsRequest {
   cwd: string;
   fetch?: "now" | "interval";
+}
+
+/** A team's own columns, from `openspec/board.json`: none, the columns, or
+ * why the file was refused (a-team-names-its-columns). */
+export async function handleBoardColumnsRequest(req: IncomingMessage, res: ServerResponse, policy: RestRequestPolicy): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = await readJsonBody(req, policy.maxPayloadBytes);
+  } catch (error) {
+    sendBodyError(res, error);
+    return;
+  }
+  if (!isWorkspaceRequest(parsed)) {
+    sendJson(res, 400, { error: "body must contain a non-empty cwd" });
+    return;
+  }
+  if (!authorizeCwd(res, policy, parsed.cwd)) return;
+  sendJson(res, 200, await readBoardColumns(parsed.cwd));
 }
 
 /** Where each active change is on the board, and who holds it

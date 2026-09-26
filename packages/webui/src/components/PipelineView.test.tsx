@@ -1751,3 +1751,50 @@ describe("PipelineView - the order within a column", () => {
     expect(await screen.findByTestId("pipeline-order")).toHaveValue("name");
   });
 });
+
+// a-team-names-its-columns. A team's columns are a view of the stages.
+describe("PipelineView - a team's own columns", () => {
+  const summary = (changeName: string, stage: ChangeStageSummary["stage"]): ChangeStageSummary => ({
+    changeName,
+    stage,
+    since: new Date(Date.now() - 3_600_000).toISOString(),
+    roles: {},
+    totals: [],
+  });
+  const load = async () => report(change("new-idea"), change("doing-it"));
+  const stages = async () => [summary("new-idea", "drafted"), summary("doing-it", "in-progress")];
+  const team = {
+    kind: "columns" as const,
+    columns: [
+      { title: "Backlog", stages: ["drafted", "proposed"] as ChangeStageSummary["stage"][] },
+      { title: "Ready", stages: ["planned"] as ChangeStageSummary["stage"][] },
+      { title: "Doing", stages: ["in-progress", "in-review"] as ChangeStageSummary["stage"][] },
+      { title: "Done", stages: ["landed", "archived"] as ChangeStageSummary["stage"][] },
+    ],
+  };
+
+  it("heads the board with the team's columns, each card where its stage is, and counts them", async () => {
+    render(<PipelineView isActive load={load} stages={stages} columns={async () => team} />);
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const picture = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => expect([...picture.querySelectorAll(".openspec-pipeline-stage-word")].map((one) => one.textContent))
+      .toEqual(["Backlog", "Ready", "Doing", "Done"]));
+    expect(screen.getByTestId("pipeline-stage-count-0").textContent).toBe(", 1 change1");
+    expect(screen.getByTestId("pipeline-stage-count-2").textContent).toBe(", 1 change1");
+    // The card still says its own stage.
+    expect(screen.getByTestId("pipeline-node-new-idea").textContent).toContain("Drafted");
+    expect(screen.queryByTestId("pipeline-columns-refused")).toBeNull();
+  });
+
+  it("draws a column per stage where the file is refused, and says why", async () => {
+    const refused = { kind: "refused" as const, reason: 'No column holds "archived": its cards would stand nowhere.' };
+    render(<PipelineView isActive load={load} stages={stages} columns={async () => refused} />);
+    fireEvent.click(await screen.findByTestId("pipeline-arrangement-stages"));
+
+    const picture = await screen.findByTestId("pipeline-picture");
+    await waitFor(() => expect(picture.querySelectorAll(".openspec-pipeline-stage-word")).toHaveLength(7));
+    expect((await screen.findByTestId("pipeline-columns-refused")).textContent)
+      .toBe('openspec/board.json is not used: No column holds "archived": its cards would stand nowhere.');
+  });
+});

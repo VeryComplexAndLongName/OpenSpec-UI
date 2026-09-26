@@ -20,6 +20,7 @@ import {
   catchUpWithMain,
   readChangeStandings,
   readArchivedChanges,
+  readBoardColumns,
   readChangeStagesOfWorkspace,
   summariseStage,
   readMainDrift,
@@ -31,7 +32,7 @@ import {
   surveyWorktrees,
   type CatchUpResult,
   type ChangeStageReading,
-  type ArchiveReading,
+  type ArchiveReading,  type BoardColumnsReading,
   type ChangeStandings,
   type MainDrift,
   type LastRunsReport,
@@ -148,6 +149,8 @@ export interface PipelineReaders {
   /** What this repository archived, as the server's default branch has
    * it (the-board-remembers-what-was-archived). */
   archived: (workspaceRoot: string) => Promise<ArchiveReading>;
+  /** A team's own columns, from openspec/board.json (a-team-names-its-columns). */
+  columns: (workspaceRoot: string) => Promise<BoardColumnsReading>;
   /** How far this checkout is behind what has landed, and what of it the
    * default branch already carries archived
    * (main-catches-up-with-what-landed). */
@@ -168,6 +171,7 @@ const DEFAULT_READERS: PipelineReaders = {
   standings: (workspaceRoot) => readChangeStandings(workspaceRoot, { fetch: { ifOlderThan: STANDING_FETCH_INTERVAL_MS } }),
   stages: (workspaceRoot) => readChangeStagesOfWorkspace(workspaceRoot),
   archived: (workspaceRoot) => readArchivedChanges(workspaceRoot, { git: createGitWrapper({ cwd: workspaceRoot }) }),
+  columns: (workspaceRoot) => readBoardColumns(workspaceRoot),
   drift: async (workspaceRoot, standings) => readMainDrift({
     root: workspaceRoot,
     ...(standings !== undefined ? { standings } : {}),
@@ -413,6 +417,9 @@ export class PipelinePanel {
           return;
         case "pipeline/standings":
           reply({ ok: true, value: await this.readers.standings(workspaceRoot) });
+          return;
+        case "pipeline/board-columns":
+          reply({ ok: true, value: await this.readers.columns(workspaceRoot) });
           return;
         case "pipeline/archived":
           reply({ ok: true, value: await this.readers.archived(workspaceRoot) });

@@ -1494,6 +1494,37 @@ describe("server — REST /api/status", () => {
     });
   });
 
+  // a-team-names-its-columns: the rules are core's; the route reads the
+  // workspace's file and answers what core made of it.
+  describe("POST /api/board-columns", () => {
+    it("answers none without the file, and the columns with a good one", async () => {
+      const cwd = await createTempWorkspace();
+      const none = await fetch(`${baseUrl}/api/board-columns`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+      expect(await none.json()).toEqual({ kind: "none" });
+
+      await mkdir(path.join(cwd, "openspec"), { recursive: true });
+      await writeFile(path.join(cwd, "openspec", "board.json"), JSON.stringify({
+        columns: [
+          { title: "Backlog", stages: ["drafted", "proposed", "planned"] },
+          { title: "Doing", stages: ["in-progress", "in-review"] },
+          { title: "Done", stages: ["landed", "archived"] },
+        ],
+      }), "utf8");
+      const good = await fetch(`${baseUrl}/api/board-columns`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) });
+
+      expect(good.status).toBe(200);
+      const body = await good.json() as { kind: string; columns: Array<{ title: string }> };
+      expect(body.kind).toBe("columns");
+      expect(body.columns.map((column) => column.title)).toEqual(["Backlog", "Doing", "Done"]);
+    });
+
+    it("refuses a body with no cwd", async () => {
+      const response = await fetch(`${baseUrl}/api/board-columns`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({}) });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
   // a-run-is-signed-by-its-person 5.2: which key a confirmation enrols is
   // core's; the route reads the body, checks the cwd, and answers.
   describe("POST /api/enrolment/confirm", () => {
