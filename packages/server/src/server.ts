@@ -31,6 +31,7 @@ import {
   handleEnrolmentConfirmRequest,
   handleChangeStandingsRequest,
   handleArchivedChangesRequest,
+  handleBoardColumnsRequest,
   handleChangeStagesRequest,
   handleHarnessConfigReadChangeOverrideRequest,
   handleHarnessConfigResolveRequest,
@@ -323,6 +324,10 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/archived-changes") {
       void handleArchivedChangesRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/board-columns") {
+      void handleBoardColumnsRequest(req, res, requestPolicy);
       return;
     }
     if (req.method === "POST" && req.url === "/api/change-stages") {

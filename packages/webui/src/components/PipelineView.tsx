@@ -45,6 +45,8 @@ import {
   layoutChangesByStage,
   orderFactsOf,
   rankChanges,
+  type BoardColumn,
+  type BoardColumnsReading,
   type ChangeOrder,
   type ChangeOrderFacts,
   stagesByName,
@@ -162,6 +164,11 @@ export interface PipelineViewProps {
    * Archived column stands empty - a change leaves `openspec/changes`
    * when it is archived, so nothing else ever puts one there. */
   archived?: () => Promise<ArchiveReading>;
+  /** Reads a team's own columns, from `openspec/board.json`
+   * (a-team-names-its-columns). Absent, or where the file is absent, a
+   * column per stage; where the file is refused, a column per stage and a
+   * line saying why. */
+  columns?: () => Promise<BoardColumnsReading>;
   /** Reads the runs this host started and holds. A card offers to answer,
    * stop or stop now only a run among these (a-change-is-run-from-its-card).
    * Absent, no card offers any of them. `myLabel` is the roster label of the
@@ -392,6 +399,7 @@ export function PipelineView({
   standings,
   stages,
   archived,
+  columns,
   drift,
   onCatchUp,
   onArchive,
@@ -415,6 +423,10 @@ export function PipelineView({
   // What the repository archived, read with the survey: the archive moves
   // when a change is archived (the-board-remembers-what-was-archived).
   const filed = usePolledReading(archived, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  // A team's columns, read with the survey: the file changes as a commit
+  // does (a-team-names-its-columns).
+  const named = usePolledReading(columns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
+  const teamColumns = named.value?.kind === "columns" ? named.value.columns : undefined;
   const [caughtUp, setCaughtUp] = useState<string | null>(null);
   // The runs this host holds, read with the survey: a card offers controls
   // only for these (a-change-is-run-from-its-card).
@@ -810,7 +822,13 @@ export function PipelineView({
                       nothing about the way through, and a person pressing
                       "By stage" on an empty queue would see no board at
                       all (the-board-is-of-every-change). */}
-                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} order={order} surveyedHere={here !== undefined && here.readable ? here.changes : []} />
+                  <LocalPicture report={boardReport ?? { ...report, changes: [] }} cards={cards} now={now} onOpenChange={onOpenChange} alsoIn={alsoInHere(here, labels)} controls={controls} directory={localDirectory} openCards={openCards} stages={stageSummaries} onBoard={onBoard} elsewhere={elsewhere} labels={labels} archivedOnMain={archivedOnDefault} filed={filedRecently} order={order} surveyedHere={here !== undefined && here.readable ? here.changes : []} {...(teamColumns !== undefined ? { teamColumns } : {})} />
+                  {/* A file that breaks a rule is refused whole, and said:
+                      silence would leave a person believing the board is
+                      theirs (a-team-names-its-columns). */}
+                  {onBoard && named.value?.kind === "refused" ? (
+                    <p className="openspec-shell-note" data-testid="pipeline-columns-refused">{`openspec/board.json is not used: ${named.value.reason}`}</p>
+                  ) : null}
                   {/* The archive holds more than a board should draw: the
                       rest is counted, never listed. */}
                   {onBoard && describeOlderArchive(filed.value) !== undefined ? (
@@ -929,7 +947,9 @@ function hasProgress(card: ChangeCard): boolean {
   return card.progress !== undefined && card.progress.total > 0;
 }
 
-function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, filed, labels, archivedOnMain, order, surveyedHere }: {
+function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, directory, openCards, stages, onBoard, elsewhere, filed, labels, archivedOnMain, order, surveyedHere, teamColumns }: {
+  /** A team's own columns, where `openspec/board.json` names good ones. */
+  teamColumns?: readonly BoardColumn[];
   report: ChangeReadinessReport;
   /** The order each column's cards stand in (the-board-sorts-its-cards). */
   order: ChangeOrder;
@@ -1013,7 +1033,7 @@ function LocalPicture({ report, cards, now, onOpenChange, alsoIn, controls, dire
   for (const one of filed) orderFacts.set(one.changeName, orderFactsOf({ archivedOn: one.archivedOn }));
   const rank = rankChanges([...orderFacts.keys()], order, orderFacts);
   const layout = onBoard
-    ? layoutChangesByStage(report, { heights, stages: stageOf, rank })
+    ? layoutChangesByStage(report, { heights, stages: stageOf, rank, ...(teamColumns !== undefined ? { columns: teamColumns } : {}) })
     : layoutChanges(report, { heights, rank });
   return (
     <>

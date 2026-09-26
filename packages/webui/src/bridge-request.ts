@@ -57,6 +57,7 @@ export type BridgeOperation =
     // (the-board-shows-the-stages).
     | "pipeline/stages"
     | "pipeline/archived"
+    | "pipeline/board-columns"
     | "pipeline/drift"
     | "pipeline/catch-up"
     // The runs this host holds, whose cards get controls

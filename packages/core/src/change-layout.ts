@@ -10,6 +10,7 @@
 // Nothing here reads the filesystem, git, or a lease. Every fact it
 // arranges was derived once, by `readChangeReadiness`.
 
+import { columnOfStage, type BoardColumn } from "./board-columns-facts.js";
 import { CHANGE_STAGES, describeStage, stageLook, type ChangeStage, type StageLook } from "./change-history-facts.js";
 import { compareChangeNames } from "./change-order.js";
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
@@ -158,6 +159,9 @@ export interface StageLayoutOptions extends ChangeLayoutOptions {
   /** The stage each change is in. A change none names is Proposed: it has
    * a proposal, since it is in the report. */
   stages: ReadonlyMap<string, ChangeStage>;
+  /** A team's own columns, each a run of neighbouring stages under one
+   * title (a-team-names-its-columns). Absent, a column per stage. */
+  columns?: readonly BoardColumn[];
 }
 
 /** The board: the same cards, arranged by the stage each change is in
@@ -170,10 +174,14 @@ export interface StageLayoutOptions extends ChangeLayoutOptions {
  * blocks a change is on its card, as it is in the other arrangement. */
 export function layoutChangesByStage(report: ChangeReadinessReport, options: StageLayoutOptions): ChangeLayout {
   const byName = new Map(report.changes.map((change) => [change.changeName, change]));
-  const columns: string[][] = CHANGE_STAGES.map(() => []);
+  // A team's columns join neighbouring stages; without them a column is a
+  // stage. Either way a card stands where its stage is.
+  const board = options.columns ?? CHANGE_STAGES.map((stage) => ({ title: describeStage(stage), stages: [stage] }));
+  const columnOf = columnOfStage(board);
+  const columns: string[][] = board.map(() => []);
   for (const change of report.changes) {
     const stage = options.stages.get(change.changeName) ?? "proposed";
-    (columns[CHANGE_STAGES.indexOf(stage)] as string[]).push(change.changeName);
+    (columns[columnOf.get(stage) as number] as string[]).push(change.changeName);
   }
   const { nodes, gridWidth, gridHeight } = placeInColumns(byName, columns, options.heights, options.rank);
   return {
@@ -189,8 +197,9 @@ export function layoutChangesByStage(report: ChangeReadinessReport, options: Sta
     // nothing exactly when the board most needs to show the way through
     // (the-board-is-of-every-change).
     height: Math.max(gridHeight, LANE_HEADING + NODE_HEIGHT),
-    lanes: CHANGE_STAGES.map((stage) => describeStage(stage)),
-    laneLooks: CHANGE_STAGES.map((stage) => stageLook(stage)),
+    lanes: board.map((column) => column.title),
+    // A joined column is drawn as its first stage is.
+    laneLooks: board.map((column) => stageLook(column.stages[0] as ChangeStage)),
   };
 }
 

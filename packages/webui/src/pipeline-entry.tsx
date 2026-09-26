@@ -8,7 +8,7 @@
 
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ArchiveReading, CatchUpResult, ChangeReadinessReport, ChangeStageSummary, ChangeStandings, LastRunsReport, LiveRun, MainDrift, RunLogRecord, RunLogSummary, WorktreeSurvey } from "@openspec-ui/core/browser";
+import type { ArchiveReading, BoardColumnsReading, CatchUpResult, ChangeReadinessReport, ChangeStageSummary, ChangeStandings, LastRunsReport, LiveRun, MainDrift, RunLogRecord, RunLogSummary, WorktreeSurvey } from "@openspec-ui/core/browser";
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
 import { RunLogsView } from "./components/RunLogsView.js";
@@ -73,6 +73,7 @@ function PipelineApp() {
   // What this repository archived, as the server's default branch has it
   // (the-board-remembers-what-was-archived).
   const archived = useCallback(() => bridge.request<ArchiveReading>("pipeline/archived"), [bridge]);
+  const columns = useCallback(() => bridge.request<BoardColumnsReading>("pipeline/board-columns"), [bridge]);
 
   // How far this checkout is behind what has landed, and the one press
   // that closes it (main-catches-up-with-what-landed).
@@ -140,7 +141,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} />
         {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
       </section>
     </div>
