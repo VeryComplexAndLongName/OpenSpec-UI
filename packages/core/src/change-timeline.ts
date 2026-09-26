@@ -178,6 +178,38 @@ export async function getFileCreatedDate(cwd: string, filePath: string): Promise
   }
 }
 
+/** When each file under a directory was added, as git printed it, from one
+ * `git log` of the whole directory - the oldest addition where a path was
+ * added more than once. The archive under it is left out.
+ *
+ * One process for every change of a working tree, where a `--follow` per
+ * file took about 360 ms each on this repository's 968 commits, three of
+ * them per change (the-board-reads-quickly). Without `--follow` a file
+ * renamed into place is not "added" here; a caller asks `getFileCreatedDate`
+ * about a file on disk that this does not name. */
+export async function getAddedFileDates(cwd: string, directoryPath: string): Promise<Map<string, string>> {
+  const added = new Map<string, string>();
+  let output: string;
+  try {
+    output = await simpleGit(cwd).raw([
+      "log", "--diff-filter=A", "--name-only", "--format=@%aI", "--", directoryPath, `:(exclude)${directoryPath}/archive`,
+    ]);
+  } catch {
+    return added;
+  }
+  // Newest first: each later line is older, so the last one written stays.
+  let at: string | undefined;
+  for (const line of output.split("\n").map((one) => one.trim())) {
+    if (line.length === 0) continue;
+    if (line.startsWith("@")) {
+      at = line.slice(1);
+      continue;
+    }
+    if (at !== undefined) added.set(line, at);
+  }
+  return added;
+}
+
 /** When anything under a directory was first committed, as git printed it,
  * or null where nothing under it ever was. A directory has no history of
  * its own to follow, so there is no `--follow`: this is what dates a
