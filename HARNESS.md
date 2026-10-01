@@ -749,10 +749,16 @@ Three paths are offered, with the configured one pre-selected:
   the configuration says to. This is what `semi-autonomous` and
   `autonomous` resolve to.
 - **Run one stage** — the single-stage picker. This is what `assisted`
-  resolves to.
-- **Implement with the VS Code agent** — the `apply` stage run by
-  `vscode-chat`. Offered in VS Code only; the standalone shell has no VS
-  Code Chat to open.
+  resolves to. The picker lists the stages an agent runs under OpenSpec's
+  names, `propose`, `review`, `apply` and `verify`, and opens on the one
+  the dialog says the run begins at. `propose` writes the change's
+  proposal, spec deltas, design and task list where they are missing.
+  Archiving is not an agent's stage: use **Archive Change**, or the chain.
+- **Apply in VS Code Chat** — the `apply` stage run by `vscode-chat`:
+  the change is handed to VS Code's own Chat in agent mode, with the model
+  chosen there, so none of the agents configured for the stages runs.
+  Offered in VS Code only; the standalone shell has no VS Code Chat to
+  open.
 
 Choosing a path other than the configured one applies to that run alone
 and writes nothing to `harness.json`. A run is not a configuration

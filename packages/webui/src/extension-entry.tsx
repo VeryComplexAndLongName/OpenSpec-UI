@@ -15,7 +15,7 @@ import { AiPanel } from "./components/AiPanel.js";
 import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { OwlLogo } from "./components/OwlLogo.js";
-import type { RunPathId } from "@openspec-ui/core/browser";
+import { RUN_START_COMMAND, type CommandKind, type RunPathId } from "@openspec-ui/core/browser";
 import { buildDefaultChangeDir, shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
@@ -58,11 +58,17 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   const [budget, setBudget] = useState(initialContext.budget);
   const [startChain, setStartChain] = useState(initialContext.startChain ?? false);
   // Seeded once, from the first render's context: the panel was opened to
-  // run this change, so it starts on `implement` rather than `list`.
+  // run this change, so it starts on a stage rather than on `list`.
   // Deliberately not re-set by later context messages — the user may have
   // changed the command kind by then, and a follow-up message must not
   // undo that.
   const [runChange, setRunChange] = useState(initialContext.runChange ?? false);
+  /** The command the single-stage picker opens on: the stage the dialog
+   * said the run begins at. It opened on `implement` whatever the dialog
+   * said, so a change with no proposal was offered apply
+   * (one-stage-speaks-openspec). `implement` remains where the plan could
+   * not say. */
+  const [startCommandKind, setStartCommandKind] = useState<CommandKind>("implement");
   /** The dialog is showing while a plan is present and nobody has chosen
    * a path yet. Choosing one clears it and mounts what it chose — the
    * chain and the single-stage picker are both already here, so asking
@@ -142,6 +148,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
     }
     setStartChain(path === "chain");
     setRunChange(path !== "chain");
+    setStartCommandKind(runPlan?.startsAt ? RUN_START_COMMAND[runPlan.startsAt.stage] : "implement");
     setRunPlan(undefined);
   }
 
@@ -233,7 +240,7 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
         ) : startChain ? (
           <HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} budget={budget} />
         ) : (
-          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} initialCommandKind={runChange ? "implement" : undefined} />
+          <AiPanel transport={transport} cwd={cwd} changeDir={changeDir} detectedAgents={detectedAgents} stepAgents={stepAgents} initialCommandKind={runChange ? startCommandKind : undefined} />
         )
       ) : (
         <p>Enter cwd and change directory to enable the AI panel.</p>

@@ -435,7 +435,10 @@ through host-specific interfaces. See ADR 0004.
 
 The AI panel (in both the standalone browser tab and the VS Code Webview,
 either transport mode) has an **agent picker** next to the command picker.
-Selecting `plan`, `implement`, or `review` sends the picked agent id as
+The command picker lists the stages an agent runs under OpenSpec's names:
+`propose`, `review`, `apply` and `verify`. The protocol keeps the command
+kinds it was written with, so `propose` is sent as `plan` and `apply` as
+`implement`. Selecting one of the four sends the picked agent id as
 `Command.agentId`; the host resolves it to a real `AgentRunner` from
 `buildDefaultAgentRunners()` (`packages/core/src/default-runners.ts`) and
 streams events over the same protocol already used for
@@ -500,7 +503,7 @@ is not a guarantee the tool is actually authenticated or otherwise usable;
 the run's own `failed` event remains the real source of truth for that.
 
 **This is a separate mechanism from VS Code's native Chat/Agent handoff**
-(the "Implement with VS Code Agent" command and the `@openspec` Chat
+(the run dialog's "Apply in VS Code Chat" path and the `@openspec` Chat
 Participant's `/plan`/`/implement`/`/review`), which opens VS Code's own
 Copilot Chat panel and uses whatever model the user has already selected
 there. Neither replaces the other: the native path is VS Code-only and

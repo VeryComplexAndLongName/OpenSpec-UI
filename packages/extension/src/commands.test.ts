@@ -1830,7 +1830,7 @@ describe("registerCommands", () => {
         offered: [
           { id: "chain", title: "Run the chain", describes: "Runs every stage." },
           { id: "single-stage", title: "Run one stage", describes: "Runs one stage." },
-          { id: "vscode-agent", title: "Implement with the VS Code agent", describes: "Opens VS Code Chat." },
+          { id: "vscode-agent", title: "Apply in VS Code Chat", describes: "Opens VS Code Chat." },
         ],
         findings: [],
         ...overrides,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js";
-import { agentForChosenPath, buildRunPlan, describeRunStart, runStartFactsFrom, runStartStage } from "./run-plan.js";
+import { agentForChosenPath, buildRunPlan, describeRunStart, RUN_START_COMMAND, runStartFactsFrom, runStartStage } from "./run-plan.js";
 
 // one-way-in-to-run:
 // pure over in-memory data — no files, no processes.
@@ -56,6 +56,16 @@ describe("buildRunPlan", () => {
     expect(withoutChat.offered.map((path) => path.id)).not.toContain("vscode-agent");
   });
 
+  it("names the VS Code Chat path for the chat, and says no configured agent runs", () => {
+    // It read as one more of the agents listed above it, and a person
+    // looked in it for Claude (one-stage-speaks-openspec).
+    const path = buildRunPlan(config(), { hasVsCodeAgent: true }).offered.find((offered) => offered.id === "vscode-agent");
+
+    expect(path?.title).toBe("Apply in VS Code Chat");
+    expect(path?.describes).toContain("with the model chosen there");
+    expect(path?.describes).toContain("None of the agents configured above runs");
+  });
+
   it("describes every path it offers", () => {
     // A list of paths carrying only names gives no help choosing between
     // them — the same reason a template carries "not for".
@@ -63,6 +73,15 @@ describe("buildRunPlan", () => {
       expect(path.describes.length).toBeGreaterThan(0);
       expect(path.title.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("RUN_START_COMMAND", () => {
+  it("turns the stage a run begins at into the command that runs it", () => {
+    // The picker opened on `implement` for a change with no proposal.
+    expect(RUN_START_COMMAND[runStartStage({ proposeDone: false })]).toBe("plan");
+    expect(RUN_START_COMMAND[runStartStage({ proposeDone: true, openTasks: 2 })]).toBe("implement");
+    expect(RUN_START_COMMAND[runStartStage({ proposeDone: true, openTasks: 0 })]).toBe("verify");
   });
 });
 

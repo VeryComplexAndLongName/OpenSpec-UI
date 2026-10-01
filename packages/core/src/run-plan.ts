@@ -15,6 +15,7 @@ import { findHarnessConfigLimits, type HarnessFinding } from "./harness-config-f
 import { recommendTemplate, type HarnessRecommendation, type RecommendationInput } from "./harness-recommendation.js";
 import { normalizeStepAgent, VSCODE_CHAT_STEP_AGENT_ID, type HarnessStepAgentStage } from "./harness-step-agent.js";
 import type { HarnessAutonomyLevel, HarnessConfig } from "./harness-config.js";
+import type { CommandKind } from "./protocol.js";
 
 /** The three ways a change can be worked on. `chain` and `single-stage`
  * are what the two autonomy levels already resolve to; `vscode-agent` is
@@ -149,10 +150,34 @@ const PATHS: Readonly<Record<RunPathId, RunPath>> = {
   },
   "vscode-agent": {
     id: "vscode-agent",
-    title: "Implement with the VS Code agent",
-    describes: "Opens VS Code Chat in agent mode on this change's apply stage.",
+    // Named for where the work goes. "Implement with the VS Code agent" read
+    // as one more of the agents listed above it, and a person looked for
+    // Claude in a chat that offers its own models (one-stage-speaks-openspec).
+    title: "Apply in VS Code Chat",
+    describes: "Hands this change's apply stage to VS Code's own Chat in agent mode, with the model chosen there."
+      + " None of the agents configured above runs: to use one of them, run one stage or the chain.",
   },
 };
+
+/** The command a single stage is started with. A stage has OpenSpec's name
+ * and the protocol's command kind, which came first and is kept; this is
+ * where a surface turns the stage a run begins at into the command for it. */
+export const RUN_START_COMMAND: Readonly<Record<RunStartStage, CommandKind>> = {
+  propose: "plan",
+  apply: "implement",
+  verify: "verify",
+};
+
+const COMMAND_LABELS: Readonly<Record<string, string>> = { plan: "propose", implement: "apply" };
+
+/** What a command is called where a person reads it: in the stage picker,
+ * and in the notification that a stage ended. The commands that run a
+ * stage carry the stage's OpenSpec name; `plan` was read as something
+ * other than propose. Every other command is its own name. Takes a string
+ * because a recorded process keeps its operation as one. */
+export function commandLabel(kind: string): string {
+  return COMMAND_LABELS[kind] ?? kind;
+}
 
 /** Every path id, read from the descriptions rather than listed again:
  * a validator checking a stored `path` against a second list would

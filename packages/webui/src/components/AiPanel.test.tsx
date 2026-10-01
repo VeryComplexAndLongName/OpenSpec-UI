@@ -94,15 +94,85 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         const picker = screen.getByTestId("command-picker");
         const options = picker.querySelectorAll("option");
+        // The four stages under OpenSpec's names, in the order a chain runs
+        // them; `plan` and `implement` are what is sent, not what is read
+        // (one-stage-speaks-openspec).
         expect(Array.from(options).map((option) => option.textContent)).toEqual([
             "status",
             "list",
             "show",
             "validate",
-            "plan",
-            "implement",
+            "propose",
             "review",
+            "apply",
+            "verify",
         ]);
+        expect(Array.from(options).map((option) => option.value)).toEqual([
+            "status",
+            "list",
+            "show",
+            "validate",
+            "plan",
+            "review",
+            "implement",
+            "verify",
+        ]);
+    });
+
+    it("sends `plan` when propose is run, with the propose stage's agent", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="plan"
+                stepAgents={{ propose: "copilot-cli" }}
+                generateRunId={() => "run-propose"}
+            />,
+        );
+        // The list the panel loads by itself ends first: Run waits for it.
+        emit({ kind: "completed", runId: "run-propose", timestamp: "t" });
+
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+            kind: "plan",
+            agentId: "copilot-cli",
+            context: expect.objectContaining({ changeDir: "/repo/openspec/changes/demo" }),
+        }));
+    });
+
+    it("pre-selects the verify stage's agent", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="verify"
+                stepAgents={{ verify: "copilot-cli" }}
+            />,
+        );
+
+        expect((screen.getByTestId("command-picker") as HTMLSelectElement).value).toBe("verify");
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("copilot-cli");
+    });
+
+    it("follows the host to another stage, and keeps a stage picked by hand until then", () => {
+        const { transport } = createFakeTransport();
+        const panel = (kind: "plan" | "implement") => (
+            <AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/demo" initialCommandKind={kind} />
+        );
+        const { rerender } = render(panel("implement"));
+        const picker = screen.getByTestId("command-picker") as HTMLSelectElement;
+
+        fireEvent.change(picker, { target: { value: "review" } });
+        rerender(panel("implement"));
+        expect(picker.value).toBe("review");
+
+        rerender(panel("plan"));
+        expect(picker.value).toBe("plan");
     });
 
     it("defaults the agent picker to the default agent and disables it for direct commands", () => {

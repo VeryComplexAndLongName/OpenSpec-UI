@@ -67,7 +67,8 @@ export interface AiPanelContext {
   startChain?: boolean;
   /** Set by `openspec-ui.runWithHarness` when this change's config
    * resolves to the single-stage picker rather than a chain: the panel
-   * was opened to run *this* change, so it starts on `implement` instead
+   * was opened to run *this* change, so it starts on the stage the plan
+   * says the run begins at, `apply` where the plan could not say, instead
    * of `list`. Like `startChain`, it must be known on the first render,
    * so it rides in the initial HTML rather than a follow-up message.
    *
@@ -166,7 +167,7 @@ function isBridgeCommandMessage(data: unknown): data is BridgeCommandMessage {
 /** The `HarnessStage` a single-stage `Command.kind` corresponds to —
  * mirrors `HarnessChainRunner`'s own `CHAIN_STAGE_COMMAND` mapping
  * (`harness-chain-runner.ts`), inverted, and `webui`'s
- * `COMMAND_KIND_TO_HARNESS_STAGE` (`AiPanel.tsx`). Only these three kinds
+ * `COMMAND_KIND_TO_HARNESS_STAGE` (`AiPanel.tsx`). Only these four kinds
  * are ever dispatched through a single `stepAgents` entry — everything
  * else (`status`/`list`/`show`/`validate`/`cancel`/`chain`/
  * `confirmCheckpoint`) has no entry here and always falls through to the
@@ -175,6 +176,7 @@ const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
   plan: "propose",
   review: "review",
   implement: "apply",
+  verify: "verify",
 };
 
 export interface AiPanelDeps {
