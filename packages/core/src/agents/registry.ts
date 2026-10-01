@@ -38,6 +38,7 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { id: "codex-cli", label: "Codex CLI" },
   { id: "gemini-cli", label: "Gemini CLI" },
   { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
+  { id: "local-llm-acp", label: "Local LLM (ACP, OpenAI-compatible)" },
   // ACP-flavored adapters (acp-agent-adapters) — additional entries, not
   // replacements for the four above (see this file's header comment).
   { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },

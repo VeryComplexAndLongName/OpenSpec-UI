@@ -128,7 +128,7 @@ describe("detectAvailableAgents", () => {
     expect(result["local-llm"]).toBe(false);
   });
 
-  it("resolves all nine registered agent ids, including the four ACP-flavored ones", async () => {
+  it("resolves every registered agent id, including local-llm-acp", async () => {
     spawnMock.mockImplementation(() => {
       const child = new FakeChildProcess();
       queueMicrotask(() => child.emit("exit", 0));
@@ -150,6 +150,7 @@ describe("detectAvailableAgents", () => {
         "gemini-cli",
         "gemini-cli-acp",
         "local-llm",
+        "local-llm-acp",
       ].sort(),
     );
   });

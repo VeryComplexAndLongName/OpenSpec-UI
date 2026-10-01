@@ -205,6 +205,7 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none" },
   "gemini-cli": { reports: "none", contextGauge: "none" },
   "local-llm": { reports: "none", contextGauge: "none" },
+  "local-llm-acp": { reports: "unknown", contextGauge: "unknown" },
   // The run is handed to VS Code chat; this project never sees its cost.
   [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none", contextGauge: "none" },
   // Measured 2026-09-04 from this repository's own audit.jsonl: one run
