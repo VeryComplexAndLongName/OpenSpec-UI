@@ -37,11 +37,12 @@ function nowIso(): string {
 /** Mirrors `webui`'s `COMMAND_KIND_TO_HARNESS_STAGE` (`AiPanel.tsx`) and
  * the extension's `STAGE_FOR_COMMAND_KIND` (`webview/ai-panel.ts`): the
  * `HarnessStage` a single-stage `Command.kind` corresponds to. Only these
- * three are ever driven by a single `stepAgents` entry. */
+ * four are ever driven by a single `stepAgents` entry. */
 const STAGE_FOR_COMMAND_KIND: Partial<Record<Command["kind"], HarnessStage>> = {
   plan: "propose",
   review: "review",
   implement: "apply",
+  verify: "verify",
 };
 
 /** The standalone server has no chat to hand a stage to — ADR 0016

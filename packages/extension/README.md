@@ -246,8 +246,8 @@ it may be a change you have not written yet.
 1. Open the OpenSpec activity-bar container.
 2. Create or expand a change in **Changes**.
 3. Edit Proposal, Design, Tasks, and delta Specs in native editors.
-4. Run Validate, then choose **Implement with VS Code Agent** — this runs
-   through VS Code's own Copilot Chat, using whatever model is selected
+4. Run Validate, then choose **Run...** and **Apply in VS Code Chat** —
+   this runs through VS Code's own Copilot Chat, using whatever model is selected
    in Chat's own model picker. If you specifically want a particular CLI
    agent (e.g. the real Anthropic Claude Code CLI, not Claude via
    Copilot) to make the change instead, use **OpenSpec Workbench: Open Process

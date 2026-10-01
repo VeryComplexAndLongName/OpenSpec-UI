@@ -64,19 +64,29 @@ describe("RunCompletionNotifier", () => {
 describe("describeRunCompletion", () => {
   it("describes a completed run with the change name and summary", () => {
     expect(describeRunCompletion(process({ state: "completed", summary: "3/3 tasks complete" }))).toBe(
-      'OpenSpec Workbench: implement for "demo-change" completed (3/3 tasks complete).',
+      'OpenSpec Workbench: apply for "demo-change" completed (3/3 tasks complete).',
     );
   });
 
   it("describes a failed run with the change name and error", () => {
     expect(describeRunCompletion(process({ state: "failed", error: "agent exited with code 1" }))).toBe(
-      'OpenSpec Workbench: implement for "demo-change" failed (agent exited with code 1).',
+      'OpenSpec Workbench: apply for "demo-change" failed (agent exited with code 1).',
     );
   });
 
   it("omits the change-name clause when absent", () => {
     expect(describeRunCompletion(process({ changeName: undefined, state: "completed" }))).toBe(
-      "OpenSpec Workbench: implement completed.",
+      "OpenSpec Workbench: apply completed.",
     );
+  });
+
+  it("names propose and verify as the picker does", () => {
+    // one-stage-speaks-openspec: the operation recorded is the command
+    // kind, `plan`; a person picked "propose".
+    expect(describeRunCompletion(process({ operation: "plan", changeName: undefined, state: "completed" }))).toBe(
+      "OpenSpec Workbench: propose completed.",
+    );
+    const notifier = new RunCompletionNotifier([process({ operation: "verify", state: "running" })]);
+    expect(notifier.handle([process({ operation: "verify", state: "completed" })])).toHaveLength(1);
   });
 });

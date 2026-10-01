@@ -124,6 +124,7 @@ import {
   describeHumanOnlyInboxState,
   describeStandingSources,
   describeWaitingOn,
+  RUN_START_COMMAND,
   withoutArchivePrefix,
   type ChangeStandings,
   type ComparisonPeriodId,
@@ -351,6 +352,8 @@ function StandaloneApp() {
   // Every action in the dialog acts on this name, never on whichever change
   // the editor happens to show.
   const [runChangeName, setRunChangeName] = useState("");
+  // The command "Run one stage" opens the picker on; none until it is chosen.
+  const [runStageKind, setRunStageKind] = useState<CommandKind | undefined>(undefined);
   const [runOpenedFrom, setRunOpenedFrom] = useState<"editor" | "pipeline">("editor");
   const [pipelineChain, setPipelineChain] = useState<{ changeDir: string; budget: HarnessBudget | undefined } | null>(null);
   const pipelineRunLayer = useRef<HTMLDivElement | null>(null);
@@ -1076,6 +1079,9 @@ function StandaloneApp() {
     }
     setChainChangeDir(null);
     setChangeDir(targetChangeDir);
+    // The picker opens on the stage the dialog said the run begins at
+    // (one-stage-speaks-openspec).
+    setRunStageKind(dispatch.plan.startsAt ? RUN_START_COMMAND[dispatch.plan.startsAt.stage] : "implement");
     setActiveTab("run-a-command");
   }
 
@@ -1867,6 +1873,7 @@ function StandaloneApp() {
             changeDir={changeDir}
             detectedAgents={detectedAgents}
             stepAgents={stepAgents}
+            {...(runStageKind !== undefined ? { initialCommandKind: runStageKind } : {})}
             onRefreshAgents={() => void handleRefreshAgents()}
             onRunTerminal={isStandaloneHost ? handleRunTerminal : undefined}
           />
