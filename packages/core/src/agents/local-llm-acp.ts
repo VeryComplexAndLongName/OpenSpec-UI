@@ -36,16 +36,13 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
       throw new Error("LocalLlmAcpAdapter expects invocation.kind === 'process'");
     }
 
-    const env = this.options.apiKey !== undefined
-      ? {
-          CODING_AGENT_API_KEY: this.options.apiKey,
-          CODING_AGENT_BASE_URL: this.options.baseUrl,
-          CODING_AGENT_MODEL: this.options.model,
-        }
-      : {
-          CODING_AGENT_BASE_URL: this.options.baseUrl,
-          CODING_AGENT_MODEL: this.options.model,
-        };
+    const env: Record<string, string> = {
+      CODING_AGENT_BASE_URL: this.options.baseUrl,
+      CODING_AGENT_MODEL: this.options.model,
+    };
+    if (this.options.apiKey !== undefined) {
+      env.CODING_AGENT_API_KEY = this.options.apiKey;
+    }
 
     yield* this.driver.runProcess({
       executable: invocation.executable,
