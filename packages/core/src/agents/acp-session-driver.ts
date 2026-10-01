@@ -49,10 +49,12 @@ export function spawnAcpProcess(
   executable: string,
   args: string[],
   cwd: string,
+  env?: Readonly<Record<string, string>>,
 ): { target: Stream; child: ChildProcessWithoutNullStreams } {
   const child = crossSpawn(executable, args, {
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
+    ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
     ...(process.platform !== "win32" ? { detached: true } : {}),
   }) as ChildProcessWithoutNullStreams;
   // ACP only speaks over stdin/stdout — stderr is not part of the ACP
@@ -87,6 +89,7 @@ export interface RunAcpProcessOptions {
   executable: string;
   args: string[];
   cwd: string;
+  env?: Readonly<Record<string, string>>;
   runId: string;
   commandKind: CommandKind;
   prompt: string;
@@ -338,7 +341,7 @@ export class AcpSessionDriver {
 
     let spawned: { target: Stream; child: ChildProcessWithoutNullStreams };
     try {
-      spawned = spawnAcpProcess(executable, args, cwd);
+      spawned = spawnAcpProcess(executable, args, cwd, options.env);
     } catch (err) {
       yield {
         kind: "failed",

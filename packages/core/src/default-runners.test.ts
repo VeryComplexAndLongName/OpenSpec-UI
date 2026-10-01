@@ -11,6 +11,7 @@ import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { DeepSeekAcpAdapter } from "./agents/deepseek-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
+import { LocalLlmAcpAdapter } from "./agents/local-llm-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
 import type { Command } from "./protocol.js";
 
@@ -39,6 +40,14 @@ describe("buildDefaultAllowlist", () => {
 
     const localLlmInvocation = new LocalLlmAdapter({ baseUrl: "http://x", model: "m" }).buildInvocation(command);
     expect(checkAllowlist("local-llm", localLlmInvocation, allowlist).allowed).toBe(true);
+
+    const localLlmAcpInvocation = new LocalLlmAcpAdapter({
+      executable: "coding-agent",
+      baseUrl: "http://gpu.lan:8000/v1",
+      model: "qwen2.5-coder",
+      limits: {},
+    }).buildInvocation(command);
+    expect(checkAllowlist("local-llm-acp", localLlmAcpInvocation, allowlist).allowed).toBe(true);
   });
 
   it("allows exactly what each real ACP-flavored adapter's buildInvocation() produces", () => {
@@ -78,6 +87,30 @@ describe("buildDefaultAllowlist", () => {
         kind: "process",
         executable: "claude",
         args: ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"],
+      },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects local-llm-acp invocation that omits --base-url", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "local-llm-acp",
+      { kind: "process", executable: "coding-agent", args: ["acp", "--model", "qwen2.5-coder"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects local-llm-acp invocation that appends an unknown flag", () => {
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "local-llm-acp",
+      {
+        kind: "process",
+        executable: "coding-agent",
+        args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "--sandbox", "off"],
       },
       allowlist,
     );
