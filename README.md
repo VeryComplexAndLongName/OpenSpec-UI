@@ -1,6 +1,6 @@
 # OpenSpec Workbench
 
-![OpenSpec Workbench Banner](docs/images/OpenSpec_Workbench_Banner.png)
+![OpenSpec Workbench Banner](docs/branding/OpenSpec_Workbench_Banner.png)
 
 ---
 
