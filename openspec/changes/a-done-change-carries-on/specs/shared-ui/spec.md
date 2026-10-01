@@ -60,11 +60,15 @@ alone does not say which of the two stages that check work comes first.
 
 ### Requirement: The command list says what each command does
 
-The command list SHALL say, beside each command, what it does, and that
-`plan` is what the `propose` stage sends. The words SHALL come from core.
+The command list SHALL say, beside each command's name as the list shows
+it, what the command does. A stage SHALL be named as OpenSpec names it,
+and where the command it sends is named differently, its words SHALL say
+which command is sent: `propose` is sent as `plan`, and `apply` as
+`implement`. The words SHALL come from core.
 
 #### Scenario: The command picker
 
 - **WHEN** the command picker is opened
-- **THEN** each option reads as the command and what it does, and `plan`'s
-  says the `propose` stage runs it
+- **THEN** each option reads as its name and what it does, and the
+  `propose` option says it writes the change's missing planning artifacts
+  and is sent as `plan`

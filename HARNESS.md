@@ -766,10 +766,16 @@ Three paths are offered, with the configured one pre-selected:
   the configuration says to. This is what `semi-autonomous` and
   `autonomous` resolve to.
 - **Run one stage** — the single-stage picker. This is what `assisted`
-  resolves to.
-- **Implement with the VS Code agent** — the `apply` stage run by
-  `vscode-chat`. Offered in VS Code only; the standalone shell has no VS
-  Code Chat to open.
+  resolves to. The picker lists the stages an agent runs under OpenSpec's
+  names, `propose`, `review`, `apply` and `verify`, and opens on the one
+  the dialog says the run begins at. `propose` writes the change's
+  proposal, spec deltas, design and task list where they are missing.
+  Archiving is not an agent's stage: use **Archive Change**, or the chain.
+- **Apply in VS Code Chat** — the `apply` stage run by `vscode-chat`:
+  the change is handed to VS Code's own Chat in agent mode, with the model
+  chosen there, so none of the agents configured for the stages runs.
+  Offered in VS Code only; the standalone shell has no VS Code Chat to
+  open.
 
 Choosing a path other than the configured one applies to that run alone
 and writes nothing to `harness.json`. A run is not a configuration
@@ -939,8 +945,8 @@ deciding, not after.
 
 ## Agents, models, effort, and spending caps
 
-One row per registered agent id — ten in total: five raw CLI adapters,
-four ACP-flavored adapters, and the VS Code chat dispatch target. Columns
+One row per registered agent id — eleven in total: five raw adapters,
+six ACP-flavored adapters, and the VS Code chat dispatch target. Columns
 below come from `HARNESS_AGENT_CAPABILITIES`
 (`packages/core/src/harness-step-agent.ts` — the single source of truth
 both the validator and each settings UI read) and `modelFlag`
@@ -954,6 +960,7 @@ binary here" column repeats `README.md`'s own agent table.
 | `codex-cli` | `codex` | No | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config, not live-verified here) | No | **No — never** |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
 | `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | No: the model is set with the address | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Chat only: it answers in text and edits no file |
+| `local-llm-acp` | externally installed `coding-agent` using `acp --base-url <url> --model <name>` and per-run ACP limit flags | No: the model comes from local LLM settings, not harness model selection | No mechanism | No mechanism | Yes: by runner integration tests (`local-llm-acp.test.ts`) and the same local endpoint/config path as `local-llm` |
 | `claude-cli-acp` | `claude --input-format stream-json --output-format stream-json` | Yes (`--model`) | Same as `claude-cli` | Same as `claude-cli` (`maxCostUsd`) | Progress only — no permission gate, see below |
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
 | `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |

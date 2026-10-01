@@ -1,10 +1,10 @@
-import type { WorkbenchProcess, WorkbenchProcessState } from "@openspec-ui/core";
+import { commandLabel, type WorkbenchProcess, type WorkbenchProcessState } from "@openspec-ui/core";
 
 /** Agent-driven operations worth a "you can stop watching now" notification.
  * `status`/`list`/`show`/`validate` are deterministic and near-instant (see
  * run-controller.ts's runDirectOpenSpecCommand) — notifying on those would
  * fire constantly for actions the user is already looking at the result of. */
-const NOTIFIABLE_OPERATIONS = new Set(["plan", "implement", "review"]);
+const NOTIFIABLE_OPERATIONS = new Set(["plan", "review", "implement", "verify"]);
 
 const TERMINAL_STATES = new Set<WorkbenchProcessState>(["completed", "failed"]);
 
@@ -50,8 +50,10 @@ export class RunCompletionNotifier {
 
 export function describeRunCompletion(process: WorkbenchProcess): string {
   const change = process.changeName ? ` for "${process.changeName}"` : "";
+  // The stage under the name the picker showed (one-stage-speaks-openspec).
+  const stage = commandLabel(process.operation);
   if (process.state === "failed") {
-    return `OpenSpec Workbench: ${process.operation}${change} failed${process.error ? ` (${process.error})` : ""}.`;
+    return `OpenSpec Workbench: ${stage}${change} failed${process.error ? ` (${process.error})` : ""}.`;
   }
-  return `OpenSpec Workbench: ${process.operation}${change} completed${process.summary ? ` (${process.summary})` : ""}.`;
+  return `OpenSpec Workbench: ${stage}${change} completed${process.summary ? ` (${process.summary})` : ""}.`;
 }

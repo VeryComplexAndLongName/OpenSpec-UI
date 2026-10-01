@@ -22,7 +22,7 @@ await build({
   format: "esm",
   platform: "node",
   target: "node22",
-  external: ["cross-spawn", "simple-git"],
+  external: ["cross-spawn", "simple-git", "yaml"],
   banner: { js: "#!/usr/bin/env node" },
   sourcemap: true,
   logLevel: "info",

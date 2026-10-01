@@ -8,6 +8,7 @@ import { CodexCliAdapter } from "./codex.js";
 import { CodexCliAcpAdapter } from "./codex-acp.js";
 import { GeminiCliAdapter } from "./gemini.js";
 import { GeminiCliAcpAdapter } from "./gemini-acp.js";
+import { LocalLlmAcpAdapter } from "./local-llm-acp.js";
 import { LocalLlmAdapter } from "./local-llm.js";
 
 describe("AGENT_REGISTRY", () => {
@@ -22,13 +23,14 @@ describe("AGENT_REGISTRY", () => {
     const codex = new CodexCliAdapter();
     const gemini = new GeminiCliAdapter();
     const localLlm = new LocalLlmAdapter({ baseUrl: "http://x", model: "m" });
+    const localLlmAcp = new LocalLlmAcpAdapter({ executable: "coding-agent", baseUrl: "http://x", model: "m", limits: {} });
     const claudeAcp = new ClaudeCliAcpAdapter();
     const copilotAcp = new CopilotCliAcpAdapter();
     const codexAcp = new CodexCliAcpAdapter();
     const geminiAcp = new GeminiCliAcpAdapter();
 
     const ids = AGENT_REGISTRY.map((a) => a.id);
-    for (const adapter of [claude, copilot, codex, gemini, localLlm, claudeAcp, copilotAcp, codexAcp, geminiAcp]) {
+    for (const adapter of [claude, copilot, codex, gemini, localLlm, localLlmAcp, claudeAcp, copilotAcp, codexAcp, geminiAcp]) {
       expect(ids).toContain(adapter.name);
     }
   });

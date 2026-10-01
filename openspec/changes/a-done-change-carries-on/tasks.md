@@ -290,19 +290,27 @@ Rules for every task below:
   `saving preserves what it cannot show`). In
   `ChangeHarnessSettingsView.test.tsx`, add the same
   `stage-skipped-review` test.
-- [ ] 3.4 In `packages/webui/src/components/AiPanel.tsx`, import
+- [x] 3.4 In `packages/webui/src/components/AiPanel.tsx`, import
   `COMMAND_PURPOSES` from `@openspec-ui/core/browser`, and in the
-  `RUNNABLE_COMMANDS.map`, replace the option's text `{kind}` with:
+  `RUNNABLE_COMMANDS.map`, set the option's text to the command's
+  `commandLabel` followed by its purpose:
 
   ```tsx
-  {COMMAND_PURPOSES[kind] !== undefined ? `${kind} - ${COMMAND_PURPOSES[kind]}` : kind}
+  {COMMAND_PURPOSES[kind] !== undefined ? `${commandLabel(kind)} - ${COMMAND_PURPOSES[kind]}` : commandLabel(kind)}
   ```
 
-  Keep `value={kind}`. In `packages/webui/src/components/AiPanel.test.tsx`,
-  add a test: the option whose value is `plan` has the text
-  `plan - drafts a plan without changing code; the propose stage sends this`.
-  If an existing test finds an option by its old text, change it to find
-  it by its value or its new text.
+  Keep `value={kind}`. Rewritten on 2026-10-01 after
+  `one-stage-speaks-openspec` landed: the list shows OpenSpec's names
+  (`propose`, `apply`), the propose stage writes the change's planning
+  artifacts rather than "a plan without changing code", and `verify` is in
+  the list; `COMMAND_PURPOSES` in `packages/core/src/command-purpose.ts`
+  says so and has a `verify` entry. In
+  `packages/webui/src/components/AiPanel.test.tsx`, the option whose value
+  is `plan` has the text
+  `propose - writes the change's missing planning artifacts; sent as plan`,
+  and the option whose value is `verify` has the text
+  `verify - checks the implementation against tasks.md and the specs`.
+  Done in the merge of `main` into this branch; `AiPanel.test.tsx` passes.
 
 ## 4. Documents
 

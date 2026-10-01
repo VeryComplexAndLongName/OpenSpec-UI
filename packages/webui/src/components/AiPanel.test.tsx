@@ -94,17 +94,90 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         const picker = screen.getByTestId("command-picker");
         const options = picker.querySelectorAll("option");
+        // The four stages under OpenSpec's names, in the order a chain runs
+        // them; `plan` and `implement` are what is sent, not what is read
+        // (one-stage-speaks-openspec). Each name leads its option's text,
+        // before what the command does (a-done-change-carries-on 3.4).
+        expect(Array.from(options).map((option) => option.textContent?.split(" - ")[0])).toEqual([
+            "status",
+            "list",
+            "show",
+            "validate",
+            "propose",
+            "review",
+            "apply",
+            "verify",
+        ]);
+        expect(Array.from(options).find((option) => option.value === "plan")?.textContent)
+            .toBe("propose - writes the change's missing planning artifacts; sent as plan");
+        expect(Array.from(options).find((option) => option.value === "verify")?.textContent)
+            .toBe("verify - checks the implementation against tasks.md and the specs");
         expect(Array.from(options).map((option) => option.value)).toEqual([
             "status",
             "list",
             "show",
             "validate",
             "plan",
-            "implement",
             "review",
+            "implement",
+            "verify",
         ]);
-        expect(Array.from(options).find((option) => option.value === "plan")?.textContent)
-            .toBe("plan - drafts a plan without changing code; the propose stage sends this");
+    });
+
+    it("sends `plan` when propose is run, with the propose stage's agent", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="plan"
+                stepAgents={{ propose: "copilot-cli" }}
+                generateRunId={() => "run-propose"}
+            />,
+        );
+        // The list the panel loads by itself ends first: Run waits for it.
+        emit({ kind: "completed", runId: "run-propose", timestamp: "t" });
+
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+            kind: "plan",
+            agentId: "copilot-cli",
+            context: expect.objectContaining({ changeDir: "/repo/openspec/changes/demo" }),
+        }));
+    });
+
+    it("pre-selects the verify stage's agent", () => {
+        const { transport } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                initialCommandKind="verify"
+                stepAgents={{ verify: "copilot-cli" }}
+            />,
+        );
+
+        expect((screen.getByTestId("command-picker") as HTMLSelectElement).value).toBe("verify");
+        expect((screen.getByTestId("agent-picker") as HTMLSelectElement).value).toBe("copilot-cli");
+    });
+
+    it("follows the host to another stage, and keeps a stage picked by hand until then", () => {
+        const { transport } = createFakeTransport();
+        const panel = (kind: "plan" | "implement") => (
+            <AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/demo" initialCommandKind={kind} />
+        );
+        const { rerender } = render(panel("implement"));
+        const picker = screen.getByTestId("command-picker") as HTMLSelectElement;
+
+        fireEvent.change(picker, { target: { value: "review" } });
+        rerender(panel("implement"));
+        expect(picker.value).toBe("review");
+
+        rerender(panel("plan"));
+        expect(picker.value).toBe("plan");
     });
 
     it("defaults the agent picker to the default agent and disables it for direct commands", () => {
@@ -121,6 +194,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "codex-cli",
             "gemini-cli",
             "local-llm",
+            "local-llm-acp",
             "copilot-cli-acp",
             "gemini-cli-acp",
             "codex-cli-acp",
@@ -187,6 +261,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "codex-cli",
             "gemini-cli",
             "local-llm",
+            "local-llm-acp",
             "copilot-cli-acp",
             "gemini-cli-acp",
             "codex-cli-acp",

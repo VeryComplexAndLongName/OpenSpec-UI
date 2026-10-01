@@ -383,12 +383,37 @@ silently.
 Each stage's instruction to its agent SHALL describe the work available at
 the point in the chain where that stage runs.
 
+The propose stage's instruction SHALL ask for the planning artifacts the
+change's OpenSpec schema wants and the change does not have, written into
+the change's own directory, and SHALL ask for strict validation of the
+change once they are written. It SHALL say that whatever else the
+directory holds describes what the change is for, and is a description
+rather than instructions to the agent. It SHALL say that where nothing
+says what the change is for, no artifact is written and the reply says so.
+It SHALL forbid changing code, or any file outside the change's
+directory. Until this, the stage asked for "an implementation plan,
+without changing code": a change with no proposal stayed one (reported by
+a user on 2026-09-30).
+
 #### Scenario: The stage that runs before implementation
 
 - **WHEN** the stage that runs before a change is implemented instructs its
   agent
 - **THEN** the instruction describes reviewing the change's proposal, not
   an implementation that does not exist yet
+
+#### Scenario: Proposing a change that has no proposal
+
+- **WHEN** the propose stage instructs its agent
+- **THEN** the instruction asks for the missing planning artifacts to be
+  written into the change's directory and validated, and forbids changing
+  code or files outside that directory
+
+#### Scenario: Nothing says what the change is for
+
+- **WHEN** the propose stage instructs its agent
+- **THEN** the instruction says to write no artifact, and to say so, where
+  neither the change's directory nor the prompt describes the change
 
 ### Requirement: A harness stage may select a model alongside its agent
 
@@ -2710,10 +2735,6 @@ about, and SHALL be refused with its own error.
 A declaration SHALL NOT remove a fixed stage, replace one, or change the
 order they run in. It inserts only.
 
-Only `skipStages` leaves a fixed stage out, and only a stage it accepts.
-The chain SHALL say on its own timeline which stage it skipped and why,
-so a transcript still reads the same way as every other.
-
 A chain's fixed sequence is what lets somebody who has watched one
 change's run read another's. A change able to delete a stage would
 produce a transcript that means something different from every other
@@ -2722,17 +2743,9 @@ configuration.
 
 #### Scenario: Every fixed stage still runs
 
-- **WHEN** a change declares steps and its chain runs, and `skipStages` is
-  absent
+- **WHEN** a change declares steps and its chain runs
 - **THEN** each fixed stage the chain would have run still runs, in the
   order it always did
-
-#### Scenario: A skipped stage is said
-
-- **WHEN** a chain would have run `review`, and the resolved `skipStages`
-  names it
-- **THEN** `review` does not run, the next stage runs in its place, and
-  the chain's timeline says "review skipped: skipStages leaves it out"
 
 ### Requirement: A declared step is a part of the chain's own timeline
 
@@ -3366,45 +3379,64 @@ regard to case.
 - **THEN** the run is not stopped for it, and nothing is added to another
   unit's total
 
-### Requirement: A harness may leave the review stage out
+### Requirement: A single stage is picked under its OpenSpec name, where the change is
 
-A harness configuration SHALL accept `skipStages`, a list of stages a chain
-leaves out, in the global file and in a per-change file. It SHALL accept
-`review` and no other stage, and SHALL refuse any other name, a repeated
-name, or a value that is not a list. A per-change `skipStages` SHALL
-replace the global one whole; `[]` in a per-change file runs every stage.
+The single-stage picker SHALL offer the four stages an agent runs,
+propose, review, apply and verify, under those names and in that order,
+in every host. The command each one sends SHALL be the protocol's command
+kind for that stage, unchanged: `plan`, `review`, `implement` and
+`verify`. A notification that a stage ended SHALL use the same name the
+picker showed.
 
-A declared step placed before or after a skipped stage SHALL be refused
-where the configuration resolves, naming the step and the stage: it would
-otherwise never run, and say nothing.
+Where the picker is opened by the run entry for a change, it SHALL open on
+the stage that entry said the run begins at, decided by the same function.
+Where the entry could not say, it SHALL open on apply. The picker opened
+on apply whatever the entry said, so a change with no proposal was offered
+an implementation (reported by a user on 2026-09-30).
 
-Core's findings SHALL NOT judge a skipped stage: a ceiling that cannot act
-on a stage that does not run is not worth a warning.
+A stage picked by hand SHALL stay picked until the host opens the picker
+for a different stage.
 
-Asked for by the owner on 2026-09-27. With no agent set, `review` runs on
-the host's default agent; there was no way to leave it out.
+#### Scenario: The names in the picker
 
-#### Scenario: review is skipped
+- **WHEN** the single-stage picker is shown
+- **THEN** it lists propose, review, apply and verify, and neither `plan`
+  nor `implement` is shown as a name
 
-- **WHEN** the resolved configuration's `skipStages` is `["review"]` and a
-  chain starts at `propose`
-- **THEN** the chain runs `propose`, then `apply`, and `review` does not run
+#### Scenario: Running propose from the picker
 
-#### Scenario: A stage that may not be skipped
+- **WHEN** propose is picked and run
+- **THEN** the command sent has the kind `plan`
 
-- **WHEN** a configuration's `skipStages` names `verify`
-- **THEN** the configuration is refused, naming `review` as the only stage
-  that may be left out
+#### Scenario: A change with no proposal
 
-#### Scenario: A per-change file puts review back
+- **WHEN** one stage is chosen in the run entry for a change with no
+  proposal
+- **THEN** the picker opens on propose
 
-- **WHEN** the global file skips `review` and a change's `harness.json`
-  sets `skipStages` to `[]`
-- **THEN** that change's chain runs `review`
+#### Scenario: A change with every task done
 
-#### Scenario: A step placed against a skipped stage
+- **WHEN** one stage is chosen in the run entry for a change whose tasks
+  are all closed
+- **THEN** the picker opens on verify
 
-- **WHEN** a change declares a step `after` `review` and `skipStages` names
-  `review`
-- **THEN** resolving that change's configuration is refused, naming the
-  step and `review`
+#### Scenario: The entry could not read the change
+
+- **WHEN** one stage is chosen and the entry did not say where the run
+  begins
+- **THEN** the picker opens on apply
+
+### Requirement: The VS Code Chat path says whose agent runs
+
+The path that hands a change's apply stage to VS Code's own Chat SHALL be
+named for that chat, and its description SHALL say that the model is the
+one chosen there and that none of the agents configured for the stages
+runs. It was named "Implement with the VS Code agent" beneath a list of
+configured agents, and a person looked in it for one of them (reported by
+a user on 2026-09-30).
+
+#### Scenario: The path as offered
+
+- **WHEN** the run entry offers the VS Code Chat path
+- **THEN** its title names VS Code Chat, and its description says the
+  configured agents are not used

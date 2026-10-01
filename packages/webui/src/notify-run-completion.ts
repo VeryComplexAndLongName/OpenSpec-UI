@@ -1,9 +1,9 @@
-import type { CommandKind, Event } from "@openspec-ui/core/browser";
+import { commandLabel, type CommandKind, type Event } from "@openspec-ui/core/browser";
 
 /** Agent-driven commands worth a "you can stop watching now" notification —
  * see packages/extension/src/run-notifications.ts for the same filter
  * (and the same reasoning) on the VS Code side. */
-export const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "implement", "review"];
+export const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "review", "implement", "verify"];
 
 export interface RunCompletionNotification {
   title: string;
@@ -21,10 +21,10 @@ export function describeRunCompletionNotification(
 ): RunCompletionNotification | null {
   if (!AGENT_COMMANDS.includes(commandKind)) return null;
   if (event.kind === "completed") {
-    return { title: "OpenSpec Workbench", body: `${commandKind} completed${event.summary ? `: ${event.summary}` : ""}.` };
+    return { title: "OpenSpec Workbench", body: `${commandLabel(commandKind)} completed${event.summary ? `: ${event.summary}` : ""}.` };
   }
   if (event.kind === "failed") {
-    return { title: "OpenSpec Workbench", body: `${commandKind} failed: ${event.reason}` };
+    return { title: "OpenSpec Workbench", body: `${commandLabel(commandKind)} failed: ${event.reason}` };
   }
   return null;
 }

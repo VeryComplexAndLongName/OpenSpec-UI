@@ -396,6 +396,7 @@
         "codex-cli",
         "gemini-cli",
         "local-llm",
+        "local-llm-acp",
         "copilot-cli-acp",
         "gemini-cli-acp",
         "codex-cli-acp",
@@ -660,6 +661,38 @@
                   "budget": {
                     "not": {},
                     "description": "local-llm has no spending cap of its own."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "agent": {
+                    "const": "local-llm-acp"
+                  }
+                },
+                "required": [
+                  "agent"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "model": {
+                    "not": {},
+                    "description": "local-llm-acp does not take a model."
+                  },
+                  "customAgent": {
+                    "not": {},
+                    "description": "local-llm-acp does not take a custom agent."
+                  },
+                  "effort": {
+                    "not": {},
+                    "description": "local-llm-acp has no command-line reasoning-effort control."
+                  },
+                  "budget": {
+                    "not": {},
+                    "description": "local-llm-acp has no spending cap of its own."
                   }
                 }
               }

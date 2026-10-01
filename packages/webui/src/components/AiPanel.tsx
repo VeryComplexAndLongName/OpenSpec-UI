@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AGENT_REGISTRY,
   COMMAND_PURPOSES,
+  commandLabel,
   DEFAULT_AGENT_ID,
   describeAcpUpdate,
   normalizeStepAgent,
@@ -25,8 +26,10 @@ import {
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
 
-const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "implement", "review"];
-const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "implement", "review"];
+// The four stages an agent runs come last, in the order a chain runs them,
+// and are shown under OpenSpec's names (`commandLabel`).
+const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "review", "implement", "verify"];
+const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "review", "implement", "verify"];
 // AGENT_COMMANDS (imported): commands that actually run through an agent —
 // the agent picker only matters for these; `status`/`list`/`show`/
 // `validate` bypass the runner entirely (see fetch-transport.ts/
@@ -948,10 +951,11 @@ function changeNameFromDir(changeDir: string | undefined): string {
   return changeDir.split(/[\\/]+/).filter((segment) => segment.length > 0).pop() ?? "";
 }
 
-const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply">> = {
+const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply" | "verify">> = {
   plan: "propose",
   review: "review",
   implement: "apply",
+  verify: "verify",
 };
 
 export function AiPanel({
@@ -967,6 +971,12 @@ export function AiPanel({
   initialCommandKind,
 }: AiPanelProps) {
   const [commandKind, setCommandKind] = useState<CommandKind>(initialCommandKind ?? "list");
+  // A host that opens the panel again for another stage says so by changing
+  // the value; the first render already holds it, so this does nothing then.
+  // A command picked by hand stays until the host names a different one.
+  useEffect(() => {
+    if (initialCommandKind !== undefined) setCommandKind(initialCommandKind);
+  }, [initialCommandKind]);
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
   // Seeded with the change the panel was opened for, so the picker can
   // actually show it before any `list` has run. Seeding only the
@@ -1182,7 +1192,7 @@ export function AiPanel({
         >
           {RUNNABLE_COMMANDS.map((kind) => (
             <option key={kind} value={kind}>
-              {COMMAND_PURPOSES[kind] !== undefined ? `${kind} - ${COMMAND_PURPOSES[kind]}` : kind}
+              {COMMAND_PURPOSES[kind] !== undefined ? `${commandLabel(kind)} - ${COMMAND_PURPOSES[kind]}` : commandLabel(kind)}
             </option>
           ))}
         </select>

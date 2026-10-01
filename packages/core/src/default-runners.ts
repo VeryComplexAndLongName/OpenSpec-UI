@@ -18,8 +18,9 @@ import { DEEPSEEK_ACP_ARGS, DeepSeekAcpAdapter } from "./agents/deepseek-acp.js"
 import { CodexCliAcpAdapter } from "./agents/codex-acp.js";
 import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
+import { LocalLlmAcpAdapter } from "./agents/local-llm-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
-import { resolveLocalLlmSettings } from "./local-llm-settings.js";
+import { resolveLocalLlmAcpSettings, resolveLocalLlmSettings } from "./local-llm-settings.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { HARNESS_AGENT_CAPABILITIES, MODEL_ID_PATTERN } from "./harness-config.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
@@ -90,6 +91,31 @@ function effortValidator(agentId: string): (value: string) => boolean {
   return (value) => accepted.includes(value);
 }
 
+function nonEmpty(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function localLlmAcpArgsAllowed(args: string[]): boolean {
+  if (args.length < 5) return false;
+  if (args[0] !== "acp" || args[1] !== "--base-url" || args[3] !== "--model") return false;
+  if (!nonEmpty(args[2] ?? "") || !nonEmpty(args[4] ?? "")) return false;
+  const tail = args.slice(5);
+  return exactWithOptionalArgs([], [
+    { flag: "--max-iterations", validate: isPositiveInteger },
+    { flag: "--max-tool-calls", validate: isPositiveInteger },
+    { flag: "--max-seconds", validate: isPositiveInteger },
+    { flag: "--command-timeout-seconds", validate: isPositiveInteger },
+    { flag: "--max-command-output-chars", validate: isPositiveInteger },
+    { flag: "--max-prompt-tokens", validate: isPositiveInteger },
+    { flag: "--max-completion-tokens", validate: isPositiveInteger },
+    { flag: "--max-total-tokens", validate: isPositiveInteger },
+    { flag: "--max-context-used-tokens", validate: isPositiveInteger },
+    { flag: "--max-context-window-tokens", validate: isPositiveInteger },
+    { flag: "--max-context-share", validate: isPositiveDecimal },
+    { flag: "--min-free-context-tokens", validate: isPositiveInteger },
+  ])(tail);
+}
+
 /** Matches `-c model_reasoning_effort="<level>"` for exactly codex's own
  * accepted levels — task 4.3: "match the whole pair including the key
  * ... and nothing else beginning with -c". Any other `-c key=value`
@@ -129,6 +155,10 @@ export function buildDefaultAllowlist(): AllowlistConfig {
     }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],
+    "local-llm-acp": [{
+      executable: "coding-agent",
+      argsAllowed: localLlmAcpArgsAllowed,
+    }],
     // `vscode-chat` is intentionally absent: it is a Harness step-runner
     // id that dispatches to VS Code chat and starts no subprocess, so
     // there is no executable/argv to allowlist.
@@ -173,18 +203,24 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     ...(config.runLogs !== undefined ? { runLogs: config.runLogs } : {}),
   };
 
+  const localLlmSettings = resolveLocalLlmSettings({
+    ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
+    ...(config.localLlmModel !== undefined ? { model: config.localLlmModel } : {}),
+    ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
+  });
+  const localLlmAcpSettings = resolveLocalLlmAcpSettings({
+    ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
+    ...(config.localLlmModel !== undefined ? { model: config.localLlmModel } : {}),
+    ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
+  });
+
   const adapters = {
     "claude-cli": new ClaudeCliAdapter(),
     "copilot-cli": new CopilotCliAdapter(),
     "codex-cli": new CodexCliAdapter(),
     "gemini-cli": new GeminiCliAdapter(),
-    "local-llm": new LocalLlmAdapter({
-      ...resolveLocalLlmSettings({
-        ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
-        ...(config.localLlmModel !== undefined ? { model: config.localLlmModel } : {}),
-        ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
-      }),
-    }),
+    "local-llm": new LocalLlmAdapter(localLlmSettings),
+    "local-llm-acp": new LocalLlmAcpAdapter(localLlmAcpSettings),
     "copilot-cli-acp": new CopilotCliAcpAdapter(),
     "gemini-cli-acp": new GeminiCliAcpAdapter(),
     "codex-cli-acp": new CodexCliAcpAdapter(),
