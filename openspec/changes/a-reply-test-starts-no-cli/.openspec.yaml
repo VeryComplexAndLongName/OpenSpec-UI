@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-10-01
+skip_specs: true
+follows:
+  - a-change-says-where-it-stands
+  - load-variance-not-per-file-cost
