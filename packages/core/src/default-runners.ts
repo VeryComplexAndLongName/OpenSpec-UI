@@ -95,11 +95,13 @@ function nonEmpty(value: string): boolean {
   return value.trim().length > 0;
 }
 
+/** `--base-url <url> --model <model> [limits...] acp`: the options before
+ * the subcommand, which is last, as `coding-agent` reads them. */
 function localLlmAcpArgsAllowed(args: string[]): boolean {
   if (args.length < 5) return false;
-  if (args[0] !== "acp" || args[1] !== "--base-url" || args[3] !== "--model") return false;
-  if (!nonEmpty(args[2] ?? "") || !nonEmpty(args[4] ?? "")) return false;
-  const tail = args.slice(5);
+  if (args[0] !== "--base-url" || args[2] !== "--model" || args[args.length - 1] !== "acp") return false;
+  if (!nonEmpty(args[1] ?? "") || !nonEmpty(args[3] ?? "")) return false;
+  const tail = args.slice(4, -1);
   return exactWithOptionalArgs([], [
     { flag: "--max-iterations", validate: isPositiveInteger },
     { flag: "--max-tool-calls", validate: isPositiveInteger },

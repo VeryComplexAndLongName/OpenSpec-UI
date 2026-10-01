@@ -25,7 +25,9 @@ const command: Command = {
 };
 
 describe("LocalLlmAcpAdapter", () => {
-  it("builds a process invocation for coding-agent acp with endpoint settings", () => {
+  it("builds a process invocation with the options before the acp subcommand", () => {
+    // `coding-agent` reads its options only before the subcommand:
+    // `coding-agent acp --base-url ...` exits with its usage.
     const adapter = new LocalLlmAcpAdapter({
       executable: "coding-agent",
       baseUrl: "http://gpu.lan:8000/v1",
@@ -35,7 +37,7 @@ describe("LocalLlmAcpAdapter", () => {
     expect(adapter.buildInvocation(command)).toEqual({
       kind: "process",
       executable: "coding-agent",
-      args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder"],
+      args: ["--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "acp"],
     });
   });
 
@@ -54,7 +56,6 @@ describe("LocalLlmAcpAdapter", () => {
       kind: "process",
       executable: "coding-agent",
       args: [
-        "acp",
         "--base-url",
         "http://gpu.lan:8000/v1",
         "--model",
@@ -65,6 +66,7 @@ describe("LocalLlmAcpAdapter", () => {
         "300",
         "--max-context-share",
         "0.8",
+        "acp",
       ],
     });
   });
@@ -94,7 +96,7 @@ describe("LocalLlmAcpAdapter", () => {
     expect(events.map((e) => e.kind)).toEqual(["started", "agentUpdate", "completed"]);
     expect(runProcessMock).toHaveBeenCalledWith({
       executable: "coding-agent",
-      args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder"],
+      args: ["--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "acp"],
       cwd: "/workspace/repo",
       runId: "run-local-llm-acp-1",
       commandKind: "implement",
