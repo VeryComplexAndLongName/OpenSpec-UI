@@ -2,6 +2,14 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The same stand-in delegated-item-run.test.ts uses, for the same reason:
+// an `implement` command's rules lookup starts a real `openspec` process,
+// and these tests are about the request and its reply, not the lookup.
+// Without it each test started one: 5 s on an idle machine, past the 20 s
+// ceiling in a full run (a-reply-test-starts-no-cli).
+vi.mock("./openspec.js", () => ({ instructionsForArtifact: async () => undefined }));
+
 import { createAgentRunner, type AgentAdapter, type AgentRunner } from "./agent-runner.js";
 import { isRunEntry } from "./audit-runs.js";
 import { buildDelegatedItemPrompt, runDelegatedItem } from "./delegated-item-run.js";
@@ -9,7 +17,8 @@ import type { Command, Event } from "./protocol.js";
 import { InMemoryAuditLog, type AllowlistConfig } from "./security.js";
 
 // a-change-says-where-it-stands 8.5. Touches the filesystem, a workspace of
-// one small change, with a fake adapter: no agent, no git repository. The
+// one small change, with a fake adapter: no agent, no git repository, no
+// `openspec` process. The
 // ceiling is the one delegated-item-run.test.ts uses for the same work.
 vi.setConfig({ testTimeout: 20_000 });
 
