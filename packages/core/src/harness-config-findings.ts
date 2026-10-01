@@ -13,7 +13,7 @@
 
 import { HARNESS_AGENT_CAPABILITIES, isHarnessStepAgentStage, normalizeStepAgent } from "./harness-step-agent.js";
 import type { HarnessConfig } from "./harness-config.js";
-import { STAGES, type HarnessStage } from "./harness-stage.js";
+import { skipsStage, STAGES, type HarnessStage } from "./harness-stage.js";
 
 export type HarnessFindingKind =
   /** A configured ceiling has nothing to compare on this stage's agent. */
@@ -61,6 +61,8 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
 
   for (const stage of STAGES) {
     if (!isHarnessStepAgentStage(stage)) continue;
+    // A stage that does not run is not judged (a-done-change-carries-on).
+    if (skipsStage(config, stage)) continue;
     const agent = agentForStage(config, stage);
     // An unset stage runs on the host's default agent, which this module
     // cannot resolve — it is chosen at activation from what is installed.

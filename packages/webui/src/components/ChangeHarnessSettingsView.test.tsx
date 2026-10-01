@@ -74,6 +74,20 @@ describe("ChangeHarnessSettingsView — knowing its change", () => {
     await waitFor(() => expect(screen.getByTestId("change-harness-fields").textContent).toContain("openspec/changes/other/harness.json"));
   });
 
+  it("shows when the resolved configuration skips review", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        skipStages: ["review"],
+      }),
+    });
+    await renderLoaded(api);
+
+    expect(screen.getByTestId("stage-skipped-review")).toBeInTheDocument();
+  });
+
   it("shows the change it was last given, when an earlier reading answers late", async () => {
     let answerFirst: (value: Partial<import("@openspec-ui/core/browser").HarnessConfig> | null) => void = () => undefined;
     const readChangeOverride = vi.fn((name: string) => name === "first"
@@ -216,6 +230,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
       checkpoints: { requireConfirmationBetweenSteps: false },
       budget: { maxCostUsd: 25 },
       timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
+      skipStages: ["review"],
       maxStageAttempts: 2,
       gitStageAllowlist: ["openspec/**"],
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
@@ -236,6 +251,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
     expect(TOP_LEVEL_CONFIG_KEYS.filter((key) => !(key in saved))).toEqual([]);
     expect(saved.maxStageAttempts).toBe(2);
     expect(saved.budget).toEqual(everyKey.budget);
+    expect(saved.skipStages).toEqual(["review"]);
   });
 
   it("still removes autonomyLevel when it is set back to inherit", async () => {

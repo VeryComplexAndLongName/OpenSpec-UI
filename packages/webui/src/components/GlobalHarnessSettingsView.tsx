@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import {
   findHarnessConfigLimits,
   isHarnessStepAgentStage,
+  skipsStage,
   type HarnessAutonomyLevel,
   type HarnessConfig,
   type HarnessFinding,
@@ -195,7 +196,7 @@ export function GlobalHarnessSettingsView({
           {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
             <MechanicalStageRow key={stage} stage={stage} />
           ) : (
-            <StageRow key={stage} stage={stage}>
+            <StageRow key={stage} stage={stage} skipped={skipsStage(config ?? {}, stage)}>
               <AgentSelect
                 ariaLabel={`${stage} agent`}
                 value={forms.agents[stage]}

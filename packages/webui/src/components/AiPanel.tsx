@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AGENT_REGISTRY,
+  COMMAND_PURPOSES,
   commandLabel,
   DEFAULT_AGENT_ID,
   describeAcpUpdate,
@@ -1064,12 +1065,12 @@ export function AiPanel({
   const statusLabel = isRunning && isCancelling(collapsedEvents)
     ? "Cancelling..."
     : isRunning
-    ? "Loading..."
-    : latestEvent?.kind === "failed"
-      ? `Failed: ${latestEvent.reason}`
-      : latestEvent?.kind === "completed"
-        ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
-        : "Idle";
+      ? "Loading..."
+      : latestEvent?.kind === "failed"
+        ? `Failed: ${latestEvent.reason}`
+        : latestEvent?.kind === "completed"
+          ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
+          : "Idle";
 
   // Auto-load the change list once the working directory is known, so the
   // change picker is usable the moment the panel opens instead of being
@@ -1191,7 +1192,7 @@ export function AiPanel({
         >
           {RUNNABLE_COMMANDS.map((kind) => (
             <option key={kind} value={kind}>
-              {commandLabel(kind)}
+              {COMMAND_PURPOSES[kind] !== undefined ? `${commandLabel(kind)} - ${COMMAND_PURPOSES[kind]}` : commandLabel(kind)}
             </option>
           ))}
         </select>

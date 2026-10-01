@@ -18,7 +18,7 @@
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
 import { TOP_LEVEL_CONFIG_KEYS } from "./harness-config.js";
-import { CHAIN_STEP_NAMES, STAGES } from "./harness-stage.js";
+import { CHAIN_STEP_NAMES, SKIPPABLE_STAGES, STAGES } from "./harness-stage.js";
 import {
   COPILOT_MIN_AI_CREDITS,
   HARNESS_AGENT_CAPABILITIES,
@@ -244,6 +244,12 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
         maxRunSeconds: positiveInteger("The chain's stages, summed."),
         maxStageSeconds: positiveInteger("One stage."),
       },
+    },
+    skipStages: {
+      type: "array",
+      uniqueItems: true,
+      items: { type: "string", enum: [...SKIPPABLE_STAGES] },
+      description: "Stages a chain leaves out. Only review may be left out.",
     },
     maxStageAttempts: positiveInteger("How many times one stage may be attempted, counting the first."),
     gitStageAllowlist: perChangeOnly(scope, {

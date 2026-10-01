@@ -1,0 +1,18 @@
+{
+  "stepAgents": {
+    "apply": {
+      "agent": "copilot-cli-acp",
+      "model": "claude-sonnet-5",
+      "effort": "high"
+    },
+    "verify": {
+      "agent": "copilot-cli-acp",
+      "model": "claude-sonnet-5",
+      "effort": "high"
+    }
+  },
+  "autonomyLevel": "semi-autonomous",
+  "timeout": {
+    "maxRunSeconds": 10800
+  }
+}

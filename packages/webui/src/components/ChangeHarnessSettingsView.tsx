@@ -5,6 +5,7 @@ import {
   isHarnessStepAgentStage,
   mergeStepAgents,
   normalizeStepAgent,
+  skipsStage,
   type HarnessAutonomyLevel,
   type HarnessConfig,
   type HarnessFinding,
@@ -161,6 +162,7 @@ export function ChangeHarnessSettingsView(
   }, [api]);
 
   const base = global ?? NO_GLOBAL_CONFIG;
+  const resolvedConfig = { ...base, ...(override ?? {}) };
   /** What each stage runs once this change's own entries are laid over
    * the global file — what "inherit" resolves to, said on each field. */
   const resolvedStepAgents = useMemo(
@@ -265,7 +267,7 @@ export function ChangeHarnessSettingsView(
               {STAGES.map((stage) => (!isHarnessStepAgentStage(stage) ? (
                 <MechanicalStageRow key={stage} stage={stage} />
               ) : (
-                <StageRow key={stage} stage={stage}>
+                <StageRow key={stage} stage={stage} skipped={skipsStage(resolvedConfig, stage)}>
                   <AgentSelect
                     ariaLabel={`change ${stage} agent`}
                     value={forms.agents[stage]}

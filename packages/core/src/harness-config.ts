@@ -4,7 +4,7 @@ import { AGENT_REGISTRY } from "./agents/registry.js";
 import { assertValidChangeName } from "./change-name.js";
 import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
 import type { ChangeLocation } from "./workbench.js";
-import { CHAIN_STEP_NAMES, STAGES, isChainStepName, type ChainStepName, type HarnessStage } from "./harness-stage.js";
+import { CHAIN_STEP_NAMES, SKIPPABLE_STAGES, STAGES, isChainStepName, skipsStage, type ChainStepName, type HarnessSkippableStage, type HarnessStage } from "./harness-stage.js";
 import {
   HARNESS_AUTONOMY_LEVELS,
   type HarnessAutonomyLevel,
@@ -221,6 +221,12 @@ export interface HarnessConfig {
    * rules: a per-change file may set one where the global file does not,
    * and there is no value a global file is forbidden from setting. */
   timeout?: HarnessTimeout;
+  /** Stages a chain leaves out. Absent means every stage runs. Only
+   * `review` may be named — see `SKIPPABLE_STAGES`
+   * (a-done-change-carries-on). A per-change file replaces the global
+   * one whole, the same way `budget`/`timeout` do: `[]` in a per-change
+   * file runs every stage even where the global file skips one. */
+  skipStages?: HarnessSkippableStage[];
   /** How many times one stage may be attempted, counting the first.
    * Absent means one — today's behaviour, where a stage runs once.
    *
@@ -329,7 +335,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches", "archive"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches", "archive", "skipStages"] as const;
 
 /** What this product does with a change's branch (ADR 0034). */
 export interface HarnessBranches {
@@ -930,6 +936,25 @@ function assertValidTimeout(value: unknown): asserts value is HarnessTimeout | u
   }
 }
 
+function assertValidSkipStages(value: unknown): asserts value is HarnessSkippableStage[] | undefined {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("skipStages must be a list of stage names");
+  }
+  const seen = new Set<string>();
+  for (const element of value) {
+    if (!(SKIPPABLE_STAGES as readonly string[]).includes(element as string)) {
+      throw new InvalidHarnessConfigError(
+        `skipStages may leave out only "review"; "${String(element)}" is not a stage it can skip`,
+      );
+    }
+    if (seen.has(element as string)) {
+      throw new InvalidHarnessConfigError(`skipStages names "${element}" twice`);
+    }
+    seen.add(element as string);
+  }
+}
+
 function assertValidMaxStageAttempts(value: unknown): asserts value is number | undefined {
   if (value === undefined) return;
   if (!(typeof value === "number" && Number.isInteger(value) && value > 0)) {
@@ -1042,6 +1067,7 @@ function assertValidHarnessConfigInput(
   }
   assertValidBudget(input.budget);
   assertValidTimeout(input.timeout);
+  assertValidSkipStages(input.skipStages);
   assertValidMaxStageAttempts(input.maxStageAttempts);
   assertValidGitStageAllowlist(input.gitStageAllowlist, isPerChangeFile);
   assertValidTaskAgents(input.taskAgents, isPerChangeFile, input.autonomyLevel ?? DEFAULT_HARNESS_CONFIG.autonomyLevel);
@@ -1189,6 +1215,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     // config another. That is how `timeout` first appeared to do nothing
     // at all; the accepted-key list guards writing, nothing guards this.
     timeout: input.timeout ?? DEFAULT_HARNESS_CONFIG.timeout,
+    skipStages: input.skipStages ?? DEFAULT_HARNESS_CONFIG.skipStages,
     maxStageAttempts: input.maxStageAttempts ?? DEFAULT_HARNESS_CONFIG.maxStageAttempts,
     gitStageAllowlist: input.gitStageAllowlist ?? DEFAULT_HARNESS_CONFIG.gitStageAllowlist,
     // Always undefined in practice — `assertValidTaskAgents` refuses the
@@ -1269,6 +1296,7 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // `timeout` that deliberately set only `maxRunSeconds`, producing a
     // pair the author never wrote and `assertValidTimeout` never saw.
     timeout: override.timeout ?? global.timeout,
+    skipStages: override.skipStages ?? global.skipStages,
     maxStageAttempts: override.maxStageAttempts ?? global.maxStageAttempts,
     gitStageAllowlist: override.gitStageAllowlist ?? global.gitStageAllowlist,
     // Whole-object, and in practice always the override's: the global
@@ -1289,7 +1317,21 @@ export async function resolveHarnessConfig(workspaceRoot: string, changeName?: s
   const global = await readGlobalHarnessConfig(workspaceRoot);
   if (changeName === undefined) return global;
   const override = await readChangeHarnessConfig(workspaceRoot, changeName);
-  return mergeHarnessConfig(global, override);
+  const merged = mergeHarnessConfig(global, override);
+
+  // A declared step placed against a stage skipStages leaves out would
+  // never run, and say nothing (a-done-change-carries-on).
+  (merged.steps ?? []).forEach((step, index) => {
+    const stage = step.before ?? step.after;
+    if (stage !== undefined && skipsStage(merged, stage)) {
+      const position = step.before !== undefined ? "before" : "after";
+      throw new InvalidHarnessConfigError(
+        `steps[${index}] (${step.step}) is placed ${position} "${stage}", which skipStages leaves out; place it against another stage`,
+      );
+    }
+  });
+
+  return merged;
 }
 
 // resolveRunWithHarnessTarget/RunWithHarnessTarget live in harness-

@@ -52,7 +52,7 @@ import {
   runChainStep,
 } from "./chain-steps.js";
 import { CHAIN_ENDING_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
-import { isChainStepName, type ChainPart } from "./harness-stage.js";
+import { isChainStepName, skipsStage, type ChainPart } from "./harness-stage.js";
 import { untilStopBoundary } from "./stop-boundary.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { checkAllowlist, type AllowlistConfig, type AuditEntry, type AuditLog } from "./security.js";
@@ -1033,8 +1033,17 @@ export class HarnessChainRunner {
     // anchored to a stage that already happened does not run, and one
     // anchored to the stage the chain resumes at does: reaching that
     // stage is exactly what it was placed before.
+    // A stage `skipStages` leaves out does not run, and the timeline says
+    // so, so a transcript still reads like every other
+    // (a-done-change-carries-on).
+    const resumed = CHAIN_STAGES.slice(CHAIN_STAGES.indexOf(startStage));
+    for (const stage of resumed) {
+      if (skipsStage(harnessConfig, stage)) {
+        yield { kind: "progress", runId, timestamp: nowIso(), message: `${stage} skipped: skipStages leaves it out` };
+      }
+    }
     const sequence = insertDeclaredSteps(
-      CHAIN_STAGES.slice(CHAIN_STAGES.indexOf(startStage)),
+      resumed.filter((stage) => !skipsStage(harnessConfig, stage)),
       harnessConfig.steps,
     );
 

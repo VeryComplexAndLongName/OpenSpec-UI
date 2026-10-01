@@ -860,6 +860,21 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(onViewLogs).toHaveBeenCalledWith("alpha");
   });
 
+  it("offers Start on a change whose every task is done (a-done-change-carries-on)", async () => {
+    const onStart = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({ changes: [{ changeName: "alpha", tasksDone: 2, tasksTotal: 2, blockers: [], alsoIn: [] }], runs: [] }))}
+        onStart={onStart}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start alpha" }));
+    expect(onStart).toHaveBeenCalledWith("alpha");
+  });
+
   it("offers no Logs where the host cannot show them", async () => {
     renderCard({ record: null });
 

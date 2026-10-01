@@ -73,7 +73,25 @@ describe("RunDialog", () => {
   it("says which stages have no agent rather than omitting them", () => {
     render(<RunDialog {...baseProps()} />);
 
-    expect(screen.getByTestId("run-dialog-stage-agents").textContent).toContain("apply: no agent set");
+    expect(screen.getByTestId("run-dialog-stage-agents").textContent).toContain("apply (implements the tasks): no agent set");
+  });
+
+  it("says what each stage does and when skipStages leaves it out", () => {
+    render(
+      <RunDialog
+        {...baseProps()}
+        plan={plan({
+          stageAgents: [
+            { stage: "review", skipped: true },
+            { stage: "verify", agent: "copilot-cli-acp" },
+          ]
+        })}
+      />,
+    );
+
+    const stageAgents = screen.getByTestId("run-dialog-stage-agents").textContent ?? "";
+    expect(stageAgents).toContain("review (reviews the proposal, before apply): skipped");
+    expect(stageAgents).toContain("verify (checks the implementation, after apply): copilot-cli-acp");
   });
 
   it("shows a ceiling that cannot act before anything is started", () => {

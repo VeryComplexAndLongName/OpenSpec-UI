@@ -150,6 +150,8 @@ export type { CustomAgent, CustomAgentFamily } from "./custom-agent-family.js";
 export type { RunRecommendation, RunRecommendationGap, RunRecommendationKind, RunRecommendations } from "./run-recommendations.js";
 export type { AgentRunGroup, KnownChanges, RunGroupFigures, WorkspaceRunStats } from "./workspace-run-stats.js";
 export { agentForChosenPath, buildRunPlan, commandLabel, describeRunStart, RUN_START_COMMAND, runStartFactsFrom, runStartStage } from "./run-plan.js";
+export { COMMAND_PURPOSES } from "./command-purpose.js";
+export { SKIPPABLE_STAGES, STAGE_PURPOSES, skipsStage, type HarnessSkippableStage } from "./harness-stage.js";
 export type { RunPath, RunPathId, RunPlan, RunPlanHost, RunStartFacts, RunStartStage } from "./run-plan.js";
 export type { HarnessRecommendation, RecommendationInput } from "./harness-recommendation.js";
 export type { HarnessTemplate, HarnessTemplateScope } from "./harness-templates.js";

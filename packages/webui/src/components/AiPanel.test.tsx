@@ -96,8 +96,9 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         const options = picker.querySelectorAll("option");
         // The four stages under OpenSpec's names, in the order a chain runs
         // them; `plan` and `implement` are what is sent, not what is read
-        // (one-stage-speaks-openspec).
-        expect(Array.from(options).map((option) => option.textContent)).toEqual([
+        // (one-stage-speaks-openspec). Each name leads its option's text,
+        // before what the command does (a-done-change-carries-on 3.4).
+        expect(Array.from(options).map((option) => option.textContent?.split(" - ")[0])).toEqual([
             "status",
             "list",
             "show",
@@ -107,6 +108,10 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "apply",
             "verify",
         ]);
+        expect(Array.from(options).find((option) => option.value === "plan")?.textContent)
+            .toBe("propose - writes the change's missing planning artifacts; sent as plan");
+        expect(Array.from(options).find((option) => option.value === "verify")?.textContent)
+            .toBe("verify - checks the implementation against tasks.md and the specs");
         expect(Array.from(options).map((option) => option.value)).toEqual([
             "status",
             "list",

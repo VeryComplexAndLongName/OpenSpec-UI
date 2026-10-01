@@ -179,3 +179,30 @@ a concrete use case for partial/custom chains shows up.
 - The `git` stepAgent and real commit/push automation remain fully out of
   scope; a chain simply cannot reach that stage yet, by construction.
 - Related OpenSpec change: `openspec/changes/agentic-harness-autonomy/`.
+
+## Amendment, 2026-09-27: the review stage may be left out
+
+The fixed order stands. What changes is that one stage of it may be left
+out: `skipStages`, a harness key accepted in the global file and in a
+per-change file, names the stages a chain does not run, and accepts
+`review` only. Asked for by the owner: with no agent set, `review` runs
+on the host's default agent, so there was no way not to run it.
+
+- **Only `review`.** `propose` is already left out when the proposal is
+  written, since a chain resumes at the first stage with work left.
+  `verify` is the only check that `apply` did the work it ticked, and
+  the archive gate trusts the ticks. `archive` and `git` are governed by
+  the task gate and `reviewGate`, not by whether somebody wants them.
+- **Said, not silent.** The chain puts "review skipped: skipStages leaves
+  it out" on its own timeline, so a transcript still reads like every
+  other; that was the reason the fixed stages stay fixed (ADR 0021).
+- **A per-change list replaces the global one whole**, the way every other
+  top-level key merges; `[]` in a per-change file puts `review` back.
+- **A declared step placed against a skipped stage is refused** where the
+  configuration resolves: it would otherwise never run, and say nothing.
+
+"Let `chain` accept an explicit stage list from the caller", rejected
+above, stays rejected: the list is configuration, read where every other
+setting is, not something a caller passes per run.
+
+Related OpenSpec change: `openspec/changes/a-done-change-carries-on/`.

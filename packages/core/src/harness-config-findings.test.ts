@@ -245,3 +245,26 @@ describe("findHarnessConfigLimits - a ceiling in another unit", () => {
     expect(finding?.message).toContain("reports no usage at all");
   });
 });
+
+// a-done-change-carries-on: a ceiling that cannot act on a stage that does
+// not run is not worth a warning.
+describe("findHarnessConfigLimits - skipStages", () => {
+  it("yields a finding naming review when review runs and no skipStages is set", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { review: "claude-cli" },
+      budget: { maxCostUsd: 10 },
+    }));
+
+    expect(findings.some((one) => one.stage === "review")).toBe(true);
+  });
+
+  it("yields no finding naming review where skipStages leaves it out", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { review: "claude-cli" },
+      budget: { maxCostUsd: 10 },
+      skipStages: ["review"],
+    }));
+
+    expect(findings.some((one) => one.stage === "review")).toBe(false);
+  });
+});

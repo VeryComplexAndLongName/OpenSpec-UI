@@ -1001,6 +1001,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     checkpoints: { requireConfirmationBetweenSteps: true },
     budget: { maxCostUsd: 12 },
     timeout: { maxRunSeconds: 900, maxStageSeconds: 300 },
+    skipStages: ["review"],
     maxStageAttempts: 3,
     gitStageAllowlist: { remotes: ["origin"], branches: ["main"] },
     taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
@@ -1106,6 +1107,70 @@ describe("time limits and attempts (run-has-a-time-limit)", () => {
 
     expect(config.timeout).toBeUndefined();
     expect(config.maxStageAttempts).toBeUndefined();
+  });
+});
+
+describe("skipStages (a-done-change-carries-on)", () => {
+  it("accepts [\"review\"] in the global file", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { skipStages: ["review"] });
+
+    const config = await readGlobalHarnessConfig(root);
+
+    expect(config.skipStages).toEqual(["review"]);
+  });
+
+  it("accepts [\"review\"] in a per-change file", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { skipStages: ["review"] });
+
+    const config = await resolveHarnessConfig(root, "demo");
+
+    expect(config.skipStages).toEqual(["review"]);
+  });
+
+  it("refuses a stage other than review, naming the stage it may leave out", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { skipStages: ["verify"] } as unknown as Partial<HarnessConfig>))
+      .rejects.toThrow(/skipStages may leave out only "review"; "verify" is not a stage it can skip/);
+  });
+
+  it("refuses a repeated stage name", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { skipStages: ["review", "review"] }))
+      .rejects.toThrow(/skipStages names "review" twice/);
+  });
+
+  it("refuses a string where a list is expected", async () => {
+    const root = await temporaryRoot();
+
+    await expect(writeGlobalHarnessConfig(root, { skipStages: "review" } as unknown as Partial<HarnessConfig>))
+      .rejects.toThrow(/skipStages must be a list of stage names/);
+  });
+
+  it("lets a per-change [] put review back where the global file skips it", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { skipStages: ["review"] });
+    await writeChangeHarnessConfig(root, "demo", { skipStages: [] });
+
+    const config = await resolveHarnessConfig(root, "demo");
+
+    expect(config.skipStages).toEqual([]);
+  });
+
+  it("refuses a declared step placed against a stage skipStages leaves out, naming the step and the stage", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { skipStages: ["review"] });
+    await writeChangeHarnessConfig(root, "demo", {
+      steps: [{ step: "await-change", after: "review", param: "x" }],
+    });
+
+    await expect(resolveHarnessConfig(root, "demo")).rejects.toThrow(
+      /steps\[0\] \(await-change\) is placed after "review", which skipStages leaves out/,
+    );
   });
 });
 

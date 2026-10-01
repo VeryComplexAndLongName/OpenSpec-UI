@@ -8,6 +8,7 @@ import {
   isHarnessStepAgentStage,
   normalizeStepAgent,
   resolveEffortLevel,
+  STAGE_PURPOSES,
   VSCODE_CHAT_STEP_AGENT_ID,
   type HarnessAutonomyLevel,
   type HarnessConfig,
@@ -268,7 +269,7 @@ export function changeTemplateAppliedMessage(
   const agentNote = reset.length === 0
     ? " The agents and models on screen are unchanged."
     : ` ${reset.join(", ")} now name${reset.length === 1 ? "s" : ""} the agent the change resolves to,`
-      + " because an effort without its agent means nothing.";
+    + " because an effort without its agent means nothing.";
   return `Filled from "${template.title}". ${templateEffortNote(template, effort, agents)}${agentNote}`
     + " Nothing is saved until you save.";
 }
@@ -386,20 +387,25 @@ export function StageTable({ children }: { children: ReactNode }) {
   );
 }
 
-function StageName({ stage }: { stage: HarnessStage }) {
+function StageName({ stage, skipped = false }: { stage: HarnessStage; skipped?: boolean }) {
   return (
     <span className="openspec-stage-name">
       <span className="openspec-stage-number" aria-hidden="true">{STAGES.indexOf(stage) + 1}</span>
       {stage}
+      {/* What the stage does, in core's words (a-done-change-carries-on). */}
+      <span className="openspec-stage-purpose">{STAGE_PURPOSES[stage]}</span>
+      {skipped ? (
+        <span className="openspec-stage-skipped" data-testid={`stage-skipped-${stage}`}>Skipped: skipStages leaves this stage out</span>
+      ) : null}
     </span>
   );
 }
 
 /** One configurable stage: its number and name, then its fields' cells. */
-export function StageRow({ stage, children }: { stage: HarnessStage; children: ReactNode }) {
+export function StageRow({ stage, skipped, children }: { stage: HarnessStage; skipped?: boolean; children: ReactNode }) {
   return (
     <div className="openspec-stage-grid openspec-harness-stage-row" data-testid={`stage-row-${stage}`}>
-      <StageName stage={stage} />
+      <StageName stage={stage} skipped={skipped} />
       {children}
     </div>
   );
@@ -444,7 +450,7 @@ function noAgentReason(field: string, inherits: boolean): string {
  * stage would inherit, and from where. */
 export function AgentSelect(
   { value, onChange, emptyLabel, ariaLabel, children }:
-  { value: string; onChange: (value: string) => void; emptyLabel: string; ariaLabel: string; children?: ReactNode },
+    { value: string; onChange: (value: string) => void; emptyLabel: string; ariaLabel: string; children?: ReactNode },
 ) {
   const chosen = STAGE_RUNNER_OPTIONS.find((agent) => agent.id === value);
   return (
@@ -468,7 +474,7 @@ export function AgentSelect(
  * CLI takes a model. */
 export function ModelInput(
   { agentId, value, onChange, ariaLabel, placeholder, inherits = false }:
-  { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; placeholder?: string; inherits?: boolean },
+    { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; placeholder?: string; inherits?: boolean },
 ) {
   if (agentId === INHERIT) return <NotTaken column="Model" reason={noAgentReason("model", inherits)} />;
   if (!acceptsModel(agentId)) return <NotTaken column="Model" reason={`${agentId} takes no model`} />;
@@ -492,7 +498,7 @@ export function ModelInput(
  * effort mechanism at all. */
 export function EffortSelect(
   { agentId, value, onChange, ariaLabel, emptyLabel = "(none)", inherits = false }:
-  { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; emptyLabel?: string; inherits?: boolean },
+    { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; emptyLabel?: string; inherits?: boolean },
 ) {
   const accepted = HARNESS_AGENT_CAPABILITIES[agentId]?.effort ?? [];
   if (agentId === INHERIT) return <NotTaken column="Effort" reason={noAgentReason("effort", inherits)} />;
@@ -516,7 +522,7 @@ export function EffortSelect(
  * there is no portable "budget" field to fall back to. */
 export function BudgetInput(
   { agentId, value, onChange, ariaLabel, placeholder, inherits = false }:
-  { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; placeholder?: string; inherits?: boolean },
+    { agentId: string; value: string; onChange: (value: string) => void; ariaLabel: string; placeholder?: string; inherits?: boolean },
 ) {
   const budgetField = HARNESS_AGENT_CAPABILITIES[agentId]?.budgetField;
   if (agentId === INHERIT) return <NotTaken column="Max cost" reason={noAgentReason("spending cap", inherits)} />;
@@ -554,15 +560,15 @@ export function BudgetInput(
  * custom-agent-picker. */
 export function CustomAgentSelect(
   { stage, agentId, value, onChange, ariaLabel, available, emptyLabel = "(none)" }:
-  {
-    stage: string;
-    agentId: string;
-    value: string;
-    onChange: (value: string) => void;
-    ariaLabel: string;
-    available: CustomAgentsResult | null;
-    emptyLabel?: string;
-  },
+    {
+      stage: string;
+      agentId: string;
+      value: string;
+      onChange: (value: string) => void;
+      ariaLabel: string;
+      available: CustomAgentsResult | null;
+      emptyLabel?: string;
+    },
 ) {
   if (agentId === INHERIT || available === null) return null;
   const family = customAgentFamilyFor(agentId);

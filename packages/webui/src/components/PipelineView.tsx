@@ -1445,7 +1445,8 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
   const plain = "openspec-pipeline-button";
 
   if (run === undefined) {
-    if (handlers.onStart !== undefined && (card.state === "ready" || card.state === "failed" || card.state === "stopped")) {
+    // A change whose every task is done continues at verify, so it can start.
+    if (handlers.onStart !== undefined && (card.state === "ready" || card.state === "failed" || card.state === "stopped" || card.state === "done")) {
       const start = handlers.onStart;
       buttons.push(
         // Every control here carries its own `aria-label`, so an icon before

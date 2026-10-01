@@ -39,3 +39,26 @@ export function isChainStepName(value: string): value is ChainStepName {
 export function isChainPart(value: string): value is ChainPart {
   return (STAGES as readonly string[]).includes(value) || isChainStepName(value);
 }
+
+/** The stages `skipStages` may leave out of a chain
+ * (a-done-change-carries-on). `review` only: `propose` is left out
+ * already when the proposal is written, and `verify` is the only check
+ * that `apply` did the work it ticked. */
+export type HarnessSkippableStage = "review";
+export const SKIPPABLE_STAGES: readonly HarnessSkippableStage[] = ["review"];
+
+/** Whether a configuration's `skipStages` leaves this stage out. */
+export function skipsStage(config: { skipStages?: readonly string[] }, stage: string): boolean {
+  return config.skipStages?.includes(stage) ?? false;
+}
+
+/** What each stage does, in the words every surface shows beside its
+ * name (a-done-change-carries-on). */
+export const STAGE_PURPOSES: Readonly<Record<HarnessStage, string>> = {
+  propose: "drafts the proposal and its tasks",
+  review: "reviews the proposal, before apply",
+  apply: "implements the tasks",
+  verify: "checks the implementation, after apply",
+  archive: "moves the finished change to the archive",
+  git: "pushes, opens the pull request and merges it",
+};
