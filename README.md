@@ -1,5 +1,9 @@
 # OpenSpec Workbench
 
+![OpenSpec Workbench Banner](docs/branding/OpenSpec_Workbench_Banner.png)
+
+---
+
 **Run and supervise coding agents on [OpenSpec](https://github.com/Fission-AI/OpenSpec)
 changes.** Start a run from a change, watch what the agent is doing while it
 does it, stop it where its work is sound, and see every change's standing
