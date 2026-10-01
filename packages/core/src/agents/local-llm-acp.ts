@@ -20,13 +20,16 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
   constructor(private readonly options: LocalLlmAcpAdapterOptions) { }
 
   buildInvocation(_command: Command): AdapterInvocation {
+    // The options before the subcommand: `coding-agent` reads them only
+    // there, and `coding-agent acp --base-url ...` exits with its usage
+    // (fix-local-llm-acp).
     const args = [
-      "acp",
       "--base-url",
       this.options.baseUrl,
       "--model",
       this.options.model,
       ...renderLimits(this.options.limits),
+      "acp",
     ];
     return { kind: "process", executable: this.options.executable, args };
   }

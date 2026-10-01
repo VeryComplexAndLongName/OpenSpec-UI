@@ -97,10 +97,32 @@ describe("buildDefaultAllowlist", () => {
     const allowlist = buildDefaultAllowlist();
     const decision = checkAllowlist(
       "local-llm-acp",
-      { kind: "process", executable: "coding-agent", args: ["acp", "--model", "qwen2.5-coder"] },
+      { kind: "process", executable: "coding-agent", args: ["--model", "qwen2.5-coder", "acp"] },
       allowlist,
     );
     expect(decision.allowed).toBe(false);
+  });
+
+  it("rejects local-llm-acp invocation with the subcommand before its options", () => {
+    // The order `coding-agent` refuses, so the allowlist refuses it too.
+    const allowlist = buildDefaultAllowlist();
+    const decision = checkAllowlist(
+      "local-llm-acp",
+      { kind: "process", executable: "coding-agent", args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder"] },
+      allowlist,
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("allows local-llm-acp invocation with limits between the model and the subcommand", () => {
+    const allowlist = buildDefaultAllowlist();
+    const invocation = new LocalLlmAcpAdapter({
+      executable: "coding-agent",
+      baseUrl: "http://gpu.lan:8000/v1",
+      model: "qwen2.5-coder",
+      limits: { maxIterations: 40, maxContextShare: 0.8 },
+    }).buildInvocation(command);
+    expect(checkAllowlist("local-llm-acp", invocation, allowlist).allowed).toBe(true);
   });
 
   it("rejects local-llm-acp invocation that appends an unknown flag", () => {
@@ -110,7 +132,7 @@ describe("buildDefaultAllowlist", () => {
       {
         kind: "process",
         executable: "coding-agent",
-        args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "--sandbox", "off"],
+        args: ["--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "--sandbox", "off", "acp"],
       },
       allowlist,
     );
