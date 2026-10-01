@@ -1,45 +1,40 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-01T10:42:56.814Z",
+  "generated_at": "2026-10-01T12:24:49.303Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "7332e433b37a033d4d7d02d2f0840c0e3d0e8ef8",
+  "commit": "9a74f49e1741a09e07627833f405a575759ce240",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.90.0",
-      "released_at": "2026-10-01T10:42:56.814Z",
-      "tag": "openspec-ui-vscode@0.90.0",
+      "version": "0.90.1",
+      "released_at": "2026-10-01T12:24:49.303Z",
+      "tag": "openspec-ui-vscode@0.90.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.90.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.90.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.90.0/openspec-ui-vscode-0.90.0.vsix",
-          "size_bytes": 6650216
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.90.1/openspec-ui-vscode-0.90.1.vsix",
+          "size_bytes": 6650377
         }
       ],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "A change whose every task is done offers Start on its card, and its run"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "standalone-app",
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.51.0",
-      "released_at": "2026-10-01T10:42:56.814Z",
+      "version": "1.51.1",
+      "released_at": "2026-10-01T12:24:49.303Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -47,20 +42,15 @@
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/server/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "A change whose every task is done offers Start on its card, and its run"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "core",
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.131.0",
-      "released_at": "2026-10-01T10:42:56.814Z",
+      "version": "0.131.1",
+      "released_at": "2026-10-01T12:24:49.303Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +60,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "A change whose every task is done offers Start on its card, and its run"
+          "kind": "patch",
+          "summary": "`local-llm-acp` now starts `coding-agent` the way it reads its command"
         }
       ]
     },
@@ -80,20 +70,15 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.79.0",
-      "released_at": "2026-10-01T10:42:56.814Z",
+      "version": "1.79.1",
+      "released_at": "2026-10-01T12:24:49.303Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/README.md"
       },
       "artifacts": [],
-      "changes": [
-        {
-          "kind": "minor",
-          "summary": "A change whose every task is done offers Start on its card, and its run"
-        }
-      ]
+      "changes": []
     },
     {
       "id": "ci-cli",
@@ -101,7 +86,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.1",
-      "released_at": "2026-10-01T10:42:56.814Z",
+      "released_at": "2026-10-01T12:24:49.303Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
