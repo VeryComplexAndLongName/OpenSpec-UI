@@ -17,7 +17,7 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
 
   private readonly driver = new AcpSessionDriver();
 
-  constructor(private readonly options: LocalLlmAcpAdapterOptions) {}
+  constructor(private readonly options: LocalLlmAcpAdapterOptions) { }
 
   buildInvocation(_command: Command): AdapterInvocation {
     const args = [
