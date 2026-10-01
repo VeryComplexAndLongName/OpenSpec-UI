@@ -60,12 +60,28 @@ agent path offers Copilot only.
   run unpiped, exit code 0. 2026-09-30: typecheck 0, lint 0, test 0 (cli 192, core 1940, extension 118, server 498, webui 681).
 - [x] 5.3 `openspec validate one-stage-speaks-openspec --strict`. Valid.
 - [x] 5.4 A changeset: core, webui, the server and the extension, minor.
-- [ ] 5.5 **Delegated to claude-cli**: a live `plan` run on a change
+- [x] 5.5 **Delegated to claude-cli**: a live `plan` run on a change
   directory holding `.openspec.yaml` and a note of what the change is for,
   in a scratch repository. Record the run's command, that `proposal.md`
   and `tasks.md` exist afterwards, the output of `openspec validate
   <name> --strict`, and that `git status` shows nothing changed outside
-  the change's directory. Not done on 2026-09-30: tried through the real runner in a scratch repository, and on that machine `claude` answered "Not logged in" and `copilot` could not load its runtime, so no agent ran and nothing was written.
+  the change's directory.
+  Record, 2026-10-01: run `live-propose-1790839327969`, through the real
+  runner (`buildDefaultAgentRunners(...).get("deepseek-cli-acp")`, the
+  same `commandInstruction("plan")` path the hosts use), on agent
+  `deepseek-cli-acp` (`dsh --profile acp`, dsh 0.1.5-rc.3, Node 24.21),
+  because `claude` on this machine answers "Not logged in" and `copilot`
+  could not load its native runtime. Scratch repository from `openspec
+  init --tools none`, change `greeting-takes-a-name` holding
+  `.openspec.yaml` and `exploration.md` only. Completed in 577 s with no
+  permission request; the agent ran `openspec status`, `openspec
+  instructions` for each artifact and `openspec validate --strict` itself.
+  Afterwards `openspec status`: proposal, specs, design and tasks all
+  `[x]`. `openspec validate greeting-takes-a-name --strict`: "Change
+  'greeting-takes-a-name' is valid". `git status --porcelain
+  --untracked-files=all`: only `proposal.md`, `specs/greeting/spec.md`,
+  `design.md` and `tasks.md` under
+  `openspec/changes/greeting-takes-a-name/`; nothing outside it.
 - [ ] 5.6 **Human-only**: in the Extension Development Host built from
   this branch, Start on a Drafted change and choose "Run one stage": the
   picker shows propose, review, apply, verify and opens on propose; the
