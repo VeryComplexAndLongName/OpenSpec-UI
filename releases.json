@@ -1,35 +1,35 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-01T08:39:46.224Z",
+  "generated_at": "2026-10-01T10:42:56.814Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "2b881c2486d227be190b9e38ca65f8a1cdf88dc0",
+  "commit": "7332e433b37a033d4d7d02d2f0840c0e3d0e8ef8",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.89.0",
-      "released_at": "2026-10-01T08:39:46.224Z",
-      "tag": "openspec-ui-vscode@0.89.0",
+      "version": "0.90.0",
+      "released_at": "2026-10-01T10:42:56.814Z",
+      "tag": "openspec-ui-vscode@0.90.0",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.89.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.90.0"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.89.0/openspec-ui-vscode-0.89.0.vsix",
-          "size_bytes": 6640575
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.90.0/openspec-ui-vscode-0.90.0.vsix",
+          "size_bytes": 6650216
         }
       ],
       "changes": [
         {
           "kind": "minor",
-          "summary": "Running one stage speaks OpenSpec. The stage picker lists `propose`,"
+          "summary": "A change whose every task is done offers Start on its card, and its run"
         }
       ]
     },
@@ -38,8 +38,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.50.0",
-      "released_at": "2026-10-01T08:39:46.224Z",
+      "version": "1.51.0",
+      "released_at": "2026-10-01T10:42:56.814Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -50,7 +50,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Running one stage speaks OpenSpec. The stage picker lists `propose`,"
+          "summary": "A change whose every task is done offers Start on its card, and its run"
         }
       ]
     },
@@ -59,8 +59,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.130.0",
-      "released_at": "2026-10-01T08:39:46.224Z",
+      "version": "0.131.0",
+      "released_at": "2026-10-01T10:42:56.814Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -71,7 +71,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Running one stage speaks OpenSpec. The stage picker lists `propose`,"
+          "summary": "A change whose every task is done offers Start on its card, and its run"
         }
       ]
     },
@@ -80,8 +80,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.78.0",
-      "released_at": "2026-10-01T08:39:46.224Z",
+      "version": "1.79.0",
+      "released_at": "2026-10-01T10:42:56.814Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -91,7 +91,7 @@
       "changes": [
         {
           "kind": "minor",
-          "summary": "Running one stage speaks OpenSpec. The stage picker lists `propose`,"
+          "summary": "A change whose every task is done offers Start on its card, and its run"
         }
       ]
     },
@@ -101,7 +101,7 @@
       "package": "@openspec-ui/cli",
       "public": false,
       "version": "0.22.1",
-      "released_at": "2026-10-01T08:39:46.224Z",
+      "released_at": "2026-10-01T10:42:56.814Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
