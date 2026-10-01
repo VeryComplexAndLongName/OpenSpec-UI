@@ -39,7 +39,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   test("runners are built from the default agent registry once a workspace is open", () => {
     const runners = api.getRunners();
     assert.ok(runners, "expected a runners map once a workspace is open");
-    for (const id of ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm"]) {
+    for (const id of ["claude-cli", "copilot-cli", "codex-cli", "gemini-cli", "local-llm", "local-llm-acp"]) {
       assert.ok(runners.has(id), `expected a runner for ${id}`);
     }
   });

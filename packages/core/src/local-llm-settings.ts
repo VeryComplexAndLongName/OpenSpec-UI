@@ -20,11 +20,49 @@ export const LOCAL_LLM_ENVIRONMENT = {
   apiKey: "OPENSPEC_UI_LOCAL_LLM_API_KEY",
 } as const;
 
+/** Process settings for the ACP-flavored local coding agent. */
+export const LOCAL_LLM_ACP_ENVIRONMENT = {
+  maxIterations: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_ITERATIONS",
+  maxToolCalls: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_TOOL_CALLS",
+  maxSeconds: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_SECONDS",
+  commandTimeoutSeconds: "OPENSPEC_UI_LOCAL_LLM_ACP_COMMAND_TIMEOUT_SECONDS",
+  maxCommandOutputChars: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_COMMAND_OUTPUT_CHARS",
+  maxPromptTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_PROMPT_TOKENS",
+  maxCompletionTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_COMPLETION_TOKENS",
+  maxTotalTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_TOTAL_TOKENS",
+  maxContextUsedTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_CONTEXT_USED_TOKENS",
+  maxContextWindowTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_CONTEXT_WINDOW_TOKENS",
+  maxContextShare: "OPENSPEC_UI_LOCAL_LLM_ACP_MAX_CONTEXT_SHARE",
+  minFreeContextTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MIN_FREE_CONTEXT_TOKENS",
+} as const;
+
+export const LOCAL_LLM_ACP_DEFAULT_EXECUTABLE = "coding-agent";
+
 export interface LocalLlmSettings {
   baseUrl: string;
   model: string;
   /** Sent as a bearer token where set; a server that wants none gets none. */
   apiKey?: string;
+}
+
+export interface LocalLlmAcpLimits {
+  maxIterations?: number;
+  maxToolCalls?: number;
+  maxSeconds?: number;
+  commandTimeoutSeconds?: number;
+  maxCommandOutputChars?: number;
+  maxPromptTokens?: number;
+  maxCompletionTokens?: number;
+  maxTotalTokens?: number;
+  maxContextUsedTokens?: number;
+  maxContextWindowTokens?: number;
+  maxContextShare?: number;
+  minFreeContextTokens?: number;
+}
+
+export interface LocalLlmAcpSettings extends LocalLlmSettings {
+  executable: string;
+  limits: LocalLlmAcpLimits;
 }
 
 /** What a host was told, each field optional. */
@@ -34,9 +72,35 @@ export interface LocalLlmOverrides {
   apiKey?: string;
 }
 
+export interface LocalLlmAcpOverrides extends LocalLlmOverrides {
+  limits?: LocalLlmAcpLimits;
+}
+
 function given(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
+}
+
+function positiveInteger(value: string | undefined): number | undefined {
+  const read = given(value);
+  if (read === undefined || !/^\d+$/u.test(read)) return undefined;
+  const parsed = Number(read);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function positiveNumber(value: string | undefined): number | undefined {
+  const read = given(value);
+  if (read === undefined) return undefined;
+  const parsed = Number(read);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function share(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 && value <= 1 ? value : undefined;
+}
+
+function shareFromText(value: string | undefined): number | undefined {
+  return share(positiveNumber(value));
 }
 
 /** Each setting from the host where it said one, else from the
@@ -51,6 +115,62 @@ export function resolveLocalLlmSettings(
     baseUrl: given(overrides.baseUrl) ?? given(environment[LOCAL_LLM_ENVIRONMENT.baseUrl]) ?? LOCAL_LLM_DEFAULT_BASE_URL,
     model: given(overrides.model) ?? given(environment[LOCAL_LLM_ENVIRONMENT.model]) ?? LOCAL_LLM_DEFAULT_MODEL,
     ...(apiKey !== undefined ? { apiKey } : {}),
+  };
+}
+
+/** Resolves settings for the ACP-flavored local coding agent. */
+export function resolveLocalLlmAcpSettings(
+  overrides: LocalLlmAcpOverrides = {},
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): LocalLlmAcpSettings {
+  const base = resolveLocalLlmSettings(overrides, environment);
+  const resolvedLimits: LocalLlmAcpLimits = {
+    maxIterations:
+      overrides.limits?.maxIterations
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxIterations]),
+    maxToolCalls:
+      overrides.limits?.maxToolCalls
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxToolCalls]),
+    maxSeconds:
+      overrides.limits?.maxSeconds
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxSeconds]),
+    commandTimeoutSeconds:
+      overrides.limits?.commandTimeoutSeconds
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.commandTimeoutSeconds]),
+    maxCommandOutputChars:
+      overrides.limits?.maxCommandOutputChars
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxCommandOutputChars]),
+    maxPromptTokens:
+      overrides.limits?.maxPromptTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxPromptTokens]),
+    maxCompletionTokens:
+      overrides.limits?.maxCompletionTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxCompletionTokens]),
+    maxTotalTokens:
+      overrides.limits?.maxTotalTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxTotalTokens]),
+    maxContextUsedTokens:
+      overrides.limits?.maxContextUsedTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextUsedTokens]),
+    maxContextWindowTokens:
+      overrides.limits?.maxContextWindowTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextWindowTokens]),
+    maxContextShare:
+      share(overrides.limits?.maxContextShare)
+      ?? shareFromText(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextShare]),
+    minFreeContextTokens:
+      overrides.limits?.minFreeContextTokens
+      ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.minFreeContextTokens]),
+  };
+
+  const limits = Object.fromEntries(
+    Object.entries(resolvedLimits).filter(([, value]) => value !== undefined),
+  ) as LocalLlmAcpLimits;
+
+  return {
+    ...base,
+    executable: LOCAL_LLM_ACP_DEFAULT_EXECUTABLE,
+    limits,
   };
 }
 
