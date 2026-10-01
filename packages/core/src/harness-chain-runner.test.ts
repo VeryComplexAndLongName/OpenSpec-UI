@@ -323,6 +323,49 @@ describe("HarnessChainRunner — semi-autonomous", () => {
     expect(events.some((e) => e.kind === "stageCompleted")).toBe(false);
   });
 
+  it("skips review where skipStages leaves it out, and says so (a-done-change-carries-on)", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, {
+      autonomyLevel: "semi-autonomous",
+      stepAgents: { propose: "claude-cli", review: "claude-cli", apply: "claude-cli", verify: "claude-cli" },
+      skipStages: ["review"],
+    });
+    mockStatus(false); // propose not done yet -> chain starts at "propose"
+    // The chain refuses to archive while any task is unchecked, and the
+    // fake agent below does not edit tasks.md — write it already complete.
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+
+    const { runner } = makeCompletingRunner();
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const command = baseCommand(root);
+
+    const events: Event[] = [];
+    for await (const event of chain.run(command)) {
+      events.push(event);
+      if (event.kind === "checkpoint") chain.confirmCheckpoint(command.runId);
+    }
+
+    const checkpoints = events.filter((e) => e.kind === "checkpoint");
+    expect(checkpoints.map((e) => (e as { stage: string; nextStage: string }).stage)).toEqual([
+      "propose",
+      "apply",
+      "verify",
+    ]);
+    expect(checkpoints.map((e) => (e as { nextStage: string }).nextStage)).toEqual([
+      "apply",
+      "verify",
+      "archive",
+    ]);
+    // Intermediate stages' own raw "completed" events are swallowed, not forwarded.
+    expect(events.filter((e) => e.kind === "completed")).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(events.some((e) => e.kind === "stageCompleted")).toBe(false);
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "progress", message: "review skipped: skipStages leaves it out" }),
+    );
+  });
+
   it("cancelling at a checkpoint ends the chain without starting the next stage", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });

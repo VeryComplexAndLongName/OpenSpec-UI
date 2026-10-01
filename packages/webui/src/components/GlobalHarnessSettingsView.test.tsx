@@ -108,6 +108,13 @@ describe("GlobalHarnessSettingsView", () => {
     expect(screen.getAllByText("Runs mechanically — no agent")).toHaveLength(2);
   });
 
+  it("says what the review stage does", async () => {
+    render(<GlobalHarnessSettingsView api={createApi()} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+
+    expect(screen.getByTestId("stage-row-review").textContent).toContain("reviews the proposal, before apply");
+  });
+
   it("global stepAgents select has no inherit option (there is nothing to inherit from)", async () => {
     render(<GlobalHarnessSettingsView api={createApi()} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
@@ -305,6 +312,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
       checkpoints: { requireConfirmationBetweenSteps: false },
       budget: { maxCostUsd: 25 },
       timeout: { maxRunSeconds: 14400, maxStageSeconds: 3600 },
+      skipStages: ["review"],
       maxStageAttempts: 2,
       gitStageAllowlist: ["openspec/**"],
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
@@ -317,6 +325,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
     const api = createApi({ resolveGlobal: vi.fn().mockResolvedValue(everyKey) });
     render(<GlobalHarnessSettingsView api={api} />);
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+    expect(screen.getByTestId("stage-skipped-review")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("apply agent"), { target: { value: "gemini-cli" } });
     fireEvent.click(saveButton());
@@ -326,6 +335,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
     expect(TOP_LEVEL_CONFIG_KEYS.filter((key) => !(key in saved))).toEqual([]);
     expect(saved.stepAgents).toMatchObject({ apply: "gemini-cli" });
     expect(saved.timeout).toEqual(everyKey.timeout);
+    expect(saved.skipStages).toEqual(["review"]);
     expect(saved.gitStageAllowlist).toEqual(everyKey.gitStageAllowlist);
   });
 });

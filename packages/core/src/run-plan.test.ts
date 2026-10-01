@@ -46,6 +46,23 @@ describe("buildRunPlan", () => {
     expect(plan.stageAgents.every((entry) => entry.agent === undefined)).toBe(true);
   });
 
+  it("says when review is skipped and leaves it out of the chain description", () => {
+    const plan = buildRunPlan(config({ autonomyLevel: "semi-autonomous", skipStages: ["review"] }), { hasVsCodeAgent: false });
+
+    expect(plan.stageAgents).toContainEqual({ stage: "review", skipped: true });
+    expect(plan.offered.find((path) => path.id === "chain")?.describes).toBe(
+      "Runs propose, apply and verify in sequence, pausing where the configuration says to. Skipped: review.",
+    );
+  });
+
+  it("keeps the chain description unchanged when no stage is skipped", () => {
+    const plan = buildRunPlan(config({ autonomyLevel: "semi-autonomous" }), { hasVsCodeAgent: false });
+
+    expect(plan.offered.find((path) => path.id === "chain")?.describes).toBe(
+      "Runs propose, review, apply and verify in sequence, pausing where the configuration says to.",
+    );
+  });
+
   it("offers the VS Code agent only where there is one", () => {
     // Offering a path that cannot run is the same defect as a ceiling
     // that cannot act.

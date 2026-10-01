@@ -41,7 +41,7 @@ neither has a setting the other lacks.
 | Stage | What runs it | What it produces |
 | --- | --- | --- |
 | `propose` | The `stepAgents.propose` CLI agent, dispatched as a `plan` command. | Drafts or updates the change's `proposal.md`/`design.md`/`tasks.md`. |
-| `review` | The `stepAgents.review` CLI agent, dispatched as a `review` command. | A review verdict on the change's artifacts — does not itself modify them. |
+| `review` | The `stepAgents.review` CLI agent, dispatched as a `review` command. | A review verdict on the change's artifacts - does not itself modify them. Left out where `skipStages` names it. |
 | `apply` | The `stepAgents.apply` CLI agent, dispatched as an `implement` command. | Implements `tasks.md`'s tasks and ticks each one as soon as its own verification has passed — the product's instruction says so, whatever a project's rules add. A before/after checkpoint of the workspace is captured around this stage so `verify` can be handed the actual delta; a run that changed files and ticked no task is named on the chain's timeline. |
 | `verify` | Mechanical checks first (see "Mechanical checks" below), then the `stepAgents.verify` CLI agent, dispatched as a `verify` command — only if every declared check passed. | A verification report. The agent ticks each unticked task whose verification it confirmed itself — checking an effect that is not a file, such as a command that must pass — and unticks each that does not hold; it never ticks a `**Human-only**` or `**Delegated to …**` task. A failing mechanical check skips the agent entirely. |
 | `archive` | **Mechanical.** `HarnessChainRunner` calls `openspec archive` directly — no CLI agent runs, and `stepAgents` has no `archive` key to set (see "Two configuration files" below). | The change moves to `openspec/changes/archive/`. Refuses outright unless every task in `tasks.md` is checked, naming the tasks that are not. |
@@ -118,7 +118,7 @@ rejected outright (`unrecognized top-level key`), naming the key and, if
 it matches a known stage name, suggesting `stepAgents.<key>` instead.
 
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
-`checkpoints`, `budget`, `timeout`, `maxStageAttempts`,
+`checkpoints`, `budget`, `timeout`, `skipStages`, `maxStageAttempts`,
 `gitStageAllowlist`, `taskAgents`, `steps`, `hints`,
 `allowAgentMessages`, `branches`. Nothing else is accepted, at either
 file.
@@ -451,6 +451,23 @@ ceiling would stop the chain first, so the stage ceiling could never
 fire. See [`LIMITS.md`](LIMITS.md) for the full picture, including how a
 run ceiling under five minutes interacts with the `git` stage's own
 check-polling.
+
+### `skipStages`
+
+An optional list of stage names a chain leaves out, for example
+`["review"]`. `review` is the only accepted name: `propose` is already
+left out when the proposal is written, and `verify` is the only check
+that `apply` did the work it ticked. `archive` and `git` are governed by
+their own gates.
+
+The setting is accepted in both the global file and a per-change file. A
+per-change list replaces the global list as a whole; `[]` puts `review`
+back into the chain. When skipped, the chain timeline says
+`review skipped: skipStages leaves it out`. A declared step placed before
+or after a skipped stage is refused when the configuration resolves.
+
+The Harness Settings views show when the resolved configuration skips a
+stage, but do not set `skipStages`; edit the harness file to change it.
 
 ### `maxStageAttempts`
 

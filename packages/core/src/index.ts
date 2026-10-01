@@ -140,6 +140,8 @@ export {
   type DefaultRunnersConfig,
 } from "./default-runners.js";
 export * from "./run-plan.js";
+export { COMMAND_PURPOSES } from "./command-purpose.js";
+export { SKIPPABLE_STAGES, STAGE_PURPOSES, skipsStage, type HarnessSkippableStage } from "./harness-stage.js";
 export * from "./workspace-run-stats.js";
 export * from "./run-recommendations.js";
 export * from "./custom-agents.js";

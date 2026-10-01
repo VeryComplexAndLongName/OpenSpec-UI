@@ -3,6 +3,7 @@ import {
   checkScheduleTime,
   groupHarnessFindings,
   resolveEffortLevel,
+  STAGE_PURPOSES,
   type ChangeStateKey,
   type DescribedChangeState,
   type HarnessEffortLevel,
@@ -191,7 +192,7 @@ export function RunDialog(
           <li key={entry.stage}>
             {/* A stage with no agent says so. Leaving it out would read as
                 a stage that does not run. */}
-            {entry.stage}: {entry.agent ?? "no agent set"}
+            {entry.stage} ({STAGE_PURPOSES[entry.stage]}): {entry.skipped ? "skipped" : entry.agent ?? "no agent set"}
           </li>
         ))}
       </ul>

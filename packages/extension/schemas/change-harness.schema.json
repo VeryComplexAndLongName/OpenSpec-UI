@@ -135,6 +135,17 @@
         }
       }
     },
+    "skipStages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "review"
+        ]
+      },
+      "description": "Stages a chain leaves out. Only review may be left out."
+    },
     "maxStageAttempts": {
       "type": "integer",
       "minimum": 1,

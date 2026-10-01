@@ -15,6 +15,7 @@ import { findHarnessConfigLimits, type HarnessFinding } from "./harness-config-f
 import { recommendTemplate, type HarnessRecommendation, type RecommendationInput } from "./harness-recommendation.js";
 import { normalizeStepAgent, VSCODE_CHAT_STEP_AGENT_ID, type HarnessStepAgentStage } from "./harness-step-agent.js";
 import type { HarnessAutonomyLevel, HarnessConfig } from "./harness-config.js";
+import { skipsStage } from "./harness-stage.js";
 
 /** The three ways a change can be worked on. `chain` and `single-stage`
  * are what the two autonomy levels already resolve to; `vscode-agent` is
@@ -43,7 +44,7 @@ export interface RunPlan {
    * a single agent here would be a guess dressed as a statement. An entry
    * whose agent is absent says so — no agent is configured for that
    * stage, which is a fact rather than a blank. */
-  stageAgents: ReadonlyArray<{ stage: HarnessStepAgentStage; agent?: string }>;
+  stageAgents: ReadonlyArray<{ stage: HarnessStepAgentStage; agent?: string; skipped?: true }>;
   /** The paths this host can actually offer. A path that cannot run here
    * is not listed — offering one is the same defect as a ceiling that
    * cannot act. */
@@ -170,6 +171,16 @@ function agentFor(config: HarnessConfig, stage: HarnessStepAgentStage): string |
   return entry === undefined ? undefined : normalizeStepAgent(entry).agent;
 }
 
+function describeChain(config: HarnessConfig): string {
+  const running = CHAIN_STAGES.filter((stage) => !skipsStage(config, stage));
+  const skipped = CHAIN_STAGES.filter((stage) => skipsStage(config, stage));
+  const list = running.length === 1
+    ? running[0]
+    : `${running.slice(0, -1).join(", ")} and ${running.at(-1)}`;
+  const skippedList = skipped.join(", ");
+  return `Runs ${list} in sequence, pausing where the configuration says to.${skipped.length > 0 ? ` Skipped: ${skippedList}.` : ""}`;
+}
+
 /** Describes what starting this change will do, without doing it.
  *
  * The resolved path comes from `resolveRunWithHarnessTarget`, the same
@@ -180,13 +191,17 @@ export function buildRunPlan(config: HarnessConfig, host: RunPlanHost): RunPlan 
   // A chain is refused under `assisted` the moment it starts: not offered,
   // and said instead (the-run-dialog-says-where-it-starts).
   const chainRefused = resolved !== "chain";
-  const offered: RunPath[] = chainRefused ? [PATHS["single-stage"]] : [PATHS.chain, PATHS["single-stage"]];
+  const offered: RunPath[] = chainRefused
+    ? [PATHS["single-stage"]]
+    : [{ ...PATHS.chain, describes: describeChain(config) }, PATHS["single-stage"]];
   if (host.hasVsCodeAgent) offered.push(PATHS["vscode-agent"]);
 
   return {
     resolved,
     because: describeAutonomy(config.autonomyLevel, resolved),
-    stageAgents: CHAIN_STAGES.map((stage) => ({ stage, agent: agentFor(config, stage) })),
+    stageAgents: CHAIN_STAGES.map((stage) => (
+      skipsStage(config, stage) ? { stage, skipped: true as const } : { stage, agent: agentFor(config, stage) }
+    )),
     offered,
     findings: findHarnessConfigLimits(config),
     ...(host.recommendationInput !== undefined

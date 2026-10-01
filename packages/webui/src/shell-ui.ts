@@ -1843,10 +1843,23 @@ export const shellThemeCss = `
 
   .openspec-stage-name {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
     font-weight: 600;
     color: var(--heading);
+  }
+
+  .openspec-stage-purpose,
+  .openspec-stage-skipped {
+    flex-basis: 100%;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .openspec-stage-skipped {
+    font-style: italic;
   }
 
   .openspec-stage-number {

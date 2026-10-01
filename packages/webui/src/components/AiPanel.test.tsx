@@ -94,7 +94,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         const picker = screen.getByTestId("command-picker");
         const options = picker.querySelectorAll("option");
-        expect(Array.from(options).map((option) => option.textContent)).toEqual([
+        expect(Array.from(options).map((option) => option.value)).toEqual([
             "status",
             "list",
             "show",
@@ -103,6 +103,8 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "implement",
             "review",
         ]);
+        expect(Array.from(options).find((option) => option.value === "plan")?.textContent)
+            .toBe("plan - drafts a plan without changing code; the propose stage sends this");
     });
 
     it("defaults the agent picker to the default agent and disables it for direct commands", () => {
