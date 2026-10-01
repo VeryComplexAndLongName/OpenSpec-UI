@@ -82,7 +82,19 @@ agent path offers Copilot only.
   --untracked-files=all`: only `proposal.md`, `specs/greeting/spec.md`,
   `design.md` and `tasks.md` under
   `openspec/changes/greeting-takes-a-name/`; nothing outside it.
-- [ ] 5.6 **Human-only**: in the Extension Development Host built from
+- [x] 5.6 **Human-only**: in the Extension Development Host built from
   this branch, Start on a Drafted change and choose "Run one stage": the
   picker shows propose, review, apply, verify and opens on propose; the
   third path reads "Apply in VS Code Chat". The same in the standalone.
+  Record, 2026-10-01: confirmed by the owner from screenshots taken on this
+  branch, on a scratch repository whose change `greeting-takes-a-name` held
+  `.openspec.yaml` and `exploration.md` only. Editor, the Extension
+  Development Host built from this branch: the Pipeline's Start on the
+  Drafted card opened the run dialog saying "Starts at propose: there is no
+  proposal and task list yet.", offering "Run one stage (configured)" and
+  "Apply in VS Code Chat"; "Run one stage" opened the panel on that change
+  with propose selected, and the list read status, list, show, validate,
+  propose, review, apply, verify. Standalone, the server built from this
+  branch: the same dialog sentence and "Run one stage (configured)" (the
+  VS Code Chat path is not offered there, by design), and the panel opened
+  on propose with the option values plan, review, implement, verify.
