@@ -95,6 +95,14 @@ function positiveNumber(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function share(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value > 0 && value <= 1 ? value : undefined;
+}
+
+function shareFromText(value: string | undefined): number | undefined {
+  return share(positiveNumber(value));
+}
+
 /** Each setting from the host where it said one, else from the
  * environment, else the default. An empty value is no value: a setting
  * cleared in the editor falls back rather than sending an empty key. */
@@ -148,8 +156,8 @@ export function resolveLocalLlmAcpSettings(
       overrides.limits?.maxContextWindowTokens
       ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextWindowTokens]),
     maxContextShare:
-      overrides.limits?.maxContextShare
-      ?? positiveNumber(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextShare]),
+      share(overrides.limits?.maxContextShare)
+      ?? shareFromText(environment[LOCAL_LLM_ACP_ENVIRONMENT.maxContextShare]),
     minFreeContextTokens:
       overrides.limits?.minFreeContextTokens
       ?? positiveInteger(environment[LOCAL_LLM_ACP_ENVIRONMENT.minFreeContextTokens]),
