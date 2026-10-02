@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { AGENT_REGISTRY } from "./agents/registry.js";
+import { acceptsModel, AGENT_REGISTRY } from "./agents/registry.js";
 import { assertValidChangeName } from "./change-name.js";
 import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
 import type { ChangeLocation } from "./workbench.js";
@@ -604,7 +604,7 @@ function assertValidAgentEntry(label: string, entry: unknown, autonomyLevel: Har
       if (typeof model !== "string" || !MODEL_ID_PATTERN.test(model)) {
         throw new InvalidHarnessConfigError(`${label}.model "${String(model)}" is not a valid model id`);
       }
-      if (!AGENT_DESCRIPTORS_BY_ID.get(agentId)?.modelFlag) {
+      if (!acceptsModel(AGENT_DESCRIPTORS_BY_ID.get(agentId))) {
         throw new InvalidHarnessConfigError(`${label} sets a model, but agent "${agentId}" does not accept one`);
       }
     }

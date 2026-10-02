@@ -349,8 +349,18 @@ describe("stepAgents model support", () => {
   it("rejects a model set for an agent that accepts none, naming the stage and agent", async () => {
     const root = await temporaryRoot();
     await expect(
-      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "local-llm", model: "some-model" } } }),
-    ).rejects.toThrow(/stepAgents\.apply.*"local-llm"/);
+      writeGlobalHarnessConfig(root, { stepAgents: { apply: { agent: "gemini-cli", model: "some-model" } } }),
+    ).rejects.toThrow(/stepAgents\.apply.*"gemini-cli"/);
+  });
+
+  it("accepts a model for both local LLM agents, with a slash in it (local-llm-codes-in-process)", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, {
+      stepAgents: {
+        propose: { agent: "local-llm", model: "QuantTrio/Qwen3.6-35B-A3B-AWQ" },
+        apply: { agent: "local-llm-acp", model: "QuantTrio/Qwen3.6-35B-A3B-AWQ" },
+      },
+    })).resolves.toBeUndefined();
   });
 
   it("lets a per-change harness.json model override the global one for that stage", async () => {

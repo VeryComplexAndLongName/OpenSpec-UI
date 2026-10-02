@@ -712,7 +712,17 @@
         "openspec-ui.localLlm.model": {
           "type": "string",
           "default": "",
-          "description": "The model the local LLM (agent local-llm) is asked for, as its server names it. Empty means the environment variable OPENSPEC_UI_LOCAL_LLM_MODEL, and then \"default\". Read when the window opens."
+          "description": "The model the local LLM agents (local-llm and local-llm-acp) ask for, as the server names it, such as QuantTrio/Qwen3.6-35B-A3B-AWQ. Optional: a stage's own model wins over it, and where neither names one the server is asked which model it serves (its /v1/models). Empty means the environment variable OPENSPEC_UI_LOCAL_LLM_MODEL, then the server. Read when the window opens."
+        },
+        "openspec-ui.localLlm.agent.askBeforeCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "The built-in local LLM agent (local-llm-acp) asks before each command it runs, and runs it only if you allow it. Off: commands run without asking, as the other agents' do, inside the change's working directory and within their time limit. Leave it off for a chain that runs unattended: nobody would answer. Same as OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS=1. Read when the window opens."
+        },
+        "openspec-ui.agents.ignoreSystemProxy": {
+          "type": "boolean",
+          "default": false,
+          "description": "Agents ignore the system proxy. The local LLM agents (local-llm, local-llm-acp) and their availability check connect directly, whatever proxy the editor applies; a CLI agent is started with HTTP_PROXY, HTTPS_PROXY and ALL_PROXY removed and NO_PROXY=*, which only a CLI that reads those variables honours (see HARNESS.md). Turn it on when the proxy cannot reach your model, such as a server on your LAN. Same as OPENSPEC_UI_IGNORE_SYSTEM_PROXY=1. Read when the window opens."
         },
         "openspec-ui.followSelectionInChangeGraph": {
           "type": "boolean",

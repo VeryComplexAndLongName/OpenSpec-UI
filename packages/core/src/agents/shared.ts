@@ -19,7 +19,34 @@
 // the resulting command line in a shell.
 import crossSpawn from "cross-spawn";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { withoutSystemProxy } from "../direct-fetch.js";
 import type { CommandKind, Event } from "../protocol.js";
+
+/** Whether a CLI agent is started without the system proxy (ADR 0038
+ * decision 6). Process-wide: a host builds its runners once, from one
+ * configuration (`buildDefaultAgentRunners` sets it), and every adapter
+ * spawns through `spawnAndStream` or `spawnAcpProcess`, which read it. */
+let ignoreSystemProxyForAgents = false;
+
+export function setAgentProxyPolicy(ignoreSystemProxy: boolean): void {
+  ignoreSystemProxyForAgents = ignoreSystemProxy;
+}
+
+/** Whether agents ignore the system proxy, as the host's runners were
+ * built: what agent detection checks the local LLM with. */
+export function agentsIgnoreSystemProxy(): boolean {
+  return ignoreSystemProxyForAgents;
+}
+
+/** The environment an agent CLI is started with: the process's own, with
+ * `extra` laid over it, and without the proxy variables where agents are
+ * to ignore the system proxy. Undefined where nothing changes, so the spawn
+ * inherits the environment as it always did. */
+export function agentSpawnEnvironment(extra?: Readonly<Record<string, string>>): NodeJS.ProcessEnv | undefined {
+  if (!ignoreSystemProxyForAgents && extra === undefined) return undefined;
+  const merged = { ...process.env, ...(extra ?? {}) };
+  return ignoreSystemProxyForAgents ? withoutSystemProxy(merged) : merged;
+}
 
 /** Ten seconds. Terminating a tree that can be terminated takes
  * milliseconds, so this is not a budget for the normal case — it is how
@@ -199,10 +226,12 @@ export async function* spawnAndStream(options: SpawnAndStreamOptions): AsyncGene
   }
 
   let child: ChildProcessWithoutNullStreams;
+  const env = agentSpawnEnvironment();
   try {
     child = crossSpawn(executable, args, {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
+      ...(env !== undefined ? { env } : {}),
       // POSIX only: makes the child the leader of its own process group so
       // `terminateProcessTree` can kill the whole group. Windows tracks
       // parent/child relationships itself; `taskkill /T` needs no such flag.

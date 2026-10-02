@@ -12,6 +12,7 @@ import {
   VSCODE_CHAT_STEP_AGENT_ID,
   type AgentRunner,
   type Command,
+  type CommandKind,
   type Event,
   type HarnessChainRunner,
   type HarnessStage,
@@ -362,10 +363,18 @@ export class AiPanel {
       }
     }
 
-    // A cancel goes to the runner that owns the run, not to whichever
-    // agent `DEFAULT_AGENT_ID` names. `activeRuns` lives per runner
-    // instance, so asking the wrong one is the same as not asking.
-    const agentId = command.kind === "cancel"
+    // A cancel or a permission answer goes to the runner that owns the
+    // run, not to whichever agent `DEFAULT_AGENT_ID` names. `activeRuns`
+    // lives per runner instance, so asking the wrong one is the same as
+    // not asking — observed 2026-10-02: a `resolvePermission` command
+    // carries no `agentId` a webview control could know (the
+    // `permissionRequest` event it answers never named one), so it
+    // resolved to the default runner's own fresh adapter instance, whose
+    // `resolvePermission()` found no such pending request and silently
+    // did nothing. The run itself sat on the ACP agent's still-open
+    // promise forever; `askBeforeCommands`'s Allow had nothing to unblock.
+    const CARRIES_NO_OWN_AGENT_ID = new Set<CommandKind>(["cancel", "resolvePermission"]);
+    const agentId = CARRIES_NO_OWN_AGENT_ID.has(command.kind)
       ? this.runAgentIds.get(command.runId) ?? command.agentId
       : command.agentId;
     const runner = this.deps.resolveRunner(agentId);
@@ -378,7 +387,7 @@ export class AiPanel {
       });
       return;
     }
-    if (command.kind !== "cancel") this.runAgentIds.set(command.runId, agentId);
+    if (!CARRIES_NO_OWN_AGENT_ID.has(command.kind)) this.runAgentIds.set(command.runId, agentId);
     this.trackHarnessProcess(command);
     void this.deps.runController.run(runner, command);
   }

@@ -456,7 +456,7 @@ streams events over the same protocol already used for
 | Codex CLI | `codex` | **No — never** |
 | Gemini CLI | `gemini` | **No — never** |
 | Local LLM (OpenAI-compatible) | HTTP to `http://localhost:30000` by default | Not exercised live |
-| Local LLM (ACP, OpenAI-compatible) | `coding-agent --base-url <url> --model <name> acp` (the Python coding agent, 0.3.0+) | Yes, against SGLang serving Qwen3.6; edits files, never asks permission |
+| Local LLM agent (OpenAI-compatible, built in) | Nothing to install: a coding agent built into the product, against the same server (ADR 0038) | Yes, against SGLang serving Qwen3.6; edits files in the change's directory, asks before commands when told to |
 | Claude CLI (ACP) | `claude --input-format stream-json --output-format stream-json` | Progress only — no permission gate, see below |
 | GitHub Copilot CLI (ACP) | `copilot --acp` | Yes |
 | Codex CLI (ACP) | externally installed `codex-acp` | **No — never** |

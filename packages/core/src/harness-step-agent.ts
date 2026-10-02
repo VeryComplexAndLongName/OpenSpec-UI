@@ -107,8 +107,10 @@ export function stepAgentFor(
  * `-` (so it can never be read as a second flag) and cannot contain
  * whitespace or quotes (so it can never become a shell/quoting escape)
  * — see harness-step-models design.md, "Validation is a closed
- * character set, not an escape". */
-export const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+ * character set, not an escape". A / is admitted: a local server names its
+ * models as Hugging Face does, QuantTrio/Qwen3.6-35B-A3B-AWQ, and the
+ * character escapes nothing (local-llm-codes-in-process). */
+export const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
 
 /** The union of every reasoning-effort value any registered agent
  * accepts, not the intersection — see harness-step-effort-and-budget
@@ -174,6 +176,13 @@ export interface HarnessAgentCapabilities {
    * agent nobody has watched, for the same reason `reports` is.
    * Absent means `"unknown"`. */
   contextGauge?: "sends" | "none" | "unknown";
+  /** Whether this agent goes direct when agents are told to ignore the
+   * system proxy (ADR 0038 decision 6). `"ignored"`: it runs in the
+   * product, which connects directly. `"environment"`: a CLI documented to
+   * read `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`, which the product removes
+   * and sets. `"unknown"`: a CLI nobody has checked, which may keep its
+   * own proxy settings. Absent means `"unknown"`. */
+  systemProxy?: "ignored" | "environment" | "unknown";
 }
 
 /** Live-verified for `claude-cli`/`copilot-cli` (`--help` on this
@@ -200,26 +209,32 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // with certainty rather than by measurement: plain text output carries
   // no figure to record. Their `contextGauge` is certain the same way -
   // they speak no ACP at all, so no update of any kind arrives.
-  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none", contextGauge: "none" },
-  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none", contextGauge: "none" },
-  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none" },
-  "gemini-cli": { reports: "none", contextGauge: "none" },
-  "local-llm": { reports: "none", contextGauge: "none" },
-  "local-llm-acp": { reports: "unknown", contextGauge: "unknown" },
+  //
+  // `systemProxy` (ADR 0038): "environment" only for a CLI whose vendor
+  // documents reading the proxy variables (Claude Code and GitHub Copilot
+  // CLI); "unknown" for every CLI nobody here has checked.
+  "claude-cli": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "none", contextGauge: "none", systemProxy: "environment" },
+  "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none", contextGauge: "none", systemProxy: "environment" },
+  "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none", systemProxy: "unknown" },
+  "gemini-cli": { reports: "none", contextGauge: "none", systemProxy: "unknown" },
+  "local-llm": { reports: "none", contextGauge: "none", systemProxy: "ignored" },
+  // Runs in the product (ADR 0038): its answer to each prompt carries the
+  // tokens the model reported, and no context gauge.
+  "local-llm-acp": { reports: "tokens-only", contextGauge: "none", systemProxy: "ignored" },
   // The run is handed to VS Code chat; this project never sees its cost.
-  [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none", contextGauge: "none" },
+  [VSCODE_CHAT_STEP_AGENT_ID]: { reports: "none", contextGauge: "none", systemProxy: "unknown" },
   // Measured 2026-09-04 from this repository's own audit.jsonl: one run
   // recorded 786,966 input, 4,732 output and 1,308 thought tokens, and no
   // cost field of any kind.
-  "copilot-cli-acp": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "tokens-only" },
+  "copilot-cli-acp": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "tokens-only", systemProxy: "environment" },
   // Measured 2026-09-05 from a chain run here: cost in USD, input/output/
   // cache tokens, and a per-model split.
-  "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "cost-and-tokens" },
+  "claude-cli-acp": { effort: ["low", "medium", "high", "xhigh", "max"], budgetField: "maxCostUsd", reports: "cost-and-tokens", systemProxy: "environment" },
   // Never observed on this machine — neither binary was present when the
   // adapters were built. `"unknown"`, not `"none"`: asserting silence
   // would be reporting a measurement nobody made.
-  "codex-cli-acp": { reports: "unknown" },
-  "gemini-cli-acp": { reports: "unknown" },
+  "codex-cli-acp": { reports: "unknown", systemProxy: "unknown" },
+  "gemini-cli-acp": { reports: "unknown", systemProxy: "unknown" },
   // No effort or budget flag: see agents/deepseek-acp.ts. Measured
   // 2026-09-23 on a live implement run through dsh 0.1.5-rc.2, correcting
   // the day before: no usage on the prompt's answer, which carries only a
@@ -227,7 +242,7 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   // a 1,000,000-token context window is filled, and nothing else. A gauge
   // is not a spend, so `reports` stays "none" and the gauge is recorded
   // beside it.
-  "deepseek-cli-acp": { reports: "none", contextGauge: "sends" },
+  "deepseek-cli-acp": { reports: "none", contextGauge: "sends", systemProxy: "unknown" },
 };
 
 /** Normalizes either form of a `HarnessStepAgents` entry to `{ agent,

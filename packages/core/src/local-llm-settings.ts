@@ -36,11 +36,11 @@ export const LOCAL_LLM_ACP_ENVIRONMENT = {
   minFreeContextTokens: "OPENSPEC_UI_LOCAL_LLM_ACP_MIN_FREE_CONTEXT_TOKENS",
 } as const;
 
-export const LOCAL_LLM_ACP_DEFAULT_EXECUTABLE = "coding-agent";
-
 export interface LocalLlmSettings {
   baseUrl: string;
-  model: string;
+  /** Where a host or the environment named one. Absent otherwise: the run
+   * then asks the server (`resolveLocalLlmModel`). */
+  model?: string;
   /** Sent as a bearer token where set; a server that wants none gets none. */
   apiKey?: string;
 }
@@ -61,7 +61,6 @@ export interface LocalLlmAcpLimits {
 }
 
 export interface LocalLlmAcpSettings extends LocalLlmSettings {
-  executable: string;
   limits: LocalLlmAcpLimits;
 }
 
@@ -111,9 +110,10 @@ export function resolveLocalLlmSettings(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): LocalLlmSettings {
   const apiKey = given(overrides.apiKey) ?? given(environment[LOCAL_LLM_ENVIRONMENT.apiKey]);
+  const model = given(overrides.model) ?? given(environment[LOCAL_LLM_ENVIRONMENT.model]);
   return {
     baseUrl: given(overrides.baseUrl) ?? given(environment[LOCAL_LLM_ENVIRONMENT.baseUrl]) ?? LOCAL_LLM_DEFAULT_BASE_URL,
-    model: given(overrides.model) ?? given(environment[LOCAL_LLM_ENVIRONMENT.model]) ?? LOCAL_LLM_DEFAULT_MODEL,
+    ...(model !== undefined ? { model } : {}),
     ...(apiKey !== undefined ? { apiKey } : {}),
   };
 }
@@ -167,11 +167,97 @@ export function resolveLocalLlmAcpSettings(
     Object.entries(resolvedLimits).filter(([, value]) => value !== undefined),
   ) as LocalLlmAcpLimits;
 
-  return {
-    ...base,
-    executable: LOCAL_LLM_ACP_DEFAULT_EXECUTABLE,
-    limits,
+  return { ...base, limits };
+}
+
+/** Where a run's model came from, said in its first update. */
+export type LocalLlmModelSource = "stage" | "settings" | "server" | "default";
+
+export interface ResolvedLocalLlmModel {
+  model: string;
+  source: LocalLlmModelSource;
+}
+
+/** The models endpoint of a base URL, written either way, as
+ * `chatCompletionsUrl` reads it. */
+export function modelsUrl(baseUrl: string): string {
+  const base = baseUrl.trim().replace(/\/+$/u, "");
+  return /\/v1$/u.test(base) ? `${base}/models` : `${base}/v1/models`;
+}
+
+const SERVED_MODELS_TIMEOUT_MS = 10_000;
+const servedModels = new Map<string, Promise<string[] | undefined>>();
+
+/** The models the server lists at `/v1/models`, asked once per base URL
+ * for the life of the process, so a chain asks once. Undefined where the
+ * server could not be asked or answered with no list. */
+export function listServedModels(
+  settings: Pick<LocalLlmSettings, "baseUrl" | "apiKey">,
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
+): Promise<string[] | undefined> {
+  const url = modelsUrl(settings.baseUrl);
+  let pending = servedModels.get(url);
+  if (pending === undefined) {
+    pending = (async () => {
+      try {
+        const response = await fetchImpl(url, {
+          headers: localLlmHeaders(settings),
+          signal: AbortSignal.timeout(SERVED_MODELS_TIMEOUT_MS),
+        });
+        if (!response.ok) return undefined;
+        const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
+        const ids = (body.data ?? []).map((entry) => entry.id).filter((id): id is string => typeof id === "string" && id.length > 0);
+        return ids.length > 0 ? ids : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    servedModels.set(url, pending);
+    // A failed answer is not kept: the server may be up at the next run.
+    void pending.then((ids) => {
+      if (ids === undefined) servedModels.delete(url);
+    });
+  }
+  return pending;
+}
+
+/** The model a local LLM run uses (local-llm-codes-in-process, ADR 0038
+ * decision 5): the stage's, else the settings', else the one the server
+ * serves (the first, where it serves several), else `default`. */
+export async function resolveLocalLlmModel(
+  stageModel: string | undefined,
+  settings: LocalLlmSettings,
+  fetchImpl: (input: string, init?: RequestInit) => Promise<Response>,
+): Promise<ResolvedLocalLlmModel> {
+  const fromStage = given(stageModel);
+  if (fromStage !== undefined) return { model: fromStage, source: "stage" };
+  const fromSettings = given(settings.model);
+  if (fromSettings !== undefined) return { model: fromSettings, source: "settings" };
+  const served = await listServedModels(settings, fetchImpl);
+  if (served?.[0] !== undefined) return { model: served[0], source: "server" };
+  return { model: LOCAL_LLM_DEFAULT_MODEL, source: "default" };
+}
+
+/** The sentence a run starts with, naming its model and why that one. */
+export function describeLocalLlmModel(resolved: ResolvedLocalLlmModel): string {
+  const why: Record<LocalLlmModelSource, string> = {
+    stage: "named by the stage",
+    settings: "named in the local LLM settings",
+    server: "the model the server serves",
+    default: "no model was named and the server listed none",
   };
+  return `Model ${resolved.model} (${why[resolved.source]}).`;
+}
+
+/** Variables a host with no settings of its own reads for the agents. */
+export const AGENT_ENVIRONMENT = {
+  ignoreSystemProxy: "OPENSPEC_UI_IGNORE_SYSTEM_PROXY",
+  askBeforeCommands: "OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS",
+} as const;
+
+/** A switch from the environment: `1`, `true`, `yes` or `on`, in any case. */
+export function switchFromEnvironment(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/iu.test(value?.trim() ?? "");
 }
 
 /** The chat completions endpoint of a base URL written either way an

@@ -24,7 +24,11 @@ import { untilStopBoundary } from "./stop-boundary.js";
 
 export type AdapterInvocation =
   | { kind: "process"; executable: string; args: string[] }
-  | { kind: "http"; url: string; method: string };
+  | { kind: "http"; url: string; method: string }
+  /** An agent that runs inside the product and starts no process
+   * (local-llm-codes-in-process, ADR 0038). The allowlist admits it only
+   * for an agent registered as in-process, and the audit records it so. */
+  | { kind: "in-process"; agent: string };
 
 export interface AgentAdapter {
   /** The agent's name, as it appears in the workspace's allowlist config. */

@@ -20,6 +20,7 @@ import { Readable, Writable } from "node:stream";
 import {
   CLIENT_METHODS,
   PROTOCOL_VERSION,
+  RequestError,
   client,
   ndJsonStream,
   type AgentApp,
@@ -29,10 +30,30 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { AgentUsage } from "../agent-usage.js";
 import type { CommandKind, Event } from "../protocol.js";
-import { KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
+import { agentSpawnEnvironment, KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** A connection failure's reason, for a run's `failed` event.
+ *
+ * The SDK's own catch-all (`errorToResult`) turns any handler exception
+ * into a `RequestError` whose `message` is the fixed string "Internal
+ * error" — code -32603 always reads that, by the JSON-RPC spec — with
+ * the original exception's own message kept only in `data.details` (an
+ * `HTTP 401 Unauthorized: ...` from `chat-client.ts`, say). Reading only
+ * `.message`, as this driver did, reported every one of those as the same
+ * unhelpful "Internal error" no matter what actually failed underneath. */
+function connectionFailureReason(error: unknown): string {
+  if (error instanceof RequestError) {
+    const data = error.data;
+    if (typeof data === "object" && data !== null && "details" in data && typeof (data as { details: unknown }).details === "string") {
+      return (data as { details: string }).details;
+    }
+    return error.message;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** Either a live subprocess's stdio (production, via `spawnAcpProcess`) or
@@ -51,10 +72,11 @@ export function spawnAcpProcess(
   cwd: string,
   env?: Readonly<Record<string, string>>,
 ): { target: Stream; child: ChildProcessWithoutNullStreams } {
+  const spawnEnv = agentSpawnEnvironment(env);
   const child = crossSpawn(executable, args, {
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
-    ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
+    ...(spawnEnv !== undefined ? { env: spawnEnv } : {}),
     ...(process.platform !== "win32" ? { detached: true } : {}),
   }) as ChildProcessWithoutNullStreams;
   // ACP only speaks over stdin/stdout — stderr is not part of the ACP
@@ -249,7 +271,7 @@ export class AcpSessionDriver {
         // goes down after a compaction, so recording it as consumption
         // would under-count a long run exactly when it compacts.
         let streamedCost: { amount: number; currency: string } | undefined;
-        for (;;) {
+        for (; ;) {
           const message = await session.nextUpdate();
           if (message.kind === "stop") break;
           const update = message.notification.update as unknown as Record<string, unknown>;
@@ -314,7 +336,7 @@ export class AcpSessionDriver {
             kind: "failed",
             runId,
             timestamp: nowIso(),
-            reason: item.error instanceof Error ? item.error.message : String(item.error),
+            reason: connectionFailureReason(item.error),
           };
         } else {
           yield item;

@@ -294,4 +294,29 @@ describe("AcpSessionDriver — reporting what the agent said it spent", () => {
       { inputTokens: 7, outputTokens: 2, cost: { amount: 3, currency: "EUR" } },
     ]);
   });
+
+  it("a failed event carries the handler's own message, not the SDK's generic 'Internal error'", async () => {
+    // The SDK's own catch-all wraps any handler exception into a
+    // `RequestError` whose `message` is the fixed string "Internal error"
+    // (JSON-RPC code -32603), keeping the real message only in
+    // `data.details`. A run has to say what actually failed, not that
+    // code.
+    const mockAgent = agent({ name: "mock-agent" })
+      .onRequest(AGENT_METHODS.initialize, () => ({ protocolVersion: PROTOCOL_VERSION }))
+      .onRequest(AGENT_METHODS.session_new, () => ({ sessionId: "session-1" }))
+      .onRequest(AGENT_METHODS.session_prompt, async () => {
+        throw new Error("HTTP 401 Unauthorized: {\"error\":\"Unauthorized\"}");
+      });
+
+    const driver = new AcpSessionDriver();
+    const events = await collect(
+      driver.run({ target: mockAgent, cwd: "/tmp/work", runId: "run-e1", commandKind: "implement", prompt: "do it" }),
+    );
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed).toBeDefined();
+    if (failed?.kind === "failed") {
+      expect(failed.reason).toBe("HTTP 401 Unauthorized: {\"error\":\"Unauthorized\"}");
+    }
+  });
 });

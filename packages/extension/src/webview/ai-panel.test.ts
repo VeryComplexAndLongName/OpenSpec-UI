@@ -427,6 +427,62 @@ describe("AiPanel harness process tracking", () => {
         expect(resolveRunner).toHaveBeenCalledWith("copilot-cli-acp");
     });
 
+    it("routes a resolvePermission to the runner that owns the run, not to the default agent", () => {
+        // Same bug as the cancel case above, found while verifying
+        // local-llm-codes-in-process 6.4: a webview control answering
+        // Allow/Deny knows only the `runId` and `requestId` the
+        // `permissionRequest` event carried, which name no agent. Without
+        // reusing the run's remembered agent, this resolved to
+        // DEFAULT_AGENT_ID's own fresh adapter instance — whose
+        // `resolvePermission()` had never heard of this run's pending
+        // request, so it silently did nothing. The real adapter's
+        // `session/request_permission` promise never settled: the run
+        // sat on "Loading…" forever, and the task that asked was never
+        // ticked.
+        const panel = createPanelFixture();
+        const runController = {
+            onEvent: vi.fn(() => vi.fn()),
+            run: vi.fn(),
+        };
+        const resolveRunner = vi.fn((agentId: string | undefined) => ({ name: agentId ?? "claude-cli", run: vi.fn() }));
+        const aiPanel = new AiPanel({
+            extensionUri: vscodeMock.Uri.file("/extension") as never,
+            runController: runController as never,
+            resolveRunner: resolveRunner as never,
+            chainRunner: createFakeChainRunner() as never,
+            getLocalServerUrl: () => undefined,
+        });
+        aiPanel.reveal();
+        const receiveMessage = panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as (message: unknown) => void;
+
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "implement",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-acp",
+                agentId: "local-llm-acp",
+            },
+        });
+        resolveRunner.mockClear();
+
+        // The webview's Allow/Deny carries no agentId — it does not know one.
+        receiveMessage({
+            type: "openspec-ui/command",
+            command: {
+                kind: "resolvePermission",
+                cwd: "/repo",
+                context: { changeDir: "/repo/openspec/changes/demo" },
+                runId: "run-acp",
+                permissionRequestId: "req-1",
+                permissionOutcome: "allow",
+            },
+        });
+
+        expect(resolveRunner).toHaveBeenCalledWith("local-llm-acp");
+    });
+
     it("does not register a process when no scheduler is supplied", () => {
         const panel = createPanelFixture();
         const runController = { onEvent: vi.fn(() => vi.fn()), run: vi.fn() };

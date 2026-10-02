@@ -8,7 +8,8 @@
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
 import { commandInstruction } from "./shared.js";
-import { chatCompletionsUrl, localLlmHeaders } from "../local-llm-settings.js";
+import type { FetchLike } from "../direct-fetch.js";
+import { chatCompletionsUrl, describeLocalLlmModel, localLlmHeaders, resolveLocalLlmModel } from "../local-llm-settings.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -18,9 +19,14 @@ export interface LocalLlmAdapterOptions {
   /** The server's base URL, with its `/v1` or without, e.g.
    * http://hppii-gpu:30000 or http://hppii-gpu:8000/v1. */
   baseUrl: string;
-  model: string;
+  /** Where the settings name one; otherwise the stage's, the server's or
+   * `default` (`resolveLocalLlmModel`, local-llm-codes-in-process). */
+  model?: string;
   /** Sent as a bearer token, and nowhere else (the-local-llm-is-where-you-say). */
   apiKey?: string;
+  /** How the server is reached: directly where agents ignore the system
+   * proxy (`localFetch`). The process's `fetch` where absent. */
+  fetch?: FetchLike;
 }
 
 interface ChatCompletionChunk {
@@ -56,13 +62,17 @@ export class LocalLlmAdapter implements AgentAdapter {
 
     yield { kind: "started", runId, timestamp: nowIso(), command: kind, cwd };
 
+    const fetchImpl: FetchLike = this.options.fetch ?? ((input, init) => fetch(input, init));
+    const model = await resolveLocalLlmModel(command.model, this.options, fetchImpl);
+    yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `${describeLocalLlmModel(model)}\n\n` };
+
     let response: Response;
     try {
-      response = await fetch(invocation.url, {
+      response = await fetchImpl(invocation.url, {
         method: invocation.method,
         headers: localLlmHeaders(this.options),
         body: JSON.stringify({
-          model: this.options.model,
+          model: model.model,
           stream: true,
           messages: [
             { role: "system", content: commandInstruction(kind) },

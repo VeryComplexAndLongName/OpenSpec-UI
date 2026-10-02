@@ -9,7 +9,10 @@
 
 import crossSpawn from "cross-spawn";
 import { buildDefaultAllowlist } from "./default-runners.js";
+import { localFetch, type FetchLike } from "./direct-fetch.js";
 import { localLlmHeaders, resolveLocalLlmSettings, type LocalLlmSettings } from "./local-llm-settings.js";
+import { IN_PROCESS_SENTINEL } from "./security.js";
+import { agentsIgnoreSystemProxy } from "./agents/shared.js";
 
 /** Presence plus a best-effort version — see design.md, "Detection
  * reports a version; it does not gate on one". `version` is absent when
@@ -46,6 +49,9 @@ const HTTP_TIMEOUT_MS = 1500;
 export interface AgentDetectionConfig {
   localLlmBaseUrl?: string;
   localLlmApiKey?: string;
+  /** Check the local LLM directly, ignoring the system proxy, as its
+   * agents will reach it (local-llm-codes-in-process). */
+  ignoreSystemProxy?: boolean;
 }
 
 /** Spawns `<executable> --version` exactly once (ADR 0017 decision 6 — no
@@ -108,11 +114,11 @@ function detectCliAgent(executable: string): Promise<DetectedAgent> {
   });
 }
 
-async function detectLocalLlm(settings: LocalLlmSettings): Promise<DetectedAgent> {
+async function detectLocalLlm(settings: LocalLlmSettings, fetchImpl: FetchLike): Promise<DetectedAgent> {
   try {
     // Any answer at all is a server there; the key goes with the question
     // so a server that wants one does not hang up (the-local-llm-is-where-you-say).
-    await fetch(settings.baseUrl, { headers: localLlmHeaders(settings), signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+    await fetchImpl(settings.baseUrl, { headers: localLlmHeaders(settings), signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
     return { detected: true };
   } catch {
     return { detected: false };
@@ -132,11 +138,13 @@ export async function detectAvailableAgentsDetailed(
     Object.entries(allowlist).map(async ([id, rules]) => {
       const executable = rules[0]?.executable;
       if (!executable) return [id, { detected: false }] as const;
-      if (executable === HTTP_SENTINEL) {
+      // The local LLM, over HTTP or as the agent that runs in the product:
+      // present where its server answers (ADR 0038).
+      if (executable === HTTP_SENTINEL || executable === IN_PROCESS_SENTINEL) {
         return [id, await detectLocalLlm(resolveLocalLlmSettings({
           ...(config.localLlmBaseUrl !== undefined ? { baseUrl: config.localLlmBaseUrl } : {}),
           ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
-        }))] as const;
+        }), localFetch(config.ignoreSystemProxy ?? agentsIgnoreSystemProxy()))] as const;
       }
       return [id, await detectCliAgent(executable)] as const;
     }),

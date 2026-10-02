@@ -156,6 +156,18 @@ export interface ExtensionTestApi {
  * this name (the-local-llm-is-where-you-say). */
 const LOCAL_LLM_API_KEY_SECRET = "openspec-ui.localLlm.apiKey";
 
+/** The two agent switches, from the settings, for every place this host
+ * builds runners (ADR 0038). Off unless a person turned them on; the
+ * environment's values apply only to a host with no settings. */
+export function readAgentSwitches(): { ignoreSystemProxy: boolean; askBeforeCommands: boolean } {
+  const agents = vscode.workspace.getConfiguration("openspec-ui.agents");
+  const localAgent = vscode.workspace.getConfiguration("openspec-ui.localLlm.agent");
+  return {
+    ignoreSystemProxy: agents.get<boolean>("ignoreSystemProxy", false) === true,
+    askBeforeCommands: localAgent.get<boolean>("askBeforeCommands", false) === true,
+  };
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
   context.subscriptions.push(outputChannel);
@@ -510,6 +522,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     optionalServer = new OptionalServerManager(
       workspaceRoot,
       vscode.Uri.joinPath(context.extensionUri, "dist").fsPath,
+      readAgentSwitches(),
     );
     if (readConfig().localServerEnabled) {
       void optionalServer.start();
@@ -530,6 +543,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       ...(localLlmBaseUrl.length > 0 ? { localLlmBaseUrl } : {}),
       ...(localLlmModel.length > 0 ? { localLlmModel } : {}),
       ...(localLlmApiKey !== undefined && localLlmApiKey.length > 0 ? { localLlmApiKey } : {}),
+      ...readAgentSwitches(),
     });
     context.subscriptions.push(
       vscode.commands.registerCommand("openspec-ui.setLocalLlmApiKey", async () => {

@@ -35,6 +35,11 @@ export interface AllowlistDecision {
   reason?: string;
 }
 
+/** The allowlist's executable for an agent that runs in process and starts
+ * nothing; its one argument is the agent's own name
+ * (local-llm-codes-in-process). */
+export const IN_PROCESS_SENTINEL = "__in_process__";
+
 export function checkAllowlist(
   agentName: string,
   invocation: AdapterInvocation,
@@ -43,6 +48,13 @@ export function checkAllowlist(
   const rules = allowlist[agentName];
   if (!rules || rules.length === 0) {
     return { allowed: false, reason: `Agent "${agentName}" is not present in the workspace allowlist` };
+  }
+  if (invocation.kind === "in-process") {
+    const rule = rules.find((r) => r.executable === IN_PROCESS_SENTINEL);
+    if (!rule || !rule.argsAllowed([invocation.agent])) {
+      return { allowed: false, reason: `Agent "${agentName}" is not permitted to run in process` };
+    }
+    return { allowed: true };
   }
   if (invocation.kind === "http") {
     const rule = rules.find((r) => r.executable === "__http__");
