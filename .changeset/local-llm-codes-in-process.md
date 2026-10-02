@@ -34,3 +34,10 @@ Protocol's own fixed text for an unhandled exception, with the actual
 cause (an HTTP status, a bad key, a timeout) discarded. It now says that
 cause.
 
+With `openspec-ui.localLlm.agent.askBeforeCommands` on, clicking Allow on
+a direct (non-chain) run used to remove the prompt and then go nowhere —
+the answer reached a fresh, unrelated agent instance instead of the one
+actually waiting on it, so the run sat there until cancelled by hand. It
+now reaches the right one.
+
+

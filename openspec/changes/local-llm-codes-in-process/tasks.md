@@ -194,6 +194,55 @@ ignore the system proxy. Blocked by `local-llm-acp`.
   run edits files and its updates are shown. Then turn
   `openspec-ui.localLlm.agent.askBeforeCommands` on and see a command
   wait for Allow.
+  Record, 2026-10-02 (awaiting the owner's confirmation of this record):
+  built and run in a real Extension Development Host against a scratch
+  change `verify-local-llm-acp` (two open tasks: write `src/greet.mjs`
+  and its test), with `ignoreSystemProxy` on and the model left empty
+  throughout. Run `9a9335fb-b4cf-4514-b40a-872c48d531d2`: the dialog read
+  "apply (implements the tasks): local-llm-acp" / "Sets no model"; the
+  agent named the model itself ("Model QuantTrio/Qwen3.6-35B-A3B-AWQ, the
+  model the server serves"), wrote `src/greet.mjs` and
+  `src/greet.test.mjs`, ran `node --test` and ticked both tasks; outcome
+  `completed`. With `askBeforeCommands` on (a third task added, needing a
+  command): run `c37ff3bf-d141-40db-9241-eff8832f7f29` reached
+  `run_command node --test src/greet.test.mjs` and the panel showed
+  "Permission requested: run_command node --test src/greet.test.mjs" with
+  Allow/Deny — screenshotted. Allow unblocked the same command, which
+  passed, and the agent ticked the task; outcome `completed`. The first
+  attempt at the Allow half, before 6.6 below, sat on "Loading…" forever
+  after Allow — that is what 6.6 found and fixed; this record is of the
+  run taken after that fix.
+- [x] 6.6 Found while attempting 6.4's `askBeforeCommands` half: clicking
+  Allow removed the permission prompt but the run never continued — no
+  child process, no further tool call, `tasks.md` never ticked past the
+  task that asked, and no `end` event ever reached the run's log. Root
+  cause in `packages/extension/src/webview/ai-panel.ts`'s `dispatchOrRun`:
+  a `resolvePermission` command carries no `agentId` (the
+  `permissionRequest` event it answers never named one), so for a run not
+  wrapped in a chain it resolved through `DEFAULT_AGENT_ID` to a *fresh*
+  `AgentRunner` instance — not the one the original command's `agentId`
+  built and recorded in `runAgentIds` (the lookup `"cancel"` already gets
+  for the same reason, `a-change-is-run-from-its-card`'s
+  "A cancel goes to the runner that owns the run"). The fresh instance's
+  `resolvePermission()` had never heard of this run's pending request, so
+  it silently did nothing; the real adapter's `session/request_permission`
+  promise never settled. Fix: `resolvePermission` now shares the same
+  `runAgentIds` lookup `"cancel"` already had. Test in `ai-panel.test.ts`:
+  "routes a resolvePermission to the runner that owns the run, not to the
+  default agent" — sends an `implement` naming `local-llm-acp`, then a
+  `resolvePermission` with no `agentId`, and asserts `resolveRunner` is
+  called with `"local-llm-acp"`, not the default. Reproduced and fixed
+  live in the Extension Development Host (see 6.4's record): before the
+  fix, Allow never unblocked the run; after it, the same scenario
+  completed in 13 s. `npm run typecheck` at the root: exit 0.
+  `packages/extension`: `npx vitest run` 36 files, 498 tests, 0 failed
+  (includes the new test and the three pre-existing ones this fix makes
+  pass again: "falls back to the generic single-stage path when a
+  resolvePermission's runId is not an active chain", "never registers a
+  Processes entry for a resolvePermission command", "forwards a
+  resolvePermission command straight to the resolved AgentRunner, exactly
+  like plan/review/implement" — all three already encoded the intended
+  behavior and had nothing wrong with them).
 - [x] 6.5 Found while attempting 6.4: every run that failed inside an ACP
   connection (any ACP agent, not only `local-llm-acp` — the shared
   `AcpSessionDriver`) reported only "Internal error", whatever actually
