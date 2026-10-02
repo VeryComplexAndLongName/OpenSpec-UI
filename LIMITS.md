@@ -147,7 +147,28 @@ conversion happens at all, so nothing to silently drift.
 | --- | --- | --- | --- |
 | `claude-cli`, `claude-cli-acp` | `maxCostUsd` | `--max-budget-usd` | Requires Claude Code v2.1.217 or later. |
 | `copilot-cli`, `copilot-cli-acp` | `maxAiCredits` | `--max-ai-credits` | Minimum 30 — a configured value below this is rejected before any run starts. |
-| `codex-cli`, `gemini-cli`, `local-llm`, `codex-cli-acp`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Neither | — | No spending-cap mechanism at all; a `stepAgents` entry setting either field for one of these is rejected. |
+| `codex-cli`, `gemini-cli`, `local-llm`, `local-llm-acp`, `codex-cli-acp`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Neither | — | No spending-cap mechanism at all; a `stepAgents` entry setting either field for one of these is rejected. |
+
+**`local-llm-acp`'s own loop is bounded instead** (ADR 0038). It runs in
+the product, so these limits act on the loop itself rather than on a
+process. Each is read from the environment when the window, the server or
+the CLI starts; an absent or invalid value means the default.
+
+| Variable | Bounds | Default |
+| --- | --- | --- |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_ITERATIONS` | Model turns in one run | 40 |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_TOOL_CALLS` | Tool calls in one run | 120 |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_SECONDS` | Seconds the loop may run | 1800 |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_COMMAND_TIMEOUT_SECONDS` | Seconds one command may run | 60 |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_COMMAND_OUTPUT_CHARS` | Characters of a command's output the model is given | 12000 |
+| `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_PROMPT_TOKENS`, `..._MAX_COMPLETION_TOKENS`, `..._MAX_TOTAL_TOKENS` | Tokens over the run, as the server reports them; `..._MAX_COMPLETION_TOKENS` is also sent as each request's `max_tokens` | none |
+
+A run that reaches one stops, says which, and ends with the protocol's
+`max_turn_requests` or `max_tokens`. The harness's own `timeout` and
+`maxStageAttempts` still bound the stage around it. The context limits
+the external agent took (`..._MAX_CONTEXT_*`, `..._MIN_FREE_CONTEXT_TOKENS`)
+are read but act on nothing: no OpenAI-compatible answer says how full the
+context is.
 
 **A mismatched field is refused when the configuration resolves, not
 minutes into a run.** Setting `stepAgents.apply.budget.maxAiCredits` while
@@ -332,6 +353,7 @@ spend, as `deepseek-cli-acp` does; the two are not the same column.
 | --- | --- | --- |
 | `deepseek-cli-acp` | Yes, on every turn | **Measured** 2026-09-23: `{"used":8202,"size":1000000,"sessionUpdate":"usage_update"}`, and `dsh-acp`'s own `usageUpdate` builds it from a context meter |
 | `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm`, `vscode-chat` | No | Certain — they speak no ACP at all, so no update of any kind arrives |
+| `local-llm-acp` | No | Certain — it is the product's own agent and sends none: no OpenAI-compatible answer says how full the context is |
 | `copilot-cli-acp`, `claude-cli-acp`, `gemini-cli-acp`, `codex-cli-acp` | Not known | *Unobserved here.* Nothing is claimed either way, and no warning is raised: an ACP agent nobody has watched may well send one |
 
 | Agent | Reports usage | Evidence | Source |
@@ -340,6 +362,7 @@ spend, as `deepseek-cli-acp` does; the two are not the same column.
 | `claude-cli-acp` | Cost (USD), input/output/cache tokens, per-model split | **Measured** — see below | `claude`'s own terminal `"result"` line (`total_cost_usd`, `usage`, `modelUsage`) |
 | `gemini-cli-acp`, `codex-cli-acp` | Whatever that CLI sends over ACP — token totals, a cost, or nothing | *Unobserved* | ACP's `PromptResponse.usage` and `usage_update` notifications |
 | `deepseek-cli-acp` | Nothing countable: no cost, no credits, no token split | **Measured** 2026-09-23, correcting 2026-09-22: a run through `dsh` 0.1.5-rc.2 does send `usage_update`, and what it carries is `used` and `size` - the tokens now in the session's context, against the model's 1,000,000-token window. One number, growing as the conversation grows: no input/output/cache/thought split, no per-model figures, no currency. The prompt's own answer carries `stopReason` and nothing else. `dsh`'s ACP layer builds that notification from its context meter alone, so there is nothing further to read. A context gauge is not a spend, and nothing here converts one into the other | ACP's `PromptResponse.usage` and `usage_update` notifications |
+| `local-llm-acp` | Input and output **tokens**, summed over the run's model calls. **No cost.** | Certain — the product's own agent adds up what the server reports in each answer's `usage` | ACP's `PromptResponse.usage` |
 | `claude-cli`, `copilot-cli`, `codex-cli`, `gemini-cli`, `local-llm` | Nothing | Certain — plain text carries no figure to record | Plain text output |
 | `vscode-chat` | Nothing | Certain | The run is handed to VS Code chat; this project never sees its cost |
 

@@ -9,6 +9,9 @@ export class OptionalServerManager {
   constructor(
     private readonly workspaceRoot: string,
     private readonly distDir = path.resolve("dist"),
+    /** The agent switches the editor's settings say (ADR 0038): passed on,
+     * so the runners of this server agree with the window's own. */
+    private readonly agentSwitches: { ignoreSystemProxy?: boolean; askBeforeCommands?: boolean } = {},
   ) { }
 
   get isRunning(): boolean {
@@ -41,7 +44,7 @@ export class OptionalServerManager {
       host: "127.0.0.1",
       port: 0,
       auditLog,
-      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog, runLogs: createFileRunLogs(this.workspaceRoot) }),
+      runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog, runLogs: createFileRunLogs(this.workspaceRoot), ...this.agentSwitches }),
       staticAssets: {
         indexHtmlPath: path.join(this.distDir, "standalone", "index.html"),
         appJsPath: path.join(this.distDir, "standalone", "app.js"),

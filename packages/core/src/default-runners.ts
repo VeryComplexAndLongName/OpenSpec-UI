@@ -20,12 +20,14 @@ import { GeminiCliAdapter } from "./agents/gemini.js";
 import { GeminiCliAcpAdapter } from "./agents/gemini-acp.js";
 import { LocalLlmAcpAdapter } from "./agents/local-llm-acp.js";
 import { LocalLlmAdapter } from "./agents/local-llm.js";
-import { resolveLocalLlmAcpSettings, resolveLocalLlmSettings } from "./local-llm-settings.js";
+import { AGENT_ENVIRONMENT, resolveLocalLlmAcpSettings, resolveLocalLlmSettings, switchFromEnvironment } from "./local-llm-settings.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
 import { HARNESS_AGENT_CAPABILITIES, MODEL_ID_PATTERN } from "./harness-config.js";
 import { createAgentRunner, type AgentRunner } from "./agent-runner.js";
 import type { AllowlistConfig, AuditLog } from "./security.js";
-import { InMemoryAuditLog } from "./security.js";
+import { IN_PROCESS_SENTINEL, InMemoryAuditLog } from "./security.js";
+import { localFetch } from "./direct-fetch.js";
+import { setAgentProxyPolicy } from "./agents/shared.js";
 
 export interface DefaultRunnersConfig {
   workspaceRoot: string;
@@ -40,6 +42,13 @@ export interface DefaultRunnersConfig {
   /** Where each run's log is written (a-change-shows-its-run-logs). A host
    * passes its workspace's; absent, nothing is written. */
   runLogs?: RunLogs;
+  /** Tell agents to ignore the system proxy (ADR 0038 decision 6): the
+   * local LLM agents connect directly, and a CLI agent is started without
+   * the proxy variables and with `NO_PROXY=*`. Off unless a host says so. */
+  ignoreSystemProxy?: boolean;
+  /** The local agent asks through a permission request before each
+   * command (ADR 0038 decision 3). Off unless a host says so. */
+  askBeforeCommands?: boolean;
 }
 
 export { DEFAULT_AGENT_ID };
@@ -91,33 +100,6 @@ function effortValidator(agentId: string): (value: string) => boolean {
   return (value) => accepted.includes(value);
 }
 
-function nonEmpty(value: string): boolean {
-  return value.trim().length > 0;
-}
-
-/** `--base-url <url> --model <model> [limits...] acp`: the options before
- * the subcommand, which is last, as `coding-agent` reads them. */
-function localLlmAcpArgsAllowed(args: string[]): boolean {
-  if (args.length < 5) return false;
-  if (args[0] !== "--base-url" || args[2] !== "--model" || args[args.length - 1] !== "acp") return false;
-  if (!nonEmpty(args[1] ?? "") || !nonEmpty(args[3] ?? "")) return false;
-  const tail = args.slice(4, -1);
-  return exactWithOptionalArgs([], [
-    { flag: "--max-iterations", validate: isPositiveInteger },
-    { flag: "--max-tool-calls", validate: isPositiveInteger },
-    { flag: "--max-seconds", validate: isPositiveInteger },
-    { flag: "--command-timeout-seconds", validate: isPositiveInteger },
-    { flag: "--max-command-output-chars", validate: isPositiveInteger },
-    { flag: "--max-prompt-tokens", validate: isPositiveInteger },
-    { flag: "--max-completion-tokens", validate: isPositiveInteger },
-    { flag: "--max-total-tokens", validate: isPositiveInteger },
-    { flag: "--max-context-used-tokens", validate: isPositiveInteger },
-    { flag: "--max-context-window-tokens", validate: isPositiveInteger },
-    { flag: "--max-context-share", validate: isPositiveDecimal },
-    { flag: "--min-free-context-tokens", validate: isPositiveInteger },
-  ])(tail);
-}
-
 /** Matches `-c model_reasoning_effort="<level>"` for exactly codex's own
  * accepted levels — task 4.3: "match the whole pair including the key
  * ... and nothing else beginning with -c". Any other `-c key=value`
@@ -157,10 +139,9 @@ export function buildDefaultAllowlist(): AllowlistConfig {
     }],
     "gemini-cli": [{ executable: "gemini", argsAllowed: exact(["--yolo"]) }],
     "local-llm": [{ executable: "__http__", argsAllowed: (args) => args[1] === "POST" }],
-    "local-llm-acp": [{
-      executable: "coding-agent",
-      argsAllowed: localLlmAcpArgsAllowed,
-    }],
+    // Runs inside the product and starts no process (ADR 0038): the only
+    // thing to admit is the agent itself.
+    "local-llm-acp": [{ executable: IN_PROCESS_SENTINEL, argsAllowed: exact(["local-llm-acp"]) }],
     // `vscode-chat` is intentionally absent: it is a Harness step-runner
     // id that dispatches to VS Code chat and starts no subprocess, so
     // there is no executable/argv to allowlist.
@@ -215,14 +196,28 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     ...(config.localLlmModel !== undefined ? { model: config.localLlmModel } : {}),
     ...(config.localLlmApiKey !== undefined ? { apiKey: config.localLlmApiKey } : {}),
   });
+  // What a host did not say comes from the environment, which is how the
+  // standalone server and the CLI are told anything (ADR 0038).
+  const ignoreSystemProxy = config.ignoreSystemProxy ?? switchFromEnvironment(process.env[AGENT_ENVIRONMENT.ignoreSystemProxy]);
+  const askBeforeCommands = config.askBeforeCommands ?? switchFromEnvironment(process.env[AGENT_ENVIRONMENT.askBeforeCommands]);
+  const fetchLocal = localFetch(ignoreSystemProxy);
+  // The environment every CLI agent is started with: one host builds its
+  // runners once, from one configuration (see shared.ts).
+  setAgentProxyPolicy(ignoreSystemProxy);
+  const { limits, ...acpSettings } = localLlmAcpSettings;
 
   const adapters = {
     "claude-cli": new ClaudeCliAdapter(),
     "copilot-cli": new CopilotCliAdapter(),
     "codex-cli": new CodexCliAdapter(),
     "gemini-cli": new GeminiCliAdapter(),
-    "local-llm": new LocalLlmAdapter(localLlmSettings),
-    "local-llm-acp": new LocalLlmAcpAdapter(localLlmAcpSettings),
+    "local-llm": new LocalLlmAdapter({ ...localLlmSettings, fetch: fetchLocal }),
+    "local-llm-acp": new LocalLlmAcpAdapter({
+      settings: acpSettings,
+      limits,
+      fetch: fetchLocal,
+      askBeforeCommands,
+    }),
     "copilot-cli-acp": new CopilotCliAcpAdapter(),
     "gemini-cli-acp": new GeminiCliAcpAdapter(),
     "codex-cli-acp": new CodexCliAcpAdapter(),

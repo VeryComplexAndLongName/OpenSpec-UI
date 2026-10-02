@@ -124,7 +124,7 @@ export interface StageForms {
 
 /** Whether an agent's registry entry says its CLI takes a model. */
 export function acceptsModel(agentId: string): boolean {
-  return AGENT_REGISTRY.some((agent) => agent.id === agentId && agent.modelFlag !== undefined);
+  return AGENT_REGISTRY.some((agent) => agent.id === agentId && (agent.modelFlag !== undefined || agent.takesModel === true));
 }
 
 // A hand-edited config may carry the object form for a stage;

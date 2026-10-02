@@ -281,7 +281,7 @@
             },
             "model": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
               "description": "The model the agent runs. Only for an agent that takes a model flag."
             },
             "effort": {
@@ -316,7 +316,7 @@
             },
             "customAgent": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
               "description": "A custom agent definition the agent loads. Only for an agent that takes one."
             }
           },
@@ -503,10 +503,6 @@
               },
               "then": {
                 "properties": {
-                  "model": {
-                    "not": {},
-                    "description": "local-llm does not take a model."
-                  },
                   "customAgent": {
                     "not": {},
                     "description": "local-llm does not take a custom agent."
@@ -535,10 +531,6 @@
               },
               "then": {
                 "properties": {
-                  "model": {
-                    "not": {},
-                    "description": "local-llm-acp does not take a model."
-                  },
                   "customAgent": {
                     "not": {},
                     "description": "local-llm-acp does not take a custom agent."

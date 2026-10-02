@@ -55,10 +55,12 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "completed"]);
-    expect((events[1] as { chunk: string }).chunk).toBe("Hello");
-    expect((events[2] as { chunk: string }).chunk).toBe(" world");
-    expect((events[3] as { summary?: string }).summary).toBe("Hello world");
+    // The first stdout names the model (local-llm-codes-in-process).
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "stdout", "completed"]);
+    expect((events[1] as { chunk: string }).chunk).toContain("Model qwen (named in the local LLM settings)");
+    expect((events[2] as { chunk: string }).chunk).toBe("Hello");
+    expect((events[3] as { chunk: string }).chunk).toBe(" world");
+    expect((events[4] as { summary?: string }).summary).toBe("Hello world");
 
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -97,7 +99,8 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "completed"]);
+    // The first stdout names the model (local-llm-codes-in-process).
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "stdout", "completed"]);
   });
 
   it("emits failed on non-ok HTTP response", async () => {
@@ -113,8 +116,8 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "failed"]);
-    expect((events[1] as { reason: string }).reason).toContain("500");
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "failed"]);
+    expect((events[2] as { reason: string }).reason).toContain("500");
   });
 
   it("emits failed when the network call itself throws", async () => {
@@ -127,7 +130,7 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    expect(events.map((e) => e.kind)).toEqual(["started", "failed"]);
-    expect((events[1] as { reason: string }).reason).toBe("ECONNREFUSED");
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "failed"]);
+    expect((events[2] as { reason: string }).reason).toBe("ECONNREFUSED");
   });
 });

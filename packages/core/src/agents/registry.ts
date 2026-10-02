@@ -22,9 +22,14 @@ export interface AgentDescriptor {
   /** Matches the `AgentAdapter.name` of the corresponding adapter. */
   id: string;
   label: string;
-  /** The CLI flag this adapter passes a model with; absent means this
-   * adapter accepts no model (see harness-step-models design.md). */
+  /** The CLI flag this adapter passes a model with (see harness-step-models
+   * design.md). */
   modelFlag?: string;
+  /** Whether a stage may name a model for this agent: true for every agent
+   * with a `modelFlag`, and for the local LLM agents, which take the model
+   * in their request rather than on a command line
+   * (local-llm-codes-in-process). Read through `acceptsModel`. */
+  takesModel?: boolean;
   /** The CLI flag this adapter passes a custom agent with — a named
    * preset the person defined themselves. Absent means this adapter
    * accepts none, and offering one for it would be a setting nothing
@@ -37,8 +42,9 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   { id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model", customAgentFlag: "--agent" },
   { id: "codex-cli", label: "Codex CLI" },
   { id: "gemini-cli", label: "Gemini CLI" },
-  { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
-  { id: "local-llm-acp", label: "Local LLM (ACP, OpenAI-compatible)" },
+  { id: "local-llm", label: "Local LLM (OpenAI-compatible)", takesModel: true },
+  // Runs inside the product: nothing to install (ADR 0038).
+  { id: "local-llm-acp", label: "Local LLM agent (OpenAI-compatible, built in)", takesModel: true },
   // ACP-flavored adapters (acp-agent-adapters) — additional entries, not
   // replacements for the four above (see this file's header comment).
   { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
@@ -52,6 +58,11 @@ export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
   // it to be discovered" and claude-acp.ts's own header comment for why.
   { id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model", customAgentFlag: "--agent" },
 ];
+
+/** Whether a stage may name a model for `descriptor`'s agent. */
+export function acceptsModel(descriptor: AgentDescriptor | undefined): boolean {
+  return descriptor !== undefined && (descriptor.modelFlag !== undefined || descriptor.takesModel === true);
+}
 
 /** Agent used when a `Command` does not specify `agentId`. Lives here
  * (not `default-runners.ts`) because it has no Node-only dependencies, so

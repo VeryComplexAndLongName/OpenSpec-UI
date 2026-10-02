@@ -29,7 +29,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { AgentUsage } from "../agent-usage.js";
 import type { CommandKind, Event } from "../protocol.js";
-import { KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
+import { agentSpawnEnvironment, KILL_CONFIRMATION_TIMEOUT_MS, terminateProcessTree } from "./shared.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -51,10 +51,11 @@ export function spawnAcpProcess(
   cwd: string,
   env?: Readonly<Record<string, string>>,
 ): { target: Stream; child: ChildProcessWithoutNullStreams } {
+  const spawnEnv = agentSpawnEnvironment(env);
   const child = crossSpawn(executable, args, {
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
-    ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
+    ...(spawnEnv !== undefined ? { env: spawnEnv } : {}),
     ...(process.platform !== "win32" ? { detached: true } : {}),
   }) as ChildProcessWithoutNullStreams;
   // ACP only speaks over stdin/stdout — stderr is not part of the ACP

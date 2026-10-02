@@ -15,7 +15,7 @@
 // inside an object that the product would read and ignore. The same test
 // holds it to that with every sample the validator's own tests accept.
 
-import { AGENT_REGISTRY } from "./agents/registry.js";
+import { acceptsModel, AGENT_REGISTRY } from "./agents/registry.js";
 import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
 import { TOP_LEVEL_CONFIG_KEYS } from "./harness-config.js";
 import { CHAIN_STEP_NAMES, SKIPPABLE_STAGES, STAGES } from "./harness-stage.js";
@@ -61,7 +61,7 @@ function entryRulesFor(agentId: string): Schema {
   const descriptor = AGENT_REGISTRY.find((agent) => agent.id === agentId);
   const capabilities = HARNESS_AGENT_CAPABILITIES[agentId] ?? {};
   const properties: Record<string, Schema> = {};
-  if (!descriptor?.modelFlag) properties.model = { ...NEVER, description: `${agentId} does not take a model.` };
+  if (!acceptsModel(descriptor)) properties.model = { ...NEVER, description: `${agentId} does not take a model.` };
   if (!descriptor?.customAgentFlag) properties.customAgent = { ...NEVER, description: `${agentId} does not take a custom agent.` };
   const effort = capabilities.effort ?? [];
   properties.effort = effort.length === 0

@@ -739,6 +739,7 @@ carried here so a reader sees the value before choosing):
 | `gemini-cli` | — | — | — | — |
 | `gemini-cli-acp` | — | — | — | — |
 | `local-llm` | — | — | — | — |
+| `local-llm-acp` | — | — | — | — |
 | `vscode-chat` | — | — | — | — |
 
 Even thirds — 1, 2/3, 1/3, 0 — rather than the tidier-looking 1, 0.75,
@@ -959,8 +960,8 @@ binary here" column repeats `README.md`'s own agent table.
 | `copilot-cli` | `copilot` | Yes (`--model`) | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `maxAiCredits` (`--max-ai-credits`, minimum 30) | Yes |
 | `codex-cli` | `codex` | No | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config, not live-verified here) | No | **No — never** |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
-| `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | No: the model is set with the address | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Chat only: it answers in text and edits no file |
-| `local-llm-acp` | `coding-agent --base-url <url> --model <name> [limit flags] acp` (the Python coding agent, 0.3.0 or later: the first version that speaks ACP), with the address, model and key of "The local LLM" below; the key travels in the environment, never the command line | No: the model comes from the local LLM settings, not harness model selection | No mechanism | No mechanism | Yes, 2026-10-01, through this runner and its ACP driver against SGLang serving Qwen3.6 on the LAN: an implement run edited code, added tests, ran them, ticked its tasks and reported its tokens. No permission request is ever sent |
+| `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Chat only: it answers in text and edits no file |
+| `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search and run a command, all confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
 | `claude-cli-acp` | `claude --input-format stream-json --output-format stream-json` | Yes (`--model`) | Same as `claude-cli` | Same as `claude-cli` (`maxCostUsd`) | Progress only — no permission gate, see below |
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
 | `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
@@ -970,15 +971,43 @@ binary here" column repeats `README.md`'s own agent table.
 
 ### The local LLM
 
-`local-llm` is set outside `agent-harness.json`: that file is committed, an address on the LAN is one machine's, and a key committed is a key published.
+`local-llm` and `local-llm-acp` are set outside `agent-harness.json`: that file is committed, an address on the LAN is one machine's, and a key committed is a key published.
 
 | Setting | In VS Code | In the standalone and the CLI | When unset |
 | --- | --- | --- | --- |
 | Base URL, with its `/v1` or without | `openspec-ui.localLlm.baseUrl` | `OPENSPEC_UI_LOCAL_LLM_BASE_URL` | `http://localhost:30000` |
-| Model, as its server names it | `openspec-ui.localLlm.model` | `OPENSPEC_UI_LOCAL_LLM_MODEL` | `default` |
+| Model, as its server names it | `openspec-ui.localLlm.model` | `OPENSPEC_UI_LOCAL_LLM_MODEL` | the server is asked (below) |
 | API key | **OpenSpec Workbench: Set Local LLM API Key...**, kept in the editor's secret storage | `OPENSPEC_UI_LOCAL_LLM_API_KEY` | no `Authorization` header |
+| Ask before each command (`local-llm-acp`) | `openspec-ui.localLlm.agent.askBeforeCommands` | `OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS=1` | commands run without asking |
 
-In VS Code the editor's value wins and the environment variable is the fallback. All three are read when the window opens, or when the server or the CLI starts. The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log. The agent answers in text: it can review, and it cannot write a proposal or tick a task.
+In VS Code the editor's value wins and the environment variable is the fallback. All of them are read when the window opens, or when the server or the CLI starts. The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log.
+
+**The model is optional.** A run takes the first of: the stage's own `model` (`stepAgents.<stage>.model`, which both agents accept); the setting above; the model the server lists at `/v1/models` (the first, where it lists several; asked once per address while the window or the server is open); `default`. The run's first output names the model and where it came from, for example `Model QuantTrio/Qwen3.6-35B-A3B-AWQ (the model the server serves).`
+
+**`local-llm`** answers in text: it can review, and it cannot write a proposal or tick a task.
+
+**`local-llm-acp`** is a coding agent built into the product (ADR 0038): nothing to install. It runs the model in a loop with six tools, `read_file`, `write_file`, `replace_text`, `list_dir`, `search_text` and `run_command`, and streams each call and its result as the run's updates.
+
+- Every path is resolved by its real location, links included, and refused when that lies outside the run's working directory.
+- A command runs in the working directory, is ended at `OPENSPEC_UI_LOCAL_LLM_ACP_COMMAND_TIMEOUT_SECONDS` (60 s by default), and its output is cut at `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_COMMAND_OUTPUT_CHARS` (12000 by default).
+- With **ask before each command** on, a command waits for Allow in the run's permission prompt; leave it off for a chain nobody watches. Writes inside the working directory never ask.
+- A tool call the model wrote as text, which a server whose tool-call parser does not match the model passes through in `content` (Qwen3-Coder's `<function=...><parameter=...>` form, or Hermes' JSON, inside `<tool_call>`), is read as a call.
+- Its loop is bounded by the `OPENSPEC_UI_LOCAL_LLM_ACP_*` limits in `LIMITS.md`.
+
+### Ignoring the system proxy
+
+**`openspec-ui.agents.ignoreSystemProxy`** in VS Code, or **`OPENSPEC_UI_IGNORE_SYSTEM_PROXY=1`** for the standalone server and the CLI, tells agents to ignore the system proxy. Off by default. Turn it on when the proxy cannot reach your model, such as a server on your LAN behind a proxy that resets such requests.
+
+- `local-llm`, `local-llm-acp` and the check that says whether the local LLM is there connect directly, through a connection pool of their own, whatever proxy the editor applies to its own networking.
+- A CLI agent is started with `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` removed from its environment, in either case, and `NO_PROXY=*`. Only a CLI that reads those variables honours that.
+
+| Agent | Honours the switch |
+| --- | --- |
+| `local-llm`, `local-llm-acp` | Yes: they run in the product |
+| `claude-cli`, `claude-cli-acp`, `copilot-cli`, `copilot-cli-acp` | Through the environment: their vendors document reading the proxy variables |
+| `codex-cli`, `codex-cli-acp`, `gemini-cli`, `gemini-cli-acp`, `deepseek-cli-acp`, `vscode-chat` | Unknown: not checked here; such a CLI may keep proxy settings of its own |
+
+The column is `HARNESS_AGENT_CAPABILITIES[*].systemProxy`.
 **On the "run against the real binary here" column, plainly: `codex` and
 `gemini` have never been run by this project at all**, raw or
 ACP-flavored — see `README.md`'s "Agent Selection" section for the full

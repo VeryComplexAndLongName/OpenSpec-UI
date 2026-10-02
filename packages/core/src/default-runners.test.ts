@@ -41,12 +41,7 @@ describe("buildDefaultAllowlist", () => {
     const localLlmInvocation = new LocalLlmAdapter({ baseUrl: "http://x", model: "m" }).buildInvocation(command);
     expect(checkAllowlist("local-llm", localLlmInvocation, allowlist).allowed).toBe(true);
 
-    const localLlmAcpInvocation = new LocalLlmAcpAdapter({
-      executable: "coding-agent",
-      baseUrl: "http://gpu.lan:8000/v1",
-      model: "qwen2.5-coder",
-      limits: {},
-    }).buildInvocation(command);
+    const localLlmAcpInvocation = new LocalLlmAcpAdapter({ settings: { baseUrl: "http://x" }, limits: {}, fetch: async () => new Response(), askBeforeCommands: false }).buildInvocation(command);
     expect(checkAllowlist("local-llm-acp", localLlmAcpInvocation, allowlist).allowed).toBe(true);
   });
 
@@ -93,50 +88,13 @@ describe("buildDefaultAllowlist", () => {
     expect(decision.allowed).toBe(false);
   });
 
-  it("rejects local-llm-acp invocation that omits --base-url", () => {
+  it("admits local-llm-acp only as itself, in process, and no process under its name", () => {
+    // ADR 0038: it starts nothing, so there is no command line to admit.
     const allowlist = buildDefaultAllowlist();
-    const decision = checkAllowlist(
-      "local-llm-acp",
-      { kind: "process", executable: "coding-agent", args: ["--model", "qwen2.5-coder", "acp"] },
-      allowlist,
-    );
-    expect(decision.allowed).toBe(false);
-  });
-
-  it("rejects local-llm-acp invocation with the subcommand before its options", () => {
-    // The order `coding-agent` refuses, so the allowlist refuses it too.
-    const allowlist = buildDefaultAllowlist();
-    const decision = checkAllowlist(
-      "local-llm-acp",
-      { kind: "process", executable: "coding-agent", args: ["acp", "--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder"] },
-      allowlist,
-    );
-    expect(decision.allowed).toBe(false);
-  });
-
-  it("allows local-llm-acp invocation with limits between the model and the subcommand", () => {
-    const allowlist = buildDefaultAllowlist();
-    const invocation = new LocalLlmAcpAdapter({
-      executable: "coding-agent",
-      baseUrl: "http://gpu.lan:8000/v1",
-      model: "qwen2.5-coder",
-      limits: { maxIterations: 40, maxContextShare: 0.8 },
-    }).buildInvocation(command);
-    expect(checkAllowlist("local-llm-acp", invocation, allowlist).allowed).toBe(true);
-  });
-
-  it("rejects local-llm-acp invocation that appends an unknown flag", () => {
-    const allowlist = buildDefaultAllowlist();
-    const decision = checkAllowlist(
-      "local-llm-acp",
-      {
-        kind: "process",
-        executable: "coding-agent",
-        args: ["--base-url", "http://gpu.lan:8000/v1", "--model", "qwen2.5-coder", "--sandbox", "off", "acp"],
-      },
-      allowlist,
-    );
-    expect(decision.allowed).toBe(false);
+    expect(checkAllowlist("local-llm-acp", { kind: "in-process", agent: "local-llm-acp" }, allowlist).allowed).toBe(true);
+    expect(checkAllowlist("local-llm-acp", { kind: "in-process", agent: "claude-cli" }, allowlist).allowed).toBe(false);
+    expect(checkAllowlist("local-llm-acp", { kind: "process", executable: "coding-agent", args: ["acp"] }, allowlist).allowed).toBe(false);
+    expect(checkAllowlist("claude-cli", { kind: "in-process", agent: "claude-cli" }, allowlist).allowed).toBe(false);
   });
 
   it("rejects an invocation with extra/different args than the adapter builds", () => {

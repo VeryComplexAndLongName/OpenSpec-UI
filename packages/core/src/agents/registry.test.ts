@@ -23,7 +23,7 @@ describe("AGENT_REGISTRY", () => {
     const codex = new CodexCliAdapter();
     const gemini = new GeminiCliAdapter();
     const localLlm = new LocalLlmAdapter({ baseUrl: "http://x", model: "m" });
-    const localLlmAcp = new LocalLlmAcpAdapter({ executable: "coding-agent", baseUrl: "http://x", model: "m", limits: {} });
+    const localLlmAcp = new LocalLlmAcpAdapter({ settings: { baseUrl: "http://x" }, limits: {}, fetch: async () => new Response(), askBeforeCommands: false });
     const claudeAcp = new ClaudeCliAcpAdapter();
     const copilotAcp = new CopilotCliAcpAdapter();
     const codexAcp = new CodexCliAcpAdapter();

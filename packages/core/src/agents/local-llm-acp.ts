@@ -1,15 +1,25 @@
+// Adapter: the local LLM as a coding agent, run inside the product
+// (local-llm-codes-in-process, ADR 0038).
+//
+// No process is started. The agent is an Agent Client Protocol agent built
+// for each run (`createLocalAgent`) and driven by the shared
+// `AcpSessionDriver`, so its text, tool calls, permission requests and
+// usage reach the run as they do from an ACP CLI. It used to start an
+// external `coding-agent` process, which a person had to find and install.
+
 import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
+import type { FetchLike } from "../direct-fetch.js";
+import type { LocalLlmAcpLimits, LocalLlmSettings } from "../local-llm-settings.js";
 import type { Command, Event } from "../protocol.js";
-import type { LocalLlmAcpLimits } from "../local-llm-settings.js";
 import { AcpSessionDriver } from "./acp-session-driver.js";
+import { createLocalAgent } from "./local-agent/acp-agent.js";
 import { commandInstruction } from "./shared.js";
 
 export interface LocalLlmAcpAdapterOptions {
-  executable: string;
-  baseUrl: string;
-  model: string;
-  apiKey?: string;
+  settings: LocalLlmSettings;
   limits: LocalLlmAcpLimits;
+  fetch: FetchLike;
+  askBeforeCommands: boolean;
 }
 
 export class LocalLlmAcpAdapter implements AgentAdapter {
@@ -20,68 +30,32 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
   constructor(private readonly options: LocalLlmAcpAdapterOptions) { }
 
   buildInvocation(_command: Command): AdapterInvocation {
-    // The options before the subcommand: `coding-agent` reads them only
-    // there, and `coding-agent acp --base-url ...` exits with its usage
-    // (fix-local-llm-acp).
-    const args = [
-      "--base-url",
-      this.options.baseUrl,
-      "--model",
-      this.options.model,
-      ...renderLimits(this.options.limits),
-      "acp",
-    ];
-    return { kind: "process", executable: this.options.executable, args };
+    return { kind: "in-process", agent: this.name };
   }
 
   async *execute(invocation: AdapterInvocation, command: Command, prompt: string, signal: AbortSignal): AsyncIterable<Event> {
-    if (invocation.kind !== "process") {
-      throw new Error("LocalLlmAcpAdapter expects invocation.kind === 'process'");
+    if (invocation.kind !== "in-process") {
+      throw new Error("LocalLlmAcpAdapter expects invocation.kind === 'in-process'");
     }
-
-    const env: Record<string, string> = {
-      CODING_AGENT_BASE_URL: this.options.baseUrl,
-      CODING_AGENT_MODEL: this.options.model,
-    };
-    if (this.options.apiKey !== undefined) {
-      env.CODING_AGENT_API_KEY = this.options.apiKey;
-    }
-
-    yield* this.driver.runProcess({
-      executable: invocation.executable,
-      args: invocation.args,
+    const target = createLocalAgent({
+      settings: this.options.settings,
+      ...(command.model !== undefined ? { stageModel: command.model } : {}),
+      limits: this.options.limits,
+      fetch: this.options.fetch,
+      askBeforeCommands: this.options.askBeforeCommands,
+      signal,
+    });
+    yield* this.driver.run({
+      target,
       cwd: command.cwd,
       runId: command.runId,
       commandKind: command.kind,
       prompt: `${commandInstruction(command.kind)}\n\n${prompt}`,
       signal,
-      env,
     });
   }
 
   resolvePermission(runId: string, requestId: string, outcome: "allow" | "deny"): boolean {
     return this.driver.resolvePermission(runId, requestId, outcome);
   }
-}
-
-function renderLimits(limits: LocalLlmAcpLimits): string[] {
-  const args: string[] = [];
-  const append = (flag: string, value: number | undefined) => {
-    if (value !== undefined) args.push(flag, String(value));
-  };
-
-  append("--max-iterations", limits.maxIterations);
-  append("--max-tool-calls", limits.maxToolCalls);
-  append("--max-seconds", limits.maxSeconds);
-  append("--command-timeout-seconds", limits.commandTimeoutSeconds);
-  append("--max-command-output-chars", limits.maxCommandOutputChars);
-  append("--max-prompt-tokens", limits.maxPromptTokens);
-  append("--max-completion-tokens", limits.maxCompletionTokens);
-  append("--max-total-tokens", limits.maxTotalTokens);
-  append("--max-context-used-tokens", limits.maxContextUsedTokens);
-  append("--max-context-window-tokens", limits.maxContextWindowTokens);
-  append("--max-context-share", limits.maxContextShare);
-  append("--min-free-context-tokens", limits.minFreeContextTokens);
-
-  return args;
 }
