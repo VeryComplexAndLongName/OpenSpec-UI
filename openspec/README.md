@@ -116,6 +116,18 @@ branch, that branch carries exactly one change, and the pull request's
 title is the change id, verbatim. Nothing has to be decoded to see what a
 pull request is for.
 
+**The branch carries the change id too, and that one is mechanical.** The
+merge gate resolves the change from the branch — `--change
+"$GITHUB_HEAD_REF"` in `quality.yml` — and a name no active change has is
+skipped rather than guessed at, because archive, article and dependabot
+pull requests legitimately match nothing. So a branch named anything else
+does not fail the gate: it makes the gate pass without checking whether
+the change owes anything. `local-llm-acp` landed on 2026-10-01 from a
+branch named `fix-local-llm-acp`, with a green gate, owing a delegated
+item it had not recorded — and the sweep then refused to archive it,
+because the sweep reads the rule the gate had skipped. The title being
+right does not help; the gate reads the branch.
+
 **Archiving is a second pull request, and the product makes it.** Once a
 change has landed with every task item closed, the workspace sweep
 archives it together with every other such change, in one pull request
