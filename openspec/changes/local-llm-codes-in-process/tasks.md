@@ -194,3 +194,19 @@ ignore the system proxy. Blocked by `local-llm-acp`.
   run edits files and its updates are shown. Then turn
   `openspec-ui.localLlm.agent.askBeforeCommands` on and see a command
   wait for Allow.
+- [x] 6.5 Found while attempting 6.4: every run that failed inside an ACP
+  connection (any ACP agent, not only `local-llm-acp` — the shared
+  `AcpSessionDriver`) reported only "Internal error", whatever actually
+  failed. The Agent Client Protocol SDK wraps any handler exception into
+  a `RequestError` whose `message` is the fixed string "Internal error"
+  (JSON-RPC code -32603), keeping the real cause only in `data.details`.
+  `packages/core/src/agents/acp-session-driver.ts`'s `connectionFailureReason`
+  reads `data.details` where present. Reproduced before the fix with a
+  direct call to `LocalLlmAcpAdapter.execute` against the real LAN server
+  with a wrong key: `reason` was `"Internal error"`; after the fix, the
+  same call reports `reason: "HTTP 401 Unauthorized: {\"error\":\"Unauthorized\"}"`.
+  Test in `acp-session-driver.test.ts`: a handler that throws reports its
+  own message, not "Internal error". `npm run typecheck && npm run lint
+  && npm run test` at the root, unpiped: exit 0 (core 18/18 new+existing
+  in the two directly affected files; server 118/118; webui 687/687; no
+  new failures anywhere).

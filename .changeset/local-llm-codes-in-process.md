@@ -27,3 +27,10 @@ Agents can ignore the system proxy: `openspec-ui.agents.ignoreSystemProxy`
 (`OPENSPEC_UI_IGNORE_SYSTEM_PROXY=1`). The local LLM agents then connect
 directly, and CLI agents start without the proxy variables and with
 `NO_PROXY=*`.
+
+A run that failed inside an ACP agent (any of them, not only
+`local-llm-acp`) used to say only "Internal error" — the Agent Client
+Protocol's own fixed text for an unhandled exception, with the actual
+cause (an HTTP status, a bad key, a timeout) discarded. It now says that
+cause.
+
