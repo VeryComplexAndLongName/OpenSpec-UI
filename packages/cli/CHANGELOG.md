@@ -1,5 +1,43 @@
 # @openspec-ui/cli
 
+## 0.23.0
+
+### Minor Changes
+
+- cc63798: The local LLM agent is built in. `local-llm-acp` no longer starts an
+  external `coding-agent` that you had to find and install: it is a coding
+  agent inside the product, against your OpenAI-compatible server, with
+  tools to read, write, replace in a file, list, search and run a command,
+  all confined to the change's working directory. Each tool call and its
+  result shows in the run. It reads a tool call the model wrote as text
+  when the server's parser did not recognise it, as SGLang's `hermes`
+  parser does with Qwen3.6. Turn on
+  `openspec-ui.localLlm.agent.askBeforeCommands`
+  (`OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS=1`) to allow each command
+  yourself.
+  
+  The model is optional for `local-llm` and `local-llm-acp`: a stage may
+  name one, the settings may, and otherwise the server is asked which model
+  it serves. A model id may now contain `/`, as Hugging Face names are
+  written.
+  
+  Agents can ignore the system proxy: `openspec-ui.agents.ignoreSystemProxy`
+  (`OPENSPEC_UI_IGNORE_SYSTEM_PROXY=1`). The local LLM agents then connect
+  directly, and CLI agents start without the proxy variables and with
+  `NO_PROXY=*`.
+  
+  A run that failed inside an ACP agent (any of them, not only
+  `local-llm-acp`) used to say only "Internal error" — the Agent Client
+  Protocol's own fixed text for an unhandled exception, with the actual
+  cause (an HTTP status, a bad key, a timeout) discarded. It now says that
+  cause.
+  
+  With `openspec-ui.localLlm.agent.askBeforeCommands` on, clicking Allow on
+  a direct (non-chain) run used to remove the prompt and then go nowhere —
+  the answer reached a fresh, unrelated agent instance instead of the one
+  actually waiting on it, so the run sat there until cancelled by hand. It
+  now reaches the right one.
+
 ## 0.22.1
 
 ### Patch Changes
