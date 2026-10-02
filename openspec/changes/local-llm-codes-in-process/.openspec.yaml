@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-10-02
+follows:
+  - local-llm-acp
+  - the-local-llm-is-where-you-say
+blocked_by:
+  - local-llm-acp
