@@ -3007,9 +3007,24 @@ committed is a key published.
 The editor SHALL offer the base URL and the model as settings, and SHALL
 keep the key in its secret storage, set by a command.
 
-Until this, the address and the model were fixed in code with no way to
-change them, and no key could be sent: a user's server at
-`http://192.168.137.33:8000/v1`, which wants one, could not be used.
+In addition to the existing HTTP adapter, the system SHALL offer
+`local-llm-acp`, which SHALL run a local ACP coding process through the
+shared ACP session driver while using the same resolved base URL, model,
+and optional API key. The API key SHALL remain out of files here as well.
+
+`local-llm-acp` SHALL expose a strict invocation contract for agent-loop
+ceilings that can be passed to the ACP process: max iterations, max tool
+calls, max run seconds, prompt/completion/total token ceilings, and
+context ceilings (used/context window share/min free tokens). A value that
+is not present SHALL be omitted rather than guessed.
+
+This adapter-level loop contract SHALL NOT replace harness chain/stage
+controls (`timeout.maxRunSeconds`, `timeout.maxStageSeconds`,
+`maxStageAttempts`, and `budget.maxContextShare`): those controls SHALL
+continue to bound change-level and task/stage-level execution.
+
+Until this, local OpenAI-compatible usage could run only over direct HTTP,
+with no ACP tool/permission flow and no ACP-native loop contract.
 
 #### Scenario: A server that wants a key
 
@@ -3029,6 +3044,26 @@ change them, and no key could be sent: a user's server at
   and the key
 - **THEN** the model is the editor's, and the base URL and the key are the
   environment's
+
+#### Scenario: ACP local LLM reuses endpoint settings
+
+- **WHEN** `local-llm-acp` is selected and base URL/model/API key are
+  resolved from settings/environment
+- **THEN** the adapter starts its ACP process with that same endpoint
+  identity and does not persist the key to files
+
+#### Scenario: ACP local loop limit contract is explicit
+
+- **WHEN** loop limits are configured for `local-llm-acp`
+- **THEN** only the documented limit fields are passed to the ACP process,
+  and each absent field is omitted
+
+#### Scenario: Harness time and retries still bound change and task/stage runs
+
+- **WHEN** a chain runs with `timeout.maxRunSeconds`,
+  `timeout.maxStageSeconds`, or `maxStageAttempts` configured
+- **THEN** those ceilings still govern change-level and task/stage-level
+  execution regardless of whether `local-llm` or `local-llm-acp` is selected
 
 ### Requirement: The local model makes a change with nothing installed
 
