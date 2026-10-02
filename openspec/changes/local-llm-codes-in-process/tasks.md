@@ -158,8 +158,10 @@ ignore the system proxy. Blocked by `local-llm-acp`.
   (core), 7/62, 36/498, 4/118, 76/687 files/tests passed.
 - [x] 6.2 `openspec validate local-llm-codes-in-process --strict`, and the
   merge gate locally with `--base origin/main`. 2026-10-02: "Change
-  'local-llm-codes-in-process' is valid", exit 0; the gate `"ok": true`
-  for this change and `local-llm-acp`, exit 0.
+  'local-llm-codes-in-process' is valid", exit 0. The gate, run with the
+  worktree's absolute path as `--cwd` (`--cwd .` resolves against
+  `packages/cli` under `npm run --workspace`, and checked nothing), owes
+  only 6.4, the Human-only item; it passes once 6.4 is closed.
 - [x] 6.3 **Delegated to local-llm-acp**: an `implement` run through
   `buildDefaultAgentRunners(...).get("local-llm-acp")`, with no model
   named anywhere and `ignoreSystemProxy` on while `HTTPS_PROXY` points at
