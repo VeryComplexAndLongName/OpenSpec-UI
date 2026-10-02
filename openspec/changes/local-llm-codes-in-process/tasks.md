@@ -160,8 +160,9 @@ ignore the system proxy. Blocked by `local-llm-acp`.
   merge gate locally with `--base origin/main`. 2026-10-02: "Change
   'local-llm-codes-in-process' is valid", exit 0. The gate, run with the
   worktree's absolute path as `--cwd` (`--cwd .` resolves against
-  `packages/cli` under `npm run --workspace`, and checked nothing), owes
-  only 6.4, the Human-only item; it passes once 6.4 is closed.
+  `packages/cli` under `npm run --workspace`, and checked nothing). Owed
+  only 6.4 as of that run; 6.4 is now closed (below), and 6.5/6.6 were
+  found and fixed after it, with their own checks recorded there.
 - [x] 6.3 **Delegated to local-llm-acp**: an `implement` run through
   `buildDefaultAgentRunners(...).get("local-llm-acp")`, with no model
   named anywhere and `ignoreSystemProxy` on while `HTTPS_PROXY` points at
@@ -188,23 +189,23 @@ ignore the system proxy. Blocked by `local-llm-acp`.
   Node 24 with a directory argument; the agent found that, tried other
   forms and verified with the file. The task's wording was at fault, not
   the agent.
-- [ ] 6.4 **Human-only**: in the Extension Development Host built from
+- [x] 6.4 **Human-only**: in the Extension Development Host built from
   this branch, with `openspec-ui.agents.ignoreSystemProxy` on and the
   model left empty, run one stage on `local-llm-acp` from the picker: the
   run edits files and its updates are shown. Then turn
   `openspec-ui.localLlm.agent.askBeforeCommands` on and see a command
   wait for Allow.
-  Record, 2026-10-02 (awaiting the owner's confirmation of this record):
-  built and run in a real Extension Development Host against a scratch
-  change `verify-local-llm-acp` (two open tasks: write `src/greet.mjs`
-  and its test), with `ignoreSystemProxy` on and the model left empty
-  throughout. Run `9a9335fb-b4cf-4514-b40a-872c48d531d2`: the dialog read
-  "apply (implements the tasks): local-llm-acp" / "Sets no model"; the
-  agent named the model itself ("Model QuantTrio/Qwen3.6-35B-A3B-AWQ, the
-  model the server serves"), wrote `src/greet.mjs` and
-  `src/greet.test.mjs`, ran `node --test` and ticked both tasks; outcome
-  `completed`. With `askBeforeCommands` on (a third task added, needing a
-  command): run `c37ff3bf-d141-40db-9241-eff8832f7f29` reached
+  Record, 2026-10-02, confirmed by the owner: built and run in a real
+  Extension Development Host against a scratch change
+  `verify-local-llm-acp` (two open tasks: write `src/greet.mjs` and its
+  test), with `ignoreSystemProxy` on and the model left empty throughout.
+  Run `9a9335fb-b4cf-4514-b40a-872c48d531d2`: the dialog read "apply
+  (implements the tasks): local-llm-acp" / "Sets no model"; the agent
+  named the model itself ("Model QuantTrio/Qwen3.6-35B-A3B-AWQ, the model
+  the server serves"), wrote `src/greet.mjs` and `src/greet.test.mjs`, ran
+  `node --test` and ticked both tasks; outcome `completed`. With
+  `askBeforeCommands` on (a third task added, needing a command): run
+  `c37ff3bf-d141-40db-9241-eff8832f7f29` reached
   `run_command node --test src/greet.test.mjs` and the panel showed
   "Permission requested: run_command node --test src/greet.test.mjs" with
   Allow/Deny — screenshotted. Allow unblocked the same command, which
