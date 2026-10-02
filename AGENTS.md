@@ -14,3 +14,9 @@ For the Agentic Harness specifically (stages, autonomy levels, review
 gates, per-stage agents, and spending limits), see
 [`HARNESS.md`](HARNESS.md) and [`LIMITS.md`](LIMITS.md) at the repository
 root — pointers only; do not duplicate their content here either.
+
+For how articles under `docs/articles/` are published (the canonical
+article, the homepage repository that reads it, and every other venue's
+manual, link-back-required copy), see
+[`docs/articles/README.md`](docs/articles/README.md) — pointer only; do
+not duplicate it here either.

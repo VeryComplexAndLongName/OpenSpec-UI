@@ -23,6 +23,11 @@ Pointers, not duplicates: edit the source document, not this page.
    touching Agentic Harness configuration, settings surfaces, or spending
    limits: every key, its accepted values, and what actually caps a run.
    Pointers only — do not duplicate their settings tables here.
+5. [`docs/articles/README.md`](docs/articles/README.md) — before touching
+   anything under `docs/articles/`: the canonical article (`site/`), the
+   homepage repository that publishes it, every other venue's manual,
+   link-back-required copy, and what the homepage-dispatch CI does.
+   Pointer only — do not duplicate it here.
 
 ## Governance (mandatory)
 
