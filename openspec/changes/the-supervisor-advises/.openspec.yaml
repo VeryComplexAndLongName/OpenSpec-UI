@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-04
+follows:
+  - local-llm-codes-in-process

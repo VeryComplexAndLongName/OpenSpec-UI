@@ -86,6 +86,42 @@ export interface HarnessHints {
   enabled: boolean;
 }
 
+/** What the supervisor does (ADR 0039, the-supervisor-advises). */
+export type HarnessSupervisorMode = "off" | "advise";
+export const SUPERVISOR_MODES: readonly HarnessSupervisorMode[] = ["advise", "off"];
+
+/** The supervisor: rules over the runs' records that suggest and change
+ * nothing. Every field optional; see `resolveSupervisor` for what absent
+ * means. Merged key by key, so a change that turns it off keeps the
+ * workspace's thresholds, and one that sets a threshold keeps the mode. */
+export interface HarnessSupervisor {
+  mode?: HarnessSupervisorMode;
+  /** How long a run whose heartbeat is alive may say nothing new before
+   * it is pointed out. */
+  silentAfterSeconds?: number;
+  /** How long a run may wait on a person before it is pointed out. */
+  waitingAfterSeconds?: number;
+}
+
+export interface ResolvedSupervisor {
+  mode: HarnessSupervisorMode;
+  silentAfterSeconds: number;
+  waitingAfterSeconds: number;
+}
+
+export const DEFAULT_SUPERVISOR: ResolvedSupervisor = { mode: "advise", silentAfterSeconds: 600, waitingAfterSeconds: 60 };
+
+/** The supervisor a configuration resolves to: `advise`, 600 and 60 where
+ * it says nothing, which is what every configuration written before the
+ * key existed says. */
+export function resolveSupervisor(value: HarnessSupervisor | undefined): ResolvedSupervisor {
+  return {
+    mode: value?.mode ?? DEFAULT_SUPERVISOR.mode,
+    silentAfterSeconds: value?.silentAfterSeconds ?? DEFAULT_SUPERVISOR.silentAfterSeconds,
+    waitingAfterSeconds: value?.waitingAfterSeconds ?? DEFAULT_SUPERVISOR.waitingAfterSeconds,
+  };
+}
+
 /** A cost/token ceiling `HarnessChainRunner` checks before starting each
  * stage of a chain — see openspec/changes/agent-usage-accounting/design.md
  * and spec.md, "A configured budget stops work at stage boundaries". Both
@@ -209,6 +245,9 @@ export interface HarnessConfig {
    * the report these are derived from is about the whole repository.
    * See a-hint-says-what-can-run-together. */
   hints?: HarnessHints;
+  /** The supervisor (ADR 0039). Absent means it advises, with the default
+   * thresholds — see `resolveSupervisor`. Accepted in both files. */
+  supervisor?: HarnessSupervisor;
   /** Absent means unlimited — matches every config written before this
    * field existed. A per-change `harness.json` may set a ceiling higher
    * than the global one; unlike `autonomyLevel`/`reviewGate.mode`/
@@ -335,7 +374,7 @@ const GIT_STAGE_ALLOWLIST_KEYS = ["remotes", "branches"] as const;
  * of a harness configuration file — the single place that set is written
  * (task 1.2), so a key added to `HarnessConfig` without being added here
  * is refused on every file that uses it rather than silently ignored. */
-export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "allowAgentMessages", "branches", "archive", "skipStages"] as const;
+export const TOP_LEVEL_CONFIG_KEYS = ["stepAgents", "autonomyLevel", "reviewGate", "checkpoints", "budget", "timeout", "maxStageAttempts", "gitStageAllowlist", "taskAgents", "steps", "hints", "supervisor", "allowAgentMessages", "branches", "archive", "skipStages"] as const;
 
 /** What this product does with a change's branch (ADR 0034). */
 export interface HarnessBranches {
@@ -823,6 +862,34 @@ function assertValidHints(value: unknown): asserts value is HarnessHints | undef
   }
 }
 
+const SUPERVISOR_KEYS = ["mode", "silentAfterSeconds", "waitingAfterSeconds"] as const;
+
+/** Structural, and accepted in both files: advising writes nothing and
+ * spends nothing, so there is nothing a workspace may not decide. A mode
+ * this version does not know is refused rather than read as `advise`: a
+ * setting that cannot act is not accepted quietly (ADR 0039). */
+function assertValidSupervisor(value: unknown): asserts value is HarnessSupervisor | undefined {
+  if (value === undefined) return;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("supervisor must be an object");
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!(SUPERVISOR_KEYS as readonly string[]).includes(key)) {
+      throw new InvalidHarnessConfigError(`supervisor has no key "${key}" (accepted keys: ${formatAcceptedKeys(SUPERVISOR_KEYS)})`);
+    }
+  }
+  if (record.mode !== undefined && !SUPERVISOR_MODES.includes(record.mode as HarnessSupervisorMode)) {
+    throw new InvalidHarnessConfigError(`supervisor.mode must be one of: ${SUPERVISOR_MODES.join(", ")}`);
+  }
+  for (const key of ["silentAfterSeconds", "waitingAfterSeconds"] as const) {
+    const seconds = record[key];
+    if (seconds !== undefined && (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds <= 0)) {
+      throw new InvalidHarnessConfigError(`supervisor.${key} must be a positive whole number of seconds`);
+    }
+  }
+}
+
 function assertValidCheckpoints(
   value: unknown,
   isPerChangeFile: boolean,
@@ -1030,6 +1097,7 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidHints((input as { hints?: unknown }).hints);
+  assertValidSupervisor((input as { supervisor?: unknown }).supervisor);
   assertValidMaxCost((input as { budget?: { maxCost?: unknown } }).budget?.maxCost);
   const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
@@ -1205,6 +1273,7 @@ export async function readGlobalHarnessConfig(workspaceRoot: string): Promise<Ha
     reviewGate: input.reviewGate ?? DEFAULT_HARNESS_CONFIG.reviewGate,
     checkpoints: input.checkpoints ?? DEFAULT_HARNESS_CONFIG.checkpoints,
     hints: input.hints ?? DEFAULT_HARNESS_CONFIG.hints,
+    ...(input.supervisor !== undefined ? { supervisor: input.supervisor } : {}),
     ...(input.allowAgentMessages !== undefined ? { allowAgentMessages: input.allowAgentMessages } : {}),
     ...(input.branches !== undefined ? { branches: input.branches } : {}),
     ...(input.archive !== undefined ? { archive: input.archive } : {}),
@@ -1269,6 +1338,11 @@ export function mergeHarnessConfig(global: HarnessConfig, override: Partial<Harn
     // call site resolves the global configuration rather than one
     // change's.
     hints: override.hints ?? global.hints,
+    // Key by key: a change that turns the supervisor off keeps the
+    // workspace's thresholds, and one that sets a threshold keeps its mode.
+    ...((override.supervisor ?? global.supervisor) !== undefined
+      ? { supervisor: { ...global.supervisor, ...override.supervisor } }
+      : {}),
     ...((override.allowAgentMessages ?? global.allowAgentMessages) !== undefined
       ? { allowAgentMessages: override.allowAgentMessages ?? global.allowAgentMessages }
       : {}),

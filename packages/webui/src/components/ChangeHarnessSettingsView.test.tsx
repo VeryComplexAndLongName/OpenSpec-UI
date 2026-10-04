@@ -236,6 +236,7 @@ describe("ChangeHarnessSettingsView — saving", () => {
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
       steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
       hints: { enabled: false },
+      supervisor: { mode: "off" },
       allowAgentMessages: true,
       branches: { rebaseWhenBehind: false },
       archive: { whenLanded: false },
@@ -252,6 +253,37 @@ describe("ChangeHarnessSettingsView — saving", () => {
     expect(saved.maxStageAttempts).toBe(2);
     expect(saved.budget).toEqual(everyKey.budget);
     expect(saved.skipStages).toEqual(["review"]);
+  });
+
+  // the-supervisor-advises 4.2
+  it("turns the supervisor off for this change, says what it inherits, and removes the mode on inherit", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+      }),
+    });
+    await renderLoaded(api);
+
+    expect(chosen("Change supervisor")).toBe("");
+    expect(screen.getByTestId("change-supervisor-note").textContent).toContain("Advise, from the global file");
+    choose("Change supervisor", "off");
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", expect.objectContaining({ supervisor: { mode: "off" } })));
+  });
+
+  it("removes the supervisor's mode when it is set back to inherit", async () => {
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, supervisor: { mode: "off" } }) });
+    await renderLoaded(api);
+
+    expect(chosen("Change supervisor")).toBe("off");
+    choose("Change supervisor", "");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    expect("supervisor" in saved).toBe(false);
   });
 
   it("still removes autonomyLevel when it is set back to inherit", async () => {

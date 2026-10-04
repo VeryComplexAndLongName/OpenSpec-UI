@@ -319,6 +319,31 @@
         }
       }
     },
+    "supervisor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What the supervisor points out about runs (ADR 0039). It suggests and changes nothing.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advise",
+            "off"
+          ],
+          "description": "advise (absent) or off."
+        },
+        "silentAfterSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds a live run may say nothing new before it is pointed out. Absent means 600."
+        },
+        "waitingAfterSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds a run may wait on a person before it is pointed out. Absent means 60."
+        }
+      }
+    },
     "allowAgentMessages": {
       "type": "boolean",
       "description": "Whether a run takes notes written by another run. Absent means false."

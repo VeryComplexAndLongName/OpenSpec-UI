@@ -7,6 +7,7 @@
 
 import { STAGES, isChainPart, type ChainPart, type HarnessStage } from "./harness-stage.js";
 import type { AgentUsage } from "./agent-usage.js";
+import type { FailureDiagnosis } from "./failure-diagnosis.js";
 import type { HarnessEffort, HarnessStepBudget } from "./harness-step-agent.js";
 
 export type CommandKind =
@@ -235,6 +236,11 @@ export interface CompletedEvent extends BaseEvent {
 export interface FailedEvent extends BaseEvent {
   kind: "failed";
   reason: string;
+  /** What is known about why, from the reason and the end of the run's
+   * output (the-supervisor-advises). Optional: every failure written
+   * before it existed reads as it did, and a reader that ignores it reads
+   * on. */
+  diagnosis?: FailureDiagnosis;
 }
 
 /** The run ended because it was cancelled. Emitted only once the process

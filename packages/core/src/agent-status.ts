@@ -1139,7 +1139,10 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, 
     return;
   }
   if (event.kind === "permissionRequest") {
-    await writer.reportWaiting({ kind: "permission", description: event.description });
+    // An activity of its own, so `activityAt` says when the wait began, as
+    // a checkpoint's does: the supervisor measures a wait from it
+    // (the-supervisor-advises).
+    await writer.reportWaiting({ kind: "permission", description: event.description }, "waiting for a permission");
     return;
   }
   await writer.reportWaiting(null);

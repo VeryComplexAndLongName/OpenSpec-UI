@@ -45,5 +45,6 @@ Alternatives / Consequences.
 | [0036](0036-the-product-merges-what-it-archives.md) | The product merges what it archives | Accepted |
 | [0037](0037-a-team-works-through-git.md) | A team works through git | Accepted |
 | [0038](0038-the-local-model-codes-in-the-product.md) | The local model's coding agent runs in the product, and an agent can ignore the system proxy | Accepted |
+| [0039](0039-the-supervisor-advises.md) | The supervisor advises, and acts only where a change allows it | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

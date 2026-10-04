@@ -25,15 +25,20 @@ import {
   effortFormFor,
   globalConfigToSave,
   HarnessFindingsPanel,
+  INHERIT,
   MechanicalStageRow,
   ModelInput,
+  NO_GLOBAL_CONFIG,
   runBudgetFrom,
   SettingsFoot,
   StageRow,
   stageFormsFrom,
   StageTable,
   STAGES,
+  SUPERVISOR_NOTES,
+  supervisorModeFrom,
   templateAppliedMessage,
+  withSupervisorMode,
   type HarnessSettingsApi,
   type StageForms,
 } from "./harness-settings-parts.js";
@@ -174,6 +179,7 @@ export function GlobalHarnessSettingsView({
 
   const level = autonomyLevelParts(autonomyLevel);
   const gate = config?.reviewGate.mode ?? "human-required";
+  const supervisorMode = supervisorModeFrom(config) || "advise";
 
   return (
     <div className="openspec-harness-settings" data-testid="global-harness-settings">
@@ -281,6 +287,21 @@ export function GlobalHarnessSettingsView({
               another unit takes a ceiling in that unit, set as `budget.maxCost` in the
               configuration file.
             </p>
+          </div>
+          <div className="openspec-harness-band-item">
+            <span className="openspec-harness-band-label" aria-hidden="true">Supervisor</span>
+            {/* Absent is advise, so choosing Advise writes nothing: the file
+                says only what differs from the default (the-supervisor-advises). */}
+            <SegmentedChoice
+              label="Global supervisor"
+              value={supervisorMode}
+              onChange={(mode) => setConfig((previous) => withSupervisorMode(previous ?? NO_GLOBAL_CONFIG, mode === "advise" ? INHERIT : mode))}
+              options={[
+                { value: "advise" as const, label: "Advise" },
+                { value: "off" as const, label: "Off" },
+              ]}
+            />
+            <p className="openspec-harness-band-note" data-testid="global-supervisor-note">{SUPERVISOR_NOTES[supervisorMode]}</p>
           </div>
         </div>
         <SettingsFoot

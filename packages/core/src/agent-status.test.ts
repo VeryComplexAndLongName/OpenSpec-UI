@@ -357,6 +357,9 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
       const report = await read();
       if (event.kind === "permissionRequest") {
         expect(report?.waiting).toEqual({ kind: "permission", description: "Write to src/a.ts" });
+        // the-supervisor-advises: the activity changes, so `activityAt` is
+        // when the wait began.
+        expect(report?.activity).toBe("waiting for a permission");
       } else {
         expect(report?.waiting).toBeNull();
       }

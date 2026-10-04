@@ -19,6 +19,7 @@ import { appendFile, mkdir, open, readdir, readFile, rm, stat } from "node:fs/pr
 import path from "node:path";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { describeAcpUpdate } from "./acp-update-line.js";
+import { readFailureDiagnosis } from "./failure-diagnosis.js";
 import type { Event } from "./protocol.js";
 import type { RunLogEnd, RunLogLine, RunLogRecord, RunLogStart, RunLogStream, RunLogSummary } from "./run-log-facts.js";
 
@@ -246,7 +247,12 @@ async function summarize(file: string, runId: string): Promise<RunLogSummary | u
     stages,
     startedAt: first.at,
     ...(last?.type === "end"
-      ? { endedAt: last.at, outcome: last.outcome, ...(last.reason !== undefined ? { reason: last.reason } : {}) }
+      ? {
+        endedAt: last.at,
+        outcome: last.outcome,
+        ...(last.reason !== undefined ? { reason: last.reason } : {}),
+        ...(readFailureDiagnosis(last.diagnosis) !== undefined ? { diagnosis: readFailureDiagnosis(last.diagnosis) } : {}),
+      }
       : {}),
     bytes: size,
   };

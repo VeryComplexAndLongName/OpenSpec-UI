@@ -616,6 +616,24 @@ describe("AiPanel (direct OpenSpec mode)", () => {
 
         emit({ kind: "failed", runId: "run-status-line", timestamp: "t", reason: "network down" });
         expect(screen.getByTestId("run-status-label")).toHaveTextContent("Failed: network down");
+        // No diagnosis, nothing beneath it (the-supervisor-advises 4.1).
+        expect(screen.queryByTestId("failure-diagnosis")).toBeNull();
+    });
+
+    it("shows a failure's diagnosis beneath the status (the-supervisor-advises 4.1)", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes" generateRunId={() => "run-diagnosed"} />);
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({
+            kind: "failed",
+            runId: "run-diagnosed",
+            timestamp: "t",
+            reason: "fetch failed",
+            diagnosis: { cause: "network-unreachable", repeatHelps: "no", evidence: "fetch failed" },
+        });
+
+        expect(screen.getByTestId("failure-diagnosis").textContent).toContain("the network could not be reached: repeating will not help");
     });
 });
 

@@ -78,6 +78,50 @@ describe("adviseCommand", () => {
     expect(parsed[0]?.commands).toHaveLength(2);
   });
 
+  // the-supervisor-advises 4.3
+  it("prints what the supervisor points out after the others, and asks it with the workspace's configuration", async () => {
+    const { out, deps } = collect();
+    const asked: unknown[] = [];
+    const code = await adviseCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      {
+        ...deps,
+        read: async () => TWO_READY,
+        readConfig: async () => CONFIG_ON as never,
+        supervise: async (root, config) => {
+          asked.push(root, config);
+          return [{
+            id: "run-says-nothing-new:i1",
+            kind: "run-says-nothing-new",
+            subject: "A run on alpha has said nothing new for 12 minutes",
+            because: "Its heartbeat is 3 seconds old, so it is alive.",
+            commands: ["openspec-ui-cli status --cwd /worktrees/alpha"],
+          }];
+        },
+      },
+    );
+    expect(code).toBe(0);
+    expect(asked).toEqual(["/repo", CONFIG_ON]);
+    expect(out.indexOf("alpha and beta can run at the same time")).toBeLessThan(out.indexOf("A run on alpha has said nothing new for 12 minutes"));
+    expect(out).toContain("  $ openspec-ui-cli status --cwd /worktrees/alpha");
+  });
+
+  it("does not ask the supervisor where suggestions are off", async () => {
+    const { out, deps } = collect();
+    let asked = false;
+    await adviseCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      {
+        ...deps,
+        read: async () => TWO_READY,
+        readConfig: async () => ({ ...CONFIG_ON, hints: { enabled: false } }) as never,
+        supervise: async () => { asked = true; return []; },
+      },
+    );
+    expect(asked).toBe(false);
+    expect(out).toEqual(["Nothing to suggest here."]);
+  });
+
   it("exits 2 when the report could not be built", async () => {
     const { err, deps } = collect();
     const code = await adviseCommand(

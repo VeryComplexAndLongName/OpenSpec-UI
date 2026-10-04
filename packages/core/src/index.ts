@@ -111,6 +111,8 @@ export * from "./pipeline-readings.js";
 export * from "./task-marker.js";
 export * from "./pipeline-card.js";
 export * from "./hints.js";
+export * from "./failure-diagnosis.js";
+export * from "./supervisor.js";
 export * from "./change-layout.js";
 export * from "./board-columns-facts.js";
 export * from "./board-columns.js";

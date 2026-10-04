@@ -8,6 +8,7 @@
 // worktree records its runs there.
 
 import { CHAIN_ENDING_AGENT_NAME, changeNameOf, isRunEntry } from "./audit-runs.js";
+import { readFailureDiagnosis } from "./failure-diagnosis.js";
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import type { LastRun, LastRunsReport } from "./last-runs-facts.js";
 import { readRepositoryAuditEntries, type AuditReadCache } from "./repository-audit.js";
@@ -72,6 +73,12 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
   if (ending === undefined) return undefined;
 
   const stage = ending.stage ?? [...stageEntries].reverse().find((entry) => entry.stage !== undefined)?.stage;
+  // The ending's own, or - in a log written before the chain carried one -
+  // the last failed stage's.
+  const diagnosis = ending.outcome !== "failed"
+    ? undefined
+    : readFailureDiagnosis(ending.diagnosis)
+      ?? readFailureDiagnosis([...stageEntries].reverse().find((entry) => entry.outcome === "failed")?.diagnosis);
   const costs = stageEntries
     .map((entry) => entry.usage?.costUsd)
     .filter((cost): cost is number => typeof cost === "number");
@@ -81,6 +88,7 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
     endedAt: ending.timestamp,
     ...(stage !== undefined ? { stage } : {}),
     ...(ending.reason !== undefined ? { reason: ending.reason } : {}),
+    ...(diagnosis !== undefined ? { diagnosis } : {}),
     ...(costs.length > 0 ? { costUsd: costs.reduce((sum, cost) => sum + cost, 0) } : {}),
   };
 }

@@ -2025,6 +2025,32 @@ describe("HarnessChainRunner — a chain writes its own ending (a-card-says-what
     expect(ending?.reason).toContain("the agent gave up");
   });
 
+  // the-supervisor-advises 2.4: the failed stage's diagnosis reaches the
+  // entry the last-run reading prefers.
+  it("records the failed stage's diagnosis on the chain's ending", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(true);
+    await writeTasks(root, 3, 0);
+    const auditLog = new InMemoryAuditLog();
+    const diagnosis = { cause: "not-signed-in", repeatHelps: "no", evidence: "Authentication required" } as const;
+    const runner: AgentRunner = {
+      async *run(command) {
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "failed", runId: command.runId, timestamp: "t", reason: "Authentication required", diagnosis };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(events.at(-1)).toMatchObject({ kind: "failed", diagnosis });
+    expect(endings(auditLog)).toEqual([expect.objectContaining({ outcome: "failed", diagnosis })]);
+  });
+
   it("records a chain a person cancelled while a stage ran, with no reason", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });

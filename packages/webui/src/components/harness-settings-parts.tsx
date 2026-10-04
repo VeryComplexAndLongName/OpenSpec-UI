@@ -20,6 +20,7 @@ import {
   type HarnessStepAgent,
   type HarnessStepAgentStage,
   type HarnessStepAgents,
+  type HarnessSupervisorMode,
   type HarnessTemplate,
 } from "@openspec-ui/core/browser";
 import type { CustomAgentsResult } from "../custom-agents-client.js";
@@ -369,6 +370,30 @@ function withRunBudget(config: Partial<HarnessConfig>, runBudget: string): Parti
   else result.budget = budget;
   return result;
 }
+
+/** The supervisor's mode as a configuration states it, or `INHERIT` where it
+ * states none (the-supervisor-advises). */
+export function supervisorModeFrom(config: Partial<HarnessConfig> | null | undefined): HarnessSupervisorMode | "" {
+  return config?.supervisor?.mode ?? INHERIT;
+}
+
+/** Lays a chosen mode over a configuration's `supervisor`, keeping its
+ * thresholds. `INHERIT` removes the mode, and a supervisor left with
+ * nothing in it is removed: a file says only what was chosen. */
+export function withSupervisorMode<T extends Partial<HarnessConfig>>(config: T, mode: HarnessSupervisorMode | ""): T {
+  const { mode: _replaced, ...thresholds } = config.supervisor ?? {};
+  const supervisor = mode === INHERIT ? thresholds : { ...thresholds, mode };
+  const result = { ...config };
+  if (Object.keys(supervisor).length === 0) delete result.supervisor;
+  else result.supervisor = supervisor;
+  return result;
+}
+
+/** What the supervisor does, said beside its choice. */
+export const SUPERVISOR_NOTES: Readonly<Record<HarnessSupervisorMode, string>> = {
+  advise: "Points out a run that says nothing new or waits on a person, and a failure that repeating cannot fix. It suggests and changes nothing.",
+  off: "Points out nothing about runs. Other suggestions are still made.",
+};
 
 /** The columns of the stage table, in order. Each cell carries its column's
  * name, which the narrow layout draws above the field. */

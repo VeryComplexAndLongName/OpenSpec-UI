@@ -13,6 +13,7 @@ import path from "node:path";
 import type { AdapterInvocation } from "./agent-runner.js";
 import type { AuditMessage } from "./audit-message.js";
 import type { AgentUsage } from "./agent-usage.js";
+import type { FailureDiagnosis } from "./failure-diagnosis.js";
 import { instructionsForArtifact } from "./openspec.js";
 import type { HarnessEffort } from "./harness-step-agent.js";
 import type { HarnessStage } from "./harness-stage.js";
@@ -358,6 +359,10 @@ export interface AuditEntry {
   timestamp: string;
   invocation?: AdapterInvocation;
   reason?: string;
+  /** What is known about why a failed run failed — the `failed` event's
+   * own diagnosis (the-supervisor-advises). Absent on every other entry,
+   * and on every failure recorded before it existed. */
+  diagnosis?: FailureDiagnosis;
   summary?: string;
   /** Absolute path to the OpenSpec change this run applies to (mirrors
    * `CommandContext.changeDir`) — the grouping key `usage-report.ts`'s

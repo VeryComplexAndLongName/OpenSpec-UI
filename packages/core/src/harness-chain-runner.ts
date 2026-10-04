@@ -681,6 +681,11 @@ export class HarnessChainRunner {
       // A declared step is not a stage the audit log names.
       ...(stage !== undefined && !isChainStepName(stage) ? { stage } : {}),
       ...(reason !== undefined ? { reason } : {}),
+      // The failed stage's own diagnosis, which the stage's failure carried
+      // through to here: the last-run reading prefers this entry, so a
+      // diagnosis left on the stage's entry alone would not reach a card
+      // (the-supervisor-advises).
+      ...(ending.kind === "failed" && ending.diagnosis !== undefined ? { diagnosis: ending.diagnosis } : {}),
       ...(stopped !== undefined ? { stopRequest: stopped } : {}),
     });
   }

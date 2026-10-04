@@ -25,6 +25,7 @@ import {
 } from "@openspec-ui/core/browser";
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
+import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
 
 // The four stages an agent runs come last, in the order a chain runs them,
 // and are shown under OpenSpec's names (`commandLabel`).
@@ -1229,6 +1230,7 @@ export function AiPanel({
       <p className="openspec-run-status" data-testid="run-status-label">
         {statusLabel}
       </p>
+      {!isRunning && latestEvent?.kind === "failed" ? <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} /> : null}
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
       {pendingPermissionRequest ? (
         <PermissionRequestPrompt

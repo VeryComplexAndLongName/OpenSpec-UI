@@ -41,7 +41,10 @@ import {
   StageTable,
   stepAgentsFromForms,
   STAGES,
+  SUPERVISOR_NOTES,
+  supervisorModeFrom,
   toForm,
+  withSupervisorMode,
   type HarnessSettingsApi,
   type StageForms,
 } from "./harness-settings-parts.js";
@@ -234,6 +237,8 @@ export function ChangeHarnessSettingsView(
     }
   }
 
+  const supervisorMode = supervisorModeFrom(override);
+  const inheritedSupervisor = supervisorModeFrom(base) || "advise";
   const inheritedLevel = autonomyLevelParts(base.autonomyLevel);
   const shownLevel = autonomyLevel === INHERIT ? inheritedLevel : autonomyLevelParts(autonomyLevel);
 
@@ -372,6 +377,24 @@ export function ChangeHarnessSettingsView(
                   {runBudget.trim() === ""
                     ? (globalRunBudget === INHERIT ? `No ceiling is set, here or ${FROM_GLOBAL}.` : `$${globalRunBudget}, ${FROM_GLOBAL}.`)
                     : "A chain stops when its reported cost reaches this."}
+                </p>
+              </div>
+              <div className="openspec-harness-band-item">
+                <span className="openspec-harness-band-label" aria-hidden="true">Supervisor</span>
+                <SegmentedChoice
+                  label="Change supervisor"
+                  value={supervisorMode}
+                  onChange={(mode) => setOverride((previous) => withSupervisorMode(previous ?? {}, mode))}
+                  options={[
+                    { value: INHERIT, label: "Inherit", title: `${inheritedSupervisor}, ${FROM_GLOBAL}` },
+                    { value: "advise" as const, label: "Advise" },
+                    { value: "off" as const, label: "Off" },
+                  ]}
+                />
+                <p className="openspec-harness-band-note" data-testid="change-supervisor-note">
+                  {supervisorMode === INHERIT
+                    ? `${inheritedSupervisor === "off" ? "Off" : "Advise"}, ${FROM_GLOBAL}. ${SUPERVISOR_NOTES[inheritedSupervisor]}`
+                    : SUPERVISOR_NOTES[supervisorMode]}
                 </p>
               </div>
             </div>

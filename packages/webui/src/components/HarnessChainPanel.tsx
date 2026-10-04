@@ -20,6 +20,7 @@ import {
   PermissionRequestPrompt,
   renderEventBody,
 } from "./AiPanel.js";
+import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
 import { UsageSummaryView } from "./UsageSummaryView.js";
 
 export interface HarnessChainPanelProps {
@@ -140,6 +141,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
       <p className="openspec-run-status" data-testid="chain-status-label">
         {statusLabel}
       </p>
+      {!isRunning && latestEvent?.kind === "failed" ? <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} /> : null}
       {pendingCheckpoint ? (
         <div className="openspec-shell-note" data-testid="checkpoint-confirmation">
           <p>
