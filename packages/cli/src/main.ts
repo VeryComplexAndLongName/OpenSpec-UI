@@ -24,6 +24,7 @@ import { readyCommand } from "./ready-command.js";
 import { statusCommand } from "./status-command.js";
 import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
 import { stopCommand } from "./stop-command.js";
+import { taskCommand } from "./task-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -62,6 +63,9 @@ Usage:
   openspec-ui-cli send-back <change> --stage <stage> --reason <text>
                             [--reopen <task>:<why>]... [--agent <id>]
                             [--cwd <path>]
+  openspec-ui-cli task done|reopen <change> <number> [--note <text>] [--cwd <path>]
+                                 [--format text|json]
+  openspec-ui-cli task commit <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
   openspec-ui-cli worktree list [--cwd <path>] [--format text|json]
@@ -103,6 +107,8 @@ Options:
   --agent <id>        The agent acting for you. Without it, the
                       environment says (OPENSPEC_UI_AGENT, AI_AGENT)
   --reason <text>     Why a run is asked to stop; the run records it
+  --note <text>       What 'task done' or 'task reopen' writes under the task;
+                      required to close a Human-only or delegated task
   --after <task>      Let the run finish this task first, as tasks.md numbers
                       it (for example 4.6), then stop where the work is sound
   --repository        owner/name for the manifest's links
@@ -149,6 +155,13 @@ healthy, which is a person's judgement a silent agent and a hung one
 look identical to. It exits 0 whether or not anything is running. Each
 run says whose it is only as far as its signature shows: signed by an
 enrolled person, not verified, or a signature that does not check out.
+
+'task' does what a Pipeline card does for a change in the worktree made
+for it, and only there: 'done' and 'reopen' tick or untick one task in that
+worktree's tasks.md, with the note written under it; 'commit' commits that
+tasks.md alone and pushes the worktree's branch. Each exits 1 when it is
+refused, saying why: no worktree of the change's own, a run working in it,
+or a Human-only or delegated task closed without a note.
 
 'stop' asks a live run to stop where its work is sound, through a request
 signed with this machine's key. The run reads it at its next renewal and
@@ -252,6 +265,10 @@ export interface MainOptions {
    * (an-agent-says-where-it-is-working). */
   activity?: string;
   wait?: string;
+  /** `task done|reopen`'s third positional, the task's number, and the note
+   * written under it (a-card-works-its-own-tasks). */
+  taskNumber?: string;
+  note?: string;
 }
 
 export interface MainDeps {
@@ -271,6 +288,7 @@ export interface MainDeps {
   leaseCommand?: typeof leaseCommand;
   statusCommand?: typeof statusCommand;
   stopCommand?: typeof stopCommand;
+  taskCommand?: typeof taskCommand;
   enrolCommand?: typeof enrolCommand;
   joinCommand?: typeof joinCommand;
   peopleCommand?: typeof peopleCommand;
@@ -329,11 +347,12 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
       arg === "--email" ||
       arg === "--to" ||
       arg === "--stage" ||
-      arg === "--agent"
+      arg === "--agent" ||
+      arg === "--note"
     ) {
       const value = argv[i + 1];
       if (!value) return { command: undefined, options, error: `${arg} requires a value` };
-      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email" | "to" | "stage" | "agent";
+      const key = arg.slice(2) as "repository" | "ref" | "commit" | "releases" | "from" | "path" | "base" | "change" | "label" | "reason" | "after" | "activity" | "wait" | "handle" | "name" | "email" | "to" | "stage" | "agent" | "note";
       options[key] = value;
       i += 1;
     } else if (arg === "--reopen") {
@@ -361,6 +380,7 @@ function parseArgs(argv: string[]): { command: string | undefined; options: Main
 
   if (positional[1] !== undefined) options.changeName = positional[1];
   if (positional[2] !== undefined) options.worktreeChange = positional[2];
+  if (positional[3] !== undefined) options.taskNumber = positional[3];
   return { command: positional[0], options };
 }
 
@@ -638,6 +658,22 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     }
     return await (deps.recordCommand ?? recordCommand)(
       { workspaceRoot, changeName, request, ...(actor !== undefined ? { actor } : {}), format },
+      { stdout, stderr },
+    );
+  }
+
+  if (command === "task") {
+    // `task <action> <change> [<number>]`: the action in the first
+    // positional, as `worktree` has it.
+    return await (deps.taskCommand ?? taskCommand)(
+      {
+        repositoryRoot: options.cwd ?? process.cwd(),
+        action: options.changeName,
+        changeName: options.worktreeChange,
+        number: options.taskNumber,
+        ...(options.note !== undefined ? { note: options.note } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
       { stdout, stderr },
     );
   }

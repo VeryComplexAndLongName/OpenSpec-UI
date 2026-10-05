@@ -3886,6 +3886,44 @@ export const shellThemeCss = `
     white-space: nowrap;
   }
 
+  /* A row that opens its task whole beside the board takes the row's first
+     two columns and keeps their look: a press, not a different-looking row
+     (a-card-works-its-own-tasks). */
+  .openspec-pipeline-task-open {
+    grid-column: 1 / span 2;
+    display: grid;
+    grid-template-columns: ${Z(2)} minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .openspec-pipeline-task-open:hover .openspec-pipeline-task-text { text-decoration: underline; }
+  .openspec-pipeline-task-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* A card's own controls over its list, beside its name. */
+  .openspec-pipeline .openspec-pipeline-node-tool {
+    flex: none;
+    height: ${Z(PIPELINE_CARD_REM.nameLine)};
+    margin: 0;
+    padding: 0 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: ${Z(0.7)};
+    cursor: pointer;
+  }
+  .openspec-pipeline .openspec-pipeline-node-tool[aria-pressed="true"] { background: var(--surface-2, var(--surface)); }
+
   /* The list's own border closes its first row. */
   .openspec-pipeline-node-tasks > div:first-child > :first-child,
   .openspec-pipeline-node-tasks > div:first-child > ol:first-child > li:first-child { border-top: 0; }
@@ -4015,6 +4053,30 @@ export const shellThemeCss = `
     box-shadow: var(--shadow);
   }
   .openspec-run-logs:focus { outline: none; }
+
+  /* One task, whole, beside the board; and a change's tasks on a page of
+     their own (a-card-works-its-own-tasks). */
+  .openspec-task-panel-task { margin: 8px 0 12px; }
+  .openspec-task-panel-text { margin: 0 0 4px; }
+  .openspec-task-panel-form { display: grid; gap: 6px; margin: 8px 0; }
+  .openspec-task-panel-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
+  .openspec-task-panel-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .openspec-tasks-page { padding: 12px 16px; }
+  .openspec-tasks-page-list { margin: 12px 0; padding: 0; list-style: none; }
+  .openspec-tasks-page-task { padding: 8px 0; border-top: 1px solid var(--line); }
+  .openspec-tasks-page-task[data-done="true"] .openspec-tasks-page-open { color: var(--muted, var(--ink)); }
+  .openspec-tasks-page-task[data-marked="true"] { background: var(--surface-2, transparent); outline: 2px solid var(--accent); }
+  .openspec-tasks-page-open {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .openspec-tasks-page-check { margin-right: 6px; font-family: var(--font-mono, monospace); }
   .openspec-run-logs:focus-visible { outline: 2px solid var(--primary-bg); outline-offset: -2px; }
   .openspec-run-logs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .openspec-run-logs-head h3 { margin: 0; color: var(--heading); }

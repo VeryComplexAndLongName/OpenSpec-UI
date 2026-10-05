@@ -283,9 +283,10 @@ test("draws the declared order, and passes axe", async ({ page }) => {
   const other = page.getByRole("region", { name: "Working directory proposals" });
   await expect(other).toBeVisible({ timeout: 15000 });
   await expect(other.locator("[data-testid$='-node-pipeline-elsewhere']")).toHaveJSProperty("tagName", "DIV");
-  // Its one control shows the tasks this reading holds; nothing reaches the
-  // change (a-card-opens-to-its-tasks).
-  await expect(other.locator("button:not(.openspec-pipeline-node-disclosure)")).toHaveCount(0);
+  // Its controls show the tasks this reading holds, and open one whole to
+  // read; nothing reaches the change: its name is no control, and it offers
+  // no list actions (a-card-opens-to-its-tasks, a-card-works-its-own-tasks).
+  await expect(other.locator("button:not(.openspec-pipeline-node-disclosure):not(.openspec-pipeline-task-open)")).toHaveCount(0);
   await expect(page.getByTestId("pipeline").getByText("Bash: npm test", { exact: false }).first()).toBeVisible();
 
   // a-change-is-running-when-its-run-says-so 4.7: a change's own worktree

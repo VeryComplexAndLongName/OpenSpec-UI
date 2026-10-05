@@ -81,7 +81,12 @@ Both hosts also carry, beyond the views above:
   with a reason. **By stage** arranges the same cards as a board, a column
   per stage from Proposed to Archived, and each card says where its change
   is, for how long, and who owns and implements it (ADR 0037). The
-  arrangement is kept for the next visit.
+  arrangement is kept for the next visit. A task opens whole beside the
+  board. For a change in the worktree made for it, its card also closes or
+  reopens a task with a note, commits and pushes that `tasks.md`, runs a
+  delegated task, and its name opens the change's task list there: in the
+  editor as `tasks.md`, in a browser as a page of its own
+  ([how to](docs/how-to/close-a-task-from-its-card.md)).
 - **The Timeline** - one change as a line of moments read from git, and a
   comparison of every change on a grid of days.
 - **What waits on somebody** - every task marked human-only or delegated

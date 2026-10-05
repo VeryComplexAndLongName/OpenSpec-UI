@@ -88,6 +88,8 @@ import { HarnessChainPanel } from "./components/HarnessChainPanel.js";
 import { RunDialog } from "./components/RunDialog.js";
 import { ChangeChecklist } from "./components/ChangeChecklist.js";
 import { RunLogsView } from "./components/RunLogsView.js";
+import { TasksPage, type ChangeTasksReading } from "./components/TasksPage.js";
+import { taskActionsOver } from "./task-actions.js";
 import { listChangeRunLogs, readChangeRunLog } from "./run-logs-client.js";
 import { loadWorkspaceRunStats } from "./workspace-run-stats-client.js";
 import { loadCustomAgents } from "./custom-agents-client.js";
@@ -289,6 +291,50 @@ function apiFetch(pathname: string, init: RequestInit): Promise<Response> {
 
 interface WorkspaceRootResponse {
   workspaceRoot: string;
+}
+
+/** The address of a change's tasks page: this app, in a new tab, with the
+ * same session (a-card-works-its-own-tasks). */
+function tasksPageAddress(changeName: string, line?: number): string {
+  const query = new URLSearchParams({ view: "tasks", change: changeName, ...(line !== undefined ? { line: String(line) } : {}) });
+  return `${window.location.origin}${window.location.pathname}?${query.toString()}${window.location.hash}`;
+}
+
+/** A card's task control, through the local server's own route. A refusal
+ * is an answer with status 200; anything else is a failure to say. */
+async function postChangeTasks(op: "task-set" | "task-commit" | "task-run" | "read", body: Record<string, unknown>): Promise<unknown> {
+  const route = op === "read" ? "/api/change-tasks" : `/api/change-tasks/${op.slice("task-".length)}`;
+  const response = await apiFetch(route, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
+  return payload;
+}
+
+/** A change's tasks, on a page of their own: what a card's name opens in a
+ * browser (a-card-works-its-own-tasks). */
+function TasksApp({ changeName, line }: { changeName: string; line?: number }) {
+  const { theme } = useStandaloneTheme(undefined, embedTheme(window.location.search));
+  const load = useCallback(async () => {
+    const workspaceRoot = await loadWorkspaceRoot();
+    return await postChangeTasks("read", { cwd: workspaceRoot, changeName }) as ChangeTasksReading;
+  }, [changeName]);
+  const [cwd, setCwd] = useState<string | undefined>(undefined);
+  useEffect(() => { void loadWorkspaceRoot().then(setCwd, () => undefined); }, []);
+  const actions = useMemo(() => cwd === undefined ? undefined : taskActionsOver(
+    (op, args) => postChangeTasks(op, { cwd, ...args }),
+    { openTargets: ["tasks"], canRun: true, open: () => undefined },
+  ), [cwd]);
+  const copyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
+  return (
+    <div className={theme === "dark" ? "openspec-standalone-app openspec-metro dark-side" : "openspec-standalone-app openspec-metro"}>
+      <style>{`${metroCss}\n${metroIconsCss}\n${shellThemeCss}`}</style>
+      <TasksPage changeName={changeName} load={load} copyText={copyText} {...(actions !== undefined ? { actions } : {})} {...(line !== undefined ? { line } : {})} />
+    </div>
+  );
 }
 
 async function loadWorkspaceRoot(): Promise<string> {
@@ -563,14 +609,40 @@ function StandaloneApp() {
   // host has its own editor and tree for that. There, opening a card posts
   // `openspec-ui/open-change` to the embedding panel instead, which relays
   // it (after checking its own origin) to `revealChange`.
+  //
+  // In a browser, a card's name opens the change's tasks in a new browser
+  // tab, read where the change is worked (a-card-works-its-own-tasks).
   const openChangeInEditor = useCallback((changeName: string) => {
     if (!isStandaloneHost) {
-      window.parent.postMessage({ type: "openspec-ui/open-change", changeName }, "*");
+      window.parent.postMessage({ type: "openspec-ui/open-change", changeName, target: "tasks" }, "*");
       return;
     }
-    setActiveTab("change-editor");
-    void loadChangeEditor(changeName);
-  }, [cwd]);
+    window.open(tasksPageAddress(changeName), "_blank", "noopener");
+  }, []);
+  // What a card does in its change's own worktree, through the local
+  // server's routes: a request names a change and a line, and the server
+  // finds the worktree (a-card-works-its-own-tasks).
+  const pipelineTaskActions = useMemo(() => taskActionsOver(
+    (op, args) => postChangeTasks(op, { cwd, ...args }),
+    isStandaloneHost
+      ? {
+        open: (changeName, target, line) => {
+          if (target === "tasks") window.open(tasksPageAddress(changeName, line), "_blank", "noopener");
+        },
+        openTargets: ["tasks"],
+        canRun: true,
+      }
+      : {
+        open: (changeName, target, line) => window.parent.postMessage({
+          type: "openspec-ui/open-change",
+          changeName,
+          target,
+          ...(line !== undefined ? { line } : {}),
+        }, "*"),
+        openTargets: ["tasks", "proposal", "design", "specs", "window", "copyPath"],
+        canRun: true,
+      },
+  ), [cwd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2627,6 +2699,7 @@ function StandaloneApp() {
                 onAskToStop={pipelineAskToStop}
                 onArchive={pipelineArchive}
                 onReadingChange={setPipelineReading}
+                taskActions={pipelineTaskActions}
               />
               {logsFor !== null
                 ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} />
@@ -2713,4 +2786,12 @@ const container = document.getElementById("root");
 if (!container) {
   throw new Error("standalone-entry: #root element not found");
 }
-createRoot(container).render(<StandaloneApp />);
+// `?view=tasks&change=<name>` is a change's tasks page, which a card's name
+// opens in a new browser tab (a-card-works-its-own-tasks); anything else is
+// the shell.
+const page = new URLSearchParams(window.location.search);
+const tasksOf = page.get("view") === "tasks" ? page.get("change") : null;
+const lineOf = Number(page.get("line"));
+createRoot(container).render(tasksOf !== null && tasksOf.length > 0
+  ? <TasksApp changeName={tasksOf} {...(Number.isInteger(lineOf) && lineOf >= 0 && page.get("line") !== null ? { line: lineOf } : {})} />
+  : <StandaloneApp />);

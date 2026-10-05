@@ -84,6 +84,10 @@ import { OptionalServerManager } from "./optional-server.js";
 import { recoveryDisabledMessage } from "./recovery-diagnostics.js";
 
 let runners: Map<string, AgentRunner> | undefined;
+/** The runners for another working directory of this repository, built as
+ * `runners` is, for that root: a change's own worktree, where a card runs a
+ * delegated task (a-card-works-its-own-tasks). */
+let runnersFor: ((root: string) => Map<string, AgentRunner>) | undefined;
 let auditLog: FileAuditLog | undefined;
 let optionalServer: OptionalServerManager | undefined;
 
@@ -536,13 +540,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const localLlmBaseUrl = localLlm.get<string>("baseUrl", "").trim();
     const localLlmModel = localLlm.get<string>("model", "").trim();
     const localLlmApiKey = await context.secrets.get(LOCAL_LLM_API_KEY_SECRET).then((value) => value, () => undefined);
+    const localLlmSettings = {
+      ...(localLlmBaseUrl.length > 0 ? { localLlmBaseUrl } : {}),
+      ...(localLlmModel.length > 0 ? { localLlmModel } : {}),
+      ...(localLlmApiKey !== undefined && localLlmApiKey.length > 0 ? { localLlmApiKey } : {}),
+    };
     runners = buildDefaultAgentRunners({
       workspaceRoot,
       auditLog,
       runLogs: createFileRunLogs(workspaceRoot),
-      ...(localLlmBaseUrl.length > 0 ? { localLlmBaseUrl } : {}),
-      ...(localLlmModel.length > 0 ? { localLlmModel } : {}),
-      ...(localLlmApiKey !== undefined && localLlmApiKey.length > 0 ? { localLlmApiKey } : {}),
+      ...localLlmSettings,
+      ...readAgentSwitches(),
+    });
+    // A worktree records its runs in its own log, as `openspec-ui-cli run
+    // --cwd` does there.
+    runnersFor = (root) => buildDefaultAgentRunners({
+      workspaceRoot: root,
+      auditLog: new FileAuditLog(auditLogPath(root)),
+      runLogs: createFileRunLogs(root),
+      ...localLlmSettings,
       ...readAgentSwitches(),
     });
     context.subscriptions.push(
@@ -816,6 +832,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         { select: true, focus: true, expand: true },
       );
     },
+    // A delegated task run from its card, in the change's own worktree
+    // (a-card-works-its-own-tasks).
+    runnersFor: (root) => runnersFor?.(root) ?? new Map(),
   });
   context.subscriptions.push(
     vscode.commands.registerCommand("openspec-ui.openPipeline", () => pipelinePanel.show()),

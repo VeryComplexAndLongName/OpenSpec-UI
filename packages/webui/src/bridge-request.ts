@@ -65,7 +65,11 @@ export type BridgeOperation =
     | "pipeline/live-runs"
     // A change's run logs, and one run's (a-change-shows-its-run-logs).
     | "pipeline/run-logs"
-    | "pipeline/run-log";
+    | "pipeline/run-log"
+    // A card's task controls (a-card-works-its-own-tasks).
+    | "pipeline/task-set"
+    | "pipeline/task-commit"
+    | "pipeline/task-run";
 
 export interface BridgeRequestMessage {
     type: typeof BRIDGE_REQUEST_MESSAGE_TYPE;

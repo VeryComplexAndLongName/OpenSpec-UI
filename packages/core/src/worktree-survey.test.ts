@@ -291,12 +291,35 @@ describe("surveyWorktrees — what a card needs from a task list (a-card-says-wh
 
     const [directory] = survey.directories;
     const change = directory?.readable ? directory.changes.find((candidate) => candidate.changeName === "rowed") : undefined;
+    // Each with its line, which a card's control names
+    // (a-card-works-its-own-tasks).
     expect(change?.tasks).toEqual([
-      { text: "An item before any heading", done: false, closedBy: "agent" },
-      { number: "1.1", text: "Done already", section: "Reading", done: true, closedBy: "agent" },
-      { number: "1.2", text: "**Human-only**: look at it", section: "Reading", done: false, closedBy: "person" },
-      { number: "2.1", text: "**Delegated to claude-cli**: check it", section: "Checking", done: false, closedBy: "named-agent", agent: "claude-cli" },
+      { text: "An item before any heading", lineNumber: 0, done: false, closedBy: "agent" },
+      { number: "1.1", text: "Done already", section: "Reading", lineNumber: 2, done: true, closedBy: "agent" },
+      { number: "1.2", text: "**Human-only**: look at it", section: "Reading", lineNumber: 3, done: false, closedBy: "person" },
+      { number: "2.1", text: "**Delegated to claude-cli**: check it", section: "Checking", lineNumber: 5, done: false, closedBy: "named-agent", agent: "claude-cli" },
     ]);
+  });
+
+  // a-card-works-its-own-tasks 2.2: a task's body travels with it, and a
+  // worktree made for a change is marked its own even where the change is
+  // not active in the main checkout yet.
+  it("carries a task's body, and marks a change's own worktree before the change reaches main", async () => {
+    const { main, rootSources } = await repository();
+    const worktree = path.join(path.dirname(main), "wt-fresh");
+    const dir = path.join(worktree, "openspec", "changes", "fresh");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, ".openspec.yaml"), `schema: spec-driven${LF}`, "utf8");
+    await writeFile(path.join(dir, "tasks.md"), ["- [x] 1.1 **Human-only**: look", "  Closed by ada on 2026-10-05: seen.", ""].join(LF), "utf8");
+    const { git } = recordingGit([{ path: main, branch: "main" }, { path: worktree, branch: "fresh" }]);
+
+    const survey = await surveyWorktrees({ workspaceRoot: main, git, rootSources });
+
+    const own = survey.directories.find((directory) => directory.path === worktree);
+    expect(own).toMatchObject({ ownChange: "fresh" });
+    expect(own).not.toHaveProperty("belongsTo");
+    const change = own?.readable ? own.changes.find((candidate) => candidate.changeName === "fresh") : undefined;
+    expect(change?.tasks?.[0]).toMatchObject({ lineNumber: 0, body: "Closed by ada on 2026-10-05: seen." });
   });
 
   it("carries none of the four for a change with no task list", async () => {

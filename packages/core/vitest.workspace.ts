@@ -63,6 +63,9 @@ const SHELL_STARTING_TESTS = [
   // Real git for init, commit, blame and checkout against a temporary
   // repository, at the times a test names (a-change-knows-its-stage).
   "src/change-stages.test.ts",
+  // Real git with a push to a local bare remote, for the task list a card
+  // commits (a-card-works-its-own-tasks).
+  "src/own-worktree-tasks.commit.test.ts",
 ];
 
 export default defineWorkspace([

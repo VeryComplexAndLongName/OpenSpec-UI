@@ -55,6 +55,13 @@ export interface TaskChecklistItem {
    * every marker and declaration is read from
    * (the-change-timeline-looks-like-the-mockup). */
   continued?: string;
+  /** Everything indented under the item, up to the next line that is not
+   * indented: the wrapped sentence and any record written under it, blank
+   * lines inside included. Dedented, with its line breaks, and cut at
+   * `TASK_BODY_LIMIT`. Absent for an item with nothing under it. For
+   * showing a task whole (a-card-works-its-own-tasks); nothing decides on
+   * it, and `continued` stays what every rule reads. */
+  body?: string;
   /** How a closed item ended (a-change-lands-with-nothing-open).
    * Absent for an open item; `done` for a closed one that declares
    * nothing, which is how every item written before this existed
@@ -359,15 +366,49 @@ export function parseTaskChecklist(content: string): TaskChecklistItem[] {
   return parseChecklist(content);
 }
 
+/** The most of a task's body a reading carries. A record under a task is a
+ * paragraph or two; a body longer than this is cut and says so, so one
+ * task cannot make every reading of the board heavy. */
+export const TASK_BODY_LIMIT = 4_000;
+
+/** A body's lines as one text: blank lines at either end dropped, the
+ * indent they share removed, line breaks kept. `undefined` for none. */
+function taskBodyOf(lines: readonly string[]): string | undefined {
+  let start = 0;
+  let end = lines.length;
+  while (start < end && (lines[start] ?? "").trim().length === 0) start += 1;
+  while (end > start && (lines[end - 1] ?? "").trim().length === 0) end -= 1;
+  // A leading tab counts as two spaces, the indent `tasks.md` is written
+  // with, so a body indented both ways still shares one indent.
+  const kept = lines.slice(start, end).map((line) => line.replace(/^[ \t]+/, (lead) => lead.replace(/\t/g, "  ")));
+  if (kept.length === 0) return undefined;
+  const indents = kept.filter((line) => line.trim().length > 0).map((line) => /^[ \t]*/.exec(line)?.[0].length ?? 0);
+  const shared = Math.min(...indents);
+  const text = kept.map((line) => (line.trim().length === 0 ? "" : line.slice(shared))).join("\n");
+  return text.length <= TASK_BODY_LIMIT ? text : `${text.slice(0, TASK_BODY_LIMIT)}\n… (cut at ${TASK_BODY_LIMIT} characters)`;
+}
+
 function parseChecklist(content: string): TaskChecklistItem[] {
   const items: TaskChecklistItem[] = [];
   let section: string | undefined;
   /** The item the lines being read still carry on, until one does not. */
   let continuing: TaskChecklistItem | undefined;
+  /** The item whose body the lines being read belong to, and those lines:
+   * everything indented under it, blank lines inside included, until a
+   * line that is not indented (a-card-works-its-own-tasks). */
+  let owning: { item: TaskChecklistItem; lines: string[] } | undefined;
+  const closeBody = (): void => {
+    if (owning !== undefined) {
+      const body = taskBodyOf(owning.lines);
+      if (body !== undefined) owning.item.body = body;
+    }
+    owning = undefined;
+  };
   content.split(/\r?\n/).forEach((line, lineNumber) => {
     const heading = SECTION_HEADING_RE.exec(line);
     if (heading) {
       continuing = undefined;
+      closeBody();
       const title = (heading[1] ?? "").replace(SECTION_NUMBER_RE, "").trim();
       section = title.length > 0 ? title : undefined;
       return;
@@ -380,8 +421,13 @@ function parseChecklist(content: string): TaskChecklistItem[] {
       } else {
         continuing = undefined;
       }
+      if (owning !== undefined) {
+        if (line.trim().length === 0 || /^[ \t]/.test(line)) owning.lines.push(line);
+        else closeBody();
+      }
       return;
     }
+    closeBody();
     const text = (match[2] ?? "").trim();
     const done = (match[1] ?? "").toLowerCase() === "x";
     const check = parseTaskCheckDeclaration(text);
@@ -399,7 +445,9 @@ function parseChecklist(content: string): TaskChecklistItem[] {
     }
     items.push(item);
     continuing = item;
+    owning = { item, lines: [] };
   });
+  closeBody();
   // The ending is read once the continued lines are on the item: a
   // waiver or a deferral is usually written under the item rather than
   // on its line.

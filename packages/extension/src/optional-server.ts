@@ -45,6 +45,14 @@ export class OptionalServerManager {
       port: 0,
       auditLog,
       runners: buildDefaultAgentRunners({ workspaceRoot: this.workspaceRoot, auditLog, runLogs: createFileRunLogs(this.workspaceRoot), ...this.agentSwitches }),
+      // A change's own worktree, where a card runs a delegated task, records
+      // in its own log (a-card-works-its-own-tasks).
+      runnersFor: (root: string) => buildDefaultAgentRunners({
+        workspaceRoot: root,
+        auditLog: new FileAuditLog(auditLogPath(root)),
+        runLogs: createFileRunLogs(root),
+        ...this.agentSwitches,
+      }),
       staticAssets: {
         indexHtmlPath: path.join(this.distDir, "standalone", "index.html"),
         appJsPath: path.join(this.distDir, "standalone", "app.js"),

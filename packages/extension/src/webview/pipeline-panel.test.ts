@@ -121,6 +121,12 @@ function createPipelinePanel(overrides: {
     refreshRuns: vi.fn(async (survey: unknown) => survey),
     statusDirectory: vi.fn(overrides.statusDirectory ?? (async () => "/wt/repo/.agent-status")),
     findActiveChange: vi.fn(async (_root: string, name: string) => (name === "alpha" ? ACTIVE_CHANGE : undefined)),
+    // `beta` is worked in its own worktree and is not in this checkout at
+    // all, as a change is until its pull request merges
+    // (a-card-works-its-own-tasks).
+    ownWorktree: vi.fn(async (_root: string, name: string) => (name === "beta"
+      ? { ok: true as const, path: "/wt/beta", branch: "beta", tasksPath: "/wt/beta/openspec/changes/beta/tasks.md" }
+      : { ok: false as const, kind: "no-worktree" as const, reason: `${name} has no worktree of its own` })),
     standingsNow: vi.fn(async () => ({
       readAt: "2026-09-14T00:00:00.000Z",
       standings: [],
@@ -255,6 +261,26 @@ describe("PipelinePanel — answering the view", () => {
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:1", ok: false, error: "a change name is required" }));
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:2", ok: false, error: "a run id is required" }));
     expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "g:3", ok: false, error: "no log is kept for run never-ran" }));
+  });
+
+  // a-card-works-its-own-tasks 3.2: a card's task controls, refused by
+  // shape before anything is looked up, and answered with core's refusal
+  // where the change has no worktree of its own.
+  it("refuses a task control that names no change or no line, and answers core's refusal for one with no worktree", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "t:0", op: "pipeline/task-set", args: { changeName: "../x", lineNumber: 1, expectedText: "a", done: true } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "t:1", op: "pipeline/task-commit", args: {} });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "t:2", op: "pipeline/task-run", args: { changeName: "alpha", lineNumber: 1 } });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/request", id: "t:3", op: "pipeline/task-commit", args: { changeName: "alpha" } });
+
+    const post = created[0]!.webview.postMessage;
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "t:0", ok: false }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "t:1", ok: false, error: "a change name is required" }));
+    // No runners were given to this panel, so none is started.
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "t:2", ok: false }));
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ id: "t:3", ok: true, value: expect.objectContaining({ ok: false, kind: "no-worktree" }) }));
   });
 
   // a-team-names-its-columns: the team's columns, from this host's own root.
@@ -543,7 +569,7 @@ describe("PipelinePanel — file events", () => {
 });
 
 describe("PipelinePanel — opening a change", () => {
-  it("reveals an active change in the Changes tree and opens its proposal", async () => {
+  it("reveals a change of this checkout in the Changes tree and opens its tasks in a tab of their own", async () => {
     const { pipeline, revealChange } = createPipelinePanel();
     pipeline.show();
 
@@ -551,11 +577,42 @@ describe("PipelinePanel — opening a change", () => {
 
     expect(revealChange).toHaveBeenCalledWith(ACTIVE_CHANGE);
     const opened = vscodeMock.workspace.openTextDocument.mock.calls[0]?.[0] as { fsPath: string } | undefined;
-    expect(opened?.fsPath.replaceAll("\\", "/")).toBe("/repo/openspec/changes/alpha/proposal.md");
-    expect(vscodeMock.window.showTextDocument).toHaveBeenCalledOnce();
+    expect(opened?.fsPath.replaceAll("\\", "/")).toBe("/repo/openspec/changes/alpha/tasks.md");
+    expect(vscodeMock.window.showTextDocument).toHaveBeenCalledWith(expect.anything(), { preview: false });
   });
 
-  it("opens nothing for a name that is not an active change, and says so", async () => {
+  // a-card-works-its-own-tasks 3.2: the change's own worktree is where it is
+  // worked, and where it usually only is until its pull request merges.
+  it("opens a change worked in its own worktree from there, at a line where one is named", async () => {
+    const { pipeline, revealChange } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "beta", line: 12 });
+
+    expect(revealChange).not.toHaveBeenCalled();
+    const opened = vscodeMock.workspace.openTextDocument.mock.calls[0]?.[0] as { fsPath: string } | undefined;
+    expect(opened?.fsPath.replaceAll("\\", "/")).toBe("/wt/beta/openspec/changes/beta/tasks.md");
+    const options = (vscodeMock.window.showTextDocument.mock.calls[0] as unknown as [unknown, { preview: boolean; selection: { start: { line: number } } }])[1];
+    expect(options.preview).toBe(false);
+    expect(options.selection.start.line).toBe(0);
+  });
+
+  it("opens the worktree in a new window, copies its path, and reveals its specs, for the menu", async () => {
+    const { pipeline } = createPipelinePanel();
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "beta", target: "window" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "beta", target: "copyPath" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/open-change", changeName: "beta", target: "specs" });
+
+    const commands = vscodeMock.commands.executeCommand.mock.calls as unknown as Array<[string, { fsPath: string }, unknown?]>;
+    expect(commands.find(([id]) => id === "vscode.openFolder")?.[1].fsPath).toBe("/wt/beta");
+    expect(commands.find(([id]) => id === "vscode.openFolder")?.[2]).toEqual({ forceNewWindow: true });
+    expect(vscodeMock.env.clipboard.writeText).toHaveBeenCalledWith("/wt/beta");
+    expect(commands.find(([id]) => id === "revealFileInOS")?.[1].fsPath.replaceAll("\\", "/")).toBe("/wt/beta/openspec/changes/beta/specs");
+  });
+
+  it("opens nothing for a change that is neither in its own worktree nor here, and says so", async () => {
     const { pipeline, revealChange } = createPipelinePanel();
     pipeline.show();
 
@@ -563,7 +620,7 @@ describe("PipelinePanel — opening a change", () => {
 
     expect(revealChange).not.toHaveBeenCalled();
     expect(vscodeMock.workspace.openTextDocument).not.toHaveBeenCalled();
-    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("gone-already is not an active change"));
+    expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("gone-already is neither in a worktree of its own"));
   });
 
   it("refuses a name containing a path separator before looking anything up", async () => {

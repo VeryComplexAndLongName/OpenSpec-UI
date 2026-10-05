@@ -41,6 +41,12 @@ import {
   isRunLogId,
   listRunLogs,
   readRunLog,
+  commitTaskList,
+  resolveOwnWorktree,
+  resolveRunner,
+  runOwnDelegatedItem,
+  setTaskDone,
+  type AgentRunner,
 } from "@openspec-ui/core";
 import { EMBED_THEME_PARAMETER, editorThemeName, frameFillingStyle } from "./embedded-page.js";
 import { REQUEST_MESSAGE_TYPE, RESPONSE_MESSAGE_TYPE } from "./harness-requests.js";
@@ -135,6 +141,8 @@ export interface PipelineReaders {
   refreshRuns: (survey: WorktreeSurvey) => Promise<WorktreeSurvey>;
   statusDirectory: (workspaceRoot: string) => Promise<string>;
   findActiveChange: (workspaceRoot: string, changeName: string) => Promise<ActiveChange | undefined>;
+  /** The change's own worktree, where it is worked (a-card-works-its-own-tasks). */
+  ownWorktree: (workspaceRoot: string, changeName: string) => ReturnType<typeof resolveOwnWorktree>;
   /** Where every change stands, with the refs fetched now
    * (a-change-says-where-it-stands). */
   standingsNow: (workspaceRoot: string) => Promise<ChangeStandings>;
@@ -185,6 +193,7 @@ const DEFAULT_READERS: PipelineReaders = {
     (await discoverOpenSpecWorkspace(workspaceRoot, { changes: "active", drafts: true })).changes.find((change) => change.name === changeName),
   myLabel: (statusDirectory) => myRosterLabel(statusDirectory),
   askLiveRun: (options) => askLiveRunToStop(options),
+  ownWorktree: (workspaceRoot, changeName) => resolveOwnWorktree({ repositoryRoot: workspaceRoot, changeName }),
 };
 
 export interface PipelinePanelDeps {
@@ -213,7 +222,14 @@ export interface PipelinePanelDeps {
    * message bridge (the-pipeline-answers-while-a-run-works). The panel never
    * starts the server itself. */
   getLocalServerUrl?: () => string | undefined;
+  /** The runners for a change's own worktree, where a card runs a delegated
+   * task (a-card-works-its-own-tasks). Without it, no task is run. */
+  runnersFor?: (workspaceRoot: string) => Map<string, AgentRunner>;
 }
+
+/** What a card's name, or its menu, asks to open (a-card-works-its-own-tasks). */
+export type OpenChangeTarget = "tasks" | "proposal" | "design" | "specs" | "window" | "copyPath";
+const OPEN_CHANGE_TARGETS: ReadonlySet<string> = new Set(["tasks", "proposal", "design", "specs", "window", "copyPath"]);
 
 interface PipelineRequest {
   id: string;
@@ -368,12 +384,16 @@ export class PipelinePanel {
 
   private async handleMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === OPEN_CHANGE_MESSAGE_TYPE) {
-      const { changeName, origin } = message as { changeName?: unknown; origin?: unknown };
+      const { changeName, origin, target, line } = message as { changeName?: unknown; origin?: unknown; target?: unknown; line?: unknown };
       // In embed mode, only a message carrying this embed's own origin is
       // honoured — one from any other origin is ignored, whatever change
       // name it names (the-pipeline-answers-while-a-run-works).
       if (this.embedOrigin !== undefined && origin !== this.embedOrigin) return;
-      await this.openChange(changeName);
+      await this.openChange(
+        changeName,
+        typeof target === "string" && OPEN_CHANGE_TARGETS.has(target) ? target as OpenChangeTarget : "tasks",
+        typeof line === "number" && Number.isInteger(line) && line >= 0 ? line : undefined,
+      );
       return;
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CHANGE_MESSAGE_TYPE) {
@@ -479,6 +499,62 @@ export class PipelinePanel {
             return;
           }
           reply({ ok: true, value: records });
+          return;
+        }
+        // A card's task controls (a-card-works-its-own-tasks). Each names a
+        // change and a line; core resolves the change's own worktree from
+        // this host's root, so nothing a message names is written to.
+        case "pipeline/task-set": {
+          const args = request.args as { changeName?: unknown; lineNumber?: unknown; expectedText?: unknown; done?: unknown; note?: unknown } | undefined;
+          if (!isValidChangeName(args?.changeName) || typeof args?.lineNumber !== "number" || typeof args.expectedText !== "string"
+            || typeof args.done !== "boolean" || (args.note !== undefined && typeof args.note !== "string")) {
+            reply({ ok: false, error: "a change name, a line, its text and done are required" });
+            return;
+          }
+          reply({
+            ok: true,
+            value: await setTaskDone({
+              repositoryRoot: workspaceRoot,
+              changeName: args.changeName,
+              lineNumber: args.lineNumber,
+              expectedText: args.expectedText,
+              done: args.done,
+              ...(typeof args.note === "string" ? { note: args.note } : {}),
+            }),
+          });
+          return;
+        }
+        case "pipeline/task-commit": {
+          const changeName = (request.args as { changeName?: unknown } | undefined)?.changeName;
+          if (!isValidChangeName(changeName)) {
+            reply({ ok: false, error: "a change name is required" });
+            return;
+          }
+          reply({ ok: true, value: await commitTaskList({ repositoryRoot: workspaceRoot, changeName }) });
+          return;
+        }
+        case "pipeline/task-run": {
+          const args = request.args as { changeName?: unknown; lineNumber?: unknown } | undefined;
+          const runnersFor = this.deps.runnersFor;
+          if (!isValidChangeName(args?.changeName) || typeof args?.lineNumber !== "number" || runnersFor === undefined) {
+            reply({ ok: false, error: "a change name and a line are required, and this host must run agents" });
+            return;
+          }
+          reply({
+            ok: true,
+            value: await runOwnDelegatedItem({
+              repositoryRoot: workspaceRoot,
+              changeName: args.changeName,
+              lineNumber: args.lineNumber,
+              runnersFor: (root) => {
+                const runners = runnersFor(root);
+                return (agentId) => {
+                  const runner = resolveRunner(runners, agentId);
+                  return runner !== undefined && this.deps.liveRuns !== undefined ? this.deps.liveRuns.runner(runner) : runner;
+                };
+              },
+            }),
+          });
           return;
         }
         case "pipeline/refresh": {
@@ -612,23 +688,66 @@ export class PipelinePanel {
     void panel.webview.postMessage(response);
   }
 
-  private async openChange(changeName: unknown): Promise<void> {
+  /** Opens what a card asks for, from where the change is worked: its own
+   * worktree where it has one, otherwise this checkout's copy
+   * (a-card-works-its-own-tasks). A change worked in its own worktree
+   * usually is not in this checkout at all until its pull request merges,
+   * which is why looking here alone opened nothing. The paths come from
+   * this host's own lookup, never from the message. */
+  private async openChange(changeName: unknown, target: OpenChangeTarget = "tasks", line?: number): Promise<void> {
     const workspaceRoot = this.deps.getWorkspaceRoot();
     if (!workspaceRoot) return;
     if (!isValidChangeName(changeName)) {
       void vscode.window.showInformationMessage(`OpenSpec Workbench: "${String(changeName)}" is not a change name this workspace can have.`);
       return;
     }
-    const change = await this.readers.findActiveChange(workspaceRoot, changeName);
-    if (!change) {
-      void vscode.window.showInformationMessage(
-        `OpenSpec Workbench: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
-      );
+    let root: string;
+    let changeDir: string;
+    const own = await this.readers.ownWorktree(workspaceRoot, changeName).catch(() => undefined);
+    if (own?.ok === true) {
+      root = own.path;
+      changeDir = path.dirname(own.tasksPath);
+    } else {
+      const change = await this.readers.findActiveChange(workspaceRoot, changeName);
+      if (!change) {
+        void vscode.window.showInformationMessage(
+          `OpenSpec Workbench: ${changeName} is neither in a worktree of its own nor an active change of this checkout — it may have been archived or deleted since the Pipeline was read.`,
+        );
+        return;
+      }
+      await this.deps.revealChange(change);
+      root = workspaceRoot;
+      changeDir = change.path;
+    }
+
+    if (target === "window") {
+      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(root), { forceNewWindow: true });
       return;
     }
-    await this.deps.revealChange(change);
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(change.path, "proposal.md")));
-    await vscode.window.showTextDocument(document, { preview: false });
+    if (target === "copyPath") {
+      await vscode.env.clipboard.writeText(root);
+      void vscode.window.showInformationMessage(`OpenSpec Workbench: copied ${root}`);
+      return;
+    }
+    if (target === "specs") {
+      // The folder in the system's file manager: a worktree is outside this
+      // window's folder, so the Explorer cannot show it.
+      await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(path.join(changeDir, "specs")));
+      return;
+    }
+    const file = path.join(changeDir, `${target}.md`);
+    let document: vscode.TextDocument;
+    try {
+      document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+    } catch {
+      void vscode.window.showInformationMessage(`OpenSpec Workbench: ${changeName} has no ${target}.md in ${root}.`);
+      return;
+    }
+    const at = line !== undefined ? new vscode.Position(Math.min(line, Math.max(document.lineCount - 1, 0)), 0) : undefined;
+    await vscode.window.showTextDocument(document, {
+      preview: false,
+      ...(at !== undefined ? { selection: new vscode.Range(at, at) } : {}),
+    });
   }
 
   /** Embeds the local server's own Pipeline tab, the way `AiPanel`'s
