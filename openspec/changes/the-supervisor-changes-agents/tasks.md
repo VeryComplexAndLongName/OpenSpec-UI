@@ -79,7 +79,7 @@ allows it, under a configured policy, and always says so.
   cli 201, webui 711, server 122, extension 502 passed.
 - [x] 4.2 `openspec validate the-supervisor-changes-agents --strict`, and
   the merge gate with the worktree's absolute path as `--cwd`.
-  Valid; the gate's record is in the pull request.
+  Valid; the gate with `--cwd C:/Prog/.worktrees/OpenSpec-UI/the-supervisor-changes-agents` reports only 4.4 open (Human-only).
 - [x] 4.3 One live move end to end: a scratch change whose `apply` agent is
   not on the PATH, under `act` with a fallback the policy allows, run with
   `openspec-ui-cli run`; record the printed move, the audit entries, and
