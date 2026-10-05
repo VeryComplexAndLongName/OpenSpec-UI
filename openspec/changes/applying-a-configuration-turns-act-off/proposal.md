@@ -40,8 +40,8 @@ follow, and are refused only where refusing is truly needed.
 
 ## Impact
 
-- `packages/core`: `harness-config.ts` (the rule as one function),
-  `harness-templates.ts` (`changeTemplateConfigToWrite`).
+- `packages/core`: `harness-templates.ts` (the rule as one function, and
+  `changeTemplateConfigToWrite` applying it).
 - `packages/webui`: `harness-settings-parts.tsx` (`changeConfigToSave`, the
   applied message), `ChangeHarnessSettingsView.tsx` (the note).
 - `packages/extension`: `commands.ts` (the applied note).

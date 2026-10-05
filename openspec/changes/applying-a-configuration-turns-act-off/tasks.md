@@ -50,9 +50,11 @@ person can follow, and are refused only where truly needed.
   Typecheck clean; lint 0 errors (3 warnings in lines this change did
   not touch); seven script tests pass. Core 2101, core-git-subprocess 67,
   cli 201, webui 713, server 122, extension 503 passed.
-- [ ] 4.2 `openspec validate applying-a-configuration-turns-act-off
+- [x] 4.2 `openspec validate applying-a-configuration-turns-act-off
   --strict`, and the merge gate with the worktree's absolute path as
   `--cwd`.
+  Valid; the gate with `--cwd C:/Prog/.worktrees/OpenSpec-UI/applying-a-configuration-turns-act-off`
+  reports only 4.3 open (Human-only).
 - [ ] 4.3 **Human-only**: in the owner's workspace, apply a named
   configuration to a change under Act, and change its autonomy level in
   its Harness Settings; both apply, and say Act is off.
