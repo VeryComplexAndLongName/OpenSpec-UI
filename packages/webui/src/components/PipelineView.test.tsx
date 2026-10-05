@@ -1866,3 +1866,130 @@ describe("PipelineView - what the default branch archived", () => {
     expect(screen.queryByTestId("pipeline-node-gone")).toBeNull();
   });
 });
+
+// a-card-works-its-own-tasks 3.3: a task shown whole, and what a card may do
+// in its change's own worktree and nowhere else.
+describe("PipelineView — a card works its own tasks", () => {
+  const ownRows = [
+    { number: "1.1", text: "Write the module", section: "Work", lineNumber: 2, done: true, closedBy: "agent" as const },
+    {
+      number: "1.2",
+      text: "**Human-only**: see it",
+      section: "Work",
+      lineNumber: 3,
+      body: "in the Pipeline.\n\nAn earlier remark.",
+      done: false,
+      closedBy: "person" as const,
+    },
+  ];
+  // `fresh` is worked in the worktree made for it, and is not in this
+  // checkout at all, as a change is until its pull request merges.
+  const own = (overrides: Partial<Extract<SurveyedDirectory, { readable: true }>> = {}) => theirs({
+    path: "/wt/repo/fresh",
+    label: "fresh",
+    branch: "fresh",
+    ownChange: "fresh",
+    changes: [{ changeName: "fresh", tasksDone: 1, tasksTotal: 2, blockers: [], alsoIn: [], tasks: ownRows }],
+    ...overrides,
+  });
+  const actions = () => ({
+    set: vi.fn(async () => ({ ok: true, said: "Closed 1.2." })),
+    commit: vi.fn(async () => ({ ok: true, said: "Committed abc1234 and pushed to origin/fresh." })),
+    run: vi.fn(async () => ({ ok: true, said: "Ran." })),
+    open: vi.fn(),
+    openTargets: ["tasks", "proposal", "copyPath"] as const,
+  });
+
+  async function openOwnCard(props: Partial<Parameters<typeof PipelineView>[0]> = {}) {
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory(), own())}
+        {...props}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("pipeline-directory-0-node-fresh-tasks-toggle"));
+  }
+
+  it("holds a task's whole text in the hint of its row", async () => {
+    await openOwnCard();
+    const row = screen.getByTestId("pipeline-directory-0-node-fresh-tasks").querySelector("[data-word='only a person can close it']");
+    expect(row?.getAttribute("title")).toBe("1.2 **Human-only**: see it (only a person can close it)\n\nin the Pipeline.\n\nAn earlier remark.");
+  });
+
+  it("opens a task whole beside the board, and closes a Human-only task only with a note", async () => {
+    const taskActions = actions();
+    await openOwnCard({ taskActions: taskActions as never });
+
+    fireEvent.click(screen.getByTestId("pipeline-directory-0-node-fresh-tasks-row-1.2"));
+    const panel = screen.getByTestId("task-panel");
+    expect(within(panel).getByTestId("task-panel-body").textContent).toContain("An earlier remark.");
+
+    fireEvent.click(within(panel).getByTestId("task-panel-set"));
+    expect(within(panel).getByTestId("task-panel-said").textContent).toContain("closed with a note");
+    expect(taskActions.set).not.toHaveBeenCalled();
+
+    fireEvent.change(within(panel).getByTestId("task-panel-note"), { target: { value: "seen in the Pipeline" } });
+    fireEvent.click(within(panel).getByTestId("task-panel-set"));
+    await waitFor(() => expect(taskActions.set).toHaveBeenCalledWith("fresh", { lineNumber: 3, text: "1.2 **Human-only**: see it" }, true, "seen in the Pipeline"));
+    expect(await within(panel).findByText("Closed 1.2.")).toBeTruthy();
+  });
+
+  it("commits and pushes from the card's list, and goes to a task's line", async () => {
+    const taskActions = actions();
+    await openOwnCard({ taskActions: taskActions as never });
+
+    fireEvent.click(screen.getByTestId("pipeline-directory-0-node-fresh-task-list"));
+    fireEvent.click(within(screen.getByTestId("task-panel")).getByTestId("task-panel-commit"));
+    await waitFor(() => expect(taskActions.commit).toHaveBeenCalledWith("fresh"));
+    fireEvent.click(within(screen.getByTestId("task-panel")).getByTestId("task-panel-open-proposal"));
+    expect(taskActions.open).toHaveBeenCalledWith("fresh", "proposal");
+
+    fireEvent.click(screen.getByTestId("pipeline-directory-0-node-fresh-tasks-row-1.2"));
+    fireEvent.click(within(screen.getByTestId("task-panel")).getByTestId("task-panel-goto"));
+    expect(taskActions.open).toHaveBeenCalledWith("fresh", "tasks", 3);
+  });
+
+  it("opens the change from its name in its own worktree, and offers nothing on a card that is not its own", async () => {
+    const onOpenChange = vi.fn();
+    const taskActions = actions();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory(), own(), theirs({ changes: [{ changeName: "their-change", tasksDone: 0, tasksTotal: 1, blockers: [], alsoIn: [], tasks: [ownRows[1]!] }] }))}
+        onOpenChange={onOpenChange}
+        taskActions={taskActions as never}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("pipeline-directory-0-node-fresh-open"));
+    expect(onOpenChange).toHaveBeenCalledWith("fresh");
+
+    // Another directory's change: its name is text, it has no list actions,
+    // and its task opens read-only.
+    expect(screen.queryByTestId("pipeline-directory-1-node-their-change-open")).toBeNull();
+    expect(screen.queryByTestId("pipeline-directory-1-node-their-change-task-list")).toBeNull();
+    fireEvent.click(screen.getByTestId("pipeline-directory-1-node-their-change-tasks-toggle"));
+    fireEvent.click(screen.getByTestId("pipeline-directory-1-node-their-change-tasks-row-1.2"));
+    const panel = screen.getByTestId("task-panel");
+    expect(within(panel).getByTestId("task-panel-where").textContent).toContain("Nothing here acts on it");
+    expect(within(panel).queryByTestId("task-panel-form")).toBeNull();
+    expect(within(panel).queryByTestId("task-panel-commit")).toBeNull();
+  });
+
+  it("hides a card's done tasks, makes it as tall as what it lists, and keeps the choice", async () => {
+    const remembered: PipelineViewMemory[] = [];
+    await openOwnCard({ viewState: { read: () => undefined, write: (memory) => { remembered.push(memory); } } });
+    const list = screen.getByTestId("pipeline-directory-0-node-fresh-tasks");
+    expect(list.querySelectorAll("li")).toHaveLength(2);
+    const heightOf = () => Number(screen.getByTestId("pipeline-directory-0-node-fresh").style.getPropertyValue("--h"));
+    const before = heightOf();
+
+    fireEvent.click(screen.getByTestId("pipeline-directory-0-node-fresh-hide-done"));
+
+    expect(screen.getByTestId("pipeline-directory-0-node-fresh-tasks").querySelectorAll("li")).toHaveLength(1);
+    expect(heightOf()).toBeLessThan(before);
+    expect(remembered.at(-1)?.hideDone).toEqual([{ directory: "/wt/repo/fresh", changeName: "fresh" }]);
+  });
+});

@@ -29,6 +29,12 @@ export interface SurveyedTask {
   closedBy: "agent" | "person" | "named-agent";
   /** The agent a `named-agent` item is delegated to. */
   agent?: string;
+  /** The item's line in `tasks.md`, counted from 0: what a control acting
+   * on this one task names (a-card-works-its-own-tasks). */
+  lineNumber?: number;
+  /** Everything written under the item: the rest of its sentence and any
+   * record under it, with its line breaks (a-card-works-its-own-tasks). */
+  body?: string;
 }
 
 /** One change in one working directory's own queue.
@@ -129,6 +135,12 @@ interface SurveyedDirectoryBase {
    * above, read from here, and is not drawn a second time among this
    * directory's changes (ADR 0029). */
   belongsTo?: string;
+  /** The change this directory was made for, by its branch, whether or not
+   * that change is active in the main working directory yet: a change is
+   * usually only here until its pull request merges. A card for that change
+   * read from here is the change's own and may act on it (ADR 0026,
+   * amended 2026-10-05; a-card-works-its-own-tasks). */
+  ownChange?: string;
   /** What the runs reporting from this directory say. Empty means no run
    * this product started reports here — never that nobody is in it: a
    * person editing, or an agent started some other way, writes no record. */

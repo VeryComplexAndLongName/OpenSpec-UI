@@ -256,6 +256,45 @@ is reported, not forbidden, as the rules above already hold.
 The proposal that implements this measures that cost on this repository
 before it is accepted.
 
+## Amendment, 2026-10-05: a change's own worktree is worked from its card
+
+The owner works each change in its own worktree (ADR 0022, the runbook's
+"Where an agent works"), and the card already reads that worktree. So
+every action this ADR withholds from a foreign directory was also
+withheld from the one place the work is: the card could not open the
+change's files, and a person closing a **Human-only** item had to find
+`tasks.md` under `.worktrees` by hand. The owner asked on 2026-10-05 for
+the card to open the change's task list, show each task whole, and tick
+or untick a task, "only for your own worktree".
+
+**A change's own worktree is not foreign to its card.** A worktree is the
+change's own when it is a working directory of this repository whose name
+is the change's name (the survey's `belongsTo`), so it was made for that
+change. From that change's card, and from nowhere else, a person may:
+
+- open the change's files there, in an editor or a browser tab;
+- tick or untick one task in its `tasks.md`, with a note written under it;
+- commit that `tasks.md` alone and push the worktree's branch;
+- start the agent a delegated task in it names.
+
+**The directory is resolved by the host, never named by the request.** A
+request carries the change's name and the task's line. The host finds the
+change's own worktree with the `git worktree list` it already runs, and
+refuses where there is none. A path from a request is never written to,
+for the reason this ADR gives for the pair of a directory and a name.
+
+**Every other directory stays observed, never touched.** This checkout is
+not offered either: it stays on the default branch, and the work is not
+done there. A worktree made for another change, or any directory not
+listed by this repository, carries no action, as above.
+
+**Nothing is written while a run works there.** A run that holds the
+worktree's lease, or whose live record names the change in that
+directory, may be editing the same file; a tick then refuses and says
+which run. Git is run in the change's own worktree only for the commit
+and push a person asks for, which this amendment allows there and nowhere
+else.
+
 ## Alternatives considered
 
 **A central registry or daemon agents report to.** Rejected: the

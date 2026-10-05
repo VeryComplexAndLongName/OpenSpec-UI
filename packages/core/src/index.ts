@@ -113,6 +113,7 @@ export * from "./pipeline-card.js";
 export * from "./hints.js";
 export * from "./failure-diagnosis.js";
 export * from "./supervisor.js";
+export * from "./own-worktree-tasks.js";
 export * from "./change-layout.js";
 export * from "./board-columns-facts.js";
 export * from "./board-columns.js";

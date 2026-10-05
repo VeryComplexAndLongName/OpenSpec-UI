@@ -113,7 +113,7 @@ export interface RestRequestPolicy {
 
 class PayloadTooLargeError extends Error {}
 
-async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Promise<unknown> {
+export async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
   for await (const chunk of req) {
@@ -125,12 +125,12 @@ async function readJsonBody(req: IncomingMessage, maxPayloadBytes: number): Prom
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
+export function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   res.writeHead(statusCode, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
 }
 
-function sendBodyError(res: ServerResponse, error: unknown): void {
+export function sendBodyError(res: ServerResponse, error: unknown): void {
   if (error instanceof PayloadTooLargeError) {
     sendJson(res, 413, { error: "request payload is too large" });
   } else {
@@ -138,7 +138,7 @@ function sendBodyError(res: ServerResponse, error: unknown): void {
   }
 }
 
-function authorizeCwd(res: ServerResponse, policy: RestRequestPolicy, cwd: string): boolean {
+export function authorizeCwd(res: ServerResponse, policy: RestRequestPolicy, cwd: string): boolean {
   if (policy.isCwdAllowed(cwd)) return true;
   sendJson(res, 403, { error: "cwd is outside the configured workspace" });
   return false;

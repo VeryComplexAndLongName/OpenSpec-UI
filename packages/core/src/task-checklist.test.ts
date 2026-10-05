@@ -18,7 +18,9 @@ import {
   getArchivedChangeSummary,
   delegatedAgentFor,
   isHumanOnlyTask,
+  parseTaskChecklist,
   readTaskChecklist,
+  TASK_BODY_LIMIT,
 } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
@@ -130,6 +132,22 @@ describe("readTaskChecklist", () => {
       ["1.3 Wrapped over", "two more lines"],
     ]);
     expect(items[1]).not.toHaveProperty("continued");
+    // a-card-works-its-own-tasks 2.2: the body is everything indented under
+    // an item, the record after a blank line and a nested list included,
+    // with its line breaks; a heading ends it.
+    expect(items.map((item) => item.body)).toEqual([
+      "package's count.\n\nDone: every package passes.",
+      "- a nested note is not the sentence",
+      "two more\nlines",
+    ]);
+  });
+
+  it("cuts a body at its limit and says so (a-card-works-its-own-tasks)", () => {
+    const long = "x".repeat(TASK_BODY_LIMIT + 50);
+    const [item] = parseTaskChecklist(`- [ ] 1.1 A task\n  ${long}\n`);
+    expect(item?.body?.length).toBeLessThan(TASK_BODY_LIMIT + 60);
+    expect(item?.body).toMatch(/cut at 4000 characters\)$/);
+    expect(parseTaskChecklist("- [ ] 1.1 Alone\n- [ ] 1.2 Next\n")[0]).not.toHaveProperty("body");
   });
 
   it("reads archived changes from openspec/changes/archive/<name>/", async () => {

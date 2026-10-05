@@ -27,6 +27,7 @@ it — start there and come back here for the detail.
 | Run two changes at the same time | [How to](docs/how-to/run-changes-side-by-side.md) | [CI CLI](README.md#ci-cli-merge-gate) |
 | Find out what would stop a run here | — | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
 | Learn why a run failed, or whether one has gone quiet | — | [`supervisor`](#supervisor), and `openspec-ui-cli advise` |
+| Close a task, or open a change's tasks, from its card | [How to](docs/how-to/close-a-task-from-its-card.md) | `openspec-ui-cli task` |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →

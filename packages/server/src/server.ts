@@ -62,6 +62,12 @@ import {
   handleTemplatesListRequest,
   handleTemplatesRenderRequest,
 } from "./rest.js";
+import {
+  handleChangeTaskRunRequest,
+  handleChangeTaskSetRequest,
+  handleChangeTasksCommitRequest,
+  handleChangeTasksRequest,
+} from "./own-worktree-rest.js";
 import { handleSocketMessage } from "./websocket.js";
 import { tryServeStatic, type StaticAssetPaths } from "./static.js";
 import {
@@ -98,6 +104,11 @@ export interface ServerOptions {
   /** Tests only: substitutes the `AgentRunner` registry instead of the
    * real CLI adapters (see server.test.ts) — not used in production. */
   runners?: Map<string, AgentRunner>;
+  /** The runners for another working directory of this repository — a
+   * change's own worktree, where a card runs a delegated task
+   * (a-card-works-its-own-tasks). Built as `runners` is, for that root.
+   * Absent, `runners` serves every directory, which is what a test wants. */
+  runnersFor?: (workspaceRoot: string) => Map<string, AgentRunner>;
   /** Explicit paths to index.html/app.js — needed when `server` is
    * embedded into a bundled CJS host (see static.ts, `extension`'s
    * optional-server.ts). */
@@ -340,6 +351,22 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
     }
     if (req.method === "POST" && req.url === "/api/delegated-item/run") {
       void handleDelegatedItemRunRequest(req, res, runners, requestPolicy, options.auditLog, liveRuns);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-tasks") {
+      void handleChangeTasksRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-tasks/set") {
+      void handleChangeTaskSetRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-tasks/commit") {
+      void handleChangeTasksCommitRequest(req, res, requestPolicy);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/change-tasks/run") {
+      void handleChangeTaskRunRequest(req, res, requestPolicy, options.runnersFor ?? (() => runners), liveRuns);
       return;
     }
     if (req.method === "POST" && req.url === "/api/scheduled-runs") {

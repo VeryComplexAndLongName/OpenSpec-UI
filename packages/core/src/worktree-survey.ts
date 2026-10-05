@@ -161,6 +161,8 @@ function surveyedTask(item: TaskChecklistItem): SurveyedTask {
     ...(number !== undefined ? { number } : {}),
     text,
     ...(item.section !== undefined ? { section: item.section } : {}),
+    lineNumber: item.lineNumber,
+    ...(item.body !== undefined ? { body: item.body } : {}),
     done: item.done,
     ...(item.humanOnly === true
       ? { closedBy: "person" as const }
@@ -361,6 +363,7 @@ export async function surveyWorktrees(options: WorktreeSurveyOptions): Promise<W
       ...(worktree.branch ? { branch: worktree.branch } : {}),
       ...(worktree.head ? { head: worktree.head } : {}),
       ...(belongsTo !== undefined ? { belongsTo } : {}),
+      ...(ownChange !== undefined ? { ownChange } : {}),
       runs: [],
     };
 

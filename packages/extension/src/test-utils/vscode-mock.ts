@@ -37,6 +37,14 @@ export class Selection {
   constructor(public readonly anchor: unknown, public readonly active: unknown) { }
 }
 
+export class Position {
+  constructor(public readonly line: number, public readonly character: number) { }
+}
+
+export class Range {
+  constructor(public readonly start: Position, public readonly end: Position) { }
+}
+
 export class EventEmitter<T> {
   private listeners: Array<(e: T) => void> = [];
   readonly event = (listener: (e: T) => void) => {
@@ -116,6 +124,8 @@ export function createVscodeMock() {
     ColorThemeKind,
     TextEditorRevealType,
     Selection,
+    Position,
+    Range,
     EventEmitter,
     ThemeIcon,
     ThemeColor,
@@ -197,6 +207,7 @@ export function createVscodeMock() {
     },
     env: {
       openExternal: vi.fn(async () => true),
+      clipboard: { writeText: vi.fn(async (_text: string) => undefined) },
     },
     _documentContents: documentContents,
     commands: {
