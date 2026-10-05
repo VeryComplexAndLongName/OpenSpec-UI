@@ -116,6 +116,7 @@ import {
 } from "./run-with-harness-dispatch.js";
 import { fireDueSchedule, type ScheduleFiringHost } from "./scheduled-run-firing.js";
 import {
+  actTurnedOffNote,
   comparisonRows,
   comparisonWindow,
   DEFAULT_COMPARISON_PERIOD,
@@ -928,14 +929,15 @@ function StandaloneApp() {
     if (!runDispatch) return;
     setRunHarnessLoading(true);
     try {
-      await applyTemplateToChangeApi(apiFetch, cwd, runChangeName, template);
+      const applied = await applyTemplateToChangeApi(apiFetch, cwd, runChangeName, template);
       setRunDispatch(await resolveRunWithHarnessDispatch(apiFetch, cwd, runChangeName));
       // Beside the Apply button, in the dialog. It used to be set above
       // the dialog, where the person who pressed Apply could not see it
       // (a-change-is-configured-from-the-change).
       setRunAppliedNote(
         `Applied "${template.title}" to openspec/changes/${runChangeName}/harness.json. `
-        + "The dialog now shows what the change resolves to.",
+        + "The dialog now shows what the change resolves to."
+        + (applied.actTurnedOff ? ` ${actTurnedOffNote(template)}` : ""),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -347,16 +347,50 @@ describe("ChangeHarnessSettingsView — saving", () => {
     await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", expect.objectContaining({ supervisor: { mode: "act" } })));
   });
 
-  it("says Act will be refused once the change is no longer autonomous", async () => {
+  // applying-a-configuration-turns-act-off 2.1
+  it("turns Act off on saving once the change is no longer autonomous, and says so first", async () => {
     const api = createApi({
-      readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous", maxStageAttempts: 3, supervisor: { mode: "act" } }),
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: {},
+        autonomyLevel: "autonomous",
+        maxStageAttempts: 3,
+        supervisor: { mode: "act", fallback: { apply: ["local-llm-acp"] }, allowCostIncrease: true },
+      }),
     });
     await renderLoaded(api);
 
     expect(chosen("Change supervisor")).toBe("act");
-    expect(screen.queryByTestId("change-supervisor-act-refused")).toBeNull();
+    expect(screen.queryByTestId("change-supervisor-act-off")).toBeNull();
     choose("Change autonomy level", "");
-    expect(screen.getByTestId("change-supervisor-act-refused").textContent).toContain("saving will be refused");
+    expect(screen.getByTestId("change-supervisor-act-off").textContent).toContain("Act turns off when this is saved");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    expect(saved.autonomyLevel).toBeUndefined();
+    expect(saved.supervisor).toEqual({ fallback: { apply: ["local-llm-acp"] }, allowCostIncrease: true });
+  });
+
+  it("applies a named configuration over Act, and says Act is off", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: { apply: "local-llm-acp" },
+        autonomyLevel: "autonomous",
+        maxStageAttempts: 2,
+        supervisor: { mode: "act", fallback: { apply: ["deepseek-cli-acp"] }, allowProviderChange: true },
+      }),
+    });
+    await renderLoaded(api);
+
+    choose("Named configuration", "balanced");
+    fireEvent.click(screen.getByRole("button", { name: "Apply to the form" }));
+    expect(screen.getByText(/The supervisor's Act is off: it acts only under Autonomous, and "Balanced" sets Semi-autonomous/)).toBeTruthy();
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    expect(saved.autonomyLevel).toBe("semi-autonomous");
+    expect(saved.supervisor).toEqual({ fallback: { apply: ["deepseek-cli-acp"] }, allowProviderChange: true });
   });
 
   it("still removes autonomyLevel when it is set back to inherit", async () => {

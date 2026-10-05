@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  actTurnedOff,
   changeTemplateConfigToWrite,
   findHarnessConfigLimits,
   isHarnessStepAgentStage,
@@ -222,7 +223,7 @@ export function ChangeHarnessSettingsView(
     // The ceilings ride here, not in the form, and the save lays the form
     // over this rather than replacing it.
     setOverride(written);
-    setApplyStatus(changeTemplateAppliedMessage(template, writtenForms.effort, resolvedAgents, reset));
+    setApplyStatus(changeTemplateAppliedMessage(template, writtenForms.effort, resolvedAgents, reset, actTurnedOff(override, written)));
   };
 
   async function save() {
@@ -417,8 +418,8 @@ export function ChangeHarnessSettingsView(
                     : ""}
                 </p>
                 {supervisorMode === "act" && !ownAutonomous ? (
-                  <p className="openspec-harness-band-note" role="alert" data-testid="change-supervisor-act-refused">
-                    Act needs this change's own autonomy level to be Autonomous: saving will be refused until it is, or until another mode is chosen.
+                  <p className="openspec-harness-band-note" role="status" data-testid="change-supervisor-act-off">
+                    Act turns off when this is saved: it acts only where this change's own autonomy level is Autonomous. The fallback agents and allowances are kept.
                   </p>
                 ) : null}
                 {supervisorMode === "act" ? (

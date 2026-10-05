@@ -10,6 +10,8 @@ import {
   resolveEffortLevel,
   STAGE_PURPOSES,
   VSCODE_CHAT_STEP_AGENT_ID,
+  actTurnedOffNote,
+  withoutActItCannotUse,
   type HarnessAutonomyLevel,
   type HarnessConfig,
   type HarnessEffort,
@@ -266,12 +268,14 @@ export function changeTemplateAppliedMessage(
   effort: StepEffortForm,
   agents: StepAgentsForm,
   reset: readonly HarnessStepAgentStage[],
+  actOff = false,
 ): string {
+  const actNote = actOff ? ` ${actTurnedOffNote(template)}` : "";
   const agentNote = reset.length === 0
     ? " The agents and models on screen are unchanged."
     : ` ${reset.join(", ")} now name${reset.length === 1 ? "s" : ""} the agent the change resolves to,`
     + " because an effort without its agent means nothing.";
-  return `Filled from "${template.title}". ${templateEffortNote(template, effort, agents)}${agentNote}`
+  return `Filled from "${template.title}". ${templateEffortNote(template, effort, agents)}${agentNote}${actNote}`
     + " Nothing is saved until you save.";
 }
 
@@ -349,7 +353,9 @@ export function changeConfigToSave(
   else delete config.autonomyLevel;
   if (reviewGateMode !== INHERIT) config.reviewGate = { mode: reviewGateMode };
   else delete config.reviewGate;
-  return withRunBudget(config, runBudget);
+  // An Act the level no longer allows is turned off rather than refused
+  // (applying-a-configuration-turns-act-off).
+  return withoutActItCannotUse(withRunBudget(config, runBudget));
 }
 
 /** The run budget as the field shows it: the chain's cost ceiling, or empty. */

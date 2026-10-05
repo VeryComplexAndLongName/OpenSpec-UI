@@ -2752,6 +2752,26 @@ describe("createRunChoiceHandler", () => {
     expect(deps.implementationSessions.start).not.toHaveBeenCalled();
   });
 
+  // applying-a-configuration-turns-act-off 2.2: a change's Act that the
+  // written level does not allow is turned off, kept fallback and all, and
+  // the note beside the Apply button says so.
+  it("turns off an Act the written level does not allow, and says so", async () => {
+    readGlobalHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+    resolveHarnessConfigMock.mockResolvedValue({ stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } });
+    readChangeHarnessConfigMock.mockResolvedValue({ supervisor: { mode: "act", fallback: { apply: ["local-llm-acp"] } } });
+    buildRunPlanMock.mockReturnValue({ resolved: "single-stage", because: "x", stageAgents: [], offered: [], findings: [] });
+    const deps = makeDeps();
+
+    await createRunChoiceHandler(deps)({ kind: "apply-template", templateId: "balanced" }, context);
+
+    expect(writeChangeHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", "demo-change", expect.objectContaining({
+      supervisor: { fallback: { apply: ["local-llm-acp"] } },
+    }));
+    expect(deps.revealAiPanel).toHaveBeenCalledWith(expect.objectContaining({
+      appliedNote: expect.stringContaining("The supervisor's Act is off: it acts only under Autonomous"),
+    }));
+  });
+
   it("writes nothing for a configuration id it does not have", async () => {
     // The two sides disagreeing about what exists is worth a line in the
     // log; it is not worth writing something.

@@ -35,7 +35,7 @@ import {
 // merged a stage entry by spread and kept `customAgent`, `mergeStepAgent`
 // named three fields and dropped it, so the same entry came out of the two
 // differently. See a-stage-override-keeps-its-custom-agent.
-import { HARNESS_TEMPLATES, templateConfigToWrite } from "./harness-templates.js";
+import { changeTemplateConfigToWrite, HARNESS_TEMPLATES, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
 
 // suite-survives-a-loaded-machine:
 // measured 2026-09-05 for this file alone at 734ms test time (3.91s wall)
@@ -1102,6 +1102,20 @@ describe("supervisor act", () => {
     await expect(write({ apply: ["claude-cli-acp", "claude-cli-acp"] })).rejects.toThrow(/names "claude-cli-acp" twice/);
     await expect(write({ archive: ["claude-cli-acp"] })).rejects.toThrow(/fallback\.archive names no stage that runs an agent/);
     await expect(write({ apply: [] })).rejects.toThrow(/non-empty list/);
+  });
+
+  // applying-a-configuration-turns-act-off 1.1, 1.2: what a named
+  // configuration writes over a change under Act is a file that is accepted;
+  // the same contradiction written by hand is still refused.
+  it("accepts what a named configuration writes over Act, and refuses the contradiction by hand", async () => {
+    const root = await temporaryRoot();
+    const own = { autonomyLevel: "autonomous" as const, maxStageAttempts: 2, supervisor: act };
+    await writeChangeHarnessConfig(root, "demo", own);
+    for (const template of templatesForScope("change")) {
+      await writeChangeHarnessConfig(root, "demo", changeTemplateConfigToWrite(template, await resolveHarnessConfig(root), own));
+    }
+    await expect(writeChangeHarnessConfig(root, "demo", { ...own, autonomyLevel: "semi-autonomous" }))
+      .rejects.toThrow(/needs autonomyLevel "autonomous" in the same file/);
   });
 
   it("refuses the allowances in the workspace's file", async () => {

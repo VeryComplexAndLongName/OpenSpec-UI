@@ -4,7 +4,16 @@ import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "./harness-config.js"
 import { HARNESS_AGENT_CAPABILITIES, normalizeStepAgent } from "./harness-step-agent.js";
 import { HARNESS_EFFORT_LEVELS, resolveEffortLevel } from "./harness-effort-level.js";
 import type { HarnessStepAgent, HarnessStepAgents } from "./harness-step-agent.js";
-import { agentForEveryStageToWrite, changeTemplateConfigToWrite, HARNESS_TEMPLATES, stepAgentsForTemplate, templateConfigToWrite, templatesForScope } from "./harness-templates.js";
+import {
+  actTurnedOff,
+  agentForEveryStageToWrite,
+  changeTemplateConfigToWrite,
+  HARNESS_TEMPLATES,
+  stepAgentsForTemplate,
+  templateConfigToWrite,
+  templatesForScope,
+  withoutActItCannotUse,
+} from "./harness-templates.js";
 
 // settings-templates:
 // pure over in-memory data — no files, no processes. Measured 2026-09-08
@@ -457,5 +466,58 @@ describe("agentForEveryStageToWrite — a recommendation from runs, applied", ()
     expect(written.autonomyLevel).toBe("autonomous");
     expect(written.gitStageAllowlist).toEqual({ remotes: ["origin"], branches: ["main"] });
     expect(written.maxStageAttempts).toBe(3);
+  });
+});
+
+// applying-a-configuration-turns-act-off 1.1, 1.2
+describe("withoutActItCannotUse — an edit that lowers the level turns Act off", () => {
+  const underAct: Partial<HarnessConfig> = {
+    autonomyLevel: "autonomous",
+    maxStageAttempts: 2,
+    supervisor: {
+      mode: "act",
+      fallback: { apply: ["deepseek-cli-acp", "copilot-cli-acp"] },
+      allowCostIncrease: true,
+      allowProviderChange: true,
+    },
+  };
+
+  it("removes the mode under another level, and keeps the fallback and the allowances", () => {
+    expect(withoutActItCannotUse({ ...underAct, autonomyLevel: "semi-autonomous" })).toEqual({
+      autonomyLevel: "semi-autonomous",
+      maxStageAttempts: 2,
+      supervisor: {
+        fallback: { apply: ["deepseek-cli-acp", "copilot-cli-acp"] },
+        allowCostIncrease: true,
+        allowProviderChange: true,
+      },
+    });
+    const { autonomyLevel: _inherited, ...inheriting } = underAct;
+    expect(withoutActItCannotUse(inheriting).supervisor).not.toHaveProperty("mode");
+  });
+
+  it("leaves Act under autonomous, and every other mode, as it was", () => {
+    expect(withoutActItCannotUse(underAct)).toBe(underAct);
+    const advising: Partial<HarnessConfig> = { autonomyLevel: "assisted", supervisor: { mode: "off" } };
+    expect(withoutActItCannotUse(advising)).toBe(advising);
+  });
+
+  it("removes a supervisor left with nothing in it", () => {
+    expect(withoutActItCannotUse({ autonomyLevel: "semi-autonomous", supervisor: { mode: "act" } })).toEqual({ autonomyLevel: "semi-autonomous" });
+  });
+
+  it("is applied by every named configuration a change may be given, and says so", () => {
+    for (const template of templatesForScope("change")) {
+      const written = changeTemplateConfigToWrite(template, DEFAULT_HARNESS_CONFIG, underAct);
+      expect(written.autonomyLevel, template.id).not.toBe("autonomous");
+      expect(written.supervisor, template.id).toEqual({
+        fallback: { apply: ["deepseek-cli-acp", "copilot-cli-acp"] },
+        allowCostIncrease: true,
+        allowProviderChange: true,
+      });
+      expect(actTurnedOff(underAct, written), template.id).toBe(true);
+    }
+    expect(actTurnedOff(underAct, underAct)).toBe(false);
+    expect(actTurnedOff(undefined, {})).toBe(false);
   });
 });
