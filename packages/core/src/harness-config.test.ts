@@ -24,6 +24,7 @@ import {
   followsMain,
   resolveHarnessConfig,
   resolveRunWithHarnessTarget,
+  resolveSupervisor,
   TOP_LEVEL_CONFIG_KEYS,
   VSCODE_CHAT_STEP_AGENT_ID,
   writeChangeHarnessConfig,
@@ -996,6 +997,50 @@ describe("taskAgents (a-delegated-item-runs-its-agent)", () => {
   });
 });
 
+// the-supervisor-advises 3.1
+describe("supervisor", () => {
+  it("advises with 600 and 60 seconds where nothing says otherwise", async () => {
+    const root = await temporaryRoot();
+    expect(resolveSupervisor((await resolveHarnessConfig(root)).supervisor))
+      .toEqual({ mode: "advise", silentAfterSeconds: 600, waitingAfterSeconds: 60 });
+  });
+
+  it("is turned off by either file", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { supervisor: { mode: "off" } });
+    expect(resolveSupervisor((await resolveHarnessConfig(root)).supervisor).mode).toBe("off");
+
+    const other = await temporaryRoot();
+    await writeChangeHarnessConfig(other, "demo", { supervisor: { mode: "off" } });
+    expect(resolveSupervisor((await resolveHarnessConfig(other, "demo")).supervisor).mode).toBe("off");
+  });
+
+  it("merges a change's threshold over the workspace's mode, key by key", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { supervisor: { mode: "off", waitingAfterSeconds: 30 } });
+    await writeChangeHarnessConfig(root, "demo", { supervisor: { silentAfterSeconds: 120 } });
+
+    expect(resolveSupervisor((await resolveHarnessConfig(root, "demo")).supervisor))
+      .toEqual({ mode: "off", silentAfterSeconds: 120, waitingAfterSeconds: 30 });
+  });
+
+  it("refuses a mode this version does not have, naming the field", async () => {
+    const root = await temporaryRoot();
+    await expect(writeChangeHarnessConfig(root, "demo", { supervisor: { mode: "act" as never } }))
+      .rejects.toThrow(/supervisor\.mode must be one of: advise, off/);
+  });
+
+  it("refuses a threshold that is not a positive whole number, and a key it does not have", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { supervisor: { silentAfterSeconds: 0 } }))
+      .rejects.toThrow(/supervisor\.silentAfterSeconds must be a positive whole number/);
+    await expect(writeGlobalHarnessConfig(root, { supervisor: { waitingAfterSeconds: 1.5 } }))
+      .rejects.toThrow(/supervisor\.waitingAfterSeconds/);
+    await expect(writeGlobalHarnessConfig(root, { supervisor: { quietAfterSeconds: 10 } as never }))
+      .rejects.toThrow(/supervisor has no key "quietAfterSeconds"/);
+  });
+});
+
 describe("every accepted key survives a round trip (config-keys-survive-a-round-trip)", () => {
   /** A representative value per accepted top-level key.
    *
@@ -1017,6 +1062,7 @@ describe("every accepted key survives a round trip (config-keys-survive-a-round-
     taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
     steps: [{ step: "await-change", before: "verify", param: "the-other-change", maxWaitSeconds: 600 }],
     hints: { enabled: false },
+    supervisor: { mode: "off", silentAfterSeconds: 900 },
     allowAgentMessages: true,
     branches: { rebaseWhenBehind: false },
     archive: { whenLanded: false },

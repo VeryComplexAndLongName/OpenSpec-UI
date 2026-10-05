@@ -396,6 +396,84 @@ describe("createAgentRunner — audit log records terminal outcome", () => {
   });
 });
 
+// the-supervisor-advises 2.3: a failure is diagnosed once, here, from the
+// reason and the end of what the run printed.
+describe("createAgentRunner — a failure's diagnosis", () => {
+  const command = (runId: string): Command => ({
+    kind: "implement",
+    cwd: workspaceRoot,
+    runId,
+    context: { changeDir: "/workspace/repo/openspec/changes/x" },
+  });
+
+  it("diagnoses an exit code from what the run printed before it", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield { kind: "stderr", runId: cmd.runId, timestamp: "t", chunk: "Error: Authentication required\n" };
+      yield { kind: "failed", runId: cmd.runId, timestamp: "t", reason: "fake-cli exited with code 1" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-diag-1"))) events.push(event);
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed?.kind === "failed" ? failed.diagnosis : undefined).toMatchObject({
+      cause: "not-signed-in",
+      repeatHelps: "no",
+      evidence: "Error: Authentication required",
+    });
+    expect(auditLog.entries.find((entry) => entry.outcome === "failed")?.diagnosis?.cause).toBe("not-signed-in");
+  });
+
+  it("diagnoses an adapter that throws", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      throw new Error("spawn fake-cli ENOENT");
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-diag-2"))) events.push(event);
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed?.kind === "failed" ? failed.diagnosis?.cause : undefined).toBe("agent-not-installed");
+    expect(auditLog.entries.find((entry) => entry.outcome === "failed")?.diagnosis?.cause).toBe("agent-not-installed");
+  });
+
+  it("keeps a diagnosis the adapter gave itself", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield {
+        kind: "failed",
+        runId: cmd.runId,
+        timestamp: "t",
+        reason: "Authentication required",
+        diagnosis: { cause: "server-error", repeatHelps: "likely" },
+      };
+    });
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog: new InMemoryAuditLog() });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-diag-3"))) events.push(event);
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed?.kind === "failed" ? failed.diagnosis?.cause : undefined).toBe("server-error");
+  });
+
+  it("records no diagnosis for a run that completed", async () => {
+    const { adapter } = makeFakeAdapter((invocation, cmd) => okEvents(cmd.runId));
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    for await (const _ of runner.run(command("run-diag-4"))) { /* drain */ }
+
+    expect(auditLog.entries.every((entry) => entry.diagnosis === undefined)).toBe(true);
+  });
+});
+
 describe("createAgentRunner — recording reported usage (usage-from-acp)", () => {
   it("writes the agent's reported usage into the terminal audit entry", async () => {
     const { adapter } = makeFakeAdapter(async function* (invocation, command) {

@@ -4,6 +4,8 @@
 // these shapes to the Pipeline view, which draws them and computes
 // nothing (a-card-says-what-its-change-is-doing).
 
+import type { FailureDiagnosis } from "./failure-diagnosis.js";
+
 /** The latest run of one change that has ended. */
 export interface LastRun {
   runId: string;
@@ -14,6 +16,9 @@ export interface LastRun {
   endedAt: string;
   /** Why it ended, where the ending gave a reason. */
   reason?: string;
+  /** What is known about why it failed, where it failed and the log says
+   * (the-supervisor-advises). */
+  diagnosis?: FailureDiagnosis;
   /** The sum of what the run's entries reported spending; absent when none
    * reported a cost, which is not the same as costing nothing. */
   costUsd?: number;

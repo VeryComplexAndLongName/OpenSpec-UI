@@ -318,6 +318,7 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
       taskAgents: { "5.4": { agent: "copilot-cli", customAgent: "reviewer" } },
       steps: [{ step: "await-change", before: "verify", param: "the-other-change" }],
       hints: { enabled: false },
+      supervisor: { silentAfterSeconds: 900 },
       allowAgentMessages: true,
       branches: { rebaseWhenBehind: false },
       archive: { whenLanded: false },
@@ -337,6 +338,52 @@ describe("GlobalHarnessSettingsView — saving preserves what it cannot show", (
     expect(saved.timeout).toEqual(everyKey.timeout);
     expect(saved.skipStages).toEqual(["review"]);
     expect(saved.gitStageAllowlist).toEqual(everyKey.gitStageAllowlist);
+  });
+});
+
+// the-supervisor-advises 4.2
+describe("GlobalHarnessSettingsView — the supervisor", () => {
+  it("shows Advise where the file says nothing, and saves Off, keeping the thresholds", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        supervisor: { silentAfterSeconds: 900 },
+      }),
+    });
+    render(<GlobalHarnessSettingsView api={api} />);
+    await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
+
+    expect(chosen("Global supervisor")).toBe("advise");
+    expect(saveButton()).toBeDisabled();
+    choose("Global supervisor", "off");
+    expect(screen.getByTestId("global-supervisor-note").textContent).toContain("Points out nothing about runs");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalledWith(expect.objectContaining({
+      supervisor: { silentAfterSeconds: 900, mode: "off" },
+    })));
+  });
+
+  it("writes no mode for Advise, the default", async () => {
+    const api = createApi({
+      resolveGlobal: vi.fn().mockResolvedValue({
+        stepAgents: { propose: "claude-cli" },
+        autonomyLevel: "assisted",
+        reviewGate: { mode: "human-required" },
+        supervisor: { mode: "off" },
+      }),
+    });
+    render(<GlobalHarnessSettingsView api={api} />);
+    await waitFor(() => expect(chosen("Global supervisor")).toBe("off"));
+
+    choose("Global supervisor", "advise");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeGlobal).toHaveBeenCalled());
+    const saved = (api.writeGlobal as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<string, unknown>;
+    expect("supervisor" in saved).toBe(false);
   });
 });
 

@@ -24,6 +24,40 @@ function render(events: Event[]): string {
 }
 
 describe("RunTextRenderer", () => {
+  // the-supervisor-advises 4.3
+  it("prints a failure's diagnosis beneath it, and nothing more for an unknown cause", () => {
+    const diagnosed = render([{
+      kind: "failed",
+      runId: "r",
+      timestamp: at,
+      reason: "copilot exited with code 1",
+      diagnosis: {
+        cause: "not-signed-in",
+        repeatHelps: "no",
+        evidence: "Error: Authentication required",
+        remedy: "Run `copilot` in a terminal and sign in, then start the run again.",
+        commands: ["copilot"],
+      },
+    }]);
+    expect(diagnosed).toBe([
+      "\n✗ copilot exited with code 1",
+      "  the agent is not signed in: repeating will not help",
+      '  it printed: "Error: Authentication required"',
+      "  Run `copilot` in a terminal and sign in, then start the run again.",
+      "  $ copilot",
+      "",
+    ].join("\n"));
+
+    const unknown = render([{
+      kind: "failed",
+      runId: "r",
+      timestamp: at,
+      reason: "ACP connection closed",
+      diagnosis: { cause: "unknown", repeatHelps: "unknown" },
+    }]);
+    expect(unknown).toBe("\n✗ ACP connection closed\n");
+  });
+
   it("joins a streamed reply with nothing between the slices", () => {
     const output = render([
       chunkEvent("I'll inspect the change dir", "agent_message_chunk"),

@@ -10,6 +10,7 @@ import {
   WORKSPACE_LEASE_STALE_AFTER_MS,
   buildHints,
   readChangeReadiness,
+  readSupervisorHints,
   resolveHarnessConfig,
   type Hint,
 } from "@openspec-ui/core";
@@ -26,6 +27,8 @@ export interface AdviseDeps {
   /** Test seams, the same shape `readyCommand` already offers. */
   read?: typeof readChangeReadiness;
   readConfig?: typeof resolveHarnessConfig;
+  /** Test seam: what the supervisor points out (the-supervisor-advises). */
+  supervise?: typeof readSupervisorHints;
 }
 
 /** Always `0` where the suggestions could be produced — with or without
@@ -43,10 +46,14 @@ export async function adviseCommand(options: AdviseOptions, deps: AdviseDeps): P
       ...(options.base !== undefined ? { base: options.base } : {}),
     });
     const config = await (deps.readConfig ?? resolveHarnessConfig)(options.workspaceRoot);
-    // Off means not computed, not computed-and-hidden.
+    // Off means not computed, not computed-and-hidden. The supervisor's
+    // come after the others, as the Pipeline shows them.
     hints = config.hints?.enabled === false
       ? []
-      : buildHints(report, { staleAfterMs: WORKSPACE_LEASE_STALE_AFTER_MS });
+      : [
+        ...buildHints(report, { staleAfterMs: WORKSPACE_LEASE_STALE_AFTER_MS }),
+        ...await (deps.supervise ?? readSupervisorHints)(options.workspaceRoot, config),
+      ];
   } catch (error) {
     deps.stderr(`openspec-ui-cli: could not work out what to suggest: ${error instanceof Error ? error.message : String(error)}`);
     return 2;

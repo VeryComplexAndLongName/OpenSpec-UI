@@ -16,6 +16,7 @@ import type { ChangeReadinessReport } from "./change-readiness-facts.js";
 import type { ChangeStanding, ChangeStandings } from "./change-standing-facts.js";
 import { describeChangeState, type ChangeStateFacts } from "./change-state-word.js";
 import type { LastRun, LastRunsReport } from "./last-runs-facts.js";
+import { describeDiagnosis } from "./failure-diagnosis.js";
 import {
   describeTaskInHand,
   describeWaiting,
@@ -436,6 +437,10 @@ export function describeChangeCard(card: ChangeCard, now: Date): DescribedChange
     let text = `last run ${ENDED_WORD[lastRun.outcome]}${at}${age !== undefined ? ` ${age}` : ""}`;
     if (lastRun.costUsd !== undefined) text += `, $${lastRun.costUsd.toFixed(2)}`;
     if (lastRun.outcome === "cancelled" && lastRun.reason !== undefined) text += ` — ${lastRun.reason}`;
+    // What is known about why, where something is (the-supervisor-advises).
+    if (lastRun.outcome === "failed" && lastRun.diagnosis !== undefined && lastRun.diagnosis.cause !== "unknown") {
+      text += ` — ${describeDiagnosis(lastRun.diagnosis)}`;
+    }
     say("last-run", text);
   }
 

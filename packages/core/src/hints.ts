@@ -25,7 +25,16 @@
 
 import type { ChangeReadiness, ChangeReadinessReport } from "./change-readiness-facts.js";
 
-export type HintKind = "can-run-together" | "needs-a-worktree" | "held-by-a-finished-run" | "too-many-sets";
+export type HintKind =
+  | "can-run-together"
+  | "needs-a-worktree"
+  | "held-by-a-finished-run"
+  | "too-many-sets"
+  // The supervisor's, about runs rather than changes (`supervisor.ts`,
+  // the-supervisor-advises).
+  | "run-says-nothing-new"
+  | "run-waits-on-you"
+  | "last-run-cannot-be-repeated";
 
 export interface Hint {
   /** Stable for the same facts, so a surface can key on it and a script

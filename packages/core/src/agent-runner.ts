@@ -18,9 +18,15 @@ import {
   prepareAgentContext,
 } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
+import { diagnoseFailure, type FailureDiagnosis } from "./failure-diagnosis.js";
 import { createGitWrapper } from "./git.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
 import { untilStopBoundary } from "./stop-boundary.js";
+
+/** How much of the end of a run's output a failure is diagnosed from.
+ * Where a CLI prints the error behind its exit code, without holding a
+ * long run's whole output (the-supervisor-advises). */
+export const OUTPUT_TAIL_CHARS = 8 * 1024;
 
 export type AdapterInvocation =
   | { kind: "process"; executable: string; args: string[] }
@@ -286,6 +292,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       // on absence; a zero would turn "we do not know" into "it cost
       // nothing", which is the reading this change exists to stop.
       let lastUsage: AgentUsage | undefined;
+      // The end of what the run printed, which is where a CLI prints the
+      // error its exit code stands for (the-supervisor-advises).
+      let outputTail = "";
+      let lastDiagnosis: FailureDiagnosis | undefined;
+      const diagnosed = (reason: string): FailureDiagnosis => {
+        lastDiagnosis = diagnoseFailure({ agentId: adapter.name, reason, output: outputTail });
+        return lastDiagnosis;
+      };
       try {
         const events = untilStopBoundary({
           events: adapter.execute(invocation, command, prompt, controller.signal),
@@ -302,11 +316,18 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           // asked, and no rule fired.
           endRun: ENDS_AT_A_STOP_BOUNDARY.has(command.kind) ? () => controller.abort() : () => undefined,
         });
-        for await (const event of events) {
+        for await (const received of events) {
+          let event = received;
+          if (event.kind === "stdout" || event.kind === "stderr") {
+            outputTail = (outputTail + event.chunk).slice(-OUTPUT_TAIL_CHARS);
+          }
           if (event.kind === "completed") lastSummary = event.summary;
           if (event.kind === "failed") {
             lastOutcome = "failed";
             lastReason = event.reason;
+            // An adapter's own diagnosis wins: it was closer to the failure.
+            event = { ...event, diagnosis: event.diagnosis ?? diagnosed(event.reason) };
+            lastDiagnosis = event.diagnosis;
           }
           if (event.kind === "cancelled") {
             lastOutcome = "cancelled";
@@ -325,7 +346,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       } catch (err) {
         lastOutcome = "failed";
         lastReason = err instanceof Error ? err.message : String(err);
-        yield { kind: "failed", runId: command.runId, timestamp: nowIso(), reason: lastReason };
+        yield { kind: "failed", runId: command.runId, timestamp: nowIso(), reason: lastReason, diagnosis: diagnosed(lastReason) };
       } finally {
         // A ceiling that named itself on the cancel command wins over
         // nothing: the adapter emits `cancelled` knowing only that its
@@ -339,6 +360,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         void log?.end({
           outcome: lastOutcome,
           ...(lastReason !== undefined ? { reason: lastReason } : {}),
+          ...(lastOutcome === "failed" && lastDiagnosis !== undefined ? { diagnosis: lastDiagnosis } : {}),
           ...(lastSummary !== undefined ? { summary: lastSummary } : {}),
         });
         auditLog.record({
@@ -350,6 +372,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           changeDir: command.context.changeDir,
           invocation,
           reason: lastReason,
+          ...(lastOutcome === "failed" && lastDiagnosis !== undefined ? { diagnosis: lastDiagnosis } : {}),
           summary: lastSummary,
           ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
           // Absent for a single-stage run, which is the fact rather than

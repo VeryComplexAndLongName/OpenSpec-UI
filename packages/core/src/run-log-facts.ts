@@ -3,6 +3,8 @@
 // (a-change-shows-its-run-logs). Kept apart from run-log.ts, which reads
 // and writes files.
 
+import type { FailureDiagnosis } from "./failure-diagnosis.js";
+
 export type RunLogStream =
   | "stdout"
   | "stderr"
@@ -41,6 +43,8 @@ export interface RunLogEnd {
   at: string;
   outcome: RunLogOutcome;
   reason?: string;
+  /** What is known about why a failed run failed (the-supervisor-advises). */
+  diagnosis?: FailureDiagnosis;
   summary?: string;
 }
 
@@ -58,5 +62,6 @@ export interface RunLogSummary {
   endedAt?: string;
   outcome?: RunLogOutcome;
   reason?: string;
+  diagnosis?: FailureDiagnosis;
   bytes: number;
 }

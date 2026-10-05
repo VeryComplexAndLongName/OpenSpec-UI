@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import type { RunLogRecord, RunLogStream, RunLogSummary } from "@openspec-ui/core/browser";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { FailureDiagnosis, RunLogRecord, RunLogStream, RunLogSummary } from "@openspec-ui/core/browser";
+import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
 
 // A change's run logs, opened from its card (a-change-shows-its-run-logs):
 // every run that kept a log, newest first, and the one chosen as the run
@@ -38,7 +39,7 @@ function duration(from: string, to: string | undefined): string {
 export function runLogBlocks(records: readonly RunLogRecord[]): Array<
   | { kind: "part"; text: string }
   | { kind: "text"; stream: RunLogStream; text: string }
-  | { kind: "end"; outcome: string; text: string }
+  | { kind: "end"; outcome: string; text: string; diagnosis?: FailureDiagnosis }
 > {
   const blocks: ReturnType<typeof runLogBlocks> = [];
   for (const record of records) {
@@ -54,7 +55,12 @@ export function runLogBlocks(records: readonly RunLogRecord[]): Array<
       }
     } else {
       const said = [record.reason, record.summary].filter((part): part is string => part !== undefined && part.length > 0).join(": ");
-      blocks.push({ kind: "end", outcome: record.outcome, text: `${OUTCOME_WORD[record.outcome] ?? record.outcome} at ${when(record.at)}${said ? ` - ${said}` : ""}` });
+      blocks.push({
+        kind: "end",
+        outcome: record.outcome,
+        text: `${OUTCOME_WORD[record.outcome] ?? record.outcome} at ${when(record.at)}${said ? ` - ${said}` : ""}`,
+        ...(record.outcome === "failed" && record.diagnosis !== undefined ? { diagnosis: record.diagnosis } : {}),
+      });
     }
   }
   return blocks;
@@ -176,7 +182,12 @@ export function RunLogsView({ changeName, load, read, onClose }: RunLogsViewProp
             {runLogBlocks(records).map((block, index) => block.kind === "part"
               ? <p key={index} className="openspec-run-log-part">{block.text}</p>
               : block.kind === "end"
-                ? <p key={index} className={`openspec-run-log-end openspec-run-log-end--${block.outcome}`}>{block.text}</p>
+                ? (
+                  <Fragment key={index}>
+                    <p className={`openspec-run-log-end openspec-run-log-end--${block.outcome}`}>{block.text}</p>
+                    <FailureDiagnosisNote diagnosis={block.diagnosis} />
+                  </Fragment>
+                )
                 : <p key={index} className={`openspec-run-log-line openspec-run-log-line--${block.stream}`}>{block.text}</p>)}
           </div>
         )

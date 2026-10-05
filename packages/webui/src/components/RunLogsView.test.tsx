@@ -39,6 +39,13 @@ describe("runLogBlocks", () => {
     expect(blocks[4]).toMatchObject({ kind: "end", outcome: "failed" });
     expect(blocks[4]?.text).toContain("tests failed");
   });
+
+  // the-supervisor-advises 4.1
+  it("carries a failed run's diagnosis on its end", () => {
+    const diagnosis = { cause: "not-signed-in", repeatHelps: "no" } as const;
+    const blocks = runLogBlocks([{ type: "end", at: "2026-10-04T10:00:00.000Z", outcome: "failed", reason: "x", diagnosis }]);
+    expect(blocks[0]).toMatchObject({ kind: "end", diagnosis });
+  });
 });
 
 describe("RunLogsView", () => {

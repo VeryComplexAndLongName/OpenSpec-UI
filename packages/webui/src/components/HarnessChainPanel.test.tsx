@@ -282,6 +282,22 @@ describe("HarnessChainPanel — usage while it runs (usage-visible-while-running
     expect(screen.getByTestId("usage-stage-propose").dataset.state).toBe("completed");
   });
 
+  // the-supervisor-advises 4.1
+  it("shows a failure's diagnosis beneath the status", () => {
+    const { emit } = startChain();
+
+    emit({ ...base, kind: "stageStarted", stage: "apply", agentId: "copilot-cli-acp" } as Event);
+    emit({
+      ...base,
+      kind: "failed",
+      reason: "Authentication required",
+      diagnosis: { cause: "not-signed-in", repeatHelps: "no", commands: ["copilot"] },
+    } as Event);
+
+    expect(screen.getByTestId("chain-status-label")).toHaveTextContent("Failed: Authentication required");
+    expect(screen.getByTestId("failure-diagnosis").textContent).toContain("the agent is not signed in: repeating will not help");
+  });
+
   it("says a stage reported nothing rather than showing it as free", () => {
     const { emit } = startChain();
 

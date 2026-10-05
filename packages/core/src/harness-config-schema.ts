@@ -17,7 +17,7 @@
 
 import { acceptsModel, AGENT_REGISTRY } from "./agents/registry.js";
 import { CHAIN_STEPS_REQUIRING_PARAM } from "./chain-steps.js";
-import { TOP_LEVEL_CONFIG_KEYS } from "./harness-config.js";
+import { SUPERVISOR_MODES, TOP_LEVEL_CONFIG_KEYS } from "./harness-config.js";
 import { CHAIN_STEP_NAMES, SKIPPABLE_STAGES, STAGES } from "./harness-stage.js";
 import {
   COPILOT_MIN_AI_CREDITS,
@@ -301,6 +301,16 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
       type: "object",
       required: ["enabled"],
       properties: { enabled: { type: "boolean", description: "Whether suggestions are computed at all." } },
+    },
+    supervisor: {
+      type: "object",
+      additionalProperties: false,
+      description: "What the supervisor points out about runs (ADR 0039). It suggests and changes nothing.",
+      properties: {
+        mode: { type: "string", enum: [...SUPERVISOR_MODES], description: "advise (absent) or off." },
+        silentAfterSeconds: positiveInteger("Seconds a live run may say nothing new before it is pointed out. Absent means 600."),
+        waitingAfterSeconds: positiveInteger("Seconds a run may wait on a person before it is pointed out. Absent means 60."),
+      },
     },
     allowAgentMessages: { type: "boolean", description: "Whether a run takes notes written by another run. Absent means false." },
     branches: {

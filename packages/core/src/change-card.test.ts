@@ -394,6 +394,15 @@ describe("describeChangeCard — the lines", () => {
     expect(describeChangeCard(without, NOW).lines).toContain("last run stopped at verify 5 minutes ago");
   });
 
+  // the-supervisor-advises 2.5
+  it("says what is known about why the last run failed, and nothing where nothing is", () => {
+    const signedOut = cardOf({ last: lastRun({ endedAt: minutesBefore(5), diagnosis: { cause: "not-signed-in", repeatHelps: "no" } }) });
+    const unknown = cardOf({ last: lastRun({ endedAt: minutesBefore(5), diagnosis: { cause: "unknown", repeatHelps: "unknown" } }) });
+    expect(describeChangeCard(signedOut, NOW).lines)
+      .toContain("last run failed at verify 5 minutes ago — the agent is not signed in: repeating will not help");
+    expect(describeChangeCard(unknown, NOW).lines).toContain("last run failed at verify 5 minutes ago");
+  });
+
   it("counts ages from now", () => {
     const card = cardOf({ directories: [directory({ runs: [run()] })], last: lastRun({ outcome: "completed", endedAt: minutesBefore(60 * 26) }) });
     expect(describeChangeCard(card, NOW).lines).toContain("running apply — said 30s ago");

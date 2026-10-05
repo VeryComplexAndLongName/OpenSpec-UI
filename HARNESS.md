@@ -26,6 +26,7 @@ it — start there and come back here for the detail.
 | Run a change from a terminal | [How to](docs/how-to/run-a-change-from-a-terminal.md) | [CI CLI](README.md#ci-cli-merge-gate) |
 | Run two changes at the same time | [How to](docs/how-to/run-changes-side-by-side.md) | [CI CLI](README.md#ci-cli-merge-gate) |
 | Find out what would stop a run here | — | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
+| Learn why a run failed, or whether one has gone quiet | — | [`supervisor`](#supervisor), and `openspec-ui-cli advise` |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →
@@ -91,6 +92,8 @@ the per-change file over the global one (`mergeHarnessConfig`):
   override** — if the per-change file sets one at all, its value is used
   exactly as written, never merged field-by-field with the global file's
   own value.
+- `supervisor`, like `branches` and `archive`, merges **key by key**: a
+  change that sets only its mode keeps the workspace's thresholds.
 
 Five settings a **global** `openspec/agent-harness.json` may not set —
 each one raises a dedicated `InvalidHarnessConfigError` subclass naming
@@ -119,7 +122,7 @@ it matches a known stage name, suggesting `stepAgents.<key>` instead.
 
 **Top-level keys**: `stepAgents`, `autonomyLevel`, `reviewGate`,
 `checkpoints`, `budget`, `timeout`, `skipStages`, `maxStageAttempts`,
-`gitStageAllowlist`, `taskAgents`, `steps`, `hints`,
+`gitStageAllowlist`, `taskAgents`, `steps`, `hints`, `supervisor`,
 `allowAgentMessages`, `branches`. Nothing else is accepted, at either
 file.
 
@@ -243,6 +246,55 @@ carries no suggestions at all. Read from the workspace file rather than
 from a change's — the report they come from is about the whole
 repository, so a per-change value would be answering a different
 question.
+
+### `supervisor`
+
+`{ "mode"?: "advise" | "off", "silentAfterSeconds"?: <positive integer>,
+"waitingAfterSeconds"?: <positive integer> }`. Optional; absent means
+`advise`, 600 and 60. Accepted in both files, and a change's own object is
+merged key by key over the global one: a change that turns it off keeps
+the workspace's thresholds. Set the mode from either Harness Settings
+view; the thresholds are set in the file.
+
+The supervisor ([ADR 0039](docs/adr/0039-the-supervisor-advises.md)) is
+rules over records that already exist. It is not a process and not a
+model, and it adds no timer: its suggestions are computed where the
+Pipeline and `openspec-ui-cli advise` already read. Under `advise` it
+points out three things, as suggestions beside the others:
+
+| Suggestion | When | Commands |
+| --- | --- | --- |
+| A run has said nothing new for N | Its heartbeat is alive, it waits on nobody, and its activity is older than `silentAfterSeconds` | `status` for it, and `stop` for it with the reason filled in |
+| A run has waited on a person for N | It waits on a checkpoint or a permission for longer than `waitingAfterSeconds` | `status` for it |
+| A change's last run failed, and repeating it will not help | Its diagnosis (below) says so, and no run is working on the change | The remedy's, where it has one |
+
+It never stops, starts or changes anything, and it never calls a run hung
+or stuck: a long turn and a hang look the same from outside (ADR 0028).
+A threshold is checked when a reading is made, so a run is pointed out at
+the next reading after it crosses one. `off` computes none of the three,
+and `hints.enabled: false` still computes no suggestion at all.
+
+**A failed run says what is known about why.** Every run of every agent
+passes through one runner, which matches the failure's reason and the
+last 8 KiB of what the run printed against causes that have been seen.
+The diagnosis rides the `failed` event, the audit entry, the run's log
+and the change's last run. It is shown beneath the failure in both hosts,
+on the change's card, and by `openspec-ui-cli run`:
+
+| Cause | Repeating | Matched on |
+| --- | --- | --- |
+| The agent is not installed | will not help | `ENOENT`, "not recognized as an internal or external command", "command not found" |
+| The agent is not signed in | will not help | "Authentication required", "not logged in", "please log in", `/login`, "Unauthorized", "invalid API key", status 401 |
+| The machine blocked the agent | will not help | `EPERM`, `EACCES`, "Access is denied", "operation not permitted" |
+| The network could not be reached | will not help | `ECONNREFUSED`, `ECONNRESET`, `ENOTFOUND`, `ETIMEDOUT`, `EAI_AGAIN`, "fetch failed", "proxy" |
+| The service rate-limited the agent | is likely to help | "rate limit", "Too Many Requests", "quota", status 429 |
+| The service failed | is likely to help | "Internal Server Error", "Service Unavailable", "Bad Gateway", "Gateway Timeout", "overloaded", status 500, 502, 503, 504 |
+
+The first cause in that order wins. A status code counts only after
+`HTTP`, `status`, `code` or `error`, or before its own phrase, since a bare
+number in output is usually a duration or a count. The diagnosis quotes
+the line it was found in, so it can be checked. A failure matching none is
+diagnosed as unknown, and nothing more is said beneath it.
 
 ### `branches`
 

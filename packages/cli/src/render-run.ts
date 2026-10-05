@@ -7,7 +7,27 @@
 // See openspec/changes/a-change-runs-from-the-terminal/design.md, "Text
 // for a person, one JSON object per line for a machine".
 
-import { describeAcpUpdate, readAcpStreamedText, type AcpTextChunkKind, type Event } from "@openspec-ui/core";
+import {
+  describeAcpUpdate,
+  describeDiagnosis,
+  readAcpStreamedText,
+  type AcpTextChunkKind,
+  type Event,
+  type FailureDiagnosis,
+} from "@openspec-ui/core";
+
+/** What is known about why a run failed, beneath the failure
+ * (the-supervisor-advises). Nothing for an unknown cause: a line saying
+ * nothing is known is noise beneath a reason that already says what is. */
+function diagnosisLines(diagnosis: FailureDiagnosis | undefined): string[] {
+  if (diagnosis === undefined || diagnosis.cause === "unknown") return [];
+  return [
+    `  ${describeDiagnosis(diagnosis)}`,
+    ...(diagnosis.evidence !== undefined ? [`  it printed: "${diagnosis.evidence}"`] : []),
+    ...(diagnosis.remedy !== undefined ? [`  ${diagnosis.remedy}`] : []),
+    ...(diagnosis.commands ?? []).map((command) => `  $ ${command}`),
+  ];
+}
 
 /** What to write for one event. `text` is written verbatim: a renderer
  * that wants a line break asks for one, because the pieces of a streamed
@@ -80,7 +100,7 @@ export class RunTextRenderer {
       case "completed":
         return this.line(`\n✓ ${event.summary ?? "completed"}`);
       case "failed":
-        return this.line(`\n✗ ${event.reason}`);
+        return this.line([`\n✗ ${event.reason}`, ...diagnosisLines(event.diagnosis)].join("\n"));
       case "cancelled":
         return this.line(`\n■ cancelled${event.reason ? `: ${event.reason}` : ""}`);
       // `started` announces a stage the chain already announced through

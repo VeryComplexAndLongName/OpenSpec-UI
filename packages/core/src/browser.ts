@@ -164,7 +164,10 @@ export type {
   HarnessReviewGate,
   HarnessReviewGateMode,
   HarnessStage,
+  HarnessSupervisor,
+  HarnessSupervisorMode,
   HarnessTimeout,
+  ResolvedSupervisor,
 } from "./harness-config.js";
 // From the zero-import leaf module rather than through harness-config.js:
 // a type-only re-export is safe either way, but `ChainPart` belongs
@@ -249,6 +252,10 @@ export * from "./pipeline-card.js";
 // the terminal prints rather than deriving its own —
 // a-hint-says-what-can-run-together.
 export * from "./hints.js";
+// The words a failure's diagnosis and the supervisor's suggestions are
+// shown in, the same in both hosts and the terminal — the-supervisor-advises.
+export * from "./failure-diagnosis.js";
+export * from "./supervisor.js";
 export * from "./change-layout.js";
 export * from "./board-columns-facts.js";
 export * from "./change-order.js";

@@ -103,6 +103,30 @@ describe("lastRunsOf", () => {
       reason: "maxStageSeconds is 1800s",
     });
   });
+
+  // the-supervisor-advises 2.5: the diagnosis, from the chain's ending or,
+  // in an older log, from the stage that failed.
+  it("carries a failed run's diagnosis, from the ending or from the failed stage", () => {
+    const diagnosis = { cause: "not-signed-in", repeatHelps: "no", evidence: "Authentication required" } as const;
+    const fromEnding = lastRunsOf([
+      entry({ runId: "c1", outcome: "started", timestamp: "2026-10-04T10:00:00.000Z", stage: "apply" }),
+      entry({ runId: "c1", outcome: "failed", timestamp: "2026-10-04T10:01:00.000Z", stage: "apply", reason: "Authentication required", diagnosis }),
+      entry({ runId: "c1", agent: "chain", outcome: "failed", timestamp: "2026-10-04T10:01:00.010Z", stage: "apply", reason: "Authentication required", diagnosis }),
+    ]);
+    expect(fromEnding.byChange.demo?.diagnosis).toEqual(diagnosis);
+
+    const fromStage = lastRunsOf([
+      entry({ runId: "r1", outcome: "started", timestamp: "2026-10-04T10:00:00.000Z", stage: "apply" }),
+      entry({ runId: "r1", outcome: "failed", timestamp: "2026-10-04T10:01:00.000Z", stage: "apply", reason: "Authentication required", diagnosis }),
+    ]);
+    expect(fromStage.byChange.demo?.diagnosis).toEqual(diagnosis);
+
+    const completed = lastRunsOf([
+      entry({ runId: "r2", outcome: "started", timestamp: "2026-10-04T10:00:00.000Z", stage: "apply" }),
+      entry({ runId: "r2", outcome: "completed", timestamp: "2026-10-04T10:01:00.000Z", stage: "apply" }),
+    ]);
+    expect(completed.byChange.demo).not.toHaveProperty("diagnosis");
+  });
 });
 
 describe("readLastRuns", () => {
