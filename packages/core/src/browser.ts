@@ -10,7 +10,7 @@
 // openspec/changes/standalone-app/tasks.md 2.1).
 
 export * from "./protocol.js";
-export { AGENT_REGISTRY, DEFAULT_AGENT_ID, type AgentDescriptor } from "./agents/registry.js";
+export { AGENT_REGISTRY, DEFAULT_AGENT_ID, type AgentDescriptor, type AgentProvider } from "./agents/registry.js";
 export type { ChangeState } from "./change-state.js";
 // Where a change stands, and the one word every surface shows for it. Two
 // leaves with no Node imports; the reading itself stays Node-only

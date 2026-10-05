@@ -104,6 +104,34 @@ describe("RunTextRenderer", () => {
     expect(output).toContain("attempt 2");
   });
 
+  // the-supervisor-changes-agents 2.2
+  it("says why a stage is attempted again, under its heading", () => {
+    const output = render([
+      {
+        kind: "stageStarted",
+        runId: "r",
+        timestamp: at,
+        stage: "apply",
+        agentId: "claude-cli-acp",
+        attempt: 2,
+        previousAttemptReason: "stopped because it ran past timeout.perStageMs",
+      },
+    ]);
+
+    expect(output).toContain("▶ apply — claude-cli-acp (attempt 2)\n  because stopped because it ran past timeout.perStageMs");
+  });
+
+  it("does not repeat a reason the supervisor's line has just said", () => {
+    const moved = "the supervisor moved apply from copilot-cli-acp to claude-cli-acp: the agent is not signed in";
+    const output = render([
+      { kind: "progress", runId: "r", timestamp: at, message: moved },
+      { kind: "stageStarted", runId: "r", timestamp: at, stage: "apply", agentId: "claude-cli-acp", attempt: 2, previousAttemptReason: moved },
+    ]);
+
+    expect(output.split(moved)).toHaveLength(2);
+    expect(output).toContain("▶ apply — claude-cli-acp (attempt 2)");
+  });
+
   it("shows nothing for an update core reads nothing out of", () => {
     const renderer = new RunTextRenderer();
 

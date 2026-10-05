@@ -9,12 +9,18 @@
 
 import { CHAIN_ENDING_AGENT_NAME, changeNameOf, isRunEntry } from "./audit-runs.js";
 import { readFailureDiagnosis } from "./failure-diagnosis.js";
+import { AGENT_REGISTRY } from "./agents/registry.js";
+
 import { createGitWrapper, type GitWrapper } from "./git.js";
 import type { LastRun, LastRunsReport } from "./last-runs-facts.js";
 import { readRepositoryAuditEntries, type AuditReadCache } from "./repository-audit.js";
 import type { AuditEntry } from "./security.js";
 
 export type { LastRun, LastRunsReport } from "./last-runs-facts.js";
+
+/** The agents a run can be moved between: an entry from anything else is not
+ * the stage's agent. */
+const REGISTERED: ReadonlySet<string> = new Set(AGENT_REGISTRY.map((descriptor) => descriptor.id));
 
 /** Lives for the process: the Pipeline asks on every survey, and an
  * unchanged log is not parsed twice. */
@@ -79,6 +85,11 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
     ? undefined
     : readFailureDiagnosis(ending.diagnosis)
       ?? readFailureDiagnosis([...stageEntries].reverse().find((entry) => entry.outcome === "failed")?.diagnosis);
+  // The registered agent the run failed on, for a policy that asks whether a
+  // fallback is another provider (the-supervisor-changes-agents).
+  const agent = ending.outcome !== "failed"
+    ? undefined
+    : [...stageEntries].reverse().find((entry) => entry.outcome === "failed" && REGISTERED.has(entry.agent))?.agent;
   const costs = stageEntries
     .map((entry) => entry.usage?.costUsd)
     .filter((cost): cost is number => typeof cost === "number");
@@ -89,6 +100,7 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
     ...(stage !== undefined ? { stage } : {}),
     ...(ending.reason !== undefined ? { reason: ending.reason } : {}),
     ...(diagnosis !== undefined ? { diagnosis } : {}),
+    ...(agent !== undefined ? { agent } : {}),
     ...(costs.length > 0 ? { costUsd: costs.reduce((sum, cost) => sum + cost, 0) } : {}),
   };
 }

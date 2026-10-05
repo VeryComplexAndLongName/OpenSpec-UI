@@ -286,6 +286,79 @@ describe("ChangeHarnessSettingsView — saving", () => {
     expect("supervisor" in saved).toBe(false);
   });
 
+  // the-supervisor-changes-agents 2.1
+  it("offers Act only where the change itself is autonomous", async () => {
+    const api = createApi();
+    await renderLoaded(api);
+
+    expect(radios("Change supervisor").map((radio) => radio.value)).not.toContain("act");
+    expect(screen.getByTestId("change-supervisor-note").textContent).toContain("Act is offered where this change's own autonomy level is Autonomous");
+    choose("Change autonomy level", "autonomous");
+    expect(radios("Change supervisor").map((radio) => radio.value)).toContain("act");
+  });
+
+  it("says what Act may start, and saves the fallback, the allowances and a second attempt", async () => {
+    const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous" }) });
+    await renderLoaded(api);
+
+    choose("Change supervisor", "act");
+    expect(screen.getByTestId("change-supervisor-act-warning").textContent).toContain("it may cost money");
+    expect(screen.getByTestId("change-supervisor-note").textContent).toContain("attempted 2 times");
+    // The same lists as the stage table's agents: one per fallback, and one
+    // more to add the next; the editor's chat is not offered.
+    const add = () => screen.getByRole("combobox", { name: "Add a fallback for apply" }) as HTMLSelectElement;
+    expect([...add().options].map((option) => option.value)).not.toContain("vscode-chat");
+    fireEvent.change(add(), { target: { value: "claude-cli-acp" } });
+    fireEvent.change(add(), { target: { value: "local-llm-acp" } });
+    expect(screen.getByRole("combobox", { name: "Fallback 1 for apply" })).toHaveValue("claude-cli-acp");
+    expect([...add().options].map((option) => option.value)).not.toContain("claude-cli-acp");
+    fireEvent.click(screen.getByLabelText(/Allow a move that may cost more/));
+    fireEvent.click(screen.getByLabelText("Allow a move to another provider"));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", expect.objectContaining({
+      autonomyLevel: "autonomous",
+      maxStageAttempts: 2,
+      supervisor: {
+        mode: "act",
+        fallback: { apply: ["claude-cli-acp", "local-llm-acp"] },
+        allowCostIncrease: true,
+        allowProviderChange: true,
+      },
+    })));
+  });
+
+  it("removes a fallback when its list is set back to none", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: {},
+        autonomyLevel: "autonomous",
+        maxStageAttempts: 2,
+        supervisor: { mode: "act", fallback: { apply: ["claude-cli-acp", "local-llm-acp"] } },
+      }),
+    });
+    await renderLoaded(api);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Fallback 1 for apply" }), { target: { value: "" } });
+    expect(screen.getByRole("combobox", { name: "Fallback 1 for apply" })).toHaveValue("local-llm-acp");
+    fireEvent.change(screen.getByRole("combobox", { name: "Fallback 1 for apply" }), { target: { value: "" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", expect.objectContaining({ supervisor: { mode: "act" } })));
+  });
+
+  it("says Act will be refused once the change is no longer autonomous", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous", maxStageAttempts: 3, supervisor: { mode: "act" } }),
+    });
+    await renderLoaded(api);
+
+    expect(chosen("Change supervisor")).toBe("act");
+    expect(screen.queryByTestId("change-supervisor-act-refused")).toBeNull();
+    choose("Change autonomy level", "");
+    expect(screen.getByTestId("change-supervisor-act-refused").textContent).toContain("saving will be refused");
+  });
+
   it("still removes autonomyLevel when it is set back to inherit", async () => {
     const api = createApi({ readChangeOverride: vi.fn().mockResolvedValue({ stepAgents: {}, autonomyLevel: "autonomous" }) });
     await renderLoaded(api);

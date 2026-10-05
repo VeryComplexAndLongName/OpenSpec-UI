@@ -1002,7 +1002,14 @@ describe("supervisor", () => {
   it("advises with 600 and 60 seconds where nothing says otherwise", async () => {
     const root = await temporaryRoot();
     expect(resolveSupervisor((await resolveHarnessConfig(root)).supervisor))
-      .toEqual({ mode: "advise", silentAfterSeconds: 600, waitingAfterSeconds: 60 });
+      .toEqual({
+        mode: "advise",
+        silentAfterSeconds: 600,
+        waitingAfterSeconds: 60,
+        fallback: {},
+        allowCostIncrease: false,
+        allowProviderChange: false,
+      });
   });
 
   it("is turned off by either file", async () => {
@@ -1021,13 +1028,13 @@ describe("supervisor", () => {
     await writeChangeHarnessConfig(root, "demo", { supervisor: { silentAfterSeconds: 120 } });
 
     expect(resolveSupervisor((await resolveHarnessConfig(root, "demo")).supervisor))
-      .toEqual({ mode: "off", silentAfterSeconds: 120, waitingAfterSeconds: 30 });
+      .toMatchObject({ mode: "off", silentAfterSeconds: 120, waitingAfterSeconds: 30 });
   });
 
   it("refuses a mode this version does not have, naming the field", async () => {
     const root = await temporaryRoot();
-    await expect(writeChangeHarnessConfig(root, "demo", { supervisor: { mode: "act" as never } }))
-      .rejects.toThrow(/supervisor\.mode must be one of: advise, off/);
+    await expect(writeChangeHarnessConfig(root, "demo", { supervisor: { mode: "decide" as never } }))
+      .rejects.toThrow(/supervisor\.mode must be one of: advise, off, act/);
   });
 
   it("refuses a threshold that is not a positive whole number, and a key it does not have", async () => {
@@ -1038,6 +1045,71 @@ describe("supervisor", () => {
       .rejects.toThrow(/supervisor\.waitingAfterSeconds/);
     await expect(writeGlobalHarnessConfig(root, { supervisor: { quietAfterSeconds: 10 } as never }))
       .rejects.toThrow(/supervisor has no key "quietAfterSeconds"/);
+  });
+});
+
+// the-supervisor-changes-agents 1.2
+describe("supervisor act", () => {
+  const act = {
+    mode: "act" as const,
+    fallback: { apply: ["claude-cli-acp", "local-llm"] },
+    allowCostIncrease: true,
+    allowProviderChange: true,
+  };
+
+  it("is refused in the workspace's file", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { maxStageAttempts: 2, supervisor: { mode: "act" } }))
+      .rejects.toThrow(/supervisor\.mode "act" is set in a change's own harness\.json/);
+  });
+
+  it("is refused without autonomous in the same file", async () => {
+    const root = await temporaryRoot();
+    await expect(writeChangeHarnessConfig(root, "demo", { maxStageAttempts: 2, supervisor: act }))
+      .rejects.toThrow(/needs autonomyLevel "autonomous" in the same file/);
+    await expect(writeChangeHarnessConfig(root, "demo", { autonomyLevel: "semi-autonomous", maxStageAttempts: 2, supervisor: act }))
+      .rejects.toThrow(/needs autonomyLevel "autonomous" in the same file/);
+  });
+
+  it("is refused where the stage has one attempt", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous", supervisor: act });
+    await expect(resolveHarnessConfig(root, "demo")).rejects.toThrow(/maxStageAttempts is 1/);
+  });
+
+  it("is accepted with autonomous, attempts and a fallback, and resolves to them", async () => {
+    const root = await temporaryRoot();
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous", maxStageAttempts: 2, supervisor: act });
+    expect(resolveSupervisor((await resolveHarnessConfig(root, "demo")).supervisor)).toEqual({
+      mode: "act",
+      silentAfterSeconds: 600,
+      waitingAfterSeconds: 60,
+      fallback: { apply: ["claude-cli-acp", "local-llm"] },
+      allowCostIncrease: true,
+      allowProviderChange: true,
+    });
+  });
+
+  it("refuses a fallback with an unknown agent, the editor's chat, a repeated id, or a stage without an agent", async () => {
+    const root = await temporaryRoot();
+    const write = (fallback: unknown) => writeChangeHarnessConfig(root, "demo", {
+      autonomyLevel: "autonomous",
+      maxStageAttempts: 2,
+      supervisor: { mode: "act", fallback } as never,
+    });
+    await expect(write({ apply: ["no-such-agent"] })).rejects.toThrow(/not a registered agent/);
+    await expect(write({ apply: ["vscode-chat"] })).rejects.toThrow(/may not name vscode-chat/);
+    await expect(write({ apply: ["claude-cli-acp", "claude-cli-acp"] })).rejects.toThrow(/names "claude-cli-acp" twice/);
+    await expect(write({ archive: ["claude-cli-acp"] })).rejects.toThrow(/fallback\.archive names no stage that runs an agent/);
+    await expect(write({ apply: [] })).rejects.toThrow(/non-empty list/);
+  });
+
+  it("refuses the allowances in the workspace's file", async () => {
+    const root = await temporaryRoot();
+    await expect(writeGlobalHarnessConfig(root, { supervisor: { allowCostIncrease: true } } as never))
+      .rejects.toThrow(/supervisor\.allowCostIncrease is set in a change's own harness\.json/);
+    await expect(writeGlobalHarnessConfig(root, { supervisor: { allowProviderChange: true } } as never))
+      .rejects.toThrow(/supervisor\.allowProviderChange is set in a change's own harness\.json/);
   });
 });
 

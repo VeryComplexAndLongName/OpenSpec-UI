@@ -21,8 +21,10 @@
 //   outside; it says how long, and what the run last said (ADR 0028).
 
 import type { AgentStatusReport } from "./agent-status.js";
-import { describeDiagnosis } from "./failure-diagnosis.js";
+import { AGENT_REGISTRY, type AgentProvider } from "./agents/registry.js";
+import { describeDiagnosis, type FailureDiagnosis } from "./failure-diagnosis.js";
 import type { ResolvedSupervisor } from "./harness-config.js";
+import type { HarnessStepAgentStage } from "./harness-step-agent.js";
 import type { Hint } from "./hints.js";
 import type { LastRunsReport } from "./last-runs-facts.js";
 import { describeWaiting } from "./worktree-survey-facts.js";
@@ -115,12 +117,22 @@ function aboutLastRuns(inputs: SuperviseInputs): Hint[] {
     if (inputs.supervisorFor(changeName).mode === "off") continue;
     const at = run.stage !== undefined ? ` at ${run.stage}` : "";
     const evidence = diagnosis.evidence !== undefined ? ` It printed: "${diagnosis.evidence}".` : "";
+    // The agent `act` would move the stage to, where the change's policy
+    // allows one; said, never done (the-supervisor-changes-agents).
+    const supervisor = inputs.supervisorFor(changeName);
+    const move = run.stage !== undefined && run.agent !== undefined && isHarnessStepAgentStageName(run.stage)
+      ? superviseFailure({ stage: run.stage, current: run.agent, tried: [run.agent], diagnosis, supervisor })
+      : undefined;
+    const fallback = move?.action === "move"
+      ? ` Its fallback for ${run.stage}, ${move.agent}, is allowed by this change's policy${supervisor.mode === "act" ? "" : "; under supervisor.mode \"act\" a chain would move the stage to it"}.`
+      : "";
     hints.push({
       id: `last-run-cannot-be-repeated:${changeName}:${run.runId}`,
       kind: "last-run-cannot-be-repeated",
       subject: `${changeName}'s last run failed${at}, and repeating it will not help`,
       because: `${capitalised(describeDiagnosis(diagnosis))}.${evidence}`
-        + (diagnosis.remedy !== undefined ? ` ${diagnosis.remedy}` : ""),
+        + (diagnosis.remedy !== undefined ? ` ${diagnosis.remedy}` : "")
+        + fallback,
       commands: [...(diagnosis.commands ?? [])],
     });
   }
@@ -129,6 +141,89 @@ function aboutLastRuns(inputs: SuperviseInputs): Hint[] {
 
 function capitalised(text: string): string {
   return text.length === 0 ? text : `${text[0]?.toUpperCase() ?? ""}${text.slice(1)}`;
+}
+
+const AGENT_STAGES: ReadonlySet<string> = new Set(["propose", "review", "apply", "verify"]);
+
+function isHarnessStepAgentStageName(stage: string): stage is HarnessStepAgentStage {
+  return AGENT_STAGES.has(stage);
+}
+
+/** What the supervisor does about a failed stage under `act`
+ * (the-supervisor-changes-agents, ADR 0039 decision 4). */
+export type FailureDecision =
+  | { action: "repeat"; agent: string; because: string }
+  | { action: "move"; agent: string; because: string }
+  | { action: "none"; why: string };
+
+export interface FailureFactsForDecision {
+  stage: HarnessStepAgentStage;
+  /** The agent the stage failed on. */
+  current: string;
+  /** Every agent this stage has run on in this chain, the current one
+   * included: a fallback is never tried twice. */
+  tried: readonly string[];
+  diagnosis: FailureDiagnosis | undefined;
+  supervisor: Pick<ResolvedSupervisor, "fallback" | "allowCostIncrease" | "allowProviderChange">;
+}
+
+function providerOf(agent: string): AgentProvider | undefined {
+  return AGENT_REGISTRY.find((descriptor) => descriptor.id === agent)?.provider;
+}
+
+/** Why the policy refuses a move from `current` to `candidate`, or
+ * `undefined` where it allows it. Any move but one to the local model may
+ * cost more: nothing here knows one service's price against another's. */
+export function fallbackRefusal(
+  current: string,
+  candidate: string,
+  supervisor: Pick<ResolvedSupervisor, "allowCostIncrease" | "allowProviderChange">,
+): string | undefined {
+  const from = providerOf(current);
+  const to = providerOf(candidate);
+  if (to === undefined) return `${candidate} is not a registered agent`;
+  if (to !== from && !supervisor.allowProviderChange) {
+    return `${candidate} is another provider (${to}), and allowProviderChange is false`;
+  }
+  if (to !== "local" && !supervisor.allowCostIncrease) {
+    return `${candidate} may cost money, and allowCostIncrease is false`;
+  }
+  return undefined;
+}
+
+/** Repeat the stage, move it to a fallback, or leave the failure as it is.
+ * A pure function of what the chain already holds: the failure's
+ * diagnosis, the stage's fallback list and the change's policy. */
+export function superviseFailure(facts: FailureFactsForDecision): FailureDecision {
+  const { diagnosis } = facts;
+  if (diagnosis === undefined || diagnosis.repeatHelps === "unknown") {
+    return { action: "none", why: "the cause is not known, so the stage is neither repeated nor moved" };
+  }
+  const cause = describeDiagnosis(diagnosis);
+  if (diagnosis.repeatHelps === "likely") {
+    return { action: "repeat", agent: facts.current, because: `${cause}` };
+  }
+  const fallback = facts.supervisor.fallback[facts.stage] ?? [];
+  if (fallback.length === 0) {
+    return { action: "none", why: `${cause}, and ${facts.stage} names no fallback agent` };
+  }
+  const refusals: string[] = [];
+  for (const candidate of fallback) {
+    if (facts.tried.includes(candidate)) continue;
+    const refusal = fallbackRefusal(facts.current, candidate, facts.supervisor);
+    // A fallback passed over on the way is named too: a move that skipped
+    // one says why, not only where it went.
+    if (refusal === undefined) {
+      return { action: "move", agent: candidate, because: refusals.length > 0 ? `${cause} (passed over: ${refusals.join("; ")})` : cause };
+    }
+    refusals.push(refusal);
+  }
+  return {
+    action: "none",
+    why: refusals.length > 0
+      ? `${cause}, and the policy refuses every fallback left: ${refusals.join("; ")}`
+      : `${cause}, and every fallback for ${facts.stage} has been tried`,
+  };
 }
 
 /** What the supervisor points out, in the order a person deals with it:

@@ -18,10 +18,16 @@
 // config entry itself ("dispatch stage to VS Code chat") and avoids
 // implying that a CLI process will run.
 
+/** Who serves an agent's model: what a change's files are sent to when it
+ * runs. A move between two is a provider change (the-supervisor-changes-agents). */
+export type AgentProvider = "anthropic" | "github" | "openai" | "google" | "deepseek" | "local";
+
 export interface AgentDescriptor {
   /** Matches the `AgentAdapter.name` of the corresponding adapter. */
   id: string;
   label: string;
+  /** Who serves its model (the-supervisor-changes-agents). */
+  provider: AgentProvider;
   /** The CLI flag this adapter passes a model with (see harness-step-models
    * design.md). */
   modelFlag?: string;
@@ -38,25 +44,25 @@ export interface AgentDescriptor {
 }
 
 export const AGENT_REGISTRY: readonly AgentDescriptor[] = [
-  { id: "claude-cli", label: "Claude CLI", modelFlag: "--model", customAgentFlag: "--agent" },
-  { id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model", customAgentFlag: "--agent" },
-  { id: "codex-cli", label: "Codex CLI" },
-  { id: "gemini-cli", label: "Gemini CLI" },
-  { id: "local-llm", label: "Local LLM (OpenAI-compatible)", takesModel: true },
+  { provider: "anthropic", id: "claude-cli", label: "Claude CLI", modelFlag: "--model", customAgentFlag: "--agent" },
+  { provider: "github", id: "copilot-cli", label: "GitHub Copilot CLI", modelFlag: "--model", customAgentFlag: "--agent" },
+  { provider: "openai", id: "codex-cli", label: "Codex CLI" },
+  { provider: "google", id: "gemini-cli", label: "Gemini CLI" },
+  { provider: "local", id: "local-llm", label: "Local LLM (OpenAI-compatible)", takesModel: true },
   // Runs inside the product: nothing to install (ADR 0038).
-  { id: "local-llm-acp", label: "Local LLM agent (OpenAI-compatible, built in)", takesModel: true },
+  { provider: "local", id: "local-llm-acp", label: "Local LLM agent (OpenAI-compatible, built in)", takesModel: true },
   // ACP-flavored adapters (acp-agent-adapters) — additional entries, not
   // replacements for the four above (see this file's header comment).
-  { id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
-  { id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
-  { id: "codex-cli-acp", label: "Codex CLI (ACP)" },
+  { provider: "github", id: "copilot-cli-acp", label: "GitHub Copilot CLI (ACP)", modelFlag: "--model", customAgentFlag: "--agent" },
+  { provider: "google", id: "gemini-cli-acp", label: "Gemini CLI (ACP)" },
+  { provider: "openai", id: "codex-cli-acp", label: "Codex CLI (ACP)" },
   // DeepSeek through its own CLI's ACP profile (deepseek-joins-as-an-acp-agent).
-  { id: "deepseek-cli-acp", label: "DeepSeek CLI (ACP)" },
+  { provider: "deepseek", id: "deepseek-cli-acp", label: "DeepSeek CLI (ACP)" },
   // Label states the limitation inline, not just in the picker's own
   // copy (webui's AiPanel.tsx) — see design.md's risk mitigation
   // "the UI presenting this adapter must say so explicitly ... not leave
   // it to be discovered" and claude-acp.ts's own header comment for why.
-  { id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model", customAgentFlag: "--agent" },
+  { provider: "anthropic", id: "claude-cli-acp", label: "Claude CLI (ACP) — progress only, no permission gate", modelFlag: "--model", customAgentFlag: "--agent" },
 ];
 
 /** Whether a stage may name a model for `descriptor`'s agent. */

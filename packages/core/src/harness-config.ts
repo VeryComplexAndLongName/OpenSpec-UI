@@ -86,9 +86,11 @@ export interface HarnessHints {
   enabled: boolean;
 }
 
-/** What the supervisor does (ADR 0039, the-supervisor-advises). */
-export type HarnessSupervisorMode = "off" | "advise";
-export const SUPERVISOR_MODES: readonly HarnessSupervisorMode[] = ["advise", "off"];
+/** What the supervisor does (ADR 0039, the-supervisor-advises). `act` also
+ * repeats or moves a failed stage of a chain, within the change's policy
+ * (the-supervisor-changes-agents). */
+export type HarnessSupervisorMode = "off" | "advise" | "act";
+export const SUPERVISOR_MODES: readonly HarnessSupervisorMode[] = ["advise", "off", "act"];
 
 /** The supervisor: rules over the runs' records that suggest and change
  * nothing. Every field optional; see `resolveSupervisor` for what absent
@@ -101,25 +103,59 @@ export interface HarnessSupervisor {
   silentAfterSeconds?: number;
   /** How long a run may wait on a person before it is pointed out. */
   waitingAfterSeconds?: number;
+  /** The agents a stage may move to, in order, where its agent fails for a
+   * cause repeating cannot fix. Used only under `act`
+   * (the-supervisor-changes-agents). */
+  fallback?: Partial<Record<HarnessStepAgentStage, string[]>>;
+  /** Whether a move may be to an agent that is not the local model, which
+   * may cost money. Per change only; absent is false. */
+  allowCostIncrease?: boolean;
+  /** Whether a move may be to an agent of another provider, which sends the
+   * change's files to another company. Per change only; absent is false. */
+  allowProviderChange?: boolean;
 }
 
 export interface ResolvedSupervisor {
   mode: HarnessSupervisorMode;
   silentAfterSeconds: number;
   waitingAfterSeconds: number;
+  fallback: Partial<Record<HarnessStepAgentStage, string[]>>;
+  allowCostIncrease: boolean;
+  allowProviderChange: boolean;
 }
 
-export const DEFAULT_SUPERVISOR: ResolvedSupervisor = { mode: "advise", silentAfterSeconds: 600, waitingAfterSeconds: 60 };
+export const DEFAULT_SUPERVISOR: ResolvedSupervisor = {
+  mode: "advise",
+  silentAfterSeconds: 600,
+  waitingAfterSeconds: 60,
+  fallback: {},
+  allowCostIncrease: false,
+  allowProviderChange: false,
+};
 
-/** The supervisor a configuration resolves to: `advise`, 600 and 60 where
- * it says nothing, which is what every configuration written before the
- * key existed says. */
+/** The supervisor a configuration resolves to: `advise`, 600 and 60, no
+ * fallback and nothing allowed where it says nothing, which is what every
+ * configuration written before the keys existed says. */
 export function resolveSupervisor(value: HarnessSupervisor | undefined): ResolvedSupervisor {
   return {
     mode: value?.mode ?? DEFAULT_SUPERVISOR.mode,
     silentAfterSeconds: value?.silentAfterSeconds ?? DEFAULT_SUPERVISOR.silentAfterSeconds,
     waitingAfterSeconds: value?.waitingAfterSeconds ?? DEFAULT_SUPERVISOR.waitingAfterSeconds,
+    fallback: value?.fallback ?? {},
+    allowCostIncrease: value?.allowCostIncrease === true,
+    allowProviderChange: value?.allowProviderChange === true,
   };
+}
+
+/** Why a resolved configuration's `act` cannot act, or `undefined`. Checked
+ * where the configuration resolves, because the attempts it spends may come
+ * from the other file (the-supervisor-changes-agents). */
+export function supervisorActProblem(config: Pick<HarnessConfig, "supervisor" | "maxStageAttempts">): string | undefined {
+  if (config.supervisor?.mode !== "act") return undefined;
+  const attempts = config.maxStageAttempts ?? 1;
+  return attempts > 1
+    ? undefined
+    : `supervisor.mode "act" repeats or moves a failed stage as another attempt of it, and maxStageAttempts is ${attempts}: set it above 1 in this change's harness.json, or choose "advise"`;
 }
 
 /** A cost/token ceiling `HarnessChainRunner` checks before starting each
@@ -862,13 +898,19 @@ function assertValidHints(value: unknown): asserts value is HarnessHints | undef
   }
 }
 
-const SUPERVISOR_KEYS = ["mode", "silentAfterSeconds", "waitingAfterSeconds"] as const;
+const SUPERVISOR_KEYS = ["mode", "silentAfterSeconds", "waitingAfterSeconds", "fallback", "allowCostIncrease", "allowProviderChange"] as const;
 
-/** Structural, and accepted in both files: advising writes nothing and
- * spends nothing, so there is nothing a workspace may not decide. A mode
- * this version does not know is refused rather than read as `advise`: a
- * setting that cannot act is not accepted quietly (ADR 0039). */
-function assertValidSupervisor(value: unknown): asserts value is HarnessSupervisor | undefined {
+/** Advising writes nothing and spends nothing, so a workspace may decide it.
+ * Acting may start another agent, so it is a change's own decision, made
+ * where the change runs unattended (ADR 0018's rule for what widens
+ * authority), and so are the two allowances. A mode this version does not
+ * know is refused rather than read as `advise`: a setting that cannot act is
+ * not accepted quietly (ADR 0039). */
+function assertValidSupervisor(
+  value: unknown,
+  isPerChangeFile: boolean,
+  autonomyLevel: HarnessAutonomyLevel | undefined,
+): asserts value is HarnessSupervisor | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new InvalidHarnessConfigError("supervisor must be an object");
@@ -882,10 +924,53 @@ function assertValidSupervisor(value: unknown): asserts value is HarnessSupervis
   if (record.mode !== undefined && !SUPERVISOR_MODES.includes(record.mode as HarnessSupervisorMode)) {
     throw new InvalidHarnessConfigError(`supervisor.mode must be one of: ${SUPERVISOR_MODES.join(", ")}`);
   }
+  if (record.mode === "act") {
+    if (!isPerChangeFile) {
+      throw new InvalidHarnessConfigError('supervisor.mode "act" is set in a change\'s own harness.json, never for the whole workspace: it may start another agent unattended');
+    }
+    if (autonomyLevel !== "autonomous") {
+      throw new InvalidHarnessConfigError('supervisor.mode "act" needs autonomyLevel "autonomous" in the same file: under a level that asks a person, the person decides');
+    }
+  }
   for (const key of ["silentAfterSeconds", "waitingAfterSeconds"] as const) {
     const seconds = record[key];
     if (seconds !== undefined && (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds <= 0)) {
       throw new InvalidHarnessConfigError(`supervisor.${key} must be a positive whole number of seconds`);
+    }
+  }
+  for (const key of ["allowCostIncrease", "allowProviderChange"] as const) {
+    if (record[key] === undefined) continue;
+    if (typeof record[key] !== "boolean") throw new InvalidHarnessConfigError(`supervisor.${key} must be a boolean`);
+    if (!isPerChangeFile) {
+      throw new InvalidHarnessConfigError(`supervisor.${key} is set in a change's own harness.json, never for the whole workspace`);
+    }
+  }
+  if (record.fallback !== undefined) assertValidFallback(record.fallback);
+}
+
+/** A stage's fallback agents: registered, not the editor's chat, each once,
+ * for a stage that runs an agent. */
+function assertValidFallback(value: unknown): void {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new InvalidHarnessConfigError("supervisor.fallback must be an object of stages");
+  }
+  for (const [stage, agents] of Object.entries(value as Record<string, unknown>)) {
+    if (!(STAGES as readonly string[]).includes(stage) || !isHarnessStepAgentStage(stage as HarnessStage)) {
+      throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names no stage that runs an agent`);
+    }
+    if (!Array.isArray(agents) || agents.length === 0 || agents.some((agent) => typeof agent !== "string")) {
+      throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} must be a non-empty list of agent ids`);
+    }
+    const seen = new Set<string>();
+    for (const agent of agents as string[]) {
+      if (agent === VSCODE_CHAT_STEP_AGENT_ID) {
+        throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} may not name ${agent}: a chain cannot hand a stage it attempts again to the editor's chat`);
+      }
+      if (!AGENT_REGISTRY.some((descriptor) => descriptor.id === agent)) {
+        throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names "${agent}", which is not a registered agent`);
+      }
+      if (seen.has(agent)) throw new InvalidHarnessConfigError(`supervisor.fallback.${stage} names "${agent}" twice`);
+      seen.add(agent);
     }
   }
 }
@@ -1097,7 +1182,7 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidHints((input as { hints?: unknown }).hints);
-  assertValidSupervisor((input as { supervisor?: unknown }).supervisor);
+  assertValidSupervisor((input as { supervisor?: unknown }).supervisor, isPerChangeFile, input.autonomyLevel);
   assertValidMaxCost((input as { budget?: { maxCost?: unknown } }).budget?.maxCost);
   const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
@@ -1404,6 +1489,11 @@ export async function resolveHarnessConfig(workspaceRoot: string, changeName?: s
       );
     }
   });
+
+  // `act` spends attempts, which may be set in either file
+  // (the-supervisor-changes-agents).
+  const actProblem = supervisorActProblem(merged);
+  if (actProblem !== undefined) throw new InvalidHarnessConfigError(actProblem);
 
   return merged;
 }

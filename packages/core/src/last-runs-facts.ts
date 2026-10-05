@@ -19,6 +19,9 @@ export interface LastRun {
   /** What is known about why it failed, where it failed and the log says
    * (the-supervisor-advises). */
   diagnosis?: FailureDiagnosis;
+  /** The agent the failed stage ran on, where it failed on one
+   * (the-supervisor-changes-agents). */
+  agent?: string;
   /** The sum of what the run's entries reported spending; absent when none
    * reported a cost, which is not the same as costing nothing. */
   costUsd?: number;

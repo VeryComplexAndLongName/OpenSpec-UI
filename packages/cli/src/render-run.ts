@@ -50,6 +50,9 @@ export class RunTextRenderer {
    * reason: they are two statements and running them together shows one
    * that was never made. */
   private streamingKind: AcpTextChunkKind | "stdout" | undefined;
+  /** The last progress line printed, so a stage attempted again for a
+   * reason a progress line has just said is not told twice. */
+  private lastProgress: string | undefined;
 
   /** Renders one event, or `undefined` for one with nothing to show. */
   render(event: Event): RenderedPiece {
@@ -57,7 +60,13 @@ export class RunTextRenderer {
       case "stageStarted": {
         const attempt = event.attempt !== undefined && event.attempt > 1 ? ` (attempt ${event.attempt})` : "";
         const agent = event.agentId ? ` — ${event.agentId}` : "";
-        return this.line(`\n▶ ${event.stage}${agent}${attempt}`);
+        // Why the stage is attempted again: a ceiling that cut it, or the
+        // supervisor repeating or moving it (the-supervisor-changes-agents).
+        const reason = attempt !== "" && event.previousAttemptReason !== undefined && event.previousAttemptReason !== this.lastProgress
+          ? `\n  because ${event.previousAttemptReason}`
+          : "";
+        this.lastProgress = undefined;
+        return this.line(`\n▶ ${event.stage}${agent}${attempt}${reason}`);
       }
       case "stageCompleted":
         return this.line(`✓ ${event.stage} → ${event.nextStage}`);
@@ -77,6 +86,7 @@ export class RunTextRenderer {
       case "stderr":
         return this.line(event.chunk.replace(/\r?\n$/, ""));
       case "progress":
+        this.lastProgress = event.message;
         return this.line(`· ${event.message}`);
       case "usageReported": {
         const parts: string[] = [];

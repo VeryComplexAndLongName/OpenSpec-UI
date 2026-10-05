@@ -452,6 +452,17 @@ export interface AuditEntry {
   operatorMessage?: { messageId: string; kind: "note" | "ask"; from: string; stage: string };
   /** A message addressed to this run that it did not take, and why. */
   operatorMessageRefused?: { messageId: string; why: "unverified" | "stale" | "seen" | "author-not-allowed" };
+  /** What the supervisor did about a failed stage under `act`, on an entry
+   * from `supervisor` whose outcome is `message`
+   * (the-supervisor-changes-agents): repeated it on the same agent, moved it
+   * to another, or left the failure as it was, with why. */
+  supervisorDecision?: {
+    action: "repeat" | "move" | "none";
+    stage: string;
+    from: string;
+    to?: string;
+    because: string;
+  };
 }
 
 export interface AuditLog {

@@ -356,6 +356,9 @@ describe("GlobalHarnessSettingsView — the supervisor", () => {
     await waitFor(() => expect(screen.getByLabelText("propose agent")).toHaveValue("claude-cli"));
 
     expect(chosen("Global supervisor")).toBe("advise");
+    // Act is a change's own to choose (the-supervisor-changes-agents 2.1).
+    expect(radios("Global supervisor").map((radio) => radio.value)).toEqual(["advise", "off"]);
+    expect(screen.queryByTestId("change-supervisor-act")).toBeNull();
     expect(saveButton()).toBeDisabled();
     choose("Global supervisor", "off");
     expect(screen.getByTestId("global-supervisor-note").textContent).toContain("Points out nothing about runs");

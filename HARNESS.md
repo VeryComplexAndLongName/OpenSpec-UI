@@ -250,12 +250,15 @@ question.
 
 ### `supervisor`
 
-`{ "mode"?: "advise" | "off", "silentAfterSeconds"?: <positive integer>,
-"waitingAfterSeconds"?: <positive integer> }`. Optional; absent means
-`advise`, 600 and 60. Accepted in both files, and a change's own object is
-merged key by key over the global one: a change that turns it off keeps
-the workspace's thresholds. Set the mode from either Harness Settings
-view; the thresholds are set in the file.
+`{ "mode"?: "advise" | "off" | "act", "silentAfterSeconds"?: <positive integer>,
+"waitingAfterSeconds"?: <positive integer>, "fallback"?: { "<stage>": ["<agent id>", ...] },
+"allowCostIncrease"?: <boolean>, "allowProviderChange"?: <boolean> }`.
+Optional; absent means `advise`, 600 and 60, no fallback and nothing
+allowed. Accepted in both files, and a change's own object is merged key
+by key over the global one: a change that turns it off keeps the
+workspace's thresholds. Set the mode from either Harness Settings view;
+the thresholds are set in the file. `act`, `fallback` and the two
+allowances are a change's own only — see [Act](#act) below.
 
 The supervisor ([ADR 0039](docs/adr/0039-the-supervisor-advises.md)) is
 rules over records that already exist. It is not a process and not a
@@ -296,6 +299,54 @@ The first cause in that order wins. A status code counts only after
 number in output is usually a duration or a count. The diagnosis quotes
 the line it was found in, so it can be checked. A failure matching none is
 diagnosed as unknown, and nothing more is said beneath it.
+
+#### Act
+
+Under `act` (the-supervisor-changes-agents, ADR 0039 decision 4) the
+supervisor also does something about a stage whose agent failed, from the
+failure's diagnosis and the change's own policy:
+
+| Diagnosis | What it does |
+| --- | --- |
+| Repeating is likely to help (rate limit, service failure) | Attempts the stage again on the same agent |
+| Repeating will not help (not installed, not signed in, blocked, no network) | Moves the stage to the first agent in `fallback.<stage>` that the policy allows and the stage has not run on in this chain |
+| Not known | Nothing: the chain ends with the failure, as under `advise` |
+
+Every repeat or move is another attempt of the stage, so it is spent from
+`maxStageAttempts`; with no attempt left the chain ends with the failure.
+A moved stage runs its new agent with that agent's own defaults: the old
+entry's model, effort, budget and custom agent are not carried over.
+
+The policy:
+
+- **`allowProviderChange`** — a move to an agent of another provider
+  (Anthropic, GitHub, OpenAI, Google, DeepSeek, or the local model). The
+  change's files and prompts then go to that provider.
+- **`allowCostIncrease`** — a move to any agent but the local model.
+  Nothing here knows one service's price against another's, so every move
+  but one to the local model counts as one that may cost more.
+
+Both are false where absent, and a fallback the policy refuses is skipped
+and named. `act` is refused in the workspace file, and in a change's file
+that does not itself set `autonomyLevel: "autonomous"`: under a level that
+asks a person, the person decides. A configuration whose `act` would have
+one attempt per stage is refused when it resolves. A fallback list names
+only stages that run an agent, only registered agents, never
+`vscode-chat`, and no agent twice.
+
+What it does is always said and recorded: a progress line ("the supervisor
+moved apply from copilot-cli-acp to claude-cli-acp: …"), the next
+attempt's `stageStarted` naming the new agent with the reason, and an
+audit `message` entry from `supervisor` carrying `supervisorDecision`. A
+chain yields no `failed` event for a stage it goes on to attempt again.
+Under `advise`, a change's last-run suggestion names the fallback `act`
+would move the stage to, and changes nothing.
+
+In a change's Harness Settings, Act is offered only where the change's own
+autonomy level is Autonomous; choosing it asks for a second attempt where
+the change has one, and shows the fallback fields and the two allowances
+with a note on cost and providers. `openspec-ui-cli run` prints the move,
+and the reason under the next attempt's heading.
 
 ### `branches`
 

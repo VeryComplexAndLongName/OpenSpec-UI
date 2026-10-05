@@ -1992,6 +1992,49 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  /* The supervisor's Act fields: a fallback per stage, then the allowances
+     (the-supervisor-changes-agents). */
+  .openspec-supervisor-act {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .openspec-supervisor-fallback {
+    display: grid;
+    grid-template-columns: minmax(0, 9em) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .openspec-supervisor-fallback-stage {
+    line-height: 30px;
+  }
+
+  .openspec-supervisor-fallback-agents {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  /* The band's fields fill their column; a checkbox is not a field. */
+  .openspec-supervisor-allowance {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .openspec-metro .openspec-harness-band .openspec-supervisor-allowance input {
+    flex: none;
+    width: auto;
+    height: auto;
+    margin: 0;
+  }
+
   .openspec-metro .badge.openspec-harness-gate {
     position: static;
     display: inline-block;

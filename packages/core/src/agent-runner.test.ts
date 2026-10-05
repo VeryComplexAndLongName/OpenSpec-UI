@@ -427,6 +427,27 @@ describe("createAgentRunner — a failure's diagnosis", () => {
     expect(auditLog.entries.find((entry) => entry.outcome === "failed")?.diagnosis?.cause).toBe("not-signed-in");
   });
 
+  // the-supervisor-changes-agents 4.3: found live, on claude-cli-acp.
+  it("diagnoses from what an ACP agent said as a message", async () => {
+    const { adapter } = makeFakeAdapter(async function* (invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
+      yield {
+        kind: "agentUpdate",
+        runId: cmd.runId,
+        timestamp: "t",
+        update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Not logged in · Please run /login" } },
+      };
+      yield { kind: "failed", runId: cmd.runId, timestamp: "t", reason: "claude exited with code 1" };
+    });
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog: new InMemoryAuditLog() });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-diag-acp"))) events.push(event);
+
+    const failed = events.find((event) => event.kind === "failed");
+    expect(failed?.kind === "failed" ? failed.diagnosis?.cause : undefined).toBe("not-signed-in");
+  });
+
   it("diagnoses an adapter that throws", async () => {
     const { adapter } = makeFakeAdapter(async function* (invocation, cmd) {
       yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "implement", cwd: workspaceRoot };
