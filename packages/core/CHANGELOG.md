@@ -1,5 +1,39 @@
 # @openspec-ui/core
 
+## 0.133.0
+
+### Minor Changes
+
+- 7c87236: A Pipeline card works its change's tasks in the worktree made for it. A
+  task's hint now holds all of it, and selecting a task opens it whole beside
+  the board. For a change in its own worktree, a card closes or reopens a
+  task with a note written under it (required for a Human-only or delegated
+  task), commits that `tasks.md` alone and pushes the branch, and runs a
+  delegated task on its agent. Refused while a run works there. The change's
+  name opens its task list where it is worked: `tasks.md` from the worktree
+  in the editor, which looked only in this checkout and so opened nothing for
+  a change not yet merged; a page of its own in a new browser tab in the
+  standalone app. An open card can hide its done tasks. From a terminal:
+  `openspec-ui-cli task done|reopen <change> <number> [--note]` and
+  `openspec-ui-cli task commit <change>`. Cards read from anywhere else stay
+  read-only (ADR 0026, amended).
+- 5f45ce9: A failed run says what is known about why, and the supervisor points out
+  runs that need you. When a run fails, its reason and the end of what it
+  printed are matched against causes that have been seen: the agent is not
+  installed, not signed in, blocked by the machine, cannot reach the
+  network, was rate-limited, or the service failed. The diagnosis says
+  whether repeating can help, quotes the line it was found in, and says what
+  to do instead. It is shown beneath the failure in both hosts, on the
+  change's card and in `openspec-ui-cli run`.
+  
+  The supervisor (`supervisor.mode`, `advise` by default) adds three
+  suggestions beside the others in the Pipeline and in `openspec-ui-cli
+  advise`: a run that has said nothing new for longer than
+  `supervisor.silentAfterSeconds` (600), a run that has waited on a person
+  for longer than `supervisor.waitingAfterSeconds` (60), and a change whose
+  last run failed for a cause repeating cannot fix. It suggests and changes
+  nothing. Set it to Off from either Harness Settings view.
+
 ## 0.132.0
 
 ### Minor Changes
