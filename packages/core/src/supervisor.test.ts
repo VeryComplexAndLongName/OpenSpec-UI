@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentStatusReport } from "./agent-status.js";
 import { DEFAULT_SUPERVISOR, type ResolvedSupervisor } from "./harness-config.js";
 import type { LastRun } from "./last-runs-facts.js";
-import { describeSpan, superviseRuns, type SuperviseInputs } from "./supervisor.js";
+import { describeSpan, superviseFailure, superviseRuns, type FailureFactsForDecision, type SuperviseInputs } from "./supervisor.js";
 
 // the-supervisor-advises 3.2: pure over records, so every case is a record.
 
@@ -182,5 +182,89 @@ describe("describeSpan", () => {
     expect(describeSpan(90_000)).toBe("90 seconds");
     expect(describeSpan(11.9 * MINUTE)).toBe("11 minutes");
     expect(describeSpan(150 * MINUTE)).toBe("2 hours");
+  });
+});
+
+// the-supervisor-changes-agents 1.3
+describe("superviseFailure", () => {
+  const notSignedIn = { cause: "not-signed-in", repeatHelps: "no" } as const;
+
+  function facts(partial: Partial<FailureFactsForDecision> & { policy?: Partial<ResolvedSupervisor> } = {}): FailureFactsForDecision {
+    return {
+      stage: "apply",
+      current: "copilot-cli-acp",
+      tried: partial.tried ?? [partial.current ?? "copilot-cli-acp"],
+      diagnosis: notSignedIn,
+      supervisor: {
+        fallback: { apply: ["claude-cli-acp", "local-llm-acp"] },
+        allowCostIncrease: true,
+        allowProviderChange: true,
+        ...partial.policy,
+      },
+      ...partial,
+    };
+  }
+
+  it("repeats on the same agent where repeating is likely to help", () => {
+    expect(superviseFailure(facts({ diagnosis: { cause: "rate-limited", repeatHelps: "likely" } })))
+      .toEqual({ action: "repeat", agent: "copilot-cli-acp", because: expect.stringContaining("rate") });
+  });
+
+  it("moves to the first fallback the policy allows that was not tried", () => {
+    expect(superviseFailure(facts())).toMatchObject({ action: "move", agent: "claude-cli-acp" });
+    expect(superviseFailure(facts({ tried: ["copilot-cli-acp", "claude-cli-acp"] })))
+      .toMatchObject({ action: "move", agent: "local-llm-acp" });
+  });
+
+  it("refuses a provider change, and names the rule", () => {
+    const decision = superviseFailure(facts({ policy: { fallback: { apply: ["claude-cli-acp"] }, allowProviderChange: false } }));
+    expect(decision).toEqual({ action: "none", why: expect.stringContaining("claude-cli-acp is another provider (anthropic), and allowProviderChange is false") });
+  });
+
+  it("refuses a cost increase, and names the rule", () => {
+    const decision = superviseFailure(facts({ policy: { fallback: { apply: ["copilot-cli"] }, allowCostIncrease: false } }));
+    expect(decision).toEqual({ action: "none", why: expect.stringContaining("copilot-cli may cost money, and allowCostIncrease is false") });
+  });
+
+  it("allows the local model without allowCostIncrease, and names the fallback it passed over", () => {
+    expect(superviseFailure(facts({ policy: { allowCostIncrease: false } }))).toEqual({
+      action: "move",
+      agent: "local-llm-acp",
+      because: expect.stringContaining("passed over: claude-cli-acp may cost money, and allowCostIncrease is false"),
+    });
+  });
+
+  it("tries nothing twice", () => {
+    expect(superviseFailure(facts({ tried: ["copilot-cli-acp", "claude-cli-acp", "local-llm-acp"] })))
+      .toEqual({ action: "none", why: expect.stringContaining("every fallback for apply has been tried") });
+  });
+
+  it("does nothing where the cause is unknown, or the stage has no fallback", () => {
+    expect(superviseFailure(facts({ diagnosis: { cause: "unknown", repeatHelps: "unknown" } }))).toMatchObject({ action: "none" });
+    expect(superviseFailure(facts({ diagnosis: undefined }))).toMatchObject({ action: "none" });
+    expect(superviseFailure(facts({ policy: { fallback: {} } })))
+      .toEqual({ action: "none", why: expect.stringContaining("apply names no fallback agent") });
+  });
+});
+
+// the-supervisor-changes-agents 1.5
+describe("superviseRuns — the fallback under advise", () => {
+  it("names the fallback act would move the stage to, and changes nothing", () => {
+    const hints = superviseRuns(inputs({
+      lastRuns: { byChange: { demo: failed({ agent: "copilot-cli-acp" }) } },
+      supervisor: { fallback: { apply: ["claude-cli-acp"] }, allowCostIncrease: true, allowProviderChange: true },
+    }));
+    expect(hints).toHaveLength(1);
+    expect(hints[0]?.because).toContain("Its fallback for apply, claude-cli-acp, is allowed by this change's policy");
+    expect(hints[0]?.because).toContain('under supervisor.mode "act" a chain would move the stage to it');
+    expect(hints[0]?.commands).toEqual(["copilot"]);
+  });
+
+  it("says nothing of a fallback the policy refuses", () => {
+    const hints = superviseRuns(inputs({
+      lastRuns: { byChange: { demo: failed({ agent: "copilot-cli-acp" }) } },
+      supervisor: { fallback: { apply: ["claude-cli-acp"] } },
+    }));
+    expect(hints[0]?.because).not.toContain("fallback");
   });
 });

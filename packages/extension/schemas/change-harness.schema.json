@@ -322,15 +322,16 @@
     "supervisor": {
       "type": "object",
       "additionalProperties": false,
-      "description": "What the supervisor points out about runs (ADR 0039). It suggests and changes nothing.",
+      "description": "What the supervisor points out about runs, and, under act in a change's own file, what it may do when a stage fails (ADR 0039).",
       "properties": {
         "mode": {
           "type": "string",
           "enum": [
             "advise",
-            "off"
+            "off",
+            "act"
           ],
-          "description": "advise (absent) or off."
+          "description": "advise (absent), off, or act: repeat or move a failed stage, which needs autonomyLevel autonomous and maxStageAttempts above 1."
         },
         "silentAfterSeconds": {
           "type": "integer",
@@ -341,6 +342,105 @@
           "type": "integer",
           "minimum": 1,
           "description": "Seconds a run may wait on a person before it is pointed out. Absent means 60."
+        },
+        "fallback": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The agents a stage may move to, in order, where its agent fails for a cause repeating cannot fix. Used only under act.",
+          "properties": {
+            "propose": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "claude-cli",
+                  "copilot-cli",
+                  "codex-cli",
+                  "gemini-cli",
+                  "local-llm",
+                  "local-llm-acp",
+                  "copilot-cli-acp",
+                  "gemini-cli-acp",
+                  "codex-cli-acp",
+                  "deepseek-cli-acp",
+                  "claude-cli-acp"
+                ]
+              }
+            },
+            "review": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "claude-cli",
+                  "copilot-cli",
+                  "codex-cli",
+                  "gemini-cli",
+                  "local-llm",
+                  "local-llm-acp",
+                  "copilot-cli-acp",
+                  "gemini-cli-acp",
+                  "codex-cli-acp",
+                  "deepseek-cli-acp",
+                  "claude-cli-acp"
+                ]
+              }
+            },
+            "apply": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "claude-cli",
+                  "copilot-cli",
+                  "codex-cli",
+                  "gemini-cli",
+                  "local-llm",
+                  "local-llm-acp",
+                  "copilot-cli-acp",
+                  "gemini-cli-acp",
+                  "codex-cli-acp",
+                  "deepseek-cli-acp",
+                  "claude-cli-acp"
+                ]
+              }
+            },
+            "verify": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "claude-cli",
+                  "copilot-cli",
+                  "codex-cli",
+                  "gemini-cli",
+                  "local-llm",
+                  "local-llm-acp",
+                  "copilot-cli-acp",
+                  "gemini-cli-acp",
+                  "codex-cli-acp",
+                  "deepseek-cli-acp",
+                  "claude-cli-acp"
+                ]
+              }
+            }
+          }
+        },
+        "allowCostIncrease": {
+          "type": "boolean",
+          "description": "Whether a move may be to an agent that is not the local model. Absent means false."
+        },
+        "allowProviderChange": {
+          "type": "boolean",
+          "description": "Whether a move may be to an agent of another provider. Absent means false."
         }
       }
     },

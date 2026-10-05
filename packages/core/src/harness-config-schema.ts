@@ -305,11 +305,26 @@ function topLevel(scope: HarnessSchemaScope): Record<string, Schema> {
     supervisor: {
       type: "object",
       additionalProperties: false,
-      description: "What the supervisor points out about runs (ADR 0039). It suggests and changes nothing.",
+      description: "What the supervisor points out about runs, and, under act in a change's own file, what it may do when a stage fails (ADR 0039).",
       properties: {
-        mode: { type: "string", enum: [...SUPERVISOR_MODES], description: "advise (absent) or off." },
+        mode: scope === "change"
+          ? { type: "string", enum: [...SUPERVISOR_MODES], description: "advise (absent), off, or act: repeat or move a failed stage, which needs autonomyLevel autonomous and maxStageAttempts above 1." }
+          : { type: "string", enum: SUPERVISOR_MODES.filter((mode) => mode !== "act"), description: "advise (absent) or off. act is set per change." },
         silentAfterSeconds: positiveInteger("Seconds a live run may say nothing new before it is pointed out. Absent means 600."),
         waitingAfterSeconds: positiveInteger("Seconds a run may wait on a person before it is pointed out. Absent means 60."),
+        fallback: {
+          type: "object",
+          additionalProperties: false,
+          description: "The agents a stage may move to, in order, where its agent fails for a cause repeating cannot fix. Used only under act.",
+          properties: Object.fromEntries(STAGES.filter(isHarnessStepAgentStage).map((stage) => [stage, {
+            type: "array",
+            minItems: 1,
+            uniqueItems: true,
+            items: { type: "string", enum: AGENT_REGISTRY.map((agent) => agent.id) },
+          }])),
+        },
+        allowCostIncrease: perChangeOnly(scope, { type: "boolean", description: "Whether a move may be to an agent that is not the local model. Absent means false." }, "It may cost money."),
+        allowProviderChange: perChangeOnly(scope, { type: "boolean", description: "Whether a move may be to an agent of another provider. Absent means false." }, "It sends the change's files to another company."),
       },
     },
     allowAgentMessages: { type: "boolean", description: "Whether a run takes notes written by another run. Absent means false." },

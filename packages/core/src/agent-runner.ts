@@ -18,6 +18,7 @@ import {
   prepareAgentContext,
 } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
+import { readAcpStreamedText } from "./acp-streamed-text.js";
 import { diagnoseFailure, type FailureDiagnosis } from "./failure-diagnosis.js";
 import { createGitWrapper } from "./git.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
@@ -320,6 +321,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           let event = received;
           if (event.kind === "stdout" || event.kind === "stderr") {
             outputTail = (outputTail + event.chunk).slice(-OUTPUT_TAIL_CHARS);
+          }
+          // An ACP agent says why it could not work as a message, not on
+          // stderr: `claude` answers "Not logged in · Please run /login" that
+          // way, and a tail without it diagnosed nothing
+          // (the-supervisor-changes-agents 4.3).
+          if (event.kind === "agentUpdate") {
+            const said = readAcpStreamedText(event.update);
+            if (said?.kind === "agent_message_chunk") outputTail = (outputTail + said.text).slice(-OUTPUT_TAIL_CHARS);
           }
           if (event.kind === "completed") lastSummary = event.summary;
           if (event.kind === "failed") {

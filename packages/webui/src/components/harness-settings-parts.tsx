@@ -393,7 +393,104 @@ export function withSupervisorMode<T extends Partial<HarnessConfig>>(config: T, 
 export const SUPERVISOR_NOTES: Readonly<Record<HarnessSupervisorMode, string>> = {
   advise: "Points out a run that says nothing new or waits on a person, and a failure that repeating cannot fix. It suggests and changes nothing.",
   off: "Points out nothing about runs. Other suggestions are still made.",
+  act: "Advises, and when a stage fails it repeats it where repeating is likely to help, or moves it to a fallback agent this change allows. It says and records every move.",
 };
+
+/** Said beside Act, before anything is saved: what it may start unattended
+ * (the-supervisor-changes-agents). */
+export const SUPERVISOR_ACT_WARNING = "A move starts another agent without asking: it may cost money, and with another provider "
+  + "this change's files and prompts go to that provider. Each is allowed only below.";
+
+/** The stages a fallback can be named for: the ones that run an agent. */
+export const FALLBACK_STAGES: readonly HarnessStepAgentStage[] = ["propose", "review", "apply", "verify"];
+
+/** The supervisor's policy keys as the form edits them. */
+export type SupervisorPolicyKey = "allowCostIncrease" | "allowProviderChange";
+
+/** A stage's fallback list as its field shows it: ids, comma-separated. */
+export function fallbackText(config: Partial<HarnessConfig> | null | undefined, stage: HarnessStepAgentStage): string {
+  return (config?.supervisor?.fallback?.[stage] ?? []).join(", ");
+}
+
+/** Lays a stage's fallback field over a configuration's `supervisor`. Empty
+ * removes the stage, and a fallback left with no stage is removed: the
+ * file says only what was chosen. What is typed is kept as typed; core's
+ * validator names an unknown id when the file is written. */
+export function withFallback<T extends Partial<HarnessConfig>>(config: T, stage: HarnessStepAgentStage, text: string): T {
+  const agents = text.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+  const { [stage]: _replaced, ...others } = config.supervisor?.fallback ?? {};
+  const fallback = agents.length === 0 ? others : { ...others, [stage]: agents };
+  const { fallback: _old, ...rest } = config.supervisor ?? {};
+  const supervisor = Object.keys(fallback).length === 0 ? rest : { ...rest, fallback };
+  const result = { ...config };
+  if (Object.keys(supervisor).length === 0) delete result.supervisor;
+  else result.supervisor = supervisor;
+  return result;
+}
+
+/** Lays an allowance over a configuration's `supervisor`. Unticked removes
+ * it: absent is false. */
+export function withSupervisorAllowance<T extends Partial<HarnessConfig>>(config: T, key: SupervisorPolicyKey, allowed: boolean): T {
+  const { [key]: _replaced, ...rest } = config.supervisor ?? {};
+  const supervisor = allowed ? { ...rest, [key]: true } : rest;
+  const result = { ...config };
+  if (Object.keys(supervisor).length === 0) delete result.supervisor;
+  else result.supervisor = supervisor;
+  return result;
+}
+
+/** The fallback agents a field offers to complete: every registered agent,
+ * the editor's chat excepted — a chain cannot hand a stage to it. */
+export const FALLBACK_AGENT_IDS: readonly string[] = AGENT_REGISTRY
+  .map((descriptor) => descriptor.id)
+  .filter((id) => id !== VSCODE_CHAT_STEP_AGENT_ID);
+
+/** Act's own fields: a fallback per stage and the two allowances
+ * (the-supervisor-changes-agents). */
+export function SupervisorActFields(
+  { config, onChange }: { config: Partial<HarnessConfig>; onChange: (next: Partial<HarnessConfig>) => void },
+) {
+  const listId = "openspec-fallback-agents";
+  return (
+    <div className="openspec-supervisor-act" data-testid="change-supervisor-act">
+      <p className="openspec-harness-band-note" role="note" data-testid="change-supervisor-act-warning">{SUPERVISOR_ACT_WARNING}</p>
+      <datalist id={listId}>
+        {FALLBACK_AGENT_IDS.map((id) => <option key={id} value={id} />)}
+      </datalist>
+      {FALLBACK_STAGES.map((stage) => (
+        <label key={stage} className="openspec-supervisor-fallback">
+          <span>Fallback for {stage}</span>
+          <input
+            type="text"
+            aria-label={`Fallback agents for ${stage}`}
+            list={listId}
+            value={fallbackText(config, stage)}
+            placeholder="none: the failure ends the chain"
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => onChange(withFallback(config, stage, e.target.value))}
+          />
+        </label>
+      ))}
+      <label className="openspec-supervisor-allowance">
+        <input
+          type="checkbox"
+          checked={config.supervisor?.allowCostIncrease === true}
+          onChange={(e) => onChange(withSupervisorAllowance(config, "allowCostIncrease", e.target.checked))}
+        />
+        Allow a move that may cost more (any agent but the local model)
+      </label>
+      <label className="openspec-supervisor-allowance">
+        <input
+          type="checkbox"
+          checked={config.supervisor?.allowProviderChange === true}
+          onChange={(e) => onChange(withSupervisorAllowance(config, "allowProviderChange", e.target.checked))}
+        />
+        Allow a move to another provider
+      </label>
+    </div>
+  );
+}
 
 /** The columns of the stage table, in order. Each cell carries its column's
  * name, which the narrow layout draws above the field. */

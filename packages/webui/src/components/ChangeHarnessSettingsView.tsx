@@ -42,6 +42,7 @@ import {
   stepAgentsFromForms,
   STAGES,
   SUPERVISOR_NOTES,
+  SupervisorActFields,
   supervisorModeFrom,
   toForm,
   withSupervisorMode,
@@ -239,6 +240,10 @@ export function ChangeHarnessSettingsView(
 
   const supervisorMode = supervisorModeFrom(override);
   const inheritedSupervisor = supervisorModeFrom(base) || "advise";
+  // Act is this change's to choose only where this change itself runs
+  // unattended, and it spends attempts (the-supervisor-changes-agents).
+  const ownAutonomous = autonomyLevel === "autonomous";
+  const stageAttempts = override?.maxStageAttempts ?? base.maxStageAttempts ?? 1;
   const inheritedLevel = autonomyLevelParts(base.autonomyLevel);
   const shownLevel = autonomyLevel === INHERIT ? inheritedLevel : autonomyLevelParts(autonomyLevel);
 
@@ -384,18 +389,41 @@ export function ChangeHarnessSettingsView(
                 <SegmentedChoice
                   label="Change supervisor"
                   value={supervisorMode}
-                  onChange={(mode) => setOverride((previous) => withSupervisorMode(previous ?? {}, mode))}
+                  onChange={(mode) => setOverride((previous) => {
+                    const next = withSupervisorMode(previous ?? {}, mode);
+                    // A repeat or a move is another attempt of the stage, so
+                    // Act with one attempt could do nothing: it asks for a
+                    // second, and the note below says so.
+                    return mode === "act" && (next.maxStageAttempts ?? base.maxStageAttempts ?? 1) <= 1
+                      ? { ...next, maxStageAttempts: 2 }
+                      : next;
+                  })}
                   options={[
                     { value: INHERIT, label: "Inherit", title: `${inheritedSupervisor}, ${FROM_GLOBAL}` },
                     { value: "advise" as const, label: "Advise" },
                     { value: "off" as const, label: "Off" },
+                    ...(ownAutonomous || supervisorMode === "act" ? [{ value: "act" as const, label: "Act" }] : []),
                   ]}
                 />
                 <p className="openspec-harness-band-note" data-testid="change-supervisor-note">
                   {supervisorMode === INHERIT
                     ? `${inheritedSupervisor === "off" ? "Off" : "Advise"}, ${FROM_GLOBAL}. ${SUPERVISOR_NOTES[inheritedSupervisor]}`
                     : SUPERVISOR_NOTES[supervisorMode]}
+                  {supervisorMode !== "act" && !ownAutonomous
+                    ? " Act is offered where this change's own autonomy level is Autonomous."
+                    : ""}
+                  {supervisorMode === "act"
+                    ? ` Each stage may be attempted ${stageAttempts} times (maxStageAttempts).`
+                    : ""}
                 </p>
+                {supervisorMode === "act" && !ownAutonomous ? (
+                  <p className="openspec-harness-band-note" role="alert" data-testid="change-supervisor-act-refused">
+                    Act needs this change's own autonomy level to be Autonomous: saving will be refused until it is, or until another mode is chosen.
+                  </p>
+                ) : null}
+                {supervisorMode === "act" ? (
+                  <SupervisorActFields config={override ?? {}} onChange={(next) => setOverride(next)} />
+                ) : null}
               </div>
             </div>
             <SettingsFoot

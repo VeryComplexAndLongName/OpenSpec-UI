@@ -53,6 +53,9 @@ describe("lastRunsOf", () => {
       stage: "verify",
       endedAt: "2026-09-14T10:06:00.010Z",
       reason: "verify: the agent gave up",
+      // The failed stage's agent, for the supervisor's fallback policy
+      // (the-supervisor-changes-agents).
+      agent: "claude-cli",
       costUsd: 0.75,
     });
   });

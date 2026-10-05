@@ -1992,6 +1992,34 @@ export const shellThemeCss = `
     color: var(--muted);
   }
 
+  /* The supervisor's Act fields: a fallback per stage, then the allowances
+     (the-supervisor-changes-agents). */
+  .openspec-supervisor-act {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .openspec-supervisor-fallback {
+    display: grid;
+    grid-template-columns: minmax(0, 8em) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .openspec-supervisor-fallback input {
+    min-width: 0;
+  }
+
+  .openspec-supervisor-allowance {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+
   .openspec-metro .badge.openspec-harness-gate {
     position: static;
     display: inline-block;

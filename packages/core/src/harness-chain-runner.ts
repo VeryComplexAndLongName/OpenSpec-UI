@@ -44,6 +44,7 @@ import {
   normalizeStepAgent,
   readChangeHarnessConfig,
   resolveHarnessConfig,
+  resolveSupervisor,
 } from "./harness-config.js";
 import { archiveChange, statusChange } from "./openspec.js";
 import {
@@ -51,7 +52,8 @@ import {
   isWaitingStep,
   runChainStep,
 } from "./chain-steps.js";
-import { CHAIN_ENDING_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { CHAIN_ENDING_AGENT_NAME, SUPERVISOR_AGENT_NAME, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { superviseFailure } from "./supervisor.js";
 import { isChainStepName, skipsStage, type ChainPart } from "./harness-stage.js";
 import { untilStopBoundary } from "./stop-boundary.js";
 import { DEFAULT_AGENT_ID } from "./agents/registry.js";
@@ -234,6 +236,18 @@ interface ChainState {
   /** The questions handed to the stage now running, waiting for what it
    * says at its end. */
   awaitingAnswer: ChainMessage[];
+  /** The `failed` event a stage's agent ended with, held by `runStage` until
+   * the attempt loop decides whether the supervisor repeats or moves the
+   * stage. Yielded unchanged where it does not, so a `failed` event is
+   * still the last of the chain it ends (ADR 0012), and never yielded for a
+   * stage that goes on (the-supervisor-changes-agents). */
+  heldFailure?: Extract<Event, { kind: "failed" }>;
+  /** The agent the supervisor moved a stage to, which later attempts of it
+   * run on. */
+  agentOverride: Map<ChainStage, string>;
+  /** Every agent each stage has run on in this chain: a fallback is never
+   * tried twice. */
+  triedAgents: Map<ChainStage, string[]>;
 }
 
 function nowIso(): string {
@@ -346,9 +360,23 @@ function failedEvent(runId: string, reason: string): Event {
  * same fallback `resolveRunner` applies (`default-runners.ts`), so the
  * name recorded here matches the `agent` the apply stage's own audit
  * entries carry and the two group together. */
-function resolvedApplyAgent(harnessConfig: HarnessConfig): string {
+function resolvedApplyAgent(harnessConfig: HarnessConfig, state?: Pick<ChainState, "agentOverride">): string {
+  const moved = state?.agentOverride.get("apply");
+  if (moved !== undefined) return moved;
   const entry = harnessConfig.stepAgents.apply;
   return entry === undefined ? DEFAULT_AGENT_ID : normalizeStepAgent(entry).agent;
+}
+
+/** The agent a stage runs on in this chain, as `stageStarted` and
+ * `checkpoint` name it: the one the supervisor moved it to, else its
+ * configured entry, else "" — for a stage with no agent, or none
+ * configured (the-supervisor-changes-agents). */
+function stageAgentOf(stage: ChainPart, harnessConfig: HarnessConfig, state: Pick<ChainState, "agentOverride">): string {
+  if (isChainStepName(stage) || !isHarnessStepAgentStage(stage)) return "";
+  const moved = state.agentOverride.get(stage);
+  if (moved !== undefined) return moved;
+  const entry = harnessConfig.stepAgents[stage];
+  return entry === undefined ? "" : normalizeStepAgent(entry).agent;
 }
 
 function wildcardPatternToRegExp(pattern: string): RegExp {
@@ -625,7 +653,15 @@ export class HarnessChainRunner {
       return;
     }
 
-    const state: ChainState = { cancelRequested: false, elapsedMs: 0, attemptsByStage: new Map(), pendingMessages: [], awaitingAnswer: [] };
+    const state: ChainState = {
+      cancelRequested: false,
+      elapsedMs: 0,
+      attemptsByStage: new Map(),
+      pendingMessages: [],
+      awaitingAnswer: [],
+      agentOverride: new Map(),
+      triedAgents: new Map(),
+    };
     this.active.set(command.runId, state);
     // The stage the chain is in, and how it ended, as its own events say.
     // Read here rather than at each place an ending is yielded, so no
@@ -1135,11 +1171,7 @@ export class HarnessChainRunner {
         // "" for the stages that run no agent at all ("archive", "git"),
         // matching `checkpoint`'s `nextAgentId` convention rather than
         // inventing a second spelling for the same idea.
-        agentId: !isHarnessStepAgentStage(stage)
-          ? ""
-          : (harnessConfig.stepAgents[stage] === undefined
-            ? ""
-            : normalizeStepAgent(harnessConfig.stepAgents[stage]).agent),
+        agentId: stageAgentOf(stage, harnessConfig, state),
         // Absent on a first attempt, which is every chain that has not
         // come back here — a surface renders those exactly as it always
         // did.
@@ -1196,6 +1228,19 @@ export class HarnessChainRunner {
           state.elapsedMs += Date.now() - stageStartedAt;
         }
 
+        // A failure from the stage's agent, which `runStage` held: under
+        // `act` the supervisor may try the stage again, and otherwise it is
+        // yielded here exactly as it came (the-supervisor-changes-agents).
+        const held = state.heldFailure;
+        state.heldFailure = undefined;
+        if (held !== undefined && outcome === "failed") {
+          if (yield* this.superviseHeldFailure(stage, held, harnessConfig, state, command, attempt, maxAttempts)) continue;
+          break;
+        }
+        // An agent that said `failed` and then ended some other way: said
+        // in the order it came, as before anything was held.
+        if (held !== undefined) yield held;
+
         const cutByCeiling = outcome === "cancelled" && state.cancelReason !== undefined;
         if (!cutByCeiling) break;
         // The chain's own cancel flag was set by the timer calling
@@ -1218,11 +1263,7 @@ export class HarnessChainRunner {
           runId,
           timestamp: nowIso(),
           stage,
-          agentId: !isHarnessStepAgentStage(stage)
-            ? ""
-            : (harnessConfig.stepAgents[stage] === undefined
-              ? ""
-              : normalizeStepAgent(harnessConfig.stepAgents[stage]).agent),
+          agentId: stageAgentOf(stage, harnessConfig, state),
           attempt: attempt + 1,
           previousAttemptReason: state.cancelReason,
         };
@@ -1378,11 +1419,7 @@ export class HarnessChainRunner {
           // rather than re-listing the two stage names here — see
           // harness-step-agent.ts's `HarnessStepAgentStage` comment for
           // why they are kept on one list, together.
-          nextAgentId: !isHarnessStepAgentStage(nextStage)
-            ? ""
-            : (harnessConfig.stepAgents[nextStage] === undefined
-              ? ""
-              : normalizeStepAgent(harnessConfig.stepAgents[nextStage]).agent),
+          nextAgentId: stageAgentOf(nextStage, harnessConfig, state),
         };
         const checkpointOutcome = await checkpointPromise;
         if (checkpointOutcome === "cancelled") {
@@ -1516,6 +1553,85 @@ export class HarnessChainRunner {
    * swallowed `"completed"` with `"checkpoint"`/`"stageCompleted"`. A
    * `"failed"`/`"cancelled"` stage outcome always ends the whole chain, so
    * it is forwarded as-is regardless of `hasNextStage`. */
+  /** What the supervisor does about a stage whose agent failed
+   * (the-supervisor-changes-agents, design.md decision 5). Under `act`, with
+   * an attempt left and a repeat or a move its policy allows, it says so,
+   * records it, announces the next attempt and returns `true`; the attempt
+   * loop goes on. Otherwise it yields the failure, unchanged, and returns
+   * `false` — under `act` after saying why the stage was not tried again. */
+  private *superviseHeldFailure(
+    stage: ChainStage,
+    failure: Extract<Event, { kind: "failed" }>,
+    harnessConfig: HarnessConfig,
+    state: ChainState,
+    command: Command,
+    attempt: number,
+    maxAttempts: number,
+  ): Generator<Event, boolean> {
+    const { runId, cwd, context } = command;
+    const supervisor = resolveSupervisor(harnessConfig.supervisor);
+    // A person's cancel or stop, or a stage that already spent past its
+    // ceiling, ends the chain as it did before `act` existed.
+    if (
+      supervisor.mode !== "act"
+      || !isHarnessStepAgentStage(stage)
+      || state.cancelRequested
+      || state.stopRequest !== undefined
+      || describeStageOverspend(harnessConfig, state.lastStageUsage, stage) !== undefined
+    ) {
+      yield failure;
+      return false;
+    }
+    const current = stageAgentOf(stage, harnessConfig, state) || DEFAULT_AGENT_ID;
+    const decision = superviseFailure({
+      stage,
+      current,
+      tried: state.triedAgents.get(stage) ?? [current],
+      diagnosis: failure.diagnosis,
+      supervisor,
+    });
+    const goesOn = decision.action !== "none" && attempt < maxAttempts;
+    const because = decision.action === "none"
+      ? decision.why
+      : goesOn
+        ? decision.because
+        : `${decision.because}, but ${stage} has had ${attempt} attempt(s), the maximum configured (maxStageAttempts: ${maxAttempts})`;
+    const action = goesOn ? decision.action : "none";
+    const to = goesOn && decision.action === "move" ? decision.agent : undefined;
+    const message = action === "move"
+      ? `the supervisor moved ${stage} from ${current} to ${to}: ${because}`
+      : action === "repeat"
+        ? `the supervisor repeats ${stage} on ${current}: ${because}`
+        : `the supervisor did not try ${stage} again: ${because}`;
+    yield { kind: "progress", runId, timestamp: nowIso(), message };
+    this.deps.auditLog?.record({
+      runId,
+      agent: SUPERVISOR_AGENT_NAME,
+      outcome: "message",
+      cwd,
+      timestamp: nowIso(),
+      changeDir: context.changeDir,
+      stage,
+      reason: message,
+      supervisorDecision: { action, stage, from: current, ...(to !== undefined ? { to } : {}), because },
+    });
+    if (!goesOn) {
+      yield failure;
+      return false;
+    }
+    if (to !== undefined) state.agentOverride.set(stage, to);
+    yield {
+      kind: "stageStarted",
+      runId,
+      timestamp: nowIso(),
+      stage,
+      agentId: stageAgentOf(stage, harnessConfig, state),
+      attempt: attempt + 1,
+      previousAttemptReason: message,
+    };
+    return true;
+  }
+
   private async *runStage(
     stage: ChainStage,
     hasNextStage: boolean,
@@ -1576,7 +1692,7 @@ export class HarnessChainRunner {
         // Recorded before the gate below, which returns without invoking
         // the verifying agent — so the failing case, which records
         // nothing today, is exactly the one this must not miss.
-        this.recordVerifyChecks(command, verifyCheckOutcome, harnessConfig);
+        this.recordVerifyChecks(command, verifyCheckOutcome, harnessConfig, state);
       } catch (error) {
         yield failedEvent(runId, error instanceof Error ? error.message : String(error));
         return "failed";
@@ -1595,15 +1711,24 @@ export class HarnessChainRunner {
       }
     }
 
+    // A stage the supervisor moved runs its new agent with that agent's own
+    // defaults: the old entry's model, effort, budget and custom agent were
+    // chosen for another agent (the-supervisor-changes-agents).
     const stepAgent = harnessConfig.stepAgents[stage];
-    const { agent: agentId, model, effort, budget, customAgent } = stepAgent === undefined
-      ? { agent: undefined, model: undefined, effort: undefined, budget: undefined, customAgent: undefined }
-      : normalizeStepAgent(stepAgent);
+    const movedTo = state.agentOverride.get(stage);
+    const { agent: agentId, model, effort, budget, customAgent } = movedTo !== undefined
+      ? { agent: movedTo, model: undefined, effort: undefined, budget: undefined, customAgent: undefined }
+      : stepAgent === undefined
+        ? { agent: undefined, model: undefined, effort: undefined, budget: undefined, customAgent: undefined }
+        : normalizeStepAgent(stepAgent);
     const runner = this.deps.resolveRunner(agentId);
     if (!runner) {
       yield failedEvent(runId, `no agent available to run the "${stage}" stage`);
       return "failed";
     }
+    const ranOn = agentId ?? DEFAULT_AGENT_ID;
+    const tried = state.triedAgents.get(stage) ?? [];
+    if (!tried.includes(ranOn)) state.triedAgents.set(stage, [...tried, ranOn]);
 
     // Only the "verify" stage's context carries a delta and/or an
     // "established checks" section — every other stage keeps the exact
@@ -1750,7 +1875,14 @@ export class HarnessChainRunner {
           }
         }
         if (event.kind === "usageReported") state.lastStageUsage = event.usage;
-        if (event.kind === "failed") outcome = "failed";
+        if (event.kind === "failed") {
+          // Held, not yielded: only the attempt loop knows whether the
+          // supervisor tries the stage again, and a stage that goes on must
+          // not have said `failed` (the-supervisor-changes-agents).
+          outcome = "failed";
+          state.heldFailure = event;
+          continue;
+        }
         if (event.kind === "cancelled") {
           outcome = "cancelled";
           // The runner reports that its process is gone; only the chain
@@ -1916,6 +2048,7 @@ export class HarnessChainRunner {
     command: Command,
     outcome: MechanicalCheckRunOutcome,
     harnessConfig: HarnessConfig,
+    state: Pick<ChainState, "agentOverride">,
   ): void {
     if (!outcome.ranAny) return;
     const failures = outcome.failed
@@ -1929,7 +2062,7 @@ export class HarnessChainRunner {
       timestamp: nowIso(),
       changeDir: command.context.changeDir,
       stage: "verify",
-      checkedAgent: resolvedApplyAgent(harnessConfig),
+      checkedAgent: resolvedApplyAgent(harnessConfig, state),
       checksRan: outcome.passed.length + outcome.failed.length,
       checksFailed: outcome.failed.length,
       ...(failures.length > 0 ? { reason: failures } : {}),

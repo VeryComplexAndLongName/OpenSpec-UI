@@ -12,6 +12,15 @@ import { LocalLlmAcpAdapter } from "./local-llm-acp.js";
 import { LocalLlmAdapter } from "./local-llm.js";
 
 describe("AGENT_REGISTRY", () => {
+  // the-supervisor-changes-agents 1.1: a fallback policy asks whether a move
+  // changes provider, so every agent says whose it is.
+  it("names a provider for every agent", () => {
+    const providers = new Set(["anthropic", "github", "openai", "google", "deepseek", "local"]);
+    for (const descriptor of AGENT_REGISTRY) expect(providers.has(descriptor.provider), descriptor.id).toBe(true);
+    expect(AGENT_REGISTRY.find((descriptor) => descriptor.id === "local-llm-acp")?.provider).toBe("local");
+    expect(AGENT_REGISTRY.find((descriptor) => descriptor.id === "copilot-cli-acp")?.provider).toBe("github");
+  });
+
   it("has unique ids", () => {
     const ids = AGENT_REGISTRY.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);

@@ -2122,6 +2122,152 @@ describe("HarnessChainRunner — a chain writes its own ending (a-card-says-what
   });
 });
 
+describe("HarnessChainRunner — the supervisor acts on a failed stage (the-supervisor-changes-agents 1.4)", () => {
+  const notSignedIn = { cause: "not-signed-in", repeatHelps: "no", evidence: "Authentication required" } as const;
+  const rateLimited = { cause: "rate-limited", repeatHelps: "likely", evidence: "429 Too Many Requests" } as const;
+
+  /** A runner per agent: the ones named in `failing` fail with the given
+   * diagnosis (only the first time, with `once`); every other completes. */
+  function runnersByAgent(
+    failing: Record<string, typeof notSignedIn | typeof rateLimited>,
+    options: { once?: boolean } = {},
+  ): {
+    resolve: (agentId: string | undefined) => AgentRunner;
+    calls: { agentId: string | undefined; command: Command }[];
+  } {
+    const calls: { agentId: string | undefined; command: Command }[] = [];
+    const failedOnce = new Set<string>();
+    return {
+      calls,
+      resolve: (agentId) => ({
+        async *run(command) {
+          if (command.kind === "cancel") return;
+          calls.push({ agentId, command });
+          yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+          const diagnosis = agentId === undefined ? undefined : failing[agentId];
+          if (agentId !== undefined && diagnosis !== undefined && !(options.once === true && failedOnce.has(agentId))) {
+            failedOnce.add(agentId);
+            yield { kind: "failed", runId: command.runId, timestamp: "t", reason: diagnosis.evidence, diagnosis };
+            return;
+          }
+          yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
+        },
+      }),
+    };
+  }
+
+  /** A change entered at verify, which runs on copilot-cli-acp. */
+  async function verifyingChange(supervisor: Record<string, unknown>, maxStageAttempts = 2): Promise<string> {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", {
+      autonomyLevel: "autonomous",
+      maxStageAttempts,
+      stepAgents: { verify: { agent: "copilot-cli-acp", model: "gpt-5" } },
+      supervisor,
+    } as never);
+    mockStatus(true);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+    return root;
+  }
+
+  async function drain(chain: InstanceType<typeof HarnessChainRunner>, root: string): Promise<Event[]> {
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    return events;
+  }
+
+  function supervisorSaid(events: readonly Event[]): Event | undefined {
+    return events.find((event) => event.kind === "progress" && event.message.startsWith("the supervisor"));
+  }
+
+  const moving = {
+    mode: "act",
+    fallback: { verify: ["claude-cli-acp"] },
+    allowCostIncrease: true,
+    allowProviderChange: true,
+  };
+
+  it("moves a stage to its fallback, says and records it, and never says failed", async () => {
+    const root = await verifyingChange(moving);
+    const auditLog = new InMemoryAuditLog();
+    const { resolve, calls } = runnersByAgent({ "copilot-cli-acp": notSignedIn });
+
+    const events = await drain(new HarnessChainRunner({ resolveRunner: resolve, auditLog }), root);
+
+    expect(events.some((event) => event.kind === "failed")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    const said = supervisorSaid(events);
+    expect(said).toMatchObject({ message: expect.stringContaining("moved verify from copilot-cli-acp to claude-cli-acp") });
+    const started = events.filter((event) => event.kind === "stageStarted" && event.stage === "verify");
+    expect(started).toEqual([
+      expect.objectContaining({ agentId: "copilot-cli-acp" }),
+      expect.objectContaining({ agentId: "claude-cli-acp", attempt: 2, previousAttemptReason: expect.stringContaining("moved verify") }),
+    ]);
+    expect(events.indexOf(said as Event)).toBeLessThan(events.indexOf(started[1] as Event));
+    // The new agent runs with its own defaults, not the old entry's model.
+    expect(calls.map((call) => [call.agentId, call.command.model])).toEqual([["copilot-cli-acp", "gpt-5"], ["claude-cli-acp", undefined]]);
+    expect(auditLog.entries.filter((entry) => entry.agent === "supervisor")).toEqual([expect.objectContaining({
+      outcome: "message",
+      stage: "verify",
+      supervisorDecision: expect.objectContaining({ action: "move", from: "copilot-cli-acp", to: "claude-cli-acp" }),
+    })]);
+  });
+
+  it("repeats a rate-limited stage on the same agent", async () => {
+    const root = await verifyingChange({ mode: "act" });
+    const { resolve, calls } = runnersByAgent({ "copilot-cli-acp": rateLimited }, { once: true });
+
+    const events = await drain(new HarnessChainRunner({ resolveRunner: resolve }), root);
+
+    expect(events.some((event) => event.kind === "failed")).toBe(false);
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+    expect(supervisorSaid(events)).toMatchObject({ message: expect.stringContaining("repeats verify on copilot-cli-acp") });
+    expect(calls.map((call) => call.agentId)).toEqual(["copilot-cli-acp", "copilot-cli-acp"]);
+  });
+
+  it("ends with the original failure, and says why, when the policy refuses the fallback", async () => {
+    const root = await verifyingChange({ ...moving, allowProviderChange: false });
+    const { resolve, calls } = runnersByAgent({ "copilot-cli-acp": notSignedIn });
+
+    const events = await drain(new HarnessChainRunner({ resolveRunner: resolve }), root);
+
+    expect(calls).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", diagnosis: notSignedIn });
+    expect(events.filter((event) => event.kind === "failed")).toHaveLength(1);
+    expect(supervisorSaid(events)).toMatchObject({
+      message: expect.stringContaining("claude-cli-acp is another provider (anthropic), and allowProviderChange is false"),
+    });
+  });
+
+  it("ends with the original failure when no attempt is left", async () => {
+    const root = await verifyingChange({ mode: "act" }, 2);
+    const { resolve, calls } = runnersByAgent({ "copilot-cli-acp": rateLimited });
+
+    const events = await drain(new HarnessChainRunner({ resolveRunner: resolve }), root);
+
+    expect(calls).toHaveLength(2);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", diagnosis: rateLimited });
+    expect(events.filter((event) => event.kind === "failed")).toHaveLength(1);
+    expect(supervisorSaid(events)).toBeDefined();
+    expect(events.filter((event) => event.kind === "progress" && event.message.includes("maxStageAttempts: 2"))).toHaveLength(1);
+  });
+
+  it("leaves a failure under advise exactly as it was", async () => {
+    const root = await verifyingChange({ ...moving, mode: "advise" });
+    const auditLog = new InMemoryAuditLog();
+    const { resolve, calls } = runnersByAgent({ "copilot-cli-acp": notSignedIn });
+
+    const events = await drain(new HarnessChainRunner({ resolveRunner: resolve, auditLog }), root);
+
+    expect(calls).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", diagnosis: notSignedIn });
+    expect(supervisorSaid(events)).toBeUndefined();
+    expect(auditLog.entries.some((entry) => entry.agent === "supervisor")).toBe(false);
+  });
+});
+
 describe("HarnessChainRunner — asked to stop (a-change-is-run-from-its-card 3.9)", () => {
   /** A stage runner a test feeds one event at a time. A cancel ends it the
    * way a real runner's does: its `cancelled` comes once the process is gone. */

@@ -36,6 +36,11 @@ export const VERIFY_CHECKS_AGENT_NAME = "verify-checks";
  * before it started (a-card-says-what-its-change-is-doing). */
 export const CHAIN_ENDING_AGENT_NAME = "chain";
 
+/** The `agent` of a `message` entry saying what the supervisor did about a
+ * failed stage under `act` (the-supervisor-changes-agents). A message, so
+ * no counter of runs reads it as one. */
+export const SUPERVISOR_AGENT_NAME = "supervisor";
+
 /** Whether this entry records a run, as opposed to a fact about one.
  *
  * The checks pseudo-agent and a chain's ending are excluded. The
