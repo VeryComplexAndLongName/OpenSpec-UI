@@ -304,7 +304,14 @@ describe("ChangeHarnessSettingsView — saving", () => {
     choose("Change supervisor", "act");
     expect(screen.getByTestId("change-supervisor-act-warning").textContent).toContain("it may cost money");
     expect(screen.getByTestId("change-supervisor-note").textContent).toContain("attempted 2 times");
-    fireEvent.change(screen.getByLabelText("Fallback agents for apply"), { target: { value: "claude-cli-acp, local-llm-acp" } });
+    // The same lists as the stage table's agents: one per fallback, and one
+    // more to add the next; the editor's chat is not offered.
+    const add = () => screen.getByRole("combobox", { name: "Add a fallback for apply" }) as HTMLSelectElement;
+    expect([...add().options].map((option) => option.value)).not.toContain("vscode-chat");
+    fireEvent.change(add(), { target: { value: "claude-cli-acp" } });
+    fireEvent.change(add(), { target: { value: "local-llm-acp" } });
+    expect(screen.getByRole("combobox", { name: "Fallback 1 for apply" })).toHaveValue("claude-cli-acp");
+    expect([...add().options].map((option) => option.value)).not.toContain("claude-cli-acp");
     fireEvent.click(screen.getByLabelText(/Allow a move that may cost more/));
     fireEvent.click(screen.getByLabelText("Allow a move to another provider"));
     fireEvent.click(saveButton());
@@ -319,6 +326,25 @@ describe("ChangeHarnessSettingsView — saving", () => {
         allowProviderChange: true,
       },
     })));
+  });
+
+  it("removes a fallback when its list is set back to none", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: {},
+        autonomyLevel: "autonomous",
+        maxStageAttempts: 2,
+        supervisor: { mode: "act", fallback: { apply: ["claude-cli-acp", "local-llm-acp"] } },
+      }),
+    });
+    await renderLoaded(api);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Fallback 1 for apply" }), { target: { value: "" } });
+    expect(screen.getByRole("combobox", { name: "Fallback 1 for apply" })).toHaveValue("local-llm-acp");
+    fireEvent.change(screen.getByRole("combobox", { name: "Fallback 1 for apply" }), { target: { value: "" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalledWith("demo", expect.objectContaining({ supervisor: { mode: "act" } })));
   });
 
   it("says Act will be refused once the change is no longer autonomous", async () => {
