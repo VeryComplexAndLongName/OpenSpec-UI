@@ -1050,3 +1050,14 @@ worktree. They SHALL exit 0 on success, 1 on a refusal with its reason, and
 - **WHEN** `task done the-change 6.4` is run and 6.4 is Human-only
 - **THEN** nothing is written, the reason is printed, and the command
   exits 1
+
+### Requirement: The terminal says when the supervisor moved a stage
+
+`openspec-ui-cli run` SHALL print, under a repeated or moved stage's
+heading, why it was attempted again and on which agent.
+
+#### Scenario: A moved stage in the terminal
+
+- **WHEN** a chain run from the terminal moves apply to another agent
+- **THEN** the heading names the new agent and the attempt, and the line
+  under it says the supervisor moved it and why
