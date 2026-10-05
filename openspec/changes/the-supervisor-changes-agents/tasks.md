@@ -79,7 +79,7 @@ allows it, under a configured policy, and always says so.
   cli 201, webui 711, server 122, extension 502 passed.
 - [x] 4.2 `openspec validate the-supervisor-changes-agents --strict`, and
   the merge gate with the worktree's absolute path as `--cwd`.
-  Valid; the gate with `--cwd C:/Prog/.worktrees/OpenSpec-UI/the-supervisor-changes-agents` reports only 4.4 open (Human-only).
+  Valid; the gate with `--cwd C:/Prog/.worktrees/OpenSpec-UI/the-supervisor-changes-agents` reported only 4.4 open (Human-only); after the owner closed it, ok.
 - [x] 4.3 One live move end to end: a scratch change whose `apply` agent is
   not on the PATH, under `act` with a fallback the policy allows, run with
   `openspec-ui-cli run`; record the printed move, the audit entries, and
@@ -104,5 +104,7 @@ allows it, under a configured policy, and always says so.
   agent-runner fix it printed "the supervisor did not try apply again: the
   agent is not signed in: repeating will not help, and every fallback for
   apply has been tried" and ended with that diagnosis and its remedy.
-- [ ] 4.4 **Human-only**: in a change's Harness Settings in either host, see
+- [x] 4.4 **Human-only**: in a change's Harness Settings in either host, see
   Act offered under Autonomous with its note, and set a fallback.
+  Closed by the owner on 2026-10-05, ticked by hand in this change's
+  working directory.
