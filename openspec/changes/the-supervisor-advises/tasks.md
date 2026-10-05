@@ -124,6 +124,8 @@ that already exist, which suggest and change nothing, on by default.
   repeating it will not help", with the same words, the remedy and
   `$ openspec-ui-cli doctor`, after the readiness report's own
   suggestion; exit 0.
-- [ ] 6.4 **Human-only**: in the Pipeline of either host, see a run that
+- [x] 6.4 **Human-only**: in the Pipeline of either host, see a run that
   says nothing new and a failed run's card with its diagnosis, and the
   Supervisor choice in Harness Settings.
+  Closed by the owner on 2026-10-05, ticked by hand in this change's
+  working directory.
