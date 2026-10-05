@@ -113,4 +113,8 @@ the change's own worktree, and only there.
   - the merge gate on that worktree reports no `openItems` and no
     `unrecordedItems` for the change. Its one failed item is openspec's own
     structural validation of a scratch change with no spec delta.
-- [x] 5.4 **Human-only**: Checked by human. Everything works as expected.
+- [x] 5.4 **Human-only**: in the Pipeline of either host, open a change
+  worked in its own worktree from its name, read a task whole, close a task
+  with a note, and commit and push from the card.
+  Closed by the owner on 2026-10-05 in the Extension Development Host built
+  from this branch: "Checked by human. Everything works as expected."
