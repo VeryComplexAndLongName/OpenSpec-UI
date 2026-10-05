@@ -150,6 +150,18 @@ export function resolveSupervisor(value: HarnessSupervisor | undefined): Resolve
 /** Why a resolved configuration's `act` cannot act, or `undefined`. Checked
  * where the configuration resolves, because the attempts it spends may come
  * from the other file (the-supervisor-changes-agents). */
+/** Why a change's own file sets an `act` it cannot have, or `undefined`:
+ * Act needs `autonomyLevel: "autonomous"` in the same file (ADR 0018).
+ * Refused where the file is written and where it resolves for a run, and
+ * not where it is read: a file written by hand that says both has to open
+ * in its Harness Settings to be put right there
+ * (applying-a-configuration-turns-act-off). */
+export function actWithoutAutonomousProblem(own: Partial<HarnessConfig> | undefined): string | undefined {
+  if (own?.supervisor?.mode !== "act" || own.autonomyLevel === "autonomous") return undefined;
+  return 'supervisor.mode "act" needs autonomyLevel "autonomous" in the same file: under a level that asks a person, the person decides.'
+    + " Open the change's Harness Settings and save to turn Act off, or set autonomyLevel \"autonomous\"";
+}
+
 export function supervisorActProblem(config: Pick<HarnessConfig, "supervisor" | "maxStageAttempts">): string | undefined {
   if (config.supervisor?.mode !== "act") return undefined;
   const attempts = config.maxStageAttempts ?? 1;
@@ -909,7 +921,6 @@ const SUPERVISOR_KEYS = ["mode", "silentAfterSeconds", "waitingAfterSeconds", "f
 function assertValidSupervisor(
   value: unknown,
   isPerChangeFile: boolean,
-  autonomyLevel: HarnessAutonomyLevel | undefined,
 ): asserts value is HarnessSupervisor | undefined {
   if (value === undefined) return;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -927,9 +938,6 @@ function assertValidSupervisor(
   if (record.mode === "act") {
     if (!isPerChangeFile) {
       throw new InvalidHarnessConfigError('supervisor.mode "act" is set in a change\'s own harness.json, never for the whole workspace: it may start another agent unattended');
-    }
-    if (autonomyLevel !== "autonomous") {
-      throw new InvalidHarnessConfigError('supervisor.mode "act" needs autonomyLevel "autonomous" in the same file: under a level that asks a person, the person decides');
     }
   }
   for (const key of ["silentAfterSeconds", "waitingAfterSeconds"] as const) {
@@ -1182,7 +1190,7 @@ function assertValidHarnessConfigInput(
   assertValidReviewGate(input.reviewGate, isPerChangeFile);
   assertValidCheckpoints(input.checkpoints, isPerChangeFile);
   assertValidHints((input as { hints?: unknown }).hints);
-  assertValidSupervisor((input as { supervisor?: unknown }).supervisor, isPerChangeFile, input.autonomyLevel);
+  assertValidSupervisor((input as { supervisor?: unknown }).supervisor, isPerChangeFile);
   assertValidMaxCost((input as { budget?: { maxCost?: unknown } }).budget?.maxCost);
   const allowAgentMessages = (input as { allowAgentMessages?: unknown }).allowAgentMessages;
   if (allowAgentMessages !== undefined && typeof allowAgentMessages !== "boolean") {
@@ -1490,6 +1498,12 @@ export async function resolveHarnessConfig(workspaceRoot: string, changeName?: s
     }
   });
 
+  // Act without Autonomous in the change's own file is read, so its
+  // settings can open, and refused here, so nothing runs on it
+  // (applying-a-configuration-turns-act-off).
+  const contradiction = actWithoutAutonomousProblem(override);
+  if (contradiction !== undefined) throw new InvalidHarnessConfigError(contradiction);
+
   // `act` spends attempts, which may be set in either file
   // (the-supervisor-changes-agents).
   const actProblem = supervisorActProblem(merged);
@@ -1525,5 +1539,7 @@ export async function writeChangeHarnessConfig(
 ): Promise<void> {
   const migrated = migrateLegacyDispatchInConfig(config);
   assertValidHarnessConfigInput(migrated.value, true);
+  const contradiction = actWithoutAutonomousProblem(migrated.value as Partial<HarnessConfig>);
+  if (contradiction !== undefined) throw new InvalidHarnessConfigError(contradiction);
   await writeJsonFile(changeHarnessConfigPath(workspaceRoot, changeName), migrated.value);
 }

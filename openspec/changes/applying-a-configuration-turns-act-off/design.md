@@ -32,9 +32,16 @@ Autonomous, and was refused.
    only under Autonomous and the configuration sets another level. The
    settings view's note under the supervisor, which said saving would be
    refused, says Act turns off when the form is saved.
-4. **A hand-written contradiction is still refused.** The validator does
-   not change: a file that says Act and a lower level in one breath states
-   two things, and the product does not pick one.
+4. **A hand-written contradiction is refused where it would do something,
+   and opens where it can be put right.** Found in the owner's check: the
+   rule was part of reading a file, so a file written by hand with Act and
+   a lower level could not even open in its Harness Settings, the one
+   place that would fix it. It moves to `actWithoutAutonomousProblem`,
+   checked where a change's file is written and where it resolves for a
+   run (which names both ways out), and not where it is read. The
+   settings view then opens it, says Act turns off on saving, and offers
+   Save with nothing else changed. The product still does not pick for a
+   file that says both: it refuses to run it and to write it.
 
 ## Risks / Trade-offs
 

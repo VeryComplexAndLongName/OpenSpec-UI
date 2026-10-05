@@ -25,9 +25,10 @@ follow, and are refused only where refusing is truly needed.
   Autonomous restores what was set.
 - Every surface that does this says so where it says what was applied or
   saved.
-- A file written by hand that sets Act without Autonomous is still
-  refused: nothing chose between the two, and guessing which was meant
-  would act on a guess.
+- A file written by hand that sets Act without Autonomous is refused
+  where it would act - a run - and where it is written, but it opens in
+  its Harness Settings, which put it right on saving: nothing chose
+  between the two, and only a person's save does.
 
 ## Capabilities
 

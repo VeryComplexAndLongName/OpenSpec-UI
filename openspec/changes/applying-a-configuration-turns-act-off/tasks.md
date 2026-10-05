@@ -21,6 +21,14 @@ person can follow, and are refused only where truly needed.
   Every change-scope configuration over a change under Act is written
   and accepted by `writeChangeHarnessConfig` (`harness-config.test.ts`),
   with no mode and the fallback kept (`harness-templates.test.ts`).
+- [x] 1.3 Found in the owner's check of 4.3: a file written by hand with
+  Act and another level did not open in its Harness Settings ("Load
+  failed"), since the rule was part of reading it. `harness-config.ts`:
+  `actWithoutAutonomousProblem`, checked on write and on resolve, not on
+  read (design.md decision 4); the settings view offers Save on such a
+  file with nothing else changed. Tests: `harness-config.test.ts` (read
+  succeeds, resolve refuses and names the way out), 267 passed with
+  `harness-templates`; `ChangeHarnessSettingsView.test.tsx`, 32 passed.
 
 ## 2. Surfaces
 
@@ -49,7 +57,9 @@ person can follow, and are refused only where truly needed.
   on its own where the root run would exceed a background limit.
   Typecheck clean; lint 0 errors (3 warnings in lines this change did
   not touch); seven script tests pass. Core 2101, core-git-subprocess 67,
-  cli 201, webui 713, server 122, extension 503 passed.
+  cli 201, webui 713, server 122, extension 503 passed. After 1.3: core
+  2102, core-git-subprocess 67, cli 201, webui 714, server 122, extension
+  503 passed; typecheck and lint as before.
 - [x] 4.2 `openspec validate applying-a-configuration-turns-act-off
   --strict`, and the merge gate with the worktree's absolute path as
   `--cwd`.

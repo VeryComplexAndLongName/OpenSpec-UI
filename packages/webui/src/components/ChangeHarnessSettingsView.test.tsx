@@ -371,6 +371,28 @@ describe("ChangeHarnessSettingsView — saving", () => {
     expect(saved.supervisor).toEqual({ fallback: { apply: ["local-llm-acp"] }, allowCostIncrease: true });
   });
 
+  it("opens a file written by hand with Act and another level, and saving puts it right", async () => {
+    const api = createApi({
+      readChangeOverride: vi.fn().mockResolvedValue({
+        stepAgents: {},
+        autonomyLevel: "semi-autonomous",
+        maxStageAttempts: 2,
+        supervisor: { mode: "act", fallback: { apply: ["local-llm-acp"] } },
+      }),
+    });
+    await renderLoaded(api);
+
+    expect(chosen("Change supervisor")).toBe("act");
+    expect(screen.getByTestId("change-supervisor-act-off").textContent).toContain("Act turns off when this is saved");
+    // Nothing else to change: saving it as it stands is what puts it right.
+    expect(saveButton()).not.toBeDisabled();
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(api.writeChangeOverride).toHaveBeenCalled());
+    const saved = (api.writeChangeOverride as ReturnType<typeof vi.fn>).mock.calls[0]![1] as Record<string, unknown>;
+    expect(saved.supervisor).toEqual({ fallback: { apply: ["local-llm-acp"] } });
+  });
+
   it("applies a named configuration over Act, and says Act is off", async () => {
     const api = createApi({
       readChangeOverride: vi.fn().mockResolvedValue({

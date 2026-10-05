@@ -14,3 +14,10 @@ fallback agents and allowances. Saving SHALL NOT be refused for it.
   Harness Settings and is saved
 - **THEN** the note under the supervisor said Act turns off on saving, and
   the saved file has no `supervisor.mode` and the same fallback agents
+
+#### Scenario: A file written by hand with Act and another level
+
+- **WHEN** a change's Harness Settings are opened on a file that sets
+  `act` with `semi-autonomous`
+- **THEN** they open, say Act turns off on saving, and offer Save without
+  any other edit; saving writes the file without `supervisor.mode`

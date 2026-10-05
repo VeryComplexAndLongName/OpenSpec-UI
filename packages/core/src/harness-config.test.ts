@@ -1118,6 +1118,19 @@ describe("supervisor act", () => {
       .rejects.toThrow(/needs autonomyLevel "autonomous" in the same file/);
   });
 
+  // applying-a-configuration-turns-act-off: a hand-written contradiction
+  // opens, so it can be put right in its Harness Settings, and nothing runs
+  // on it.
+  it("reads a hand-written Act without Autonomous, and refuses to resolve it for a run", async () => {
+    const root = await temporaryRoot();
+    const file = path.join(root, "openspec", "changes", "demo", "harness.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({ autonomyLevel: "semi-autonomous", maxStageAttempts: 2, supervisor: act }), "utf8");
+
+    expect((await readChangeHarnessConfig(root, "demo"))?.supervisor?.mode).toBe("act");
+    await expect(resolveHarnessConfig(root, "demo")).rejects.toThrow(/Open the change's Harness Settings and save to turn Act off/);
+  });
+
   it("refuses the allowances in the workspace's file", async () => {
     const root = await temporaryRoot();
     await expect(writeGlobalHarnessConfig(root, { supervisor: { allowCostIncrease: true } } as never))

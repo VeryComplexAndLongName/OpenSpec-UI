@@ -204,8 +204,12 @@ export function ChangeHarnessSettingsView(
     return findHarnessConfigLimits({ ...global, ...ownRest, stepAgents: resolvedStepAgents });
   }, [global, override, resolvedStepAgents]);
 
+  // A saved file that says Act under another level - written by hand - is
+  // put right by saving it as it stands, so there is something to save
+  // (applying-a-configuration-turns-act-off).
+  const actToTurnOff = override?.supervisor?.mode === "act" && autonomyLevel !== "autonomous";
   const dirty = savedSnapshot !== null && override !== undefined
-    && snapshotOf(override, forms, autonomyLevel, reviewGateMode, runBudget) !== savedSnapshot;
+    && (actToTurnOff || snapshotOf(override, forms, autonomyLevel, reviewGateMode, runBudget) !== savedSnapshot);
 
   /** Applies a named configuration against what the change resolves to,
    * through the one core function every surface applies one through, and
