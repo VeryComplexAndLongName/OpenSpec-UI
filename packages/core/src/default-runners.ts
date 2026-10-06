@@ -37,6 +37,8 @@ export interface DefaultRunnersConfig {
   localLlmBaseUrl?: string;
   localLlmModel?: string;
   localLlmApiKey?: string;
+  /** SearXNG JSON search endpoint; page fetching works without it. */
+  searxngUrl?: string;
   auditLog?: AuditLog;
   allowExternalCwd?: boolean;
   /** Where each run's log is written (a-change-shows-its-run-logs). A host
@@ -52,6 +54,10 @@ export interface DefaultRunnersConfig {
 }
 
 export { DEFAULT_AGENT_ID };
+
+export function resolveSearxngUrl(configured: string | undefined, environment: string | undefined): string | undefined {
+  return configured?.trim() || environment?.trim() || undefined;
+}
 
 function exact(expected: string[]): (args: string[]) => boolean {
   return (args) => args.length === expected.length && args.every((a, i) => a === expected[i]);
@@ -200,6 +206,7 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
   // standalone server and the CLI are told anything (ADR 0038).
   const ignoreSystemProxy = config.ignoreSystemProxy ?? switchFromEnvironment(process.env[AGENT_ENVIRONMENT.ignoreSystemProxy]);
   const askBeforeCommands = config.askBeforeCommands ?? switchFromEnvironment(process.env[AGENT_ENVIRONMENT.askBeforeCommands]);
+  const searxngUrl = resolveSearxngUrl(config.searxngUrl, process.env.OPENSPEC_UI_SEARXNG_URL);
   const fetchLocal = localFetch(ignoreSystemProxy);
   // The environment every CLI agent is started with: one host builds its
   // runners once, from one configuration (see shared.ts).
@@ -211,11 +218,12 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
     "copilot-cli": new CopilotCliAdapter(),
     "codex-cli": new CodexCliAdapter(),
     "gemini-cli": new GeminiCliAdapter(),
-    "local-llm": new LocalLlmAdapter({ ...localLlmSettings, fetch: fetchLocal }),
+    "local-llm": new LocalLlmAdapter({ ...localLlmSettings, fetch: fetchLocal, ...(searxngUrl ? { searxngUrl } : {}) }),
     "local-llm-acp": new LocalLlmAcpAdapter({
       settings: acpSettings,
       limits,
       fetch: fetchLocal,
+      ...(searxngUrl ? { searxngUrl } : {}),
       askBeforeCommands,
     }),
     "copilot-cli-acp": new CopilotCliAcpAdapter(),

@@ -19,6 +19,7 @@ export interface LocalLlmAcpAdapterOptions {
   settings: LocalLlmSettings;
   limits: LocalLlmAcpLimits;
   fetch: FetchLike;
+  searxngUrl?: string;
   askBeforeCommands: boolean;
 }
 
@@ -42,6 +43,7 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
       ...(command.model !== undefined ? { stageModel: command.model } : {}),
       limits: this.options.limits,
       fetch: this.options.fetch,
+      ...(this.options.searxngUrl !== undefined ? { searxngUrl: this.options.searxngUrl } : {}),
       askBeforeCommands: this.options.askBeforeCommands,
       signal,
     });

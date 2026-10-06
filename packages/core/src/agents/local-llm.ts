@@ -9,7 +9,12 @@ import type { AdapterInvocation, AgentAdapter } from "../agent-runner.js";
 import type { Command, Event } from "../protocol.js";
 import { commandInstruction } from "./shared.js";
 import type { FetchLike } from "../direct-fetch.js";
-import { chatCompletionsUrl, describeLocalLlmModel, localLlmHeaders, resolveLocalLlmModel } from "../local-llm-settings.js";
+import { chatCompletionsUrl, describeLocalLlmModel, resolveLocalLlmModel } from "../local-llm-settings.js";
+import { completeTurn, type ChatMessage } from "./local-agent/chat-client.js";
+import { runWebResearchTool, WEB_RESEARCH_PARAMETER_TYPES, WEB_RESEARCH_TOOL_SCHEMAS } from "../web-research.js";
+
+const MAX_WEB_TOOL_ITERATIONS = 10;
+const MAX_WEB_TOOL_CALLS = 20;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -24,23 +29,17 @@ export interface LocalLlmAdapterOptions {
   model?: string;
   /** Sent as a bearer token, and nowhere else (the-local-llm-is-where-you-say). */
   apiKey?: string;
+  /** Optional configured SearXNG `/search` endpoint. */
+  searxngUrl?: string;
   /** How the server is reached: directly where agents ignore the system
    * proxy (`localFetch`). The process's `fetch` where absent. */
   fetch?: FetchLike;
 }
 
-interface ChatCompletionChunk {
-  choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
-}
-
-function isChatCompletionChunk(value: unknown): value is ChatCompletionChunk {
-  return typeof value === "object" && value !== null;
-}
-
 export class LocalLlmAdapter implements AgentAdapter {
   readonly name = "local-llm";
 
-  constructor(private readonly options: LocalLlmAdapterOptions) {}
+  constructor(private readonly options: LocalLlmAdapterOptions) { }
 
   buildInvocation(_command: Command): AdapterInvocation {
     return { kind: "http", url: chatCompletionsUrl(this.options.baseUrl), method: "POST" };
@@ -66,92 +65,73 @@ export class LocalLlmAdapter implements AgentAdapter {
     const model = await resolveLocalLlmModel(command.model, this.options, fetchImpl);
     yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `${describeLocalLlmModel(model)}\n\n` };
 
-    let response: Response;
-    try {
-      response = await fetchImpl(invocation.url, {
-        method: invocation.method,
-        headers: localLlmHeaders(this.options),
-        body: JSON.stringify({
-          model: model.model,
-          stream: true,
-          messages: [
-            { role: "system", content: commandInstruction(kind) },
-            { role: "user", content: prompt },
-          ],
-        }),
-        signal,
-      });
-    } catch (err) {
+    const messages: ChatMessage[] = [
+      { role: "system", content: commandInstruction(kind) },
+      { role: "user", content: prompt },
+    ];
+    let full = "";
+    let toolCalls = 0;
+
+    for (let iteration = 0; iteration < MAX_WEB_TOOL_ITERATIONS; iteration += 1) {
       if (signal.aborted) {
         yield { kind: "cancelled", runId, timestamp: nowIso() };
         return;
       }
-      yield { kind: "failed", runId, timestamp: nowIso(), reason: err instanceof Error ? err.message : String(err) };
-      return;
-    }
 
-    if (!response.ok || !response.body) {
-      yield { kind: "failed", runId, timestamp: nowIso(), reason: `HTTP ${response.status} ${response.statusText}` };
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let buffer = "";
-    let full = "";
-
-    try {
-      while (true) {
+      let turn;
+      try {
+        turn = await completeTurn({
+          settings: this.options,
+          model: model.model,
+          fetch: fetchImpl,
+          tools: WEB_RESEARCH_TOOL_SCHEMAS,
+          parameterTypes: WEB_RESEARCH_PARAMETER_TYPES,
+        }, messages, signal);
+      } catch (err) {
         if (signal.aborted) {
           yield { kind: "cancelled", runId, timestamp: nowIso() };
           return;
         }
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-          if (signal.aborted) {
-            yield { kind: "cancelled", runId, timestamp: nowIso() };
-            return;
-          }
-          const line = buffer.slice(0, newlineIndex).trim();
-          buffer = buffer.slice(newlineIndex + 1);
-          if (line.length === 0) continue;
-          if (!line.startsWith("data:")) {
-            yield { kind: "stdout", runId, timestamp: nowIso(), chunk: line + "\n" };
-            continue;
-          }
-          const payload = line.slice("data:".length).trim();
-          if (payload === "[DONE]") continue;
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(payload);
-          } catch {
-            yield { kind: "stdout", runId, timestamp: nowIso(), chunk: line + "\n" };
-            continue;
-          }
-          if (!isChatCompletionChunk(parsed)) {
-            yield { kind: "stdout", runId, timestamp: nowIso(), chunk: line + "\n" };
-            continue;
-          }
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) {
-            full += content;
-            yield { kind: "stdout", runId, timestamp: nowIso(), chunk: content };
-          }
-        }
-      }
-    } catch (err) {
-      if (signal.aborted) {
-        yield { kind: "cancelled", runId, timestamp: nowIso() };
+        yield { kind: "failed", runId, timestamp: nowIso(), reason: err instanceof Error ? err.message : String(err) };
         return;
       }
-      yield { kind: "failed", runId, timestamp: nowIso(), reason: err instanceof Error ? err.message : String(err) };
-      return;
+
+      if (turn.text) {
+        full += turn.text;
+        yield { kind: "stdout", runId, timestamp: nowIso(), chunk: turn.text };
+      }
+      messages.push({
+        role: "assistant",
+        content: turn.text,
+        ...(turn.calls.length > 0
+          ? { tool_calls: turn.calls.map((call) => ({ id: call.id, type: "function" as const, function: { name: call.name, arguments: JSON.stringify(call.arguments) } })) }
+          : {}),
+      });
+      if (turn.calls.length === 0) {
+        yield { kind: "completed", runId, timestamp: nowIso(), summary: full };
+        return;
+      }
+
+      for (const call of turn.calls) {
+        toolCalls += 1;
+        if (toolCalls > MAX_WEB_TOOL_CALLS) {
+          const reason = `Stopped at the ${MAX_WEB_TOOL_CALLS}-web-tool-call limit.`;
+          yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `\n${reason}` };
+          yield { kind: "completed", runId, timestamp: nowIso(), summary: full || reason };
+          return;
+        }
+        yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `\n[${call.name}]\n` };
+        const result = await runWebResearchTool(call.name, call.arguments, {
+          fetch: fetchImpl,
+          ...(this.options.searxngUrl !== undefined ? { searxngUrl: this.options.searxngUrl } : {}),
+        }, signal);
+        yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `${result.output}\n` };
+        messages.push({ role: "tool", tool_call_id: call.id, content: result.output });
+      }
     }
 
-    yield { kind: "completed", runId, timestamp: nowIso(), summary: full };
+    const reason = `Stopped at the ${MAX_WEB_TOOL_ITERATIONS}-iteration web-tool limit.`;
+    yield { kind: "stdout", runId, timestamp: nowIso(), chunk: `\n${reason}` };
+    yield { kind: "completed", runId, timestamp: nowIso(), summary: full || reason };
   }
 }

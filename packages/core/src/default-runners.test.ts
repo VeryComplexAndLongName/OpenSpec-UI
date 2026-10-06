@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { checkAllowlist } from "./security.js";
-import { buildDefaultAgentRunners, buildDefaultAllowlist, DEFAULT_AGENT_ID, resolveRunner } from "./default-runners.js";
+import { buildDefaultAgentRunners, buildDefaultAllowlist, DEFAULT_AGENT_ID, resolveRunner, resolveSearxngUrl } from "./default-runners.js";
 import { AGENT_REGISTRY } from "./agents/registry.js";
 import { ClaudeCliAdapter } from "./agents/claude.js";
 import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
@@ -276,6 +276,10 @@ describe("buildDefaultAllowlist", () => {
 });
 
 describe("buildDefaultAgentRunners / resolveRunner", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds a runner for every registered agent id, including the four ACP-flavored ones", () => {
     const runners = buildDefaultAgentRunners({ workspaceRoot: "/workspace/repo" });
     for (const id of AGENT_REGISTRY.map((a) => a.id)) {
@@ -291,5 +295,11 @@ describe("buildDefaultAgentRunners / resolveRunner", () => {
   it("resolveRunner returns undefined for an unknown agentId", () => {
     const runners = buildDefaultAgentRunners({ workspaceRoot: "/workspace/repo" });
     expect(resolveRunner(runners, "does-not-exist")).toBeUndefined();
+  });
+
+  it("resolves SearXNG from host configuration before environment and leaves it optional", () => {
+    expect(resolveSearxngUrl(" http://configured-search:8080 ", "http://environment-search:8080")).toBe("http://configured-search:8080");
+    expect(resolveSearxngUrl(undefined, " http://environment-search:8080 ")).toBe("http://environment-search:8080");
+    expect(resolveSearxngUrl(" ", " ")).toBeUndefined();
   });
 });

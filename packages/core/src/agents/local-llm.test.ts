@@ -9,18 +9,6 @@ const command: Command = {
   context: { changeDir: "/workspace/repo/openspec/changes/x" },
 };
 
-function sseStream(lines: string[]): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      for (const line of lines) {
-        controller.enqueue(encoder.encode(line + "\n"));
-      }
-      controller.close();
-    },
-  });
-}
-
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -35,18 +23,8 @@ describe("LocalLlmAdapter", () => {
     });
   });
 
-  it("streams SSE deltas as stdout and emits completed with the accumulated summary", async () => {
-    const body = sseStream([
-      'data: {"choices":[{"delta":{"content":"Hello"}}]}',
-      "",
-      'data: {"choices":[{"delta":{"content":" world"}}]}',
-      "",
-      "data: [DONE]",
-    ]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body }),
-    );
+  it("returns completion text and offers only web-research tools", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: "Hello world" } }] }), { status: 200 })));
 
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
@@ -55,24 +33,51 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    // The first stdout names the model (local-llm-codes-in-process).
-    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "stdout", "completed"]);
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "completed"]);
     expect((events[1] as { chunk: string }).chunk).toContain("Model qwen (named in the local LLM settings)");
-    expect((events[2] as { chunk: string }).chunk).toBe("Hello");
-    expect((events[3] as { chunk: string }).chunk).toBe(" world");
-    expect((events[4] as { summary?: string }).summary).toBe("Hello world");
+    expect((events[2] as { chunk: string }).chunk).toBe("Hello world");
+    expect((events[3] as { summary?: string }).summary).toBe("Hello world");
 
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const parsedBody = JSON.parse(init.body as string) as { messages: Array<{ content: string }> };
+    const parsedBody = JSON.parse(init.body as string) as { messages: Array<{ content: string }>; tools: Array<{ function: { name: string } }> };
     expect(parsedBody.messages[1]?.content).toContain("FILE CONTENT HERE");
+    expect(parsedBody.tools.map((tool) => tool.function.name)).toEqual(["search_web", "fetch_webpage"]);
+  });
+
+  it("returns a SearXNG artifact to the model and continues its answer", async () => {
+    const requestBodies: Array<{ messages: Array<{ role: string; content: string }>; tools: Array<{ function: { name: string } }> }> = [];
+    let completionTurn = 0;
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      if (new URL(input).pathname === "/search") {
+        return new Response(JSON.stringify({ results: [{ title: "Source", url: "https://example.org/page", content: "Snippet" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      const body = JSON.parse(String(init?.body)) as (typeof requestBodies)[number];
+      requestBodies.push(body);
+      completionTurn += 1;
+      const message = completionTurn === 1
+        ? { content: "Searching", tool_calls: [{ id: "search-1", type: "function", function: { name: "search_web", arguments: '{"query":"OpenSpec"}' } }] }
+        : { content: "Found Source." };
+      return new Response(JSON.stringify({ choices: [{ message }] }), { status: 200 });
+    });
+    const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen", searxngUrl: "http://search.local:8080", fetch: fetchMock });
+    const events: Event[] = [];
+    for await (const event of adapter.execute(adapter.buildInvocation(command), command, "Search", new AbortController().signal)) events.push(event);
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed", summary: "SearchingFound Source." });
+    expect(events.some((event) => event.kind === "stdout" && event.chunk.includes("https://example.org/page"))).toBe(true);
+    expect(requestBodies[0]?.tools.map((tool) => tool.function.name)).toEqual(["search_web", "fetch_webpage"]);
+    expect(requestBodies[1]?.messages.at(-1)).toMatchObject({ role: "tool", content: expect.stringContaining("https://example.org/page") });
   });
 
   // the-local-llm-is-where-you-say: a server that wants a key, reached at
   // a base URL written with its /v1.
   it("sends its key as a bearer token to a base written with /v1, and none without a key", async () => {
     // A stream per call: one read to its end cannot be read again.
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => ({ ok: true, status: 200, statusText: "OK", body: sseStream(["data: [DONE]"]) })));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: "" } }] }), { status: 200 })));
     const keyed = new LocalLlmAdapter({ baseUrl: "http://gpu.lan:8000/v1", model: "qwen", apiKey: "secret" });
     const keyless = new LocalLlmAdapter({ baseUrl: "http://gpu.lan:8000/v1", model: "qwen" });
 
@@ -88,9 +93,8 @@ describe("LocalLlmAdapter", () => {
     expect(keylessInit.headers).toEqual({ "content-type": "application/json" });
   });
 
-  it("passes through malformed SSE payloads as stdout without crashing", async () => {
-    const body = sseStream(["not-a-data-line", "data: not-json", "data: [DONE]"]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK", body }));
+  it("completes on an empty assistant turn without crashing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: null, tool_calls: null } }], usage: null }), { status: 200 })));
 
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });
     const invocation = adapter.buildInvocation(command);
@@ -99,14 +103,13 @@ describe("LocalLlmAdapter", () => {
       events.push(e);
     }
 
-    // The first stdout names the model (local-llm-codes-in-process).
-    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "stdout", "stdout", "completed"]);
+    expect(events.map((e) => e.kind)).toEqual(["started", "stdout", "completed"]);
   });
 
   it("emits failed on non-ok HTTP response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: "Internal Server Error", body: null }),
+      vi.fn().mockResolvedValue(new Response("failure", { status: 500, statusText: "Internal Server Error" })),
     );
 
     const adapter = new LocalLlmAdapter({ baseUrl: "http://hppii-gpu:30000", model: "qwen" });

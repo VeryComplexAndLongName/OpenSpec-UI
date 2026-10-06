@@ -18,6 +18,15 @@ export default tseslint.config(
     },
   },
   {
+    files: ["packages/core/src/web-research.ts"],
+    rules: {
+      "@typescript-eslint/triple-slash-reference": [
+        "error",
+        { path: "always", types: "prefer-import", lib: "always" },
+      ],
+    },
+  },
+  {
     // Node build/test scripts (build.mjs, run.mjs, etc.) — not browser
     // code, they need Node globals (console/process/__dirname).
     files: ["**/*.mjs", "**/*.cjs", "**/scripts/**/*.js"],

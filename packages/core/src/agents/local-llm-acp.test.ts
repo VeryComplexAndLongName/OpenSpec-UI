@@ -101,6 +101,39 @@ describe("LocalLlmAcpAdapter, in process", () => {
     expect(chat?.body).toMatchObject({ model: "stand-in-model", tool_choice: "auto" });
   });
 
+  it("searches SearXNG and returns its JSON artifact in the ACP tool update", async () => {
+    const cwd = await workspace();
+    const model = standInModel([
+      { content: "Searching.", tool_calls: call("search_web", { query: "OpenSpec" }) },
+      { content: "The source is the guide." },
+    ]);
+    const fetch: FetchLike = async (url, init) => {
+      if (url.startsWith("http://search.lan:8080/")) {
+        return new Response(JSON.stringify({ results: [{ title: "OpenSpec guide", url: "https://example.org/guide", content: "Project overview" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return model.fetch(url, init);
+    };
+    const adapter = new LocalLlmAcpAdapter({
+      settings: { baseUrl: "http://x" }, limits: {}, fetch, searxngUrl: "http://search.lan:8080", askBeforeCommands: false,
+    });
+    const cmd = command(cwd);
+    const events = await collect(adapter.execute(adapter.buildInvocation(cmd), cmd, "Search for the guide", new AbortController().signal));
+
+    expect(updates(events).find((update) => update.sessionUpdate === "tool_call")).toMatchObject({
+      title: "search_web OpenSpec", status: "in_progress",
+    });
+    expect(updates(events).find((update) => update.sessionUpdate === "tool_call_update")).toMatchObject({
+      status: "completed", content: [{ content: { text: expect.stringContaining("OpenSpec guide") } }],
+    });
+    const chat = model.requests.find((request) => request.url.endsWith("/chat/completions"));
+    const offeredTools = (chat?.body as { tools: Array<{ function: { name: string } }> }).tools.map((tool) => tool.function.name);
+    expect(offeredTools).toContain("search_web");
+    expect(offeredTools).toContain("fetch_webpage");
+  });
+
   it("uses the stage's model where the stage names one", async () => {
     const cwd = await workspace();
     const model = standInModel([{ content: "ok" }]);

@@ -12,6 +12,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { terminateProcessTree } from "../shared.js";
 import { resolveInside } from "./sandbox.js";
+import { runWebResearchTool, WEB_RESEARCH_TOOL_SCHEMAS, type WebResearchOptions } from "../../web-research.js";
 
 export interface ToolLimits {
   /** Seconds a command may run before it is ended. */
@@ -59,6 +60,7 @@ export const TOOL_SCHEMAS: readonly ToolSchema[] = [
     { command: { type: "string" } },
     ["command"],
   ),
+  ...WEB_RESEARCH_TOOL_SCHEMAS,
 ];
 
 /** Each tool's parameters with their JSON types, for reading calls written
@@ -142,9 +144,15 @@ export async function runTool(
   cwd: string,
   limits: ToolLimits,
   signal?: AbortSignal,
+  webResearch?: WebResearchOptions,
 ): Promise<ToolResult> {
   try {
     switch (name) {
+      case "search_web":
+      case "fetch_webpage":
+        return webResearch
+          ? await runWebResearchTool(name, args, webResearch, signal)
+          : { output: "Web research is unavailable in this run.", failed: true };
       case "read_file": {
         const target = await resolveInside(cwd, text(args, "path"));
         return { output: cap(await readFile(target, "utf8"), limits.maxCommandOutputChars * 4), failed: false };
