@@ -26,6 +26,8 @@ import {
   describeChangeState,
   readChangeStandings,
   type DescribedChangeState,
+  actTurnedOff,
+  actTurnedOffNote,
   changeTemplateConfigToWrite,
   templatesForScope,
   type RecommendationInput,  type RunStartFacts,
@@ -678,18 +680,18 @@ export function createRunChoiceHandler(deps: CommandsDeps) {
       // and a-stage-override-keeps-its-custom-agent.
       const global = await readGlobalHarnessConfig(workspaceRoot);
       const existing = await readChangeHarnessConfig(workspaceRoot, changeName);
-      await writeChangeHarnessConfig(
-        workspaceRoot,
-        changeName,
-        changeTemplateConfigToWrite(template, global, existing),
-      );
+      const written = changeTemplateConfigToWrite(template, global, existing);
+      await writeChangeHarnessConfig(workspaceRoot, changeName, written);
 
       // Re-read rather than re-render what was on screen: the dialog
       // should show what the file now resolves to, which is the same
       // thing the standalone shell does after applying one.
       await revealResolved({
         appliedNote: `Applied "${template.title}" to openspec/changes/${changeName}/harness.json. `
-          + "The dialog now shows what the change resolves to.",
+          + "The dialog now shows what the change resolves to."
+          // An Act the configuration's level does not allow was turned off
+          // (applying-a-configuration-turns-act-off).
+          + (actTurnedOff(existing, written) ? ` ${actTurnedOffNote(template)}` : ""),
       });
     } catch (error) {
       await showCommandError("apply the named configuration", error);

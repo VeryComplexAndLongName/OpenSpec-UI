@@ -348,6 +348,18 @@ the change has one, and shows the fallback fields and the two allowances
 with a note on cost and providers. `openspec-ui-cli run` prints the move,
 and the reason under the next attempt's heading.
 
+**An edit that lowers the level turns Act off**
+(applying-a-configuration-turns-act-off). Applying a named configuration
+to a change - every one sets Semi-autonomous - or saving a change's
+Harness Settings with an autonomy level other than Autonomous removes
+`supervisor.mode` where it was `act`, so the change follows the
+workspace's mode, and says so where it says what was applied or saved.
+The fallback agents and the two allowances stay in the file: choose
+Autonomous and Act again to bring it back as it was. Only a file written
+by hand that says both `act` and another level is not run and is not
+written, since nothing chose between them; it still opens in the change's
+Harness Settings, which say Act turns off and put it right on Save.
+
 ### `branches`
 
 `{ "rebaseWhenBehind"?: <boolean>, "followMain"?: <boolean> }`. Optional;

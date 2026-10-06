@@ -7,7 +7,7 @@
 // code from entry-point wiring (`harness-config-client.ts`,
 // `change-editor-client.ts`).
 
-import { agentForEveryStageToWrite, buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, runStartFactsFrom, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
+import { actTurnedOff, agentForEveryStageToWrite, buildRunPlan, changeTemplateConfigToWrite, openTaskCount, resolveRunWithHarnessTarget, runStartFactsFrom, type HarnessBudget, type HarnessTemplate, type RunPlan, type RunWithHarnessTarget } from "@openspec-ui/core/browser";
 import { readChangeHarnessOverride, resolveHarnessConfig, writeHarnessConfig } from "./harness-config-client.js";
 import { loadChangeTimeline } from "./change-timeline-client.js";
 import type { ChangeEditorRequest } from "./change-editor-client.js";
@@ -118,7 +118,7 @@ export async function applyTemplateToChange(
   cwd: string,
   changeName: string,
   template: HarnessTemplate,
-): Promise<void> {
+): Promise<{ actTurnedOff: boolean }> {
   const [existing, global] = await Promise.all([
     readChangeHarnessOverride(request, cwd, changeName),
     // The global file, not the change's own override: the effort has to
@@ -129,6 +129,9 @@ export async function applyTemplateToChange(
   ]);
   const config = changeTemplateConfigToWrite(template, global, existing ?? undefined);
   await writeHarnessConfig(request, cwd, config, changeName);
+  // Said by the caller beside what it applied
+  // (applying-a-configuration-turns-act-off).
+  return { actTurnedOff: actTurnedOff(existing, config) };
 }
 
 /** Puts one agent on every stage of a change, keeping what the change's

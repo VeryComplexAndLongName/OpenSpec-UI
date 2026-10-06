@@ -260,11 +260,47 @@ export function changeTemplateConfigToWrite(
   base: HarnessConfig,
   override: Partial<HarnessConfig> | undefined,
 ): Partial<HarnessConfig> {
-  return templateConfigToWrite(
+  // Every named configuration sets a level below autonomous, and an Act the
+  // change kept would make the file one the validator refuses
+  // (applying-a-configuration-turns-act-off).
+  return withoutActItCannotUse(templateConfigToWrite(
     template,
     mergeStepAgents(base.stepAgents, override?.stepAgents),
     override ?? {},
-  );
+  ));
+}
+
+/** A change's file with an Act it can no longer use turned off: where the
+ * supervisor's mode is `act` and the same file's autonomy level is not
+ * `autonomous`, the mode is removed, so the change follows the
+ * workspace's. The fallback agents and allowances stay, so choosing Act
+ * again under Autonomous restores what was set; a `supervisor` left empty
+ * is removed. Applied where a person's own edit lowered the level - a named
+ * configuration, the change's Harness Settings - and never to a file read
+ * as written, whose contradiction is refused rather than guessed at
+ * (applying-a-configuration-turns-act-off). */
+export function withoutActItCannotUse<T extends Partial<HarnessConfig>>(config: T): T {
+  if (config.supervisor?.mode !== "act" || config.autonomyLevel === "autonomous") return config;
+  const { mode: _off, ...rest } = config.supervisor;
+  const result = { ...config };
+  if (Object.keys(rest).length === 0) delete result.supervisor;
+  else result.supervisor = rest;
+  return result;
+}
+
+/** What a surface says where applying `template` turned a change's Act off:
+ * the same words in every host. */
+export function actTurnedOffNote(template: HarnessTemplate): string {
+  const level = template.config.autonomyLevel;
+  const named = level === undefined ? "another level" : `${level[0]?.toUpperCase() ?? ""}${level.slice(1)}`;
+  return `The supervisor's Act is off: it acts only under Autonomous, and "${template.title}" sets ${named}.`
+    + " The fallback agents and allowances are kept.";
+}
+
+/** Whether an edit turned the change's Act off, for the surface that made
+ * it to say so. */
+export function actTurnedOff(before: Partial<HarnessConfig> | null | undefined, after: Partial<HarnessConfig>): boolean {
+  return before?.supervisor?.mode === "act" && after.supervisor?.mode !== "act";
 }
 
 /** The override to write when one agent is put on every stage of a
