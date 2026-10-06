@@ -33,7 +33,7 @@ critical advisories in simple-git <= 4.0.1, fixed only in 4.0.2.
   cli 201, webui 712, server 122, extension 502 passed.
 - [x] 3.2 `openspec validate simple-git-4 --strict`, and the merge gate
   with the worktree's absolute path as `--cwd`.
-  Valid; the gate's result is in the pull request.
+  Valid; the gate with the worktree's absolute path reports ok.
 - [x] 3.3 A real push through the product's git wrapper to a remote that
   needs the person's credentials, recorded.
   Record, 2026-10-06: this branch pushed to GitHub over HTTPS by
