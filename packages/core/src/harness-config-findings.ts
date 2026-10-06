@@ -24,7 +24,9 @@ export type HarnessFindingKind =
   | "stage-unbounded"
   /** The agent's reporting has never been observed, so neither of the
    * above can be asserted about it. */
-  | "reporting-unknown";
+  | "reporting-unknown"
+  /** The stage's work is files, and the agent edits none. */
+  | "agent-cannot-write";
 
 export interface HarnessFinding {
   kind: HarnessFindingKind;
@@ -70,6 +72,19 @@ export function findHarnessConfigLimits(config: HarnessConfig): HarnessFinding[]
     // one used.
     if (agent === undefined) continue;
     const reports = HARNESS_AGENT_CAPABILITIES[agent]?.reports ?? "unknown";
+
+    // Every stage but review leaves its work in files - the proposal, the
+    // implementation, the ticked or unticked tasks - and an agent that only
+    // answers in text leaves none (the-local-model-is-offered-where-it-is-set).
+    if (stage !== "review" && HARNESS_AGENT_CAPABILITIES[agent]?.editsFiles === false) {
+      findings.push({
+        kind: "agent-cannot-write",
+        stage,
+        agent,
+        message: `"${agent}" answers in text and edits no file, so "${stage}" on it writes nothing:`
+          + " the proposal, the implementation and the ticked tasks are files. It can review.",
+      });
+    }
 
     // A context ceiling is answered by a different question from a
     // spending one, so it is judged before the branches below rather

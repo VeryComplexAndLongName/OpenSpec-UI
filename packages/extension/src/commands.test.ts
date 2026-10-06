@@ -90,7 +90,7 @@ vi.mock("@openspec-ui/core", async () => ({
     "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
     "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
     "gemini-cli": {},
-    "local-llm": {},
+    "local-llm": { editsFiles: false },
     "local-llm-acp": {},
   },
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
@@ -1634,7 +1634,7 @@ describe("registerCommands", () => {
     // the-local-model-is-offered-where-it-is-set: the local agents need
     // nothing installed, so they are offered even where their server does
     // not answer now, and the list says so.
-    it("offers the local agents, marked as not answering, when nothing else is detected", async () => {
+    it("offers the local coding agent, marked as not answering, when nothing else is detected", async () => {
       detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
       readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
       vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
@@ -1643,8 +1643,11 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
 
       const items = vscodeMock.window.showQuickPick.mock.calls[0]?.[0] as Array<{ id: string; description?: string }>;
-      expect(items.map((item) => item.id).sort()).toEqual(["local-llm", "local-llm-acp"]);
-      for (const item of items) expect(item.description).toContain("does not answer now");
+      expect(items.map((item) => item.id)).toEqual(["local-llm-acp"]);
+      expect(items[0]?.description).toContain("does not answer now");
+      // The chat-only local agent edits no file, so it is not offered for
+      // stages whose work is files, and the list says where it fits.
+      expect(vscodeMock.window.showQuickPick.mock.calls[0]?.[1]).toMatchObject({ placeHolder: expect.stringContaining("set it on review in Harness Settings") });
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
     });
 
@@ -1660,9 +1663,8 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
 
       const items = vscodeMock.window.showQuickPick.mock.calls[0]?.[0] as Array<{ id: string; description?: string }>;
-      expect(items.map((item) => item.id).sort()).toEqual(["claude-cli", "local-llm", "local-llm-acp"]);
+      expect(items.map((item) => item.id).sort()).toEqual(["claude-cli", "local-llm-acp"]);
       expect(items.find((item) => item.id === "local-llm-acp")?.description).toBeUndefined();
-      expect(items.find((item) => item.id === "local-llm")?.description).toContain("does not answer now");
     });
 
     it("writes each answered question immediately, not accumulated until the end", async () => {

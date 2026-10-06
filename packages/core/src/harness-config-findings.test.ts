@@ -268,3 +268,28 @@ describe("findHarnessConfigLimits - skipStages", () => {
     expect(findings.some((one) => one.stage === "review")).toBe(false);
   });
 });
+
+// the-local-model-is-offered-where-it-is-set: the setup put the chat-only
+// local agent on propose and verify, where it can leave nothing.
+describe("findHarnessConfigLimits - an agent that edits no file", () => {
+  it("says so on every stage whose work is files, once, and not on review", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { propose: "local-llm", review: "local-llm", apply: "local-llm-acp", verify: "local-llm" },
+      timeout: { maxStageSeconds: 600 },
+    }));
+    const cannotWrite = findings.filter((finding) => finding.kind === "agent-cannot-write");
+    expect(cannotWrite.map((finding) => finding.stage)).toEqual(["propose", "verify"]);
+    expect(groupHarnessFindings(cannotWrite)).toEqual([expect.objectContaining({
+      agent: "local-llm",
+      stages: ["propose", "verify"],
+      message: expect.stringContaining('"local-llm" answers in text and edits no file, so "propose" and "verify" on it writes nothing'),
+    })]);
+  });
+
+  it("says nothing of the agent that edits files", () => {
+    const findings = findHarnessConfigLimits(config({
+      stepAgents: { propose: "local-llm-acp", review: "local-llm", apply: "local-llm-acp", verify: "local-llm-acp" },
+    }));
+    expect(findings.some((finding) => finding.kind === "agent-cannot-write")).toBe(false);
+  });
+});

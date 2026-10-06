@@ -19,7 +19,7 @@ with no config in three places.
    window opened counts without a reload.
 2. **Every detection in the extension asks through it**: the Agentic
    Harness setup, the AI panel on each reveal, the repository-setup facts.
-3. **The setup offers the local agents always.** A CLI agent is offered
+3. **The setup offers the local coding agent always.** A CLI agent is offered
    where it was found, since offering one that is not installed would
    write a configuration that fails at its first run. A local agent needs
    nothing installed, and its server not answering at setup time is not
@@ -33,7 +33,16 @@ with no config in three places.
    owner's check): `propose`, `review` and `verify`. The setup put it on
    `archive`, which is mechanical and refuses an agent, so the setup failed
    at its first answer once it was reached.
-5. **The standalone server is left as it is.** It detects at its own
+5. **An agent that edits no file is not a control or apply agent** (found
+   in the same check: the setup put `local-llm`, which answers in text, on
+   `propose` and `verify`, where it leaves nothing). The agent capabilities
+   gain `editsFiles: false`, set on `local-llm`. The setup leaves such an
+   agent out of both lists and says in the list that it can review, and
+   the configuration findings, shown in Harness Settings and the run
+   dialog, say where one is on a stage whose work is files.
+   - *Alternative: offer it, with a description.* Rejected: a choice that
+     makes two of three stages produce nothing is not one to offer.
+6. **The standalone server is left as it is.** It detects at its own
    configured address and its AI panel lists every agent with its
    detection.
 

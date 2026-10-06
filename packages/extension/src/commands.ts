@@ -780,9 +780,13 @@ async function promptAgentForRole(
       id: agent.id,
     };
   });
-  const pick = await vscode.window.showQuickPick(items, { title });
+  const pick = await vscode.window.showQuickPick(items, { title, placeHolder: SETUP_TEXT_ONLY_NOTE });
   return pick?.id;
 }
+
+/** Why an agent a person may look for is not in the setup's lists. */
+const SETUP_TEXT_ONLY_NOTE = "Local LLM (OpenAI-compatible) answers in text and edits no file, so it is not offered here;"
+  + " it can review: set it on review in Harness Settings.";
 
 /** `autonomous` is never in this list at all — see design.md, "`autonomous`
  * is not offered at all, not offered-then-rejected": offering a choice
@@ -838,8 +842,13 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
   // A CLI agent is offered where it was found; a local one always, since
   // its server may simply not be running yet, and the list says so
   // (the-local-model-is-offered-where-it-is-set).
-  // The list is never empty: the local agents need nothing installed.
-  const detectedAgents = AGENT_REGISTRY.filter((agent) => detected[agent.id]?.detected || agent.provider === "local");
+  // Both roles put an agent on stages whose work is files (propose, verify,
+  // apply), so an agent that edits none is not offered for either; it can
+  // review, which the placeholder says. The list is never empty: the local
+  // coding agent needs nothing installed.
+  const detectedAgents = AGENT_REGISTRY.filter((agent) =>
+    (detected[agent.id]?.detected || agent.provider === "local")
+    && HARNESS_AGENT_CAPABILITIES[agent.id]?.editsFiles !== false);
 
   let current = await readGlobalHarnessConfig(workspaceRoot);
 

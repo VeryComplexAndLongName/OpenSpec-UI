@@ -183,6 +183,11 @@ export interface HarnessAgentCapabilities {
    * and sets. `"unknown"`: a CLI nobody has checked, which may keep its
    * own proxy settings. Absent means `"unknown"`. */
   systemProxy?: "ignored" | "environment" | "unknown";
+  /** `false` for an agent that answers in text and edits no file: it cannot
+   * write a proposal, implement tasks or tick them, so on any stage but
+   * `review` it produces nothing the chain can use. Absent means it edits
+   * files (the-local-model-is-offered-where-it-is-set). */
+  editsFiles?: false;
 }
 
 /** Live-verified for `claude-cli`/`copilot-cli` (`--help` on this
@@ -217,7 +222,8 @@ export const HARNESS_AGENT_CAPABILITIES: Readonly<Record<string, HarnessAgentCap
   "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits", reports: "none", contextGauge: "none", systemProxy: "environment" },
   "codex-cli": { effort: ["minimal", "low", "medium", "high"], reports: "none", contextGauge: "none", systemProxy: "unknown" },
   "gemini-cli": { reports: "none", contextGauge: "none", systemProxy: "unknown" },
-  "local-llm": { reports: "none", contextGauge: "none", systemProxy: "ignored" },
+  // Answers in text; its only tools are the web ones (HARNESS.md).
+  "local-llm": { reports: "none", contextGauge: "none", systemProxy: "ignored", editsFiles: false },
   // Runs in the product (ADR 0038): its answer to each prompt carries the
   // tokens the model reported, and no context gauge.
   "local-llm-acp": { reports: "tokens-only", contextGauge: "none", systemProxy: "ignored" },

@@ -23,10 +23,11 @@ way.
   extension (the Agentic Harness setup, the AI panel, the
   repository-setup facts) is asked with it. The runners read the same
   module.
-- The Agentic Harness setup offers both local agents always: they need
+- The Agentic Harness setup offers the local coding agent always: it needs
   nothing installed, and a server that does not answer now may simply not
-  be running yet. One whose server does not answer is marked so in the
-  list. The setup therefore always asks its questions; it no longer skips
+  be running yet; where it does not answer, the list says so. It does not
+  offer `local-llm`, which edits no file, for stages whose work is files,
+  and the configuration's findings say where one is on such a stage. The setup therefore always asks its questions; it no longer skips
   them when no CLI is found.
 
 ## Capabilities
@@ -34,7 +35,9 @@ way.
 ### Modified Capabilities
 
 - `vscode-extension`: detection uses the editor's local LLM settings; the
-  Agentic Harness setup offers the local agents.
+  Agentic Harness setup offers the local coding agent.
+- `agentic-harness`: a configuration says where its agent can write
+  nothing.
 
 ## Impact
 

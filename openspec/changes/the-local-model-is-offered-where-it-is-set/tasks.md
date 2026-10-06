@@ -30,6 +30,13 @@ Initialize OpenSpec offered no local agent.
   found. The control agent now goes on `propose`, `review` and `verify`,
   the stages that check work. `commands.test.ts` checks every stage the
   setup writes against `isHarnessStepAgentStage`; 164 passed.
+- [x] 1.5 Same check: the setup wrote `local-llm`, which edits no file, on
+  `propose`, `review` and `verify`. `harness-step-agent.ts`: capability
+  `editsFiles: false` on `local-llm`; `harness-config-findings.ts`: finding
+  `agent-cannot-write` on `propose`, `apply` and `verify`, not `review`
+  (design.md decision 5), two cases in `harness-config-findings.test.ts`,
+  22 passed; the setup no longer offers it and its placeholder says it can
+  review, `commands.test.ts` 164 passed.
 
 ## 2. Documents
 
@@ -44,12 +51,22 @@ Initialize OpenSpec offered no local agent.
   on its own where the root run would exceed a background limit.
   Typecheck clean; lint 0 errors (3 warnings in lines this change did
   not touch); seven script tests pass. Core 2124, core-git-subprocess 69,
-  cli 201, webui 714, server 122, extension 508 passed.
+  cli 201, webui 714, server 122, extension 508 passed. After 1.4 and 1.5:
+  core 2126, core-git-subprocess 69, cli 201, webui 714, server 122,
+  extension 508 passed; typecheck and lint as before.
 - [x] 3.2 `openspec validate the-local-model-is-offered-where-it-is-set
   --strict`, and the merge gate with the worktree's absolute path as
   `--cwd`.
   Valid; the gate with the worktree's absolute path reports only 3.3
   open (Human-only).
-- [ ] 3.3 **Human-only**: in the owner's VS Code with
+- [x] 3.3 **Human-only**: in the owner's VS Code with
   `openspec-ui.localLlm.baseUrl` set to the LAN model, run Set Up Agentic
   Harness and see `local-llm` and `local-llm-acp` offered.
+  Closed by the owner on 2026-10-06 in an Extension Development Host with
+  `openspec-ui.localLlm.baseUrl` set to the LAN model and an empty
+  repository just initialized: the setup offered `local-llm-acp` unmarked,
+  left out `local-llm` and said where it fits, and wrote `local-llm-acp` on
+  propose, review, verify and apply; Harness Settings said `local-llm` on
+  propose writes nothing; with a dead address the setup marked
+  `local-llm-acp` as not answering. Ticked on the owner's word in chat:
+  all as described. Found during the check and fixed here: 1.4 and 1.5.
