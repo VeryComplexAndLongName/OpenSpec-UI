@@ -1682,20 +1682,28 @@ describe("registerCommands", () => {
 
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(3);
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(1, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(2, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli", apply: "copilot-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(3, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli", apply: "copilot-cli" },
         autonomyLevel: "semi-autonomous",
         reviewGate: { mode: "human-required" },
       });
+      // The writer is mocked here, so the rule it enforces is checked
+      // directly: every stage the setup names runs an agent. Naming
+      // `archive`, a mechanical stage, failed the real setup at its first
+      // answer (the-local-model-is-offered-where-it-is-set).
+      const { isHarnessStepAgentStage } = await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser");
+      for (const [, written] of writeGlobalHarnessConfigMock.mock.calls as Array<[string, { stepAgents: Record<string, unknown> }]>) {
+        for (const stage of Object.keys(written.stepAgents)) expect(isHarnessStepAgentStage(stage as never), stage).toBe(true);
+      }
     });
 
     it("cancelling after the control-agent question leaves that answer persisted and asks nothing further", async () => {
@@ -1713,7 +1721,7 @@ describe("registerCommands", () => {
 
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(1);
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });

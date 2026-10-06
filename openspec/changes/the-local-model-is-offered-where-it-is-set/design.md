@@ -29,7 +29,11 @@ with no config in three places.
    - *Alternative: offer them only where detected.* Rejected by the owner:
      a person setting up before starting their model server would not see
      them.
-4. **The standalone server is left as it is.** It detects at its own
+4. **The control agent goes on the stages that check work** (found in the
+   owner's check): `propose`, `review` and `verify`. The setup put it on
+   `archive`, which is mechanical and refuses an agent, so the setup failed
+   at its first answer once it was reached.
+5. **The standalone server is left as it is.** It detects at its own
    configured address and its AI panel lists every agent with its
    detection.
 

@@ -89,6 +89,7 @@ import {
   type HarnessReviewGateMode,
   type HarnessStage,
   type HarnessStepAgent,
+  type HarnessStepAgentStage,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
   type CheckScriptName,
@@ -580,7 +581,11 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
 // to the global file via writeGlobalHarnessConfig ("Writes progressively,
 // not once at the end") — cancelling (Esc) simply stops asking further
 // questions, without discarding what was already written.
-const CONTROL_STAGES: readonly HarnessStage[] = ["propose", "review", "archive"];
+// The stages that check work rather than do it. `archive` was on this list
+// from before it became mechanical, and the validator refuses an agent for
+// it, so the setup failed at its first answer once it was reached
+// (the-local-model-is-offered-where-it-is-set); `verify` checks work too.
+const CONTROL_STAGES: readonly HarnessStepAgentStage[] = ["propose", "review", "verify"];
 const SETUP_AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous"];
 
 async function fileExists(uri: vscode.Uri): Promise<boolean> {
@@ -839,7 +844,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
   let current = await readGlobalHarnessConfig(workspaceRoot);
 
   const controlAgentId = await promptAgentForRole(
-    "Control agent (propose / review / archive)",
+    "Control agent (propose / review / verify)",
     detectedAgents,
     currentAgentFor(current.stepAgents, "propose"),
     detected,

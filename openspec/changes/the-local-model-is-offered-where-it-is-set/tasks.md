@@ -22,6 +22,14 @@ Initialize OpenSpec offered no local agent.
   The branch that skipped the questions when nothing was found is
   gone, the list never being empty. `commands.test.ts`: 164 passed, two new
   cases and two rewritten that relied on the skip.
+- [x] 1.4 Found in the owner's check of 3.3: the setup failed at its first
+  answer, "stepAgents.archive is not accepted": it put the control agent on
+  `propose`, `review` and `archive`, and `archive` has been mechanical since
+  before this change. The tests mock the writer, so it was never caught,
+  and nobody reached the question while the setup skipped it with no CLI
+  found. The control agent now goes on `propose`, `review` and `verify`,
+  the stages that check work. `commands.test.ts` checks every stage the
+  setup writes against `isHarnessStepAgentStage`; 164 passed.
 
 ## 2. Documents
 
