@@ -38,7 +38,6 @@ import {
   deleteChange,
   deleteProjectTemplate,
   deleteTaskLine,
-  detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
   openTaskCount,  runStartFactsFrom,
@@ -99,6 +98,7 @@ import {
 } from "@openspec-ui/core";
 // The report's page, from the package that owns the product's look
 // (the-sprint-report-is-a-page-of-the-product).
+import { detectAgentsHereDetailed } from "./local-llm-settings.js";
 import { renderSprintReportPage } from "@openspec-ui/webui/src/sprint-report-page.js";
 import { readRepoSetupFacts } from "./repo-setup-facts.js";
 import type { RunController } from "./run-controller.js";
@@ -758,14 +758,23 @@ function orderWithCurrentFirst<T extends { id: string }>(items: readonly T[], cu
 
 async function promptAgentForRole(
   title: string,
-  detectedAgents: readonly AgentDescriptor[],
+  offeredAgents: readonly AgentDescriptor[],
   currentId: string | undefined,
+  detected: Readonly<Record<string, DetectedAgent>> = {},
 ): Promise<string | undefined> {
-  const items = orderWithCurrentFirst(detectedAgents, currentId).map((agent) => ({
-    label: agent.label,
-    description: agent.id === currentId ? "current" : undefined,
-    id: agent.id,
-  }));
+  const items = orderWithCurrentFirst(offeredAgents, currentId).map((agent) => {
+    // A local agent is offered whether or not its server answers now, and
+    // says which (the-local-model-is-offered-where-it-is-set).
+    const notAnswering = agent.provider === "local" && detected[agent.id]?.detected !== true
+      ? "its server does not answer now: openspec-ui.localLlm.baseUrl"
+      : undefined;
+    const description = [agent.id === currentId ? "current" : undefined, notAnswering].filter((part) => part !== undefined).join(" · ");
+    return {
+      label: agent.label,
+      ...(description.length > 0 ? { description } : {}),
+      id: agent.id,
+    };
+  });
   const pick = await vscode.window.showQuickPick(items, { title });
   return pick?.id;
 }
@@ -818,17 +827,14 @@ async function offerGenerateAgentInstructions(workspaceRoot: string): Promise<vo
 }
 
 async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
-  const detected = await detectAvailableAgentsDetailed();
-  const detectedAgents = AGENT_REGISTRY.filter((agent) => detected[agent.id]?.detected);
-
-  if (detectedAgents.length === 0) {
-    void vscode.window.showInformationMessage(
-      "OpenSpec Workbench: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
-      "and autonomy-level questions.",
-    );
-    await offerGenerateAgentInstructions(workspaceRoot);
-    return;
-  }
+  // The local LLM looked for where the settings say it is
+  // (the-local-model-is-offered-where-it-is-set).
+  const detected = await detectAgentsHereDetailed();
+  // A CLI agent is offered where it was found; a local one always, since
+  // its server may simply not be running yet, and the list says so
+  // (the-local-model-is-offered-where-it-is-set).
+  // The list is never empty: the local agents need nothing installed.
+  const detectedAgents = AGENT_REGISTRY.filter((agent) => detected[agent.id]?.detected || agent.provider === "local");
 
   let current = await readGlobalHarnessConfig(workspaceRoot);
 
@@ -836,6 +842,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
     "Control agent (propose / review / archive)",
     detectedAgents,
     currentAgentFor(current.stepAgents, "propose"),
+    detected,
   );
   if (controlAgentId === undefined) return;
   current = {
@@ -847,7 +854,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
   };
   await writeGlobalHarnessConfig(workspaceRoot, current);
 
-  const applyAgentId = await promptAgentForRole("Apply agent", detectedAgents, currentAgentFor(current.stepAgents, "apply"));
+  const applyAgentId = await promptAgentForRole("Apply agent", detectedAgents, currentAgentFor(current.stepAgents, "apply"), detected);
   if (applyAgentId === undefined) return;
   current = { ...current, stepAgents: { ...current.stepAgents, apply: applyAgentId } };
   await writeGlobalHarnessConfig(workspaceRoot, current);

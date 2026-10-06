@@ -5,7 +5,6 @@
 
 import * as vscode from "vscode";
 import {
-  detectAvailableAgents,
   normalizeStepAgent,
   stepAgentFor,
   resolveHarnessConfig,
@@ -23,6 +22,7 @@ import {
   type RunPlan,
   type WorkbenchProcessScheduler,
 } from "@openspec-ui/core";
+import { detectAgentsHere } from "../local-llm-settings.js";
 import type { RunController } from "../run-controller.js";
 import { randomBytes } from "node:crypto";
 import { buildWorkbenchChatPrompt } from "../workbench-chat-prompt.js";
@@ -610,7 +610,7 @@ export class AiPanel {
     if (this.deps.getLocalServerUrl()) return;
     const panel = this.panel;
     if (!panel) return;
-    void detectAvailableAgents().then((detectedAgents) => {
+    void detectAgentsHere().then((detectedAgents) => {
       if (!this.panelContext) return;
       this.panelContext = { ...this.panelContext, detectedAgents };
       void panel.webview.postMessage({ type: CONTEXT_MESSAGE_TYPE, context: this.panelContext });

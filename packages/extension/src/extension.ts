@@ -53,6 +53,7 @@ import { RunController } from "./run-controller.js";
 import { RunCompletionNotifier, describeRunCompletion } from "./run-notifications.js";
 import { registerChangeElsewhere } from "./change-elsewhere.js";
 import { createRunChoiceHandler, registerCommands, type CommandsDeps } from "./commands.js";
+import { LOCAL_LLM_API_KEY_SECRET, readAgentSwitches, readLocalLlmSettings, useSecretStorage } from "./local-llm-settings.js";
 import { sendPipelineRunControl } from "./pipeline-run-control.js";
 import { checkScheduleOnce, watchScheduledRuns } from "./scheduled-run-watcher.js";
 import type { RevealableTreeView, TreeSelectionView, ViewFilters } from "./commands.js";
@@ -156,23 +157,12 @@ export interface ExtensionTestApi {
   onWebviewEvent: (listener: (event: Event) => void) => vscode.Disposable;
 }
 
-/** Where the local LLM's API key is kept: the editor's secret storage, by
- * this name (the-local-llm-is-where-you-say). */
-const LOCAL_LLM_API_KEY_SECRET = "openspec-ui.localLlm.apiKey";
-
-/** The two agent switches, from the settings, for every place this host
- * builds runners (ADR 0038). Off unless a person turned them on; the
- * environment's values apply only to a host with no settings. */
-export function readAgentSwitches(): { ignoreSystemProxy: boolean; askBeforeCommands: boolean } {
-  const agents = vscode.workspace.getConfiguration("openspec-ui.agents");
-  const localAgent = vscode.workspace.getConfiguration("openspec-ui.localLlm.agent");
-  return {
-    ignoreSystemProxy: agents.get<boolean>("ignoreSystemProxy", false) === true,
-    askBeforeCommands: localAgent.get<boolean>("askBeforeCommands", false) === true,
-  };
-}
+// Read where agent detection reads them too
+// (the-local-model-is-offered-where-it-is-set).
+export { readAgentSwitches } from "./local-llm-settings.js";
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
+  useSecretStorage(context.secrets);
   const outputChannel = vscode.window.createOutputChannel("OpenSpec Workbench");
   context.subscriptions.push(outputChannel);
 
@@ -536,15 +526,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // Where the local LLM is and its key: the settings and the secret
     // storage, then the environment core reads for whatever is not set
     // here (the-local-llm-is-where-you-say). The key is never in a file.
-    const localLlm = vscode.workspace.getConfiguration("openspec-ui.localLlm");
-    const localLlmBaseUrl = localLlm.get<string>("baseUrl", "").trim();
-    const localLlmModel = localLlm.get<string>("model", "").trim();
-    const localLlmApiKey = await context.secrets.get(LOCAL_LLM_API_KEY_SECRET).then((value) => value, () => undefined);
-    const localLlmSettings = {
-      ...(localLlmBaseUrl.length > 0 ? { localLlmBaseUrl } : {}),
-      ...(localLlmModel.length > 0 ? { localLlmModel } : {}),
-      ...(localLlmApiKey !== undefined && localLlmApiKey.length > 0 ? { localLlmApiKey } : {}),
-    };
+    const localLlmSettings = await readLocalLlmSettings();
     runners = buildDefaultAgentRunners({
       workspaceRoot,
       auditLog,

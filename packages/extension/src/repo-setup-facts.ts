@@ -7,7 +7,8 @@
 // core so it can be tested without an editor.
 
 import * as vscode from "vscode";
-import { createGitWrapper, detectAvailableAgents, type RepoSetupFacts } from "@openspec-ui/core";
+import { createGitWrapper, type RepoSetupFacts } from "@openspec-ui/core";
+import { detectAgentsHere } from "./local-llm-settings.js";
 
 /** Extension ids that mean Copilot is here. Chat is listed too: a
  * person who installed only the chat extension still has Copilot
@@ -55,7 +56,7 @@ async function gather(workspaceRoot: string): Promise<RepoSetupFacts> {
   }
 
   try {
-    const detected = await detectAvailableAgents();
+    const detected = await detectAgentsHere();
     facts.copilotCli = Object.entries(detected)
       .some(([id, present]) => present && id.startsWith("copilot"));
   } catch {

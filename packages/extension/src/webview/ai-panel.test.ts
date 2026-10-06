@@ -129,18 +129,19 @@ describe("AiPanel context", () => {
         // has not resolved yet, so no postMessage should have gone out.
         expect(panel.webview.postMessage).not.toHaveBeenCalled();
 
+        // Detection is asked once the settings it is asked with are read
+        // (the-local-model-is-offered-where-it-is-set).
+        await vi.waitFor(() => expect(detectAvailableAgentsMock).toHaveBeenCalled());
         resolveDetection({ "claude-cli": true, "copilot-cli": false });
-        await Promise.resolve();
-        await Promise.resolve();
 
-        expect(panel.webview.postMessage).toHaveBeenCalledWith({
+        await vi.waitFor(() => expect(panel.webview.postMessage).toHaveBeenCalledWith({
             type: "openspec-ui/context",
             context: {
                 cwd: "/repo",
                 changeDir: "/repo/openspec/changes",
                 detectedAgents: { "claude-cli": true, "copilot-cli": false },
             },
-        });
+        }));
         expect(aiPanel.getContext()?.detectedAgents).toEqual({ "claude-cli": true, "copilot-cli": false });
     });
 
@@ -149,13 +150,12 @@ describe("AiPanel context", () => {
         createPanelFixture();
         const aiPanel = createAiPanel();
         aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
-        await Promise.resolve();
-        await Promise.resolve();
+        await vi.waitFor(() => expect(detectAvailableAgentsMock).toHaveBeenCalled());
         detectAvailableAgentsMock.mockClear();
 
         aiPanel.reveal({ cwd: "/repo", changeDir: "/repo/openspec/changes" });
 
-        expect(detectAvailableAgentsMock).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(detectAvailableAgentsMock).toHaveBeenCalledTimes(1));
     });
 
     it("does not run detection in optional-local-server mode", () => {
