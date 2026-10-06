@@ -3,7 +3,8 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import simpleGit, { type SimpleGit } from "simple-git";
+import type { SimpleGit } from "simple-git";
+import { openGit } from "./git-client.js";
 
 export interface GitWrapperOptions {
   cwd: string;
@@ -221,7 +222,7 @@ export interface GitWrapper {
 }
 
 export function createGitWrapper(options: GitWrapperOptions): GitWrapper {
-  const git: SimpleGit = simpleGit(options.cwd);
+  const git: SimpleGit = openGit(options.cwd);
 
   return {
     async status(): Promise<GitStatusSummary> {

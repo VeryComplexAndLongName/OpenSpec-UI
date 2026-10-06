@@ -11,7 +11,7 @@ const simpleGitFactory = vi.fn(() => ({
   push: pushMock,
 }));
 
-vi.mock("simple-git", () => ({ default: simpleGitFactory }));
+vi.mock("simple-git", () => ({ simpleGit: simpleGitFactory }));
 
 const { createGitWrapper } = await import("./git.js");
 
@@ -31,7 +31,12 @@ describe("createGitWrapper", () => {
     const wrapper = createGitWrapper({ cwd: "/workspace/repo" });
     const status = await wrapper.status();
 
-    expect(simpleGitFactory).toHaveBeenCalledWith("/workspace/repo");
+    // Opened through openGit, which lets the connection variables through
+    // (simple-git-4).
+    expect(simpleGitFactory).toHaveBeenCalledWith(expect.objectContaining({
+      baseDir: "/workspace/repo",
+      allowEnvironment: expect.arrayContaining(["GIT_ASKPASS", "GIT_SSH_COMMAND"]),
+    }));
     expect(status).toEqual({
       current: "feat-x",
       ahead: 1,

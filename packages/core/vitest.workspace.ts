@@ -50,6 +50,8 @@ import { defineWorkspace } from "vitest/config";
 // (git-says-a-working-directory-is-done).
 const SHELL_STARTING_TESTS = [
   "src/git.push.test.ts",
+  // Real git, with an SSH command that starts node (simple-git-4).
+  "src/git-client.test.ts",
   "src/git-refs.test.ts",
   "src/finished-directories.removal.test.ts",
   // Real git for init, commit and ls-tree against a temporary repository
