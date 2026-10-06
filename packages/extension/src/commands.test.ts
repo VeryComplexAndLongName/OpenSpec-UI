@@ -75,12 +75,12 @@ vi.mock("@openspec-ui/core", async () => ({
   // (changes-shows-one-change-and-who-owns-it).
   ...(await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser")),
   AGENT_REGISTRY: [
-    { id: "claude-cli", label: "Claude CLI" },
-    { id: "copilot-cli", label: "GitHub Copilot CLI" },
-    { id: "codex-cli", label: "Codex CLI" },
-    { id: "gemini-cli", label: "Gemini CLI" },
-    { id: "local-llm", label: "Local LLM (OpenAI-compatible)" },
-    { id: "local-llm-acp", label: "Local LLM (ACP, OpenAI-compatible)" },
+    { id: "claude-cli", label: "Claude CLI", provider: "anthropic" },
+    { id: "copilot-cli", label: "GitHub Copilot CLI", provider: "github" },
+    { id: "codex-cli", label: "Codex CLI", provider: "openai" },
+    { id: "gemini-cli", label: "Gemini CLI", provider: "google" },
+    { id: "local-llm", label: "Local LLM (OpenAI-compatible)", provider: "local" },
+    { id: "local-llm-acp", label: "Local LLM (ACP, OpenAI-compatible)", provider: "local" },
   ],
   DEFAULT_HARNESS_CONFIG: { stepAgents: {}, autonomyLevel: "assisted", reviewGate: { mode: "human-required" } },
   DEFAULT_STALE_TASK_THRESHOLD_DAYS: 14,
@@ -90,7 +90,7 @@ vi.mock("@openspec-ui/core", async () => ({
     "copilot-cli": { effort: ["none", "minimal", "low", "medium", "high", "xhigh", "max"], budgetField: "maxAiCredits" },
     "codex-cli": { effort: ["minimal", "low", "medium", "high"] },
     "gemini-cli": {},
-    "local-llm": {},
+    "local-llm": { editsFiles: false },
     "local-llm-acp": {},
   },
   archiveChange: (...args: unknown[]) => archiveChangeMock(...args),
@@ -1631,23 +1631,40 @@ describe("registerCommands", () => {
       return { stepAgents: {}, autonomyLevel: "assisted" as const, reviewGate: { mode: "human-required" as const } };
     }
 
-    it("skips the agent/autonomy questions and goes straight to the CLAUDE.md/AGENTS.md question when nothing is detected", async () => {
+    // the-local-model-is-offered-where-it-is-set: the local agents need
+    // nothing installed, so they are offered even where their server does
+    // not answer now, and the list says so.
+    it("offers the local coding agent, marked as not answering, when nothing else is detected", async () => {
       detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
-      vscodeMock.window.showQuickPick.mockResolvedValueOnce("No");
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
 
-      expect(readGlobalHarnessConfigMock).not.toHaveBeenCalled();
+      const items = vscodeMock.window.showQuickPick.mock.calls[0]?.[0] as Array<{ id: string; description?: string }>;
+      expect(items.map((item) => item.id)).toEqual(["local-llm-acp"]);
+      expect(items[0]?.description).toContain("does not answer now");
+      // The chat-only local agent edits no file, so it is not offered for
+      // stages whose work is files, and the list says where it fits.
+      expect(vscodeMock.window.showQuickPick.mock.calls[0]?.[1]).toMatchObject({ placeHolder: expect.stringContaining("set it on review in Harness Settings") });
       expect(writeGlobalHarnessConfigMock).not.toHaveBeenCalled();
-      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith(
-        expect.stringContaining("no supported CLI agent was detected"),
-      );
-      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledTimes(1);
-      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledWith(
-        ["Yes", "No"],
-        expect.objectContaining({ title: "Generate CLAUDE.md / AGENTS.md now?" }),
-      );
+    });
+
+    it("offers a local agent whose server answers without the mark, beside the CLIs found", async () => {
+      detectAvailableAgentsDetailedMock.mockResolvedValueOnce({
+        "claude-cli": { detected: true },
+        "local-llm-acp": { detected: true },
+      });
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
+
+      const items = vscodeMock.window.showQuickPick.mock.calls[0]?.[0] as Array<{ id: string; description?: string }>;
+      expect(items.map((item) => item.id).sort()).toEqual(["claude-cli", "local-llm-acp"]);
+      expect(items.find((item) => item.id === "local-llm-acp")?.description).toBeUndefined();
     });
 
     it("writes each answered question immediately, not accumulated until the end", async () => {
@@ -1667,20 +1684,28 @@ describe("registerCommands", () => {
 
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(3);
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(1, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(2, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli", apply: "copilot-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });
       expect(writeGlobalHarnessConfigMock).toHaveBeenNthCalledWith(3, "/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli", apply: "copilot-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli", apply: "copilot-cli" },
         autonomyLevel: "semi-autonomous",
         reviewGate: { mode: "human-required" },
       });
+      // The writer is mocked here, so the rule it enforces is checked
+      // directly: every stage the setup names runs an agent. Naming
+      // `archive`, a mechanical stage, failed the real setup at its first
+      // answer (the-local-model-is-offered-where-it-is-set).
+      const { isHarnessStepAgentStage } = await vi.importActual<typeof import("@openspec-ui/core/browser")>("@openspec-ui/core/browser");
+      for (const [, written] of writeGlobalHarnessConfigMock.mock.calls as Array<[string, { stepAgents: Record<string, unknown> }]>) {
+        for (const stage of Object.keys(written.stepAgents)) expect(isHarnessStepAgentStage(stage as never), stage).toBe(true);
+      }
     });
 
     it("cancelling after the control-agent question leaves that answer persisted and asks nothing further", async () => {
@@ -1698,7 +1723,7 @@ describe("registerCommands", () => {
 
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledTimes(1);
       expect(writeGlobalHarnessConfigMock).toHaveBeenCalledWith("/workspace/repo", {
-        stepAgents: { propose: "claude-cli", review: "claude-cli", archive: "claude-cli" },
+        stepAgents: { propose: "claude-cli", review: "claude-cli", verify: "claude-cli" },
         autonomyLevel: "assisted",
         reviewGate: { mode: "human-required" },
       });
@@ -1723,17 +1748,27 @@ describe("registerCommands", () => {
 
     it("does not ask to generate CLAUDE.md/AGENTS.md when both already exist", async () => {
       detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Local LLM agent", id: "local-llm-acp" }) // control
+        .mockResolvedValueOnce({ label: "Local LLM agent", id: "local-llm-acp" }) // apply
+        .mockResolvedValueOnce({ label: "semi-autonomous" }); // autonomy
       vscodeMock.workspace.fs.stat.mockResolvedValueOnce({}).mockResolvedValueOnce({});
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 
       await vscodeMock._registeredCommands.get("openspec-ui.setUpAgenticHarness")?.();
 
-      expect(vscodeMock.window.showQuickPick).not.toHaveBeenCalled();
+      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledTimes(3);
       expect(writeAgentInstructionsMock).not.toHaveBeenCalled();
     });
 
     it("writes agent instructions when the user opts in and picks a project type", async () => {
       detectAvailableAgentsDetailedMock.mockResolvedValueOnce({});
+      readGlobalHarnessConfigMock.mockResolvedValueOnce(baseGlobalConfig());
+      vscodeMock.window.showQuickPick
+        .mockResolvedValueOnce({ label: "Local LLM agent", id: "local-llm-acp" }) // control
+        .mockResolvedValueOnce({ label: "Local LLM agent", id: "local-llm-acp" }) // apply
+        .mockResolvedValueOnce({ label: "semi-autonomous" }) // autonomy
       vscodeMock.window.showQuickPick
         .mockResolvedValueOnce("Yes")
         .mockResolvedValueOnce({ label: "Node.js / TypeScript", id: "node" });

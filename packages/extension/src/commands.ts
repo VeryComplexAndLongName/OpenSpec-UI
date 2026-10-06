@@ -38,7 +38,6 @@ import {
   deleteChange,
   deleteProjectTemplate,
   deleteTaskLine,
-  detectAvailableAgentsDetailed,
   discoverOpenSpecWorkspace,
   getChangeTimeline,
   openTaskCount,  runStartFactsFrom,
@@ -90,6 +89,7 @@ import {
   type HarnessReviewGateMode,
   type HarnessStage,
   type HarnessStepAgent,
+  type HarnessStepAgentStage,
   type OpenSpecShowResult,
   type OpenSpecValidateResult,
   type CheckScriptName,
@@ -99,6 +99,7 @@ import {
 } from "@openspec-ui/core";
 // The report's page, from the package that owns the product's look
 // (the-sprint-report-is-a-page-of-the-product).
+import { detectAgentsHereDetailed } from "./local-llm-settings.js";
 import { renderSprintReportPage } from "@openspec-ui/webui/src/sprint-report-page.js";
 import { readRepoSetupFacts } from "./repo-setup-facts.js";
 import type { RunController } from "./run-controller.js";
@@ -580,7 +581,11 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
 // to the global file via writeGlobalHarnessConfig ("Writes progressively,
 // not once at the end") — cancelling (Esc) simply stops asking further
 // questions, without discarding what was already written.
-const CONTROL_STAGES: readonly HarnessStage[] = ["propose", "review", "archive"];
+// The stages that check work rather than do it. `archive` was on this list
+// from before it became mechanical, and the validator refuses an agent for
+// it, so the setup failed at its first answer once it was reached
+// (the-local-model-is-offered-where-it-is-set); `verify` checks work too.
+const CONTROL_STAGES: readonly HarnessStepAgentStage[] = ["propose", "review", "verify"];
 const SETUP_AUTONOMY_LEVELS: readonly HarnessAutonomyLevel[] = ["assisted", "semi-autonomous"];
 
 async function fileExists(uri: vscode.Uri): Promise<boolean> {
@@ -758,17 +763,30 @@ function orderWithCurrentFirst<T extends { id: string }>(items: readonly T[], cu
 
 async function promptAgentForRole(
   title: string,
-  detectedAgents: readonly AgentDescriptor[],
+  offeredAgents: readonly AgentDescriptor[],
   currentId: string | undefined,
+  detected: Readonly<Record<string, DetectedAgent>> = {},
 ): Promise<string | undefined> {
-  const items = orderWithCurrentFirst(detectedAgents, currentId).map((agent) => ({
-    label: agent.label,
-    description: agent.id === currentId ? "current" : undefined,
-    id: agent.id,
-  }));
-  const pick = await vscode.window.showQuickPick(items, { title });
+  const items = orderWithCurrentFirst(offeredAgents, currentId).map((agent) => {
+    // A local agent is offered whether or not its server answers now, and
+    // says which (the-local-model-is-offered-where-it-is-set).
+    const notAnswering = agent.provider === "local" && detected[agent.id]?.detected !== true
+      ? "its server does not answer now: openspec-ui.localLlm.baseUrl"
+      : undefined;
+    const description = [agent.id === currentId ? "current" : undefined, notAnswering].filter((part) => part !== undefined).join(" · ");
+    return {
+      label: agent.label,
+      ...(description.length > 0 ? { description } : {}),
+      id: agent.id,
+    };
+  });
+  const pick = await vscode.window.showQuickPick(items, { title, placeHolder: SETUP_TEXT_ONLY_NOTE });
   return pick?.id;
 }
+
+/** Why an agent a person may look for is not in the setup's lists. */
+const SETUP_TEXT_ONLY_NOTE = "Local LLM (OpenAI-compatible) answers in text and edits no file, so it is not offered here;"
+  + " it can review: set it on review in Harness Settings.";
 
 /** `autonomous` is never in this list at all — see design.md, "`autonomous`
  * is not offered at all, not offered-then-rejected": offering a choice
@@ -818,24 +836,27 @@ async function offerGenerateAgentInstructions(workspaceRoot: string): Promise<vo
 }
 
 async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
-  const detected = await detectAvailableAgentsDetailed();
-  const detectedAgents = AGENT_REGISTRY.filter((agent) => detected[agent.id]?.detected);
-
-  if (detectedAgents.length === 0) {
-    void vscode.window.showInformationMessage(
-      "OpenSpec Workbench: no supported CLI agent was detected on this machine — skipping the control/apply agent " +
-      "and autonomy-level questions.",
-    );
-    await offerGenerateAgentInstructions(workspaceRoot);
-    return;
-  }
+  // The local LLM looked for where the settings say it is
+  // (the-local-model-is-offered-where-it-is-set).
+  const detected = await detectAgentsHereDetailed();
+  // A CLI agent is offered where it was found; a local one always, since
+  // its server may simply not be running yet, and the list says so
+  // (the-local-model-is-offered-where-it-is-set).
+  // Both roles put an agent on stages whose work is files (propose, verify,
+  // apply), so an agent that edits none is not offered for either; it can
+  // review, which the placeholder says. The list is never empty: the local
+  // coding agent needs nothing installed.
+  const detectedAgents = AGENT_REGISTRY.filter((agent) =>
+    (detected[agent.id]?.detected || agent.provider === "local")
+    && HARNESS_AGENT_CAPABILITIES[agent.id]?.editsFiles !== false);
 
   let current = await readGlobalHarnessConfig(workspaceRoot);
 
   const controlAgentId = await promptAgentForRole(
-    "Control agent (propose / review / archive)",
+    "Control agent (propose / review / verify)",
     detectedAgents,
     currentAgentFor(current.stepAgents, "propose"),
+    detected,
   );
   if (controlAgentId === undefined) return;
   current = {
@@ -847,7 +868,7 @@ async function runSetUpAgenticHarness(workspaceRoot: string): Promise<void> {
   };
   await writeGlobalHarnessConfig(workspaceRoot, current);
 
-  const applyAgentId = await promptAgentForRole("Apply agent", detectedAgents, currentAgentFor(current.stepAgents, "apply"));
+  const applyAgentId = await promptAgentForRole("Apply agent", detectedAgents, currentAgentFor(current.stepAgents, "apply"), detected);
   if (applyAgentId === undefined) return;
   current = { ...current, stepAgents: { ...current.stepAgents, apply: applyAgentId } };
   await writeGlobalHarnessConfig(workspaceRoot, current);
