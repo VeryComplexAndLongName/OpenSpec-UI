@@ -15,7 +15,8 @@
 // `readProposalAddedDates` below.
 
 import { readFile } from "node:fs/promises";
-import simpleGit, { type SimpleGit } from "simple-git";
+import type { SimpleGit } from "simple-git";
+import { openGit } from "./git-client.js";
 import { mapBounded } from "./bounded-map.js";
 import { buildChangeDates, withoutArchivePrefix, type DatedFact } from "./change-dates.js";
 import { countTaskCheckboxes, type TaskCounts } from "./change-standing-facts.js";
@@ -126,7 +127,7 @@ async function readTaskCounts(change: WorkbenchChange): Promise<TaskCounts | nul
 async function readProposalAddedDates(root: string): Promise<Map<string, string>> {
   const dates = new Map<string, string>();
   try {
-    const git = simpleGit(root);
+    const git = openGit(root);
     const prefix = await pathPrefixInRepository(git);
     const output = await git.raw([
       // A path with anything unusual in it is otherwise rendered as a

@@ -49,9 +49,23 @@ async function isolationSettings(): Promise<string[]> {
 export async function gitIsolationOptions(): Promise<{
   config: string[];
   unsafe: { allowUnsafeHooksPath: true };
+  allowEnvironment: readonly string[];
 }> {
-  return { config: await isolationSettings(), unsafe: { allowUnsafeHooksPath: true } };
+  return { config: await isolationSettings(), unsafe: { allowUnsafeHooksPath: true }, allowEnvironment: FIXTURE_COMMIT_ENVIRONMENT };
 }
+
+/** The variables a fixture commit sets to say who made it and when.
+ * simple-git 4 refuses a `GIT_` variable passed through `.env()` unless it
+ * is named (simple-git-4); these name a commit's author and date, nothing
+ * that runs a program. */
+const FIXTURE_COMMIT_ENVIRONMENT: readonly string[] = [
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_AUTHOR_DATE",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+  "GIT_COMMITTER_DATE",
+];
 
 /** The same settings as arguments, for a raw `git` call: they go before
  * the subcommand, so spread this ahead of it. */

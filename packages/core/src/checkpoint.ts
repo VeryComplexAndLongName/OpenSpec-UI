@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import simpleGit from "simple-git";
+import { openGit } from "./git-client.js";
 
 const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
   ".git",
@@ -108,7 +108,7 @@ interface WorkspaceScan {
 
 async function gitCheckpointPaths(root: string): Promise<string[] | undefined> {
   try {
-    const output = await simpleGit(root).raw([
+    const output = await openGit(root).raw([
       "ls-files",
       "--cached",
       "--others",

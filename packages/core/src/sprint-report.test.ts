@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import simpleGit, { type SimpleGit } from "simple-git";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { buildSprintReport } from "./sprint-report.js";
 import { gitIsolationOptions } from "./test-support/git-isolation.js";

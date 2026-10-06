@@ -5,7 +5,8 @@
 // a change read should ever depend on succeeding.
 
 import { readFile } from "node:fs/promises";
-import simpleGit, { type SimpleGit } from "simple-git";
+import type { SimpleGit } from "simple-git";
+import { openGit } from "./git-client.js";
 import {
   buildChangeDates,
   normalizedInstant,
@@ -105,7 +106,7 @@ export async function blameLineDates(
 ): Promise<Map<number, string> | undefined> {
   let output: string;
   try {
-    output = await simpleGit(cwd).raw(["blame", "--line-porcelain", "--", filePath]);
+    output = await openGit(cwd).raw(["blame", "--line-porcelain", "--", filePath]);
   } catch {
     return undefined;
   }
@@ -164,7 +165,7 @@ export async function getFileCreatedDate(cwd: string, filePath: string): Promise
     // as "undeterminable". Verified against git 2.54.0 on 2026-09-09.
     // The oldest commit is the last line instead. See
     // change-dates-from-evidence.
-    const output = await simpleGit(cwd).raw([
+    const output = await openGit(cwd).raw([
       "log",
       "--follow",
       "--diff-filter=A",
@@ -191,7 +192,7 @@ export async function getAddedFileDates(cwd: string, directoryPath: string): Pro
   const added = new Map<string, string>();
   let output: string;
   try {
-    output = await simpleGit(cwd).raw([
+    output = await openGit(cwd).raw([
       "log", "--diff-filter=A", "--name-only", "--format=@%aI", "--", directoryPath, `:(exclude)${directoryPath}/archive`,
     ]);
   } catch {
@@ -216,7 +217,7 @@ export async function getAddedFileDates(cwd: string, directoryPath: string): Pro
  * change made before its proposal (ADR 0037, amended 2026-09-25). */
 export async function getDirectoryCreatedDate(cwd: string, directoryPath: string): Promise<string | null> {
   try {
-    const output = await simpleGit(cwd).raw(["log", "--diff-filter=A", "--format=%aI", "--", directoryPath]);
+    const output = await openGit(cwd).raw(["log", "--diff-filter=A", "--format=%aI", "--", directoryPath]);
     return oldestDateIn(output);
   } catch {
     return null;
@@ -241,7 +242,7 @@ function oldestDateIn(output: string): string | null {
  * change-dates-from-evidence. */
 export async function getPathAddedDate(cwd: string, filePath: string): Promise<string | null> {
   try {
-    const output = await simpleGit(cwd).raw([
+    const output = await openGit(cwd).raw([
       "log",
       "--diff-filter=A",
       "--format=%aI",
@@ -284,7 +285,7 @@ export async function readArchiveCommitDates(cwd: string): Promise<ArchiveCommit
   const dates = new Map<string, string>();
   let unreadableLines = 0;
   try {
-    const git = simpleGit(cwd);
+    const git = openGit(cwd);
     const archivePrefix = `${await pathPrefixInRepository(git)}${ARCHIVE_LOG_PATH}/`;
     const output = await git.raw([
       // git renders a path with anything unusual in it as a C-style
@@ -402,7 +403,7 @@ const AUTHOR_LOG_FIELD_SEP = "\x1f";
 export async function getChangeAuthorship(cwd: string, changeDirPath: string): Promise<ChangeAuthorship> {
   const empty: ChangeAuthorship = { primaryAuthor: null, contributors: [] };
   try {
-    const output = await simpleGit(cwd).raw([
+    const output = await openGit(cwd).raw([
       "log",
       `--format=%an${AUTHOR_LOG_FIELD_SEP}%ae${AUTHOR_LOG_FIELD_SEP}%aI`,
       "--",
@@ -449,7 +450,7 @@ export async function readProposalCreatedDates(cwd: string): Promise<ProposalCre
   const carriageReturn = String.fromCharCode(13);
   const tab = String.fromCharCode(9);
   try {
-    const git = simpleGit(cwd);
+    const git = openGit(cwd);
     const prefix = await pathPrefixInRepository(git);
     const output = await git.raw([
       "-c",
@@ -549,7 +550,7 @@ export async function readChangeAuthorships(cwd: string): Promise<ChangeAuthorsh
   const newline = String.fromCharCode(10);
   const carriageReturn = String.fromCharCode(13);
   try {
-    const git = simpleGit(cwd);
+    const git = openGit(cwd);
     const changesPrefix = `${await pathPrefixInRepository(git)}${CHANGES_LOG_PATH}/`;
     const output = await git.raw([
       "-c",
