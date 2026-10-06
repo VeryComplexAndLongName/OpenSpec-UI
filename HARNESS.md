@@ -1076,8 +1076,8 @@ binary here" column repeats `README.md`'s own agent table.
 | `copilot-cli` | `copilot` | Yes (`--model`) | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | `maxAiCredits` (`--max-ai-credits`, minimum 30) | Yes |
 | `codex-cli` | `codex` | No | `minimal`, `low`, `medium`, `high` (from OpenAI's documented config, not live-verified here) | No | **No — never** |
 | `gemini-cli` | `gemini` | No | No mechanism | No | **No — never** |
-| `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Chat only: it answers in text and edits no file |
-| `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search and run a command, all confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
+| `local-llm` | HTTP to an OpenAI-compatible `/v1/chat/completions`, with a bearer key where one is set; where, which model and which key are set outside the harness file, see "The local LLM" below | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No | Yes, 2026-09-25: a Qwen server on the LAN answered a prompt with its key, and refused it without one. Answers in text and can search/fetch public HTML; it edits no file |
+| `local-llm-acp` | Nothing: a coding agent built into the product (ADR 0038), run in process against the local LLM of "The local LLM" below, with tools to read, write, replace in a file, list, search, run a command, search the web and fetch HTML, with repository tools confined to the run's working directory | Yes, optional (in the request); see "The local LLM" for the order | No mechanism | No mechanism | Yes, see the change `local-llm-codes-in-process` for the run that verified it. Asks before a command only when told to (below) |
 | `claude-cli-acp` | `claude --input-format stream-json --output-format stream-json` | Yes (`--model`) | Same as `claude-cli` | Same as `claude-cli` (`maxCostUsd`) | Progress only — no permission gate, see below |
 | `copilot-cli-acp` | `copilot --acp` | Yes (`--model`) | Same as `copilot-cli` | Same as `copilot-cli` (`maxAiCredits`) | Yes |
 | `codex-cli-acp` | externally installed `codex-acp` | No | No mechanism (deliberately empty — see below) | No mechanism (deliberately empty) | **No — never** |
@@ -1095,20 +1095,23 @@ binary here" column repeats `README.md`'s own agent table.
 | Model, as its server names it | `openspec-ui.localLlm.model` | `OPENSPEC_UI_LOCAL_LLM_MODEL` | the server is asked (below) |
 | API key | **OpenSpec Workbench: Set Local LLM API Key...**, kept in the editor's secret storage | `OPENSPEC_UI_LOCAL_LLM_API_KEY` | no `Authorization` header |
 | Ask before each command (`local-llm-acp`) | `openspec-ui.localLlm.agent.askBeforeCommands` | `OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS=1` | commands run without asking |
+| SearXNG search endpoint (`local-llm`, `local-llm-acp`) | Environment: `OPENSPEC_UI_SEARXNG_URL` | `OPENSPEC_UI_SEARXNG_URL` | search reports that the endpoint is not configured; page fetch still works |
 
 In VS Code the editor's value wins and the environment variable is the fallback. All of them are read when the window opens, or when the server or the CLI starts. The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log.
 
 **The model is optional.** A run takes the first of: the stage's own `model` (`stepAgents.<stage>.model`, which both agents accept); the setting above; the model the server lists at `/v1/models` (the first, where it lists several; asked once per address while the window or the server is open); `default`. The run's first output names the model and where it came from, for example `Model QuantTrio/Qwen3.6-35B-A3B-AWQ (the model the server serves).`
 
-**`local-llm`** answers in text: it can review, and it cannot write a proposal or tick a task.
+**`local-llm`** answers in text and has only two tools, `search_web` and `fetch_webpage`; it can review and gather sources, but cannot write a proposal or tick a task. Its tools do not include repository or shell access.
 
-**`local-llm-acp`** is a coding agent built into the product (ADR 0038): nothing to install. It runs the model in a loop with six tools, `read_file`, `write_file`, `replace_text`, `list_dir`, `search_text` and `run_command`, and streams each call and its result as the run's updates.
+**`local-llm-acp`** is a coding agent built into the product (ADR 0038): nothing to install. It runs the model in a loop with eight tools: `read_file`, `write_file`, `replace_text`, `list_dir`, `search_text`, `run_command`, `search_web` and `fetch_webpage`; it streams each call and its result as the run's updates.
 
 - Every path is resolved by its real location, links included, and refused when that lies outside the run's working directory.
 - A command runs in the working directory, is ended at `OPENSPEC_UI_LOCAL_LLM_ACP_COMMAND_TIMEOUT_SECONDS` (60 s by default), and its output is cut at `OPENSPEC_UI_LOCAL_LLM_ACP_MAX_COMMAND_OUTPUT_CHARS` (12000 by default).
 - With **ask before each command** on, a command waits for Allow in the run's permission prompt; leave it off for a chain nobody watches. Writes inside the working directory never ask.
 - A tool call the model wrote as text, which a server whose tool-call parser does not match the model passes through in `content` (Qwen3-Coder's `<function=...><parameter=...>` form, or Hermes' JSON, inside `<tool_call>`), is read as a call.
 - Its loop is bounded by the `OPENSPEC_UI_LOCAL_LLM_ACP_*` limits in `LIMITS.md`.
+
+Both web tools return JSON artifacts marked `trust: "untrusted"`. `search_web` uses only the configured SearXNG JSON endpoint. `fetch_webpage` accepts public HTTP(S) HTML, follows only validated public redirects, does not run JavaScript, and returns extracted Markdown with source URL, fetch time and available page metadata. Every data table is written as a Markdown table, without its HTML attributes: cells that span rows or columns are repeated, stacked header rows are joined per column, and a one-column (layout) table is read as text. A page is read up to 1 MB and its Markdown up to 32,000 characters; where either is cut, the artifact says `truncated: "page"` or `truncated: "markdown"`, and a page cut at 1 MB ends with a line saying so.
 
 ### Ignoring the system proxy
 

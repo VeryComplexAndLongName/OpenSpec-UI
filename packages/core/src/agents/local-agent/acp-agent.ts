@@ -18,6 +18,7 @@ import {
 import { runAgentLoop, type LoopEvent, type StopReason } from "./agent-loop.js";
 import type { ToolCall } from "./text-tool-calls.js";
 import { TOOL_PARAMETER_TYPES, TOOL_SCHEMAS } from "./tools.js";
+import type { WebResearchOptions } from "../../web-research.js";
 
 export interface LocalAgentOptions {
   settings: LocalLlmSettings;
@@ -25,6 +26,7 @@ export interface LocalAgentOptions {
   stageModel?: string;
   limits: LocalLlmAcpLimits;
   fetch: FetchLike;
+  searxngUrl?: string;
   /** Ask through a permission request before each command. */
   askBeforeCommands: boolean;
   /** The run's signal: aborting it ends the loop. */
@@ -168,6 +170,7 @@ export function createLocalAgent(options: LocalAgentOptions): AgentApp {
         cwd: session.cwd,
         limits: options.limits,
         onEvent,
+        webResearch: { fetch: options.fetch, ...(options.searxngUrl ? { searxngUrl: options.searxngUrl } : {}) } satisfies WebResearchOptions,
         ...(allowCommand !== undefined ? { allowCommand } : {}),
         signal: options.signal,
       });

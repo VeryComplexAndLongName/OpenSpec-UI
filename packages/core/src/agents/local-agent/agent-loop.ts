@@ -7,6 +7,7 @@ import type { LocalLlmAcpLimits } from "../../local-llm-settings.js";
 import { completeTurn, type ChatClientOptions, type ChatMessage, type TurnUsage } from "./chat-client.js";
 import type { ToolCall } from "./text-tool-calls.js";
 import { DEFAULT_TOOL_LIMITS, runTool, type ToolResult } from "./tools.js";
+import type { WebResearchOptions } from "../../web-research.js";
 
 export const SYSTEM_PROMPT =
   "You are a coding agent working in a repository. Use the tools to read, change and verify files; "
@@ -44,6 +45,7 @@ export interface LoopOptions {
    * the command is not run, and the model is told so. */
   allowCommand?: (command: string) => Promise<boolean>;
   signal?: AbortSignal;
+  webResearch?: WebResearchOptions;
   /** A clock, for tests. */
   now?: () => number;
 }
@@ -117,7 +119,7 @@ export async function runAgentLoop(prompt: string, options: LoopOptions): Promis
         && !(await options.allowCommand(typeof call.arguments.command === "string" ? call.arguments.command : ""))) {
         result = { output: "The person did not allow this command; it was not run.", failed: true };
       } else {
-        result = await runTool(call.name, call.arguments, options.cwd, toolLimits, options.signal);
+        result = await runTool(call.name, call.arguments, options.cwd, toolLimits, options.signal, options.webResearch);
       }
       await options.onEvent({ type: "tool_result", call, result });
       messages.push({ role: "tool", tool_call_id: call.id, content: result.output });
