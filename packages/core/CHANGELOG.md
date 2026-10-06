@@ -1,5 +1,11 @@
 # @openspec-ui/core
 
+## 0.135.0
+
+### Minor Changes
+
+- d40e80d: Add bounded web-search and HTML-page retrieval tools to both local model agents. Pages come back as JSON artifacts with Markdown: every data table as a Markdown table (spans repeated, stacked headers joined, no HTML attributes), and a page larger than 1 MB read up to the bound and marked `truncated`.
+
 ## 0.134.1
 
 ### Patch Changes
