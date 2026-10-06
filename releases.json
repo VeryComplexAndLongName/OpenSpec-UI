@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-06T07:31:00.276Z",
+  "generated_at": "2026-10-06T08:11:09.771Z",
   "repository": "VeryComplexAndLongName/OpenSpec-UI",
-  "commit": "44ec9b78995b490e09f78545d7aff96f153bfcf3",
+  "commit": "8d4eef0ed49b36a93471a26128e6c738654740fd",
   "products": [
     {
       "id": "vscode-extension",
       "name": "VS Code Extension",
       "package": "openspec-ui-vscode",
       "public": true,
-      "version": "0.93.0",
-      "released_at": "2026-10-06T07:31:00.276Z",
-      "tag": "openspec-ui-vscode@0.93.0",
+      "version": "0.93.1",
+      "released_at": "2026-10-06T08:11:09.771Z",
+      "tag": "openspec-ui-vscode@0.93.1",
       "prerelease": false,
       "summary": "OpenSpec Workbench inside VS Code.",
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/CHANGELOG.md",
         "docs": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/extension/README.md",
-        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.93.0"
+        "release": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/tag/openspec-ui-vscode%400.93.1"
       },
       "artifacts": [
         {
           "kind": "vsix",
-          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.93.0/openspec-ui-vscode-0.93.0.vsix",
-          "size_bytes": 7701490
+          "url": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/releases/download/openspec-ui-vscode%400.93.1/openspec-ui-vscode-0.93.1.vsix",
+          "size_bytes": 7706577
         }
       ],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The supervisor can act on a failed stage (the-supervisor-changes-agents, ADR 0039 decision 4). Under `supervisor.mode: \"act\"`, set in a change's own `harness.json` together with `autonomyLevel: \"autonomous\"` and more than one attempt per stage, a stage whose failure is likely to pass is attempted again on the same agent, and one that repeating cannot fix is moved to the first agent of `supervisor.fallback.<stage>` the change's policy allows: `allowProviderChange` for another provider, `allowCostIncrease` for any agent but the local model. Every repeat and move is said in the chain's events, recorded in the audit log, and costs an attempt; a chain says `failed` only for a stage it does not try again. Every registered agent now names its provider. Under `advise`, the last-run suggestion names the fallback `act` would use. A change's Harness Settings offers Act under Autonomous, with the fallback per stage, the allowances and a note on cost and providers; `openspec-ui-cli run` prints why a stage is attempted again."
+          "kind": "patch",
+          "summary": "Applying a named configuration to a change under the supervisor's Act no longer fails (applying-a-configuration-turns-act-off). Every named configuration sets Semi-autonomous, and Act acts only under Autonomous, so applying one - or saving a change's Harness Settings with another autonomy level - turns Act off instead of refusing the write, keeps the fallback agents and allowances, and says so where it says what was applied or saved. A file written by hand that sets both Act and another level is not run, but it now opens in the change's Harness Settings, which put it right on Save."
+        },
+        {
+          "kind": "patch",
+          "summary": "simple-git 4.0.2, which fixes two critical advisories in earlier versions (GHSA-v5rq-49vh-5v5c, GHSA-x6jw-m9v5-85vh) (simple-git-4). simple-git 4 removes `GIT_` and other guarded variables from the environment of the git it starts; the product now opens git through one function that lets through only what a person set up to reach a remote - `GIT_ASKPASS`, `SSH_ASKPASS`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_SSH_VARIANT`, `GIT_TERMINAL_PROMPT` - so pushes keep authenticating, and keeps every other guarded variable away from git."
         }
       ]
     },
@@ -38,8 +42,8 @@
       "name": "Standalone App",
       "package": "@openspec-ui/server",
       "public": true,
-      "version": "1.54.0",
-      "released_at": "2026-10-06T07:31:00.276Z",
+      "version": "1.54.1",
+      "released_at": "2026-10-06T08:11:09.771Z",
       "prerelease": false,
       "summary": "Local web application, no editor required.",
       "links": {
@@ -49,8 +53,12 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The supervisor can act on a failed stage (the-supervisor-changes-agents, ADR 0039 decision 4). Under `supervisor.mode: \"act\"`, set in a change's own `harness.json` together with `autonomyLevel: \"autonomous\"` and more than one attempt per stage, a stage whose failure is likely to pass is attempted again on the same agent, and one that repeating cannot fix is moved to the first agent of `supervisor.fallback.<stage>` the change's policy allows: `allowProviderChange` for another provider, `allowCostIncrease` for any agent but the local model. Every repeat and move is said in the chain's events, recorded in the audit log, and costs an attempt; a chain says `failed` only for a stage it does not try again. Every registered agent now names its provider. Under `advise`, the last-run suggestion names the fallback `act` would use. A change's Harness Settings offers Act under Autonomous, with the fallback per stage, the allowances and a note on cost and providers; `openspec-ui-cli run` prints why a stage is attempted again."
+          "kind": "patch",
+          "summary": "Applying a named configuration to a change under the supervisor's Act no longer fails (applying-a-configuration-turns-act-off). Every named configuration sets Semi-autonomous, and Act acts only under Autonomous, so applying one - or saving a change's Harness Settings with another autonomy level - turns Act off instead of refusing the write, keeps the fallback agents and allowances, and says so where it says what was applied or saved. A file written by hand that sets both Act and another level is not run, but it now opens in the change's Harness Settings, which put it right on Save."
+        },
+        {
+          "kind": "patch",
+          "summary": "simple-git 4.0.2, which fixes two critical advisories in earlier versions (GHSA-v5rq-49vh-5v5c, GHSA-x6jw-m9v5-85vh) (simple-git-4). simple-git 4 removes `GIT_` and other guarded variables from the environment of the git it starts; the product now opens git through one function that lets through only what a person set up to reach a remote - `GIT_ASKPASS`, `SSH_ASKPASS`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_SSH_VARIANT`, `GIT_TERMINAL_PROMPT` - so pushes keep authenticating, and keeps every other guarded variable away from git."
         }
       ]
     },
@@ -59,8 +67,8 @@
       "name": "Core",
       "package": "@openspec-ui/core",
       "public": true,
-      "version": "0.134.0",
-      "released_at": "2026-10-06T07:31:00.276Z",
+      "version": "0.134.1",
+      "released_at": "2026-10-06T08:11:09.771Z",
       "prerelease": false,
       "summary": "Execution engine shared by both delivery targets.",
       "links": {
@@ -70,8 +78,12 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The supervisor can act on a failed stage (the-supervisor-changes-agents, ADR 0039 decision 4). Under `supervisor.mode: \"act\"`, set in a change's own `harness.json` together with `autonomyLevel: \"autonomous\"` and more than one attempt per stage, a stage whose failure is likely to pass is attempted again on the same agent, and one that repeating cannot fix is moved to the first agent of `supervisor.fallback.<stage>` the change's policy allows: `allowProviderChange` for another provider, `allowCostIncrease` for any agent but the local model. Every repeat and move is said in the chain's events, recorded in the audit log, and costs an attempt; a chain says `failed` only for a stage it does not try again. Every registered agent now names its provider. Under `advise`, the last-run suggestion names the fallback `act` would use. A change's Harness Settings offers Act under Autonomous, with the fallback per stage, the allowances and a note on cost and providers; `openspec-ui-cli run` prints why a stage is attempted again."
+          "kind": "patch",
+          "summary": "Applying a named configuration to a change under the supervisor's Act no longer fails (applying-a-configuration-turns-act-off). Every named configuration sets Semi-autonomous, and Act acts only under Autonomous, so applying one - or saving a change's Harness Settings with another autonomy level - turns Act off instead of refusing the write, keeps the fallback agents and allowances, and says so where it says what was applied or saved. A file written by hand that sets both Act and another level is not run, but it now opens in the change's Harness Settings, which put it right on Save."
+        },
+        {
+          "kind": "patch",
+          "summary": "simple-git 4.0.2, which fixes two critical advisories in earlier versions (GHSA-v5rq-49vh-5v5c, GHSA-x6jw-m9v5-85vh) (simple-git-4). simple-git 4 removes `GIT_` and other guarded variables from the environment of the git it starts; the product now opens git through one function that lets through only what a person set up to reach a remote - `GIT_ASKPASS`, `SSH_ASKPASS`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_SSH_VARIANT`, `GIT_TERMINAL_PROMPT` - so pushes keep authenticating, and keeps every other guarded variable away from git."
         }
       ]
     },
@@ -80,8 +92,8 @@
       "name": "Shared UI",
       "package": "@openspec-ui/webui",
       "public": false,
-      "version": "1.82.0",
-      "released_at": "2026-10-06T07:31:00.276Z",
+      "version": "1.82.1",
+      "released_at": "2026-10-06T08:11:09.771Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/webui/CHANGELOG.md",
@@ -90,8 +102,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The supervisor can act on a failed stage (the-supervisor-changes-agents, ADR 0039 decision 4). Under `supervisor.mode: \"act\"`, set in a change's own `harness.json` together with `autonomyLevel: \"autonomous\"` and more than one attempt per stage, a stage whose failure is likely to pass is attempted again on the same agent, and one that repeating cannot fix is moved to the first agent of `supervisor.fallback.<stage>` the change's policy allows: `allowProviderChange` for another provider, `allowCostIncrease` for any agent but the local model. Every repeat and move is said in the chain's events, recorded in the audit log, and costs an attempt; a chain says `failed` only for a stage it does not try again. Every registered agent now names its provider. Under `advise`, the last-run suggestion names the fallback `act` would use. A change's Harness Settings offers Act under Autonomous, with the fallback per stage, the allowances and a note on cost and providers; `openspec-ui-cli run` prints why a stage is attempted again."
+          "kind": "patch",
+          "summary": "Applying a named configuration to a change under the supervisor's Act no longer fails (applying-a-configuration-turns-act-off). Every named configuration sets Semi-autonomous, and Act acts only under Autonomous, so applying one - or saving a change's Harness Settings with another autonomy level - turns Act off instead of refusing the write, keeps the fallback agents and allowances, and says so where it says what was applied or saved. A file written by hand that sets both Act and another level is not run, but it now opens in the change's Harness Settings, which put it right on Save."
         }
       ]
     },
@@ -100,8 +112,8 @@
       "name": "CLI",
       "package": "@openspec-ui/cli",
       "public": false,
-      "version": "0.25.0",
-      "released_at": "2026-10-06T07:31:00.276Z",
+      "version": "0.25.1",
+      "released_at": "2026-10-06T08:11:09.771Z",
       "prerelease": false,
       "links": {
         "changelog": "https://github.com/VeryComplexAndLongName/OpenSpec-UI/blob/main/packages/cli/CHANGELOG.md",
@@ -110,8 +122,8 @@
       "artifacts": [],
       "changes": [
         {
-          "kind": "minor",
-          "summary": "The supervisor can act on a failed stage (the-supervisor-changes-agents, ADR 0039 decision 4). Under `supervisor.mode: \"act\"`, set in a change's own `harness.json` together with `autonomyLevel: \"autonomous\"` and more than one attempt per stage, a stage whose failure is likely to pass is attempted again on the same agent, and one that repeating cannot fix is moved to the first agent of `supervisor.fallback.<stage>` the change's policy allows: `allowProviderChange` for another provider, `allowCostIncrease` for any agent but the local model. Every repeat and move is said in the chain's events, recorded in the audit log, and costs an attempt; a chain says `failed` only for a stage it does not try again. Every registered agent now names its provider. Under `advise`, the last-run suggestion names the fallback `act` would use. A change's Harness Settings offers Act under Autonomous, with the fallback per stage, the allowances and a note on cost and providers; `openspec-ui-cli run` prints why a stage is attempted again."
+          "kind": "patch",
+          "summary": "simple-git 4.0.2, which fixes two critical advisories in earlier versions (GHSA-v5rq-49vh-5v5c, GHSA-x6jw-m9v5-85vh) (simple-git-4). simple-git 4 removes `GIT_` and other guarded variables from the environment of the git it starts; the product now opens git through one function that lets through only what a person set up to reach a remote - `GIT_ASKPASS`, `SSH_ASKPASS`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_SSH_VARIANT`, `GIT_TERMINAL_PROMPT` - so pushes keep authenticating, and keeps every other guarded variable away from git."
         }
       ]
     }
