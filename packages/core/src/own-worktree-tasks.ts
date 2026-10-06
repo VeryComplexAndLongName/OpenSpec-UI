@@ -16,7 +16,7 @@
 import { randomUUID } from "node:crypto";
 import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import simpleGit from "simple-git";
+import { openGit } from "./git-client.js";
 
 import type { AgentRunner } from "./agent-runner.js";
 import { readAgentStatuses, resolveAgentStatusDirectory, type AgentStatusReport } from "./agent-status.js";
@@ -287,7 +287,7 @@ export async function commitTaskList(
     return refuse("default-branch", `${options.changeName}'s worktree is on ${branch}, the default branch; a task list is never committed there.`);
   }
 
-  const git = simpleGit(worktree.path);
+  const git = openGit(worktree.path);
   const relative = path.relative(worktree.path, worktree.tasksPath).split(path.sep).join("/");
   const head = (await git.raw(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
   if (head === "HEAD") return refuse("detached-head", `${options.changeName}'s worktree has no branch checked out.`);

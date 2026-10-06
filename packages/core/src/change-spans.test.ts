@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { readChangeSpans, type ChangeSpan } from "./change-spans.js";
 import { getFileCreatedDate } from "./change-timeline.js";

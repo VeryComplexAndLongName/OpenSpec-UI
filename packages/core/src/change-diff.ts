@@ -10,7 +10,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import simpleGit from "simple-git";
+import { openGit } from "./git-client.js";
 import { discoverOpenSpecWorkspace } from "./workbench.js";
 
 /** How much diff text one answer carries. A change whose `tasks.md` was
@@ -48,7 +48,7 @@ export async function readChangeDiff(
     return { kind: "not-active", message: `"${changeName}" is not an active change of this workspace.` };
   }
 
-  const git = simpleGit(workspaceRoot);
+  const git = openGit(workspaceRoot);
   const isRepository = await git.checkIsRepo().catch(() => false);
   if (!isRepository) {
     return {
