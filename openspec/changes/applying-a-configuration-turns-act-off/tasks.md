@@ -65,6 +65,12 @@ person can follow, and are refused only where truly needed.
   `--cwd`.
   Valid; the gate with `--cwd C:/Prog/.worktrees/OpenSpec-UI/applying-a-configuration-turns-act-off`
   reports only 4.3 open (Human-only).
-- [ ] 4.3 **Human-only**: in the owner's workspace, apply a named
+- [x] 4.3 **Human-only**: in the owner's workspace, apply a named
   configuration to a change under Act, and change its autonomy level in
   its Harness Settings; both apply, and say Act is off.
+  Closed by the owner on 2026-10-06 in an Extension Development Host on a
+  copy of their workspace's changes: a named configuration applied and an
+  autonomy level changed over Act, both saved and said Act is off; Act
+  came back with its fallbacks; the hand-written contradiction opened and
+  was put right on Save. Ticked on the owner's word in chat: everything
+  works, close it.
