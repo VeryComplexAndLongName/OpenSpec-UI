@@ -1,5 +1,14 @@
 # @openspec-ui/webui
 
+## 1.82.1
+
+### Patch Changes
+
+- b77aa7f: Applying a named configuration to a change under the supervisor's Act no longer fails (applying-a-configuration-turns-act-off). Every named configuration sets Semi-autonomous, and Act acts only under Autonomous, so applying one - or saving a change's Harness Settings with another autonomy level - turns Act off instead of refusing the write, keeps the fallback agents and allowances, and says so where it says what was applied or saved. A file written by hand that sets both Act and another level is not run, but it now opens in the change's Harness Settings, which put it right on Save.
+- Updated dependencies [b77aa7f]
+- Updated dependencies [44ec9b7]
+  - @openspec-ui/core@0.134.1
+
 ## 1.82.0
 
 ### Minor Changes
