@@ -1,5 +1,19 @@
 # @openspec-ui/webui
 
+## 1.83.0
+
+### Minor Changes
+
+- 5ad8000: The plan is updated from its review (the-plan-is-updated-from-its-review, ADR 0041). A new command, `update`, revises a change's existing planning artifacts so they answer its last completed review and the operator's notes, keeps them coherent, validates the change strictly and changes no code. A review now ends with `Review verdict: ready` or `Review verdict: changes needed`; in a chain, `changes needed` runs one update on the review's agent before apply. The AI panel offers `update` with a notes field, a card whose last review asked for changes offers **Update the plan**, and the CLI has `openspec-ui-cli update <change> [--note <text>] [--agent <id>]`. An update from the terminal asks there for each permission its agent requests, and denies it where nobody can be asked. A review whose agent printed its findings without reporting a result now keeps them in the audit log, so the update can read them.
+
+### Patch Changes
+
+- 2c1345d: The board and the run read right (the-board-and-the-run-read-right). A `propose` or `review` run no longer moves a change In progress on the board: only work on the implementation does (`implement` and `verify` runs, a chain's apply, verify and git stages, the verify checks), and each run's audit entry now records its command. In the AI panel the result of a run is shown once, rendered as Markdown, instead of two or three times as plain text; the log reads as text, with the agent's words rendered and tool calls as quiet lines instead of a framed box per message; and the run analysis counts an ACP agent's tool calls.
+- febbaca: The standalone AI panel follows its run to the end (the-standalone-panel-follows-its-run). A run could stop showing anything after the page re-rendered - the panel subscribed again, which closed its connection - and an answer to a permission request for a run on an agent other than the default one was lost on its way; both now reach their run, as they already did in VS Code.
+- Updated dependencies [2c1345d]
+- Updated dependencies [5ad8000]
+  - @openspec-ui/core@0.136.0
+
 ## 1.82.3
 
 ### Patch Changes
