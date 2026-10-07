@@ -1596,3 +1596,30 @@ Settings.
 - **WHEN** the local LLM answers and `claude-cli` is detected
 - **THEN** the setup offers `claude-cli` and `local-llm-acp`, neither of
   them marked
+
+### Requirement: The extension tells agents how work is done here
+
+"Initialize OpenSpec" SHALL write the workflow rules once OpenSpec is
+initialized, and "Write Agent Workflow Rules" SHALL write them on demand.
+Where a file without the section exists, the extension SHALL ask before
+adding to it. "Create OpenSpec Change" and "Create Change Template" SHALL
+make the change in its own working directory and say where.
+
+#### Scenario: Initialize where OpenSpec wrote AGENTS.md
+
+- **WHEN** a person initializes OpenSpec and `openspec init` wrote
+  `AGENTS.md`
+- **THEN** the extension asks whether to add the rules to its end, and
+  writes them into `CLAUDE.md` either way
+
+### Requirement: The extension starts in an OpenSpec workspace
+
+The extension SHALL activate in any workspace that contains
+`openspec/changes`, `openspec/config.yaml` or `openspec/project.md`,
+whether or not its view is opened, so that the workspace sweep runs there.
+
+#### Scenario: A window with the view closed
+
+- **WHEN** VS Code opens a repository with an `openspec/` project and the
+  OpenSpec Workbench view is never opened
+- **THEN** the extension is active and the sweep runs on its interval

@@ -2372,3 +2372,19 @@ component that unsubscribed subscribes again within the same task.
   `onRunTerminal`, while a run started from the panel is in flight
 - **THEN** the panel keeps its one subscription, its socket stays open, and
   the run's later events, a permission request among them, reach it
+
+### Requirement: The standalone writes the rules on initialize and follows a new change
+
+The standalone's init form SHALL offer a checkbox, checked, for adding the
+workflow rules to the end of an existing `CLAUDE.md` or `AGENTS.md`, and
+SHALL say which files were written. After creating a change in its own
+working directory, the page SHALL work in that directory and open the
+change; the server SHALL allow the repository's own working directories
+as a `cwd`, and nothing else outside the workspace.
+
+#### Scenario: Create a change from the page
+
+- **WHEN** a change is created from the Change Editor in a repository with
+  an `origin`
+- **THEN** the page's workspace root becomes the change's directory and the
+  change is open in the editor
