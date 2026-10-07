@@ -23,7 +23,7 @@ import { resolveAgentStatusDirectory } from "./agent-status.js";
 import { archivesWhenLanded, followsMain, readGlobalHarnessConfig, rebasesWhenBehind, resolveHarnessConfig } from "./harness-config.js";
 import { catchUpWithMain } from "./main-drift.js";
 import { DEFAULT_BRANCH, DEFAULT_REMOTE } from "./main-drift-facts.js";
-import { ARCHIVE_FOLLOW_INTERVAL_MS, archiveLandedChanges, describeLandedArchive, landedArchiveIsOpen, type LandedArchiveResult } from "./landed-archive.js";
+import { ARCHIVE_FOLLOW_INTERVAL_MS, archiveLandedChanges, describeLandedArchive, failureReason, landedArchiveIsOpen, type LandedArchiveResult } from "./landed-archive.js";
 import { archiveChange } from "./openspec.js";
 import { removeTree } from "./plain-fs.js";
 import { changeNamesKnown, clearWorktreeShells, type ShellSweep } from "./workspace-leftovers.js";
@@ -50,6 +50,15 @@ export interface WorkspaceSweep {
   /** What became of the main working directory's default branch, where
    * there was something to say (main-follows-what-landed). */
   main?: MainFollowed;
+  /** The changes worked in a directory of their own whose branch is on the
+   * server: each is in review, or about to be, and lands when its pull
+   * request merges. A host sweeps again soon while there are any, so the
+   * archive follows a merge by minutes (landed-changes-are-archived-without-waiting). */
+  awaitingLanding?: string[];
+  /** Why the server could not be read by a pass with no working directory
+   * to sweep, so nothing was archived. Said, since a change that landed
+   * then waits with nobody told why (landed-changes-are-archived-without-waiting). */
+  archiveUnread?: string;
 }
 
 /** The default branch brought up to its remote, or left behind and why. */
@@ -206,12 +215,14 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
     sweep = { directories, branches };
   } else {
     // Nothing above fetched, and the archive is read from the server's
-    // default branch. A failed fetch is not news on every interval: the
-    // archive simply waits for a pass that can read the server.
+    // default branch. The archive waits for a pass that can read the
+    // server, and says why it waits: a change that landed sat unarchived
+    // for as long as a fetch kept failing, and nobody was told
+    // (landed-changes-are-archived-without-waiting).
     try {
       await git.fetch("origin", { prune: true });
-    } catch {
-      return NOTHING;
+    } catch (error) {
+      return { ...NOTHING, archiveUnread: failureReason(error) };
     }
   }
 
@@ -256,13 +267,57 @@ export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSw
   const shells = await sweepWhatWasLeft(workspaceRoot, last)
     .catch((): ShellSweep => ({ removed: [], kept: [], failures: [] }));
   const saidAnything = shells.removed.length > 0 || shells.failures.length > 0;
+  const awaitingLanding = await changesAwaitingLanding(git, last);
   return {
     ...sweep,
     ...(archive !== undefined ? { archive } : {}),
     ...(archiveHeldBy !== undefined ? { archiveHeldBy } : {}),
     ...(saidAnything ? { shells } : {}),
     ...(followed !== undefined ? { main: followed } : {}),
+    ...(awaitingLanding.length > 0 ? { awaitingLanding } : {}),
   };
+}
+
+/** The changes worked in a directory of their own whose branch is on the
+ * server, read from the refs the fetch left: offline, one ref listing. A
+ * branch that is gone, or merged, is not waiting for anything. */
+async function changesAwaitingLanding(
+  git: Pick<ReturnType<typeof createGitWrapper>, "listRefs">,
+  survey: Awaited<ReturnType<typeof surveyWorktrees>>,
+): Promise<string[]> {
+  const prefix = `refs/remotes/${DEFAULT_REMOTE}/`;
+  const onServer = new Set((await git.listRefs([`refs/remotes/${DEFAULT_REMOTE}`]).catch(() => []))
+    .filter((ref) => ref.name.startsWith(prefix))
+    .map((ref) => ref.name.slice(prefix.length)));
+  return survey.directories.flatMap((directory) =>
+    !directory.isMain && directory.ownChange !== undefined && directory.branch !== undefined
+      && directory.finishedWith === undefined && onServer.has(directory.branch)
+      ? [directory.ownChange]
+      : []);
+}
+
+/** Whether a host sweeps a workspace again in a few minutes rather than at
+ * its usual half hour (ADR 0036; landed-changes-are-archived-without-waiting):
+ * - an archive pull request is open, and is followed until it merges;
+ * - one was merged by this pass: the changes that landed while it was
+ *   open were left waiting by it, and are due now;
+ * - the archive failed for a reason the previous pass did not give - a
+ *   refused push is often gone a minute later, and a failure that repeats
+ *   is left to the usual interval rather than retried for ever;
+ * - a change's own branch is on the server, so its merge is seen, and its
+ *   archive made, minutes after it happens.
+ * `previous` is the host's last sweep of the same workspace, where it has
+ * one. */
+export function sweepsAgainSoon(sweep: WorkspaceSweep, previous?: WorkspaceSweep): boolean {
+  const archive = sweep.archive;
+  if (landedArchiveIsOpen(archive)) return true;
+  const followed = archive?.followed;
+  if (followed?.outcome.state === "merged") {
+    const before = previous?.archive?.followed;
+    if (!(before?.outcome.state === "merged" && before.number === followed.number)) return true;
+  }
+  if (archive?.failed !== undefined && archive.failed !== previous?.archive?.failed) return true;
+  return (sweep.awaitingLanding?.length ?? 0) > 0;
 }
 
 /** What a sweep did, in the sentences every host says. Nothing is said
@@ -276,7 +331,10 @@ export function describeWorkspaceSweep(sweep: WorkspaceSweep): string[] {
       : `could not remove the working directory ${directory.label}: ${directory.failed}`);
   }
   if (sweep.directories.fetchFailed !== undefined) {
-    lines.push(`nothing was removed or rebased: ${describeKept("the-fetch-failed")} (${sweep.directories.fetchFailed})`);
+    lines.push(`nothing was removed, rebased or archived: ${describeKept("the-fetch-failed")} (${sweep.directories.fetchFailed})`);
+  }
+  if (sweep.archiveUnread !== undefined) {
+    lines.push(`nothing was archived: the repository could not be fetched, so what landed could not be read (${sweep.archiveUnread})`);
   }
   for (const branch of sweep.branches?.rebased ?? []) {
     lines.push(`rebased ${branch.branch} onto ${branch.onto} (${branch.behind} behind) and pushed it; its checks will run again`);
@@ -312,20 +370,25 @@ export interface ArchiveFollower {
   dispose(): void;
 }
 
-/** Sweeps a workspace again every few minutes while its archive pull
- * request is open, so the product itself merges it soon after its checks
- * pass, whatever else asks for a sweep and however seldom (ADR 0036). One
- * timer per workspace. */
+/** Sweeps a workspace again in a few minutes wherever `sweepsAgainSoon`
+ * says so - while its archive pull request is open, so the product itself
+ * merges it soon after its checks pass (ADR 0036), and while a change is
+ * about to land, so its archive follows by minutes
+ * (landed-changes-are-archived-without-waiting) - whatever else asks for a
+ * sweep and however seldom. One timer per workspace. */
 export function createArchiveFollower(options: {
   sweep?: (workspaceRoot: string) => Promise<WorkspaceSweep>;
   onSwept?: (workspaceRoot: string, sweep: WorkspaceSweep) => void;
   intervalMs?: number;
 } = {}): ArchiveFollower {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const previous = new Map<string, WorkspaceSweep>();
   const sweep = options.sweep ?? ((workspaceRoot: string) => sweepWorkspace(workspaceRoot));
   const follower: ArchiveFollower = {
     observe(workspaceRoot, swept) {
-      if (!landedArchiveIsOpen(swept.archive) || timers.has(workspaceRoot)) return;
+      const before = previous.get(workspaceRoot);
+      previous.set(workspaceRoot, swept);
+      if (!sweepsAgainSoon(swept, before) || timers.has(workspaceRoot)) return;
       const timer = setTimeout(() => {
         timers.delete(workspaceRoot);
         void sweep(workspaceRoot).then((again) => {
@@ -339,6 +402,7 @@ export function createArchiveFollower(options: {
     dispose() {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
+      previous.clear();
     },
   };
   return follower;

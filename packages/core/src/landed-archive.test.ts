@@ -8,7 +8,7 @@ import { PENDING_REASON, type BranchPullRequest, type Forge, type MergeMethod, t
 import { createGitWrapper } from "./git.js";
 import { archiveLandedChanges, describeLandedArchive, LANDED_ARCHIVE_BRANCH_PREFIX, landedArchiveTitle, type LandedArchiveDeps } from "./landed-archive.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
-import { ARCHIVE_CLAIM, createArchiveFollower, describeWorkspaceSweep, sweepWorkspace, type WorkspaceSweep } from "./workspace-sweep.js";
+import { ARCHIVE_CLAIM, createArchiveFollower, describeWorkspaceSweep, sweepsAgainSoon, sweepWorkspace, type WorkspaceSweep } from "./workspace-sweep.js";
 import { claimDirectoryBeside, releaseClaim, takeClaim } from "./resource-claim.js";
 import { resolveAgentStatusDirectory } from "./agent-status.js";
 
@@ -400,6 +400,27 @@ describe("archiveLandedChanges", () => {
     expect(await exists(made)).toBe(false);
     expect(await git(fixture.work, ["branch", "--list", `${LANDED_ARCHIVE_BRANCH_PREFIX}*`])).toBe("");
   });
+
+  // landed-changes-are-archived-without-waiting 1.3: the pass on 2026-10-07
+  // said "nothing was archived: To https://github.com/...", git's first line.
+  it("says why git refused the push, not where it pushed to", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    const forge = fakeForge();
+    const refusal = [
+      "To https://github.com/owner/repo.git",
+      " ! [rejected]        archive-landed-x -> archive-landed-x (fetch first)",
+      "error: failed to push some refs to 'https://github.com/owner/repo.git'",
+    ].join("\n");
+
+    const result = await archiveLandedChanges(depsFor(fixture, forge, {
+      gitIn: (directoryPath) => ({
+        ...createGitWrapper({ cwd: directoryPath }),
+        push: async () => { throw new Error(refusal); },
+      }),
+    }));
+
+    expect(result.failed).toBe("! [rejected]        archive-landed-x -> archive-landed-x (fetch first); error: failed to push some refs to 'https://github.com/owner/repo.git'");
+  });
 });
 
 describe("an archive pull request's title", () => {
@@ -512,6 +533,34 @@ describe("the workspace sweep", () => {
     expect(again.archive?.opened?.changes).toEqual(["first-done"]);
   });
 
+  // landed-changes-are-archived-without-waiting 1.2 and 1.4.
+  it("names a change whose own branch is on the server as about to land", async () => {
+    const fixture = await landed({});
+    const directory = path.join(fixture.root, "worktrees", "in-review");
+    await git(fixture.work, ["worktree", "add", "-q", "-b", "in-review", directory]);
+    await write(path.join(directory, "work.txt"), "work" + NL);
+    await git(directory, ["add", "."]);
+    await git(directory, ["commit", "-q", "-m", "work"]);
+    await git(directory, ["push", "-q", "-u", "origin", "in-review"]);
+
+    const swept = await sweepWorkspace(fixture.work, { forge: fakeForge(), archive: fakeArchive });
+
+    expect(swept.awaitingLanding).toEqual(["in-review"]);
+    expect(sweepsAgainSoon(swept)).toBe(true);
+  });
+
+  it("says the archive waits where the repository could not be fetched", async () => {
+    const fixture = await landed({ "first-done": DONE });
+    await git(fixture.work, ["remote", "set-url", "origin", path.join(fixture.root, "no-such-remote.git")]);
+    const forge = fakeForge();
+
+    const swept = await sweepWorkspace(fixture.work, { forge, archive: fakeArchive });
+
+    expect(swept.archiveUnread).toBeDefined();
+    expect(forge.openPullRequest).not.toHaveBeenCalled();
+    expect(describeWorkspaceSweep(swept).join(NL)).toContain("nothing was archived: the repository could not be fetched");
+  });
+
   it("leaves a finished change alone where the workspace turns the archive off", async () => {
     const fixture = await landed({ "first-done": DONE });
     await write(path.join(fixture.work, "openspec", "agent-harness.json"), JSON.stringify({ archive: { whenLanded: false } }));
@@ -528,11 +577,13 @@ describe("the archive follower (ADR 0036)", () => {
   const open: WorkspaceSweep = { directories: { removed: [], kept: [] }, archive: { due: [], notArchived: [], owing: [], followed: { branch: OPEN_ARCHIVE, number: 650, outcome: { state: "waiting" } } } };
   const merged: WorkspaceSweep = { directories: { removed: [], kept: [] }, archive: { due: [], notArchived: [], owing: [], followed: { branch: OPEN_ARCHIVE, number: 650, outcome: { state: "merged", method: "squash" } } } };
 
-  it("sweeps again while an archive pull request is open, and stops once it has merged", async () => {
+  const quiet: WorkspaceSweep = { directories: { removed: [], kept: [] } };
+
+  it("sweeps again while an archive pull request is open, once more after it merges, and then stops", async () => {
     vi.useFakeTimers();
     try {
-      const answers = [open, merged];
-      const sweep = vi.fn(async () => answers.shift() ?? merged);
+      const answers = [open, merged, quiet];
+      const sweep = vi.fn(async () => answers.shift() ?? quiet);
       const follower = createArchiveFollower({ sweep, intervalMs: 1000 });
 
       follower.observe("/repo", open);
@@ -541,26 +592,55 @@ describe("the archive follower (ADR 0036)", () => {
       expect(sweep).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(1000);
       expect(sweep).toHaveBeenCalledTimes(2);
+      // Merged: the changes that landed while it was open are due now
+      // (landed-changes-are-archived-without-waiting).
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sweep).toHaveBeenCalledTimes(3);
       await vi.advanceTimersByTimeAsync(5000);
-      expect(sweep).toHaveBeenCalledTimes(2);
+      expect(sweep).toHaveBeenCalledTimes(3);
       follower.dispose();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("does nothing for a sweep that left nothing open", async () => {
+  it("does nothing for a sweep that left nothing open and nothing about to land", async () => {
     vi.useFakeTimers();
     try {
-      const sweep = vi.fn(async () => merged);
+      const sweep = vi.fn(async () => quiet);
       const follower = createArchiveFollower({ sweep, intervalMs: 1000 });
 
-      follower.observe("/repo", merged);
-      follower.observe("/repo", { directories: { removed: [], kept: [] } });
+      follower.observe("/repo", quiet);
       await vi.advanceTimersByTimeAsync(5000);
       expect(sweep).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// landed-changes-are-archived-without-waiting 1.2.
+describe("sweepsAgainSoon", () => {
+  const base: WorkspaceSweep = { directories: { removed: [], kept: [] } };
+  const archive = (partial: Partial<NonNullable<WorkspaceSweep["archive"]>>): WorkspaceSweep => ({
+    ...base,
+    archive: { due: [], notArchived: [], owing: [], ...partial },
+  });
+  const mergedArchive = archive({ followed: { branch: OPEN_ARCHIVE, number: 650, outcome: { state: "merged", method: "squash" } } });
+
+  it("says yes while a change's own branch is on the server, and no for a quiet workspace", () => {
+    expect(sweepsAgainSoon({ ...base, awaitingLanding: ["a-change"] })).toBe(true);
+    expect(sweepsAgainSoon(base)).toBe(false);
+  });
+
+  it("says yes once after an archive merges, not again for the same one", () => {
+    expect(sweepsAgainSoon(mergedArchive)).toBe(true);
+    expect(sweepsAgainSoon(mergedArchive, mergedArchive)).toBe(false);
+  });
+
+  it("says yes after a new failure, and leaves a failure that repeats to the usual interval", () => {
+    const failed = archive({ failed: "! [rejected] archive-landed-x -> archive-landed-x (fetch first)" });
+    expect(sweepsAgainSoon(failed)).toBe(true);
+    expect(sweepsAgainSoon(failed, failed)).toBe(false);
   });
 });

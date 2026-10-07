@@ -113,7 +113,7 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
   try {
     checks = await forge.checksOf(number);
   } catch (error) {
-    return { state: "blocked", reason: `its checks could not be read: ${errorText(error)}`, cause: "checks-unreadable" };
+    return { state: "blocked", reason: `its checks could not be read: ${failureReason(error)}`, cause: "checks-unreadable" };
   }
   if (checks.state === "none" && checks.reason === PENDING_REASON) return { state: "waiting" };
   if (checks.state === "fail") return { state: "blocked", reason: checks.reason ?? "a check failed", cause: "check-failed" };
@@ -123,7 +123,7 @@ export async function followArchivePullRequest(forge: Forge, number: number): Pr
       await forge.mergeNow(number, method);
       return { state: "merged", method };
     } catch (error) {
-      reason = errorText(error);
+      reason = failureReason(error);
       if (!isMergeMethodRefusal(reason)) break;
     }
   }
@@ -147,11 +147,22 @@ function lines(...parts: string[]): string {
   return parts.join(String.fromCharCode(10));
 }
 
-function errorText(error: unknown): string {
+/** The lines of git's own refusal that say why: `! [rejected] ... (fetch
+ * first)`, `error: ...`, `fatal: ...`, or what the server said. */
+const TELLING_GIT_LINE = /^(!|error:|fatal:|remote:\s*\S)/u;
+
+/** Why something failed, in a line. git puts `To <url>` first when it
+ * refuses a push and the reason after it, and a pass that kept the first
+ * line said only where it had pushed to, "nothing was archived: To
+ * https://..." (landed-changes-are-archived-without-waiting). */
+export function failureReason(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error);
-  const first = text.split(String.fromCharCode(10)).map((line) => line.trim()).find((line) => line.length > 0);
-  return first ?? "no reason given";
+  const all = text.split(String.fromCharCode(10)).map((line) => line.trim()).filter((line) => line.length > 0);
+  const telling = all.filter((line) => TELLING_GIT_LINE.test(line));
+  if (telling.length > 0) return telling.slice(0, 2).join("; ");
+  return all[0] ?? "no reason given";
 }
+
 
 /** Makes the archive of `changes` on a branch cut from `base`, in a
  * directory of its own, commits it and hands the branch to `push`. Returns
@@ -181,7 +192,7 @@ async function makeArchive(
         await deps.archive(name, directory.path);
         archived.push(name);
       } catch (error) {
-        notArchived.push({ changeName: name, reason: errorText(error) });
+        notArchived.push({ changeName: name, reason: failureReason(error) });
       }
     }
     if (archived.length === 0) return archived;
@@ -313,7 +324,7 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
             const archived = await makeArchive(deps, branch, ref, result.due, result.notArchived, (git) => git.pushWithLease(remote, branch, leased));
             if (archived.length > 0) outcome = { state: "rebuilt", behind };
           } catch (error) {
-            outcome = { ...refused, reason: `${refused.reason}; making it again on ${ref} failed too: ${errorText(error)}` };
+            outcome = { ...refused, reason: `${refused.reason}; making it again on ${ref} failed too: ${failureReason(error)}` };
           }
         }
       }
@@ -343,7 +354,7 @@ export async function archiveLandedChanges(deps: LandedArchiveDeps): Promise<Lan
     result.opened = { branch, pullRequest, changes: archived };
     return result;
   } catch (error) {
-    result.failed = errorText(error);
+    result.failed = failureReason(error);
     return result;
   }
 }

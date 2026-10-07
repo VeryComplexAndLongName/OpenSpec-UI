@@ -29,7 +29,11 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:openspec/changes",
+    "workspaceContains:openspec/config.yaml",
+    "workspaceContains:openspec/project.md"
+  ],
   "contributes": {
     "commands": [
       {

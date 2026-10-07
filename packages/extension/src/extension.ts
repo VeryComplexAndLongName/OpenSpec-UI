@@ -27,8 +27,9 @@ import {
   changeGraphReads,
   ARCHIVE_FOLLOW_INTERVAL_MS,
   describeWorkspaceSweep,
-  landedArchiveIsOpen,
+  sweepsAgainSoon,
   sweepWorkspace,
+  type WorkspaceSweep,
   forgetMessage,
   loadOrCreateMachineKey,
   messageDirectoryBeside,
@@ -375,6 +376,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const warnedOwing = new Set<string>();
     const warnedBlocked = new Set<string>();
     let resweep: ReturnType<typeof setTimeout> | undefined;
+    let previousSweep: WorkspaceSweep | undefined;
     context.subscriptions.push({ dispose: () => { if (resweep !== undefined) clearTimeout(resweep); } });
     const sweepDirectories = async () => {
       if (!workspaceRoot) return;
@@ -411,10 +413,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
             void vscode.window.showWarningMessage(`OpenSpec Workbench: #${followed.number} cannot merge yet: ${followed.outcome.reason}. It is read again every few minutes.`);
           }
         }
-        // Swept again soon while an archive pull request is open, so it is
-        // merged, and reaches this checkout, minutes after its checks pass
-        // rather than half an hour later. One timer at a time.
-        if (landedArchiveIsOpen(swept.archive) && resweep === undefined) {
+        // Swept again soon where core says so - an archive pull request
+        // open, one just merged, an archive that failed, a change about to
+        // land - so what landed is archived, and reaches this checkout,
+        // minutes after rather than half an hour later
+        // (landed-changes-are-archived-without-waiting). One timer at a time.
+        const before = previousSweep;
+        previousSweep = swept;
+        if (sweepsAgainSoon(swept, before) && resweep === undefined) {
           resweep = setTimeout(() => {
             resweep = undefined;
             void sweepDirectories();
