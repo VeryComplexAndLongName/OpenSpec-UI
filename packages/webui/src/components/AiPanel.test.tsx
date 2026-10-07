@@ -105,6 +105,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "validate",
             "propose",
             "review",
+            "update",
             "apply",
             "verify",
         ]);
@@ -119,6 +120,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             "validate",
             "plan",
             "review",
+            "update",
             "implement",
             "verify",
         ]);
@@ -1211,5 +1213,46 @@ describe("AiPanel - the result reads once, as Markdown", () => {
         runReview();
 
         expect(screen.getByTestId("run-insights")).toHaveTextContent("Tool calls: 2");
+    });
+});
+
+// the-plan-is-updated-from-its-review 2.1 (ADR 0041).
+describe("AiPanel - updating the plan", () => {
+    it("asks for notes for an update, and sends them with the review stage's agent", () => {
+        const { transport, send, emit } = createFakeTransport();
+        render(
+            <AiPanel
+                transport={transport}
+                cwd="/repo"
+                changeDir="/repo/openspec/changes/demo"
+                generateRunId={() => "run-update"}
+                initialCommandKind="update"
+                stepAgents={{ review: "copilot-cli-acp" }}
+            />,
+        );
+
+        // The list the panel loads by itself ends first: Run waits for it.
+        emit({ kind: "completed", runId: "run-update", timestamp: "t" });
+        expect(screen.getByTestId("update-notes")).toBeTruthy();
+        expect(screen.getByText(/it also reads the change's last completed review/)).toBeTruthy();
+        fireEvent.change(screen.getByTestId("update-notes"), { target: { value: "  Keep the target filter.  " } });
+        fireEvent.click(screen.getByTestId("run-button"));
+
+        const update = send.mock.calls.map((call) => call[0] as Command).find((command) => command.kind === "update");
+        expect(update).toMatchObject({
+            agentId: "copilot-cli-acp",
+            context: { changeDir: "/repo/openspec/changes/demo", notes: "Keep the target filter." },
+        });
+    });
+
+    it("shows no notes field for another command, and sends none", () => {
+        const { transport, send, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/demo" generateRunId={() => "run-review"} initialCommandKind="review" />);
+        emit({ kind: "completed", runId: "run-review", timestamp: "t" });
+
+        expect(screen.queryByTestId("update-notes")).toBeNull();
+        fireEvent.click(screen.getByTestId("run-button"));
+        const review = send.mock.calls.map((call) => call[0] as Command).find((command) => command.kind === "review");
+        expect(review?.context).not.toHaveProperty("notes");
     });
 });

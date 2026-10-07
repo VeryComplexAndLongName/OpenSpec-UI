@@ -63,6 +63,10 @@ export const OPEN_CHANGE_MESSAGE_TYPE = "openspec-ui/open-change";
 /** Webview to host: a card's Start was pressed (a-change-is-run-from-its-card). */
 export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
 
+/** Webview to host: a card asked for its change's plan to be updated, after
+ * a review that asked for changes (ADR 0041). */
+export const UPDATE_PLAN_MESSAGE_TYPE = "openspec-ui/update-plan";
+
 /** Webview to host: a card answered or stopped a run. */
 export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
 
@@ -208,6 +212,9 @@ export interface PipelinePanelDeps {
   liveRuns?: LiveRuns;
   /** Opens a change's run dialog, for a card's Start. */
   runChange?: (changeName: string) => Promise<void>;
+  /** Opens the AI panel on `update` for a change, in its directory
+   * (ADR 0041). */
+  updatePlan?: (changeName: string, changeDir: string) => Promise<void>;
   /** Draws the views again after the folded row archived what had landed
    * (what-is-finished-is-tidied-away). */
   refreshTrees?: () => void;
@@ -398,6 +405,10 @@ export class PipelinePanel {
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CHANGE_MESSAGE_TYPE) {
       await this.runChange((message as { changeName?: unknown }).changeName);
+      return;
+    }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === UPDATE_PLAN_MESSAGE_TYPE) {
+      await this.updatePlan((message as { changeName?: unknown }).changeName);
       return;
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CONTROL_MESSAGE_TYPE) {
@@ -620,6 +631,22 @@ export class PipelinePanel {
       return;
     }
     await this.deps.runChange(changeName);
+  }
+
+  /** A card's Update the plan, for an active change of this workspace only
+   * (ADR 0041). */
+  private async updatePlan(changeName: unknown): Promise<void> {
+    const workspaceRoot = this.deps.getWorkspaceRoot();
+    if (!workspaceRoot || this.deps.updatePlan === undefined) return;
+    if (!isValidChangeName(changeName)) return;
+    const change = await this.readers.findActiveChange(workspaceRoot, changeName);
+    if (!change) {
+      void vscode.window.showInformationMessage(
+        `OpenSpec Workbench: ${changeName} is not an active change of this workspace — it may have been archived or deleted since the Pipeline was read.`,
+      );
+      return;
+    }
+    await this.deps.updatePlan(changeName, change.path);
   }
 
   /** A card's answer or stop, carried out only for a run this host holds,

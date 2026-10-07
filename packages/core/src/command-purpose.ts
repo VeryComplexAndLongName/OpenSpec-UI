@@ -12,6 +12,7 @@ export const COMMAND_PURPOSES: Readonly<Partial<Record<CommandKind, string>>> = 
   validate: "checks the change's files; reads only",
   plan: "writes the change's missing planning artifacts; sent as plan",
   review: "reviews the proposal, before it is implemented",
+  update: "revises the planning artifacts from the last review and your notes",
   implement: "implements the tasks in tasks.md; sent as implement",
   verify: "checks the implementation against tasks.md and the specs",
 };

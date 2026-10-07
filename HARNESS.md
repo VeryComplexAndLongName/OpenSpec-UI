@@ -43,7 +43,7 @@ neither has a setting the other lacks.
 | Stage | What runs it | What it produces |
 | --- | --- | --- |
 | `propose` | The `stepAgents.propose` CLI agent, dispatched as a `plan` command. | Drafts or updates the change's `proposal.md`/`design.md`/`tasks.md`. |
-| `review` | The `stepAgents.review` CLI agent, dispatched as a `review` command. | A review verdict on the change's artifacts - does not itself modify them. Left out where `skipStages` names it. |
+| `review` | The `stepAgents.review` CLI agent, dispatched as a `review` command. | A review of the change's artifacts - does not itself modify them - ending with a line `Review verdict: ready` or `Review verdict: changes needed`. On `changes needed` the same agent then runs an `update` command, as part of this stage, before `apply` (see "A review that asks for changes" below). Left out where `skipStages` names it. |
 | `apply` | The `stepAgents.apply` CLI agent, dispatched as an `implement` command. | Implements `tasks.md`'s tasks and ticks each one as soon as its own verification has passed — the product's instruction says so, whatever a project's rules add. A before/after checkpoint of the workspace is captured around this stage so `verify` can be handed the actual delta; a run that changed files and ticked no task is named on the chain's timeline. |
 | `verify` | Mechanical checks first (see "Mechanical checks" below), then the `stepAgents.verify` CLI agent, dispatched as a `verify` command — only if every declared check passed. | A verification report. The agent ticks each unticked task whose verification it confirmed itself — checking an effect that is not a file, such as a command that must pass — and unticks each that does not hold; it never ticks a `**Human-only**` or `**Delegated to …**` task. A failing mechanical check skips the agent entirely. |
 | `archive` | **Mechanical.** `HarnessChainRunner` calls `openspec archive` directly — no CLI agent runs, and `stepAgents` has no `archive` key to set (see "Two configuration files" below). | The change moves to `openspec/changes/archive/`. Refuses outright unless every task in `tasks.md` is checked, naming the tasks that are not. |
@@ -52,6 +52,35 @@ neither has a setting the other lacks.
 `archive` is mechanical and `git` is gated: neither is a CLI-agent stage
 like the first four, and a reader should not have to infer either from
 the table above — both are called out here explicitly.
+
+### A review that asks for changes
+
+The review is asked to end its reply with a line of its own:
+`Review verdict: ready` if the plan can be implemented as it is, or
+`Review verdict: changes needed` if anything it found should be fixed
+first (ADR 0041). Only that line is read - list marks, quote marks and
+emphasis around it are tolerated, prose is not read, and the last such
+line wins. The verdict is kept on the run's audit entry (`reviewVerdict`).
+
+- **In a chain**, `changes needed` runs one `update` before `apply`, on the
+  review stage's agent. It is reported as part of the `review` stage (a
+  second `stageStarted` for `review` with `updating: true`): its time and
+  spend count toward the review's, a `semi-autonomous` checkpoint after
+  the review comes after the update, and a failed update ends the chain.
+  `ready`, or no verdict line, goes on to `apply` as before.
+- **By hand**, `update` is a command of its own: in the AI panel (with a
+  field for notes), from a card whose last run was a review that said
+  `changes needed` (**Update the plan**), and from a terminal with
+  `openspec-ui-cli update <change> [--note <text>] [--agent <id>]`, which
+  asks at the terminal for each permission the agent requests and denies
+  it where nobody can be asked.
+
+An `update` revises the planning artifacts the change already has -
+proposal, spec deltas, design, tasks - so that they answer the change's
+last completed review (from the audit log) and the operator's notes, keeps
+them coherent, runs `openspec validate <name> --strict`, and changes no
+code. Its reply says what it changed and which findings it left, and why.
+`propose` still writes only the artifacts a change does not have yet.
 
 ## Two configuration files
 

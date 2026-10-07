@@ -211,6 +211,17 @@ describe("runMain — run and check", () => {
     expect(await runMain(["run", "a"], { runChange: vi.fn().mockResolvedValue(1), ...io })).toBe(1);
   });
 
+  // the-plan-is-updated-from-its-review: `update` reaches updatePlan.
+  it("passes update's change, note and agent through, and its exit code", async () => {
+    const io = collectingIo();
+    const updatePlan = vi.fn().mockResolvedValue(1);
+
+    expect(await runMain(["update", "a-change", "--note", "keep the API", "--agent", "codex-acp", "--cwd", "/w"], { updatePlan, ...io })).toBe(1);
+    expect(updatePlan.mock.calls[0]?.[0]).toMatchObject({ workspaceRoot: "/w", changeName: "a-change", note: "keep the API", agent: "codex-acp", format: "text" });
+    expect(await runMain(["update"], { updatePlan, ...io })).toBe(2);
+    expect(updatePlan).toHaveBeenCalledTimes(1);
+  });
+
   it("exits 2 when run is given no change", async () => {
     const io = collectingIo();
     const runChange = vi.fn();

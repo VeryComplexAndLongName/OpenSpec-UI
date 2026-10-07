@@ -789,6 +789,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     runChange: async (changeName) => {
       await vscode.commands.executeCommand("openspec-ui.runWithHarness", changeName);
     },
+    // A card whose review asked for changes opens the AI panel on `update`
+    // for that change (ADR 0041).
+    updatePlan: async (changeName, changeDir) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) return;
+      aiPanel.reveal({ cwd: workspaceRoot, changeDir, changeName, runChange: true, commandKind: "update" });
+    },
     // After the folded row archived what had landed, the views are drawn
     // again so they stop listing it (what-is-finished-is-tidied-away).
     refreshTrees: () => {

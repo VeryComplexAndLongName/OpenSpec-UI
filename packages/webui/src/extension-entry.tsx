@@ -62,13 +62,13 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
   // Deliberately not re-set by later context messages — the user may have
   // changed the command kind by then, and a follow-up message must not
   // undo that.
-  const [runChange, setRunChange] = useState(initialContext.runChange ?? false);
+  const [runChange, setRunChange] = useState(initialContext.runChange === true || initialContext.commandKind !== undefined);
   /** The command the single-stage picker opens on: the stage the dialog
    * said the run begins at. It opened on `implement` whatever the dialog
    * said, so a change with no proposal was offered apply
    * (one-stage-speaks-openspec). `implement` remains where the plan could
    * not say. */
-  const [startCommandKind, setStartCommandKind] = useState<CommandKind>("implement");
+  const [startCommandKind, setStartCommandKind] = useState<CommandKind>(initialContext.commandKind ?? "implement");
   /** The dialog is showing while a plan is present and nobody has chosen
    * a path yet. Choosing one clears it and mounts what it chose — the
    * chain and the single-stage picker are both already here, so asking
@@ -131,6 +131,13 @@ function ExtensionApp({ initialContext }: { initialContext: DashboardContext }) 
       setRunStanding(event.data.context.runStanding);
       setRunPath(event.data.context.runPath);
       if (event.data.context.runPlan) setRunChange(event.data.context.runChange ?? false);
+      // A card opened the panel on one command for its change (ADR 0041).
+      if (event.data.context.commandKind !== undefined) {
+        setStartChain(false);
+        setRunPlan(undefined);
+        setRunChange(true);
+        setStartCommandKind(event.data.context.commandKind);
+      }
       // Reset like the plan: a note belongs to the reveal that carried it.
       setAppliedNote(event.data.context.appliedNote);
       setUseAgentNote(event.data.context.useAgentNote);

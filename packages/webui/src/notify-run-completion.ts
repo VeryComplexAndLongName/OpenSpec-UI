@@ -3,7 +3,7 @@ import { commandLabel, type CommandKind, type Event } from "@openspec-ui/core/br
 /** Agent-driven commands worth a "you can stop watching now" notification —
  * see packages/extension/src/run-notifications.ts for the same filter
  * (and the same reasoning) on the VS Code side. */
-export const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "review", "implement", "verify"];
+export const AGENT_COMMANDS: readonly CommandKind[] = ["plan", "review", "update", "implement", "verify"];
 
 export interface RunCompletionNotification {
   title: string;

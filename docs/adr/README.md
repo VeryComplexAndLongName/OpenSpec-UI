@@ -47,5 +47,6 @@ Alternatives / Consequences.
 | [0038](0038-the-local-model-codes-in-the-product.md) | The local model's coding agent runs in the product, and an agent can ignore the system proxy | Accepted |
 | [0039](0039-the-supervisor-advises.md) | The supervisor advises, and acts only where a change allows it | Accepted |
 | [0040](0040-local-models-research-the-web.md) | Local models research public HTML pages through bounded web tools | Accepted |
+| [0041](0041-the-plan-is-updated-from-its-review.md) | The plan is updated from its review | Accepted |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

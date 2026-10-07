@@ -575,6 +575,21 @@ function StandaloneApp() {
   const pipelineStart = useCallback((changeName: string) => {
     void handleRunWithHarness(changeName, "pipeline");
   }, [cwd]);
+  // A card whose review asked for changes opens the run panel on `update`
+  // for that change (ADR 0041).
+  const pipelineUpdatePlan = useCallback((changeName: string) => {
+    void (async () => {
+      try {
+        const dispatch = await resolveRunWithHarnessDispatch(apiFetch, cwd, changeName);
+        setChainChangeDir(null);
+        setChangeDir(dispatch.changeDir);
+        setRunStageKind("update");
+        setActiveTab("run-a-command");
+      } catch (error) {
+        setRunHarnessMessage(error instanceof Error ? error.message : String(error));
+      }
+    })();
+  }, [cwd]);
   // The zoom and the open cards, for this browser. Storage a browser
   // refuses leaves the default zoom and every card closed
   // (a-card-opens-to-its-tasks).
@@ -2695,6 +2710,7 @@ function StandaloneApp() {
                 onOpenChange={openChangeInEditor}
                 onRunControl={pipelineRunControl}
                 onStart={pipelineStart}
+                onUpdatePlan={pipelineUpdatePlan}
                 onViewLogs={setLogsFor}
                 copyText={pipelineCopyText}
                 viewState={pipelineViewState}

@@ -19,6 +19,8 @@ import {
 } from "./security.js";
 import type { AgentUsage } from "./agent-usage.js";
 import { readAcpStreamedText } from "./acp-streamed-text.js";
+import { readLastReview, type LastReview } from "./last-review.js";
+import { readReviewVerdict, type ReviewVerdict } from "./review-verdict.js";
 import { diagnoseFailure, type FailureDiagnosis } from "./failure-diagnosis.js";
 import { createGitWrapper } from "./git.js";
 import type { Command, CommandKind, Event } from "./protocol.js";
@@ -28,6 +30,11 @@ import { untilStopBoundary } from "./stop-boundary.js";
  * Where a CLI prints the error behind its exit code, without holding a
  * long run's whole output (the-supervisor-advises). */
 export const OUTPUT_TAIL_CHARS = 8 * 1024;
+
+/** How much of what a review said is kept on its audit entry where its
+ * result carried no summary: the end, where the findings close and the
+ * verdict stands (ADR 0041). */
+export const REVIEW_REPLY_CHARS = 16 * 1024;
 
 export type AdapterInvocation =
   | { kind: "process"; executable: string; args: string[] }
@@ -98,6 +105,24 @@ function nowIso(): string {
 
 function* failedOnce(runId: string, reason: string): Iterable<Event> {
   yield { kind: "failed", runId, timestamp: nowIso(), reason };
+}
+
+/** The change's latest completed review for an update's prompt, or `null`
+ * where there is none or the logs cannot be read: an unreadable log is an
+ * update with no review to answer, not a failed run (ADR 0041). Made inside
+ * the guard, since a git wrapper for a directory that is not there throws as
+ * it is made. */
+async function lastReviewFor(command: Command): Promise<LastReview | null> {
+  try {
+    const review = await readLastReview({
+      git: createGitWrapper({ cwd: command.cwd }),
+      workspaceRoot: command.cwd,
+      changeName: changeNameOf(command.context.changeDir),
+    });
+    return review ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOptions): AgentRunner {
@@ -234,10 +259,14 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         return;
       }
 
+      // An update answers the change's last review, read from every
+      // worktree's log (ADR 0041).
+      const lastReview = command.kind === "update" ? await lastReviewFor(command) : undefined;
       const { prompt } = await prepareAgentContext(command.context, {
         kind: command.kind,
         cwd: command.cwd,
         verifiedDelta: command.context.verifiedDelta,
+        ...(lastReview !== undefined ? { lastReview } : {}),
       });
 
       auditLog.record({
@@ -286,7 +315,9 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       }
 
       let lastOutcome: "completed" | "failed" | "cancelled" = "completed";
+      const isReviewRun = command.kind === "review" || command.stage === "review";
       let lastSummary: string | undefined;
+      let lastVerdict: ReviewVerdict | undefined;
       let lastReason: string | undefined;
       // What the agent reported spending, if it reported anything. Stays
       // undefined otherwise — never zeroed. `AuditEntry.usage`'s contract
@@ -297,6 +328,12 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
       // The end of what the run printed, which is where a CLI prints the
       // error its exit code stands for (the-supervisor-advises).
       let outputTail = "";
+      // What the agent said to the person - stdout, or an ACP agent's
+      // message - for a review whose result carries no summary: a process
+      // agent such as `copilot` prints its answer and reports none, and the
+      // update that answers the review reads it from the audit entry
+      // (ADR 0041).
+      let replyTail = "";
       let lastDiagnosis: FailureDiagnosis | undefined;
       const diagnosed = (reason: string): FailureDiagnosis => {
         lastDiagnosis = diagnoseFailure({ agentId: adapter.name, reason, output: outputTail });
@@ -322,6 +359,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           let event = received;
           if (event.kind === "stdout" || event.kind === "stderr") {
             outputTail = (outputTail + event.chunk).slice(-OUTPUT_TAIL_CHARS);
+            if (event.kind === "stdout") replyTail = (replyTail + event.chunk).slice(-REVIEW_REPLY_CHARS);
           }
           // An ACP agent says why it could not work as a message, not on
           // stderr: `claude` answers "Not logged in · Please run /login" that
@@ -329,9 +367,21 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           // (the-supervisor-changes-agents 4.3).
           if (event.kind === "agentUpdate") {
             const said = readAcpStreamedText(event.update);
-            if (said?.kind === "agent_message_chunk") outputTail = (outputTail + said.text).slice(-OUTPUT_TAIL_CHARS);
+            if (said?.kind === "agent_message_chunk") {
+              outputTail = (outputTail + said.text).slice(-OUTPUT_TAIL_CHARS);
+              replyTail = (replyTail + said.text).slice(-REVIEW_REPLY_CHARS);
+            }
           }
-          if (event.kind === "completed") lastSummary = event.summary;
+          if (event.kind === "completed") {
+            lastSummary = event.summary;
+            // A review's closing verdict line, from its result or, where
+            // the result does not carry it, from the end of what it said
+            // (ADR 0041).
+            if (isReviewRun) {
+              lastVerdict = readReviewVerdict(event.summary ?? "") ?? readReviewVerdict(replyTail) ?? readReviewVerdict(outputTail);
+              if (lastVerdict !== undefined) event = { ...event, reviewVerdict: lastVerdict };
+            }
+          }
           if (event.kind === "failed") {
             lastOutcome = "failed";
             lastReason = event.reason;
@@ -383,8 +433,11 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           invocation,
           reason: lastReason,
           ...(lastOutcome === "failed" && lastDiagnosis !== undefined ? { diagnosis: lastDiagnosis } : {}),
-          summary: lastSummary,
+          summary: lastSummary !== undefined && lastSummary.trim().length > 0
+            ? lastSummary
+            : lastOutcome === "completed" && isReviewRun && replyTail.trim().length > 0 ? replyTail.trim() : lastSummary,
           command: command.kind,
+          ...(lastVerdict !== undefined ? { reviewVerdict: lastVerdict } : {}),
           ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
           // Absent for a single-stage run, which is the fact rather than
           // a gap: a `review` someone started by itself is a stage of

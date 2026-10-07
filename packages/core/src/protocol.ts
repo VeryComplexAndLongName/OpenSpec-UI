@@ -15,6 +15,9 @@ export type CommandKind =
   | "implement"
   | "review"
   | "verify"
+  /** Revises a change's existing planning artifacts from its last review
+   * and the operator's notes: the product's `opsx:update` (ADR 0041). */
+  | "update"
   | "status"
   | "list"
   | "show"
@@ -49,6 +52,7 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "plan",
   "implement",
   "review",
+  "update",
   "verify",
   "status",
   "list",
@@ -88,6 +92,10 @@ export interface CommandContext {
    * "An oversized delta is truncated with a marker, never silently
    * dropped" for what happens once this reaches the prompt. */
   verifiedDelta?: VerifiedDeltaEntry[];
+  /** What the operator wrote when starting an `update`, for its prompt's
+   * "The operator's notes" section. Data, like `promptContext`; read only
+   * for an `update` (ADR 0041). */
+  notes?: string;
 }
 
 export interface Command {
@@ -231,6 +239,10 @@ export interface CompletedEvent extends BaseEvent {
   kind: "completed";
   /** Resulting diff/changes, if applicable (best-effort, may be empty). */
   summary?: string;
+  /** What a review run said of the plan, read from its closing
+   * `Review verdict:` line; absent on every other run and on a review that
+   * printed none (ADR 0041). */
+  reviewVerdict?: "ready" | "changes-needed";
 }
 
 export interface FailedEvent extends BaseEvent {
@@ -327,6 +339,10 @@ export interface StageStartedEvent extends BaseEvent {
    * Without it a reader sees the same stage announced twice and cannot
    * tell a retry from a duplicate. */
   previousAttemptReason?: string;
+  /** Present on the review stage's second start, where its review asked for
+   * changes and the plan is being updated before apply: the review stage
+   * runs `update` (ADR 0041). Absent on every other start. */
+  updating?: true;
 }
 
 /** A chain stage finished and the next one is starting immediately (no

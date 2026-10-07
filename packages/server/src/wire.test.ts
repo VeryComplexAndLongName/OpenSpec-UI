@@ -11,6 +11,8 @@ describe("isCommandLike", () => {
     for (const kind of COMMAND_KINDS) {
       expect(isCommandLike(commandOf(kind))).toBe(true);
     }
+    // the-plan-is-updated-from-its-review: the update reaches the runner.
+    expect(isCommandLike({ ...commandOf("update"), context: { changeDir: "/workspace/openspec/changes/demo", notes: "keep the API" } })).toBe(true);
   });
 
   it("rejects a kind core does not define", () => {

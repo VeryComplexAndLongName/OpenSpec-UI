@@ -887,3 +887,77 @@ describe("createAgentRunner — a run's history reaches the audit log as it happ
     expect(auditLog.entries.map((entry) => entry.outcome)).toEqual(["started", "completed"]);
   });
 });
+
+// the-plan-is-updated-from-its-review 1.4 (ADR 0041).
+describe("createAgentRunner - a review's verdict", () => {
+  const command = (runId: string, kind: Command["kind"]): Command => ({
+    kind,
+    cwd: workspaceRoot,
+    runId,
+    context: { changeDir: "/workspace/repo/openspec/changes/x" },
+  });
+
+  it("puts the review's closing verdict on its completed event and its audit entry", async () => {
+    const { adapter } = makeFakeAdapter(async function* (_invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "review", cwd: workspaceRoot };
+      yield { kind: "completed", runId: cmd.runId, timestamp: "t", summary: "Two things to fix.\n\n**Review verdict: changes needed**" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-verdict", "review"))) events.push(event);
+
+    expect(events.at(-1)).toMatchObject({ kind: "completed", reviewVerdict: "changes-needed" });
+    expect(auditLog.entries.at(-1)).toMatchObject({ outcome: "completed", command: "review", reviewVerdict: "changes-needed" });
+  });
+
+  // Live run 4.3: `copilot -p` prints its review and reports no summary,
+  // so the update would have had no review to read.
+  it("keeps what a review printed as its audit summary where its result carried none", async () => {
+    const { adapter } = makeFakeAdapter(async function* (_invocation, cmd) {
+      yield { kind: "started", runId: cmd.runId, timestamp: "t", command: "review", cwd: workspaceRoot };
+      yield { kind: "stdout", runId: cmd.runId, timestamp: "t", chunk: "1. Task 1.1 contradicts the spec.\n" };
+      yield { kind: "stderr", runId: cmd.runId, timestamp: "t", chunk: "AI Credits 9.69\n" };
+      yield { kind: "stdout", runId: cmd.runId, timestamp: "t", chunk: "Review verdict: changes needed\n" };
+      yield { kind: "completed", runId: cmd.runId, timestamp: "t" };
+    });
+    const auditLog = new InMemoryAuditLog();
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+    const events: Event[] = [];
+    for await (const event of runner.run(command("run-printed", "review"))) events.push(event);
+
+    expect(events.at(-1)).not.toHaveProperty("summary");
+    expect(auditLog.entries.at(-1)).toMatchObject({
+      reviewVerdict: "changes-needed",
+      summary: "1. Task 1.1 contradicts the spec.\nReview verdict: changes needed",
+    });
+  });
+
+  it("reads no verdict from another command, or from a review that printed none", async () => {
+    for (const kind of ["plan", "review"] as const) {
+      const { adapter } = makeFakeAdapter(async function* (_invocation, cmd) {
+        yield { kind: "started", runId: cmd.runId, timestamp: "t", command: kind, cwd: workspaceRoot };
+        yield { kind: "completed", runId: cmd.runId, timestamp: "t", summary: kind === "plan" ? "Review verdict: ready" : "The plan looks ready." };
+      });
+      const auditLog = new InMemoryAuditLog();
+      const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog });
+
+      const events: Event[] = [];
+      for await (const event of runner.run(command(`run-none-${kind}`, kind))) events.push(event);
+
+      expect(events.at(-1)).not.toHaveProperty("reviewVerdict");
+      expect(auditLog.entries.at(-1)).not.toHaveProperty("reviewVerdict");
+    }
+  });
+
+  it("runs an update with no review to read where the logs cannot be read", async () => {
+    const { adapter, executeCalls } = makeFakeAdapter((_invocation, cmd) => okEvents(cmd.runId));
+    const runner = createAgentRunner(adapter, { workspaceRoot, allowlist, auditLog: new InMemoryAuditLog() });
+
+    for await (const _event of runner.run(command("run-update", "update"))) { /* drained */ }
+
+    expect(String(executeCalls[0]?.[2])).toContain("There is no completed review of this change yet.");
+  });
+});

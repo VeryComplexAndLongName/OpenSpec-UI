@@ -189,6 +189,9 @@ export interface PipelineViewProps {
   onRunControl?: (control: RunControl) => void;
   /** Starts a change: the host opens its run dialog. Absent, no Start. */
   onStart?: (changeName: string) => void;
+  /** Updates a change's plan its last review asked to change: the host opens
+   * the AI panel on `update` for it (ADR 0041). Absent, no Update the plan. */
+  onUpdatePlan?: (changeName: string) => void;
   /** Shows a change's run logs (a-change-shows-its-run-logs). Absent, no
    * Logs button. */
   onViewLogs?: (changeName: string) => void;
@@ -447,6 +450,7 @@ export function PipelineView({
   liveRuns,
   onRunControl,
   onStart,
+  onUpdatePlan,
   onViewLogs,
   copyText,
   viewState,
@@ -665,6 +669,7 @@ export function PipelineView({
     heldRuns,
     ...(sendRunControl !== undefined ? { onRunControl: sendRunControl } : {}),
     ...(onStart !== undefined ? { onStart } : {}),
+    ...(onUpdatePlan !== undefined ? { onUpdatePlan } : {}),
     ...(onViewLogs !== undefined ? { onViewLogs } : {}),
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
@@ -1603,6 +1608,7 @@ interface CardControlHandlers {
   heldRuns: Map<string, LiveRun>;
   onRunControl?: (control: RunControl) => void;
   onStart?: (changeName: string) => void;
+  onUpdatePlan?: (changeName: string) => void;
   onViewLogs?: (changeName: string) => void;
   copyText?: (text: string) => Promise<void>;
   onAskStop: (target: StopTarget) => void;
@@ -1647,6 +1653,14 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
         // the word cannot move the name a test or a voice command uses
         // (the-web-ui-screens-wear-metro 4.2).
         <button key="start" type="button" className={forward} data-testid={`pipeline-start-${name}`} aria-label={`Start ${name}`} onClick={() => start(name)}><Icon meaning="run" />Start...</button>,
+      );
+    }
+    // A review that asked for changes: the plan is updated before anything
+    // is applied (ADR 0041).
+    if (handlers.onUpdatePlan !== undefined && card.lastRun?.reviewVerdict === "changes-needed") {
+      const update = handlers.onUpdatePlan;
+      buttons.push(
+        <button key="update-plan" type="button" className={forward} data-testid={`pipeline-update-plan-${name}`} aria-label={`Update the plan of ${name}`} onClick={() => update(name)}><Icon meaning="run" />Update the plan</button>,
       );
     }
     return buttons;

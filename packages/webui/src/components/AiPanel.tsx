@@ -30,8 +30,8 @@ import { renderMarkdown } from "../markdown.js";
 
 // The four stages an agent runs come last, in the order a chain runs them,
 // and are shown under OpenSpec's names (`commandLabel`).
-const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "review", "implement", "verify"];
-const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "review", "implement", "verify"];
+const RUNNABLE_COMMANDS: readonly CommandKind[] = ["status", "list", "show", "validate", "plan", "review", "update", "implement", "verify"];
+const CHANGE_REQUIRED_COMMANDS: readonly CommandKind[] = ["status", "show", "validate", "plan", "review", "update", "implement", "verify"];
 // AGENT_COMMANDS (imported): commands that actually run through an agent —
 // the agent picker only matters for these; `status`/`list`/`show`/
 // `validate` bypass the runner entirely (see fetch-transport.ts/
@@ -1009,6 +1009,9 @@ function changeNameFromDir(changeDir: string | undefined): string {
 const COMMAND_KIND_TO_HARNESS_STAGE: Partial<Record<CommandKind, "propose" | "review" | "apply" | "verify">> = {
   plan: "propose",
   review: "review",
+  // An update revises the plan its review asked for, so it takes the
+  // review stage's agent (ADR 0041).
+  update: "review",
   implement: "apply",
   verify: "verify",
 };
@@ -1033,6 +1036,8 @@ export function AiPanel({
     if (initialCommandKind !== undefined) setCommandKind(initialCommandKind);
   }, [initialCommandKind]);
   const [agentId, setAgentId] = useState<string>(DEFAULT_AGENT_ID);
+  /** What the operator writes for an update (ADR 0041). */
+  const [updateNotes, setUpdateNotes] = useState("");
   // Seeded with the change the panel was opened for, so the picker can
   // actually show it before any `list` has run. Seeding only the
   // selection is not enough: a `<select>` cannot hold a value it has no
@@ -1176,7 +1181,12 @@ export function AiPanel({
       ...(model !== undefined && { model }),
       ...(effort !== undefined && { effort }),
       ...(budget !== undefined && { budget }),
-      context: { changeDir: effectiveChangeDir, promptContext },
+      context: {
+        changeDir: effectiveChangeDir,
+        promptContext,
+        // What the operator wrote for an update (ADR 0041).
+        ...(kind === "update" && updateNotes.trim().length > 0 ? { notes: updateNotes.trim() } : {}),
+      },
     };
     transport.send(command);
   }
@@ -1281,6 +1291,22 @@ export function AiPanel({
           </button>
         ) : null}
       </div>
+      {commandKind === "update" ? (
+        // The update reads the change's last completed review itself; what
+        // is written here goes with it (ADR 0041).
+        <label className="openspec-update-notes">
+          <span>Notes for the update - it also reads the change&apos;s last completed review</span>
+          <textarea
+            data-testid="update-notes"
+            aria-label="Notes for the update"
+            rows={4}
+            value={updateNotes}
+            placeholder="Decisions, and what to change or leave as it is"
+            onChange={(e) => setUpdateNotes(e.target.value)}
+            disabled={isRunning}
+          />
+        </label>
+      ) : null}
       <p className="openspec-run-status" data-testid="run-status-label">
         {statusLabel}
       </p>

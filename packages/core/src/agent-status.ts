@@ -1325,6 +1325,7 @@ const REPORTED_COMMAND_KINDS: ReadonlySet<Command["kind"]> = new Set<Command["ki
   "plan",
   "implement",
   "review",
+  "update",
   "verify",
   "chain",
 ]);

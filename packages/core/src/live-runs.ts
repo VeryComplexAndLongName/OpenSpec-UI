@@ -41,7 +41,7 @@ export interface LiveRun {
 
 /** The commands that start work. Every other kind is a request about a run
  * or a quick read, and is not itself a run anything could stop. */
-const RUN_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["plan", "implement", "review", "verify", "chain"]);
+const RUN_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["plan", "implement", "review", "update", "verify", "chain"]);
 
 function isTerminal(event: Event): boolean {
   return event.kind === "completed" || event.kind === "failed" || event.kind === "cancelled";
