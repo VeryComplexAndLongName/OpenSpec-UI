@@ -42,6 +42,7 @@ From a tester's feedback on 2026-10-07 (points 1 to 3 of the reply).
   and the merge gate with the worktree's absolute path as `--cwd`.
   Valid; the gate with the worktree's absolute path reports only 4.3
   open (Human-only).
-- [ ] 4.3 **Human-only**: run a review on a change in the AI panel and see
+- [x] 4.3 **Human-only**: run a review on a change in the AI panel and see
   the result once, rendered, and the log without frames; run propose and
   review on a planned change and see its card stay Planned.
+  Human confirmed: the AI panel displays the result correctly, the log shows no frames, and the change card remains Planned after propose and review.
