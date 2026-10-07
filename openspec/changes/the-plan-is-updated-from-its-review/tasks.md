@@ -91,6 +91,7 @@ From a tester's feedback on 2026-10-07 (point 5 of the reply). ADR 0041.
   `copilot-cli` on Windows loses everything after the prompt's first line,
   `--allow-all-tools` included, through the `copilot.cmd` shim - a fault
   of that adapter for every command, left to a change of its own.
-- [ ] 4.4 **Human-only**: in either host, after a review that asks for
+- [x] 4.4 **Human-only**: in either host, after a review that asks for
   changes, update the plan from the card, and see the review's findings
   answered in the artifacts.
+  Closed by VeryComplexAndLongName@gmail.com on 2026-10-07: Human confirmed everything works as expected
