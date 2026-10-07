@@ -86,6 +86,12 @@ Asked on 2026-10-07. ADR 0043.
   design and the tasks there, validated, committed and pushed the branch,
   and said it found no `agent-harness.json`, so no stage was named for
   another agent. The main checkout stayed on `main` with nothing changed.
-- [ ] 4.4 **Human-only**: initialize a new repository from either host,
+- [x] 4.4 **Human-only**: initialize a new repository from either host,
   then have an agent of your own create a change there, and see it go to
   its own working directory.
+  Confirmed by the owner on 2026-10-07 in VS Code, with a build of this
+  branch and landed-changes-are-archived-without-waiting, on a fresh clone
+  of Tasks-Check: opening it said and wrote nothing; Initialize wrote the
+  rules and committed and pushed the setup; GitHub Copilot, asked to create
+  a change, made it in its own working directory. Two faults the owner
+  found on the way were fixed here first (tasks 1.5 and 1.6).
