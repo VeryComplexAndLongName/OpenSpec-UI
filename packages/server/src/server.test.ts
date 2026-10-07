@@ -2176,6 +2176,62 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  // the-standalone-panel-follows-its-run: the AI panel's answer names no
+  // agent, and the default runner has never heard of a run started on
+  // another, so it answered nothing and the run waited for ever.
+  it("carries a permission's answer to the runner that holds the run, not the default one", async () => {
+    const defaultCommands: Command[] = [];
+    const defaultRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        defaultCommands.push(command);
+        yield* []; // answers nothing
+      },
+    };
+    let answer: ((outcome: string) => void) | undefined;
+    const answered = new Promise<string>((resolve) => { answer = resolve; });
+    const askingRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        if (command.kind === "resolvePermission") {
+          answer?.(`${command.permissionRequestId}:${command.permissionOutcome}`);
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "permissionRequest", runId: command.runId, timestamp: "t", requestId: "req-1", description: "run openspec status" };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: await answered };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["claude-cli", defaultRunner], ["asking-agent", askingRunner]]));
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    const completed = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        const event = JSON.parse(raw.toString()) as Event;
+        received.push(event);
+        if (event.kind === "permissionRequest") {
+          client.send(JSON.stringify({
+            kind: "resolvePermission",
+            cwd: wsImplementCommand.cwd,
+            runId: event.runId,
+            context: wsImplementCommand.context,
+            permissionRequestId: event.requestId,
+            permissionOutcome: "allow",
+          }));
+        }
+        if (event.kind === "completed") resolve();
+      });
+    });
+
+    client.send(JSON.stringify({ ...wsImplementCommand, kind: "plan", agentId: "asking-agent" }));
+    await completed;
+
+    expect(received.at(-1)).toMatchObject({ kind: "completed", summary: "req-1:allow" });
+    expect(defaultCommands).toEqual([]);
+    client.close();
+  });
+
   it("rejects a stage configured with dispatch \"vscode-chat\" instead of running a CLI", async () => {
     const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
     await writeGlobalHarnessConfig(wsImplementCommand.cwd, {

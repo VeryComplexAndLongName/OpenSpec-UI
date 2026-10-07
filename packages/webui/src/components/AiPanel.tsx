@@ -1078,6 +1078,14 @@ export function AiPanel({
     }
   }, [commandKind, stepAgents]);
 
+  // Read through a ref, so the subscription below depends on the transport
+  // alone: a host passes a new callback on every render, and re-subscribing
+  // for each one left the standalone transport with no listener for a
+  // moment, which closed its socket and lost the rest of the run
+  // (the-standalone-panel-follows-its-run).
+  const onRunTerminalRef = useRef(onRunTerminal);
+  onRunTerminalRef.current = onRunTerminal;
+
   useEffect(() => {
     return transport.subscribe((event) => {
       if (event.runId === runIdRef.current) {
@@ -1098,12 +1106,12 @@ export function AiPanel({
           (event.kind === "completed" || event.kind === "failed")
           && AGENT_COMMANDS.includes(activeCommandKindRef.current)
         ) {
-          onRunTerminal?.(activeCommandKindRef.current, event);
+          onRunTerminalRef.current?.(activeCommandKindRef.current, event);
         }
         setEvents((prev) => [...prev, event]);
       }
     });
-  }, [transport, onRunTerminal]);
+  }, [transport]);
 
   const collapsedEvents = useMemo(() => collapseStreamEvents(events), [events]);
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);

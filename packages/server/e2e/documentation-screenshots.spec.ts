@@ -26,6 +26,7 @@ import { promisify } from "node:util";
 import { createServer, type OpenSpecUiServer } from "../src/server.js";
 import { createLifecycleWorkspace } from "./fixtures/create-lifecycle-workspace.js";
 import { createFakeAgentRunner } from "./fixtures/fake-agent-runner.js";
+import { interceptWebSocket } from "./fixtures/intercept-websocket.js";
 
 const CHANGE_NAME = "documentation-fixture";
 const IMAGES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "images", "standalone");
@@ -114,6 +115,11 @@ test.describe("standalone documentation screenshots", () => {
       runners: new Map([["claude-cli", createFakeAgentRunner({ changeName: CHANGE_NAME })]]),
     });
     const address = await server.listen();
+    // The page keeps its socket open while the AI panel is mounted, and
+    // `server.close()` waits for every client: closed first, as the other
+    // specs do. Until the-standalone-panel-follows-its-run the panel closed
+    // it by accident, re-subscribing on every render.
+    const socket = await interceptWebSocket(page);
 
     try {
       const pageErrors: Error[] = [];
@@ -229,6 +235,7 @@ test.describe("standalone documentation screenshots", () => {
 
       expect(pageErrors).toEqual([]);
     } finally {
+      await socket.current?.close();
       await server.close();
     }
   });
