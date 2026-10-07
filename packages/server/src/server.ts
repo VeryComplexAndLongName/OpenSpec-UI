@@ -14,6 +14,7 @@ import {
   HarnessChainRunner,
   LiveRuns,
   WorkbenchRecoveryService,
+  resolveWorktreeRoot,
   type AgentRunner,
   type AuditLog,
 } from "@openspec-ui/core";
@@ -147,12 +148,21 @@ export function createServer(options: ServerOptions): OpenSpecUiServer {
   const accessToken = options.accessToken ?? randomBytes(32).toString("base64url");
   const maxPayloadBytes = options.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES;
   const workspaceRoot = path.resolve(options.workspaceRoot);
+  // The working directories of this repository are part of its workspace
+  // (ADR 0022, 0026): a change made in one of its own is worked there from
+  // this page too (agents-are-told-how-work-is-done-here, ADR 0043). The
+  // root is read once, at start; until it is, only the workspace is allowed.
+  let worktreeContainer: string | undefined;
+  void resolveWorktreeRoot(workspaceRoot).then(({ root }) => {
+    worktreeContainer = path.join(root, path.basename(workspaceRoot));
+  }, () => undefined);
+  const within = (resolved: string, root: string) => resolved === root || resolved.startsWith(`${root}${path.sep}`);
   const requestPolicy = {
     maxPayloadBytes,
     isCwdAllowed(cwd: string): boolean {
       if (options.allowExternalCwd) return true;
       const resolved = path.resolve(cwd);
-      return resolved === workspaceRoot || resolved.startsWith(`${workspaceRoot}${path.sep}`);
+      return within(resolved, workspaceRoot) || (worktreeContainer !== undefined && within(resolved, worktreeContainer));
     },
   };
   // One `HarnessChainRunner` for the process lifetime — chains are

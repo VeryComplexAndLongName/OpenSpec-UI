@@ -3,6 +3,7 @@
 // network involved (see ADR 0001 item 2 and
 // openspec/changes/vscode-extension/design.md).
 
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { AgentRunner, Command, Event } from "@openspec-ui/core";
@@ -210,11 +211,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     : undefined;
   const scheduler = new WorkbenchProcessScheduler(restoredRuns.processes, lease);
   const persistRuns = () => {
-    if (!journal) return;
-    void journal.save({
+    const target = journal;
+    if (!target) return;
+    const data = {
       processes: scheduler.list(),
       checkpointSessions: implementationSessions.exportPersisted(),
-    }).catch((error: unknown) => {
+    };
+    void (async () => {
+      // Nothing to keep, and no journal yet: no file is made. Opening a
+      // repository wrote an empty journal into it - an untracked
+      // `.openspec-ui/` before anybody had run anything
+      // (agents-are-told-how-work-is-done-here).
+      if (data.processes.length === 0 && data.checkpointSessions.length === 0
+        && !await stat(target.filePath).then(() => true, () => false)) return;
+      await target.save(data);
+    })().catch((error: unknown) => {
       outputChannel.appendLine(`Run journal write failed: ${error instanceof Error ? error.message : String(error)}`);
     });
   };

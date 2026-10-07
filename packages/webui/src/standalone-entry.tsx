@@ -445,6 +445,13 @@ function StandaloneApp() {
    * not overwritten by its answer, as `timelineReading` does above. */
   const comparisonReading = useRef(0);
   const [initTools, setInitTools] = useState<string[]>(["github-copilot"]);
+  // Whether the rules for how work is done here may go to the end of a
+  // CLAUDE.md or AGENTS.md somebody else wrote: asked on the page, before
+  // anything is written (agents-are-told-how-work-is-done-here).
+  const [initAppendRules, setInitAppendRules] = useState(true);
+  // Commit and push the setup right away, so a change has origin/main to be
+  // cut from (agents-are-told-how-work-is-done-here).
+  const [initCommitSetup, setInitCommitSetup] = useState(true);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
   const [archivedTemplateSource, setArchivedTemplateSource] = useState("");
@@ -870,15 +877,15 @@ function StandaloneApp() {
     }
   }
 
-  async function loadChangeEditor(changeName: string) {
-    if (cwd.trim().length === 0) {
+  async function loadChangeEditor(changeName: string, root: string = cwd) {
+    if (root.trim().length === 0) {
       setEditorMessage("Enter workspace root first.");
       return;
     }
     setEditorLoading(true);
     setEditorMessage(null);
     try {
-      const payload = await loadChangeEditorDocument(apiFetch, cwd, changeName);
+      const payload = await loadChangeEditorDocument(apiFetch, root, changeName);
       setEditorFiles(payload.files ?? EMPTY_EDITOR_FILES);
       setEditorRevision(payload.revision);
       setEditorChangeName(changeName);
@@ -1625,11 +1632,19 @@ function StandaloneApp() {
         throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
       }
 
+      const made = (await response.json().catch(() => ({}))) as { directory?: string; branch?: string };
       setNewChangeName("");
       setNewChangeDescription("");
-      await handleLoadOverview();
-      await loadChangeEditor(changeName);
-      setEditorMessage(`Created ${changeName}.`);
+      // Made in a working directory of its own, where the repository has a
+      // server to cut one from: this page works on it there
+      // (agents-are-told-how-work-is-done-here, ADR 0043).
+      const root = made.directory !== undefined && made.directory !== cwd ? made.directory : cwd;
+      if (root !== cwd) handleCwdChange(root);
+      await loadOverviewFor(root);
+      await loadChangeEditor(changeName, root);
+      setEditorMessage(root === cwd
+        ? `Created ${changeName}.`
+        : `Created ${changeName} in its own working directory, ${root}, on branch ${made.branch ?? changeName}; this page now works there.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setEditorMessage(`Create failed: ${message}`);
@@ -1685,15 +1700,25 @@ function StandaloneApp() {
       const response = await apiFetch("/api/openspec/init", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd, tools: initTools }),
+        body: JSON.stringify({ cwd, tools: initTools, appendWorkflowRules: initAppendRules, commitSetup: initCommitSetup }),
       });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; workflowRules?: Record<string, string>; setupCommit?: { said?: string } };
       if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
       }
 
       await handleLoadOverview();
-      setInitMessage("OpenSpec initialized successfully.");
+      const rules = Object.entries(payload.workflowRules ?? {});
+      const written = rules.filter(([, status]) => status !== "skipped-foreign" && status !== "unchanged").map(([name]) => name);
+      const skipped = rules.filter(([, status]) => status === "skipped-foreign").map(([name]) => name);
+      setInitMessage([
+        "OpenSpec initialized successfully.",
+        written.length > 0 ? `How work is done here was written into ${written.join(", ")}.` : "",
+        skipped.length > 0 ? `${skipped.join(", ")} was left as it was.` : "",
+        payload.setupCommit?.said !== undefined
+          ? `${payload.setupCommit.said.charAt(0).toUpperCase()}${payload.setupCommit.said.slice(1)}.`
+          : "Commit and push the OpenSpec setup to main before the first change: each change is cut from it.",
+      ].filter((part) => part.length > 0).join(" "));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setInitMessage(`Initialization failed: ${message}`);
@@ -1944,6 +1969,24 @@ function StandaloneApp() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="openspec-check-row">
+                <input
+                  type="checkbox"
+                  data-testid="init-append-workflow-rules"
+                  checked={initAppendRules}
+                  onChange={(e) => setInitAppendRules(e.currentTarget.checked)}
+                />
+                <span>Add how work is done here (each change in its own working directory, who does which stage) to the end of an existing CLAUDE.md or AGENTS.md</span>
+              </label>
+              <label className="openspec-check-row">
+                <input
+                  type="checkbox"
+                  data-testid="init-commit-setup"
+                  checked={initCommitSetup}
+                  onChange={(e) => setInitCommitSetup(e.currentTarget.checked)}
+                />
+                <span>Commit the OpenSpec setup to main and push it, so each change can be cut from origin/main</span>
               </label>
             </div>
             <div className="openspec-panel-foot">

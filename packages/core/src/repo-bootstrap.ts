@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { GUIDELINES_SECTION_END, GUIDELINES_SECTION_START, WORKFLOW_SECTION_START } from "./managed-sections.js";
 
 // See openspec/changes/repo-bootstrap-snippets/design.md. Two different
 // ownership mechanisms on purpose: section markers for prose files
@@ -15,8 +16,8 @@ export type BootstrapSubtype = "backend" | "frontend" | "general";
 
 export type ManagedFileStatus = "created" | "updated" | "skipped-foreign";
 
-const SECTION_START = "<!-- openspec-ui:managed start -->";
-const SECTION_END = "<!-- openspec-ui:managed end -->";
+const SECTION_START = GUIDELINES_SECTION_START;
+const SECTION_END = GUIDELINES_SECTION_END;
 const DEPENDABOT_MARKER =
   "# managed-by: openspec-ui — regenerate via the \"Configure Dependabot\" command; hand-edits will make this file no longer be touched by it.";
 
@@ -136,6 +137,13 @@ async function writeManagedFile(filePath: string, frontmatter: string, body: str
     return "created";
   }
 
+  // A file this product made for the workflow rules alone is its own too,
+  // and the guidelines go in front of them
+  // (agents-are-told-how-work-is-done-here).
+  if (frontmatter === "" && existing.startsWith(WORKFLOW_SECTION_START)) {
+    await writeFile(filePath, `${block}\n${existing}`, "utf8");
+    return "updated";
+  }
   if (!existing.startsWith(ownedPrefix)) return "skipped-foreign";
   const endMarkerIndex = existing.indexOf(SECTION_END);
   if (endMarkerIndex === -1) return "skipped-foreign";

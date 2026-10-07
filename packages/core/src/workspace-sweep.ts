@@ -12,7 +12,7 @@
 
 import { isChangeBranch, rebaseBehindBranches, describeRebaseSkipped, type RebaseSweepResult } from "./branch-rebase.js";
 import { describeFinished, describeKept, sweepFinishedDirectories, type SweepResult } from "./finished-directories.js";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Forge } from "./gh-pr-gateway.js";
@@ -184,6 +184,10 @@ async function whileHoldingTheArchive<T>(
  * forge is asked only where the default branch holds a change that could
  * be finished (ADR 0035). */
 export async function sweepWorkspace(workspaceRoot: string, options: WorkspaceSweepOptions = {}): Promise<WorkspaceSweep> {
+  // Nor of a repository with no OpenSpec project: there is nothing of this
+  // product's to sweep there, and the pass wrote its claim beside it on
+  // opening (agents-are-told-how-work-is-done-here).
+  if (!await stat(path.join(workspaceRoot, "openspec")).then((found) => found.isDirectory(), () => false)) return NOTHING;
   const git = createGitWrapper({ cwd: workspaceRoot });
   if (await git.remoteUrl("origin") === undefined) return NOTHING;
   const first = await surveyWorktrees({ workspaceRoot });

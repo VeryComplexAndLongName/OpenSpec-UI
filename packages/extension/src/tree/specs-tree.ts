@@ -1,6 +1,6 @@
 import path from "node:path";
 import * as vscode from "vscode";
-import { listSpecs } from "@openspec-ui/core";
+import { isNoOpenSpecRoot, listSpecs } from "@openspec-ui/core";
 import { EmptyTreeItem } from "./changes-tree.js";
 import { ViewFilterState } from "./view-filter-state.js";
 
@@ -39,7 +39,17 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SpecTreeItem |
   }
 
   async getChildren(): Promise<Array<SpecTreeItem | EmptyTreeItem>> {
-    const result = await listSpecs({ cwd: this.workspaceRoot });
+    let result: Awaited<ReturnType<typeof listSpecs>>;
+    try {
+      result = await listSpecs({ cwd: this.workspaceRoot });
+    } catch (error) {
+      // A repository not initialized yet has no specs, and nothing to say
+      // about it here: opening one showed the CLI's refusal as an error
+      // before anybody had done anything. The Changes view offers to
+      // initialize (agents-are-told-how-work-is-done-here).
+      if (isNoOpenSpecRoot(error)) return [];
+      throw error;
+    }
     if (result.specs.length === 0) {
       return [new EmptyTreeItem("No canonical specs", "Specs are created when changes are archived")];
     }

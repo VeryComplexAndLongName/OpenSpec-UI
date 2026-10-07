@@ -45,6 +45,10 @@
         "title": "OpenSpec Workbench: Initialize Workspace..."
       },
       {
+        "command": "openspec-ui.writeWorkflowRules",
+        "title": "OpenSpec Workbench: Write Agent Workflow Rules (CLAUDE.md / AGENTS.md)"
+      },
+      {
         "command": "openspec-ui.generateAgentInstructions",
         "title": "OpenSpec Workbench: Generate Agent Instructions (CLAUDE.md / AGENTS.md)..."
       },

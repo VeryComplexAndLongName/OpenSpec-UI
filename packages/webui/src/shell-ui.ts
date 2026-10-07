@@ -2074,6 +2074,15 @@ export const shellThemeCss = `
     min-width: 0;
   }
 
+  /* A checkbox with its sentence beside it, on one line wherever it is
+     (agents-are-told-how-work-is-done-here). */
+  .openspec-check-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
   /* The band's fields fill their column; a checkbox is not a field. */
   .openspec-supervisor-allowance {
     display: flex;

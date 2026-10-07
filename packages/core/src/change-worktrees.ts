@@ -124,8 +124,14 @@ export async function planChangeWorktree(options: {
   // `git worktree add` checks out a commit. A change that exists only as
   // uncommitted files in the main working tree is not in that commit, so
   // the directory would be created without the change it was created
-  // for — successful and completely useless.
-  if (!(await git.pathExistsInRef(base, changePathInRepo(changeName)))) {
+  // for — successful and completely useless. A change that exists nowhere
+  // yet is another matter: its directory is where it is to be proposed, so
+  // that nothing of it is ever written in the main checkout (ADR 0043,
+  // amending ADR 0022 decision 3).
+  if (
+    !(await git.pathExistsInRef(base, changePathInRepo(changeName)))
+    && await exists(path.join(repositoryRoot, ...changePathInRepo(changeName).split("/")))
+  ) {
     return {
       ok: false,
       refusal: {

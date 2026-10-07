@@ -439,6 +439,15 @@ export async function listChanges(options: OpenSpecCliOptions): Promise<OpenSpec
   return runJson(["list", "--json"], options, "changes[] and root", isListResult);
 }
 
+/** Whether the CLI refused because the directory holds no OpenSpec project
+ * at all: a repository not initialized yet, which a view says and offers
+ * to initialize rather than calling it an error
+ * (agents-are-told-how-work-is-done-here). */
+export function isNoOpenSpecRoot(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return text.includes("no_openspec_root") || text.includes("No OpenSpec root found");
+}
+
 export async function listSpecs(options: OpenSpecCliOptions): Promise<OpenSpecListSpecsResult> {
   return runJson(["list", "--specs", "--json"], options, "specs[] and root", isListSpecsResult);
 }
