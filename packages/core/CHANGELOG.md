@@ -1,5 +1,12 @@
 # @openspec-ui/core
 
+## 0.137.0
+
+### Minor Changes
+
+- 4b1cfa2: Agents are told how work is done here (agents-are-told-how-work-is-done-here, ADR 0043). Initializing OpenSpec, in either host, now writes a section into CLAUDE.md and AGENTS.md that tells every agent, however it was started, to work each change in a git worktree of its own at ../.worktrees/<repository>/<change-id> on a branch cut from origin/main, and where the stage assignment is; a file somebody else wrote gets it only where you agree. "Write Agent Workflow Rules" adds it to a repository initialized before. "Create OpenSpec Change" now makes the change in its own working directory, and openspec-ui-cli worktree add makes one for a change that does not exist yet. Initializing also offers to commit the OpenSpec setup to main and push it at once, so each change has origin/main to be cut from; an agent that finds it missing commits it itself and goes on.
+- ae5156f: What landed is archived without waiting (landed-changes-are-archived-without-waiting). The extension now starts in any workspace with an OpenSpec project, not only once its view is opened, so the sweep that archives landed changes runs there. A host sweeps again within minutes, not at its half hour, after an archive merges, after a new failure, and while a change's own branch is on the server, so a merge is followed by its archive within minutes. A refused push says git's reason, and a fetch that failed says the archive waits.
+
 ## 0.136.0
 
 ### Minor Changes
