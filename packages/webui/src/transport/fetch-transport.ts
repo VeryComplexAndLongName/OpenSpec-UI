@@ -147,10 +147,16 @@ export class FetchTransport implements Transport {
     this.listeners.add(onEvent);
     return () => {
       this.listeners.delete(onEvent);
-      if (this.listeners.size === 0 && this.socket) {
-        this.socket.close();
-        this.socket = null;
-      }
+      // Closed once nobody has subscribed again by the next task, not at
+      // once: a component that re-subscribes unsubscribes first, and the
+      // socket it closed carried a run still in flight, whose events then
+      // went nowhere (the-standalone-panel-follows-its-run).
+      setTimeout(() => {
+        if (this.listeners.size === 0 && this.socket) {
+          this.socket.close();
+          this.socket = null;
+        }
+      }, 0);
     };
   }
 }

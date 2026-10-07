@@ -134,8 +134,11 @@ export function handleSocketMessage(
 
   // A request about a single-stage run names no agent, and the default
   // runner has never heard of a run started on another: it goes to the
-  // runner that holds the run.
-  const held = command.kind === "cancel" || command.kind === "stop" ? liveRuns.get(command.runId) : undefined;
+  // runner that holds the run. A permission's answer is such a request too
+  // (the-standalone-panel-follows-its-run).
+  const held = command.kind === "cancel" || command.kind === "stop" || command.kind === "resolvePermission"
+    ? liveRuns.get(command.runId)
+    : undefined;
   const routed = held?.agentId !== undefined && command.agentId === undefined ? { ...command, agentId: held.agentId } : command;
   void dispatchSingleStage(socket, routed, runners, resolveRecoveryService, liveRuns, auditLog);
 }

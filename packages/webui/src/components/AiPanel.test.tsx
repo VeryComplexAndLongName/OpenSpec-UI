@@ -42,6 +42,29 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         } satisfies Command);
     });
 
+    // the-standalone-panel-follows-its-run: the standalone host passes a new
+    // onRunTerminal on every render, and each re-subscription closed its
+    // socket for a moment and lost the rest of the run.
+    it("keeps one subscription when the host passes a new onRunTerminal, and calls the latest", () => {
+        const { transport, emit } = createFakeTransport();
+        const subscribe = vi.spyOn(transport, "subscribe");
+        const first = vi.fn();
+        const second = vi.fn();
+        const panel = (onRunTerminal: typeof first) => (
+            <AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} onRunTerminal={onRunTerminal} />
+        );
+        const { rerender } = render(panel(first));
+        rerender(panel(second));
+
+        expect(subscribe).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "completed", runId: "run-1", timestamp: "t", summary: "done" });
+
+        expect(first).not.toHaveBeenCalled();
+        expect(second).toHaveBeenCalledWith("review", expect.objectContaining({ kind: "completed" }));
+    });
+
     it("starts on the change it was opened for, and on the seeded command kind", () => {
         const { transport } = createFakeTransport();
         render(

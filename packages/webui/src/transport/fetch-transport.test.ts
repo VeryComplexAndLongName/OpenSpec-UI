@@ -232,7 +232,7 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
     expect(received).toHaveLength(0);
   });
 
-  it("closes the socket once the last subscriber unsubscribes", () => {
+  it("closes the socket once the last subscriber unsubscribes and nobody subscribes again", async () => {
     const { ctor, instances } = makeWebSocketCtor();
     const transport = new FetchTransport({
       baseUrl: "http://localhost:4000",
@@ -244,7 +244,32 @@ describe("FetchTransport — event-driven commands (WebSocket)", () => {
     instances[0]?.open();
 
     unsubscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(instances[0]?.readyState).toBe(FakeWebSocket.CLOSED);
+  });
+
+  // the-standalone-panel-follows-its-run: a panel that re-subscribes on a
+  // render unsubscribes first; closing then lost the rest of its run.
+  it("keeps the socket, and the run's events, through an unsubscribe followed by a subscribe", async () => {
+    const { ctor, instances } = makeWebSocketCtor();
+    const transport = new FetchTransport({
+      baseUrl: "http://localhost:4000",
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      webSocketCtor: ctor,
+    });
+    const unsubscribe = transport.subscribe(() => { });
+    transport.send(planCommand);
+    instances[0]?.open();
+
+    unsubscribe();
+    const received: unknown[] = [];
+    transport.subscribe((event) => received.push(event));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(instances[0]?.readyState).toBe(FakeWebSocket.OPEN);
+    instances[0]?.emitMessage(JSON.stringify({ kind: "completed", runId: planCommand.runId, timestamp: "t" }));
+    expect(received).toEqual([expect.objectContaining({ kind: "completed" })]);
+    expect(instances).toHaveLength(1);
   });
 
   it("throws a clear error when WebSocket is unavailable and not injected", () => {
