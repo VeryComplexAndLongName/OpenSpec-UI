@@ -248,6 +248,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
         timestamp: nowIso(),
         changeDir: command.context.changeDir,
         invocation,
+        command: command.kind,
         ...(agentVersion !== undefined ? { agentVersion } : {}),
         ...(command.stage !== undefined ? { stage: command.stage } : {}),
         // Which one task, where the run was asked for one task rather
@@ -383,6 +384,7 @@ export function createAgentRunner(adapter: AgentAdapter, options: AgentRunnerOpt
           reason: lastReason,
           ...(lastOutcome === "failed" && lastDiagnosis !== undefined ? { diagnosis: lastDiagnosis } : {}),
           summary: lastSummary,
+          command: command.kind,
           ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
           // Absent for a single-stage run, which is the fact rather than
           // a gap: a `review` someone started by itself is a stage of

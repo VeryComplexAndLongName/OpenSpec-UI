@@ -96,3 +96,28 @@ export function runTimestampsByChange(
   }
   return byChange;
 }
+
+/** The commands whose run is work on a change's implementation. */
+const WORK_COMMANDS: ReadonlySet<string> = new Set(["implement", "verify"]);
+/** The chain stages that are. */
+const WORK_STAGES: ReadonlySet<string> = new Set(["apply", "verify", "git"]);
+
+/** Whether an entry is evidence the change's implementation was worked on:
+ * an implementing or verifying run, a chain's apply, verify or git stage,
+ * the verify checks, or a run on one task. Planning and reviewing are not:
+ * a `propose` or `review` run put a change In progress on the board, where
+ * it stayed (the-board-and-the-run-read-right). An entry that says neither
+ * its command nor its stage - one written before `command` was recorded -
+ * is not counted: the stage the files and git give stands. */
+export function isWorkEntry(entry: Pick<AuditEntry, "agent" | "command" | "stage" | "taskNumber">): boolean {
+  if (entry.agent === VERIFY_CHECKS_AGENT_NAME) return true;
+  if (entry.taskNumber !== undefined) return true;
+  if (entry.stage !== undefined) return WORK_STAGES.has(entry.stage);
+  return entry.command !== undefined && WORK_COMMANDS.has(entry.command);
+}
+
+/** When work on each change's implementation happened, by `isWorkEntry`:
+ * what moves a change In progress on the board. */
+export function workTimestampsByChange(entries: readonly AuditEntry[]): Map<string, string[]> {
+  return runTimestampsByChange(entries.filter(isWorkEntry));
+}

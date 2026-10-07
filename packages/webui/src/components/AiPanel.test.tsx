@@ -1167,3 +1167,49 @@ describe("collapseStreamEvents — the kinds that already folded", () => {
         expect(collapsed.map((event) => event.kind)).toEqual(["stdout", "stderr", "progress", "completed", "completed"]);
     });
 });
+
+// the-board-and-the-run-read-right: a tester read a review's result three
+// times, unrendered, in a log of framed boxes, beside "Steps: 0".
+describe("AiPanel - the result reads once, as Markdown", () => {
+    const review = "## Should fix before apply\n\n**1. Task 8.1 breaks the banner.**\n\n- drop the entity branch";
+
+    function runReview() {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-review"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-review", timestamp: "t", command: "review", cwd: "/repo" });
+        emit({ kind: "agentUpdate", runId: "run-review", timestamp: "t", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "I'll check the claims first." } } });
+        emit({ kind: "agentUpdate", runId: "run-review", timestamp: "t", update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "grep -rn listCurrentCompanies src", kind: "execute" } });
+        emit({ kind: "agentUpdate", runId: "run-review", timestamp: "t", update: { sessionUpdate: "tool_call", toolCallId: "t2", title: "Read outcome-banner.tsx", kind: "read" } });
+        emit({ kind: "agentUpdate", runId: "run-review", timestamp: "t", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: review } } });
+        emit({ kind: "completed", runId: "run-review", timestamp: "t", summary: review });
+    }
+
+    it("says Completed in the status, and draws the result once, rendered", () => {
+        runReview();
+
+        expect(screen.getByTestId("run-status-label")).toHaveTextContent(/^Completed$/);
+        const result = screen.getByTestId("run-result");
+        expect(result.querySelector(".openspec-md-preview h2")?.textContent).toBe("Should fix before apply");
+        expect(result.querySelector(".openspec-md-preview strong")?.textContent).toBe("1. Task 8.1 breaks the banner.");
+        expect(result.querySelector(".openspec-md-preview li")?.textContent).toBe("drop the entity branch");
+        expect(screen.getByTestId("run-insights")).not.toHaveTextContent("Should fix before apply");
+        expect(screen.getByTestId("event-log")).not.toHaveTextContent("Should fix before apply");
+    });
+
+    it("keeps what the agent said before the result, as text, and its tool calls as quiet lines", () => {
+        runReview();
+
+        const lines = [...screen.getByTestId("event-log").querySelectorAll("li")];
+        const said = lines.find((line) => line.textContent?.includes("I'll check the claims first."));
+        expect(said?.className).toContain("openspec-event--said");
+        const tool = lines.find((line) => line.textContent?.includes("listCurrentCompanies"));
+        expect(tool?.className).toContain("openspec-event--tool");
+    });
+
+    it("counts an ACP agent's tool calls", () => {
+        runReview();
+
+        expect(screen.getByTestId("run-insights")).toHaveTextContent("Tool calls: 2");
+    });
+});

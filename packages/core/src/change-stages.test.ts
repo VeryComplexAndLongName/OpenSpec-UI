@@ -8,6 +8,7 @@ import type { ChangeHistory } from "./change-history.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
 import { readChangeStage, readChangeStages } from "./change-stages.js";
 import { getAddedFileDates } from "./change-timeline.js";
+import { auditLogPath } from "./security.js";
 import { gitIsolationArgs } from "./test-support/git-isolation.js";
 
 // a-change-knows-its-stage: real git, with commits at the times a test
@@ -197,6 +198,29 @@ describe("reading a change's stages", () => {
     expect(new Date(added.get("openspec/changes/demo/tasks.md") as string).toISOString()).toBe(at(2));
     expect(all.find((one) => one.changeName === "demo")?.visits).toEqual(alone.visits);
     expect(all.find((one) => one.changeName === "second")?.stage).toBe("proposed");
+  });
+
+  // the-board-and-the-run-read-right: running propose and then review put
+  // a planned change In progress, where it stayed.
+  it("keeps a change where its files put it through planning and review runs, and moves it on work", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-stages-"));
+    roots.push(root);
+    await git(root, ["init", "-q", "-b", "main"]);
+    await commitFile(root, "openspec/changes/demo/proposal.md", "## Why\n", at(1));
+    await commitFile(root, "openspec/changes/demo/tasks.md", "- [ ] 1.1 One\n", at(2));
+    const changeDir = path.join(root, "openspec", "changes", "demo");
+    const runs = (commands: string[]) => commands.map((command, index) => JSON.stringify({
+      runId: `r${index}`, agent: "claude-cli-acp", outcome: "completed", cwd: root, timestamp: at(3 + index), changeDir, command,
+    })).join("\n") + "\n";
+    await mkdir(path.dirname(auditLogPath(root)), { recursive: true });
+
+    await writeFile(auditLogPath(root), runs(["plan", "review"]), "utf8");
+    expect((await readChangeStages(root)).find((one) => one.changeName === "demo")?.stage).toBe("planned");
+
+    await writeFile(auditLogPath(root), runs(["plan", "review", "implement"]), "utf8");
+    const moved = (await readChangeStages(root)).find((one) => one.changeName === "demo");
+    expect(moved?.stage).toBe("in-progress");
+    expect(moved?.since).toBe(at(5));
   });
 
   it("still dates a proposal renamed into place from its first commit", async () => {

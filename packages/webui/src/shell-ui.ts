@@ -1217,11 +1217,49 @@ export const shellThemeCss = `
   .openspec-ai-panel-events {
     list-style: none;
     margin: 0;
-    padding: 0;
-    max-height: 300px;
+    padding: 0 16px 12px;
+    max-height: 60vh;
     overflow: auto;
     display: grid;
-    gap: 6px;
+    gap: 2px;
+  }
+
+  /* The log reads as one text, not a stack of boxes: what the agent said is
+     prose, a tool call or a command a quiet line under it
+     (the-board-and-the-run-read-right). Scoped to the log: the usage summary
+     draws its rows with the same classes. */
+  .openspec-ai-panel-events .openspec-event {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding: 2px 0;
+  }
+
+  .openspec-ai-panel-events .openspec-event--said {
+    font-family: inherit;
+    font-size: 13px;
+    white-space: normal;
+    padding: 6px 0;
+  }
+
+  .openspec-ai-panel-events .openspec-event--tool,
+  .openspec-ai-panel-events .openspec-event--started,
+  .openspec-ai-panel-events .openspec-event--usageReported {
+    color: var(--muted);
+  }
+
+  .openspec-ai-panel-events .openspec-event--failed,
+  .openspec-ai-panel-events .openspec-event--stderr {
+    background: none;
+    color: var(--danger);
+  }
+
+  .openspec-ai-panel-events .openspec-md-preview > :first-child { margin-top: 0; }
+  .openspec-ai-panel-events .openspec-md-preview > :last-child { margin-bottom: 0; }
+
+  .openspec-run-result .openspec-panel-body {
+    padding: 12px 16px;
+    font-size: 13px;
   }
 
   .openspec-event {
@@ -4743,6 +4781,17 @@ export const vscodeThemeCss = `
   }
 
   .openspec-extension-app .openspec-ai-panel-banner,
+  .openspec-extension-app .openspec-ai-panel-events .openspec-event--said {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+  }
+
+  .openspec-extension-app .openspec-ai-panel-events .openspec-event--failed,
+  .openspec-extension-app .openspec-ai-panel-events .openspec-event--stderr {
+    background: none;
+    border: 0;
+  }
+
   .openspec-extension-app .openspec-event--failed,
   .openspec-extension-app .openspec-event--stderr {
     color: var(--vscode-inputValidation-errorForeground, var(--ink));

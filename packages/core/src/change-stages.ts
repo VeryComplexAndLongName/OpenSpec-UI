@@ -14,7 +14,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { runTimestampsByChange } from "./audit-runs.js";
+import { workTimestampsByChange } from "./audit-runs.js";
 import { readChangeHistory, type ChangeHistory } from "./change-history.js";
 import type { ChangeRoles, ChangeStage } from "./change-history-facts.js";
 import type { ChangeStanding } from "./change-standing-facts.js";
@@ -44,7 +44,9 @@ export interface ChangeStageOptions {
   /** What the standings read about this change: its branch and its pull
    * request, with the forge's times. */
   standing?: ChangeStanding;
-  /** When the audit log says runs of this change happened. */
+  /** When the audit log says work on this change's implementation
+   * happened: implementing and verifying runs, not planning or review ones
+   * (`workTimestampsByChange`). */
   runTimes?: readonly string[];
   history?: ChangeHistory;
   git?: Pick<GitWrapper, "commitTimesBetween">;
@@ -105,7 +107,7 @@ export async function readStageFacts(root: string, changeName: string, options: 
       if (at !== undefined) facts.push({ stage: "in-progress", at, source: "git-blame", what: `closed ${item.text.split(/\s/u)[0] ?? "a task"}` });
     }
   }
-  for (const at of options.runTimes ?? []) facts.push({ stage: "in-progress", at, source: "audit-log", what: "a run" });
+  for (const at of options.runTimes ?? []) facts.push({ stage: "in-progress", at, source: "audit-log", what: "work on the implementation" });
 
   const pullRequest = options.standing?.pullRequest;
   if (pullRequest?.createdAt !== undefined) facts.push({ stage: "in-review", at: pullRequest.createdAt, source: "forge", what: `#${pullRequest.number} opened` });
@@ -208,7 +210,9 @@ export async function readChangeStages(root: string, options: { standings?: read
     readRepositoryAuditEntries({ git, workspaceRoot: root }).catch(() => []),
     getAddedFileDates(root, CHANGES),
   ]);
-  const runs = runTimestampsByChange(audit);
+  // Only work on the implementation moves a change In progress; a planning
+  // or reviewing run does not (the-board-and-the-run-read-right).
+  const runs = workTimestampsByChange(audit);
   return mapBounded(names.sort(), STAGE_READS_AT_ONCE, (name) => {
     const standing = options.standings?.find((one) => one.changeName === name);
     return readChangeStage(root, name, {
