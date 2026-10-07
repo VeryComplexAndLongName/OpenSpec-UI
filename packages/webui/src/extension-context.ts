@@ -55,6 +55,9 @@ export interface DashboardContext {
      * first render's HTML, like `startChain`, because the panel's initial
      * command kind depends on it. */
     runChange?: boolean;
+    /** The command the panel opens on for that change, where the host names
+     * one: `update`, from a card whose review asked for changes (ADR 0041). */
+    commandKind?: "update";
     /** The resolved run plan, when the panel was opened by `Run`. Built
      * host-side — the browser can read neither the harness files, the
      * audit log nor the task list — and present on the very first render,
@@ -99,6 +102,7 @@ export function resolveInitialDashboardContext(
         changeDir: container.dataset.changeDirectory || readStoredValue("changeDir"),
         startChain: container.dataset.startChain === "true",
         runChange: container.dataset.runChange === "true",
+        ...(container.dataset.commandKind === "update" ? { commandKind: "update" as const } : {}),
         ...readRunPlan(container),
     };
 }

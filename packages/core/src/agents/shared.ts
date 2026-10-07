@@ -178,7 +178,24 @@ export function commandInstruction(kind: CommandKind): string {
         + " one at a time as you go, never before the task is actually done."
         + " Leave a task you could not do unticked, and say in your reply why.";
     case "review":
-      return "Review the proposal (proposal.md/design.md/tasks.md) for the change described below, before any of it is implemented.";
+      return "Review the proposal (proposal.md/design.md/tasks.md) for the change described below, before any of it is implemented."
+        // Read as a marker, the way `Starting task` is; prose is not read
+        // for a verdict (ADR 0041).
+        + " End your reply with a line of its own: `Review verdict: ready` if the plan can be implemented as it is,"
+        + " or `Review verdict: changes needed` if anything you found should be fixed before it is.";
+    case "update":
+      // The product's `opsx:update` (ADR 0041): what `plan` will not do,
+      // since it leaves an artifact that exists as it is.
+      return "Update the planning artifacts of the change described below - proposal.md, the spec deltas under specs/,"
+        + " design.md and tasks.md - so that they answer the review and the operator's notes given below."
+        + " The change's name is the last segment of the change directory named below."
+        + " Change what they ask for, and what has to change with it to keep the artifacts coherent with one another;"
+        + " leave the rest as it is."
+        + " Before you change an artifact, run `openspec instructions <artifact> --change <name>` and follow what it returns."
+        + " Finish by running `openspec validate <name> --strict`, and correct what it reports until it passes."
+        + " Do not change code, or any file outside the change's directory."
+        + " Say in your reply what you changed and which finding or note each change answers,"
+        + " and which findings or notes you did not act on, and why.";
     case "verify":
       return "Review the current implementation of the change described below against its tasks.md and its specs/*/spec.md delta."
         + " Tick each unticked task in tasks.md whose verification you have confirmed yourself,"

@@ -76,6 +76,10 @@ export interface AiPanelContext {
    * Absent for every other reveal — a panel opened without naming a
    * change has nothing to implement, and `list` remains right there. */
   runChange?: boolean;
+  /** The command the panel opens on for that change: `update`, from a card
+   * whose review asked for changes (ADR 0041). Rides in the initial HTML,
+   * like `runChange`. */
+  commandKind?: "update";
   /** The resolved run plan, set by `openspec-ui.runWithHarness`. Like
    * `startChain` it decides which component mounts, so it is baked into
    * the initial HTML rather than posted afterwards — a follow-up would
@@ -657,6 +661,7 @@ export class AiPanel {
     // HTML here, not posted afterward.
     const startChain = panelContext?.startChain ? "true" : "false";
     const runChange = panelContext?.runChange ? "true" : "false";
+    const commandKind = panelContext?.commandKind === "update" ? "update" : "";
     // The plan rides here for the same reason `startChain` does: it
     // decides which component mounts, and a follow-up message would show
     // the ordinary panel first and then replace it.
@@ -677,7 +682,7 @@ export class AiPanel {
     <title>OpenSpec Workbench</title>
   </head>
   <body>
-    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-run-plan="${runPlan}"></div>
+    <div id="root" data-workspace-root="${cwd}" data-change-directory="${changeDir}" data-start-chain="${startChain}" data-run-change="${runChange}" data-command-kind="${commandKind}" data-run-plan="${runPlan}"></div>
     <script src="${scriptUri.toString()}"></script>
   </body>
 </html>`;

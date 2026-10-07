@@ -19,6 +19,23 @@ describe("extension dashboard context", () => {
         });
     });
 
+    // the-plan-is-updated-from-its-review: the board's "Update the plan"
+    // opens the panel on the update command.
+    it("reads the command the host opened the panel on", () => {
+        const container = document.createElement("div");
+        container.dataset.workspaceRoot = "C:\\repo";
+        container.dataset.runChange = "true";
+        container.dataset.commandKind = "update";
+
+        expect(resolveInitialDashboardContext(container, () => "")).toMatchObject({
+            runChange: true,
+            commandKind: "update",
+        });
+
+        container.dataset.commandKind = "archive";
+        expect(resolveInitialDashboardContext(container, () => "")).not.toHaveProperty("commandKind");
+    });
+
     it("falls back to stored values when host context is absent", () => {
         const container = document.createElement("div");
 

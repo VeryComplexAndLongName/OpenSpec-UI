@@ -1993,3 +1993,39 @@ describe("PipelineView — a card works its own tasks", () => {
     expect(remembered.at(-1)?.hideDone).toEqual([{ directory: "/wt/repo/fresh", changeName: "fresh" }]);
   });
 });
+
+// the-plan-is-updated-from-its-review 2.1 (ADR 0041).
+describe("PipelineView - a review that asked for changes", () => {
+  function renderAfterReview(verdict: "ready" | "changes-needed") {
+    const onUpdatePlan = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({ changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [] }], runs: [] }))}
+        lastRuns={async () => ({
+          byChange: { alpha: { runId: "c1", outcome: "completed", stage: "review", endedAt: new Date().toISOString(), reviewVerdict: verdict } },
+        })}
+        liveRuns={async () => ({ runs: [] })}
+        onStart={vi.fn()}
+        onUpdatePlan={onUpdatePlan}
+      />,
+    );
+    return { onUpdatePlan };
+  }
+
+  it("offers Update the plan, and sends it for the change", async () => {
+    const { onUpdatePlan } = renderAfterReview("changes-needed");
+
+    fireEvent.click(await screen.findByTestId("pipeline-update-plan-alpha"));
+
+    expect(onUpdatePlan).toHaveBeenCalledWith("alpha");
+  });
+
+  it("does not offer it where the review said the plan is ready", async () => {
+    renderAfterReview("ready");
+
+    await screen.findByTestId("pipeline-start-alpha");
+    expect(screen.queryByTestId("pipeline-update-plan-alpha")).toBeNull();
+  });
+});

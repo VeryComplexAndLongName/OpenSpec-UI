@@ -112,6 +112,7 @@ function createPipelinePanel(overrides: {
   now?: () => number;
   liveRuns?: { list: () => unknown[]; get?: (runId: string) => unknown };
   runChange?: (changeName: string) => Promise<void>;
+  updatePlan?: (changeName: string, changeDir: string) => Promise<void>;
   sendRunControl?: (control: unknown) => void;
   getLocalServerUrl?: () => string | undefined;
 } = {}) {
@@ -178,6 +179,7 @@ function createPipelinePanel(overrides: {
     ...(overrides.now ? { now: overrides.now } : {}),
     ...(overrides.liveRuns ? { liveRuns: overrides.liveRuns as never } : {}),
     ...(overrides.runChange ? { runChange: overrides.runChange } : {}),
+    ...(overrides.updatePlan ? { updatePlan: overrides.updatePlan } : {}),
     ...(overrides.sendRunControl ? { sendRunControl: overrides.sendRunControl } : {}),
     ...(overrides.getLocalServerUrl ? { getLocalServerUrl: overrides.getLocalServerUrl } : {}),
   });
@@ -413,6 +415,20 @@ describe("PipelinePanel — answering the view", () => {
 
     expect(runChange).toHaveBeenCalledTimes(1);
     expect(runChange).toHaveBeenCalledWith("alpha");
+  });
+
+  // the-plan-is-updated-from-its-review 2.2 (ADR 0041).
+  it("opens the AI panel on update for a card's Update the plan, only for an active change, in its directory", async () => {
+    const updatePlan = vi.fn(async () => undefined);
+    const { pipeline } = createPipelinePanel({ updatePlan });
+    pipeline.show();
+
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/update-plan", changeName: "alpha" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/update-plan", changeName: "gone" });
+    await pipeline.deliverMessageForTesting({ type: "openspec-ui/update-plan", changeName: "../etc" });
+
+    expect(updatePlan).toHaveBeenCalledTimes(1);
+    expect(updatePlan).toHaveBeenCalledWith("alpha", "/repo/openspec/changes/alpha");
   });
 
   // a-change-is-run-from-its-card 5.4–5.6

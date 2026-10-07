@@ -3931,3 +3931,68 @@ describe("HarnessChainRunner — one repository, one ceiling (changes-run-side-b
     expect(events.at(-1)).toMatchObject({ kind: "completed" });
   });
 });
+
+// the-plan-is-updated-from-its-review 1.5 (ADR 0041).
+describe("HarnessChainRunner - a review that asks for changes", () => {
+  function reviewingRunner(verdict: "ready" | "changes-needed" | undefined, updateFails = false): { runner: AgentRunner; calls: Command[] } {
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        if (updateFails && command.kind === "update") {
+          yield { kind: "failed", runId: command.runId, timestamp: "t", reason: "openspec validate failed" };
+          return;
+        }
+        yield {
+          kind: "completed",
+          runId: command.runId,
+          timestamp: "t",
+          summary: `${command.kind} done`,
+          ...(command.kind === "review" && verdict !== undefined ? { reviewVerdict: verdict } : {}),
+        };
+      },
+    };
+    return { runner, calls };
+  }
+
+  async function chainOf(verdict: "ready" | "changes-needed" | undefined, updateFails = false): Promise<{ events: Event[]; calls: Command[] }> {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous" });
+    await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
+    mockStatus(false);
+    await writeTasks(root, 0, 3);
+    mockArchiveSucceeds();
+    const { runner, calls } = reviewingRunner(verdict, updateFails);
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+    return { events, calls };
+  }
+
+  it("updates the plan before apply, once, as part of the review stage", async () => {
+    const { events, calls } = await chainOf("changes-needed");
+
+    expect(calls.map((call) => call.kind)).toEqual(["plan", "review", "update", "implement", "verify"]);
+    expect(calls[2]).toMatchObject({ kind: "update", stage: "review" });
+    expect(events).toContainEqual(expect.objectContaining({ kind: "stageStarted", stage: "review", updating: true }));
+    expect(events).toContainEqual(expect.objectContaining({ kind: "progress", message: "the review asks for changes: updating the plan before apply" }));
+    expect(events.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
+  it("ends the chain with the update's failure, before apply", async () => {
+    const { events, calls } = await chainOf("changes-needed", true);
+
+    expect(calls.map((call) => call.kind)).toEqual(["plan", "review", "update"]);
+    expect(events.at(-1)).toMatchObject({ kind: "failed", reason: "openspec validate failed" });
+  });
+
+  it("goes on to apply where the review says the plan is ready, or says nothing", async () => {
+    for (const verdict of ["ready", undefined] as const) {
+      const { events, calls } = await chainOf(verdict);
+      expect(calls.map((call) => call.kind)).toEqual(["plan", "review", "implement", "verify"]);
+      expect(events.some((event) => event.kind === "stageStarted" && event.updating === true)).toBe(false);
+    }
+  });
+});

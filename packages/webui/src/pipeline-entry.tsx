@@ -29,6 +29,8 @@ export const OPEN_CHANGE_MESSAGE_TYPE = "openspec-ui/open-change";
 /** Posted by the view when a card's Start is pressed. The host checks the
  * name and opens that change's run dialog (a-change-is-run-from-its-card). */
 export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
+/** A card asked for its change's plan to be updated (ADR 0041). */
+export const UPDATE_PLAN_MESSAGE_TYPE = "openspec-ui/update-plan";
 
 /** Posted by the view when a card answers or stops a run. The host acts
  * only on a run it holds. */
@@ -123,6 +125,10 @@ function PipelineApp() {
     (changeName: string) => vscodeApi.postMessage({ type: RUN_CHANGE_MESSAGE_TYPE, changeName }),
     [vscodeApi],
   );
+  const onUpdatePlan = useCallback(
+    (changeName: string) => vscodeApi.postMessage({ type: UPDATE_PLAN_MESSAGE_TYPE, changeName }),
+    [vscodeApi],
+  );
   const copyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
   // A change's run logs, beneath the picture, as the standalone shows them
   // (a-change-shows-its-run-logs).
@@ -160,7 +166,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} />
         {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
       </section>
     </div>

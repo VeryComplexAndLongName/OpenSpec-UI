@@ -41,16 +41,32 @@ are `propose`, `review`, `apply`, `verify`, `archive`, `git`, each with a
 5. **The chain.** After `review`: `changes needed` starts `update` (a
    `stageStarted` with stage `review` and `updating: true`, so the board,
    the timeline and the budgets keep their six stages), then goes to
-   `apply`; `ready` or no verdict goes to `apply`. `stepAgents.update`, an
-   optional entry accepted wherever `stepAgents.review` is, names its agent;
-   absent, the review's agent runs it. Under `semi-autonomous`, the
-   checkpoint after review names the update as the next step.
+   `apply`; `ready` or no verdict goes to `apply`. The update runs on the
+   review stage's agent; a `stepAgents.update` entry was planned and left
+   out, since the agent that found the problems is the natural one to answer
+   them and a key nobody has asked for is one more rule to learn. Being part
+   of the review stage, the update runs before the review's checkpoint
+   under `semi-autonomous`, its time and spend count toward the review's,
+   and its failure ends the chain (it is not tried again).
 6. **Surfaces.** AI panel: `update` in the command list with its purpose,
-   a "Notes for the update" textarea shown for it, and the last review's
-   date named beside it. The card: **Update the plan** where the last run
+   a notes textarea shown for it whose label says the update also reads the
+   change's last completed review (the review's date, planned here, would
+   need the audit log in the panel, which it does not read; the prompt
+   gives the agent the review's date and agent).
+   The card: **Update the plan** where the last run
    was a review with verdict `changes needed`. CLI: `openspec-ui-cli
    update <change> [--note <text>] [--agent <id>] [--cwd <path>]`, printing
    the run as `run` does.
+
+7. **Found while implementing it, and by the live run (task 4.3).** A process agent such as `copilot
+   -p` prints its review and its result carries no summary, so the update
+   had no review to read: the runner keeps the last 16 KiB of what a
+   completed review said as its audit summary where the result has none.
+   An ACP agent asks permission for each tool call, and the CLI's `update`
+   left the question unanswered for ever: it now asks at the terminal, as
+   `run` asks at a checkpoint, and denies where nobody can be asked. A
+   failed update in a chain ended it with no terminal event (`runStage`
+   holds a failure for the supervisor): the chain now says it.
 
 ## Risks / Trade-offs
 

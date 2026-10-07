@@ -22,6 +22,9 @@ export interface LastRun {
   /** The agent the failed stage ran on, where it failed on one
    * (the-supervisor-changes-agents). */
   agent?: string;
+  /** What the run's review said of the plan, where its last stage was a
+   * review that printed a verdict (ADR 0041). */
+  reviewVerdict?: "ready" | "changes-needed";
   /** The sum of what the run's entries reported spending; absent when none
    * reported a cost, which is not the same as costing nothing. */
   costUsd?: number;

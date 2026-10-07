@@ -24,10 +24,20 @@ its own, `Review verdict: ready` or `Review verdict: changes needed`. The
 product SHALL read that line as a marker, at the start of a line, the last
 one winning, and SHALL record it on the run's terminal event and audit
 entry as `reviewVerdict`. A reply with no such line SHALL have no verdict;
-prose SHALL NOT be read for one.
+prose SHALL NOT be read for one. Where a completed review's result carries
+no summary, what the agent said - its output, or an ACP agent's messages,
+the last 16 KiB of it - SHALL be kept as the audit entry's summary, so an
+update can read the review.
 
 #### Scenario: A review that asks for changes
 
 - **WHEN** a review run's reply ends with `**Review verdict: changes needed**`
 - **THEN** its terminal event and its audit entry carry
   `reviewVerdict: "changes-needed"`
+
+#### Scenario: A review that prints its findings
+
+- **WHEN** a process agent prints its review and its result carries no
+  summary
+- **THEN** the review's audit entry carries what it printed as its summary,
+  and the next update's prompt holds it

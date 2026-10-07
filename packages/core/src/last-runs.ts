@@ -90,6 +90,12 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
   const agent = ending.outcome !== "failed"
     ? undefined
     : [...stageEntries].reverse().find((entry) => entry.outcome === "failed" && REGISTERED.has(entry.agent))?.agent;
+  // The review's verdict, where the run ended on a review that gave one: a
+  // card offers to update the plan it asked to change (ADR 0041).
+  const lastStageRun = [...stageEntries].reverse().find((entry) => isTerminal(entry));
+  const reviewVerdict = ending.outcome === "completed" && (lastStageRun?.command === "review" || lastStageRun?.stage === "review")
+    ? lastStageRun?.reviewVerdict
+    : undefined;
   const costs = stageEntries
     .map((entry) => entry.usage?.costUsd)
     .filter((cost): cost is number => typeof cost === "number");
@@ -101,6 +107,7 @@ function endingOf(runId: string, group: readonly AuditEntry[]): LastRun | undefi
     ...(ending.reason !== undefined ? { reason: ending.reason } : {}),
     ...(diagnosis !== undefined ? { diagnosis } : {}),
     ...(agent !== undefined ? { agent } : {}),
+    ...(reviewVerdict !== undefined ? { reviewVerdict } : {}),
     ...(costs.length > 0 ? { costUsd: costs.reduce((sum, cost) => sum + cost, 0) } : {}),
   };
 }

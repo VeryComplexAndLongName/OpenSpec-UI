@@ -29,8 +29,8 @@ None.
 
 - `execution-core`: the `update` command kind, its prompt, the review
   verdict marker.
-- `agentic-harness`: the chain's update after a review that asks for one;
-  `stepAgents.update`.
+- `agentic-harness`: the chain's update after a review that asks for one,
+  on the review stage's agent.
 - `shared-ui`: the AI panel's `update`, with notes; the card's **Update the
   plan**.
 - `ci-cli`: `openspec-ui-cli update`.
@@ -39,7 +39,7 @@ None.
 
 - `packages/core`: `protocol.ts`, `agents/shared.ts` (instructions),
   `security.ts` (prompt section), `review-verdict.ts` (new marker reader),
-  `harness-chain-runner.ts`, `harness-step-agent.ts`, `harness-config.ts`,
-  and every adapter's command-kind mapping.
+  `last-review.ts` (the review an update answers), `harness-chain-runner.ts`,
+  `last-runs.ts` (the card's verdict).
 - `packages/webui`, `packages/extension`, `packages/server`, `packages/cli`.
 - `docs/adr/0041-the-plan-is-updated-from-its-review.md`, `HARNESS.md`.

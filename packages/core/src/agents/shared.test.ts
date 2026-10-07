@@ -93,6 +93,29 @@ describe("commandInstruction — the task in hand", () => {
   });
 });
 
+// the-plan-is-updated-from-its-review 1.2 (ADR 0041).
+describe("commandInstruction - the update and the review's verdict", () => {
+  it("asks the review to end with its verdict line", () => {
+    const text = commandInstruction("review");
+    expect(text).toContain("`Review verdict: ready`");
+    expect(text).toContain("`Review verdict: changes needed`");
+  });
+
+  it("asks the update to revise what exists, from the review and the notes, coherently and validated", () => {
+    const text = commandInstruction("update");
+    expect(text).toContain("so that they answer the review and the operator's notes given below");
+    expect(text).toContain("keep the artifacts coherent with one another");
+    expect(text).toContain("leave the rest as it is");
+    expect(text).toContain("`openspec validate <name> --strict`");
+    expect(text).toContain("Do not change code, or any file outside the change's directory.");
+    expect(text).toContain("which findings or notes you did not act on, and why");
+  });
+
+  it("asks the update to tick nothing", () => {
+    expect(commandInstruction("update")).not.toMatch(/tick/i);
+  });
+});
+
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter();
   stderr = new EventEmitter();

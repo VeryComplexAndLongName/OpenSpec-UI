@@ -1136,6 +1136,22 @@ export const shellThemeCss = `
     margin-bottom: 10px;
   }
 
+  /* The notes an update takes (ADR 0041). */
+  .openspec-update-notes {
+    display: grid;
+    gap: 4px;
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .openspec-update-notes textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    color: var(--ink);
+  }
+
   .openspec-run-status {
     margin: 0 0 8px;
     font-size: 12px;

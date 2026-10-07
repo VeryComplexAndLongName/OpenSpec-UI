@@ -167,3 +167,22 @@ describe("readLastRuns", () => {
     expect(third.byChange.demo).toMatchObject({ runId: "r2", outcome: "failed" });
   });
 });
+
+// the-plan-is-updated-from-its-review 2.1 (ADR 0041): a card offers to
+// update the plan its last review asked to change.
+describe("lastRunsOf - a review's verdict", () => {
+  it("carries the verdict of a run that ended on a review", () => {
+    const report = lastRunsOf([
+      entry({ runId: "r1", outcome: "started", timestamp: "2026-10-07T09:00:00.000Z", command: "review" }),
+      entry({ runId: "r1", outcome: "completed", timestamp: "2026-10-07T09:05:00.000Z", command: "review", reviewVerdict: "changes-needed", summary: "fix two things" }),
+    ]);
+    expect(report.byChange.demo?.reviewVerdict).toBe("changes-needed");
+  });
+
+  it("carries none for a run that ended on anything else", () => {
+    const report = lastRunsOf([
+      entry({ runId: "r2", outcome: "completed", timestamp: "2026-10-07T10:00:00.000Z", command: "plan" }),
+    ]);
+    expect(report.byChange.demo).not.toHaveProperty("reviewVerdict");
+  });
+});

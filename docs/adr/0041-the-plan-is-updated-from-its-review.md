@@ -1,6 +1,6 @@
 # 0041: The Plan Is Updated From Its Review
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-10-07
 
@@ -39,8 +39,8 @@ from `review` to `apply` whatever the review said.
    verdict.
 4. **The chain updates a plan its review sends back.** After `review`, a
    verdict `changes needed` runs `update` before `apply`, on the review
-   stage's agent unless `stepAgents.update` names another; `ready`, or no
-   verdict, goes on to `apply` as today. One update per review; the chain
+   stage's agent, as part of the review stage; `ready`, or no verdict,
+   goes on to `apply` as today. One update per review; the chain
    does not loop.
 5. **Every surface offers it.** The AI panel lists `update - revises the
    planning artifacts from the last review and your notes`, with a field

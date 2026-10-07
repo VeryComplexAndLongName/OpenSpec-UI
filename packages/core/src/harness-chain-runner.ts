@@ -248,6 +248,9 @@ interface ChainState {
   /** Every agent each stage has run on in this chain: a fallback is never
    * tried twice. */
   triedAgents: Map<ChainStage, string[]>;
+  /** What the chain's review said of the plan, until the update it asks
+   * for has run (ADR 0041). */
+  reviewVerdict?: "ready" | "changes-needed";
 }
 
 function nowIso(): string {
@@ -1323,6 +1326,38 @@ export class HarnessChainRunner {
 
       if (outcome !== "completed") return;
 
+      // A review that asks for changes has the plan updated before apply,
+      // once, on the review's own agent; the update is part of the review
+      // stage, so the chain keeps its six stages (ADR 0041). A review that
+      // says the plan is ready, or says nothing, goes on as before.
+      if (stage === "review" && state.reviewVerdict === "changes-needed") {
+        state.reviewVerdict = undefined;
+        yield { kind: "progress", runId, timestamp: nowIso(), message: "the review asks for changes: updating the plan before apply" };
+        yield {
+          kind: "stageStarted",
+          runId,
+          timestamp: nowIso(),
+          stage,
+          agentId: stageAgentOf(stage, harnessConfig, state),
+          updating: true,
+        };
+        const updateStartedAt = Date.now();
+        const updated = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta, "update");
+        // The update's time and spend count toward the review stage's, as
+        // its audit entries do; a failure `runStage` held is said here,
+        // since the update is not tried again.
+        state.elapsedMs += Date.now() - updateStartedAt;
+        const heldUpdateFailure = state.heldFailure;
+        state.heldFailure = undefined;
+        if (heldUpdateFailure !== undefined) yield heldUpdateFailure;
+        if (updated !== "completed") return;
+        const updateSpendReason = describeStageOverspend(harnessConfig, state.lastStageUsage, stage);
+        if (updateSpendReason) {
+          yield failedEvent(runId, updateSpendReason);
+          return;
+        }
+      }
+
       // The one backward edge in an otherwise forward-only chain, and it
       // exists because `verify` is the only stage that produces a
       // machine-checked statement that earlier work is unfinished: it
@@ -1639,6 +1674,9 @@ export class HarnessChainRunner {
     command: Command,
     state: ChainState,
     verifiedDelta: VerifiedDeltaEntry[] | undefined,
+    /** The command the stage runs instead of its own: `update`, where a
+     * review asked for changes (ADR 0041). */
+    kindOverride?: CommandKind,
   ): AsyncGenerator<Event, "completed" | "failed" | "cancelled" | "checks-failed"> {
     const { cwd, context, runId } = command;
 
@@ -1777,7 +1815,7 @@ export class HarnessChainRunner {
     // `stage` travels beside `model`/`effort`/`budget`, which the chain
     // already sets here — it is what lets an audit entry say which stage
     // spent what, since every stage runs under the chain's own runId.
-    const stageCommand: Command = { kind: CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget, customAgent, stage };
+    const stageCommand: Command = { kind: kindOverride ?? CHAIN_STAGE_COMMAND[stage], cwd, context: stageContext, runId, agentId, model, effort, budget, customAgent, stage };
     state.currentRunner = runner;
     state.currentCommand = stageCommand;
 
@@ -1854,6 +1892,9 @@ export class HarnessChainRunner {
         if (autonomousPermissionFailure) continue;
         if (event.kind === "completed") {
           outcome = "completed";
+          // What the review said of the plan, for the update that may
+          // follow it (ADR 0041).
+          if (stage === "review" && kindOverride === undefined) state.reviewVerdict = event.reviewVerdict;
           // What this stage said, kept for a question that is waiting on
           // it (the-operator-can-say-something-to-a-run).
           if (typeof event.summary === "string" && event.summary.trim().length > 0) said = event.summary.trim();

@@ -14,6 +14,7 @@ import { renderChangeAncestry, renderChangeTree } from "./change-graph-render.js
 import { checkChange } from "./check-change.js";
 import { leaseCommand } from "./lease-command.js";
 import { runChange, type CheckpointPrompt } from "./run-change.js";
+import { updatePlan } from "./update-plan.js";
 import { adviseCommand } from "./advise-command.js";
 import { doctorCommand } from "./doctor-command.js";
 import { enrolCommand } from "./enrol-command.js";
@@ -39,6 +40,8 @@ const USAGE = `openspec-ui-cli — OpenSpec changes from a terminal: validate th
 Usage:
   openspec-ui-cli validate [--cwd <path>] [--format json|text]
   openspec-ui-cli run <change> [--cwd <path>] [--format text|json]
+  openspec-ui-cli update <change> [--note <text>] [--agent <id>] [--cwd <path>]
+                         [--format text|json]
   openspec-ui-cli check <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli ready [--cwd <path>] [--base <ref>] [--format text|json]
   openspec-ui-cli doctor [--cwd <path>] [--change <id>] [--format text|json]
@@ -105,10 +108,13 @@ Options:
                       planned, in-progress or in-review
   --reopen <task>:<why>  An item 'send-back' reopens, and why; repeatable
   --agent <id>        The agent acting for you. Without it, the
-                      environment says (OPENSPEC_UI_AGENT, AI_AGENT)
+                      environment says (OPENSPEC_UI_AGENT, AI_AGENT). For
+                      'update', the agent that runs it; without it, the
+                      change's review agent
   --reason <text>     Why a run is asked to stop; the run records it
   --note <text>       What 'task done' or 'task reopen' writes under the task;
-                      required to close a Human-only or delegated task
+                      required to close a Human-only or delegated task. For
+                      'update', the operator's notes the update answers
   --after <task>      Let the run finish this task first, as tasks.md numbers
                       it (for example 4.6), then stop where the work is sound
   --repository        owner/name for the manifest's links
@@ -280,6 +286,7 @@ export interface MainDeps {
   /** `run` and `check`, injected so a unit test never spawns an agent or
    * runs `npm` — the same seam `validateAll` already is. */
   runChange?: typeof runChange;
+  updatePlan?: typeof updatePlan;
   worktreeCommand?: typeof worktreeCommand;
   readyCommand?: typeof readyCommand;
   doctorCommand?: typeof doctorCommand;
@@ -722,6 +729,27 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  // Revises a change's plan from its last review and the note (ADR 0041).
+  if (command === "update") {
+    const changeName = options.changeName;
+    if (!changeName) {
+      stderr("openspec-ui-cli: update requires a change name");
+      stderr(USAGE);
+      return 2;
+    }
+    const writeOut = deps.writeOut ?? ((text: string) => void process.stdout.write(text));
+    return await (deps.updatePlan ?? updatePlan)(
+      {
+        workspaceRoot: options.cwd ?? process.cwd(),
+        changeName,
+        format: options.format === "json" ? "json" : "text",
+        ...(options.note !== undefined ? { note: options.note } : {}),
+        ...(options.agent !== undefined ? { agent: options.agent } : {}),
+      },
+      { stdout: writeOut, stderr, permission: deps.checkpoint ?? defaultCheckpointPrompt() },
+    );
+  }
+
   if (command === "release-manifest") {
     return await runReleaseManifest(options, { ...deps, stdout, stderr });
   }
@@ -729,7 +757,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, update, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;
