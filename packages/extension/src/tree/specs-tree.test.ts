@@ -52,6 +52,22 @@ describe("SpecsTreeProvider", () => {
     expect(opened).toMatch(/\/workspace\/repo\/openspec\/specs\/web\/dashboard-foundation\/spec\.md$/);
   });
 
+  // agents-are-told-how-work-is-done-here: opening a repository not
+  // initialized yet showed the CLI's refusal as an error.
+  it("shows nothing, and says nothing, for a repository with no OpenSpec root", async () => {
+    listSpecsMock.mockRejectedValue(new Error('openspec list --specs --json exited with code 1: { "specs": [], "root": null, "status": [ { "severity": "error", "code": "no_openspec_root", "message": "No OpenSpec root found from the current directory." } ] }'));
+
+    const provider = new SpecsTreeProvider("/workspace/repo");
+
+    expect(await provider.getChildren()).toEqual([]);
+  });
+
+  it("still fails for any other refusal", async () => {
+    listSpecsMock.mockRejectedValue(new Error("openspec is not installed"));
+
+    await expect(new SpecsTreeProvider("/workspace/repo").getChildren()).rejects.toThrow("openspec is not installed");
+  });
+
   it("explains that canonical specs are produced by archive", async () => {
     listSpecsMock.mockResolvedValue({ specs: [], root: { path: "/workspace/repo", source: "nearest" } });
 

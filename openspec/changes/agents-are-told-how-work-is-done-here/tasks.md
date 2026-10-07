@@ -31,6 +31,15 @@ Asked on 2026-10-07. ADR 0043.
   `commands.test.ts`; the server's in `server.test.ts`, against a real
   bare remote.
 
+- [x] 1.6 Opening a repository not initialized yet says and writes nothing:
+  the Specs view is empty instead of showing the CLI's `no_openspec_root`
+  refusal as an error (`isNoOpenSpecRoot`); the sweep passes over a
+  repository with no `openspec/` (it made its claim beside it); the
+  extension writes no run journal until there is something in it. Found
+  by the owner on 2026-10-07, on opening a fresh clone. Tests in
+  `specs-tree.test.ts` and `branch-rebase.test.ts`; the sweep fixtures now
+  carry an `openspec/config.yaml`.
+
 ## 2. Hosts
 
 - [x] 2.1 `packages/extension`: the rules on initialize and in "Write

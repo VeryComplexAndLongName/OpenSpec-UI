@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -64,6 +64,8 @@ async function behindBranch(options: { conflict?: boolean } = {}): Promise<Fixtu
   await git(work, ["config", "user.email", "fixture@example.com"]);
   await git(work, ["remote", "add", "origin", remote]);
   await write(path.join(work, "shared.txt"), "one\n");
+  // An OpenSpec project: the sweep passes over a repository without one.
+  await write(path.join(work, "openspec", "config.yaml"), "schema: spec-driven\n");
   await git(work, ["add", "."]);
   await git(work, ["commit", "-q", "-m", "first"]);
   await git(work, ["push", "-q", "-u", "origin", "main"]);
@@ -214,6 +216,25 @@ describe("a workspace with nothing to act on", () => {
     // Not "the repository could not be fetched", on every interval.
     expect(describeWorkspaceSweep(swept)).toEqual([]);
     expect(swept.branches).toBeUndefined();
+  });
+
+  // agents-are-told-how-work-is-done-here: opening a repository not yet
+  // initialized wrote the pass's claim beside it.
+  it("does nothing, and makes nothing, in a repository with no OpenSpec project", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-rebase-plain-"));
+    roots.push(root);
+    const work = path.join(root, "work");
+    await mkdir(work);
+    await git(work, ["init", "-q", "-b", "main"]);
+    await git(work, ["remote", "add", "origin", path.join(root, "remote.git")]);
+    await write(path.join(work, "a.txt"), "one\n");
+    await git(work, ["add", "."]);
+    await git(work, ["commit", "-q", "-m", "first"]);
+
+    const swept = await sweepWorkspace(work);
+
+    expect(describeWorkspaceSweep(swept)).toEqual([]);
+    expect(await readdir(root)).toEqual(["work"]);
   });
 
   it("does the whole pass where there is a behind change branch", async () => {

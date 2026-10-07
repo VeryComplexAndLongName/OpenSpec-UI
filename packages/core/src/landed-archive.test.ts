@@ -66,6 +66,9 @@ async function landed(changes: Record<string, string>): Promise<Fixture> {
     await write(path.join(work, "openspec", "changes", name, "tasks.md"), tasks);
   }
   await write(path.join(work, "README.md"), "fixture" + NL);
+  // An OpenSpec project, whatever its changes: the sweep passes over a
+  // repository without one (agents-are-told-how-work-is-done-here).
+  await write(path.join(work, "openspec", "config.yaml"), "schema: spec-driven" + NL);
   await git(work, ["add", "."]);
   await git(work, ["commit", "-q", "-m", "changes"]);
   await git(work, ["push", "-q", "-u", "origin", "main"]);
