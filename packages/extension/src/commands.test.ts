@@ -28,6 +28,8 @@ const buildSprintReportMock = vi.fn();
 const renderSprintReportPageMock = vi.fn();
 const discoverOpenSpecWorkspaceMock = vi.fn();
 const createChangeMock = vi.fn();
+const workflowRulesNeedConsentMock = vi.fn(async (..._args: unknown[]) => [] as string[]);
+const writeWorkflowRulesMock = vi.fn(async (..._args: unknown[]): Promise<Record<string, string>> => ({ "CLAUDE.md": "created", "AGENTS.md": "created" }));
 const deleteChangeMock = vi.fn();
 const unarchiveChangeMock = vi.fn();
 const initOpenSpecMock = vi.fn();
@@ -121,6 +123,15 @@ vi.mock("@openspec-ui/core", async () => ({
   buildSprintReport: (...args: unknown[]) => buildSprintReportMock(...args),
   checkChangesetReminder: (...args: unknown[]) => checkChangesetReminderMock(...args),
   createChange: (...args: unknown[]) => createChangeMock(...args),
+  // A repository with no remote, as these tests' workspace is: the change
+  // is made where it always was, through `openspec new change`
+  // (agents-are-told-how-work-is-done-here).
+  createChangeInItsWorktree: async (options: { repositoryRoot: string; changeName: string }) => {
+    await createChangeMock(options.changeName, { cwd: options.repositoryRoot });
+    return { directory: options.repositoryRoot };
+  },
+  workflowRulesNeedConsent: (...args: unknown[]) => workflowRulesNeedConsentMock(...args),
+  writeWorkflowRules: (...args: unknown[]) => writeWorkflowRulesMock(...args),
   customizeTemplate: (...args: unknown[]) => customizeTemplateMock(...args),
   deleteChange: (...args: unknown[]) => deleteChangeMock(...args),
   deleteProjectTemplate: (...args: unknown[]) => deleteProjectTemplateMock(...args),
@@ -1585,12 +1596,53 @@ describe("registerCommands", () => {
     });
   });
 
+  // agents-are-told-how-work-is-done-here 2.1.
+  describe("how work is done here", () => {
+    it("is written at once when the workspace is initialized", async () => {
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce(["claude"]);
+      initOpenSpecMock.mockResolvedValue(undefined);
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.initialize")?.();
+
+      expect(writeWorkflowRulesMock).toHaveBeenCalledWith("/workspace/repo", { appendToForeign: false });
+    });
+
+    it("asks before adding to a file somebody else wrote, and adds it only on Yes", async () => {
+      workflowRulesNeedConsentMock.mockResolvedValueOnce(["AGENTS.md"]);
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce("Yes");
+      writeWorkflowRulesMock.mockResolvedValueOnce({ "CLAUDE.md": "created", "AGENTS.md": "appended" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.writeWorkflowRules")?.();
+
+      expect(vscodeMock.window.showQuickPick).toHaveBeenCalledWith(["Yes", "No"], expect.objectContaining({
+        title: "Add how work is done here to the end of AGENTS.md?",
+      }));
+      expect(writeWorkflowRulesMock).toHaveBeenCalledWith("/workspace/repo", { appendToForeign: true });
+      expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith("OpenSpec Workbench: wrote how work is done here into CLAUDE.md, AGENTS.md.");
+    });
+
+    it("says which file was left as it was where the person said No", async () => {
+      workflowRulesNeedConsentMock.mockResolvedValueOnce(["CLAUDE.md"]);
+      vscodeMock.window.showQuickPick.mockResolvedValueOnce("No");
+      writeWorkflowRulesMock.mockResolvedValueOnce({ "CLAUDE.md": "skipped-foreign", "AGENTS.md": "unchanged" });
+      registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
+
+      await vscodeMock._registeredCommands.get("openspec-ui.writeWorkflowRules")?.();
+
+      expect(writeWorkflowRulesMock).toHaveBeenCalledWith("/workspace/repo", { appendToForeign: false });
+      expect(vscodeMock.window.showWarningMessage).toHaveBeenCalledWith(expect.stringContaining("CLAUDE.md left as it was"));
+    });
+  });
+
   describe("openspec-ui.initialize", () => {
     it("suggests Set Up Agentic Harness when no global harness config exists yet, and the action invokes it", async () => {
       vscodeMock.window.showQuickPick.mockResolvedValueOnce(["claude"]);
       initOpenSpecMock.mockResolvedValue(undefined);
       vscodeMock.window.showInformationMessage
         .mockResolvedValueOnce(undefined) // "workspace initialized." has no action to click
+        .mockResolvedValueOnce(undefined) // nor has "wrote how work is done here"
         .mockResolvedValueOnce("Set Up Agentic Harness");
       registerCommands(makeContext() as unknown as import("vscode").ExtensionContext, makeDeps());
 

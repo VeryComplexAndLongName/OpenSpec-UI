@@ -33,7 +33,6 @@ import {
   type RecommendationInput,  type RunStartFacts,
   recommendTemplate,
   checkChangesetReminder,
-  createChange,
   customizeTemplate,
   deleteChange,
   deleteProjectTemplate,
@@ -72,6 +71,10 @@ import {
   unarchiveChange,
   validateChange,
   writeAgentInstructions,
+  createChangeInItsWorktree,
+  workflowRulesNeedConsent,
+  writeWorkflowRules,
+  type ChangeMade,
   writeChangeHarnessConfig,
   repoSetupActionVerdict,
   writeDependabotConfig,
@@ -815,7 +818,55 @@ function warnOnClaudeCliVersionMismatch(detected: Record<string, DetectedAgent>)
   );
 }
 
+/** The rules for how work is done here, written into CLAUDE.md and
+ * AGENTS.md, which every agent reads however it was started
+ * (agents-are-told-how-work-is-done-here, ADR 0043). A file somebody else
+ * wrote gets them at its end only where the person says so here. */
+export async function writeWorkflowRulesHere(workspaceRoot: string): Promise<void> {
+  const foreign = await workflowRulesNeedConsent(workspaceRoot);
+  let appendToForeign = false;
+  if (foreign.length > 0) {
+    const pick = await vscode.window.showQuickPick(["Yes", "No"], {
+      title: `Add how work is done here to the end of ${foreign.join(" and ")}?`,
+      placeHolder: "Each change in a working directory of its own, and who does which stage: the agents read it there",
+    });
+    appendToForeign = pick === "Yes";
+  }
+  const result = await writeWorkflowRules(workspaceRoot, { appendToForeign });
+  const written = Object.entries(result).filter(([, status]) => status !== "skipped-foreign" && status !== "unchanged").map(([name]) => name);
+  const skipped = Object.entries(result).filter(([, status]) => status === "skipped-foreign").map(([name]) => name);
+  if (written.length > 0) {
+    void vscode.window.showInformationMessage(`OpenSpec Workbench: wrote how work is done here into ${written.join(", ")}.`);
+  }
+  if (skipped.length > 0) {
+    void vscode.window.showWarningMessage(
+      `OpenSpec Workbench: ${skipped.join(", ")} left as it was, so agents that read it are not told where a change is worked. "Write Agent Workflow Rules" adds it.`,
+    );
+  }
+}
+
+/** Says where a new change was made, and offers its working directory
+ * (agents-are-told-how-work-is-done-here). */
+function announceChangeMade(changeName: string, made: ChangeMade | undefined, workspaceRoot: string): void {
+  if (made === undefined || made.directory === workspaceRoot) {
+    void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName}.`);
+    return;
+  }
+  const open = "Open its working directory";
+  void vscode.window.showInformationMessage(
+    `OpenSpec Workbench: created ${changeName} in its own working directory, ${made.directory}, on branch ${made.branch ?? changeName}.`,
+    open,
+  ).then((choice) => {
+    if (choice === open) void vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(made.directory), { forceNewWindow: true });
+  });
+}
+
 async function offerGenerateAgentInstructions(workspaceRoot: string): Promise<void> {
+  await offerProjectGuidelines(workspaceRoot);
+  await writeWorkflowRulesHere(workspaceRoot);
+}
+
+async function offerProjectGuidelines(workspaceRoot: string): Promise<void> {
   const claudeMdExists = await fileExists(vscode.Uri.file(path.join(workspaceRoot, "CLAUDE.md")));
   const agentsMdExists = await fileExists(vscode.Uri.file(path.join(workspaceRoot, "AGENTS.md")));
   if (claudeMdExists && agentsMdExists) return;
@@ -1502,6 +1553,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         });
         deps.refreshTrees();
         void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized.");
+        // At once, so the first agent that works here is told where a
+        // change is worked (agents-are-told-how-work-is-done-here).
+        await writeWorkflowRulesHere(workspaceRoot);
         void suggestAgenticHarnessSetup(workspaceRoot);
       } catch (error) {
         await showCommandError("initialize workspace", error);
@@ -1514,6 +1568,15 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await runSetUpAgenticHarness(workspaceRoot);
       } catch (error) {
         await showCommandError("set up Agentic Harness", error);
+      }
+    }),
+    vscode.commands.registerCommand("openspec-ui.writeWorkflowRules", async () => {
+      const workspaceRoot = deps.getWorkspaceRoot();
+      if (!workspaceRoot) { warnNoWorkspace(); return; }
+      try {
+        await writeWorkflowRulesHere(workspaceRoot);
+      } catch (error) {
+        await showCommandError("write agent workflow rules", error);
       }
     }),
     vscode.commands.registerCommand("openspec-ui.generateAgentInstructions", async () => {
@@ -1771,15 +1834,17 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           : "Use lowercase letters, numbers, dots, dashes, or underscores.",
       });
       if (!changeName) return;
+      // In a working directory of its own (agents-are-told-how-work-is-done-here).
+      let made: ChangeMade | undefined;
       try {
         await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "create",
           changeName,
           mutating: true,
-          execute: async () => { await createChange(changeName, { cwd: workspaceRoot }); },
+          execute: async () => { made = await createChangeInItsWorktree({ repositoryRoot: workspaceRoot, changeName }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName}.`);
+        announceChangeMade(changeName, made, workspaceRoot);
       } catch (error) {
         await showCommandError("create change", error);
       }
@@ -1800,12 +1865,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       });
       if (!changeName) return;
 
+      let made: ChangeMade = { directory: workspaceRoot };
       try {
         await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "create",
           changeName,
           mutating: true,
-          execute: async () => { await createChange(changeName, { cwd: workspaceRoot }); },
+          execute: async () => { made = await createChangeInItsWorktree({ repositoryRoot: workspaceRoot, changeName }); },
         });
         deps.refreshTrees();
       } catch (error) {
@@ -1836,7 +1902,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
 
       try {
-        await writeChangeHarnessConfig(workspaceRoot, changeName, config);
+        await writeChangeHarnessConfig(made.directory, changeName, config);
         void vscode.window.showInformationMessage(`OpenSpec Workbench: created ${changeName} with a customized Agentic Harness override.`);
       } catch (error) {
         await showCommandError("write per-change harness config", error);

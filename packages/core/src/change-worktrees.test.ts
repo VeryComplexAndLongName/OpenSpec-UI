@@ -148,8 +148,9 @@ describe("planChangeWorktree", () => {
     expect(git.added).toHaveLength(0);
   });
 
-  it("refuses a change that is not in the base commit, saying to commit it", async () => {
+  it("refuses a change that is only uncommitted in the main checkout, saying to commit it", async () => {
     const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "a-change"), { recursive: true });
     const git = fakeGit({ inRef: () => false });
 
     const plan = await planChangeWorktree({ git, repositoryRoot: root, changeName: "a-change" });
@@ -160,6 +161,17 @@ describe("planChangeWorktree", () => {
       expect(plan.refusal.remedy).toContain("commit openspec/changes/a-change");
     }
     expect(git.added).toHaveLength(0);
+  });
+
+  // agents-are-told-how-work-is-done-here, ADR 0043: a new change gets its
+  // working directory first, and is proposed there.
+  it("plans a directory for a change that exists nowhere yet", async () => {
+    const root = await temporaryRoot();
+    const git = fakeGit({ inRef: () => false });
+
+    const plan = await planChangeWorktree({ git, repositoryRoot: root, changeName: "a-new-change", base: "origin/main" });
+
+    expect(plan).toMatchObject({ ok: true, branch: "a-new-change", base: "origin/main" });
   });
 
   it("looks for the change under the base it was given", async () => {

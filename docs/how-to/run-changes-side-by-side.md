@@ -14,6 +14,20 @@ root outside the repository rather than inside it. The root is
 openspec-ui-cli worktree add my-change
 ```
 
+A change that does not exist yet gets its directory the same way, cut from
+the server's default branch, and is then proposed there:
+
+```bash
+git fetch origin
+openspec-ui-cli worktree add my-new-change --base origin/main
+```
+
+Only a change that exists as uncommitted files in the main checkout is
+refused: commit it first. "Create OpenSpec Change" in either host does
+this for you, and every agent in a repository this product initialized
+is told to do the same by the section "How work is done in this
+repository" in `CLAUDE.md` and `AGENTS.md` (ADR 0043).
+
 **2.** Run it there.
 
 ```bash

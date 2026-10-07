@@ -15,7 +15,7 @@ import {
   UnknownBuiltInTemplateError,
   UnknownProjectTemplateError,
   buildSprintReport,
-  createChange,
+  createChangeInItsWorktree,
   customizeTemplate,
   deleteProjectTemplate,
   detectAvailableAgents,
@@ -29,6 +29,7 @@ import {
   InvalidChangeNameError,
   InvalidHarnessConfigError,
   initOpenSpec,
+  writeWorkflowRules,
   listBuiltInTemplates,
   listChanges,
   listProjectTemplates,
@@ -256,6 +257,10 @@ interface ChangeEditorCreateRequest {
 interface OpenSpecInitRequest {
   cwd: string;
   tools: string[];
+  /** Whether the rules for how work is done here may be added to the end
+   * of a CLAUDE.md or AGENTS.md somebody else wrote
+   * (agents-are-told-how-work-is-done-here). */
+  appendWorkflowRules?: boolean;
 }
 
 /** Sweeps a workspace again every few minutes while the sweep has an
@@ -438,8 +443,19 @@ export async function handleChangeEditorCreateRequest(req: IncomingMessage, res:
   if (!authorizeCwd(res, policy, parsed.cwd)) return;
 
   try {
-    await createChange(parsed.changeName, { cwd: parsed.cwd }, { description: parsed.description });
-    sendJson(res, 200, { ok: true, changeName: parsed.changeName });
+    // In a working directory of its own (agents-are-told-how-work-is-done-here,
+    // ADR 0043): the page is told where, and works on it there.
+    const made = await createChangeInItsWorktree({
+      repositoryRoot: parsed.cwd,
+      changeName: parsed.changeName,
+      createOptions: { description: parsed.description },
+    });
+    sendJson(res, 200, {
+      ok: true,
+      changeName: parsed.changeName,
+      directory: made.directory,
+      ...(made.branch !== undefined ? { branch: made.branch } : {}),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to create change: ${message}` });
@@ -856,8 +872,11 @@ export async function handleOpenSpecInitRequest(req: IncomingMessage, res: Serve
     }
 
     await initOpenSpec({ cwd: parsed.cwd }, { tools: normalizeRequestedTools(parsed.tools) });
+    // At once, so the first agent that works here is told where a change is
+    // worked (agents-are-told-how-work-is-done-here).
+    const workflowRules = await writeWorkflowRules(parsed.cwd, { appendToForeign: parsed.appendWorkflowRules === true });
     const nextInitialization = await detectOpenSpecInitialization(parsed.cwd);
-    sendJson(res, 200, { ok: true, initialization: nextInitialization });
+    sendJson(res, 200, { ok: true, initialization: nextInitialization, workflowRules });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to initialize OpenSpec: ${message}` });

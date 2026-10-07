@@ -92,8 +92,9 @@ describe("worktree add", () => {
     expect(io.out.join("\n")).toContain("openspec-ui-cli run a-change --cwd");
   });
 
-  it("refuses a change that is not in the base, and creates nothing", async () => {
+  it("refuses a change that is only uncommitted in the main checkout, and creates nothing", async () => {
     const root = await temporaryRoot();
+    await mkdir(path.join(root, "openspec", "changes", "a-change"), { recursive: true });
     const io = collectingIo();
     const git = fakeGit({ inRef: false });
 

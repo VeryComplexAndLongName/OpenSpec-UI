@@ -412,6 +412,40 @@ describe("server — REST /api/status", () => {
     expect(body.initialization.canInitialize).toBe(false);
   });
 
+  // agents-are-told-how-work-is-done-here 2.2.
+  it("writes how work is done here when it initializes, and adds it to a file of somebody else's only when asked", async () => {
+    const initialize = (cwd: string) => async () => {
+      await mkdir(path.join(cwd, "openspec", "changes"), { recursive: true });
+      await writeFile(path.join(cwd, "openspec", "config.yaml"), "# test\n", "utf8");
+      await writeFile(path.join(cwd, "AGENTS.md"), "# OpenSpec's own\n", "utf8");
+      return { stdout: "ok", stderr: "" };
+    };
+
+    const declined = await createTempWorkspace();
+    initOpenSpecMock.mockImplementationOnce(initialize(declined));
+    const first = await fetch(`${baseUrl}/api/openspec/init`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: declined, tools: ["claude"] }),
+    });
+    expect(first.status).toBe(200);
+    expect(((await first.json()) as { workflowRules: Record<string, string> }).workflowRules).toEqual({ "CLAUDE.md": "created", "AGENTS.md": "skipped-foreign" });
+    expect(await readFile(path.join(declined, "CLAUDE.md"), "utf8")).toContain("Every change in a working directory of its own");
+    expect(await readFile(path.join(declined, "AGENTS.md"), "utf8")).toBe("# OpenSpec's own\n");
+
+    const agreed = await createTempWorkspace();
+    initOpenSpecMock.mockImplementationOnce(initialize(agreed));
+    const second = await fetch(`${baseUrl}/api/openspec/init`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd: agreed, tools: ["claude"], appendWorkflowRules: true }),
+    });
+    expect(((await second.json()) as { workflowRules: Record<string, string> }).workflowRules["AGENTS.md"]).toBe("appended");
+    const agents = await readFile(path.join(agreed, "AGENTS.md"), "utf8");
+    expect(agents.startsWith("# OpenSpec's own\n")).toBe(true);
+    expect(agents).toContain("Who does which stage");
+  });
+
   it("rejects init request with unsupported tools", async () => {
     const cwd = await createTempWorkspace();
 
@@ -439,6 +473,30 @@ describe("server — REST /api/status", () => {
       body: JSON.stringify({ cwd: "/workspace/repo" }),
     });
     expect(hostileOrigin.status).toBe(403);
+  });
+
+  // agents-are-told-how-work-is-done-here, ADR 0043: a change made in a
+  // working directory of its own is worked there from the page too; a
+  // sibling of that directory, or another repository's, is still outside.
+  it("allows the repository's own working directories, and nothing else outside the workspace", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "openspec-worktree-policy-"));
+    const previous = process.env.OPENSPEC_UI_WORKTREE_ROOT;
+    process.env.OPENSPEC_UI_WORKTREE_ROOT = path.join(root, "trees");
+    try {
+      await server.close();
+      server = createServer({ workspaceRoot: path.join(root, "repo"), host: "127.0.0.1", port: 0, accessToken: ACCESS_TOKEN });
+      const address = await server.listen();
+      baseUrl = `http://127.0.0.1:${address.port}`;
+      const status = async (cwd: string) => (await fetch(`${baseUrl}/api/overview`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ cwd }) })).status;
+
+      await vi.waitFor(async () => expect(await status(path.join(root, "trees", "repo", "a-change"))).not.toBe(403));
+      expect(await status(path.join(root, "trees", "other-repo", "a-change"))).toBe(403);
+      expect(await status(path.join(root, "trees"))).toBe(403);
+    } finally {
+      if (previous === undefined) delete process.env.OPENSPEC_UI_WORKTREE_ROOT;
+      else process.env.OPENSPEC_UI_WORKTREE_ROOT = previous;
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("rejects an external cwd by default and oversized request bodies", async () => {
