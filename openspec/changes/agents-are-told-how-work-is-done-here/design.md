@@ -32,6 +32,15 @@ marker. `planChangeWorktree` refuses a change not in the base commit.
    `<worktree root>/<repository>/`, resolved once at start, so the page can
    follow the change.
 
+7. **The setup on the server first.** A directory is cut from
+   `origin/main`, which in a repository just initialized holds none of
+   `openspec/` nor the rules (found by the owner on 2026-10-07: the setup,
+   both files and the first change all lay uncommitted in `main`). The rules
+   say that committing and pushing the setup to the default branch is the
+   one thing done in the checkout, and that an agent for whom that is not
+   its to do stops and says so; both hosts say "commit and push the OpenSpec
+   setup next" when initialization ends.
+
 ## Risks / Trade-offs
 
 - **A person who wanted the change in the checkout.** It is now in a

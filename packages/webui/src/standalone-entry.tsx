@@ -1709,7 +1709,7 @@ function StandaloneApp() {
       const written = rules.filter(([, status]) => status !== "skipped-foreign" && status !== "unchanged").map(([name]) => name);
       const skipped = rules.filter(([, status]) => status === "skipped-foreign").map(([name]) => name);
       setInitMessage([
-        "OpenSpec initialized successfully.",
+        "OpenSpec initialized successfully. Commit and push the OpenSpec setup to main next: each change is cut from it, in a working directory of its own.",
         written.length > 0 ? `How work is done here was written into ${written.join(", ")}.` : "",
         skipped.length > 0 ? `${skipped.join(", ")} was left as it was.` : "",
       ].filter((part) => part.length > 0).join(" "));

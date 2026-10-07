@@ -37,7 +37,10 @@ decision 3), so the order was always "in the checkout first".
    machine; the commands that make it, with and without this product's
    CLI; and that the stage assignment is in `openspec/agent-harness.json`
    and a change's `harness.json`, and a stage named for another agent is
-   not done but handed back.
+   not done but handed back. Since a change is cut from the server's
+   default branch, the rules also say that the OpenSpec setup must be
+   there first: committing and pushing it is the one thing done in the
+   checkout.
 2. **It is written when a repository is initialized**, in both hosts, and
    on demand ("Write Agent Workflow Rules"). A file that does not exist is
    created; the section is rewritten in place where it is; a file somebody

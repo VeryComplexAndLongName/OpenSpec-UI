@@ -1668,7 +1668,7 @@ describe("registerCommands", () => {
       await vscodeMock._registeredCommands.get("openspec-ui.initialize")?.();
 
       await vi.waitFor(() => {
-        expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith("OpenSpec Workbench: workspace initialized.");
+        expect(vscodeMock.window.showInformationMessage).toHaveBeenCalledWith("OpenSpec Workbench: workspace initialized. Commit and push the OpenSpec setup to main next: each change is cut from it, in a working directory of its own.");
       });
       expect(vscodeMock.window.showInformationMessage).not.toHaveBeenCalledWith(
         "OpenSpec Workbench: set up the Agentic Harness for this workspace now?",

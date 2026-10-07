@@ -1552,7 +1552,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await initOpenSpec({ cwd: workspaceRoot }, { tools: selected }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized.");
+        void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized. Commit and push the OpenSpec setup to main next: each change is cut from it, in a working directory of its own.");
         // At once, so the first agent that works here is told where a
         // change is worked (agents-are-told-how-work-is-done-here).
         await writeWorkflowRulesHere(workspaceRoot);

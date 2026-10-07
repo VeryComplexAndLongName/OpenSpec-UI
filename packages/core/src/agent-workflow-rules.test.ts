@@ -43,6 +43,9 @@ describe("the workflow rules", () => {
     expect(rules).toContain("git worktree add ../.worktrees/shop/<change-id> -b <change-id> origin/main");
     expect(rules).toContain("Do not create an OpenSpec change, or edit one, in this checkout");
     expect(rules).toContain("openspec/agent-harness.json");
+    // Live 2026-10-07: a repository just initialized had none of it on the
+    // server, so a directory cut from origin/main would have held nothing.
+    expect(rules).toContain("`origin/main` must already hold this repository's OpenSpec setup");
   });
 
   it("creates both files where there are none", async () => {

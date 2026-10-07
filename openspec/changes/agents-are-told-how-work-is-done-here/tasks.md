@@ -15,6 +15,11 @@ Asked on 2026-10-07. ADR 0043.
 - [x] 1.3 `change-in-its-worktree.ts` (decision 5). Tests: cut from
   `origin/main` after a fetch and made there; made in the workspace
   without a remote.
+- [x] 1.4 The rules say the setup must be on the server first, and how
+  (design.md decision 7); both hosts say so when initialization ends.
+  Found by the owner on 2026-10-07. Test: the text in
+  `agent-workflow-rules.test.ts`; the extension's message in
+  `commands.test.ts`.
 
 ## 2. Hosts
 
