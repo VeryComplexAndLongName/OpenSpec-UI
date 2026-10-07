@@ -45,14 +45,16 @@ test.describe("standalone lifecycle: execution", () => {
       await expect(page.getByTestId("run-status-label")).toContainText("Completed", { timeout: 15000 });
 
       const events = page.locator('[data-testid="event-log"] > li');
-      await expect(events).toHaveCount(4);
+      // The `completed` event is drawn once, in the Result section, not
+      // again in the log (the-board-and-the-run-read-right).
+      await expect(events).toHaveCount(3);
       const classes = await events.evaluateAll((elements) => elements.map((element) => element.className));
       expect(classes).toEqual([
         "openspec-event openspec-event--started",
         "openspec-event openspec-event--progress",
         "openspec-event openspec-event--stdout",
-        "openspec-event openspec-event--completed",
       ]);
+      await expect(page.getByTestId("run-result")).toHaveCount(1);
 
       expect(pageErrors).toEqual([]);
     } finally {
