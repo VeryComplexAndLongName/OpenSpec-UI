@@ -449,6 +449,9 @@ function StandaloneApp() {
   // CLAUDE.md or AGENTS.md somebody else wrote: asked on the page, before
   // anything is written (agents-are-told-how-work-is-done-here).
   const [initAppendRules, setInitAppendRules] = useState(true);
+  // Commit and push the setup right away, so a change has origin/main to be
+  // cut from (agents-are-told-how-work-is-done-here).
+  const [initCommitSetup, setInitCommitSetup] = useState(true);
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
   const [archivedTemplateSource, setArchivedTemplateSource] = useState("");
@@ -1697,9 +1700,9 @@ function StandaloneApp() {
       const response = await apiFetch("/api/openspec/init", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd, tools: initTools, appendWorkflowRules: initAppendRules }),
+        body: JSON.stringify({ cwd, tools: initTools, appendWorkflowRules: initAppendRules, commitSetup: initCommitSetup }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; workflowRules?: Record<string, string> };
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; workflowRules?: Record<string, string>; setupCommit?: { said?: string } };
       if (!response.ok) {
         throw new Error(payload.error ?? `${response.status} ${response.statusText}`);
       }
@@ -1709,9 +1712,12 @@ function StandaloneApp() {
       const written = rules.filter(([, status]) => status !== "skipped-foreign" && status !== "unchanged").map(([name]) => name);
       const skipped = rules.filter(([, status]) => status === "skipped-foreign").map(([name]) => name);
       setInitMessage([
-        "OpenSpec initialized successfully. Commit and push the OpenSpec setup to main next: each change is cut from it, in a working directory of its own.",
+        "OpenSpec initialized successfully.",
         written.length > 0 ? `How work is done here was written into ${written.join(", ")}.` : "",
         skipped.length > 0 ? `${skipped.join(", ")} was left as it was.` : "",
+        payload.setupCommit?.said !== undefined
+          ? `${payload.setupCommit.said.charAt(0).toUpperCase()}${payload.setupCommit.said.slice(1)}.`
+          : "Commit and push the OpenSpec setup to main before the first change: each change is cut from it.",
       ].filter((part) => part.length > 0).join(" "));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1972,6 +1978,15 @@ function StandaloneApp() {
                   onChange={(e) => setInitAppendRules(e.currentTarget.checked)}
                 />
                 <span>Add how work is done here (each change in its own working directory, who does which stage) to the end of an existing CLAUDE.md or AGENTS.md</span>
+              </label>
+              <label className="openspec-check-row">
+                <input
+                  type="checkbox"
+                  data-testid="init-commit-setup"
+                  checked={initCommitSetup}
+                  onChange={(e) => setInitCommitSetup(e.currentTarget.checked)}
+                />
+                <span>Commit the OpenSpec setup to main and push it, so each change can be cut from origin/main</span>
               </label>
             </div>
             <div className="openspec-panel-foot">

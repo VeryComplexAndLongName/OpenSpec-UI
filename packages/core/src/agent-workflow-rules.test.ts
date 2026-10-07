@@ -45,7 +45,10 @@ describe("the workflow rules", () => {
     expect(rules).toContain("openspec/agent-harness.json");
     // Live 2026-10-07: a repository just initialized had none of it on the
     // server, so a directory cut from origin/main would have held nothing.
-    expect(rules).toContain("`origin/main` must already hold this repository's OpenSpec setup");
+    expect(rules).toContain("`origin/main` must hold this repository's OpenSpec setup");
+    // And when it does not, the agent does it and goes on: told to stop,
+    // Copilot stopped, with the change unmade (2026-10-07).
+    expect(rules).toContain("commit the setup - nothing of any change - to `main`, push it, and go on");
   });
 
   it("creates both files where there are none", async () => {

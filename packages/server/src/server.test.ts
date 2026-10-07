@@ -446,6 +446,46 @@ describe("server — REST /api/status", () => {
     expect(agents).toContain("Who does which stage");
   });
 
+  // agents-are-told-how-work-is-done-here 1.5: with nothing on the server,
+  // an agent had nothing to cut its change from (2026-10-07).
+  it("commits what initializing made to main and pushes it, where the form says so", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const cwd = await createTempWorkspace();
+    const remote = `${cwd}-remote.git`;
+    const git = (args: string[], at = cwd) => execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: at });
+    git(["init", "-q", "--bare", "-b", "main", remote], path.dirname(cwd));
+    git(["init", "-q", "-b", "main"]);
+    git(["config", "user.name", "Fixture"]);
+    git(["config", "user.email", "fixture@example.com"]);
+    await writeFile(path.join(cwd, "README.md"), "fixture\n", "utf8");
+    await writeFile(path.join(cwd, "notes.txt"), "mine, not committed\n", "utf8");
+    git(["add", "README.md"]);
+    git(["commit", "-q", "-m", "init"]);
+    git(["remote", "add", "origin", remote]);
+    git(["push", "-q", "-u", "origin", "main"]);
+    initOpenSpecMock.mockImplementationOnce(async () => {
+      await mkdir(path.join(cwd, "openspec", "changes"), { recursive: true });
+      await writeFile(path.join(cwd, "openspec", "config.yaml"), "# test\n", "utf8");
+      return { stdout: "ok", stderr: "" };
+    });
+
+    const res = await fetch(`${baseUrl}/api/openspec/init`, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ cwd, tools: ["claude"], commitSetup: true }),
+    });
+
+    const body = (await res.json()) as { setupCommit: { state: string; paths: string[]; said: string } };
+    expect(body.setupCommit.state).toBe("pushed");
+    expect(body.setupCommit.paths).toEqual(expect.arrayContaining(["AGENTS.md", "CLAUDE.md"]));
+    expect(body.setupCommit.paths.some((entry) => entry.startsWith("openspec/"))).toBe(true);
+    expect(body.setupCommit.paths).not.toContain("notes.txt");
+    expect(git(["ls-tree", "--name-only", "main"], remote).toString()).toContain("openspec");
+    await rm(remote, { recursive: true, force: true });
+    // every-varying-check-has-a-budget: real git, eight processes. Measured
+    // 2026-10-07 at 5 s alone and 35 s on a loaded machine.
+  }, 60_000);
+
   it("rejects init request with unsupported tools", async () => {
     const cwd = await createTempWorkspace();
 

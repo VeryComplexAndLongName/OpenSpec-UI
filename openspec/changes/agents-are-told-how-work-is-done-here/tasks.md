@@ -21,6 +21,16 @@ Asked on 2026-10-07. ADR 0043.
   `agent-workflow-rules.test.ts`; the extension's message in
   `commands.test.ts`.
 
+- [x] 1.5 `openspec-setup-commit.ts`: `uncommittedPaths`,
+  `commitOpenSpecSetup`, `describeSetupCommitted`; the rules let the agent
+  commit the setup and go on (design.md decision 8). Found by the owner on
+  2026-10-07, when Copilot stopped. Tests in
+  `openspec-setup-commit.test.ts` (only what initializing made, not on
+  another branch or without a remote, a refused push), the text in
+  `agent-workflow-rules.test.ts`; the extension's offer in
+  `commands.test.ts`; the server's in `server.test.ts`, against a real
+  bare remote.
+
 ## 2. Hosts
 
 - [x] 2.1 `packages/extension`: the rules on initialize and in "Write

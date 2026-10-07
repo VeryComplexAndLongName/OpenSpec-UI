@@ -74,6 +74,10 @@ import {
   createChangeInItsWorktree,
   workflowRulesNeedConsent,
   writeWorkflowRules,
+  commitOpenSpecSetup,
+  describeSetupCommitted,
+  uncommittedPaths,
+  type UncommittedPaths,
   type ChangeMade,
   writeChangeHarnessConfig,
   repoSetupActionVerdict,
@@ -861,6 +865,28 @@ function announceChangeMade(changeName: string, made: ChangeMade | undefined, wo
   });
 }
 
+/** Offers to commit what initializing made to main and push it: every
+ * change is cut from origin/main, and until the setup is there an agent
+ * has nothing to cut one from (agents-are-told-how-work-is-done-here). */
+async function offerCommitSetup(workspaceRoot: string, before: UncommittedPaths): Promise<void> {
+  const pick = await vscode.window.showQuickPick(["Yes", "No"], {
+    title: "Commit the OpenSpec setup to main and push it now?",
+    placeHolder: "Each change is cut from origin/main in a working directory of its own; until the setup is there, there is nothing to cut it from",
+  });
+  if (pick !== "Yes") {
+    void vscode.window.showInformationMessage("OpenSpec Workbench: commit and push the OpenSpec setup to main before the first change: each change is cut from it.");
+    return;
+  }
+  try {
+    const result = await commitOpenSpecSetup({ repositoryRoot: workspaceRoot, before });
+    const said = `OpenSpec Workbench: ${describeSetupCommitted(result)}.`;
+    if (result.state === "pushed" || result.state === "nothing") void vscode.window.showInformationMessage(said);
+    else void vscode.window.showWarningMessage(said);
+  } catch (error) {
+    await showCommandError("commit the OpenSpec setup", error);
+  }
+}
+
 async function offerGenerateAgentInstructions(workspaceRoot: string): Promise<void> {
   await offerProjectGuidelines(workspaceRoot);
   await writeWorkflowRulesHere(workspaceRoot);
@@ -1545,6 +1571,9 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         },
       );
       if (!selected || selected.length === 0) return;
+      // What was already not committed, so that the setup's commit takes
+      // only what initializing made (agents-are-told-how-work-is-done-here).
+      const before: UncommittedPaths = await uncommittedPaths(createGitWrapper({ cwd: workspaceRoot })).catch(() => new Set<string>());
       try {
         await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "initialize",
@@ -1552,10 +1581,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           execute: async () => { await initOpenSpec({ cwd: workspaceRoot }, { tools: selected }); },
         });
         deps.refreshTrees();
-        void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized. Commit and push the OpenSpec setup to main next: each change is cut from it, in a working directory of its own.");
+        void vscode.window.showInformationMessage("OpenSpec Workbench: workspace initialized.");
         // At once, so the first agent that works here is told where a
-        // change is worked (agents-are-told-how-work-is-done-here).
+        // change is worked, and has the setup on the server to cut its
+        // change from (agents-are-told-how-work-is-done-here).
         await writeWorkflowRulesHere(workspaceRoot);
+        await offerCommitSetup(workspaceRoot, before);
         void suggestAgenticHarnessSetup(workspaceRoot);
       } catch (error) {
         await showCommandError("initialize workspace", error);

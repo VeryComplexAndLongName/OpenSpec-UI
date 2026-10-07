@@ -50,7 +50,7 @@ export function renderWorkflowRules(repositoryName: string, defaultBranch = "mai
     "- Do not create an OpenSpec change, or edit one, in this checkout or on the branch it has checked out.",
     `- Each change is worked in a git worktree of its own, on a branch named after the change, cut from \`${base}\` as the server has it now.`,
     `  Its place is \`<worktree root>/${repositoryName}/<change-id>\`. The worktree root is \`OPENSPEC_UI_WORKTREE_ROOT\` where that is set, else \`worktreeRoot\` in \`~/.openspec-ui/settings.json\`, else \`.worktrees\` beside this repository - so by default \`../.worktrees/${repositoryName}/<change-id>\`.`,
-    `- A change is cut from what the server has, so \`${base}\` must already hold this repository's OpenSpec setup (\`openspec/\`, these rules). Where it does not yet, the one thing done in this checkout is committing that setup to \`${defaultBranch}\` and pushing it - and nothing of any change with it. Stop and say so if that is not yours to do.`,
+    `- A change is cut from what the server has, so \`${base}\` must hold this repository's OpenSpec setup (\`openspec/\`, these rules). Where it does not yet, do that first, here in this checkout and only that: commit the setup - nothing of any change - to \`${defaultBranch}\`, push it, and go on. Stop and say so only if the push is refused.`,
     "- Make it before writing anything for the change:",
     "",
     "  ```",

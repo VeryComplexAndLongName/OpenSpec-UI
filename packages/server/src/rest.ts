@@ -30,6 +30,9 @@ import {
   InvalidHarnessConfigError,
   initOpenSpec,
   writeWorkflowRules,
+  commitOpenSpecSetup,
+  describeSetupCommitted,
+  uncommittedPaths,
   listBuiltInTemplates,
   listChanges,
   listProjectTemplates,
@@ -261,6 +264,9 @@ interface OpenSpecInitRequest {
    * of a CLAUDE.md or AGENTS.md somebody else wrote
    * (agents-are-told-how-work-is-done-here). */
   appendWorkflowRules?: boolean;
+  /** Whether what initializing made is committed to main and pushed, so a
+   * change can be cut from origin/main (agents-are-told-how-work-is-done-here). */
+  commitSetup?: boolean;
 }
 
 /** Sweeps a workspace again every few minutes while the sweep has an
@@ -871,12 +877,23 @@ export async function handleOpenSpecInitRequest(req: IncomingMessage, res: Serve
       return;
     }
 
+    const before = await uncommittedPaths(createGitWrapper({ cwd: parsed.cwd })).catch(() => new Set<string>());
     await initOpenSpec({ cwd: parsed.cwd }, { tools: normalizeRequestedTools(parsed.tools) });
     // At once, so the first agent that works here is told where a change is
     // worked (agents-are-told-how-work-is-done-here).
     const workflowRules = await writeWorkflowRules(parsed.cwd, { appendToForeign: parsed.appendWorkflowRules === true });
+    const setupCommit = parsed.commitSetup === true
+      ? await commitOpenSpecSetup({ repositoryRoot: parsed.cwd, before }).catch((error: unknown) => ({ state: "failed" as const, reason: error instanceof Error ? error.message : String(error) }))
+      : undefined;
     const nextInitialization = await detectOpenSpecInitialization(parsed.cwd);
-    sendJson(res, 200, { ok: true, initialization: nextInitialization, workflowRules });
+    sendJson(res, 200, {
+      ok: true,
+      initialization: nextInitialization,
+      workflowRules,
+      ...(setupCommit !== undefined
+        ? { setupCommit: { ...setupCommit, said: setupCommit.state === "failed" ? `the OpenSpec setup was not committed: ${setupCommit.reason}` : describeSetupCommitted(setupCommit) } }
+        : {}),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendJson(res, 500, { error: `failed to initialize OpenSpec: ${message}` });

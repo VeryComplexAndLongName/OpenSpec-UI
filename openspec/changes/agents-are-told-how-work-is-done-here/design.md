@@ -40,6 +40,16 @@ marker. `planChangeWorktree` refuses a change not in the base commit.
    one thing done in the checkout, and that an agent for whom that is not
    its to do stops and says so; both hosts say "commit and push the OpenSpec
    setup next" when initialization ends.
+8. **Initialize commits the setup, and the agent may too.** Told to stop
+   where the setup was not on the server, Copilot stopped with the change
+   unmade (the owner, 2026-10-07). So initializing offers - a Yes/No in the
+   editor, a checkbox, checked, on the standalone's form - to commit what
+   initializing made to `main` and push it: the paths not committed after
+   it that were not already so before it, without `.openspec-ui/`, and only
+   on `main` in a repository with an `origin`. A refused push keeps the
+   commit and says why. And the rules tell an agent that finds the setup
+   missing to commit it, and only it, push it, and go on; it stops only
+   where the push is refused.
 
 ## Risks / Trade-offs
 

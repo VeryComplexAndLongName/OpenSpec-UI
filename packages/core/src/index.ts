@@ -44,6 +44,7 @@ export * from "./template-catalog.js";
 export * from "./repo-bootstrap.js";
 export * from "./agent-workflow-rules.js";
 export * from "./change-in-its-worktree.js";
+export * from "./openspec-setup-commit.js";
 export * from "./harness-config.js";
 export * from "./run-log.js";
 export * from "./harness-config-schema.js";

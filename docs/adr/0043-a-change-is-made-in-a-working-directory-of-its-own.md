@@ -39,8 +39,8 @@ decision 3), so the order was always "in the checkout first".
    and a change's `harness.json`, and a stage named for another agent is
    not done but handed back. Since a change is cut from the server's
    default branch, the rules also say that the OpenSpec setup must be
-   there first: committing and pushing it is the one thing done in the
-   checkout.
+   there first: an agent that finds it missing commits it, and only it,
+   pushes it and goes on. Initializing offers to do that at once.
 2. **It is written when a repository is initialized**, in both hosts, and
    on demand ("Write Agent Workflow Rules"). A file that does not exist is
    created; the section is rewritten in place where it is; a file somebody
