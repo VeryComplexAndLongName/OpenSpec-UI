@@ -2883,7 +2883,11 @@ Each stage SHALL be proved by a dated fact:
   it came before the commit that adds `proposal.md`;
 - the commit that adds `proposal.md`;
 - the commit that adds `tasks.md`;
-- a closed task line, dated by `git blame`, or a run in the audit log;
+- a closed task line, dated by `git blame`, or a run in the audit log that
+  worked on the implementation: an `implement` or `verify` run, a chain's
+  `apply`, `verify` or `git` stage, the verify checks, or a run on one task.
+  A `plan` or `review` run, and an entry that names neither its command
+  nor its stage, SHALL NOT move a change on;
 - the pull request's creation, or a commit on the change's branch made
   while the pull request is open;
 - the pull request's merge;
@@ -2916,6 +2920,13 @@ without a time SHALL still make it Landed.
 
 - **WHEN** a change's proposal is in the first commit of its directory
 - **THEN** it has no Drafted visit
+
+#### Scenario: Planning and review runs
+
+- **WHEN** a planned change is run with `propose` and then `review`, and
+  later with `implement`
+- **THEN** it stays Planned through the first two runs, and is In progress
+  from the third
 
 ### Requirement: A change keeps every stay in every stage
 
