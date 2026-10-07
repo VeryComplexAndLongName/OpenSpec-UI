@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeNameOf, isRunEntry, runTimestampsByChange, VERIFY_CHECKS_AGENT_NAME } from "./audit-runs.js";
+import { changeNameOf, isRunEntry, isWorkEntry, runTimestampsByChange, VERIFY_CHECKS_AGENT_NAME, workTimestampsByChange } from "./audit-runs.js";
 import type { AuditEntry } from "./security.js";
 
 // quality-is-charged-to-the-agent-whose-work-was-checked:
@@ -78,5 +78,38 @@ describe("runTimestampsByChange", () => {
 describe("changeNameOf", () => {
   it("ignores a trailing separator", () => {
     expect(changeNameOf("/workspace/openspec/changes/one/")).toBe("one");
+  });
+});
+
+// the-board-and-the-run-read-right: a planning or review run put a change
+// In progress on the board, where it stayed.
+describe("isWorkEntry", () => {
+  const entry = (partial: Partial<AuditEntry>): AuditEntry => ({ runId: "r", agent: "claude-cli-acp", outcome: "started", cwd: "/w", timestamp: "2026-10-07T09:00:00.000Z", ...partial });
+
+  it("counts implementing and verifying runs, the apply, verify and git stages, the checks and a task's run", () => {
+    expect(isWorkEntry(entry({ command: "implement" }))).toBe(true);
+    expect(isWorkEntry(entry({ command: "verify" }))).toBe(true);
+    expect(isWorkEntry(entry({ stage: "apply" }))).toBe(true);
+    expect(isWorkEntry(entry({ stage: "git", agent: "git-stage" }))).toBe(true);
+    expect(isWorkEntry(entry({ agent: VERIFY_CHECKS_AGENT_NAME }))).toBe(true);
+    expect(isWorkEntry(entry({ taskNumber: "2.1" }))).toBe(true);
+  });
+
+  it("does not count planning, review, or an entry that says neither its command nor its stage", () => {
+    expect(isWorkEntry(entry({ command: "plan" }))).toBe(false);
+    expect(isWorkEntry(entry({ command: "review" }))).toBe(false);
+    expect(isWorkEntry(entry({ stage: "propose", command: "plan" }))).toBe(false);
+    expect(isWorkEntry(entry({ stage: "review" }))).toBe(false);
+    expect(isWorkEntry(entry({}))).toBe(false);
+  });
+
+  it("gives the board only the work's times", () => {
+    const changeDir = "/w/openspec/changes/demo";
+    const work = workTimestampsByChange([
+      entry({ changeDir, command: "plan", timestamp: "2026-10-07T09:00:00.000Z" }),
+      entry({ changeDir, command: "review", timestamp: "2026-10-07T09:10:00.000Z" }),
+      entry({ changeDir, command: "implement", timestamp: "2026-10-07T09:20:00.000Z" }),
+    ]);
+    expect(work.get("demo")).toEqual(["2026-10-07T09:20:00.000Z"]);
   });
 });

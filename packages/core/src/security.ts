@@ -364,6 +364,11 @@ export interface AuditEntry {
    * and on every failure recorded before it existed. */
   diagnosis?: FailureDiagnosis;
   summary?: string;
+  /** What the run was asked to do - `plan`, `review`, `implement`,
+   * `verify` and so on - on a run's own entries. Absent on entries written
+   * before it existed and on the chain's and the checks' own entries
+   * (the-board-and-the-run-read-right). */
+  command?: CommandKind;
   /** Absolute path to the OpenSpec change this run applies to (mirrors
    * `CommandContext.changeDir`) — the grouping key `usage-report.ts`'s
    * "by change" totals and `HarnessChainRunner`'s budget check use.

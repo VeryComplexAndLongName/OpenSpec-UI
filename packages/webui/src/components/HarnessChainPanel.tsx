@@ -18,7 +18,7 @@ import {
   isShownInEventLog,
   isTerminal,
   PermissionRequestPrompt,
-  renderEventBody,
+  eventLogClass, renderEventBody,
 } from "./AiPanel.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
 import { UsageSummaryView } from "./UsageSummaryView.js";
@@ -176,7 +176,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           Pipeline tab by a-change-is-run-from-its-card). */}
       <ul className="openspec-ai-panel-events" data-testid="chain-event-log" tabIndex={0} aria-label="Chain events">
         {collapsedEvents.filter(isShownInEventLog).map((event, index) => (
-          <li key={index} data-testid={`chain-event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
+          <li key={index} data-testid={`chain-event-${index}`} className={eventLogClass(event)}>
             {renderEventBody(event, index)}
           </li>
         ))}

@@ -26,6 +26,7 @@ import {
 import type { Transport } from "../transport/types.js";
 import { AGENT_COMMANDS } from "../notify-run-completion.js";
 import { FailureDiagnosisNote } from "./FailureDiagnosisNote.js";
+import { renderMarkdown } from "../markdown.js";
 
 // The four stages an agent runs come last, in the order a chain runs them,
 // and are shown under OpenSpec's names (`commandLabel`).
@@ -117,6 +118,8 @@ interface StepItem {
 
 interface RunInsights {
   steps: StepItem[];
+  /** How many tools an ACP agent called. */
+  toolCalls: number;
   warnings: string[];
   highlights: string[];
   terminal: string | null;
@@ -470,11 +473,19 @@ function isTelemetryLine(text: string): boolean {
 
 function collectRunInsights(events: Event[]): RunInsights {
   const steps: StepItem[] = [];
+  // An ACP agent's work is its tool calls; the numbered steps below are
+  // read only from what a text agent printed, so its runs said "Steps: 0"
+  // however much they did (the-board-and-the-run-read-right).
+  let toolCalls = 0;
   const warnings: string[] = [];
   const highlights: string[] = [];
   let terminal: string | null = null;
 
   for (const event of events) {
+    if (event.kind === "agentUpdate" && event.update.sessionUpdate === "tool_call") {
+      toolCalls += 1;
+      continue;
+    }
     if (event.kind === "stdout") {
       const structured = parseStructuredText(event.chunk);
       if (structured.kind === "steps") {
@@ -522,6 +533,7 @@ function collectRunInsights(events: Event[]): RunInsights {
 
   return {
     steps,
+    toolCalls,
     warnings,
     highlights,
     terminal,
@@ -656,7 +668,7 @@ function describeEvent(event: Event): string {
   }
 }
 
-function renderStructuredText(raw: string, index: number): ReactNode {
+function renderStructuredText(raw: string, index: number, options: { plainAsMarkdown?: boolean } = {}): ReactNode {
   const structured = parseStructuredText(raw);
 
   switch (structured.kind) {
@@ -829,7 +841,9 @@ function renderStructuredText(raw: string, index: number): ReactNode {
         </ol>
       );
     case "plain":
-      return <pre className="openspec-event-text">{structured.text}</pre>;
+      return options.plainAsMarkdown === true
+        ? <div className="openspec-md-preview">{renderMarkdown(structured.text)}</div>
+        : <pre className="openspec-event-text">{structured.text}</pre>;
   }
 }
 
@@ -876,18 +890,58 @@ export function isShownInEventLog(event: Event): boolean {
 export function renderEventBody(event: Event, index: number): ReactNode {
   switch (event.kind) {
     case "stdout":
-      return renderStructuredText(event.chunk, index);
+      // What a text agent printed is Markdown, as a person writes it; a
+      // CLI's JSON is still drawn as its card (the-board-and-the-run-read-right).
+      return renderStructuredText(event.chunk, index, { plainAsMarkdown: true });
     case "stderr":
       return renderStructuredText(event.chunk, index);
     case "completed":
       return event.summary ? renderStructuredText(`completed: ${event.summary}`, index) : "completed";
     case "agentUpdate": {
       const text = extractAgentUpdateText(event.update);
-      return text ? renderStructuredText(text, index) : describeEvent(event);
+      if (text === undefined) return describeEvent(event);
+      // What the agent said is Markdown; what it thought stays as written.
+      return event.update.sessionUpdate === "agent_message_chunk"
+        ? <div className="openspec-md-preview">{renderMarkdown(text)}</div>
+        : renderStructuredText(text, index);
     }
     default:
       return describeEvent(event);
   }
+}
+
+/** The log line's own class: what the agent said reads as text, a tool
+ * call or a command as a quiet line under it. */
+export function eventLogClass(event: Event): string {
+  if (event.kind === "agentUpdate") {
+    return extractAgentUpdateText(event.update) !== undefined ? "openspec-event openspec-event--said" : "openspec-event openspec-event--tool";
+  }
+  return `openspec-event openspec-event--${event.kind}`;
+}
+
+function sameText(left: string, right: string): boolean {
+  const normalize = (text: string) => text.replace(/\s+/gu, " ").trim();
+  const a = normalize(left);
+  const b = normalize(right);
+  if (a.length === 0 || b.length === 0) return false;
+  return a === b || (Math.min(a.length, b.length) >= 40 && (a.includes(b) || b.includes(a)));
+}
+
+/** The events the log draws, once the result is drawn on its own: the
+ * `completed` event is left out, and so is the agent's last message where
+ * it is the result again. They were drawn two and three times
+ * (the-board-and-the-run-read-right). */
+export function eventsForLog(events: readonly Event[]): Event[] {
+  const shown = events.filter(isShownInEventLog);
+  const completed = [...shown].reverse().find((event): event is Extract<Event, { kind: "completed" }> => event.kind === "completed");
+  const summary = completed?.summary;
+  const withoutCompleted = shown.filter((event) => event.kind !== "completed");
+  if (summary === undefined || summary.trim().length === 0) return withoutCompleted;
+  const lastSaid = [...withoutCompleted].reverse().find((event) =>
+    (event.kind === "agentUpdate" && extractAgentUpdateText(event.update) !== undefined) || event.kind === "stdout");
+  if (lastSaid === undefined) return withoutCompleted;
+  const text = lastSaid.kind === "stdout" ? lastSaid.chunk : extractAgentUpdateText((lastSaid as Extract<Event, { kind: "agentUpdate" }>).update) ?? "";
+  return sameText(text, summary) ? withoutCompleted.filter((event) => event !== lastSaid) : withoutCompleted;
 }
 
 /** Plain-text suffix, since a native `<select>`'s `<option>` cannot render
@@ -1070,7 +1124,7 @@ export function AiPanel({
       : latestEvent?.kind === "failed"
         ? `Failed: ${latestEvent.reason}`
         : latestEvent?.kind === "completed"
-          ? `Completed${latestEvent.summary ? `: ${latestEvent.summary}` : ""}`
+          ? "Completed"
           : "Idle";
 
   // Auto-load the change list once the working directory is known, so the
@@ -1160,7 +1214,7 @@ export function AiPanel({
     setResolvedPermissionRequestIds((prev) => new Set(prev).add(requestId));
   }
 
-  const shownEvents = collapsedEvents.filter(isShownInEventLog);
+  const shownEvents = eventsForLog(collapsedEvents);
 
   return (
     <div className="openspec-ai-panel">
@@ -1232,6 +1286,15 @@ export function AiPanel({
       </p>
       {!isRunning && latestEvent?.kind === "failed" ? <FailureDiagnosisNote diagnosis={latestEvent.diagnosis} /> : null}
       {selectionHint ? <p className="openspec-shell-note">{selectionHint}</p> : null}
+      {!isRunning && latestEvent?.kind === "completed" && latestEvent.summary !== undefined && latestEvent.summary.trim().length > 0 ? (
+        // The result, once, as the Markdown it is (the-board-and-the-run-read-right).
+        <section className="openspec-panel openspec-run-result" data-testid="run-result">
+          <div className="openspec-panel-head">
+            <h2>Result</h2>
+          </div>
+          <div className="openspec-panel-body openspec-md-preview">{renderMarkdown(latestEvent.summary)}</div>
+        </section>
+      ) : null}
       {pendingPermissionRequest ? (
         <PermissionRequestPrompt
           request={pendingPermissionRequest}
@@ -1243,13 +1306,8 @@ export function AiPanel({
           <div className="openspec-panel-head">
             <h2>Run analysis</h2>
             <span className="openspec-panel-head-note openspec-run-insights-meta">
+              {runInsights.toolCalls > 0 ? <>Tool calls: <strong>{runInsights.toolCalls}</strong> | </> : null}
               Steps: <strong>{runInsights.steps.length}</strong> | Warnings: <strong>{runInsights.warnings.length}</strong>
-              {runInsights.terminal ? (
-                <>
-                  {" "}
-                  | Result: <strong>{runInsights.terminal}</strong>
-                </>
-              ) : null}
             </span>
           </div>
           {runInsights.steps.length > 0 ? (
@@ -1288,7 +1346,7 @@ export function AiPanel({
         ) : null}
         <ul className="openspec-ai-panel-events" data-testid="event-log">
           {shownEvents.map((event, index) => (
-            <li key={index} data-testid={`event-${index}`} className={`openspec-event openspec-event--${event.kind}`}>
+            <li key={index} data-testid={`event-${index}`} className={eventLogClass(event)}>
               {renderEventBody(event, index)}
             </li>
           ))}
