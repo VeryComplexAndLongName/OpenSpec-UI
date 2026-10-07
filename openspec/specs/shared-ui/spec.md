@@ -2344,3 +2344,31 @@ The run analysis SHALL count an ACP agent's tool calls.
   heading, the bold text and the list rendered, the run analysis says
   `Tool calls: 2` and does not hold the summary, and the log does not hold
   it either
+
+### Requirement: The plan can be updated from the panel and the card
+
+The AI panel SHALL offer `update` among its commands, with its purpose,
+and, when it is chosen, a field for notes for the update that says it also
+reads the change's last completed review. A change's card SHALL offer **Update the plan**
+where the change's last run was a review whose verdict was `changes
+needed`.
+
+#### Scenario: After a review that asks for changes
+
+- **WHEN** a change's last run was a review with verdict `changes needed`
+- **THEN** its card offers **Update the plan**, which opens the panel with
+  `update` chosen and a field for notes
+
+### Requirement: The AI panel follows its run to the end
+
+The AI panel SHALL receive every event of a run it started until the run's
+terminal event, however often its host renders it with new callbacks. A
+transport SHALL NOT close the channel a run's events arrive on while a
+component that unsubscribed subscribes again within the same task.
+
+#### Scenario: The host renders during a run
+
+- **WHEN** the standalone host renders the AI panel again, with a new
+  `onRunTerminal`, while a run started from the panel is in flight
+- **THEN** the panel keeps its one subscription, its socket stays open, and
+  the run's later events, a permission request among them, reach it
