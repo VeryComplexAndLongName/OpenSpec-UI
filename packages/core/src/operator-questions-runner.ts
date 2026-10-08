@@ -174,6 +174,8 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
     let first = true;
     let asked = 0;
     const answers: Array<{ question: string; answer: string }> = [];
+    /** The questions of this run already said to be answered in its stream. */
+    const announced = new Set<string>();
     for (;;) {
       const thisPass: Array<{ questionId: string; text: string }> = [];
       const seen = new Set<string>();
@@ -209,18 +211,78 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
         }
       }
 
-      for await (const event of runner.run(pass)) {
-        // One `started` per run: the pass that goes on is the same run.
-        if (!first && event.kind === "started") continue;
-        if (event.kind === "completed") {
-          held = event;
-          continue;
+      /** Says in this run's own stream that a question it asked has been
+       * answered, wherever the answer was given - this run's panel, a card,
+       * the CLI, the file - so whoever watches the run stops offering a
+       * field for it. A question the agent waits on in its turn
+       * (`ask_operator`) is answered while the pass goes on, and nothing
+       * else in the stream would say so (live, 2026-10-08). */
+      async function* announceAnswered(): AsyncGenerator<Event> {
+        const pending = thisPass.filter((question) => !announced.has(question.questionId));
+        if (pending.length === 0) return;
+        const recorded = await readQuestions(changeDir).catch(() => []);
+        for (const question of pending) {
+          const entry = recorded.find((each) => each.id === question.questionId);
+          if (entry?.answer === undefined) continue;
+          announced.add(question.questionId);
+          yield {
+            kind: "questionAnswered",
+            runId: command.runId,
+            timestamp: at(),
+            questionId: question.questionId,
+            answer: entry.answer,
+            ...(entry.answeredBy !== undefined ? { by: entry.answeredBy } : {}),
+          };
         }
-        yield event;
-        const spoken = spokenText(event);
-        if (spoken !== undefined) yield* readLines(lines.take(spoken));
+      }
+
+      const events = runner.run(pass)[Symbol.asyncIterator]();
+      let finished = false;
+      try {
+        for (;;) {
+          // While a question of this pass is unanswered, the file is read
+          // between the agent's events, and every `pollMs` when it says
+          // nothing - an agent waiting on `ask_operator` says nothing.
+          const next = events.next();
+          let result: IteratorResult<Event>;
+          for (;;) {
+            if (!thisPass.some((question) => !announced.has(question.questionId))) {
+              result = await next;
+              break;
+            }
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const raced = await Promise.race([
+              next,
+              new Promise<"tick">((resolve) => { timer = setTimeout(() => resolve("tick"), pollMs); }),
+            ]);
+            clearTimeout(timer);
+            if (raced !== "tick") {
+              result = raced;
+              break;
+            }
+            yield* announceAnswered();
+          }
+          if (result.done) {
+            finished = true;
+            break;
+          }
+          const event = result.value;
+          // One `started` per run: the pass that goes on is the same run.
+          if (!first && event.kind === "started") continue;
+          if (event.kind === "completed") {
+            held = event;
+            continue;
+          }
+          yield event;
+          const spoken = spokenText(event);
+          if (spoken !== undefined) yield* readLines(lines.take(spoken));
+          yield* announceAnswered();
+        }
+      } finally {
+        if (!finished) await events.return?.();
       }
       yield* readLines(lines.rest());
+      yield* announceAnswered();
 
       // Failed or cancelled: that is the run's end, as it always was.
       if (held === undefined) return;
@@ -255,6 +317,8 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
         const question = recorded.find((entry) => entry.id === id);
         if (question?.answer === undefined) continue;
         answers.push({ question: question.text, answer: question.answer });
+        if (announced.has(id)) continue;
+        announced.add(id);
         yield {
           kind: "questionAnswered",
           runId: command.runId,

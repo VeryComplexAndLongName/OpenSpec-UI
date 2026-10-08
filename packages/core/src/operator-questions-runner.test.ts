@@ -127,6 +127,44 @@ describe("withOperatorQuestions", () => {
     expect(seen.at(-1)).toMatchObject({ kind: "completed" });
   });
 
+  // Live on 2026-10-08: local-llm-acp waited in its turn, the answer came
+  // from the change's card, and the run panel kept offering a field for it.
+  it("says in the run's stream that a question the agent waits on in its turn was answered elsewhere", async () => {
+    const dir = await change();
+    const commands: Command[] = [];
+    // An agent that asks, then says nothing until its answer is in the
+    // file, as the local agent's ask_operator does.
+    const runner: AgentRunner = {
+      async *run(sent: Command) {
+        commands.push(sent);
+        yield { kind: "started", runId: sent.runId, timestamp: at, command: sent.kind, cwd: sent.cwd };
+        yield { kind: "stdout", runId: sent.runId, timestamp: at, chunk: "Question for the operator: CSV or vCard?\n" };
+        for (;;) {
+          const [question] = await openQuestions(dir);
+          if (question === undefined) break;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        yield { kind: "completed", runId: sent.runId, timestamp: at, summary: "exported as CSV" };
+      },
+    };
+    const wrapped = withOperatorQuestions(runner, { agent: "local-llm-acp", pollIntervalMs: 20 });
+
+    const events = wrapped.run(command(dir, "implement"))[Symbol.asyncIterator]();
+    const seen: Event[] = [];
+    await drainUntil(events, seen, "question");
+    const file = path.join(dir, "decisions.md");
+    await writeFile(file, (await readFile(file, "utf8")).replace("- Answer: (open)", "- Answer: CSV"), "utf8");
+    await drainAll(events, seen);
+
+    const kinds = seen.map((event) => event.kind);
+    expect(seen).toContainEqual(expect.objectContaining({ kind: "questionAnswered", questionId: questionId("run-ask-1", 1), answer: "CSV" }));
+    expect(kinds.indexOf("questionAnswered")).toBeLessThan(kinds.indexOf("completed"));
+    expect(kinds.filter((kind) => kind === "questionAnswered")).toHaveLength(1);
+    expect(kinds).not.toContain("awaitingAnswers");
+    expect(commands).toHaveLength(1);
+    expect(seen.at(-1)).toMatchObject({ kind: "completed", summary: "exported as CSV" });
+  });
+
   it("ends the wait on a cancel, leaving the question open", async () => {
     const dir = await change();
     const { runner } = scriptedAgent("Question for the operator: Which database?\n");

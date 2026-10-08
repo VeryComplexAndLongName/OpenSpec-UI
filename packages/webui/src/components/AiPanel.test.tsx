@@ -74,6 +74,20 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect((screen.getByTestId("operator-answer-Q-run1-1") as HTMLTextAreaElement).value).toBe("Ye");
     });
 
+    // Live on 2026-10-08: the field stayed after the run had ended.
+    it("offers no answer field once the run has ended", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        expect(screen.getByTestId("operator-questions")).toBeInTheDocument();
+
+        emit({ kind: "completed", runId: "run-1", timestamp: "t" });
+
+        expect(screen.queryByTestId("operator-questions")).toBeNull();
+    });
+
     it("sends a list command with generated runId", () => {
         const { transport, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-fixed"} />);

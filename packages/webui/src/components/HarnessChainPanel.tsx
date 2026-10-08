@@ -109,7 +109,9 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
 
   // The questions a stage's agent asked, answered here as in the AI panel
   // (the-agent-asks-the-operator, ADR 0042).
-  const openQuestions = findOpenQuestions(collapsedEvents);
+  // Once the run has ended nothing waits on an answer here; a question it
+  // left open is answered from the card, the CLI or decisions.md.
+  const openQuestions = isRunning ? findOpenQuestions(collapsedEvents) : [];
   function handleAnswerQuestion(questionId: string, answer: string) {
     const activeRunId = runIdRef.current;
     if (!activeRunId) return;

@@ -1344,7 +1344,9 @@ export function AiPanel({
   }
 
   const shownEvents = eventsForLog(collapsedEvents);
-  const openQuestions = findOpenQuestions(collapsedEvents);
+  // Once the run has ended nothing waits on an answer here; a question it
+  // left open is answered from the card, the CLI or decisions.md.
+  const openQuestions = isRunning ? findOpenQuestions(collapsedEvents) : [];
 
   return (
     <div className="openspec-ai-panel">

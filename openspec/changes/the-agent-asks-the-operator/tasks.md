@@ -85,6 +85,15 @@ the-plan-is-updated-from-its-review.
   request and drop one that was withdrawn or whose stage has ended. Tests:
   `AiPanel.test.tsx`, `HarnessChainPanel.test.tsx`,
   `acp-session-driver.test.ts` (a cancelled request, one left open).
+  Then, on the second round: a question `local-llm-acp` waited on in its
+  turn and the operator answered on the card stayed on the run panel,
+  and after the run ended, because only the waiting path said
+  `questionAnswered` in the run's stream. The wrapper now reads
+  `decisions.md` while the agent works and says each of the run's
+  questions answered there, whoever answered it, and the panels show no
+  answer field once the run has ended. Tests:
+  `operator-questions-runner.test.ts`, `AiPanel.test.tsx`,
+  `operator-question-instruction.test.ts` (the tool instruction).
 
 ## 3. Documents
 
@@ -112,7 +121,7 @@ the-plan-is-updated-from-its-review.
   merge gate with the worktree's absolute path as `--cwd`.
   2026-10-08, after rebasing onto origin/main: the change is valid under
   `--strict`; the gate names only 4.3 and 4.4 as still open.
-- [ ] 4.3 Live runs: a review on a CLI agent that asks a question, waits,
+- [x] 4.3 Live runs: a review on a CLI agent that asks a question, waits,
   and updates once answered; `local-llm-acp` asking through `ask_operator`
   mid-turn; record both.
   CLI agent, 2026-10-08, `copilot-cli-acp`, a scratch repository whose
@@ -129,9 +138,17 @@ the-plan-is-updated-from-its-review.
   design.md, and completed 77 s later. An earlier attempt on `claude-cli`
   failed before asking: that CLI is not signed in on this machine, and the
   failure said so.
-  Still open: `local-llm-acp` asking mid-turn has not been run live - no
-  local LLM endpoint is configured in this session's environment; the
-  behaviour is covered by `agent-loop.test.ts`.
+  `local-llm-acp`, 2026-10-08, by the operator in VS Code, with
+  Qwen3.6-35B-A3B-AWQ on choose-export-format (CSV or vCard undecided).
+  A first run printed the marker line instead of calling its tool: the
+  run waited, and went on as a second pass with the answer. Its
+  instruction now tells it to ask with `ask_operator`, and the second run
+  (`e6a70068`) called `ask_operator` twice in one turn, at 08:48:02 and,
+  to confirm the first answer, at 08:48:23; each question went into
+  `decisions.md` and on the card, the agent waited about 20 s and 4 min 40 s,
+  and went on in the same turn with the answer as the tool's result,
+  implemented both tasks and completed - no `awaitingAnswers`, no second
+  pass.
 - [ ] 4.4 **Human-only**: in either host, see a run stop on a question,
   answer it from the card, and see the run go on with the answer; see
   `apply` refused while a question is open.
