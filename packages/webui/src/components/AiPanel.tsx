@@ -167,26 +167,32 @@ export function isCancelling(events: readonly Event[]): boolean {
   return false;
 }
 
-/** Most recent still-unanswered `permissionRequest`, if any — exported
+/** Every still-unanswered `permissionRequest`, oldest first — exported
  * for `HarnessChainPanel.tsx` alongside `isTerminal`/`collapseStreamEvents`/
- * `renderEventBody`, so both panels share the one rule for "which request
- * is still pending" rather than keeping two copies that could drift (see
+ * `renderEventBody`, so both panels share the one rule for "which requests
+ * are still pending" rather than keeping two copies that could drift (see
  * openspec/changes/chain-answers-a-permission-request/design.md, "The
- * panel shares AiPanel's permission rendering, not its send"). Only ever
- * one request is actually pending at a time — the ACP driver blocks the
- * underlying agent on it (acp-session-driver.ts) — so the most recent one
- * is the only one that can still be live. */
+ * panel shares AiPanel's permission rendering, not its send").
+ *
+ * More than one can be pending: an agent that runs tool calls side by side
+ * asks for each at once (copilot-cli-acp asked "Edit file" and "Running
+ * command" in the same instant, live on 2026-10-08). Showing only the
+ * latest left the earlier one's Allow/Deny in the same place after the
+ * latest was answered, which read as buttons that never went away. */
+export function findPendingPermissionRequests(
+  events: readonly Event[],
+  resolvedIds: ReadonlySet<string>,
+): Array<Extract<Event, { kind: "permissionRequest" }>> {
+  return events.filter((event): event is Extract<Event, { kind: "permissionRequest" }> =>
+    event.kind === "permissionRequest" && !resolvedIds.has(event.requestId));
+}
+
+/** The most recent of them, for a caller that shows one. */
 export function findPendingPermissionRequest(
   events: readonly Event[],
   resolvedIds: ReadonlySet<string>,
 ): Extract<Event, { kind: "permissionRequest" }> | undefined {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]!;
-    if (event.kind === "permissionRequest" && !resolvedIds.has(event.requestId)) {
-      return event;
-    }
-  }
-  return undefined;
+  return findPendingPermissionRequests(events, resolvedIds).at(-1);
 }
 
 /** Presentational Allow/Deny control for a pending `permissionRequest` —
@@ -199,7 +205,7 @@ export function PermissionRequestPrompt(props: {
 }): ReactNode {
   const { request, onResolve } = props;
   return (
-    <div className="openspec-shell-note" data-testid="permission-request">
+    <div className="openspec-shell-note" data-testid="permission-request" data-request-id={request.requestId}>
       <p>
         Permission requested: <strong>{request.description}</strong>
       </p>
@@ -1197,8 +1203,8 @@ export function AiPanel({
   const collapsedEvents = useMemo(() => collapseStreamEvents(events), [events]);
   const runInsights = useMemo(() => collectRunInsights(collapsedEvents), [collapsedEvents]);
 
-  const pendingPermissionRequest = useMemo(
-    () => findPendingPermissionRequest(collapsedEvents, resolvedPermissionRequestIds),
+  const pendingPermissionRequests = useMemo(
+    () => findPendingPermissionRequests(collapsedEvents, resolvedPermissionRequestIds),
     [collapsedEvents, resolvedPermissionRequestIds],
   );
 
@@ -1421,12 +1427,15 @@ export function AiPanel({
           <div className="openspec-panel-body openspec-md-preview">{renderMarkdown(latestEvent.summary)}</div>
         </section>
       ) : null}
-      {pendingPermissionRequest ? (
+      {/* A request the run can no longer be waiting on is not offered:
+          once it has ended, nothing is there to answer. */}
+      {isRunning ? pendingPermissionRequests.map((request) => (
         <PermissionRequestPrompt
-          request={pendingPermissionRequest}
-          onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest.requestId, outcome)}
+          key={request.requestId}
+          request={request}
+          onResolve={(outcome) => handleResolvePermission(request.requestId, outcome)}
         />
-      ) : null}
+      )) : null}
       <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       {collapsedEvents.length > 0 ? (
         <section className="openspec-panel openspec-run-insights" data-testid="run-insights">

@@ -14,7 +14,7 @@ import type { Transport } from "../transport/types.js";
 import {
   collapseStreamEvents,
   findOpenQuestions,
-  findPendingPermissionRequest,
+  findPendingPermissionRequests,
   isCancelling,
   OperatorQuestionsPrompt,
   isShownInEventLog,
@@ -70,8 +70,8 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
   const latestEvent = collapsedEvents[collapsedEvents.length - 1];
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const pendingCheckpoint = isCheckpointEvent(latestEvent) ? latestEvent : undefined;
-  const pendingPermissionRequest = useMemo(
-    () => findPendingPermissionRequest(collapsedEvents, resolvedPermissionRequestIds),
+  const pendingPermissionRequests = useMemo(
+    () => findPendingPermissionRequests(collapsedEvents, resolvedPermissionRequestIds),
     [collapsedEvents, resolvedPermissionRequestIds],
   );
 
@@ -174,12 +174,15 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           </div>
         </div>
       ) : null}
-      {pendingPermissionRequest ? (
+      {/* Every request still pending, each answered on its own: an agent
+          running tool calls side by side asks for each at once. */}
+      {isRunning ? pendingPermissionRequests.map((request) => (
         <PermissionRequestPrompt
-          request={pendingPermissionRequest}
-          onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest, outcome)}
+          key={request.requestId}
+          request={request}
+          onResolve={(outcome) => handleResolvePermission(request, outcome)}
         />
-      ) : null}
+      )) : null}
       <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       {/* Focusable and named: the log scrolls once a chain has said enough,

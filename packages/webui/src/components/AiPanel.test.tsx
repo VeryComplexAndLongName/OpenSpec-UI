@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Command, Event } from "@openspec-ui/core";
 import type { Transport } from "../transport/types.js";
@@ -459,6 +459,41 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             permissionOutcome: "allow",
         } satisfies Command);
         expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
+    });
+
+    // Live on 2026-10-08: copilot-cli-acp asked "Edit file" and "Running
+    // command" at once. Showing only the latest left the other's buttons in
+    // place after it was answered, which read as buttons that never went.
+    it("offers each of two requests asked at once, and hides each once answered", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-two"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-two", timestamp: "t", requestId: "perm-edit", description: "Edit file" });
+        emit({ kind: "permissionRequest", runId: "run-perm-two", timestamp: "t", requestId: "perm-run", description: "Running command" });
+
+        const prompts = () => screen.queryAllByTestId("permission-request");
+        expect(prompts().map((prompt) => prompt.textContent)).toEqual([
+            expect.stringContaining("Edit file"),
+            expect.stringContaining("Running command"),
+        ]);
+
+        fireEvent.click(within(prompts()[1]!).getByTestId("allow-permission-button"));
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ permissionRequestId: "perm-run", permissionOutcome: "allow" }));
+        expect(prompts().map((prompt) => prompt.getAttribute("data-request-id"))).toEqual(["perm-edit"]);
+
+        fireEvent.click(within(prompts()[0]!).getByTestId("allow-permission-button"));
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ permissionRequestId: "perm-edit", permissionOutcome: "allow" }));
+        expect(prompts()).toEqual([]);
+    });
+
+    it("offers no request once the run has ended", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-end"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-end", timestamp: "t", requestId: "perm-left", description: "Edit file" });
+        emit({ kind: "completed", runId: "run-perm-end", timestamp: "t" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
     });
 
     it("sends resolvePermission with outcome deny when Deny is clicked", () => {
