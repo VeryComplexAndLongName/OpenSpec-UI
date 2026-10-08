@@ -149,14 +149,39 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
   }
 
   /** Waits until every one of `ids` is answered in `decisions.md`, or the
-   * run is cancelled. */
-  async function waitForAnswers(command: Command, ids: readonly string[], waiter: Waiter): Promise<"answered" | "cancelled"> {
+   * run is cancelled, and says each answer in the run's stream as it lands
+   * rather than once all have: with two questions open, one answered on the
+   * card stayed on the run panel until the other was answered too (live,
+   * 2026-10-08). Returns whether the wait ended answered or cancelled. */
+  async function* waitForAnswers(
+    command: Command,
+    ids: readonly string[],
+    waiter: Waiter,
+    announced: Set<string>,
+  ): AsyncGenerator<Event, "answered" | "cancelled"> {
     try {
       for (;;) {
         if (waiter.cancelled) return "cancelled";
         const questions = await readQuestions(command.context.changeDir).catch(() => []);
-        const open = ids.filter((id) => questions.find((question) => question.id === id)?.answer === undefined);
-        if (open.length === 0) return "answered";
+        let open = 0;
+        for (const id of ids) {
+          const question = questions.find((entry) => entry.id === id);
+          if (question?.answer === undefined) {
+            open += 1;
+            continue;
+          }
+          if (announced.has(id)) continue;
+          announced.add(id);
+          yield {
+            kind: "questionAnswered",
+            runId: command.runId,
+            timestamp: at(),
+            questionId: id,
+            answer: question.answer,
+            ...(question.answeredBy !== undefined ? { by: question.answeredBy } : {}),
+          };
+        }
+        if (open === 0) return "answered";
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, pollMs);
           waiter.wake = () => { clearTimeout(timer); resolve(); };
@@ -305,7 +330,7 @@ export function withOperatorQuestions(runner: AgentRunner, options: OperatorQues
       };
       yield { kind: "awaitingAnswers", runId: command.runId, timestamp: at(), questions: stillOpen };
       const ids = stillOpen.map((question) => question.questionId);
-      const waited = await waitForAnswers(command, ids, waiter);
+      const waited = yield* waitForAnswers(command, ids, waiter, announced);
       if (waited === "cancelled") {
         yield { kind: "cancelled", runId: command.runId, timestamp: at(), reason: "cancelled while waiting for the operator's answer; the questions stay open in decisions.md" };
         return;

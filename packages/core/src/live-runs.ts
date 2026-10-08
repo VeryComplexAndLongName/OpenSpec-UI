@@ -31,9 +31,13 @@ export interface LiveRun {
   /** At a checkpoint or on a permission, rather than working. */
   waiting: boolean;
   /** The permission request the run waits on, while it waits on one: what
-   * an answer from a card names. The status record carries only its
-   * description. */
+   * an answer from a card names - the oldest of `pendingPermissions`. */
   permissionRequestId: string | null;
+  /** Every permission request still open, oldest first. An agent running
+   * tool calls side by side asks for several at once; a card that knew only
+   * the latest had nothing to offer once it was answered, while the others
+   * held the run (live, 2026-10-08). */
+  pendingPermissions?: Array<{ requestId: string; description: string }>;
   /** The stop a person asked for, where one was asked and the run has not
    * ended yet. */
   stopRequested: { reason: string; by?: string } | null;
@@ -75,6 +79,7 @@ export class LiveRuns {
             startedAt: event.timestamp,
             waiting: false,
             permissionRequestId: null,
+            pendingPermissions: [],
             stopRequested: null,
           };
         }
@@ -95,19 +100,22 @@ export class LiveRuns {
 
   get(runId: string): LiveRun | undefined {
     const run = this.runs.get(runId);
-    return run === undefined ? undefined : { ...run };
+    return run === undefined ? undefined : copyOf(run);
   }
 
   /** Every run held, as copies: a caller cannot change what is held. */
   list(): LiveRun[] {
-    return [...this.runs.values()].map((run) => ({ ...run }));
+    return [...this.runs.values()].map(copyOf);
   }
 
   private observe(run: LiveRun, event: Event): void {
+    const pending = run.pendingPermissions ?? [];
+    run.pendingPermissions = pending;
     if (isTerminal(event)) {
       if (this.runs.get(run.runId) === run) this.runs.delete(run.runId);
       run.waiting = false;
       run.permissionRequestId = null;
+      pending.length = 0;
       run.stopRequested = null;
       return;
     }
@@ -116,11 +124,22 @@ export class LiveRuns {
       case "checkpoint":
         run.waiting = true;
         run.permissionRequestId = null;
+        pending.length = 0;
         return;
       case "permissionRequest":
+        pending.push({ requestId: event.requestId, description: event.description });
         run.waiting = true;
-        run.permissionRequestId = event.requestId;
+        run.permissionRequestId = pending[0]!.requestId;
         return;
+      case "permissionSettled": {
+        // Answered here or anywhere else, or withdrawn: the run still waits
+        // while another request is open.
+        const at = pending.findIndex((request) => request.requestId === event.requestId);
+        if (at !== -1) pending.splice(at, 1);
+        run.permissionRequestId = pending[0]?.requestId ?? null;
+        run.waiting = pending.length > 0;
+        return;
+      }
       case "stopRequested":
         if (event.outcome === "asked") run.stopRequested = { reason: event.reason, ...(event.by !== undefined ? { by: event.by } : {}) };
         return;
@@ -130,8 +149,20 @@ export class LiveRuns {
       case "cancelling":
         return;
       default:
-        run.waiting = false;
-        run.permissionRequestId = null;
+        // The agent going on says nothing about a request still open: only
+        // its settling does.
+        run.waiting = pending.length > 0;
+        run.permissionRequestId = pending[0]?.requestId ?? null;
     }
   }
+}
+
+/** A copy a caller cannot change what is held through; the open requests
+ * only where there are any, so a run waiting on none reads as it always
+ * did. */
+function copyOf(run: LiveRun): LiveRun {
+  const { pendingPermissions, ...rest } = run;
+  return pendingPermissions !== undefined && pendingPermissions.length > 0
+    ? { ...rest, pendingPermissions: pendingPermissions.map((request) => ({ ...request })) }
+    : rest;
 }

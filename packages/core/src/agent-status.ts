@@ -1066,17 +1066,19 @@ interface OpenLines {
   stdout: string;
   reply: string;
   reasoning: string;
+  /** The run's permission requests still open, oldest first. */
+  permissions: Array<{ requestId: string; description: string }>;
 }
 
 function openLines(): OpenLines {
-  return { stdout: "", reply: "", reasoning: "" };
+  return { stdout: "", reply: "", reasoning: "", permissions: [] };
 }
 
 /** Adds a chunk to what its stream left open, and returns every line the
  * chunk completed. The activity is the last of them; each is read for a
  * marker, because a message that arrives whole carries its marker ahead of
  * the lines that follow it. */
-function takeCompleteLines(open: OpenLines, stream: keyof OpenLines, chunk: string): string[] {
+function takeCompleteLines(open: OpenLines, stream: "stdout" | "reply" | "reasoning", chunk: string): string[] {
   const text = open[stream] + chunk;
   const lastBreak = text.lastIndexOf(LINE_BREAK);
   if (lastBreak === -1) {
@@ -1134,6 +1136,9 @@ export async function* reportEventsToAgentStatus(
 }
 
 async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, open: OpenLines): Promise<void> {
+  // Permission requests still open, oldest first: the record says the run
+  // waits on the oldest while any is open (live, 2026-10-08: an agent asked
+  // for four at once, and answering one said the run waited on nothing).
   // A stop asked for is news about the run, not the run moving on: it leaves
   // a wait standing (a-change-is-run-from-its-card). One that found nothing
   // to stop changes nothing here.
@@ -1160,13 +1165,27 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, 
   // waits: news, not the run moving on, so a wait stands (ADR 0042).
   if (event.kind === "question" || event.kind === "questionAnswered") return;
   if (event.kind === "permissionRequest") {
+    open.permissions.push({ requestId: event.requestId, description: event.description });
     // An activity of its own, so `activityAt` says when the wait began, as
     // a checkpoint's does: the supervisor measures a wait from it
-    // (the-supervisor-advises).
-    await writer.reportWaiting({ kind: "permission", description: event.description }, "waiting for a permission");
+    // (the-supervisor-advises). It names the oldest request still open.
+    if (open.permissions.length === 1) {
+      await writer.reportWaiting({ kind: "permission", description: event.description }, "waiting for a permission");
+    }
     return;
   }
-  await writer.reportWaiting(null);
+  if (event.kind === "permissionSettled") {
+    const at = open.permissions.findIndex((request) => request.requestId === event.requestId);
+    if (at !== -1) open.permissions.splice(at, 1);
+    const [next] = open.permissions;
+    if (next !== undefined) {
+      if (at === 0) await writer.reportWaiting({ kind: "permission", description: next.description }, "waiting for a permission");
+      return;
+    }
+  }
+  // Waiting ends with whatever the run does next - unless a permission
+  // request is still open, which only its settling ends.
+  if (open.permissions.length === 0) await writer.reportWaiting(null);
 
   if (event.kind === "stdout") {
     const lines = takeCompleteLines(open, "stdout", event.chunk);

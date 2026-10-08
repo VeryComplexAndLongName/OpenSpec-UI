@@ -111,6 +111,16 @@ the-plan-is-updated-from-its-review.
   `permissionSettled` (outcome `allow` or `deny`), the event that also
   says a request was withdrawn, and the panels drop a settled request.
   Tests: `acp-session-driver.test.ts`, `AiPanel.test.tsx`.
+  Fifth round: with two questions open, one answered on the card stayed on
+  the run panel until the other was answered too, since the wait said its
+  answers only once all had come; it now says each as it lands. And the
+  card knew only the latest of several open permission requests, so once
+  it was answered the card offered nothing while the others held the run:
+  `LiveRuns` and the status record now hold every open request until it
+  is settled, the card offers the oldest and says how many are open
+  (`Allow (1 of 4)`), and the agent going on no longer clears a request
+  only its settling ends. Tests: `operator-questions-runner.test.ts`,
+  `live-runs.test.ts`, `agent-status.test.ts`, `PipelineView.test.tsx`.
 
 ## 3. Documents
 

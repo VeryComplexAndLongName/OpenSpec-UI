@@ -1782,11 +1782,21 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
       <button key="continue" type="button" className={forward} data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}><ForwardIcon />{`Continue to ${next}`}</button>,
     );
   }
-  if (run.waiting?.kind === "permission" && held.permissionRequestId !== null) {
-    const requestId = held.permissionRequestId;
+  // The oldest permission request still open, and how many are: an agent
+  // running tool calls side by side asks for several at once, and a card that
+  // knew only the latest offered nothing once it was answered (live,
+  // 2026-10-08). A host that does not list them names the one it holds.
+  const pendingHere = held.pendingPermissions ?? [];
+  const oldest = pendingHere[0]
+    ?? (run.waiting?.kind === "permission" && held.permissionRequestId !== null
+      ? { requestId: held.permissionRequestId, description: run.waiting.description }
+      : undefined);
+  if (oldest !== undefined) {
+    const { requestId, description } = oldest;
+    const more = pendingHere.length > 1 ? ` (1 of ${pendingHere.length})` : "";
     buttons.push(
-      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />Allow</button>,
-      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
+      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />{`Allow${more}`}</button>,
+      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
     );
   }
   buttons.push(

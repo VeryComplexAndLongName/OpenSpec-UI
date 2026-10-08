@@ -805,6 +805,24 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
   });
 
+  // Live on 2026-10-08: an agent asked for four at once, and the card offered
+  // only the latest; once that was answered it offered nothing.
+  it("offers the oldest of several open permission requests, and says how many there are", async () => {
+    const { onRunControl } = renderCard({
+      record: { waiting: { kind: "permission", description: "Edit file" } },
+      held: [heldRun({
+        waiting: true,
+        permissionRequestId: "p1",
+        pendingPermissions: [{ requestId: "p1", description: "Edit file" }, { requestId: "p2", description: "Running command" }],
+      })],
+    });
+
+    const allow = await screen.findByRole("button", { name: "Allow alpha: Edit file (1 of 2)" });
+    expect(allow).toHaveTextContent("Allow (1 of 2)");
+    fireEvent.click(allow);
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "allow" });
+  });
+
   it("offers Stop on a running held run, and Stop now once a stop has been asked", async () => {
     const { onRunControl } = renderCard({ held: [heldRun({ stopRequested: { reason: "wrong branch" } })] });
 

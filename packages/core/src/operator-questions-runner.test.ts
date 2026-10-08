@@ -196,6 +196,34 @@ describe("withOperatorQuestions", () => {
     expect((await readFile(path.join(dir, "decisions.md"), "utf8"))).toContain("- Answer: yes, verify");
   });
 
+  // Live on 2026-10-08: two questions at once, one answered on the card; the
+  // run panel kept it until the other was answered too.
+  it("says each answer while it still waits on another question", async () => {
+    const dir = await change();
+    const { runner } = scriptedAgent("Question for the operator: SQLite or PostgreSQL?\nQuestion for the operator: Which port?\n");
+    const wrapped = withOperatorQuestions(runner, { agent: "copilot-cli-acp", pollIntervalMs: 20 });
+
+    const events = wrapped.run(command(dir, "implement"))[Symbol.asyncIterator]();
+    const seen: Event[] = [];
+    await drainUntil(events, seen, "awaitingAnswers");
+    const file = path.join(dir, "decisions.md");
+    const first = questionId("run-ask-1", 1);
+    // The first question's answer, given elsewhere; the second stays open.
+    const lines = (await readFile(file, "utf8")).split("\n");
+    lines[lines.findIndex((line) => line === "- Answer: (open)")] = "- Answer: SQLite";
+    await writeFile(file, lines.join("\n"), "utf8");
+
+    await drainUntil(events, seen, "questionAnswered");
+    expect(seen.at(-1)).toMatchObject({ kind: "questionAnswered", questionId: first, answer: "SQLite" });
+    expect((await openQuestions(dir)).map((question) => question.id)).toEqual([questionId("run-ask-1", 2)]);
+
+    await writeFile(file, (await readFile(file, "utf8")).replace("- Answer: (open)", "- Answer: 5432"), "utf8");
+    await drainAll(events, seen);
+    expect(seen.filter((event) => event.kind === "questionAnswered").map((event) => (event as Extract<Event, { kind: "questionAnswered" }>).questionId))
+      .toEqual([first, questionId("run-ask-1", 2)]);
+    expect(seen.at(-1)).toMatchObject({ kind: "completed" });
+  });
+
   it("ends the wait on a cancel, leaving the question open", async () => {
     const dir = await change();
     const { runner } = scriptedAgent("Question for the operator: Which database?\n");
