@@ -143,6 +143,31 @@ function makeCompletingRunner(): { runner: AgentRunner; calls: Command[] } {
   return { runner, calls };
 }
 
+/** An implementing run that did its work changes a file, and these fakes
+ * stand for one: an apply that changes no file and ticks no task ends the
+ * chain (an-apply-that-ticks-nothing-ends-the-chain), so a test of what
+ * comes after apply needs an apply that did something. */
+async function doSomeWork(cwd: string, pass: number): Promise<void> {
+  await mkdir(path.join(cwd, "src"), { recursive: true });
+  await writeFile(path.join(cwd, "src", "work.ts"), `export const pass = ${pass};\n`, "utf8");
+}
+
+/** `makeCompletingRunner`, whose implementing run changes a file each time. */
+function makeWorkingRunner(): { runner: AgentRunner; calls: Command[] } {
+  const calls: Command[] = [];
+  let passes = 0;
+  const runner: AgentRunner = {
+    async *run(command) {
+      calls.push(command);
+      if (command.kind === "cancel") return;
+      yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+      if (command.kind === "implement") await doSomeWork(command.cwd, ++passes);
+      yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
+    },
+  };
+  return { runner, calls };
+}
+
 const temporaryRoots: string[] = [];
 
 // `vi.waitFor`'s own ceiling, which is a second budget the file states
@@ -853,7 +878,7 @@ describe("HarnessChainRunner — mechanical checks in the verify stage (tasks 5.
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
     mockArchiveSucceeds();
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -882,7 +907,7 @@ describe("HarnessChainRunner — mechanical checks in the verify stage (tasks 5.
     await setupChangeset(root, false); // no pending changeset file -> the check fails
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -945,7 +970,7 @@ describe("HarnessChainRunner — mechanical checks in the verify stage (tasks 5.
     await writeTasks(root, 0, 3); // every task checked, none declares a check -> starts at "verify"
     mockArchiveSucceeds();
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -971,7 +996,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     mockStatus(true);
     await writeTasks(root, 3, 0);
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
 
     const events: Event[] = [];
@@ -990,7 +1015,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     await writeTasks(root, 0, 3);
     mockArchiveSucceeds();
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -1011,7 +1036,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     await writeChangeHarnessConfig(root, "demo", { autonomyLevel: "autonomous" });
     mockStatus(true); // no tasks.md written -> task completion is unknown
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
 
     const events: Event[] = [];
@@ -1028,7 +1053,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     mockStatus(true);
     await writeTasks(root, 2, 1);
 
-    const { runner } = makeCompletingRunner();
+    const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
 
     const events: Event[] = [];
@@ -1053,7 +1078,7 @@ describe("HarnessChainRunner — task completion gates the chain", () => {
     mockStatus(true);
     await writeTasks(root, 1, 0);
 
-    const { runner } = makeCompletingRunner();
+    const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
 
     // Remove tasks.md after the start-stage decision has been made, so the
@@ -1121,13 +1146,58 @@ describe("HarnessChainRunner — an implementing run that ticked nothing (a-done
     expect(reportIndex).toBeLessThan(verifyIndex);
   });
 
-  it("says nothing when the run changed no file", async () => {
+  it("says nothing of changed files when the run changed no file", async () => {
     const root = await temporaryRoot();
     await writeTasks(root, 2, 0);
 
     const { events } = await runChain(root, async () => undefined);
 
     expect(tickedNothingReports(events)).toHaveLength(0);
+  });
+
+  // an-apply-that-ticks-nothing-ends-the-chain: seen on 2026-10-08, two
+  // chains went on to verify and archive from a run that had done nothing.
+  it("ends the chain, naming the open tasks, when the run changed no file and ticked no task", async () => {
+    const root = await temporaryRoot();
+    await writeTasks(root, 2, 0);
+
+    const { events, kinds } = await runChain(root, async () => undefined);
+
+    expect(kinds).toEqual(["implement"]);
+    const last = events.at(-1) as Extract<Event, { kind: "failed" }>;
+    expect(last.kind).toBe("failed");
+    expect(last.reason).toContain(`"apply" changed no file and ticked no task, and 2 task(s) it could do are still open`);
+    expect(last.reason).toContain(`"2.1 not done", "2.2 not done"`);
+    expect(events.some((event) => event.kind === "stageStarted" && event.stage === "verify")).toBe(false);
+  });
+
+  it("goes on when every task still open waits on a person or another agent", async () => {
+    const root = await temporaryRoot();
+    await writeTasksRaw(root, [
+      "## 1. Tasks",
+      "",
+      "- [x] 1.1 done",
+      "- [ ] 1.2 **Human-only**: try it by hand",
+      "- [ ] 1.3 **Delegated to copilot-cli-acp**: review the wording",
+      "",
+    ].join("\n"));
+
+    const { events, kinds } = await runChain(root, async () => undefined);
+
+    expect(kinds).toContain("verify");
+    expect(events.some((event) => event.kind === "failed" && /changed no file and ticked no task/.test(event.reason))).toBe(false);
+  });
+
+  it("goes on when the run ticked a task without changing another file", async () => {
+    const root = await temporaryRoot();
+    await writeTasks(root, 2, 0);
+
+    const { events, kinds } = await runChain(root, async () => {
+      await writeTasks(root, 1, 1);
+    });
+
+    expect(kinds).toContain("verify");
+    expect(events.some((event) => event.kind === "failed" && /changed no file and ticked no task/.test(event.reason))).toBe(false);
   });
 
   it("says nothing when the run ticked a task", async () => {
@@ -1152,6 +1222,8 @@ describe("HarnessChainRunner — verify sends work back (verify-sends-work-back)
       async *run(command) {
         calls.push(command);
         yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        // Work done, never ticked: what verify then sends back.
+        if (command.kind === "implement") await doSomeWork(command.cwd, calls.length);
         yield { kind: "completed", runId: command.runId, timestamp: "t" };
       },
     };
@@ -3231,7 +3303,7 @@ describe("HarnessChainRunner — a failed check sends work back (verify-sends-wo
     await setupChangeset(root, false); // the check fails
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -3264,7 +3336,7 @@ describe("HarnessChainRunner — a failed check sends work back (verify-sends-wo
     await setupChangeset(root, false);
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -3301,7 +3373,11 @@ describe("HarnessChainRunner — a failed check sends work back (verify-sends-wo
         if (command.kind === "cancel") return;
         // The second "apply" does what the check asks for, which is the
         // whole scenario: work came back, and this time it was finished.
-        if (command.kind === "implement" && ++applyCount === 2) await setupChangeset(root, true);
+        // The first did some work too, short of the changeset.
+        if (command.kind === "implement") {
+          if (++applyCount === 2) await setupChangeset(root, true);
+          else await doSomeWork(root, applyCount);
+        }
         yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
         yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
       },
@@ -3331,7 +3407,7 @@ describe("HarnessChainRunner — a failed check sends work back (verify-sends-wo
     await setupChangeset(root, false); // never satisfied
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
 
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner });
     const command = baseCommand(root);
 
@@ -3386,7 +3462,7 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     mockArchiveSucceeds();
 
     const auditLog = new InMemoryAuditLog();
-    const { runner } = makeCompletingRunner();
+    const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
     const command = baseCommand(root);
     for await (const event of chain.run(command)) {
@@ -3420,7 +3496,7 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     mockArchiveSucceeds();
 
     const auditLog = new InMemoryAuditLog();
-    const { runner } = makeCompletingRunner();
+    const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
     const command = baseCommand(root);
     for await (const event of chain.run(command)) {
@@ -3444,7 +3520,7 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     await writeTasksRaw(root, ["## 1. Tasks", "", "- [ ] 1.1 has a changeset. `check(changeset-present)`", ""].join("\n"));
 
     const auditLog = new InMemoryAuditLog();
-    const { runner, calls } = makeCompletingRunner();
+    const { runner, calls } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
     const command = baseCommand(root);
     for await (const event of chain.run(command)) {
@@ -3471,7 +3547,7 @@ describe("HarnessChainRunner — verify records what its checks found", () => {
     mockArchiveSucceeds();
 
     const auditLog = new InMemoryAuditLog();
-    const { runner } = makeCompletingRunner();
+    const { runner } = makeWorkingRunner();
     const chain = new HarnessChainRunner({ resolveRunner: () => runner, auditLog });
     const command = baseCommand(root);
     for await (const event of chain.run(command)) {
@@ -3508,6 +3584,7 @@ describe("HarnessChainRunner — a checks entry is not a previous run", () => {
       buildInvocation: () => ({ kind: "process", executable: "claude", args: ["-p"] }),
       async *execute(_invocation, command) {
         yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        if (command.kind === "implement") await doSomeWork(command.cwd, 1);
         yield { kind: "completed", runId: command.runId, timestamp: "t", summary: `${command.kind} done` };
       },
     };

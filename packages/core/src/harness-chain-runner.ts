@@ -454,6 +454,43 @@ async function describeApplyThatTickedNothing(
   return `"apply" changed ${delta.length} file(s) and ticked no task in tasks.md`;
 }
 
+/** The reason a chain ends after an implementing run that did nothing: it
+ * changed no file and ticked no task, while a task it could do - not
+ * Human-only, not delegated - is still open. `undefined` where it ticked
+ * one, where nothing is left for it to do, or where the task list could not
+ * be read.
+ *
+ * Only ever asked of a checkpoint that was read and held no change: an
+ * unread one decides nothing. On 2026-10-08 two chains went on from such a
+ * run to `verify`, which had nothing to confirm, and to `archive`, which
+ * refused, and the reason they stopped was said nowhere. See
+ * openspec/changes/an-apply-that-ticks-nothing-ends-the-chain/design.md. */
+async function describeApplyThatDidNothing(
+  before: TaskCounts | undefined,
+  changeDir: string,
+  workspaceRoot: string,
+  changeName: string,
+): Promise<string | undefined> {
+  if (!before) return undefined;
+  const after = await countTasks(changeDir);
+  if (!after) return undefined;
+  if (after.total - after.unchecked > before.total - before.unchecked) return undefined;
+  let items;
+  try {
+    items = await readTaskChecklist(workspaceRoot, changeName, false);
+  } catch {
+    return undefined;
+  }
+  // A person's task, or another agent's, is not this stage's to do.
+  const its = items.filter((item) => !item.done && item.humanOnly !== true && item.delegatedTo === undefined);
+  if (its.length === 0) return undefined;
+  const shown = its.slice(0, 5).map((item) => `"${item.text}"`).join(", ");
+  const more = its.length > 5 ? `, and ${its.length - 5} more` : "";
+  return `"apply" changed no file and ticked no task, and ${its.length} task(s) it could do are still open (${shown}${more}); `
+    + "the chain stops here rather than verify and archive work that was not done. "
+    + "Read the run's reply and the questions it asked, then start the change again";
+}
+
 type MechanicalCheckOutcomeEntry = DeclaredCheckOutcomeEntry;
 type MechanicalCheckRunOutcome = DeclaredCheckRunOutcome;
 
@@ -1099,7 +1136,7 @@ export class HarnessChainRunner {
     );
 
     // Populated around the "apply" stage only (see `captureApplyCheckpoint`/
-    // `finalizeApplyCheckpoint`), and handed to the "verify" stage's own
+    // `readApplyCheckpoint`), and handed to the "verify" stage's own
     // Command when that stage runs. Stays `undefined` for any chain that
     // doesn't run "apply" itself (e.g. resuming directly at "verify") — a
     // verify stage with no delta available runs with the prompt it would
@@ -1313,10 +1350,20 @@ export class HarnessChainRunner {
       }
 
       if (stage === "apply" && applyCheckpoint && outcome === "completed") {
-        verifiedDelta = await this.finalizeApplyCheckpoint(applyCheckpoint);
+        const finalized = await this.readApplyCheckpoint(applyCheckpoint);
+        verifiedDelta = finalized.delta;
         const tickedNothing = await describeApplyThatTickedNothing(tasksBeforeApply, context.changeDir, verifiedDelta);
         if (tickedNothing !== undefined) {
           yield { kind: "progress", runId, timestamp: nowIso(), message: tickedNothing };
+        }
+        // Nothing changed and nothing ticked, with work of its own open: the
+        // chain ends here, before verify and archive run for nothing.
+        if (finalized.read && finalized.delta === undefined) {
+          const didNothing = await describeApplyThatDidNothing(tasksBeforeApply, context.changeDir, cwd, changeName);
+          if (didNothing !== undefined) {
+            yield failedEvent(runId, didNothing);
+            return;
+          }
         }
       }
 
@@ -1586,19 +1633,25 @@ export class HarnessChainRunner {
    * shape `security.ts` renders into the "verify" stage's prompt — content
    * comes from the checkpoint's own before/after snapshots, never from
    * `GitWrapper.diff()` (see design.md's rejected alternative). Best-effort
-   * for the same reason `captureApplyCheckpoint` is. */
-  private async finalizeApplyCheckpoint(checkpoint: WorkbenchCheckpoint): Promise<VerifiedDeltaEntry[] | undefined> {
+   * for the same reason `captureApplyCheckpoint` is, and says whether the
+   * checkpoint could be read: "no change" and "could not tell" are different
+   * facts, and only the first may stop a chain
+   * (an-apply-that-ticks-nothing-ends-the-chain). */
+  private async readApplyCheckpoint(checkpoint: WorkbenchCheckpoint): Promise<{ read: boolean; delta: VerifiedDeltaEntry[] | undefined }> {
     try {
       const delta = await finalizeCheckpoint(checkpoint);
-      if (delta.length === 0) return undefined;
-      return delta.map((entry) => ({
-        path: entry.path,
-        kind: entry.kind,
-        before: checkpoint.before.get(entry.path)?.content.toString("utf8"),
-        after: checkpoint.after?.get(entry.path)?.content.toString("utf8"),
-      }));
+      if (delta.length === 0) return { read: true, delta: undefined };
+      return {
+        read: true,
+        delta: delta.map((entry) => ({
+          path: entry.path,
+          kind: entry.kind,
+          before: checkpoint.before.get(entry.path)?.content.toString("utf8"),
+          after: checkpoint.after?.get(entry.path)?.content.toString("utf8"),
+        })),
+      };
     } catch {
-      return undefined;
+      return { read: false, delta: undefined };
     }
   }
 
