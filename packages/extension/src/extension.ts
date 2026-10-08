@@ -269,7 +269,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         const message = describeRunCompletion(process);
         const show = process.state === "failed" ? vscode.window.showErrorMessage : vscode.window.showInformationMessage;
         void show(message, "View").then((choice) => {
-          if (choice === "View") void vscode.commands.executeCommand("openspec-ui.openAiPanel");
+          if (choice === "View") void vscode.commands.executeCommand("openspec-ui.openDashboard");
         });
       }
     }),
@@ -341,7 +341,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const templatesTreeView = vscode.window.createTreeView("openspecUiTemplates", { treeDataProvider: templatesTree });
     // Was `registerTreeDataProvider` (no command read this view's
     // selection). Reversed here because `reveal` — which
-    // `openspec-ui.revealInChangeGraph` and follow-selection both need —
+    // `openspec-ui.showGraph` and follow-selection both need —
     // lives only on the handle `createTreeView` returns. The rest of the
     // original reasoning is unchanged: this is still revealed *into*, not
     // read from — no mutating command gains a graph entry (design.md,
@@ -507,7 +507,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
         archiveView: archiveTreeView,
         changeGraphView: changeGraphTreeView,
       }),
-      vscode.commands.registerCommand("openspec-ui.refresh", () => {
+      vscode.commands.registerCommand("openspec-ui.refreshViews", () => {
         // A person asked, so refs are fetched now, whatever the interval.
         changesTree?.refresh({ fetchNow: true });
         archiveTree?.refresh();
@@ -581,7 +581,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       ...readAgentSwitches(),
     });
     context.subscriptions.push(
-      vscode.commands.registerCommand("openspec-ui.setLocalLlmApiKey", async () => {
+      vscode.commands.registerCommand("openspec-ui.setLlmKey", async () => {
         const key = await vscode.window.showInputBox({
           title: "Local LLM API key",
           prompt: "Kept in the editor's secret storage, never in a file or a log. Leave it empty to remove the key.",
@@ -612,7 +612,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     const inboxTree = humanOnlyInboxTree;
     const inboxRoot = workspaceRoot;
     context.subscriptions.push(
-      vscode.commands.registerCommand("openspec-ui.runDelegatedItem", async (item?: HumanOnlyInboxItemTreeItem) => {
+      vscode.commands.registerCommand("openspec-ui.runItem", async (item?: HumanOnlyInboxItemTreeItem) => {
         // This view is registered read-only (`registerTreeDataProvider`
         // exposes no selection), so the row has to come from the menu
         // that invoked the command.
@@ -673,7 +673,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       // A person says a run was theirs, from the row of the key that signed
       // it. Which key that enrols, and whether it may, is core's
       // (a-run-is-signed-by-its-person).
-      vscode.commands.registerCommand("openspec-ui.confirmEnrolment", async (row?: EnrolmentRequestTreeItem) => {
+      vscode.commands.registerCommand("openspec-ui.confirmKey", async (row?: EnrolmentRequestTreeItem) => {
         if (!row) {
           void vscode.window.showWarningMessage(
             "OpenSpec Workbench: confirm an enrolment from its own row in the Human-Only Inbox.",
@@ -722,7 +722,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       // machine's key, so the team can verify what they sign. What the file
       // holds and whether it may be written is core's (ADR 0037,
       // a-team-works-through-git). Nothing is committed here.
-      vscode.commands.registerCommand("openspec-ui.joinTheTeam", async () => {
+      vscode.commands.registerCommand("openspec-ui.joinTeam", async () => {
         const identity = await readGitAuthor(inboxRoot).catch(() => undefined);
         const email = identity !== undefined && identity.includes("@") ? identity : undefined;
         const suggested = (email?.split("@")[0] ?? "").toLowerCase().replace(/[^a-z0-9-]+/gu, "-").replace(/^-+|-+$/gu, "");
@@ -847,7 +847,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // A card's Start opens the change's run dialog, the one way in to run
     // (a-change-is-run-from-its-card).
     runChange: async (changeName) => {
-      await vscode.commands.executeCommand("openspec-ui.runWithHarness", changeName);
+      await vscode.commands.executeCommand("openspec-ui.runChange", changeName);
     },
     // A card's answer to a run's question: written to the change's
     // decisions.md in the run's own working directory, where the waiting run
@@ -883,7 +883,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       chainRunner,
       resolveRunner: (agentId) => (runners ? resolveAgentRunner(runners, agentId) : undefined),
     }),
-    // As `openspec-ui.revealInChanges` reveals a row: an item built from
+    // As `openspec-ui.showChange` reveals a row: an item built from
     // the change the host found, never from the message.
     revealChange: async (change) => {
       await changesView?.reveal(

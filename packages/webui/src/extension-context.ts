@@ -41,7 +41,7 @@ export interface DashboardContext {
      * a configured ceiling is legible; nothing in the webview enforces it.
      * Absent means no ceiling is shown at all — never a ceiling of zero. */
     budget?: { maxCostUsd?: number; maxTokens?: number };
-    /** Set by `openspec-ui.runWithHarness` (`agentic-harness-run-menu`)
+    /** Set by `openspec-ui.runChange` (`agentic-harness-run-menu`)
      * when the resolved harness config for the change targets `"chain"`
      * rather than `"picker"` (see `resolveRunWithHarnessTarget` in
      * `@openspec-ui/core`) — decides whether `extension-entry.tsx` mounts

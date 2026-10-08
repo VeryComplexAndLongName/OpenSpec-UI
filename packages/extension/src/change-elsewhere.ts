@@ -116,7 +116,7 @@ export function registerChangeElsewhere(context: vscode.ExtensionContext, deps: 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(ELSEWHERE_SCHEME, new ChangeElsewhereProvider()),
 
-    vscode.commands.registerCommand("openspec-ui.readChangeElsewhere", async (item?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.openChangeCopy", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot || !item) return;
       const ownership = ownershipOf(item, item.changeName, await surveyOf(deps, workspaceRoot));
@@ -130,7 +130,7 @@ export function registerChangeElsewhere(context: vscode.ExtensionContext, deps: 
       await openArtifact(item.changeName, ownership);
     }),
 
-    vscode.commands.registerCommand("openspec-ui.openChangeDirectory", async (item?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.openWorktree", async (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot || !item) return;
       const ownership = ownershipOf(item, item.changeName, await surveyOf(deps, workspaceRoot));
@@ -141,7 +141,7 @@ export function registerChangeElsewhere(context: vscode.ExtensionContext, deps: 
       await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(ownership.path), { forceNewWindow: true });
     }),
 
-    vscode.commands.registerCommand("openspec-ui.pickChange", async () => {
+    vscode.commands.registerCommand("openspec-ui.findChange", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
       const survey = await surveyOf(deps, workspaceRoot);

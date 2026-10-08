@@ -24,13 +24,13 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   test("activates and registers all contributed commands", async () => {
     const commands = await vscode.commands.getCommands(true);
     for (const id of [
-      "openspec-ui.status",
-      "openspec-ui.openAiPanel",
-      "openspec-ui.refresh",
-      "openspec-ui.reviewDiff",
-      "openspec-ui.copyTasksAsTemplate",
-      "openspec-ui.customizeTemplate",
-      "openspec-ui.insertTemplateIntoChange",
+      "openspec-ui.showStatus",
+      "openspec-ui.openDashboard",
+      "openspec-ui.refreshViews",
+      "openspec-ui.showDiff",
+      "openspec-ui.copyTasks",
+      "openspec-ui.editTemplate",
+      "openspec-ui.insertTemplate",
     ]) {
       assert.ok(commands.includes(id), `command ${id} was not registered`);
     }
@@ -51,7 +51,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
   test("opens the context-aware Process Dashboard webview", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
-    await vscode.commands.executeCommand("openspec-ui.openAiPanel");
+    await vscode.commands.executeCommand("openspec-ui.openDashboard");
     const dashboardContext = api.getDashboardContext();
     assert.equal(dashboardContext?.cwd, workspaceFolder.uri.fsPath);
     assert.equal(
@@ -75,7 +75,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     });
 
     try {
-      await vscode.commands.executeCommand("openspec-ui.status");
+      await vscode.commands.executeCommand("openspec-ui.showStatus");
     } finally {
       unsubscribe();
       vscode.window.showQuickPick = originalShowQuickPick;
@@ -181,7 +181,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     assert.ok(workspaceFolder, "no workspace folder open for the integration test");
     const uri = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "agent-harness.json");
 
-    await vscode.commands.executeCommand("openspec-ui.configureHarness");
+    await vscode.commands.executeCommand("openspec-ui.configureWorkspaceHarness");
 
     const bytes = await vscode.workspace.fs.readFile(uri);
     const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
@@ -200,7 +200,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const roots = await api.changesTree.getChildren();
     const harnessSettingsRoot = roots.find((item) => item.contextValue === "openspec-ui.harnessSettingsRoot");
     assert.ok(harnessSettingsRoot, `expected a Harness Settings root item, got: ${roots.map((r) => r.label).join(", ")}`);
-    assert.equal(harnessSettingsRoot.command?.command, "openspec-ui.configureHarness");
+    assert.equal(harnessSettingsRoot.command?.command, "openspec-ui.configureWorkspaceHarness");
   });
 
   test("Harness Settings: per-change command creates openspec/changes/<name>/harness.json and opens the view on it", async () => {
@@ -222,7 +222,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const requests: Array<{ changeName?: string; op: string; args?: unknown }> = [];
     const subscription = api.onHarnessSettingsRequest((request) => requests.push(request));
     try {
-      await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", change);
+      await vscode.commands.executeCommand("openspec-ui.configureChangeHarness", change);
 
       const bytes = await vscode.workspace.fs.readFile(uri);
       const written = JSON.parse(Buffer.from(bytes).toString("utf8"));
@@ -249,7 +249,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const uri = vscode.Uri.joinPath(changeDir, "harness.json");
     const override = { stepAgents: { apply: { agent: "copilot-cli", customAgent: "reviewer" } } };
     await vscode.workspace.fs.writeFile(uri, Buffer.from(`${JSON.stringify(override)}\n`, "utf8"));
-    await vscode.commands.executeCommand("openspec-ui.configureHarnessForChange", (await api.changesTree!.getChildren()).find((item) => item.label === "demo"));
+    await vscode.commands.executeCommand("openspec-ui.configureChangeHarness", (await api.changesTree!.getChildren()).find((item) => item.label === "demo"));
 
     const responses: Array<{ id?: string; ok?: boolean; value?: unknown }> = [];
     const subscription = api.onWebviewResponse((response) => responses.push(response as { id?: string; ok?: boolean; value?: unknown }));
@@ -295,7 +295,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
     const tasksUri = vscode.Uri.joinPath(workspaceFolder.uri, "openspec", "changes", "demo", "tasks.md");
     await vscode.workspace.fs.writeFile(tasksUri, Buffer.from("## 1. Fixture\n\n- [x] 1.1 Placeholder task.\n", "utf8"));
     try {
-      await vscode.commands.executeCommand("openspec-ui.refresh");
+      await vscode.commands.executeCommand("openspec-ui.refreshViews");
       const change = (await api.changesTree!.getChildren()).find((item) => item.label === "demo");
       // The description leads with the artifact state; since
       // a-change-says-where-it-stands the state word follows it
@@ -360,7 +360,7 @@ suite("openspec-ui-vscode — primary mode (message bridge, no local server)", (
       const change = roots.find((item) => item.label === "demo");
       assert.ok(change, "expected the demo change in the Changes tree");
 
-      await vscode.commands.executeCommand("openspec-ui.runWithHarness", change);
+      await vscode.commands.executeCommand("openspec-ui.runChange", change);
       const context = api.getDashboardContext();
       assert.equal(context?.changeName, "demo");
       assert.ok(context?.runPlan, "expected the run plan in the panel context");

@@ -82,7 +82,7 @@ describe("ChangesTreeProvider", () => {
     const actions = await provider.getChildren(roots[1]);
 
     expect(actions.map((item) => item.command?.command)).toEqual([
-      "openspec-ui.generateAgentInstructions",
+      "openspec-ui.generateInstructions",
     ]);
   });
 
@@ -120,15 +120,15 @@ describe("ChangesTreeProvider", () => {
     const actions = await provider.getChildren(bootstrapRoot);
 
     expect(actions.map((item) => item.command?.command)).toEqual([
-      "openspec-ui.generateAgentInstructions",
+      "openspec-ui.generateInstructions",
       "openspec-ui.configureDependabot",
-      "openspec-ui.generateSubtypeInstructions",
+      "openspec-ui.generateScopedInstructions",
     ]);
     expect(actions.every((item) => item.contextValue === "openspec-ui.repoBootstrapAction")).toBe(true);
     expect(actions.map((item) => item.id)).toEqual([
-      "repo-bootstrap-action:openspec-ui.generateAgentInstructions",
+      "repo-bootstrap-action:openspec-ui.generateInstructions",
       "repo-bootstrap-action:openspec-ui.configureDependabot",
-      "repo-bootstrap-action:openspec-ui.generateSubtypeInstructions",
+      "repo-bootstrap-action:openspec-ui.generateScopedInstructions",
     ]);
     expect(new Set(actions.map((item) => item.id)).size).toBe(3);
     expect(actions[0]?.id).not.toBe(bootstrapRoot?.id);
@@ -341,7 +341,7 @@ describe("ChangesTreeProvider", () => {
     const items = await provider.getChildren();
 
     expect(items[3]?.label).toBe("Initialize OpenSpec");
-    expect(items[3]?.command?.command).toBe("openspec-ui.initialize");
+    expect(items[3]?.command?.command).toBe("openspec-ui.initializeWorkspace");
     expect(items[3]?.id).toBe("empty:Initialize OpenSpec");
   });
 
@@ -356,7 +356,7 @@ describe("ChangesTreeProvider", () => {
     const roots = await provider.getChildren();
     const harnessSettingsRoot = roots[2];
 
-    expect(harnessSettingsRoot?.command?.command).toBe("openspec-ui.configureHarness");
+    expect(harnessSettingsRoot?.command?.command).toBe("openspec-ui.configureWorkspaceHarness");
     expect(harnessSettingsRoot?.collapsibleState).toBe(0); // None — not expandable
     expect(await provider.getChildren(harnessSettingsRoot)).toEqual([]);
   });

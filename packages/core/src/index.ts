@@ -158,3 +158,6 @@ export * from "./worktree-harvest.js";
 export * from "./operator-question.js";
 export * from "./decisions-file.js";
 export * from "./operator-questions-runner.js";
+
+// Every action is a verb and a noun (ADR 0045).
+export * from "./action-vocabulary.js";

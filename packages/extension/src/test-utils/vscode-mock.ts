@@ -103,7 +103,7 @@ export class Uri {
 
 /** Minimal in-memory document store backing `workspace.openTextDocument(uri)`
  * and `WorkspaceEdit`/`applyEdit`, for commands that insert text into a
- * file-backed document (e.g. `openspec-ui.copyTasksAsTemplate`) without a
+ * file-backed document (e.g. `openspec-ui.copyTasks`) without a
  * real VS Code host. Only supports end-of-document inserts — sufficient for
  * what this codebase's commands actually do; not a general editor model. */
 export class WorkspaceEdit {

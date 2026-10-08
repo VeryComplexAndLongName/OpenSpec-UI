@@ -84,7 +84,7 @@ export class ChangeGraphFoldedTreeItem extends vscode.TreeItem {
     this.contextValue = "openspec-ui.graphFolded";
     this.iconPath = new vscode.ThemeIcon("archive");
     this.tooltip = "Every change in these branches is archived";
-    this.command = { command: "openspec-ui.showLandedRelations", title: "Show landed relations" };
+    this.command = { command: "openspec-ui.showRelations", title: "Show landed relations" };
   }
 }
 

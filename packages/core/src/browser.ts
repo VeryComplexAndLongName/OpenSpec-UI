@@ -266,3 +266,5 @@ export * from "./view-filter.js";
 // Which days the Timeline's comparison covers and where each change's bar
 // sits on them — derived, never measured (the-timeline-compares-changes).
 export * from "./change-comparison.js";
+// Every action is a verb and a noun (ADR 0045): a leaf with no imports.
+export * from "./action-vocabulary.js";

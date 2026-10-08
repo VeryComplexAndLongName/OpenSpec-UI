@@ -35,9 +35,9 @@ const contributed = new Set(manifest.contributes.commands.map((entry) => entry.c
 describe("the extension contributes one way to start a run", () => {
   it("contributes exactly one command that starts work on a change", () => {
     const starters = [...contributed].filter((command) =>
-      command === "openspec-ui.runWithHarness" || command === "openspec-ui.startImplementation");
+      command === "openspec-ui.runChange" || command === "openspec-ui.startImplementation");
 
-    expect(starters).toEqual(["openspec-ui.runWithHarness"]);
+    expect(starters).toEqual(["openspec-ui.runChange"]);
   });
 
   it("contributes no menu item for the removed entry", () => {
@@ -51,9 +51,9 @@ describe("the extension contributes one way to start a run", () => {
   it("names the entry Run, not one of the things it offers", () => {
     // It offers three paths. Naming it after one of them is how it came
     // to sit beside a second entry named after another.
-    const run = manifest.contributes.commands.find((entry) => entry.command === "openspec-ui.runWithHarness");
+    const run = manifest.contributes.commands.find((entry) => entry.command === "openspec-ui.runChange");
 
-    expect(run?.title).toBe("OpenSpec Workbench: Run...");
+    expect(run?.title).toBe("Run Change...");
   });
 
   it("puts no second menu item beside Run for what the dialog already shows", () => {
@@ -64,8 +64,8 @@ describe("the extension contributes one way to start a run", () => {
       .filter((entry) => (entry.when ?? "").includes("openspec-ui.activeChange"))
       .map((entry) => entry.command);
 
-    expect(onActiveChange).not.toContain("openspec-ui.recommendHarnessTemplate");
-    expect(onActiveChange).not.toContain("openspec-ui.explainHarnessSettings");
+    expect(onActiveChange).not.toContain("openspec-ui.recommendChangeHarness");
+    expect(onActiveChange).not.toContain("openspec-ui.explainChangeHarness");
   });
 
   it("still offers them on an archived change, which has no Run", () => {
@@ -75,14 +75,14 @@ describe("the extension contributes one way to start a run", () => {
       .filter((entry) => (entry.when ?? "").includes("openspec-ui.archivedChange"))
       .map((entry) => entry.command);
 
-    expect(onArchived).toContain("openspec-ui.recommendHarnessTemplate");
-    expect(onArchived).toContain("openspec-ui.explainHarnessSettings");
+    expect(onArchived).toContain("openspec-ui.recommendChangeHarness");
+    expect(onArchived).toContain("openspec-ui.explainChangeHarness");
   });
 
   it("keeps the surviving entry's id, so existing keybindings still work", () => {
     // Renaming it would have been tidier and would have silently broken
     // every keybinding someone had chosen deliberately.
-    expect(contributed.has("openspec-ui.runWithHarness")).toBe(true);
+    expect(contributed.has("openspec-ui.runChange")).toBe(true);
   });
 });
 
@@ -91,12 +91,12 @@ describe("the extension contributes one way to start a run", () => {
 // shows, opens a view, or confirms what was chosen does not.
 describe("a command that asks before it acts says so", () => {
   const ASKS_FIRST = [
-    "initialize", "generateAgentInstructions", "setUpAgenticHarness", "configureDependabot",
-    "generateSubtypeInstructions", "runWithHarness", "createChange", "createChangeTemplate",
-    "readChangeElsewhere", "pickChange", "copyTasksAsTemplate", "insertTemplateIntoChange",
-    "confirmEnrolment", "joinTheTeam", "generateSprintReport", "sayToRun", "stopRunAfterTask",
-    "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterChangeGraph",
-    "setLocalLlmApiKey", "answerQuestion",
+    "initializeWorkspace", "generateInstructions", "initializeWorkspaceHarness", "configureDependabot",
+    "generateScopedInstructions", "runChange", "createChange", "createTemplate",
+    "openChangeCopy", "findChange", "copyTasks", "insertTemplate",
+    "confirmKey", "joinTeam", "generateReport", "sendMessage", "stopRun",
+    "addRelation", "removeRelation", "filterArchive", "filterSpecs", "filterGraph",
+    "setLlmKey", "answerQuestion",
   ].map((name) => `openspec-ui.${name}`);
 
   it("ends the title of every command that asks first with three dots", () => {

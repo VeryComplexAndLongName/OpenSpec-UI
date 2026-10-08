@@ -272,7 +272,7 @@ To run `plan`/`implement`/`review` through a specific CLI agent (Claude
 CLI, GitHub Copilot CLI, Codex CLI, Gemini CLI, or a local
 OpenAI-compatible LLM) instead of VS Code's native Chat/Agent handoff:
 
-1. Run **OpenSpec Workbench: Open Process Dashboard** from the Command Palette
+1. Run **OpenSpec Workbench: Open Dashboard** from the Command Palette
    (or the toolbar button on a change in **Changes**).
 2. In the panel, pick `implement` (or `plan`/`review`) from the command
    dropdown.
@@ -297,7 +297,7 @@ how this differs from the `@openspec` Chat Participant above.
 
 ## Agentic Harness
 
-**OpenSpec Workbench: Configure Harness Settings** and **OpenSpec Workbench: Configure
+**OpenSpec Workbench: Configure Workspace Harness** and **OpenSpec Workbench: Configure
 Harness for this Change** set the per-stage agent, autonomy level, and
 review gate the commands above (and a chain run) use by default. Each opens
 a panel of its own: the first for the workspace's global file, the second

@@ -730,13 +730,13 @@ settings screen that doesn't have the control:
 
 | Setting | Standalone (webui) | VS Code |
 | --- | --- | --- |
-| `stepAgents.<stage>.agent`, `.model`, `.effort`, `.budget`, `.customAgent` | The global file in the **Harness Settings** tab (`GlobalHarnessSettingsView.tsx`). A change's own file in the Change Editor's **Harness** tab, for the loaded change (`ChangeHarnessSettingsView.tsx`), where each inherit option names the value it resolves to. The model, effort, budget and custom-agent fields only appear once a stage's agent accepts them; the model is typed as the agent's CLI names it (`claude-sonnet-5`), since no agent lists its models. | **OpenSpec Workbench: Configure Harness Settings** opens the global file in a panel of its own, `OpenSpec Workbench: Harness Settings`. **OpenSpec Workbench: Configure Harness for this Change** opens that change's file in its own panel, `Harness: <change>`, already loaded; each change gets its own. Both files stay hand-editable and each view names its file. |
-| `autonomyLevel` | Both views. `autonomous` is offered only in a change's view: a workspace-level file may not set it, and the global view says so beside the select. | Both panels, on the same rule. The separate **OpenSpec Workbench: Set Up Agentic Harness...** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
+| `stepAgents.<stage>.agent`, `.model`, `.effort`, `.budget`, `.customAgent` | The global file in the **Harness Settings** tab (`GlobalHarnessSettingsView.tsx`). A change's own file in the Change Editor's **Harness** tab, for the loaded change (`ChangeHarnessSettingsView.tsx`), where each inherit option names the value it resolves to. The model, effort, budget and custom-agent fields only appear once a stage's agent accepts them; the model is typed as the agent's CLI names it (`claude-sonnet-5`), since no agent lists its models. | **OpenSpec Workbench: Configure Workspace Harness** opens the global file in a panel of its own, `OpenSpec Workbench: Harness Settings`. **OpenSpec Workbench: Configure Change Harness** opens that change's file in its own panel, `Harness: <change>`, already loaded; each change gets its own. Both files stay hand-editable and each view names its file. |
+| `autonomyLevel` | Both views. `autonomous` is offered only in a change's view: a workspace-level file may not set it, and the global view says so beside the select. | Both panels, on the same rule. The separate **OpenSpec Workbench: Initialize Workspace Harness...** command has a guided Quick Pick flow for the global setup, but it is not the general config editor. |
 | `reviewGate.mode` | A change's view only (the global value is fixed at `"human-required"` and shown, not editable). | A change's panel only. |
 | `checkpoints.requireConfirmationBetweenSteps` | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `budget` (chain-level `maxCostUsd`/`maxTokens`) | **Not editable in either UI.** Hand-edit the JSON file. | Same — not editable in either UI. |
 | `gitStageAllowlist` | **Not editable in either UI.** Hand-edit the per-change JSON file. | Same — not editable in either UI. |
-| `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec Workbench: Run This Delegated Item**. |
+| `taskAgents` | **Not editable in either UI.** Hand-edit the per-change JSON file. The resolved answer is visible: the "Waiting on somebody" block names the agent each open item resolves to, and offers a **Run** button where that agent is one this build carries. | Same — not editable. The **Human-Only Inbox** view names it per row, and a row naming a registered agent carries **OpenSpec Workbench: Run Item**. |
 | `archive.whenLanded` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep archived, and a change that landed owing something, is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel; an archive pull request it opened is also raised as a notification, and a change that landed owing something as a warning. |
 | `branches.followMain` | **Not editable in either UI.** Hand-edit the global JSON file; absent means on. What the sweep did is said under **Done for you** in the Summary, and the Pipeline's drift line names what landed and is not shown here. | Same - not editable. What the sweep did is said in the output channel. |
 | `branches.rebaseWhenBehind` | **Not editable in either UI.** Hand-edit the global or the per-change JSON file; absent means on. What the sweep did with a branch is said under **Done for you** in the Summary. | Same - not editable. What the sweep did is said in the output channel, and a conflict is also raised as a warning. |
@@ -789,7 +789,7 @@ Settings** opens the global one:
 
 [![VS Code panel titled OpenSpec Workbench: Harness Settings, showing the global harness settings](./docs/images/extension/harness-settings.png)](./docs/images/extension/harness-settings.png)
 
-**OpenSpec Workbench: Configure Harness for this Change**, from a change's context
+**OpenSpec Workbench: Configure Change Harness**, from a change's context
 menu, opens that change's own, titled with its name and already loaded:
 
 [![VS Code panel titled Harness: a-change-in-progress, showing one change's harness settings](./docs/images/extension/harness-change.png)](./docs/images/extension/harness-change.png)
@@ -837,7 +837,7 @@ rather than silently becoming an ordinary, unchecked task.
 ### One way in
 
 There is one entry, in both hosts: **Run** — the
-`openspec-ui.runWithHarness` command in VS Code (the id is unchanged, so
+`openspec-ui.runChange` command in VS Code (the id is unchanged, so
 existing keybindings still work), one button in the standalone Change
 Editor.
 
@@ -1158,11 +1158,11 @@ binary here" column repeats `README.md`'s own agent table.
 | --- | --- | --- | --- |
 | Base URL, with its `/v1` or without | `openspec-ui.localLlm.baseUrl` | `OPENSPEC_UI_LOCAL_LLM_BASE_URL` | `http://localhost:30000` |
 | Model, as its server names it | `openspec-ui.localLlm.model` | `OPENSPEC_UI_LOCAL_LLM_MODEL` | the server is asked (below) |
-| API key | **OpenSpec Workbench: Set Local LLM API Key...**, kept in the editor's secret storage | `OPENSPEC_UI_LOCAL_LLM_API_KEY` | no `Authorization` header |
+| API key | **OpenSpec Workbench: Set LLM Key...**, kept in the editor's secret storage | `OPENSPEC_UI_LOCAL_LLM_API_KEY` | no `Authorization` header |
 | Ask before each command (`local-llm-acp`) | `openspec-ui.localLlm.agent.askBeforeCommands` | `OPENSPEC_UI_LOCAL_LLM_ASK_BEFORE_COMMANDS=1` | commands run without asking |
 | SearXNG search endpoint (`local-llm`, `local-llm-acp`) | Environment: `OPENSPEC_UI_SEARXNG_URL` | `OPENSPEC_UI_SEARXNG_URL` | search reports that the endpoint is not configured; page fetch still works |
 
-In VS Code the editor's value wins and the environment variable is the fallback. All of them are read when the window opens, or when the server or the CLI starts. Agent detection in VS Code - the AI panel, the repository-setup facts and **OpenSpec Workbench: Set Up Agentic Harness...** - looks for the local LLM at the same address, with the same key and proxy switch, read when it asks. The setup offers `local-llm-acp` even where the server does not answer yet, marked so in the list; a CLI agent is offered only where it is installed. It does not offer `local-llm`, which answers in text and edits no file: both of its questions cover stages whose work is files. Set `local-llm` on `review` in Harness Settings; on `propose`, `apply` or `verify` the configuration's findings say the stage writes nothing on it (the-local-model-is-offered-where-it-is-set). The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log.
+In VS Code the editor's value wins and the environment variable is the fallback. All of them are read when the window opens, or when the server or the CLI starts. Agent detection in VS Code - the AI panel, the repository-setup facts and **OpenSpec Workbench: Initialize Workspace Harness...** - looks for the local LLM at the same address, with the same key and proxy switch, read when it asks. The setup offers `local-llm-acp` even where the server does not answer yet, marked so in the list; a CLI agent is offered only where it is installed. It does not offer `local-llm`, which answers in text and edits no file: both of its questions cover stages whose work is files. Set `local-llm` on `review` in Harness Settings; on `propose`, `apply` or `verify` the configuration's findings say the stage writes nothing on it (the-local-model-is-offered-where-it-is-set). The key goes to the request's `Authorization: Bearer` header and nowhere else: not to the audit log, not to a run log.
 
 **The model is optional.** A run takes the first of: the stage's own `model` (`stepAgents.<stage>.model`, which both agents accept); the setting above; the model the server lists at `/v1/models` (the first, where it lists several; asked once per address while the window or the server is open); `default`. The run's first output names the model and where it came from, for example `Model QuantTrio/Qwen3.6-35B-A3B-AWQ (the model the server serves).`
 

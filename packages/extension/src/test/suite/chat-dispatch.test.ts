@@ -36,7 +36,7 @@ function getExtension(): vscode.Extension<ExtensionTestApi> {
  * `"workbench.action.chat.open"` calls are captured instead of actually
  * opening VS Code's chat UI, while every other command is forwarded to
  * the real implementation unchanged (needed because the test itself
- * also drives real commands, e.g. `openspec-ui.openAiPanel`). */
+ * also drives real commands, e.g. `openspec-ui.openDashboard`). */
 function stubChatOpenCommand(): { calls: unknown[]; restore: () => void } {
   const original = vscode.commands.executeCommand;
   const calls: unknown[] = [];
@@ -95,7 +95,7 @@ suite("openspec-ui-vscode — vscode-chat harness stage dispatch (webview -> ext
     const events: Event[] = [];
     const subscription = api.onWebviewEvent((event) => events.push(event));
     try {
-      await vscode.commands.executeCommand("openspec-ui.openAiPanel", { changeDir });
+      await vscode.commands.executeCommand("openspec-ui.openDashboard", { changeDir });
       // stepAgents resolution has no event of its own to await — poll
       // getDashboardContext() briefly instead, exactly as the existing
       // "mode-toggle" test in extension.test.ts polls for the optional

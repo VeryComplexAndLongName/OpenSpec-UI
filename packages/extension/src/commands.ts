@@ -132,8 +132,8 @@ export interface TreeSelectionView {
   readonly selection: readonly unknown[];
 }
 
-/** `TreeSelectionView` plus `reveal` — what `openspec-ui.revealInChangeGraph`
- * and `openspec-ui.revealInChanges` need on top of reading the selection:
+/** `TreeSelectionView` plus `reveal` — what `openspec-ui.showGraph`
+ * and `openspec-ui.showChange` need on top of reading the selection:
  * a place to reveal the other view's row into. Only the views a reveal
  * command targets need this; `templatesView` still only needs selection. */
 export interface RevealableTreeView<T> extends TreeSelectionView {
@@ -276,7 +276,7 @@ const CHECK_TITLES: Record<CheckScriptName, string> = {
 /** Runs one of the workspace's own `typecheck`/`test`/`lint` checks
  * through the exact same `runMechanicalCheck` the harness's `verify` stage
  * uses (design.md, "report where a stage's checks report"), reporting
- * through `deps.outputChannel` the same way `openspec-ui.status` does.
+ * through `deps.outputChannel` the same way `openspec-ui.showStatus` does.
  * Defensively re-resolves and no-ops with a warning if the check is not
  * declared — the palette/menu `when` clauses hide the command in that
  * case, but a keybinding or `executeCommand` call could still reach it. */
@@ -440,7 +440,7 @@ async function suggestAgenticHarnessSetup(workspaceRoot: string): Promise<void> 
     "Set Up Agentic Harness",
   );
   if (action === "Set Up Agentic Harness") {
-    await vscode.commands.executeCommand("openspec-ui.setUpAgenticHarness");
+    await vscode.commands.executeCommand("openspec-ui.initializeWorkspaceHarness");
   }
 }
 
@@ -453,7 +453,7 @@ async function runTrackedProcess(
   if (process.state === "failed") throw new Error(process.error ?? `${process.operation} failed`);
 }
 
-// openspec-ui.createChangeTemplate's wizard — see openspec/changes/
+// openspec-ui.createTemplate's wizard — see openspec/changes/
 // agentic-harness-change-template/design.md, "Sequential QuickPick
 // wizard, not a single form" and "Cancelling mid-wizard discards the
 // whole customization, not a partial file". `git` is deliberately not
@@ -580,7 +580,7 @@ async function promptHarnessCustomization(changeName: string): Promise<Partial<H
   return config;
 }
 
-// openspec-ui.setUpAgenticHarness — the guided first-run flow for the
+// openspec-ui.initializeWorkspaceHarness — the guided first-run flow for the
 // *global* Agentic Harness default. See openspec/changes/agentic-harness-
 // init-wizard/design.md: unlike promptHarnessCustomization above (which
 // discards everything on Esc, since a partially-filled per-change override
@@ -902,7 +902,7 @@ async function offerProjectGuidelines(workspaceRoot: string): Promise<void> {
   });
   if (generate !== "Yes") return;
 
-  // Reuses openspec-ui.generateAgentInstructions's exact call verbatim —
+  // Reuses openspec-ui.generateInstructions's exact call verbatim —
   // see tasks.md 1.3.
   const picked = await vscode.window.showQuickPick(
     listBootstrapProjectTypes().map((type) => ({ label: type.label, id: type.id })),
@@ -1289,7 +1289,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // somebody pressed for it. Asked first, and named in the question:
     // the whole point of not sweeping these is that one of them may be
     // somebody's start (the-workspace-clears-what-it-left-behind).
-    vscode.commands.registerCommand("openspec-ui.removeLeftover", async (invokedItem?: unknown) => {
+    vscode.commands.registerCommand("openspec-ui.deleteLeftover", async (invokedItem?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = invokedItem instanceof LeftoverTreeItem
@@ -1328,7 +1328,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // a press, and only with a clean tree: core deletes each junction as a
     // junction first, since a recursive delete through one takes the
     // primary directory's packages with it.
-    vscode.commands.registerCommand("openspec-ui.removeWorkingDirectory", async (directoryPath?: string) => {
+    vscode.commands.registerCommand("openspec-ui.deleteWorktree", async (directoryPath?: string) => {
       if (typeof directoryPath !== "string" || directoryPath.trim().length === 0) {
         void vscode.window.showWarningMessage("OpenSpec Workbench: this command is run from a working directory's row.");
         return;
@@ -1354,7 +1354,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // "Only up to 4.6", said to a live run without interrupting it
     // (a-run-is-told-where-to-stop). The request goes through the signed
     // channel core owns; this asks the two questions and reports.
-    vscode.commands.registerCommand("openspec-ui.stopRunAfterTask", async (invokedItem?: unknown) => {
+    vscode.commands.registerCommand("openspec-ui.stopRun", async (invokedItem?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const subject = relationSubject(invokedItem, deps);
@@ -1413,7 +1413,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // and "which task are you on?", answered when the stage that carried it
     // ends (the-operator-can-say-something-to-a-run). The message goes
     // through the same signed channel a stop does.
-    vscode.commands.registerCommand("openspec-ui.sayToRun", async (invokedItem?: unknown) => {
+    vscode.commands.registerCommand("openspec-ui.sendMessage", async (invokedItem?: unknown) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const subject = relationSubject(invokedItem, deps);
@@ -1539,27 +1539,27 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!deps.filters) return;
       await clearFilter(deps.filters.specs, FILTER_CONTEXT_KEYS.specs);
     }),
-    vscode.commands.registerCommand("openspec-ui.filterChangeGraph", async () => {
+    vscode.commands.registerCommand("openspec-ui.filterGraph", async () => {
       if (!deps.filters) return;
       await askForFilter(deps.filters.changeGraph, "Filter Change Graph", FILTER_CONTEXT_KEYS.changeGraph);
     }),
-    vscode.commands.registerCommand("openspec-ui.clearChangeGraphFilter", async () => {
+    vscode.commands.registerCommand("openspec-ui.clearGraphFilter", async () => {
       if (!deps.filters) return;
       await clearFilter(deps.filters.changeGraph, FILTER_CONTEXT_KEYS.changeGraph);
     }),
     // The folded row's own command, so pressing the row and pressing the
     // title bar do the same thing.
-    vscode.commands.registerCommand("openspec-ui.showLandedRelations", async () => {
+    vscode.commands.registerCommand("openspec-ui.showRelations", async () => {
       if (!deps.filters) return;
       deps.filters.changeGraph.setShowLanded(true);
       await vscode.commands.executeCommand("setContext", FILTER_CONTEXT_KEYS.landedShown, true);
     }),
-    vscode.commands.registerCommand("openspec-ui.hideLandedRelations", async () => {
+    vscode.commands.registerCommand("openspec-ui.hideRelations", async () => {
       if (!deps.filters) return;
       deps.filters.changeGraph.setShowLanded(false);
       await vscode.commands.executeCommand("setContext", FILTER_CONTEXT_KEYS.landedShown, false);
     }),
-    vscode.commands.registerCommand("openspec-ui.initialize", async () => {
+    vscode.commands.registerCommand("openspec-ui.initializeWorkspace", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
       const selected = await vscode.window.showQuickPick(
@@ -1592,7 +1592,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("initialize workspace", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.setUpAgenticHarness", async () => {
+    vscode.commands.registerCommand("openspec-ui.initializeWorkspaceHarness", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       try {
@@ -1601,7 +1601,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("set up Agentic Harness", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.writeWorkflowRules", async () => {
+    vscode.commands.registerCommand("openspec-ui.writeRules", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       try {
@@ -1610,7 +1610,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("write agent workflow rules", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.generateAgentInstructions", async () => {
+    vscode.commands.registerCommand("openspec-ui.generateInstructions", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
       const picked = await vscode.window.showQuickPick(
@@ -1644,7 +1644,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("generate agent instructions", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.configureHarness", async () => {
+    vscode.commands.registerCommand("openspec-ui.configureWorkspaceHarness", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
       const uri = vscode.Uri.file(path.join(workspaceRoot, "openspec", "agent-harness.json"));
@@ -1667,7 +1667,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       // and the global file only (a-change-is-configured-from-the-change).
       deps.showHarnessSettings();
     }),
-    vscode.commands.registerCommand("openspec-ui.configureHarnessForChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.configureChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
@@ -1717,7 +1717,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // `assisted` change this looked like it only changed tabs. Keeping
     // the command id so existing keybindings and menus survive; see
     // one-way-in-to-run.
-    vscode.commands.registerCommand("openspec-ui.runWithHarness", async (invokedItem?: ChangeTreeItem | string) => {
+    vscode.commands.registerCommand("openspec-ui.runChange", async (invokedItem?: ChangeTreeItem | string) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       let item: ChangeTreeItem | undefined;
@@ -1814,7 +1814,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("configure dependabot", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.generateSubtypeInstructions", async () => {
+    vscode.commands.registerCommand("openspec-ui.generateScopedInstructions", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) return;
       if (!(await confirmSetupActionThatDoesNotApply(
@@ -1880,7 +1880,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("create change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.createChangeTemplate", async () => {
+    vscode.commands.registerCommand("openspec-ui.createTemplate", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         warnNoWorkspace();
@@ -1939,29 +1939,32 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("write per-change harness config", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.validateSelectedChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.validateChange", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
+      // From a row, that change; from the palette, the one the person picks.
+      // Validation is strict either way, as the merge gate's is (ADR 0045).
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
-      if (!item) { warnNoTreeSelection("change"); return; }
+      const changeName = item?.changeName ?? (await pickChange(workspaceRoot))?.name;
+      if (!changeName) return;
       try {
         let result: Awaited<ReturnType<typeof validateChange>> | undefined;
         await runTrackedProcess(deps.implementationSessions, workspaceRoot, {
           operation: "validate",
-          changeName: item.changeName,
+          changeName,
           mutating: false,
-          execute: async () => { result = await validateChange(item.changeName, { cwd: workspaceRoot }); },
+          execute: async () => { result = await validateChange(changeName, { cwd: workspaceRoot }); },
         });
         if (!result) return;
         await openMarkdownDocument(
-          `strict validation for ${item.changeName}`,
-          formatValidateMarkdown(item.changeName, result),
+          `strict validation for ${changeName}`,
+          formatValidateMarkdown(changeName, result),
         );
       } catch (error) {
         await showCommandError("validate change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.showChangeTimeline", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showTimeline", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
@@ -1991,7 +1994,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // list and the audit log. The settings view cannot — it runs in the
     // browser — and plumbing it there would cost a REST route and a
     // bridge for the same sentence on screen.
-    vscode.commands.registerCommand("openspec-ui.recommendHarnessTemplate", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.recommendChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
@@ -2017,7 +2020,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("recommend a harness configuration", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.explainHarnessSettings", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.explainChangeHarness", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
@@ -2047,7 +2050,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("explain the harness settings", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.showChangeCostReport", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showCost", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
@@ -2069,7 +2072,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("show what a change cost", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.showChangeAncestry", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showAncestry", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
@@ -2113,7 +2116,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // several (design.md, "every row, and say how many"). Most changes
     // state no relation at all (proposal.md's measurement), so that case
     // is reported too, not treated as an error.
-    vscode.commands.registerCommand("openspec-ui.revealInChangeGraph", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showGraph", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem)
@@ -2145,7 +2148,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     // row's own archived flag"), and reports rather than throwing when the
     // change is no longer where that flag says, since the graph is read
     // from disk on refresh and can outlive the change it names.
-    vscode.commands.registerCommand("openspec-ui.revealInChanges", async (invokedItem?: ChangeGraphTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showChange", async (invokedItem?: ChangeGraphTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.changeGraphView, isChangeGraphTreeItem);
@@ -2196,7 +2199,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("archive change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.unarchiveChange", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.restoreChange", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
@@ -2221,7 +2224,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("unarchive change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.copyTasksAsTemplate", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.copyTasks", async (invokedItem?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.archiveView, isChangeTreeItem);
@@ -2248,7 +2251,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("copy tasks as template", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.customizeTemplate", async (invokedItem?: TemplateTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.editTemplate", async (invokedItem?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.templatesView, isTemplateTreeItem);
@@ -2277,7 +2280,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("customize template", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.insertTemplateIntoChange", async (invokedItem?: TemplateTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.insertTemplate", async (invokedItem?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.templatesView, isTemplateTreeItem);
@@ -2329,7 +2332,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("insert template into change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.deleteProjectTemplate", async (invokedItem?: TemplateTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.deleteTemplate", async (invokedItem?: TemplateTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) { warnNoWorkspace(); return; }
       const item = resolveTreeItem(invokedItem, deps.templatesView, isTemplateTreeItem);
@@ -2491,10 +2494,10 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         await showCommandError("rollback change", error);
       }
     }),
-    vscode.commands.registerCommand("openspec-ui.cancelProcess", (item?: { process?: { id?: string } }) => {
+    vscode.commands.registerCommand("openspec-ui.stopProcess", (item?: { process?: { id?: string } }) => {
       if (item?.process?.id) deps.implementationSessions.cancel(item.process.id);
     }),
-    vscode.commands.registerCommand("openspec-ui.status", async () => {
+    vscode.commands.registerCommand("openspec-ui.showStatus", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2535,12 +2538,12 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       );
     }),
     vscode.commands.registerCommand("openspec-ui.runTypecheck", () => runCheckCommand(deps, "typecheck")),
-    vscode.commands.registerCommand("openspec-ui.runTest", () => runCheckCommand(deps, "test")),
+    vscode.commands.registerCommand("openspec-ui.runTests", () => runCheckCommand(deps, "test")),
     vscode.commands.registerCommand("openspec-ui.runLint", () => runCheckCommand(deps, "lint")),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.openspecView", async () => {
+    vscode.commands.registerCommand("openspec-ui.openCliView", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2565,7 +2568,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.showAllChangesTimeline", async () => {
+    vscode.commands.registerCommand("openspec-ui.showComparison", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2607,7 +2610,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.generateSprintReport", async () => {
+    vscode.commands.registerCommand("openspec-ui.generateReport", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2653,7 +2656,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.showChangeDetails", async () => {
+    vscode.commands.registerCommand("openspec-ui.showDetails", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2667,21 +2670,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.validateChangeStrict", async () => {
-      const workspaceRoot = deps.getWorkspaceRoot();
-      if (!workspaceRoot) {
-        void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
-        return;
-      }
-      const selected = await pickChange(workspaceRoot);
-      if (!selected) return;
-      const result = await validateChange(selected.name, { cwd: workspaceRoot });
-      await openMarkdownDocument(`strict validation for ${selected.name}`, formatValidateMarkdown(selected.name, result));
-    }),
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.listSpecsSummary", async () => {
+    vscode.commands.registerCommand("openspec-ui.showSpecs", async () => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         void vscode.window.showErrorMessage("OpenSpec Workbench: open a folder or workspace first.");
@@ -2694,7 +2683,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.openAiPanel", (item?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.openDashboard", (item?: ChangeTreeItem) => {
       const workspaceRoot = deps.getWorkspaceRoot();
       if (!workspaceRoot) {
         warnNoWorkspace();
@@ -2705,7 +2694,7 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("openspec-ui.reviewDiff", async (invokedItem?: ChangeTreeItem) => {
+    vscode.commands.registerCommand("openspec-ui.showDiff", async (invokedItem?: ChangeTreeItem) => {
       const item = resolveTreeItem(invokedItem, deps.changesView, isChangeTreeItem);
       if (!item) { warnNoTreeSelection("change"); return; }
       const tasksPath = path.join(item.changeDir, "tasks.md");
