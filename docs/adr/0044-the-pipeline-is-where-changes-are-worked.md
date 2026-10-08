@@ -1,6 +1,6 @@
 # 0044: The Pipeline Is Where Changes Are Worked, and the Side Panel Becomes the Workspace
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-10-08
 
