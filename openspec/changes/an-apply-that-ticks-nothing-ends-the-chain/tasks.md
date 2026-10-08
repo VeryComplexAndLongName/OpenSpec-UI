@@ -31,6 +31,8 @@ From the owner's decision on 2026-10-08, after two chains went on to
   this change touched). With two workers: `harness-chain-runner.test.ts`
   127 passed; the CLI's `run-change.test.ts` and `main.test.ts` 37
   passed; `server.test.ts` 110 passed. The full projects run in CI.
-- [ ] 3.2 `openspec validate an-apply-that-ticks-nothing-ends-the-chain
+- [x] 3.2 `openspec validate an-apply-that-ticks-nothing-ends-the-chain
   --strict`, and the merge gate with the worktree's absolute path as
   `--cwd`.
+  2026-10-08: valid under `--strict`; the gate named only this task as
+  open.
