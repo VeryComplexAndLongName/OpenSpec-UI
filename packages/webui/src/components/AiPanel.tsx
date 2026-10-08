@@ -257,7 +257,12 @@ export function OperatorQuestionsPrompt(props: {
                 rows={2}
                 value={draft}
                 disabled={waiting}
-                onChange={(e) => setDrafts((prev) => ({ ...prev, [question.questionId]: e.currentTarget.value }))}
+                onChange={(e) => {
+                  // Read now: the updater runs after the event, when React
+                  // has already cleared `currentTarget`.
+                  const value = e.currentTarget.value;
+                  setDrafts((prev) => ({ ...prev, [question.questionId]: value }));
+                }}
               />
               <button
                 type="button"

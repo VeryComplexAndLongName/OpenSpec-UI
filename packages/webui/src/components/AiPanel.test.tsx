@@ -53,6 +53,27 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(screen.queryByTestId("operator-questions")).toBeNull();
     });
 
+    // Found live on 2026-10-08: the first key typed into the answer field
+    // blanked the whole panel. Two keys inside one event batch are what a
+    // browser does and what a lone fireEvent.change does not.
+    it("keeps the panel and every key typed into an answer field", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        emit({ kind: "awaitingAnswers", runId: "run-1", timestamp: "t", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] });
+
+        const field = screen.getByTestId("operator-answer-Q-run1-1") as HTMLTextAreaElement;
+        act(() => {
+            fireEvent.change(field, { target: { value: "Y" } });
+            fireEvent.change(field, { target: { value: "Ye" } });
+        });
+
+        expect(screen.getByTestId("operator-questions").textContent).toContain("Keep the v1 API?");
+        expect((screen.getByTestId("operator-answer-Q-run1-1") as HTMLTextAreaElement).value).toBe("Ye");
+    });
+
     it("sends a list command with generated runId", () => {
         const { transport, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-fixed"} />);

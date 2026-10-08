@@ -1813,7 +1813,10 @@ function AnswerQuestionsForm({ target, onAnswer, onClose }: {
             value={drafts[question.questionId] ?? ""}
             disabled={sent.has(question.questionId)}
             data-testid={`pipeline-answer-${question.questionId}`}
-            onChange={(event) => setDrafts((current) => ({ ...current, [question.questionId]: event.target.value }))}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDrafts((current) => ({ ...current, [question.questionId]: value }));
+            }}
           />
         </label>
       ))}
