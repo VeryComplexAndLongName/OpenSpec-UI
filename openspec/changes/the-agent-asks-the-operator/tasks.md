@@ -4,51 +4,121 @@ the-plan-is-updated-from-its-review.
 
 ## 1. Core
 
-- [ ] 1.1 `agents/shared.ts`: the question instruction on every agent stage
+- [x] 1.1 `agents/shared.ts`: the question instruction on every agent stage
   (design.md decision 1). Tests beside the instruction tests.
-- [ ] 1.2 `operator-question.ts`: the marker reader. Tests: list and quote
+  `commandInstruction` in `agents/shared.ts` adds
+  `OPERATOR_QUESTION_INSTRUCTION` to plan, implement, review, update and
+  verify; `operator-question-instruction.test.ts` (2026-10-08).
+- [x] 1.2 `operator-question.ts`: the marker reader. Tests: list and quote
   marks, emphasis, an empty question, the same one twice, prose not read.
-- [ ] 1.3 `protocol.ts`: the `question` event, the `answerQuestion`
+  `readOperatorQuestion` and `LineCollector`; `operator-question.test.ts`
+  covers list and quote marks, emphasis, an empty question and prose
+  (2026-10-08).
+- [x] 1.3 `protocol.ts`: the `question` event, the `answerQuestion`
   command; `agent-status.ts`: waiting kind `question` (decision 2). Tests.
-- [ ] 1.4 `decisions-file.ts`: append a question, answer one, read the open
+  `question`, `awaitingAnswers`, `questionAnswered` events and the
+  `answerQuestion` command in `protocol.ts`; waiting kind `question` in
+  `agent-status.ts`; `protocol.test.ts`,
+  `operator-question-instruction.test.ts` (2026-10-08).
+- [x] 1.4 `decisions-file.ts`: append a question, answer one, read the open
   ones; the audit entries (decision 5). Tests: two runs' questions, an
   answer, a second answer refused.
-- [ ] 1.5 `agent-runner.ts`: questions from the stream, the wait, the
+  `decisions-file.ts` (`appendQuestion`, `answerQuestion`, `openQuestions`);
+  audit entries carry `operatorQuestion`; `decisions-file.test.ts`: two
+  runs' questions, an answer, a second answer refused (2026-10-08).
+- [x] 1.5 `agent-runner.ts`: questions from the stream, the wait, the
   re-run with the answers (decision 3); the refusal past an open question
   (decision 6). Tests: a run that asks waits and does not complete; answers
   start the update with them in its prompt; a cancel ends the wait; a run
   on a change with an open question is refused; a read-only one is not.
-- [ ] 1.6 `agents/local-agent/tools.ts`, `agent-loop.ts`: `ask_operator`
+  As built in `operator-questions-runner.ts`, a wrapper around every default
+  runner, not inside `agent-runner.ts` (design.md decision 3);
+  `operator-questions-runner.test.ts`: the run waits and does not complete,
+  the answers start `update` with them in its prompt, a cancel ends the
+  wait, a run past an open question is refused, a read-only one is not
+  (2026-10-08).
+- [x] 1.6 `agents/local-agent/tools.ts`, `agent-loop.ts`: `ask_operator`
   (decision 4). Tests: the loop blocks until answered and continues with
   the answer.
-- [ ] 1.7 `harness-chain-runner.ts`, `supervisor.ts`: the chain waits in the
+  `ask_operator` in `tools.ts`, `agent-loop.ts` (`askOperator`),
+  `acp-agent.ts` (`waitForOperator`), `local-llm-acp.ts` (answer read from
+  `decisions.md`); `agent-loop.test.ts`: the loop blocks until answered and
+  continues with the answer (2026-10-08).
+- [x] 1.7 `harness-chain-runner.ts`, `supervisor.ts`: the chain waits in the
   stage under every level; `act` leaves a waiting stage alone (decision 8).
   Tests in the chain runner's tests.
+  `harness-chain-runner.ts` waits in the stage and leaves the wait out of
+  the stage's time limit (test "does not cut a stage while it waits for the
+  operator's answer"); `supervisor.ts` offers `answer` beside `status` and
+  never a stop for a waiting run (`supervisor.test.ts`) (2026-10-08).
 
 ## 2. Surfaces
 
-- [ ] 2.1 `packages/webui`: questions with answer fields on the card and in
+- [x] 2.1 `packages/webui`: questions with answer fields on the card and in
   the AI panel; the Inbox's questions (decision 7). Tests.
-- [ ] 2.2 `packages/extension` and `packages/server`: `answerQuestion` in
+  Card **Answer...** form in `PipelineView.tsx` (questions from the survey's
+  `openQuestions`), `OperatorQuestionsPrompt` in the AI and chain panels,
+  the standalone Inbox's questions; `PipelineView.test.tsx`,
+  `AiPanel.test.tsx` (2026-10-08).
+- [x] 2.2 `packages/extension` and `packages/server`: `answerQuestion` in
   both hosts, and across hosts on the run's message channel. Tests.
-- [ ] 2.3 `packages/cli`: `answer`, and questions in `status`. Tests.
+  Extension: `answerQuestion` from the card and an inline **Answer This
+  Question...** on the Inbox's question rows
+  (`human-only-inbox-tree.test.ts`, `one-way-in.test.ts`); server:
+  `answerQuestion` routed to the runner holding the run (`server.test.ts`
+  "carries an answer to an agent's question to the runner that holds the
+  run"). Across hosts the answer travels through `decisions.md`, which the
+  waiting run reads (design.md decision 7) (2026-10-08).
+- [x] 2.3 `packages/cli`: `answer`, and questions in `status`. Tests.
+  `openspec-ui-cli answer` (`answer-command.test.ts`); `status` prints each
+  waiting run's questions with the command that answers them
+  (`status-command.test.ts`); `render-run.ts` renders the new events
+  (2026-10-08).
 
 ## 3. Documents
 
-- [ ] 3.1 `docs/adr/0042-the-agent-asks-the-operator.md` accepted;
+- [x] 3.1 `docs/adr/0042-the-agent-asks-the-operator.md` accepted;
   `docs/adr/README.md` row.
-- [ ] 3.2 `HARNESS.md`: questions, `decisions.md`, the wait, the refusal.
-- [ ] 3.3 A changeset: core, webui, server, cli, extension, minor.
+  ADR 0042 Accepted, decisions 3 and 6 as built; row in `docs/adr/README.md`
+  (2026-10-08).
+- [x] 3.2 `HARNESS.md`: questions, `decisions.md`, the wait, the refusal.
+  HARNESS.md "A question for the operator" and a row in "Find what you need"
+  (2026-10-08).
+- [x] 3.3 A changeset: core, webui, server, cli, extension, minor.
+  `.changeset/the-agent-asks-the-operator.md`: core, webui, server, cli,
+  extension, minor (2026-10-08).
 
 ## 4. Checks
 
-- [ ] 4.1 `npm run typecheck && npm run lint`, and every test project, each
+- [x] 4.1 `npm run typecheck && npm run lint`, and every test project, each
   on its own where the root run would exceed a background limit.
+  2026-10-08: typecheck clean; lint 0 errors (3 warnings, all in files and
+  lines this change did not touch). Locally, the affected test files of each
+  package with two workers: core 516 tests in 22 files, cli 65, extension
+  82 + 22, webui 164, server 2 selected, all passing. The full projects,
+  `core-git-subprocess` included, run in CI on the pull request.
 - [ ] 4.2 `openspec validate the-agent-asks-the-operator --strict`, and the
   merge gate with the worktree's absolute path as `--cwd`.
 - [ ] 4.3 Live runs: a review on a CLI agent that asks a question, waits,
   and updates once answered; `local-llm-acp` asking through `ask_operator`
   mid-turn; record both.
+  CLI agent, 2026-10-08, `copilot-cli-acp`, a scratch repository whose
+  change left its storage backend undecided: the review printed
+  `Question for the operator: Which storage backend should be used: SQLite
+  ... or PostgreSQL ...?` 12 s in; `question Q-liverevi-1`, then
+  `awaitingAnswers`, and the run did not complete. `decisions.md` held the
+  question with `Answer: (open)`. An `implement` on the same change was
+  refused meanwhile, naming the question and the three ways to answer. The
+  answer, given from another process with `openspec-ui-cli answer demo
+  Q-liverevi-1 "SQLite, a single file beside the app; no server."`, was
+  read 2 s later (`questionAnswered`, by the git identity), the run went
+  on as `update`, rewrote proposal, spec and tasks for SQLite and added
+  design.md, and completed 77 s later. An earlier attempt on `claude-cli`
+  failed before asking: that CLI is not signed in on this machine, and the
+  failure said so.
+  Still open: `local-llm-acp` asking mid-turn has not been run live - no
+  local LLM endpoint is configured in this session's environment; the
+  behaviour is covered by `agent-loop.test.ts`.
 - [ ] 4.4 **Human-only**: in either host, see a run stop on a question,
   answer it from the card, and see the run go on with the answer; see
   `apply` refused while a question is open.

@@ -2330,6 +2330,62 @@ describe("server — WebSocket /api/ws", () => {
     client.close();
   });
 
+  // the-agent-asks-the-operator (ADR 0042): an answer from the standalone
+  // panel names no agent either, and goes where the waiting run is held.
+  it("carries an answer to an agent's question to the runner that holds the run", async () => {
+    const defaultCommands: Command[] = [];
+    const defaultRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        defaultCommands.push(command);
+        yield* [];
+      },
+    };
+    let answer: ((text: string) => void) | undefined;
+    const answered = new Promise<string>((resolve) => { answer = resolve; });
+    const askingRunner: AgentRunner = {
+      async *run(command: Command): AsyncIterable<Event> {
+        if (command.kind === "answerQuestion") {
+          answer?.(`${command.questionId}:${command.answer}`);
+          yield { kind: "questionAnswered", runId: command.runId, timestamp: "t", questionId: command.questionId ?? "", answer: command.answer ?? "" };
+          return;
+        }
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        yield { kind: "awaitingAnswers", runId: command.runId, timestamp: "t", questions: [{ questionId: "Q-1", text: "Which database?" }] };
+        yield { kind: "completed", runId: command.runId, timestamp: "t", summary: await answered };
+      },
+    };
+    await server.close();
+    await startServer(new Map([["claude-cli", defaultRunner], ["asking-agent", askingRunner]]));
+
+    const client = new WebSocket(wsUrl, ["openspec-ui", `openspec-ui-token.${ACCESS_TOKEN}`]);
+    await new Promise((resolve) => client.once("open", resolve));
+    const received: Event[] = [];
+    const completed = new Promise<void>((resolve) => {
+      client.on("message", (raw) => {
+        const event = JSON.parse(raw.toString()) as Event;
+        received.push(event);
+        if (event.kind === "awaitingAnswers") {
+          client.send(JSON.stringify({
+            kind: "answerQuestion",
+            cwd: wsImplementCommand.cwd,
+            runId: event.runId,
+            context: wsImplementCommand.context,
+            questionId: "Q-1",
+            answer: "Postgres",
+          }));
+        }
+        if (event.kind === "completed") resolve();
+      });
+    });
+
+    client.send(JSON.stringify({ ...wsImplementCommand, kind: "review", agentId: "asking-agent" }));
+    await completed;
+
+    expect(received.at(-1)).toMatchObject({ kind: "completed", summary: "Q-1:Postgres" });
+    expect(defaultCommands).toEqual([]);
+    client.close();
+  });
+
   it("rejects a stage configured with dispatch \"vscode-chat\" instead of running a CLI", async () => {
     const { writeGlobalHarnessConfig } = await vi.importActual<typeof import("@openspec-ui/core")>("@openspec-ui/core");
     await writeGlobalHarnessConfig(wsImplementCommand.cwd, {

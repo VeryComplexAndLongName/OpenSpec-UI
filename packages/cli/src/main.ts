@@ -26,6 +26,7 @@ import { statusCommand } from "./status-command.js";
 import { claimCommand, presentCommand, rootOf, untilInterrupted } from "./coordination-commands.js";
 import { stopCommand } from "./stop-command.js";
 import { taskCommand } from "./task-command.js";
+import { answerCommand } from "./answer-command.js";
 import { worktreeCommand } from "./worktree-command.js";
 import { runValidateAll, type ValidateAllResult } from "./openspec-validate.js";
 import {
@@ -68,6 +69,7 @@ Usage:
                             [--cwd <path>]
   openspec-ui-cli task done|reopen <change> <number> [--note <text>] [--cwd <path>]
                                  [--format text|json]
+  openspec-ui-cli answer <change> [<Q-id> "<answer>"] [--cwd <path>] [--format text|json]
   openspec-ui-cli task commit <change> [--cwd <path>] [--format text|json]
   openspec-ui-cli worktree add <change> [--cwd <path>] [--path <dir>]
                                         [--base <ref>]
@@ -296,6 +298,7 @@ export interface MainDeps {
   statusCommand?: typeof statusCommand;
   stopCommand?: typeof stopCommand;
   taskCommand?: typeof taskCommand;
+  answerCommand?: typeof answerCommand;
   enrolCommand?: typeof enrolCommand;
   joinCommand?: typeof joinCommand;
   peopleCommand?: typeof peopleCommand;
@@ -669,6 +672,21 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
     );
   }
 
+  // `answer <change> [<Q-id> <answer>]`: an agent's question, answered from a
+  // terminal (the-agent-asks-the-operator, ADR 0042).
+  if (command === "answer") {
+    return await (deps.answerCommand ?? answerCommand)(
+      {
+        repositoryRoot: options.cwd ?? process.cwd(),
+        ...(options.changeName !== undefined ? { changeName: options.changeName } : {}),
+        ...(options.worktreeChange !== undefined ? { questionId: options.worktreeChange } : {}),
+        ...(options.taskNumber !== undefined ? { answer: options.taskNumber } : {}),
+        format: options.format === "json" ? "json" : "text",
+      },
+      { stdout, stderr },
+    );
+  }
+
   if (command === "task") {
     // `task <action> <change> [<number>]`: the action in the first
     // positional, as `worktree` has it.
@@ -757,7 +775,7 @@ export async function runMain(argv: string[], deps: MainDeps = {}): Promise<numb
   if (command !== "validate") {
     stderr(
       `openspec-ui-cli: unknown command '${command ?? ""}'`
-      + " (supported: validate, run, update, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
+      + " (supported: validate, run, update, answer, check, ready, doctor, advise, lease, status, enrol, join, people, history, stages, owner, implementer, send-back, worktree, release-manifest, change-graph)",
     );
     stderr(USAGE);
     return 2;

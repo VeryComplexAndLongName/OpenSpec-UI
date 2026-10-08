@@ -21,26 +21,36 @@ hosts (ADR 0028); the Human-Only Inbox over `tasks.md`; the supervisor's
    colon kept, an empty one ignored, the same text twice in one run read
    once.
 2. **The event and the command.** `question` (non-terminal): `questionId`
-   (run id and a counter), `text`, `stage`, `changeDir`, `askedAt`.
-   `answerQuestion`: `questionId`, `answer`, `by`. The runner emits
+   (`Q-<first 8 letters and digits of the run id>-<n>`) and `text`; the
+   stage, agent and time are in `decisions.md`, not repeated on the event.
+   `awaitingAnswers` lists the questions the run waits on when its turn
+   ends, and `questionAnswered` (`questionId`, `answer`, `by`) says each
+   answer was recorded. `answerQuestion`: `questionId`, `answer`; who
+   answered is the answering host's git identity. The runner emits
    `question` as soon as it reads the marker, so the card shows it while
    the agent still works; the status record's `waiting` becomes
-   `{ kind: "question", questions: [...] }` when the turn ends.
-3. **Waiting instead of completing.** `agent-runner.ts` holds the agent's
-   own `completed` while any question of the run is open, as the chain
-   holds a `failed` under `act` (the-supervisor-changes-agents): it emits
-   `progress` "waiting for the operator's answer to N question(s)", writes
-   `waiting`, and blocks on the answers. When the last one arrives, it runs
-   the stage again in the same run - `update` for `plan` and `review`, the
-   same command otherwise - with a prompt section "The operator's answers"
-   holding each question and answer, and its outcome is the run's. A chain
-   runs its stages through this runner and so waits in the stage; its
-   checkpoint logic is untouched. The terminal-event contract (ADR 0012)
-   holds: one terminal event, last.
+   `{ kind: "question", questions: [...] }` on `awaitingAnswers`.
+3. **Waiting instead of completing.** `withOperatorQuestions`
+   (`operator-questions-runner.ts`) wraps every default runner, so the
+   agent runner itself is unchanged. It holds the agent's own `completed`
+   while any question the pass asked is still open, as the chain holds a
+   `failed` under `act` (the-supervisor-changes-agents): it emits
+   `awaitingAnswers`, and blocks on the answers, reading `decisions.md`
+   every 3 s and at once when an `answerQuestion` reaches the same runner.
+   When the last one is answered, it runs the stage again in the same run -
+   `update` for `plan` and `review`, the same command otherwise - with a
+   prompt section "The operator's answers" holding each question and
+   answer, and its outcome is the run's. Only questions still open when
+   the pass ends are waited on: a question `ask_operator` had answered in
+   the turn needs no second pass. A chain runs its stages through these
+   runners and so waits in the stage; its checkpoint logic is untouched,
+   and the stage's time limit does not count the wait. The terminal-event
+   contract (ADR 0012) holds: one terminal event, last.
 4. **`ask_operator`.** A tool of `local-llm-acp` with one argument,
-   `question`. Its execution emits `question` through the same path and
-   awaits `answerQuestion` for that id; the answer is the tool's result,
-   and the turn goes on. It is not offered under `local-llm` (text only).
+   `question`. Its execution says the question as a marker line, so it is
+   recorded through the same path, and waits for its answer in
+   `decisions.md` (read every 1.5 s); the answer is the tool's result, and
+   the turn goes on. It is not offered under `local-llm` (text only).
 5. **`decisions.md`.** `decisions-file.ts` appends, never rewrites another
    entry:
 
@@ -53,23 +63,34 @@ hosts (ADR 0028); the Human-Only Inbox over `tasks.md`; the supervisor's
 
    and on answer replaces that entry's `Answer:` line with the answer,
    followed by `- Answered: <time> by <who>`. Written in the change's own
-   worktree. The audit log records `message` entries with `question` and
-   `answer` fields. `openQuestions(changeDir)` reads the file.
-6. **The refusal.** `agent-runner.ts` refuses an agent command (`plan`,
-   `review`, `update`, `implement`, `verify`, `chain`) on a change whose
-   `decisions.md` holds an open question that is not this run's own, with
-   "<change> has an open question for the operator: <Q-id> <text>. Answer
-   it first: <commands>". Read-only commands run.
-7. **Surfaces.** The card's "Waiting on you" lists each open question with
-   a field and **Answer**; the AI panel shows the questions of the run it
-   watches the same way; the Human-Only Inbox lists open questions from
-   `decisions.md` beside Human-only items and answers them the same way;
-   `openspec-ui-cli answer <change> <Q-id> <text>` and `status` lists open
-   questions. An answer given where the run is not is sent on the run's
-   message channel; the waiting run takes it, as it takes a stop request.
+   worktree. The audit log records an entry for each question and each
+   answer, with an `operatorQuestion` field (`questionId`, `text`, and
+   `answer` and `by` once answered). `openQuestions(changeDir)` reads the
+   file.
+6. **The refusal.** The same wrapper refuses an agent command (`plan`,
+   `review`, `update`, `implement`, `verify`) on a change whose
+   `decisions.md` holds an open question, with "<change> has an open
+   question for the operator: <Q-id> "<text>". Answer it first - on the
+   change's card, with `openspec-ui-cli answer <change> <Q-id> "<answer>"`,
+   or in its decisions.md." A chain is refused at its first stage, which
+   runs through it. Read-only commands run.
+7. **Surfaces.** A card with open questions offers **Answer...**, a field
+   per question; it reads them from the change's `decisions.md` through
+   the survey, so they show whether or not the run that asked is alive.
+   The AI panel and the chain panel show the questions of the run they
+   watch the same way. The Human-Only Inbox lists open questions from the
+   checkout's changes and from each change's own worktree, first, and
+   answers them (an inline **Answer This Question...** in VS Code, a field
+   in the standalone app). `openspec-ui-cli answer <change>` lists a
+   change's open questions and `answer <change> <Q-id> <text>` answers one;
+   `status` prints each waiting run's questions with that command. An
+   answer is written to `decisions.md` in the run's own working directory;
+   the waiting run reads it there, so the file is the channel between
+   hosts and across restarts, not the run's message channel.
 8. **The supervisor.** A run waiting on a question is "waiting on a person"
-   (ADR 0039) and is pointed out after `waitingAfterSeconds`; under `act`,
-   a waiting run is never repeated or moved.
+   (ADR 0039) and is pointed out after `waitingAfterSeconds`, with the
+   `answer` command beside `status`; under `act`, a waiting run is never
+   repeated or moved, and no stop is offered for it.
 
 ## Risks / Trade-offs
 

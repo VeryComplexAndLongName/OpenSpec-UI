@@ -79,8 +79,17 @@ function aboutRuns(inputs: SuperviseInputs): Hint[] {
         subject: `A run${onChange(report.changeName)} has waited on a person for ${span}`,
         because: `It is ${describeWaiting(report.waiting)}, longer than supervisor.waitingAfterSeconds`
           + ` (${supervisor.waitingAfterSeconds}s). A waiting run is not a hung one: it goes on once answered`
-          + " where it was started.",
-        commands: [status],
+          + (report.waiting.kind === "question" ? "." : " where it was started."),
+        // A question is answered from anywhere, so the answer is offered
+        // beside the look; nothing here ever stops a waiting run
+        // (the-agent-asks-the-operator, ADR 0042).
+        commands: [
+          status,
+          ...(report.waiting.kind === "question" && report.changeName !== null
+            ? report.waiting.questions.map((question) =>
+              `openspec-ui-cli answer ${report.changeName} ${question.questionId} "<answer>" --cwd ${report.workingDirectory}`)
+            : []),
+        ],
       });
       continue;
     }

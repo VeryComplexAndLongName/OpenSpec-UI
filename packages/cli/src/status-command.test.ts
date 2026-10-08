@@ -56,6 +56,24 @@ describe("statusCommand", () => {
     expect(text).toContain("running apply");
   });
 
+  it("lists a waiting run's open questions, each with how to answer it", async () => {
+    const io = collectingIo();
+    const waiting: AgentStatusReport = {
+      ...REPORT,
+      waiting: { kind: "question", questions: [{ questionId: "Q-abc-1", text: "Which database?" }] },
+    };
+
+    const code = await statusCommand(
+      { workspaceRoot: "/repo", format: "text" },
+      { ...io, resolveDirectory: async () => "/status", read: async () => ({ reports: [waiting], malformed: [] }) },
+    );
+
+    expect(code).toBe(0);
+    const text = io.out.join("\n");
+    expect(text).toContain("Q-abc-1 Which database?");
+    expect(text).toContain(`openspec-ui-cli answer a-change Q-abc-1 "<answer>"`);
+  });
+
   it("exits 0 with nothing running", async () => {
     const io = collectingIo();
     const result: AgentStatusReadResult = { reports: [], malformed: [] };

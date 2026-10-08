@@ -4,11 +4,39 @@ import {
   describeEnrolmentRequest,
   describeMessageOutcome,
   describeWaitingOn,
+  DECISIONS_FILE,
   type EnrolmentRequest,
+  type InboxQuestion,
   type ItemReply,
   type WaitingOn,
 } from "@openspec-ui/core";
+import * as path from "node:path";
 import { EmptyTreeItem } from "./changes-tree.js";
+
+/** The `contextValue` of a question an agent put to the operator.
+ * `package.json` binds `openspec-ui.answerQuestion` to it, inline
+ * (the-agent-asks-the-operator, ADR 0042). */
+export const OPERATOR_QUESTION_CONTEXT = "openspec-ui.operatorQuestion";
+
+/** A question an agent asked and nobody has answered; its run waits. Opens
+ * the change's `decisions.md` at the question when selected; its one
+ * control answers it. */
+export class OperatorQuestionTreeItem extends vscode.TreeItem {
+  constructor(public readonly question: InboxQuestion) {
+    super(`${question.questionId}: ${question.text}`, vscode.TreeItemCollapsibleState.None);
+    this.id = `operator-question:${question.changeName}:${question.questionId}`;
+    this.description = `${question.changeName} — a run waits for your answer`;
+    this.tooltip = `${question.text}\n\nAsked in ${question.changeName}; answer it here, on the change's card, or in its ${DECISIONS_FILE}.`;
+    this.contextValue = OPERATOR_QUESTION_CONTEXT;
+    this.iconPath = new vscode.ThemeIcon("question");
+    const line = new vscode.Position(question.lineNumber, 0);
+    this.command = {
+      command: "vscode.open",
+      title: "Open decisions.md",
+      arguments: [vscode.Uri.file(path.join(question.changeDir, DECISIONS_FILE)), { selection: new vscode.Range(line, line) }],
+    };
+  }
+}
 
 /** The `contextValue` of a key waiting to be enrolled. `package.json` binds
  * `openspec-ui.confirmEnrolment` to it, inline (a-run-is-signed-by-its-person). */
@@ -88,7 +116,7 @@ export class HumanOnlyInboxItemTreeItem extends vscode.TreeItem {
   }
 }
 
-export type HumanOnlyInboxTreeNode = HumanOnlyInboxItemTreeItem | EnrolmentRequestTreeItem | EmptyTreeItem;
+export type HumanOnlyInboxTreeNode = HumanOnlyInboxItemTreeItem | EnrolmentRequestTreeItem | OperatorQuestionTreeItem | EmptyTreeItem;
 
 export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<HumanOnlyInboxTreeNode> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<void>();
@@ -135,10 +163,12 @@ export class HumanOnlyInboxTreeProvider implements vscode.TreeDataProvider<Human
 
     // A key waiting to be enrolled waits on a person as an item does.
     const enrolments = (inbox.enrolments ?? []).map((request) => new EnrolmentRequestTreeItem(request));
+    // A question holds a run still, so it comes first.
+    const questions = (inbox.questions ?? []).map((question) => new OperatorQuestionTreeItem(question));
 
-    if (items.length === 0 && enrolments.length === 0) {
+    if (items.length === 0 && enrolments.length === 0 && questions.length === 0) {
       return [new EmptyTreeItem("Nothing is waiting", "No open item waiting on a person or an agent in any active change")];
     }
-    return [...items, ...enrolments];
+    return [...questions, ...items, ...enrolments];
   }
 }

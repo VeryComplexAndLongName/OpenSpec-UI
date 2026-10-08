@@ -103,6 +103,9 @@ export interface ChangeCard {
   /** The state word and colour's inputs, kept so `describeChangeCard` asks
    * `describeChangeState` the same question the Changes list asks. */
   stateFacts: ChangeStateFacts;
+  /** The questions the change's agents put to the operator that are not
+   * answered yet, read from where the card's facts are (ADR 0042). */
+  openQuestions?: Array<{ questionId: string; text: string }>;
 }
 
 export interface ChangeCardInputs {
@@ -204,6 +207,7 @@ export function describeChangeCards({ report, survey, lastRuns, standings, liveR
       where,
       ...(surveyed?.tasks !== undefined ? { tasks: describeTaskRows(surveyed.tasks, run?.task) } : {}),
       stateFacts,
+      ...(surveyed?.openQuestions !== undefined ? { openQuestions: surveyed.openQuestions } : {}),
     };
   });
 }

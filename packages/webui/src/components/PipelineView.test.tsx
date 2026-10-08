@@ -2029,3 +2029,30 @@ describe("PipelineView - a review that asked for changes", () => {
     expect(screen.queryByTestId("pipeline-update-plan-alpha")).toBeNull();
   });
 });
+
+// the-agent-asks-the-operator 2.1 (ADR 0042).
+describe("PipelineView - a change with a question for the operator", () => {
+  it("offers Answer..., and sends each answer with where the change is", async () => {
+    const onAnswerQuestion = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({
+          changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [], openQuestions: [{ questionId: "Q-run1-1", text: "Which database?" }] }],
+          runs: [],
+        }))}
+        liveRuns={async () => ({ runs: [] })}
+        onStart={vi.fn()}
+        onAnswerQuestion={onAnswerQuestion}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-answer-alpha"));
+    fireEvent.change(screen.getByTestId("pipeline-answer-Q-run1-1"), { target: { value: "PostgreSQL" } });
+    fireEvent.click(screen.getByTestId("pipeline-send-answer"));
+
+    expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ changeName: "alpha", questionId: "Q-run1-1", answer: "PostgreSQL" }));
+    expect(screen.queryByTestId("pipeline-answer-form")).toBeNull();
+  });
+});

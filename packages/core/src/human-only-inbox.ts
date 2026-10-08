@@ -19,13 +19,18 @@
 import type {
   HumanOnlyInbox,
   HumanOnlyItem,
+  InboxQuestion,
   UnmatchedTaskAgent,
   UnreadableTaskAgentsConfig,
   WaitingOn,
 } from "./human-only-inbox-view.js";
 import type { HarnessTaskAgents } from "./harness-step-agent.js";
 import type { ItemReply } from "./audit-message.js";
+import path from "node:path";
 import { changeNameOf } from "./audit-runs.js";
+import { changeOfWorktree } from "./change-worktrees.js";
+import { createGitWrapper } from "./git.js";
+import { openQuestions } from "./decisions-file.js";
 import { deferredListPath, readDeferredItems } from "./deferred-items.js";
 import { assignTaskAgents, readTaskAgents, waitingOnFor } from "./delegated-items.js";
 import { readEnrolmentRequests } from "./enrolment.js";
@@ -42,6 +47,7 @@ export type {
   HumanOnlyInbox,
   HumanOnlyInboxState,
   HumanOnlyItem,
+  InboxQuestion,
   UnmatchedTaskAgent,
   WaitingOn,
 } from "./human-only-inbox-view.js";
@@ -76,6 +82,34 @@ export interface HumanOnlyInboxOptions {
   /** Test seam: the workspace's audit entries, where a delegated run's
    * reply is kept. Production reads the workspace's audit log. */
   readAuditEntries?: (workspaceRoot: string) => Promise<AuditEntry[]>;
+  /** Test seam: each change's own worktree, where its runs ask their
+   * questions. Production reads `git worktree list`. */
+  readChangeWorktrees?: (workspaceRoot: string) => Promise<Array<{ changeName: string; changeDir: string }>>;
+}
+
+/** The change directory of each change's own worktree, where a run of that
+ * change writes its `decisions.md`. A workspace that is not a git
+ * repository has none. */
+async function changeWorktreesOf(workspaceRoot: string): Promise<Array<{ changeName: string; changeDir: string }>> {
+  const worktrees = await createGitWrapper({ cwd: workspaceRoot }).worktreeList();
+  const found: Array<{ changeName: string; changeDir: string }> = [];
+  for (const [index, worktree] of worktrees.entries()) {
+    const changeName = changeOfWorktree(worktree, index === 0);
+    if (changeName !== undefined) found.push({ changeName, changeDir: path.join(worktree.path, "openspec", "changes", changeName) });
+  }
+  return found;
+}
+
+async function questionsOf(changeName: string, changeDir: string): Promise<InboxQuestion[]> {
+  // A `decisions.md` that cannot be read holds no question, and the items
+  // still answer.
+  return (await openQuestions(changeDir).catch(() => [])).map((question) => ({
+    changeName,
+    changeDir,
+    questionId: question.id,
+    text: question.text,
+    lineNumber: question.lineNumber ?? 0,
+  }));
 }
 
 /** The latest reply to each change's task, by `<change>|<task number>`. */
@@ -101,6 +135,7 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
   const items: HumanOnlyItem[] = [];
   const unmatchedTaskAgents: UnmatchedTaskAgent[] = [];
   const unreadableTaskAgents: UnreadableTaskAgentsConfig[] = [];
+  const questions: InboxQuestion[] = [];
 
   // Questions that outlived their changes, from the one file they move
   // to. Read first, so an empty workspace still answers with them.
@@ -117,6 +152,8 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
 
   for (const change of workspace.changes) {
     const { items: tasks } = await readTaskChecklistOf(change);
+    // What its agents asked the operator and nobody has answered (ADR 0042).
+    questions.push(...await questionsOf(change.name, change.path));
     // One change's unreadable `harness.json` degrades that change, not
     // the inbox. Letting it throw would hide what every other change is
     // waiting on behind a single broken file — a failure swallowing an
@@ -151,6 +188,18 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
     }
   }
 
+  // A run asks in its change's own worktree, so a question is read there
+  // too; the same question in both places is listed once, from the
+  // worktree, where the run that waits on it reads its answer.
+  const readWorktrees = options.readChangeWorktrees ?? changeWorktreesOf;
+  for (const worktree of await readWorktrees(workspaceRoot).catch(() => [])) {
+    for (const question of await questionsOf(worktree.changeName, worktree.changeDir)) {
+      const seen = questions.findIndex((each) => each.questionId === question.questionId);
+      if (seen === -1) questions.push(question);
+      else questions[seen] = question;
+    }
+  }
+
   // Best-effort, like the task agents above: a workspace that is not a git
   // repository, or has no status directory, has nobody waiting to be
   // enrolled, and the items still answer.
@@ -168,5 +217,5 @@ export async function collectHumanOnlyInbox(workspaceRoot: string, options: Huma
     if (reply !== undefined) item.reply = reply;
   }
 
-  return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents, enrolments };
+  return { items, changesRead: workspace.changes.length, unmatchedTaskAgents, unreadableTaskAgents, enrolments, questions };
 }

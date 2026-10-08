@@ -1,6 +1,6 @@
 # 0042: The Agent Asks the Operator, and Nothing Goes On Without an Answer
 
-Status: Proposed
+Status: Accepted
 
 Date: 2026-10-07
 
@@ -42,8 +42,8 @@ for `local-llm-acp` is built now, not later.
    whose call emits the same question and blocks the agent loop until the
    answer arrives, which is then its result. Under every autonomy level.
 3. **A question is an event, an answer a command.** A non-terminal event
-   `question` (question id, text, stage) and a command `answerQuestion`
-   (question id, answer, who), as `permissionRequest` and
+   `question` (question id, text) and a command `answerQuestion`
+   (question id, answer), as `permissionRequest` and
    `resolvePermission` are. The run's status record says `waiting` with a
    kind `question`, so the card, `status` and the supervisor see it.
 4. **A run that asked stops and waits.** A run whose turn ended with
@@ -64,9 +64,9 @@ for `local-llm-acp` is built now, not later.
 6. **Answered from every surface.** The card's "Waiting on you" and the AI
    panel show each open question with a field for its answer; the
    Human-Only Inbox lists them; `openspec-ui-cli answer <change>
-   <question-id> <text>` answers from a terminal. An answer reaches a run
-   that waits in another host through the run's message channel
-   (ADR 0028), and is in `decisions.md` regardless.
+   <question-id> <text>` answers from a terminal. An answer is written to
+   `decisions.md` in the run's own working directory, and a run that waits
+   reads it there, in whichever host it runs: the file is the channel.
 
 ## Consequences
 

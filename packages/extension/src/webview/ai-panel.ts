@@ -257,6 +257,7 @@ export class AiPanel {
     // own — the same idea, one line over. Without this, every Allow/Deny
     // click opened a Processes entry that could never terminate.
     if (command.kind === "resolvePermission") return;
+    if (command.kind === "answerQuestion") return;
 
     const changeName = command.context.changeDir
       .split(/[\\/]+/)
@@ -377,7 +378,8 @@ export class AiPanel {
     // `resolvePermission()` found no such pending request and silently
     // did nothing. The run itself sat on the ACP agent's still-open
     // promise forever; `askBeforeCommands`'s Allow had nothing to unblock.
-    const CARRIES_NO_OWN_AGENT_ID = new Set<CommandKind>(["cancel", "resolvePermission"]);
+    // An answer to a run's question is another (the-agent-asks-the-operator).
+    const CARRIES_NO_OWN_AGENT_ID = new Set<CommandKind>(["cancel", "resolvePermission", "answerQuestion"]);
     const agentId = CARRIES_NO_OWN_AGENT_ID.has(command.kind)
       ? this.runAgentIds.get(command.runId) ?? command.agentId
       : command.agentId;

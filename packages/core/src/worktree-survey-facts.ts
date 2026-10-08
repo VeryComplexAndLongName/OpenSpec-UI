@@ -73,6 +73,10 @@ export interface SurveyedChange {
   /** Every item of the task list, in its order. Absent where there is no
    * task list, or it could not be read. */
   tasks?: SurveyedTask[];
+  /** The questions its agents put to the operator that are not answered
+   * yet, from its `decisions.md`. Absent where there are none
+   * (the-agent-asks-the-operator, ADR 0042). */
+  openQuestions?: Array<{ questionId: string; text: string }>;
 }
 
 /** What one run says it is doing, as its own status record says it.

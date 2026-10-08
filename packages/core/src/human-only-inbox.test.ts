@@ -9,6 +9,7 @@ import {
   describeWaitingOn,
 } from "./human-only-inbox.js";
 import type { HumanOnlyItem } from "./human-only-inbox.js";
+import { answerQuestion, appendQuestion } from "./decisions-file.js";
 
 // human-only-inbox-in-the-shell, a-live-check-names-who-performs-it:
 // touches the filesystem — a workspace of small changes, no git, no
@@ -55,6 +56,40 @@ function agent(changeName: string, lineNumber: number, name: string, known = tru
 }
 
 describe("collectHumanOnlyInbox", () => {
+  it("lists the questions agents put to the operator that are still open, and says so (ADR 0042)", async () => {
+    const root = await workspaceWith({ "change-a": "- [x] 1.1 Done\n" });
+    const changeDir = path.join(root, "openspec", "changes", "change-a");
+    await appendQuestion(changeDir, { id: "Q-run1-1", text: "Which database?", askedAt: "2026-10-08T00:00:00.000Z", agent: "a", stage: "plan", runId: "run1" });
+    await appendQuestion(changeDir, { id: "Q-run1-2", text: "Which port?", askedAt: "2026-10-08T00:00:00.000Z", agent: "a", stage: "plan", runId: "run1" });
+    await answerQuestion(changeDir, "Q-run1-2", { text: "8080", by: "me", at: "2026-10-08T00:01:00.000Z" });
+
+    const inbox = await collectHumanOnlyInbox(root, { readChangeWorktrees: async () => [] });
+
+    expect(inbox.questions).toEqual([
+      expect.objectContaining({ changeName: "change-a", changeDir, questionId: "Q-run1-1", text: "Which database?" }),
+    ]);
+    expect(inbox.questions?.[0]?.lineNumber).toBeGreaterThan(0);
+    expect(describeHumanOnlyInbox(inbox)).toContain("1 question from an agent waits for your answer.");
+  });
+
+  it("reads a question where its run asked it, in the change's own worktree, and lists it once", async () => {
+    const root = await workspaceWith({ "change-a": "- [x] 1.1 Done\n" });
+    const worktree = await workspaceWith({ "change-a": "- [ ] 1.1 Doing\n" });
+    const worktreeChangeDir = path.join(worktree, "openspec", "changes", "change-a");
+    const asked = { text: "Which database?", askedAt: "2026-10-08T00:00:00.000Z", agent: "a", stage: "review", runId: "run2" };
+    await appendQuestion(worktreeChangeDir, { id: "Q-run2-1", ...asked });
+    // The same question, committed and seen in the checkout too.
+    await appendQuestion(path.join(root, "openspec", "changes", "change-a"), { id: "Q-run2-1", ...asked });
+
+    const inbox = await collectHumanOnlyInbox(root, {
+      readChangeWorktrees: async () => [{ changeName: "change-a", changeDir: worktreeChangeDir }],
+    });
+
+    expect(inbox.questions).toEqual([
+      expect.objectContaining({ changeName: "change-a", changeDir: worktreeChangeDir, questionId: "Q-run2-1" }),
+    ]);
+  });
+
   it("finds what is waiting on a person, across changes, naming each one", async () => {
     const root = await workspaceWith({
       "change-a": "- [ ] 1.1 Ordinary\n- [ ] 1.2 **Human-only**: look at it\n",

@@ -28,6 +28,31 @@ function createFakeTransport() {
 }
 
 describe("AiPanel (direct OpenSpec mode)", () => {
+    // the-agent-asks-the-operator 2.1 (ADR 0042).
+    it("shows a question the run's agent asked, sends the answer, and drops it once answered", () => {
+        const { transport, send, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        emit({ kind: "awaitingAnswers", runId: "run-1", timestamp: "t", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] });
+
+        expect(screen.getByTestId("operator-questions").textContent).toContain("Keep the v1 API?");
+        fireEvent.change(screen.getByTestId("operator-answer-Q-run1-1"), { target: { value: "Yes, keep it" } });
+        fireEvent.click(screen.getByTestId("operator-answer-button-Q-run1-1"));
+
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+            kind: "answerQuestion",
+            runId: "run-1",
+            questionId: "Q-run1-1",
+            answer: "Yes, keep it",
+            context: expect.objectContaining({ changeDir: "/repo/openspec/changes/demo" }),
+        }));
+
+        emit({ kind: "questionAnswered", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", answer: "Yes, keep it", by: "Ada" });
+        expect(screen.queryByTestId("operator-questions")).toBeNull();
+    });
+
     it("sends a list command with generated runId", () => {
         const { transport, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-fixed"} />);

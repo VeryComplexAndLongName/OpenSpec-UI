@@ -13,8 +13,10 @@ import type { Command, CheckpointEvent, Event, HarnessBudget, HarnessTimeout } f
 import type { Transport } from "../transport/types.js";
 import {
   collapseStreamEvents,
+  findOpenQuestions,
   findPendingPermissionRequest,
   isCancelling,
+  OperatorQuestionsPrompt,
   isShownInEventLog,
   isTerminal,
   PermissionRequestPrompt,
@@ -105,6 +107,15 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
     setResolvedPermissionRequestIds((prev) => new Set(prev).add(request.requestId));
   }
 
+  // The questions a stage's agent asked, answered here as in the AI panel
+  // (the-agent-asks-the-operator, ADR 0042).
+  const openQuestions = findOpenQuestions(collapsedEvents);
+  function handleAnswerQuestion(questionId: string, answer: string) {
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+    transport.send({ kind: "answerQuestion", cwd, runId: activeRunId, context: { changeDir }, questionId, answer });
+  }
+
   const statusLabel = pendingCheckpoint
     ? "Paused at checkpoint"
     : isRunning && isCancelling(collapsedEvents)
@@ -169,6 +180,7 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest, outcome)}
         />
       ) : null}
+      <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       {/* Focusable and named: the log scrolls once a chain has said enough,
           and a region that scrolls has to be reachable by keyboard (axe

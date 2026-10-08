@@ -107,6 +107,17 @@ export class RunTextRenderer {
             ? "· cancelling: asked the agent's process tree to stop"
             : "· cancelling: nothing was running",
         );
+      // An agent's question, and the wait for its answer, are said where a
+      // person reads the run (the-agent-asks-the-operator, ADR 0042).
+      case "question":
+        return this.line(`? ${event.questionId}: ${event.text}`);
+      case "awaitingAnswers":
+        return this.line([
+          `· waiting for your answer to ${event.questions.length === 1 ? "a question" : `${event.questions.length} questions`}; answer with`,
+          ...event.questions.map((question) => `    openspec-ui-cli answer <change> ${question.questionId} "<answer>"`),
+        ].join("\n"));
+      case "questionAnswered":
+        return this.line(`· ${event.questionId} answered${event.by ? ` by ${event.by}` : ""}: ${event.answer}`);
       case "completed":
         return this.line(`\n✓ ${event.summary ?? "completed"}`);
       case "failed":

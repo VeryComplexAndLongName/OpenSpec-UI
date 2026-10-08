@@ -77,6 +77,18 @@ export interface HumanOnlyItem {
   reply?: ItemReply;
 }
 
+/** A question an agent put to the operator that is not answered yet, from
+ * its change's `decisions.md` (the-agent-asks-the-operator, ADR 0042). */
+export interface InboxQuestion {
+  changeName: string;
+  changeDir: string;
+  questionId: string;
+  text: string;
+  /** Zero-based line of its heading in `decisions.md`, for a host that
+   * opens the file there. */
+  lineNumber: number;
+}
+
 export interface HumanOnlyInbox {
   items: HumanOnlyItem[];
   /** Active changes looked at, so an empty answer can be told apart from
@@ -92,6 +104,9 @@ export interface HumanOnlyInbox {
   /** Keys that sign a live run's record and are not enrolled, each waiting
    * on a person to say "it was me" (a-run-is-signed-by-its-person). */
   enrolments?: EnrolmentRequest[];
+  /** Questions the changes' agents put to the operator and nobody has
+   * answered yet. Each one holds a run still. */
+  questions?: InboxQuestion[];
 }
 
 /** What a host has, once it has asked.
@@ -137,7 +152,8 @@ function changesRead(count: number): string {
 export function describeHumanOnlyInbox(inbox: HumanOnlyInbox): string {
   const stale = describeUnmatched(inbox.unmatchedTaskAgents)
     + describeUnreadable(inbox.unreadableTaskAgents)
-    + describeEnrolments(inbox.enrolments);
+    + describeEnrolments(inbox.enrolments)
+    + describeQuestions(inbox.questions);
   if (inbox.changesRead === 0) return `No active change to look at.${describeEnrolments(inbox.enrolments)}`;
   if (inbox.items.length === 0) {
     return `Nothing is waiting — ${changesRead(inbox.changesRead)} read.${stale}`;
@@ -194,6 +210,15 @@ function describeEnrolments(enrolments: readonly EnrolmentRequest[] | undefined)
   return enrolments.length === 1
     ? " 1 key that signs a run waits to be enrolled."
     : ` ${enrolments.length} keys that sign runs wait to be enrolled.`;
+}
+
+/** Appended as the keys are: a question holds a run until it is answered,
+ * and it is not a task, so it is not in the count. */
+function describeQuestions(questions: readonly InboxQuestion[] | undefined): string {
+  if (!questions || questions.length === 0) return "";
+  return questions.length === 1
+    ? " 1 question from an agent waits for your answer."
+    : ` ${questions.length} questions from agents wait for your answer.`;
 }
 
 function describeUnmatched(unmatched: readonly UnmatchedTaskAgent[] | undefined): string {

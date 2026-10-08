@@ -215,6 +215,70 @@ export function PermissionRequestPrompt(props: {
   );
 }
 
+/** The questions a run's agent asked that are not answered yet, in the order
+ * asked (the-agent-asks-the-operator, ADR 0042). Exported for the chain
+ * panel, which shows them the same way. */
+export function findOpenQuestions(events: readonly Event[]): Array<{ questionId: string; text: string }> {
+  const answered = new Set(events.flatMap((event) => (event.kind === "questionAnswered" ? [event.questionId] : [])));
+  const open = new Map<string, string>();
+  for (const event of events) {
+    if (event.kind === "question" && !answered.has(event.questionId)) open.set(event.questionId, event.text);
+  }
+  return [...open].map(([questionId, text]) => ({ questionId, text }));
+}
+
+/** The open questions, each with a field and **Answer**. The caller owns
+ * sending the answer; the question leaves the list when the run says it
+ * was answered. */
+export function OperatorQuestionsPrompt(props: {
+  questions: ReadonlyArray<{ questionId: string; text: string }>;
+  onAnswer: (questionId: string, answer: string) => void;
+}): ReactNode {
+  const { questions, onAnswer } = props;
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  if (questions.length === 0) return null;
+  return (
+    <section className="openspec-panel openspec-operator-questions" data-testid="operator-questions">
+      <div className="openspec-panel-head">
+        <h2>{questions.length === 1 ? "A question for you" : "Questions for you"}</h2>
+        <span className="openspec-panel-head-note">The run waits for your answer; it is kept in the change's decisions.md</span>
+      </div>
+      <div className="openspec-panel-body">
+        {questions.map((question) => {
+          const draft = drafts[question.questionId] ?? "";
+          const waiting = sent.has(question.questionId);
+          return (
+            <div className="openspec-operator-question" key={question.questionId} data-testid={`operator-question-${question.questionId}`}>
+              <p><strong>{question.questionId}</strong> {question.text}</p>
+              <textarea
+                aria-label={`Answer to ${question.questionId}`}
+                data-testid={`operator-answer-${question.questionId}`}
+                rows={2}
+                value={draft}
+                disabled={waiting}
+                onChange={(e) => setDrafts((prev) => ({ ...prev, [question.questionId]: e.currentTarget.value }))}
+              />
+              <button
+                type="button"
+                className="button primary"
+                data-testid={`operator-answer-button-${question.questionId}`}
+                disabled={waiting || draft.trim().length === 0}
+                onClick={() => {
+                  setSent((prev) => new Set(prev).add(question.questionId));
+                  onAnswer(question.questionId, draft.trim());
+                }}
+              >
+                {waiting ? "Answered" : "Answer"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function parseStepItems(text: string): StepItem[] | null {
   const lines = text
     .split(/\r?\n/)
@@ -665,6 +729,13 @@ function describeEvent(event: Event): string {
       return event.outcome === "nothing-to-stop"
         ? `stop: nothing was running (${event.reason})`
         : `asked to stop${event.by ? ` by ${event.by}` : ""}: ${event.reason}`;
+    // the-agent-asks-the-operator (ADR 0042).
+    case "question":
+      return `question for the operator ${event.questionId}: ${event.text}`;
+    case "awaitingAnswers":
+      return `waiting for your answer to ${event.questions.length === 1 ? "a question" : `${event.questions.length} questions`}`;
+    case "questionAnswered":
+      return `answered ${event.questionId}${event.by ? ` by ${event.by}` : ""}: ${event.answer}`;
   }
 }
 
@@ -1232,7 +1303,23 @@ export function AiPanel({
     setResolvedPermissionRequestIds((prev) => new Set(prev).add(requestId));
   }
 
+  /** Answers a question the run's agent asked: written to the change's
+   * decisions.md, where the waiting run reads it (ADR 0042). */
+  function handleAnswerQuestion(questionId: string, answer: string) {
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+    transport.send({
+      kind: "answerQuestion",
+      cwd,
+      runId: activeRunId,
+      context: { changeDir: activeChangeDirRef.current, promptContext },
+      questionId,
+      answer,
+    });
+  }
+
   const shownEvents = eventsForLog(collapsedEvents);
+  const openQuestions = findOpenQuestions(collapsedEvents);
 
   return (
     <div className="openspec-ai-panel">
@@ -1335,6 +1422,7 @@ export function AiPanel({
           onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest.requestId, outcome)}
         />
       ) : null}
+      <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       {collapsedEvents.length > 0 ? (
         <section className="openspec-panel openspec-run-insights" data-testid="run-insights">
           <div className="openspec-panel-head">

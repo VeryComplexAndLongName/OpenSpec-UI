@@ -1137,6 +1137,28 @@ export const shellThemeCss = `
   }
 
   /* The notes an update takes (ADR 0041). */
+  /* A question the run's agent put to the operator, with its answer field
+     (the-agent-asks-the-operator). */
+  .openspec-operator-question {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 12px;
+  }
+
+  .openspec-operator-question p {
+    margin: 0;
+  }
+
+  .openspec-operator-question textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+  }
+
+  .openspec-operator-question .button {
+    justify-self: start;
+  }
+
   .openspec-update-notes {
     display: grid;
     gap: 4px;

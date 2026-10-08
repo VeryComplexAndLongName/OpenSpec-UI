@@ -7,7 +7,7 @@
 import { createRoot } from "react-dom/client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FetchTransport } from "./transport/fetch-transport.js";
-import { AiPanel } from "./components/AiPanel.js";
+import { AiPanel, OperatorQuestionsPrompt } from "./components/AiPanel.js";
 import { describeRunCompletionNotification } from "./notify-run-completion.js";
 import { ChangeDiff } from "./components/ChangeDiff.js";
 import { loadChangeDiff, type ChangeDiffAnswer } from "./change-diff-client.js";
@@ -19,7 +19,7 @@ import { RecentlyArchivedPanel, SpecsPanel } from "./components/SummaryPanels.js
 import { summaryFigures, type SummaryTile } from "./summary-figures.js";
 import type { IconMeaning } from "./icons.js";
 import { ProcessesView, type ProcessesApi } from "./components/ProcessesView.js";
-import { PipelineView, SURVEY_POLL_INTERVAL_MS, type AskToStop, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, SURVEY_POLL_INTERVAL_MS, type AskToStop, type PipelineViewMemory, type QuestionAnswer, type RunControl } from "./components/PipelineView.js";
 import { useStandingStates } from "./standing-states.js";
 
 /** The icon each of the summary's tiles carries. */
@@ -571,6 +571,20 @@ function StandaloneApp() {
       ...(control.permissionOutcome !== undefined ? { permissionOutcome: control.permissionOutcome } : {}),
     });
   }, [cwd, transport]);
+  // An answer to a run's question, given on its card: written to the
+  // change's decisions.md in the run's own working directory, where the
+  // waiting run reads it (the-agent-asks-the-operator, ADR 0042).
+  const pipelineAnswerQuestion = useCallback((answer: QuestionAnswer) => {
+    const root = (answer.workingDirectory || cwd).replace(/[\\/]+$/u, "");
+    transport.send({
+      kind: "answerQuestion",
+      cwd: root,
+      runId: answer.runId ?? crypto.randomUUID(),
+      context: { changeDir: `${root}/openspec/changes/${answer.changeName}` },
+      questionId: answer.questionId,
+      answer: answer.answer,
+    });
+  }, [cwd, transport]);
   const pipelineCopyText = useCallback((text: string) => navigator.clipboard.writeText(text), []);
   // A change's run logs, opened from its card beneath the picture
   // (a-change-shows-its-run-logs).
@@ -1074,6 +1088,19 @@ function StandaloneApp() {
 
   /** Enrols one key, then reads the inbox again: an enrolled key waits no
    * more, and its runs read as signed from then on. */
+  // An answer to an agent's question, from the Inbox: written to its
+  // change's decisions.md here, where a run waiting on it reads it
+  // (the-agent-asks-the-operator, ADR 0042).
+  function answerInboxQuestion(questionId: string, answer: string): void {
+    if (humanOnly?.status !== "loaded") return;
+    const question = (humanOnly.inbox.questions ?? []).find((each) => each.questionId === questionId);
+    if (question === undefined) return;
+    // Where the question was asked: the change's own worktree, or this
+    // checkout.
+    const workingDirectory = question.changeDir.replace(/[\\/]openspec[\\/]changes[\\/][^\\/]+[\\/]?$/u, "") || cwd;
+    pipelineAnswerQuestion({ changeName: question.changeName, workingDirectory, questionId, answer });
+  }
+
   async function confirmEnrolment(keyId: string): Promise<void> {
     setConfirmingEnrolment(keyId);
     try {
@@ -2215,6 +2242,12 @@ function StandaloneApp() {
                 })}
               </ul>
             ) : null}
+            {humanOnly.status === "loaded" && (humanOnly.inbox.questions ?? []).length > 0 ? (
+              <OperatorQuestionsPrompt
+                questions={humanOnly.inbox.questions ?? []}
+                onAnswer={answerInboxQuestion}
+              />
+            ) : null}
             {humanOnly.status === "loaded" ? (
               <EnrolmentRequests
                 requests={humanOnly.inbox.enrolments ?? []}
@@ -2752,6 +2785,7 @@ function StandaloneApp() {
                 isActive={activeTab === "pipeline"}
                 onOpenChange={openChangeInEditor}
                 onRunControl={pipelineRunControl}
+              onAnswerQuestion={pipelineAnswerQuestion}
                 onStart={pipelineStart}
                 onUpdatePlan={pipelineUpdatePlan}
                 onViewLogs={setLogsFor}

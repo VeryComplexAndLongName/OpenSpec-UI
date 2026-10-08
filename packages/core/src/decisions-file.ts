@@ -33,6 +33,9 @@ export interface OperatorQuestion {
   answer?: string;
   answeredAt?: string;
   answeredBy?: string;
+  /** Zero-based line of its heading, as read; absent on a question that
+   * was not read from a file. */
+  lineNumber?: number;
 }
 
 const ENTRY_RE = /^## (Q-[A-Za-z0-9-]+): (.*)$/u;
@@ -55,10 +58,10 @@ export async function readQuestions(changeDir: string): Promise<OperatorQuestion
   if (text === undefined) return [];
   const questions: OperatorQuestion[] = [];
   let current: OperatorQuestion | undefined;
-  for (const line of text.split(/\r?\n/u)) {
+  for (const [lineNumber, line] of text.split(/\r?\n/u).entries()) {
     const entry = ENTRY_RE.exec(line);
     if (entry !== null) {
-      current = { id: entry[1]!, text: entry[2]!.trim(), askedAt: "", agent: "", stage: "", runId: "" };
+      current = { id: entry[1]!, text: entry[2]!.trim(), askedAt: "", agent: "", stage: "", runId: "", lineNumber };
       questions.push(current);
       continue;
     }
