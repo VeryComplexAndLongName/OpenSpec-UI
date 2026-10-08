@@ -176,6 +176,22 @@ the-plan-is-updated-from-its-review.
   and went on in the same turn with the answer as the tool's result,
   implemented both tasks and completed - no `awaitingAnswers`, no second
   pass.
-- [ ] 4.4 **Human-only**: in either host, see a run stop on a question,
+- [x] 4.4 **Human-only**: in either host, see a run stop on a question,
   answer it from the card, and see the run go on with the answer; see
   `apply` refused while a question is open.
+  Performed by the operator on 2026-10-08 in VS Code (extension 0.95.0
+  built from this branch at 9395aec3), on a scratch repository with two
+  changes left undecided, after the five rounds recorded in 2.4. On
+  choose-export-format (local-llm-acp): a question answered from the
+  card, the checkpoint continued from the run panel. On
+  choose-contact-storage (copilot-cli-acp): a question answered from the
+  card; permission requests answered alternately from the card and the
+  run panel, including two open at once - the card offered
+  `Allow (1 of 2)` and the run panel both, each answered from a different
+  surface; checkpoints continued from either. The operator reported every
+  step correct. Both chains then stopped at archive on a task left
+  unticked: 1.2 of choose-export-format, and 1.2 of
+  choose-contact-storage, which the agent left unticked because it could
+  not run it against a PostgreSQL server - the archive gate doing its job.
+  `apply` refused past an open question was seen in the first rounds and
+  in the live CLI run recorded in 4.3.
