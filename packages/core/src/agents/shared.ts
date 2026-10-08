@@ -146,9 +146,10 @@ export function terminateProcessTree(pid: number): Promise<TerminationOutcome> {
  * that enforces that gate states how it is met, rather than leaving it to
  * whatever rules a project happened to configure — a repository made with
  * `openspec init` has none. See openspec/changes/a-done-task-is-ticked. */
-export function commandInstruction(kind: CommandKind): string {
+export function commandInstruction(kind: CommandKind, options: { askWithTool?: boolean } = {}): string {
   const instruction = stageInstruction(kind);
-  return AGENT_STAGE_KINDS.has(kind) ? `${instruction}${OPERATOR_QUESTION_INSTRUCTION}` : instruction;
+  if (!AGENT_STAGE_KINDS.has(kind)) return instruction;
+  return `${instruction}${options.askWithTool ? ASK_OPERATOR_TOOL_INSTRUCTION : OPERATOR_QUESTION_INSTRUCTION}`;
 }
 
 /** The agent stages, which may need a decision from the operator. */
@@ -161,6 +162,15 @@ export const OPERATOR_QUESTION_INSTRUCTION =
   + " do not make it yourself: print a line of its own reading `Question for the operator: <the question>`,"
   + " one line per question, naming the options you see, and do not do the work that depends on the answer;"
   + " finish the rest. Ask only what the files cannot settle: the run waits for the answer before it goes on.";
+
+/** The same, for an agent that has the `ask_operator` tool (`local-llm-acp`,
+ * ADR 0042 decision 2): it asks in its turn and goes on with the answer.
+ * Told the line instead, the model printed the line and ended its turn
+ * (live, 2026-10-08), which costs a second pass the tool exists to save. */
+export const ASK_OPERATOR_TOOL_INSTRUCTION =
+  " If you need a decision from the operator that the change's files and what is given below do not make,"
+  + " do not make it yourself: call the `ask_operator` tool with the question, naming the options you see,"
+  + " and go on with the answer it returns. Ask only what the files cannot settle.";
 
 function stageInstruction(kind: CommandKind): string {
   switch (kind) {

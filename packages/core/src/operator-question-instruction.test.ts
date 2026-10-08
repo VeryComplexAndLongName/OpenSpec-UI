@@ -26,6 +26,16 @@ describe("the question instruction", () => {
     expect(commandInstruction("status")).not.toContain("Question for the operator");
     expect(() => commandInstruction("answerQuestion")).toThrow("is not a single-agent command kind");
   });
+
+  // Live on 2026-10-08: local-llm-acp, told the line, printed it and ended
+  // its turn instead of asking with its tool.
+  it("tells an agent that has ask_operator to ask with it, and not to print the line", () => {
+    for (const kind of ["plan", "implement", "review", "update", "verify"] as const) {
+      const instruction = commandInstruction(kind, { askWithTool: true });
+      expect(instruction).toContain("call the `ask_operator` tool");
+      expect(instruction).not.toContain("Question for the operator");
+    }
+  });
 });
 
 // the-agent-asks-the-operator 1.3.

@@ -51,6 +51,9 @@ hosts (ADR 0028); the Human-Only Inbox over `tasks.md`; the supervisor's
    recorded through the same path, and waits for its answer in
    `decisions.md` (read every 1.5 s); the answer is the tool's result, and
    the turn goes on. It is not offered under `local-llm` (text only).
+   `local-llm-acp`'s stage instruction tells it to ask with the tool rather
+   than print the line: told the line, the model printed it and ended its
+   turn (live, 2026-10-08), which still works but costs a second pass.
 5. **`decisions.md`.** `decisions-file.ts` appends, never rewrites another
    entry:
 

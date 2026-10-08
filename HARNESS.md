@@ -89,7 +89,7 @@ An agent stage (`propose`, `review`, `update`, `apply`, `verify`) is told
 not to decide what the change's files leave open, and to print a line of
 its own for each such decision: `Question for the operator: <question>`
 (ADR 0042). Only that line is read, as the verdict line is; prose is not.
-`local-llm-acp` can also ask in the middle of its turn, with its
+`local-llm-acp` is told to ask in the middle of its turn instead, with its
 `ask_operator` tool, and goes on with the answer as the tool's result.
 
 - **Where it is kept.** Each question is appended to the change's

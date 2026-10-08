@@ -75,7 +75,8 @@ export class LocalLlmAcpAdapter implements AgentAdapter {
       cwd: command.cwd,
       runId: command.runId,
       commandKind: command.kind,
-      prompt: `${commandInstruction(command.kind)}\n\n${prompt}`,
+      // This agent has `ask_operator`, so it is told to ask with it.
+      prompt: `${commandInstruction(command.kind, { askWithTool: true })}\n\n${prompt}`,
       signal,
     });
   }
