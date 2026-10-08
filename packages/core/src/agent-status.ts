@@ -130,7 +130,10 @@ export function agentStatusDirectory(worktreeRoot: string, repositoryRoot: strin
  * (a-run-says-which-task-it-is-on). */
 export type AgentStatusWaiting =
   | { kind: "checkpoint"; stage: string; nextStage: string }
-  | { kind: "permission"; description: string };
+  | { kind: "permission"; description: string }
+  /** Questions the run's agent put to the operator, waiting for their
+   * answers (the-agent-asks-the-operator, ADR 0042). */
+  | { kind: "question"; questions: Array<{ questionId: string; text: string }> };
 
 /** A stop a person asked for and the run has not reached yet
  * (a-change-is-run-from-its-card): the reason given, who asked where known,
@@ -708,6 +711,14 @@ function readWaiting(value: unknown): AgentStatusWaiting | null {
   if (waiting.kind === "permission" && typeof waiting.description === "string") {
     return { kind: "permission", description: waiting.description };
   }
+  if (waiting.kind === "question" && Array.isArray(waiting.questions)) {
+    const questions = (waiting.questions as unknown[]).flatMap((question) => {
+      if (typeof question !== "object" || question === null) return [];
+      const { questionId, text } = question as Record<string, unknown>;
+      return typeof questionId === "string" && typeof text === "string" ? [{ questionId, text }] : [];
+    });
+    return questions.length > 0 ? { kind: "question", questions } : null;
+  }
   return null;
 }
 
@@ -1138,6 +1149,16 @@ async function applyEventToAgentStatus(writer: AgentStatusWriter, event: Event, 
     );
     return;
   }
+  if (event.kind === "awaitingAnswers") {
+    await writer.reportWaiting(
+      { kind: "question", questions: event.questions },
+      `waiting for the operator's answer to ${event.questions.length === 1 ? "a question" : `${event.questions.length} questions`}`,
+    );
+    return;
+  }
+  // A question asked while the agent works, or one answered while the run
+  // waits: news, not the run moving on, so a wait stands (ADR 0042).
+  if (event.kind === "question" || event.kind === "questionAnswered") return;
   if (event.kind === "permissionRequest") {
     // An activity of its own, so `activityAt` says when the wait began, as
     // a checkpoint's does: the supervisor measures a wait from it

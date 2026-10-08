@@ -50,6 +50,49 @@ describe("runAgentLoop", () => {
     expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("x");
   });
 
+  // the-agent-asks-the-operator 1.6: the loop waits in the turn for the
+  // operator's answer, and gives it to the model as the tool's result.
+  it("asks the operator through ask_operator, waits, and goes on with the answer", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "openspec-loop-"));
+    roots.push(cwd);
+    const sent: Array<Array<{ role: string; content: string }>> = [];
+    const answers = [
+      { content: "", tool_calls: [{ id: "ask-1", type: "function", function: { name: "ask_operator", arguments: '{"question":"Which database?"}' } }] },
+      { content: "Using PostgreSQL." },
+    ];
+    let turn = 0;
+    const fetchImpl: FetchLike = async (_input, init) => {
+      sent.push((JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> }).messages);
+      return new Response(JSON.stringify({ choices: [{ message: answers[turn++] }], usage: null }), { status: 200 });
+    };
+    const asked: string[] = [];
+    let release: (answer: string) => void = () => undefined;
+
+    const running = runAgentLoop("go", {
+      chat: { settings: { baseUrl: "http://x" }, model: "m", fetch: fetchImpl, tools: TOOL_SCHEMAS, parameterTypes: TOOL_PARAMETER_TYPES },
+      cwd,
+      limits: {},
+      onEvent: () => undefined,
+      askOperator: (question) => { asked.push(question); return new Promise<string>((resolve) => { release = resolve; }); },
+    });
+    await vi.waitFor(() => expect(asked).toEqual(["Which database?"]));
+    expect(sent).toHaveLength(1);
+    release("PostgreSQL");
+    const result = await running;
+
+    expect(result).toMatchObject({ stopReason: "completed", message: "Using PostgreSQL." });
+    expect(sent[1]?.at(-1)).toMatchObject({ role: "tool", content: "The operator answered: PostgreSQL" });
+  });
+
+  it("says nobody can be asked where no operator is wired in", async () => {
+    const { events } = await run(model([
+      { content: "", tool_calls: [{ id: "ask-1", type: "function", function: { name: "ask_operator", arguments: '{"question":"Which?"}' } }] },
+      { content: "Decided." },
+    ]));
+
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool_result", result: expect.objectContaining({ failed: true, output: expect.stringContaining("Nobody can be asked") }) }));
+  });
+
   it("returns a SearXNG artifact to the model after a web search call", async () => {
     const sentMessages: Array<Array<{ role: string; content: string }>> = [];
     const answers = [

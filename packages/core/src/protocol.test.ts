@@ -44,6 +44,9 @@ const sampleByKind: Record<EventKind, Event> = {
   },
   permissionRequest: { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
   stopRequested: { ...base, kind: "stopRequested", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
+  question: { ...base, kind: "question", questionId: "Q-run1-1", text: "Keep the v1 API?" },
+  awaitingAnswers: { ...base, kind: "awaitingAnswers", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] },
+  questionAnswered: { ...base, kind: "questionAnswered", questionId: "Q-run1-1", answer: "Yes", by: "Ada" },
 };
 
 const samples: Event[] = [

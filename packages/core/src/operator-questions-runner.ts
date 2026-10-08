@@ -1,0 +1,273 @@
+// A run that asks the operator waits for the answer, and goes on with it
+// (the-agent-asks-the-operator, ADR 0042).
+//
+// Wraps any runner, so every host and every chain stage behaves the same:
+// the questions an agent asks with the `Question for the operator:` marker
+// are written to the change's `decisions.md` and said as `question` events
+// while the agent works; where any is open when its pass ends, the run's
+// `completed` is held, the run waits until each is answered - from any host,
+// the CLI, or the file itself - and then runs the stage again in the same
+// run with the answers (`update` for a `plan` or a `review`, the same command
+// otherwise). Its outcome is the run's: one terminal event, last (ADR 0012).
+//
+// A run is refused on a change with a question still open from another run:
+// the decision is the operator's, and no work goes past it.
+
+import {
+  answerQuestion,
+  appendQuestion,
+  openQuestions,
+  questionId as makeQuestionId,
+  readQuestions,
+} from "./decisions-file.js";
+import { readAcpStreamedText } from "./acp-streamed-text.js";
+import { changeNameOf } from "./audit-runs.js";
+import { createGitWrapper } from "./git.js";
+import { LineCollector, readOperatorQuestion } from "./operator-question.js";
+import type { AgentRunner } from "./agent-runner.js";
+import type { Command, CommandKind, CompletedEvent, Event } from "./protocol.js";
+import type { AuditLog } from "./security.js";
+
+/** The agent stages: the commands that ask, and that a question stops. */
+const ASKING_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["plan", "implement", "review", "update", "verify"]);
+
+/** How often a waiting run reads `decisions.md` for an answer given
+ * elsewhere: another host, the CLI, a person editing the file. */
+export const ANSWER_POLL_INTERVAL_MS = 3_000;
+
+export interface OperatorQuestionsOptions {
+  /** Which agent the runner drives, for `decisions.md` and the audit log. */
+  agent: string;
+  auditLog?: AuditLog;
+  /** Who answers from this host: its configured git identity. A test seam. */
+  readIdentity?: (cwd: string) => Promise<string | undefined>;
+  pollIntervalMs?: number;
+  now?: () => Date;
+}
+
+/** The command the stage goes on with once its questions are answered: a
+ * plan or a review is revised with the answers, other work goes on. */
+function goOnWith(kind: CommandKind): CommandKind {
+  return kind === "plan" || kind === "review" ? "update" : kind;
+}
+
+/** What an event says in the agent's own words, where it says anything:
+ * its output, or an ACP agent's reply - never its reasoning. */
+function spokenText(event: Event): string | undefined {
+  if (event.kind === "stdout") return event.chunk;
+  if (event.kind === "agentUpdate") {
+    const said = readAcpStreamedText(event.update);
+    if (said?.kind === "agent_message_chunk") return said.text;
+  }
+  return undefined;
+}
+
+/** A run waiting for its answers. Registered before the run says it waits,
+ * so a cancel that follows the word at once still finds it. */
+interface Waiter {
+  cancelled: boolean;
+  wake?: () => void;
+  cancel?: () => void;
+}
+
+export function withOperatorQuestions(runner: AgentRunner, options: OperatorQuestionsOptions): AgentRunner {
+  const now = options.now ?? (() => new Date());
+  const pollMs = options.pollIntervalMs ?? ANSWER_POLL_INTERVAL_MS;
+  const readIdentity = options.readIdentity ?? ((cwd: string) => createGitWrapper({ cwd }).configuredIdentity());
+  /** The runs waiting for answers, by run id. */
+  const waiters = new Map<string, Waiter>();
+  const at = () => now().toISOString();
+
+  async function* answer(command: Command): AsyncGenerator<Event> {
+    const id = command.questionId;
+    const text = command.answer?.trim();
+    if (id === undefined || text === undefined || text.length === 0) return;
+    let by = "the operator";
+    try {
+      by = (await readIdentity(command.cwd)) ?? by;
+    } catch {
+      // An answer from somebody unnamed is still the answer.
+    }
+    const outcome = await answerQuestion(command.context.changeDir, id, { text, by, at: at() });
+    if (outcome !== "answered") {
+      // Not `failed`: this stream shares the waiting run's id, and a host
+      // reading `failed` would take the run for ended.
+      yield { kind: "progress", runId: command.runId, timestamp: at(), message: outcome === "already-answered" ? `${id} was already answered` : `${id} is not a question of this change` };
+      return;
+    }
+    options.auditLog?.record({
+      runId: command.runId,
+      agent: options.agent,
+      outcome: "message",
+      cwd: command.cwd,
+      timestamp: at(),
+      changeDir: command.context.changeDir,
+      operatorQuestion: { questionId: id, text: "", answer: text, by },
+    });
+    waiters.get(command.runId)?.wake?.();
+    yield { kind: "questionAnswered", runId: command.runId, timestamp: at(), questionId: id, answer: text, by };
+  }
+
+  /** Waits until every one of `ids` is answered in `decisions.md`, or the
+   * run is cancelled. */
+  async function waitForAnswers(command: Command, ids: readonly string[], waiter: Waiter): Promise<"answered" | "cancelled"> {
+    try {
+      for (;;) {
+        if (waiter.cancelled) return "cancelled";
+        const questions = await readQuestions(command.context.changeDir).catch(() => []);
+        const open = ids.filter((id) => questions.find((question) => question.id === id)?.answer === undefined);
+        if (open.length === 0) return "answered";
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, pollMs);
+          waiter.wake = () => { clearTimeout(timer); resolve(); };
+          waiter.cancel = () => { clearTimeout(timer); resolve(); };
+        });
+      }
+    } finally {
+      waiters.delete(command.runId);
+    }
+  }
+
+  async function* runAsking(command: Command): AsyncGenerator<Event> {
+    const changeDir = command.context.changeDir;
+    let pass = command;
+    let first = true;
+    let asked = 0;
+    const answers: Array<{ question: string; answer: string }> = [];
+    for (;;) {
+      const thisPass: Array<{ questionId: string; text: string }> = [];
+      const seen = new Set<string>();
+      const lines = new LineCollector();
+      let held: CompletedEvent | undefined;
+
+      async function* readLines(found: string[]): AsyncGenerator<Event> {
+        for (const line of found) {
+          const text = readOperatorQuestion(line);
+          if (text === undefined || seen.has(text)) continue;
+          seen.add(text);
+          asked += 1;
+          const id = makeQuestionId(command.runId, asked);
+          await appendQuestion(changeDir, {
+            id,
+            text,
+            askedAt: at(),
+            agent: options.agent,
+            stage: command.stage ?? command.kind,
+            runId: command.runId,
+          });
+          options.auditLog?.record({
+            runId: command.runId,
+            agent: options.agent,
+            outcome: "message",
+            cwd: command.cwd,
+            timestamp: at(),
+            changeDir,
+            operatorQuestion: { questionId: id, text },
+          });
+          thisPass.push({ questionId: id, text });
+          yield { kind: "question", runId: command.runId, timestamp: at(), questionId: id, text };
+        }
+      }
+
+      for await (const event of runner.run(pass)) {
+        // One `started` per run: the pass that goes on is the same run.
+        if (!first && event.kind === "started") continue;
+        if (event.kind === "completed") {
+          held = event;
+          continue;
+        }
+        yield event;
+        const spoken = spokenText(event);
+        if (spoken !== undefined) yield* readLines(lines.take(spoken));
+      }
+      yield* readLines(lines.rest());
+
+      // Failed or cancelled: that is the run's end, as it always was.
+      if (held === undefined) return;
+      // Only what is still open: a question answered while the agent worked
+      // - the local agent's ask_operator waits for its answer in the turn -
+      // has had its answer where it was asked (ADR 0042 decision 4).
+      const recordedAtEnd = await readQuestions(changeDir).catch(() => []);
+      const stillOpen = thisPass.filter((question) =>
+        recordedAtEnd.find((entry) => entry.id === question.questionId)?.answer === undefined);
+      if (stillOpen.length === 0) {
+        yield held;
+        return;
+      }
+
+      const waiter: Waiter = { cancelled: false };
+      waiters.set(command.runId, waiter);
+      yield {
+        kind: "progress",
+        runId: command.runId,
+        timestamp: at(),
+        message: `waiting for the operator's answer to ${stillOpen.length} question${stillOpen.length === 1 ? "" : "s"}`,
+      };
+      yield { kind: "awaitingAnswers", runId: command.runId, timestamp: at(), questions: stillOpen };
+      const ids = stillOpen.map((question) => question.questionId);
+      const waited = await waitForAnswers(command, ids, waiter);
+      if (waited === "cancelled") {
+        yield { kind: "cancelled", runId: command.runId, timestamp: at(), reason: "cancelled while waiting for the operator's answer; the questions stay open in decisions.md" };
+        return;
+      }
+      const recorded = await readQuestions(changeDir).catch(() => []);
+      for (const id of ids) {
+        const question = recorded.find((entry) => entry.id === id);
+        if (question?.answer === undefined) continue;
+        answers.push({ question: question.text, answer: question.answer });
+        yield {
+          kind: "questionAnswered",
+          runId: command.runId,
+          timestamp: at(),
+          questionId: id,
+          answer: question.answer,
+          ...(question.answeredBy !== undefined ? { by: question.answeredBy } : {}),
+        };
+      }
+      yield { kind: "progress", runId: command.runId, timestamp: at(), message: `answered; going on as ${goOnWith(command.kind)}` };
+      pass = { ...command, kind: goOnWith(command.kind), context: { ...command.context, answers: [...answers] } };
+      first = false;
+    }
+  }
+
+  return {
+    async *run(command: Command): AsyncIterable<Event> {
+      if (command.kind === "answerQuestion") {
+        yield* answer(command);
+        return;
+      }
+      if (command.kind === "cancel") {
+        const waiter = waiters.get(command.runId);
+        if (waiter !== undefined) {
+          // The agent's pass is over; the wait is what is cancelled.
+          waiter.cancelled = true;
+          waiter.cancel?.();
+          yield { kind: "cancelling", runId: command.runId, timestamp: at(), attempted: "termination-requested" };
+          return;
+        }
+        yield* runner.run(command);
+        return;
+      }
+      if (!ASKING_KINDS.has(command.kind)) {
+        yield* runner.run(command);
+        return;
+      }
+      const blocking = (await openQuestions(command.context.changeDir).catch(() => []))
+        .filter((question) => question.runId !== command.runId);
+      if (blocking.length > 0) {
+        const [question] = blocking;
+        const change = changeNameOf(command.context.changeDir);
+        yield {
+          kind: "failed",
+          runId: command.runId,
+          timestamp: at(),
+          reason: `${change} has ${blocking.length === 1 ? "an open question" : `${blocking.length} open questions`} for the operator: `
+            + `${question!.id} "${question!.text}". Answer ${blocking.length === 1 ? "it" : "them"} first - on the change's card, `
+            + `with \`openspec-ui-cli answer ${change} ${question!.id} "<answer>"\`, or in its decisions.md.`,
+        };
+        return;
+      }
+      yield* runAsking(command);
+    },
+  };
+}

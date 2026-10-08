@@ -44,6 +44,10 @@ export interface LoopOptions {
   /** Asked before `run_command` where the host said to ask; false means
    * the command is not run, and the model is told so. */
   allowCommand?: (command: string) => Promise<boolean>;
+  /** Puts a question to the operator and resolves with the answer, for the
+   * `ask_operator` tool (ADR 0042). Absent, the tool says nobody can be
+   * asked here. */
+  askOperator?: (question: string) => Promise<string>;
   signal?: AbortSignal;
   webResearch?: WebResearchOptions;
   /** A clock, for tests. */
@@ -115,7 +119,14 @@ export async function runAgentLoop(prompt: string, options: LoopOptions): Promis
       if (toolCalls > maxToolCalls) return end("max_tool_calls", `Stopped at the ${maxToolCalls}-tool-call limit.`);
       await options.onEvent({ type: "tool_call", call });
       let result: ToolResult;
-      if (call.name === "run_command" && options.allowCommand !== undefined
+      if (call.name === "ask_operator") {
+        const question = typeof call.arguments.question === "string" ? call.arguments.question.trim() : "";
+        result = question.length === 0
+          ? { output: "ask_operator needs a question.", failed: true }
+          : options.askOperator === undefined
+            ? { output: "Nobody can be asked from here; decide from the change's files, and say what you decided.", failed: true }
+            : { output: `The operator answered: ${await options.askOperator(question)}`, failed: false };
+      } else if (call.name === "run_command" && options.allowCommand !== undefined
         && !(await options.allowCommand(typeof call.arguments.command === "string" ? call.arguments.command : ""))) {
         result = { output: "The person did not allow this command; it was not run.", failed: true };
       } else {

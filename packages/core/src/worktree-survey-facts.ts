@@ -241,9 +241,11 @@ export function withSurveyedRuns(standing: ChangeStanding, survey: WorktreeSurve
 
 /** What a waiting run is waiting on. */
 export function describeWaiting(waiting: AgentStatusWaiting): string {
-  return waiting.kind === "checkpoint"
-    ? `waiting to continue to ${waiting.nextStage}`
-    : `waiting for a permission: ${waiting.description}`;
+  if (waiting.kind === "checkpoint") return `waiting to continue to ${waiting.nextStage}`;
+  if (waiting.kind === "question") {
+    return `waiting for your answer: ${waiting.questions.map((question) => `${question.questionId} ${question.text}`).join("; ")}`;
+  }
+  return `waiting for a permission: ${waiting.description}`;
 }
 
 /** One run in the words every surface uses. */

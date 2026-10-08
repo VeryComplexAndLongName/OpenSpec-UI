@@ -155,3 +155,6 @@ export * from "./custom-agents.js";
 
 export * from "./worktree-root.js";
 export * from "./worktree-harvest.js";
+export * from "./operator-question.js";
+export * from "./decisions-file.js";
+export * from "./operator-questions-runner.js";

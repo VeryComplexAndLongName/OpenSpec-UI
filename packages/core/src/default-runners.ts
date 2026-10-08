@@ -8,6 +8,7 @@
 // this is not host business logic, it is configuration of the already
 // existing security.ts mechanism.
 
+import { withOperatorQuestions } from "./operator-questions-runner.js";
 import type { RunLogs } from "./run-log.js";
 import { ClaudeCliAdapter } from "./agents/claude.js";
 import { ClaudeCliAcpAdapter } from "./agents/claude-acp.js";
@@ -235,7 +236,9 @@ export function buildDefaultAgentRunners(config: DefaultRunnersConfig): Map<stri
 
   const runners = new Map<string, AgentRunner>();
   for (const [id, adapter] of Object.entries(adapters)) {
-    runners.set(id, createAgentRunner(adapter, runnerOptions));
+    // A run that asks the operator waits for the answer, in every host and
+    // every chain stage alike (the-agent-asks-the-operator, ADR 0042).
+    runners.set(id, withOperatorQuestions(createAgentRunner(adapter, runnerOptions), { agent: id, auditLog }));
   }
   return runners;
 }

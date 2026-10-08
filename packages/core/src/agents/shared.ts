@@ -147,6 +147,22 @@ export function terminateProcessTree(pid: number): Promise<TerminationOutcome> {
  * whatever rules a project happened to configure — a repository made with
  * `openspec init` has none. See openspec/changes/a-done-task-is-ticked. */
 export function commandInstruction(kind: CommandKind): string {
+  const instruction = stageInstruction(kind);
+  return AGENT_STAGE_KINDS.has(kind) ? `${instruction}${OPERATOR_QUESTION_INSTRUCTION}` : instruction;
+}
+
+/** The agent stages, which may need a decision from the operator. */
+const AGENT_STAGE_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["plan", "implement", "review", "update", "verify"]);
+
+/** How an agent asks the operator, rather than deciding for them: read as
+ * a marker, as `Starting task` is (the-agent-asks-the-operator, ADR 0042). */
+export const OPERATOR_QUESTION_INSTRUCTION =
+  " If you need a decision from the operator that the change's files and what is given below do not make,"
+  + " do not make it yourself: print a line of its own reading `Question for the operator: <the question>`,"
+  + " one line per question, naming the options you see, and do not do the work that depends on the answer;"
+  + " finish the rest. Ask only what the files cannot settle: the run waits for the answer before it goes on.";
+
+function stageInstruction(kind: CommandKind): string {
   switch (kind) {
     case "plan":
       // The propose stage, under the command kind it has always had. It
@@ -217,6 +233,7 @@ export function commandInstruction(kind: CommandKind): string {
     case "chain":
     case "confirmCheckpoint":
     case "resolvePermission":
+    case "answerQuestion": // written to decisions.md by the runner, never sent to an agent (ADR 0042)
     case "stop": // answered by the runner that holds the run, never a CLI agent (a-change-is-run-from-its-card)
       // HarnessChainRunner decomposes a chain into calls to this same
       // spawnAndStream path using each stage's own single-stage

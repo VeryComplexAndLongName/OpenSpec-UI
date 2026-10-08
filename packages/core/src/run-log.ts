@@ -85,6 +85,12 @@ export function runLogLineOf(event: Event): { stream: RunLogStream; text: string
       return { stream: "stage", text: `checkpoint after ${event.stage}; next ${event.nextStage}` };
     case "permissionRequest":
       return { stream: "permission", text: event.description };
+    // The operator's questions are part of what the run said
+    // (the-agent-asks-the-operator, ADR 0042).
+    case "question":
+      return { stream: "permission", text: `question for the operator ${event.questionId}: ${event.text}` };
+    case "questionAnswered":
+      return { stream: "permission", text: `answered ${event.questionId}${event.by ? ` by ${event.by}` : ""}: ${event.answer}` };
     case "stopRequested":
       return {
         stream: "stop",

@@ -31,6 +31,9 @@ export interface LocalAgentOptions {
   askBeforeCommands: boolean;
   /** The run's signal: aborting it ends the loop. */
   signal: AbortSignal;
+  /** Waits for the operator's answer to a question this run asked, and
+   * resolves with it (ADR 0042). */
+  waitForOperator?: (question: string) => Promise<string>;
 }
 
 const TOOL_KINDS: Record<string, "read" | "edit" | "search" | "execute"> = {
@@ -158,6 +161,17 @@ export function createLocalAgent(options: LocalAgentOptions): AgentApp {
         }
         : undefined;
 
+      // Asked as every agent asks, with the marker in its reply, so the
+      // question is recorded and shown as any other; then waited for
+      // (ADR 0042 decision 4).
+      const waitForOperator = options.waitForOperator;
+      const askOperator = waitForOperator === undefined
+        ? undefined
+        : async (question: string): Promise<string> => {
+          await say(`\n\nQuestion for the operator: ${question.replace(/\s+/gu, " ").trim()}\n\n`);
+          return waitForOperator(question);
+        };
+
       const result = await runAgentLoop(promptText(params.prompt), {
         chat: {
           settings: options.settings,
@@ -172,6 +186,7 @@ export function createLocalAgent(options: LocalAgentOptions): AgentApp {
         onEvent,
         webResearch: { fetch: options.fetch, ...(options.searxngUrl ? { searxngUrl: options.searxngUrl } : {}) } satisfies WebResearchOptions,
         ...(allowCommand !== undefined ? { allowCommand } : {}),
+        ...(askOperator !== undefined ? { askOperator } : {}),
         signal: options.signal,
       });
 

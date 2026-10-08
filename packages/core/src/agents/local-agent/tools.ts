@@ -61,6 +61,15 @@ export const TOOL_SCHEMAS: readonly ToolSchema[] = [
     ["command"],
   ),
   ...WEB_RESEARCH_TOOL_SCHEMAS,
+  // A decision the change's files do not make is the operator's: asked,
+  // waited for, and answered as the tool's result (the-agent-asks-the-operator,
+  // ADR 0042 decision 4). Run by the loop, not by `runTool`.
+  schema(
+    "ask_operator",
+    "Ask the operator a question that the change's files and your instructions do not settle, and wait for the answer, which is returned. Ask only what you cannot decide from the files.",
+    { question: { type: "string" } },
+    ["question"],
+  ),
 ];
 
 /** Each tool's parameters with their JSON types, for reading calls written

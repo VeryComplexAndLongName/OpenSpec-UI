@@ -1438,6 +1438,38 @@ describe("HarnessChainRunner — time limits (run-has-a-time-limit)", () => {
     expect((cancelled as { reason?: string }).reason).toContain("maxStageSeconds is 1s");
   });
 
+  // the-agent-asks-the-operator 1.7, ADR 0042: a stage waiting for the
+  // operator's answer is waiting on a person, not spending its time.
+  it("does not cut a stage while it waits for the operator's answer", async () => {
+    const root = await temporaryRoot();
+    await writeGlobalHarnessConfig(root, { autonomyLevel: "semi-autonomous", timeout: { maxStageSeconds: 1 } });
+    await writeChangeHarnessConfig(root, "demo", { checkpoints: { requireConfirmationBetweenSteps: false } });
+    mockStatus(false);
+    const calls: Command[] = [];
+    const runner: AgentRunner = {
+      async *run(command) {
+        calls.push(command);
+        if (command.kind === "cancel") return;
+        yield { kind: "started", runId: command.runId, timestamp: "t", command: command.kind, cwd: command.cwd };
+        if (calls.filter((call) => call.kind !== "cancel").length === 1) {
+          yield { kind: "awaitingAnswers", runId: command.runId, timestamp: "t", questions: [{ questionId: "Q-run-1", text: "Which database?" }] };
+          await new Promise((resolve) => setTimeout(resolve, 1_600));
+          yield { kind: "questionAnswered", runId: command.runId, timestamp: "t", questionId: "Q-run-1", answer: "PostgreSQL" };
+          yield { kind: "progress", runId: command.runId, timestamp: "t", message: "answered; going on as update" };
+        }
+        yield { kind: "completed", runId: command.runId, timestamp: "t" };
+      },
+    };
+    const chain = new HarnessChainRunner({ resolveRunner: () => runner });
+
+    const events: Event[] = [];
+    for await (const event of chain.run(baseCommand(root))) events.push(event);
+
+    expect(calls.some((call) => call.kind === "cancel")).toBe(false);
+    expect(events.some((event) => event.kind === "cancelled" && (event.reason ?? "").includes("maxStageSeconds"))).toBe(false);
+    expect(events).toContainEqual(expect.objectContaining({ kind: "awaitingAnswers" }));
+  });
+
   it("names the run ceiling rather than the stage when the run ceiling is what was reached", async () => {
     const root = await temporaryRoot();
     await writeGlobalHarnessConfig(root, {
