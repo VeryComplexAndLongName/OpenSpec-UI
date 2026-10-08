@@ -97,8 +97,10 @@ the-plan-is-updated-from-its-review.
   package with two workers: core 516 tests in 22 files, cli 65, extension
   82 + 22, webui 164, server 2 selected, all passing. The full projects,
   `core-git-subprocess` included, run in CI on the pull request.
-- [ ] 4.2 `openspec validate the-agent-asks-the-operator --strict`, and the
+- [x] 4.2 `openspec validate the-agent-asks-the-operator --strict`, and the
   merge gate with the worktree's absolute path as `--cwd`.
+  2026-10-08, after rebasing onto origin/main: the change is valid under
+  `--strict`; the gate names only 4.3 and 4.4 as still open.
 - [ ] 4.3 Live runs: a review on a CLI agent that asks a question, waits,
   and updates once answered; `local-llm-acp` asking through `ask_operator`
   mid-turn; record both.
