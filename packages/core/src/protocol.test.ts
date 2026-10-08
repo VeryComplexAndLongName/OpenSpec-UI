@@ -43,7 +43,7 @@ const sampleByKind: Record<EventKind, Event> = {
     update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } },
   },
   permissionRequest: { ...base, kind: "permissionRequest", requestId: "perm-1", description: "Write to src/index.ts" },
-  permissionWithdrawn: { ...base, kind: "permissionWithdrawn", requestId: "perm-1" },
+  permissionSettled: { ...base, kind: "permissionSettled", requestId: "perm-1", outcome: "allow" },
   stopRequested: { ...base, kind: "stopRequested", reason: "wrong branch", by: "ada@example.com", outcome: "asked" },
   question: { ...base, kind: "question", questionId: "Q-run1-1", text: "Keep the v1 API?" },
   awaitingAnswers: { ...base, kind: "awaitingAnswers", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] },

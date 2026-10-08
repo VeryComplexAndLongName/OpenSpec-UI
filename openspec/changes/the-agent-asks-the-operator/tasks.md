@@ -81,7 +81,7 @@ the-plan-is-updated-from-its-review.
   showed only the latest, so each Allow left another request's buttons in
   place; and a request the agent cancelled (`$/cancel_request`) or left
   open when its turn ended stayed on screen. The ACP driver now emits
-  `permissionWithdrawn` for both, and the panels show every pending
+  `permissionSettled` (outcome `withdrawn`) for both, and the panels show every pending
   request and drop one that was withdrawn or whose stage has ended. Tests:
   `AiPanel.test.tsx`, `HarnessChainPanel.test.tsx`,
   `acp-session-driver.test.ts` (a cancelled request, one left open).
@@ -105,6 +105,12 @@ the-plan-is-updated-from-its-review.
   asked since and dropping one answered elsewhere, and closes when none is
   left. Tests: `decisions-file.test.ts`, `operator-questions-runner.test.ts`,
   `PipelineView.test.tsx`.
+  Fourth round: Allow given on the card left the run panel's buttons in
+  place, since only an answer given in the panel itself took them away.
+  The driver now says every answer in the run's stream as
+  `permissionSettled` (outcome `allow` or `deny`), the event that also
+  says a request was withdrawn, and the panels drop a settled request.
+  Tests: `acp-session-driver.test.ts`, `AiPanel.test.tsx`.
 
 ## 3. Documents
 

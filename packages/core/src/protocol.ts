@@ -215,10 +215,9 @@ export type EventKind =
    * `"resolvePermission"` command naming this event's `requestId`.
    * Non-terminal. */
   | "permissionRequest"
-  /** The agent stopped waiting for a `permissionRequest` it had made - it
-   * cancelled the ACP request, or its turn ended with it unanswered - so
-   * nothing answers it any more. Non-terminal. */
-  | "permissionWithdrawn"
+  /** A `permissionRequest` is no longer pending: it was answered - from
+   * whichever surface - or the agent withdrew it. Non-terminal. */
+  | "permissionSettled"
   /** A `"stop"` command reached the run — see `StopRequestedEvent`.
    * Non-terminal. */
   | "stopRequested"
@@ -420,14 +419,18 @@ export interface PermissionRequestEvent extends BaseEvent {
   description: string;
 }
 
-/** A `permissionRequest` nobody needs to answer any more: the agent
- * withdrew it, or its turn ended while it was open. Seen live on
- * 2026-10-08 - copilot-cli-acp cancelled a request when a tool call beside
- * it failed, and went on, while its Allow/Deny stayed on screen. */
-export interface PermissionWithdrawnEvent extends BaseEvent {
-  kind: "permissionWithdrawn";
-  /** The withdrawn request's `requestId`. */
+/** A `permissionRequest` nobody needs to answer any more, said in the run's
+ * own stream so every surface showing it stops offering Allow/Deny. Seen
+ * live on 2026-10-08: an answer given on the change's card left the run
+ * panel's buttons in place, and copilot-cli-acp cancelled a request when a
+ * tool call beside it failed and went on, while its buttons stayed. */
+export interface PermissionSettledEvent extends BaseEvent {
+  kind: "permissionSettled";
+  /** The settled request's `requestId`. */
   requestId: string;
+  /** Answered with `allow` or `deny`, or `withdrawn` by the agent - it
+   * cancelled the request, or its turn ended with it open. */
+  outcome: "allow" | "deny" | "withdrawn";
 }
 
 /** A `"stop"` command reached the runner.
@@ -487,7 +490,7 @@ export type Event =
   | HandedOffEvent
   | AgentUpdateEvent
   | PermissionRequestEvent
-  | PermissionWithdrawnEvent
+  | PermissionSettledEvent
   | StopRequestedEvent
   | QuestionEvent
   | AwaitingAnswersEvent
@@ -544,8 +547,8 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.update === "object" && v.update !== null;
     case "permissionRequest":
       return typeof v.requestId === "string" && typeof v.description === "string";
-    case "permissionWithdrawn":
-      return typeof v.requestId === "string";
+    case "permissionSettled":
+      return typeof v.requestId === "string" && (v.outcome === "allow" || v.outcome === "deny" || v.outcome === "withdrawn");
     case "stopRequested":
       return (
         typeof v.reason === "string" &&

@@ -120,6 +120,10 @@ describe("AcpSessionDriver", () => {
     // permissionRequest event was observed.
     expect(events.some((event) => event.kind === "agentUpdate")).toBe(true);
     expect(events.at(-1)?.kind).toBe("completed");
+    // Said in the run's stream, so a surface that did not answer it stops
+    // offering it (live, 2026-10-08: answered on the card, the run panel
+    // kept its buttons).
+    expect(events).toContainEqual(expect.objectContaining({ kind: "permissionSettled", requestId: resolvedRequestId, outcome: "allow" }));
     // Resolved once; a second attempt against the same runId/requestId is
     // a no-op, matching spec.md's "no second permissionRequest is emitted
     // for the same action".
@@ -151,9 +155,9 @@ describe("AcpSessionDriver", () => {
     );
 
     const asked = events.find((event) => event.kind === "permissionRequest");
-    const withdrawn = events.find((event) => event.kind === "permissionWithdrawn");
+    const withdrawn = events.find((event) => event.kind === "permissionSettled");
     expect(asked).toBeDefined();
-    expect(withdrawn).toMatchObject({ requestId: (asked as Extract<Event, { kind: "permissionRequest" }>).requestId });
+    expect(withdrawn).toMatchObject({ requestId: (asked as Extract<Event, { kind: "permissionRequest" }>).requestId, outcome: "withdrawn" });
     expect(events.at(-1)?.kind).toBe("completed");
     expect(outcome).toBeDefined();
     expect(driver.resolvePermission("run-withdrawn", (asked as Extract<Event, { kind: "permissionRequest" }>).requestId, "allow")).toBe(false);
@@ -180,7 +184,8 @@ describe("AcpSessionDriver", () => {
     );
 
     const kinds = events.map((event) => event.kind);
-    expect(kinds.indexOf("permissionWithdrawn")).toBeGreaterThan(kinds.indexOf("permissionRequest"));
+    expect(kinds.indexOf("permissionSettled")).toBeGreaterThan(kinds.indexOf("permissionRequest"));
+    expect(events.find((event) => event.kind === "permissionSettled")).toMatchObject({ outcome: "withdrawn" });
     expect(kinds.at(-1)).toBe("completed");
   });
 

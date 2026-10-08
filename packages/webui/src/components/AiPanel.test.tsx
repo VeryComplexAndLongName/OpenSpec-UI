@@ -500,6 +500,18 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         expect(prompts()).toEqual([]);
     });
 
+    it("drops a request answered elsewhere, such as on the change's card", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-card"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-card", timestamp: "t", requestId: "perm-card", description: "Running command" });
+        expect(screen.getByTestId("permission-request")).toBeInTheDocument();
+
+        emit({ kind: "permissionSettled", runId: "run-perm-card", timestamp: "t", requestId: "perm-card", outcome: "allow" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
+    });
+
     it("drops a request the agent withdrew", () => {
         const { transport, emit } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-withdrawn"} />);
@@ -507,7 +519,7 @@ describe("AiPanel (direct OpenSpec mode)", () => {
         emit({ kind: "permissionRequest", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone", description: "Running command" });
         expect(screen.getByTestId("permission-request")).toHaveTextContent("Running command");
 
-        emit({ kind: "permissionWithdrawn", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone" });
+        emit({ kind: "permissionSettled", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone", outcome: "withdrawn" });
 
         expect(screen.queryByTestId("permission-request")).toBeNull();
     });

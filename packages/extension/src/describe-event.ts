@@ -46,8 +46,10 @@ export function describeEvent(event: Event): string | undefined {
     }
     case "permissionRequest":
       return `[permission requested] ${event.description}`;
-    case "permissionWithdrawn":
-      return "[permission withdrawn] the agent no longer waits on it";
+    case "permissionSettled":
+      return event.outcome === "withdrawn"
+        ? "[permission withdrawn] the agent no longer waits on it"
+        : `[permission ${event.outcome === "allow" ? "allowed" : "denied"}]`;
     case "stopRequested":
       return event.outcome === "nothing-to-stop"
         ? `[stop] nothing was running: ${event.reason}`

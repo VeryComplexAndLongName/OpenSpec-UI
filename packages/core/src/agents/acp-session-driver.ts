@@ -251,7 +251,7 @@ export class AcpSessionDriver {
       if (resolve === undefined) return;
       this.pending.delete(`${runId}:${requestId}`);
       openRequests.delete(requestId);
-      push({ kind: "permissionWithdrawn", runId, timestamp: nowIso(), requestId });
+      push({ kind: "permissionSettled", runId, timestamp: nowIso(), requestId, outcome: "withdrawn" });
       resolve("withdrawn");
     };
     app.onRequest(CLIENT_METHODS.session_request_permission, async ({ params, signal: requestSignal }) => {
@@ -266,6 +266,9 @@ export class AcpSessionDriver {
       const outcome = await new Promise<"allow" | "deny" | "withdrawn">((resolve) => {
         this.pending.set(`${runId}:${requestId}`, (answer) => {
           openRequests.delete(requestId);
+          // Said in this run's stream whichever surface answered, so the
+          // others stop offering it.
+          if (answer !== "withdrawn") push({ kind: "permissionSettled", runId, timestamp: nowIso(), requestId, outcome: answer });
           resolve(answer);
         });
         openRequests.add(requestId);

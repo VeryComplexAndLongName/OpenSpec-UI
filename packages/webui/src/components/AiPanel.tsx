@@ -187,8 +187,8 @@ export function findPendingPermissionRequests(
   for (const event of events) {
     if (event.kind === "permissionRequest") {
       if (!resolvedIds.has(event.requestId)) pending.set(event.requestId, event);
-    } else if (event.kind === "permissionWithdrawn") {
-      // The agent no longer waits on it.
+    } else if (event.kind === "permissionSettled") {
+      // Answered here or elsewhere, or withdrawn: nothing waits on it.
       pending.delete(event.requestId);
     } else if (event.kind === "stageCompleted" || event.kind === "checkpoint" || event.kind === "handedOff") {
       // The stage that asked has ended, so nothing waits on what it asked,
@@ -748,8 +748,10 @@ function describeEvent(event: Event): string {
       return describeAcpUpdate(event.update) ?? `agent update: ${String(event.update.sessionUpdate ?? "update")}`;
     case "permissionRequest":
       return `permission requested: ${event.description}`;
-    case "permissionWithdrawn":
-      return "the agent withdrew a permission request";
+    case "permissionSettled":
+      return event.outcome === "withdrawn"
+        ? "the agent withdrew a permission request"
+        : `permission ${event.outcome === "allow" ? "allowed" : "denied"}`;
     case "stopRequested":
       return event.outcome === "nothing-to-stop"
         ? `stop: nothing was running (${event.reason})`

@@ -163,7 +163,7 @@ describe("HarnessChainPanel", () => {
     emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t3", requestId: "req-edit", description: "Edit file" });
     expect(screen.getAllByTestId("permission-request")).toHaveLength(2);
 
-    emit({ kind: "permissionWithdrawn", runId: "chain-1", timestamp: "t4", requestId: "req-run" });
+    emit({ kind: "permissionSettled", runId: "chain-1", timestamp: "t4", requestId: "req-run", outcome: "withdrawn" });
     expect(screen.getAllByTestId("permission-request").map((prompt) => prompt.getAttribute("data-request-id"))).toEqual(["req-edit"]);
 
     emit({ kind: "checkpoint", runId: "chain-1", timestamp: "t5", stage: "apply", nextStage: "verify", nextAgentId: "copilot-cli-acp" });
