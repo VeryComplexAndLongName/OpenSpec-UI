@@ -43,7 +43,11 @@ export type CommandKind =
    * `cancel` does. Answered by a `stopRequested` event, and carries the
    * reason a person gave in `reason` (a-change-is-run-from-its-card,
    * ADR 0028). */
-  | "stop";
+  | "stop"
+  /** Answers a question an agent put to the operator, by its id, with
+   * `answer`; written to the change's `decisions.md`, where a run waiting
+   * on it reads it (the-agent-asks-the-operator, ADR 0042). */
+  | "answerQuestion";
 
 /** Runtime enumeration of `CommandKind`, kept in this one place so
  * transport-boundary shape checks (e.g. `packages/server/src/wire.ts`'s
@@ -63,6 +67,7 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
   "confirmCheckpoint",
   "resolvePermission",
   "stop",
+  "answerQuestion",
 ];
 
 /** One file changed by the run a `"verify"` command is reviewing, carried
@@ -96,6 +101,10 @@ export interface CommandContext {
    * "The operator's notes" section. Data, like `promptContext`; read only
    * for an `update` (ADR 0041). */
   notes?: string;
+  /** The operator's answers to the questions an earlier pass of this run
+   * asked, for the pass that goes on with them: the prompt's "The
+   * operator's answers" section (ADR 0042). Data, like `notes`. */
+  answers?: Array<{ question: string; answer: string }>;
 }
 
 export interface Command {
@@ -172,6 +181,10 @@ export interface Command {
    * give the underlying ACP `session/request_permission` call named by
    * `permissionRequestId`. Ignored for every other command kind. */
   permissionOutcome?: "allow" | "deny";
+  /** Only meaningful for an `"answerQuestion"` command: the question
+   * answered, as `decisions.md` names it, and the answer. */
+  questionId?: string;
+  answer?: string;
 }
 
 export type EventKind =
@@ -202,9 +215,19 @@ export type EventKind =
    * `"resolvePermission"` command naming this event's `requestId`.
    * Non-terminal. */
   | "permissionRequest"
+  /** A `permissionRequest` is no longer pending: it was answered - from
+   * whichever surface - or the agent withdrew it. Non-terminal. */
+  | "permissionSettled"
   /** A `"stop"` command reached the run — see `StopRequestedEvent`.
    * Non-terminal. */
-  | "stopRequested";
+  | "stopRequested"
+  /** An agent put a question to the operator (ADR 0042). Non-terminal. */
+  | "question"
+  /** The run stopped to wait for the answers to its open questions.
+   * Non-terminal. */
+  | "awaitingAnswers"
+  /** A question of the run was answered. Non-terminal. */
+  | "questionAnswered";
 
 interface BaseEvent {
   runId: string;
@@ -396,6 +419,20 @@ export interface PermissionRequestEvent extends BaseEvent {
   description: string;
 }
 
+/** A `permissionRequest` nobody needs to answer any more, said in the run's
+ * own stream so every surface showing it stops offering Allow/Deny. Seen
+ * live on 2026-10-08: an answer given on the change's card left the run
+ * panel's buttons in place, and copilot-cli-acp cancelled a request when a
+ * tool call beside it failed and went on, while its buttons stayed. */
+export interface PermissionSettledEvent extends BaseEvent {
+  kind: "permissionSettled";
+  /** The settled request's `requestId`. */
+  requestId: string;
+  /** Answered with `allow` or `deny`, or `withdrawn` by the agent - it
+   * cancelled the request, or its turn ended with it open. */
+  outcome: "allow" | "deny" | "withdrawn";
+}
+
 /** A `"stop"` command reached the runner.
  *
  * **Not terminal.** With `outcome: "asked"` the run goes on to a sound
@@ -410,6 +447,31 @@ export interface StopRequestedEvent extends BaseEvent {
   reason: string;
   by?: string;
   outcome: "asked" | "nothing-to-stop";
+}
+
+/** An agent asked the operator something the change's files do not
+ * decide, with the `Question for the operator:` marker or, for the built-in
+ * local agent, its `ask_operator` tool. Recorded in the change's
+ * `decisions.md` as `questionId` (ADR 0042). */
+export interface QuestionEvent extends BaseEvent {
+  kind: "question";
+  questionId: string;
+  text: string;
+}
+
+/** The run's own work is done but some of its questions are open, so it
+ * waits for the answers rather than completing. */
+export interface AwaitingAnswersEvent extends BaseEvent {
+  kind: "awaitingAnswers";
+  questions: Array<{ questionId: string; text: string }>;
+}
+
+/** A question was answered, from wherever. */
+export interface QuestionAnsweredEvent extends BaseEvent {
+  kind: "questionAnswered";
+  questionId: string;
+  answer: string;
+  by?: string;
 }
 
 export type Event =
@@ -428,7 +490,11 @@ export type Event =
   | HandedOffEvent
   | AgentUpdateEvent
   | PermissionRequestEvent
-  | StopRequestedEvent;
+  | PermissionSettledEvent
+  | StopRequestedEvent
+  | QuestionEvent
+  | AwaitingAnswersEvent
+  | QuestionAnsweredEvent;
 
 /** Type guard helper: serializing an Event is just JSON, but we verify
  * that `kind` is one of the known variants when deserializing from an
@@ -481,12 +547,24 @@ export function isEvent(value: unknown): value is Event {
       return typeof v.update === "object" && v.update !== null;
     case "permissionRequest":
       return typeof v.requestId === "string" && typeof v.description === "string";
+    case "permissionSettled":
+      return typeof v.requestId === "string" && (v.outcome === "allow" || v.outcome === "deny" || v.outcome === "withdrawn");
     case "stopRequested":
       return (
         typeof v.reason === "string" &&
         (v.outcome === "asked" || v.outcome === "nothing-to-stop") &&
         (v.by === undefined || typeof v.by === "string")
       );
+    case "question":
+      return typeof v.questionId === "string" && typeof v.text === "string";
+    case "awaitingAnswers":
+      return Array.isArray(v.questions)
+        && v.questions.every((question: unknown) =>
+          typeof question === "object" && question !== null
+          && typeof (question as Record<string, unknown>).questionId === "string"
+          && typeof (question as Record<string, unknown>).text === "string");
+    case "questionAnswered":
+      return typeof v.questionId === "string" && typeof v.answer === "string" && (v.by === undefined || typeof v.by === "string");
     default:
       return false;
   }

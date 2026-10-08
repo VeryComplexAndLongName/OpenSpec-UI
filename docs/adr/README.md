@@ -48,6 +48,7 @@ Alternatives / Consequences.
 | [0039](0039-the-supervisor-advises.md) | The supervisor advises, and acts only where a change allows it | Accepted |
 | [0040](0040-local-models-research-the-web.md) | Local models research public HTML pages through bounded web tools | Accepted |
 | [0041](0041-the-plan-is-updated-from-its-review.md) | The plan is updated from its review | Accepted |
+| [0042](0042-the-agent-asks-the-operator.md) | The agent asks the operator, and nothing goes on without an answer | Accepted |
 | [0043](0043-a-change-is-made-in-a-working-directory-of-its-own.md) | A change is made in a working directory of its own, and every agent is told so | Accepted; amends 0022 decision 3 |
 
 New architecture-impacting changes must add an ADR and reference it from the related OpenSpec change.

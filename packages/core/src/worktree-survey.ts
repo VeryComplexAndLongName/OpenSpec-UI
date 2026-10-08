@@ -17,6 +17,7 @@ import { agentStatusDirectory, readAgentStatuses, sweepAgentStatuses, type Agent
 import { readChangeGraph } from "./change-graph.js";
 import { changeOfWorktree } from "./change-worktrees.js";
 import { createGitWrapper, type GitWorktree, type GitWrapper } from "./git.js";
+import { openQuestions } from "./decisions-file.js";
 import { pathKey } from "./path-key.js";
 import { readTaskChecklist, readTaskChecklistOf, taskNumberOf, type TaskChecklistItem } from "./task-checklist.js";
 import { discoverOpenSpecWorkspace, type WorkbenchChange } from "./workbench.js";
@@ -209,6 +210,10 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
       if (discovered instanceof Error) throw discovered;
       const { items, tasksPath } = await readTaskChecklistOf(discovered.get(changeName));
       taskLists.set(changeName, items);
+      // What the change waits on the operator for, wherever its run is or
+      // whether one is running at all (ADR 0042).
+      const questions = (await openQuestions(path.join(directory, "openspec", "changes", changeName)).catch(() => []))
+        .map((question) => ({ questionId: question.id, text: question.text }));
       changes.push({
         changeName,
         tasksDone: items.filter((item) => item.done).length,
@@ -216,6 +221,7 @@ async function surveyChanges(directory: string): Promise<{ changes: SurveyedChan
         blockers,
         alsoIn: [],
         ...(tasksPath !== undefined ? await cardFactsOf(items, tasksPath) : {}),
+        ...(questions.length > 0 ? { openQuestions: questions } : {}),
       });
     } catch (error) {
       changes.push({ changeName, tasksDone: 0, tasksTotal: 0, tasksUnreadable: message(error), blockers, alsoIn: [] });

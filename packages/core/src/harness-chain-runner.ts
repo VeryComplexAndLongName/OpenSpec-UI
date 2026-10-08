@@ -179,6 +179,12 @@ export function buildOperatorMessagesSection(messages: readonly ChainMessage[]):
 }
 
 interface ChainState {
+  /** Since when the stage in flight has been waiting for the operator's
+   * answers, and how long it has waited in all: a wait for a person is not
+   * the stage's time, so neither its timeout nor the chain's elapsed time
+   * counts it (the-agent-asks-the-operator, ADR 0042). */
+  operatorWaitSince?: number;
+  operatorWaitMs: number;
   cancelRequested: boolean;
   /** Why this chain was cancelled, when something other than a person
    * asking caused it. Set before `cancel()` is called so the terminal
@@ -659,6 +665,7 @@ export class HarnessChainRunner {
     const state: ChainState = {
       cancelRequested: false,
       elapsedMs: 0,
+      operatorWaitMs: 0,
       attemptsByStage: new Map(),
       pendingMessages: [],
       awaitingAnswer: [],
@@ -1212,13 +1219,26 @@ export class HarnessChainRunner {
         state.cancelReason = undefined;
         state.lastStageUsage = undefined;
         const stageStartedAt = Date.now();
+        state.operatorWaitMs = 0;
+        state.operatorWaitSince = undefined;
         const stageDeadlineMs = this.stageDeadlineMs(harnessConfig, state);
-        const stageTimer = stageDeadlineMs === undefined
-          ? undefined
-          : setTimeout(() => {
+        /** How long the stage has waited for the operator so far. */
+        const waitedMs = () => state.operatorWaitMs + (state.operatorWaitSince === undefined ? 0 : Date.now() - state.operatorWaitSince);
+        let stageTimer: ReturnType<typeof setTimeout> | undefined;
+        // Measured on the stage's own time: where it waited for the
+        // operator, the timer is set again for what is left (ADR 0042).
+        const armStageTimer = (deadlineMs: number, inMs: number): void => {
+          stageTimer = setTimeout(() => {
+            const worked = Date.now() - stageStartedAt - waitedMs();
+            if (worked < deadlineMs) {
+              armStageTimer(deadlineMs, deadlineMs - worked);
+              return;
+            }
             state.cancelReason = describeTimeout(harnessConfig, state, stage);
             this.cancel(runId);
-          }, stageDeadlineMs);
+          }, inMs);
+        };
+        if (stageDeadlineMs !== undefined) armStageTimer(stageDeadlineMs, stageDeadlineMs);
 
         try {
           outcome = yield* this.runStage(stage, hasNextStage, harnessConfig, command, state, verifiedDelta);
@@ -1227,8 +1247,10 @@ export class HarnessChainRunner {
           // Added whether the stage completed, failed or was cut: all
           // three spent the time, and a ceiling that forgave the attempts
           // it cut would let a chain retry its way past the very ceiling
-          // it was given.
-          state.elapsedMs += Date.now() - stageStartedAt;
+          // it was given. The time it waited for the operator is not its
+          // own (ADR 0042).
+          state.elapsedMs += Date.now() - stageStartedAt - waitedMs();
+          state.operatorWaitSince = undefined;
         }
 
         // A failure from the stage's agent, which `runStage` held: under
@@ -1864,6 +1886,14 @@ export class HarnessChainRunner {
     });
     try {
       for await (const event of events) {
+        // A wait for the operator's answers begins with `awaitingAnswers`
+        // and ends with whatever the stage does next (ADR 0042).
+        if (event.kind === "awaitingAnswers") {
+          state.operatorWaitSince ??= Date.now();
+        } else if (state.operatorWaitSince !== undefined && event.kind !== "question" && event.kind !== "questionAnswered") {
+          state.operatorWaitMs += Date.now() - state.operatorWaitSince;
+          state.operatorWaitSince = undefined;
+        }
         if (event.kind === "permissionRequest" && harnessConfig.autonomyLevel === "autonomous" && !autonomousPermissionFailure) {
           autonomousPermissionFailure = true;
           outcome = "failed";

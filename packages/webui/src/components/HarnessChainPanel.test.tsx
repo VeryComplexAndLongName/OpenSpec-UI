@@ -152,6 +152,24 @@ describe("HarnessChainPanel", () => {
     expect(screen.getByTestId("start-chain-button")).not.toBeDisabled();
   });
 
+  // Live on 2026-10-08: requests the agent stopped waiting on stayed on
+  // screen at the checkpoint, and each Allow seemed to add a row.
+  it("drops a request the agent withdrew, and every request of a stage that has ended", () => {
+    const { transport, emit } = createFakeTransport();
+    render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);
+    fireEvent.click(screen.getByTestId("start-chain-button"));
+    emit({ kind: "started", runId: "chain-1", timestamp: "t1", command: "chain", cwd });
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t2", requestId: "req-run", description: "Running command" });
+    emit({ kind: "permissionRequest", runId: "chain-1", timestamp: "t3", requestId: "req-edit", description: "Edit file" });
+    expect(screen.getAllByTestId("permission-request")).toHaveLength(2);
+
+    emit({ kind: "permissionSettled", runId: "chain-1", timestamp: "t4", requestId: "req-run", outcome: "withdrawn" });
+    expect(screen.getAllByTestId("permission-request").map((prompt) => prompt.getAttribute("data-request-id"))).toEqual(["req-edit"]);
+
+    emit({ kind: "checkpoint", runId: "chain-1", timestamp: "t5", stage: "apply", nextStage: "verify", nextAgentId: "copilot-cli-acp" });
+    expect(screen.queryByTestId("permission-request")).toBeNull();
+  });
+
   it("renders a permission request with Allow/Deny, and answers with the request's own id", () => {
     const { transport, send, emit } = createFakeTransport();
     render(<HarnessChainPanel transport={transport} cwd={cwd} changeDir={changeDir} generateRunId={() => "chain-1"} />);

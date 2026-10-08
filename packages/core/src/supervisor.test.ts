@@ -108,6 +108,23 @@ describe("superviseRuns — a run waiting on a person", () => {
     }]);
   });
 
+  it("offers the answer to a question beside the look, and never a stop (ADR 0042)", () => {
+    const hints = superviseRuns(inputs({
+      statuses: [report({
+        activitySinceMs: 15 * MINUTE,
+        waiting: { kind: "question", questions: [{ questionId: "Q-abc-1", text: "Which database?" }] },
+      })],
+    }));
+    expect(hints).toEqual([expect.objectContaining({
+      kind: "run-waits-on-you",
+      because: expect.stringContaining("waiting for your answer: Q-abc-1 Which database?"),
+      commands: [
+        "openspec-ui-cli status --cwd /work/demo",
+        `openspec-ui-cli answer demo Q-abc-1 "<answer>" --cwd /work/demo`,
+      ],
+    })]);
+  });
+
   it("is not pointed out under its threshold", () => {
     expect(superviseRuns(inputs({
       statuses: [report({ activitySinceMs: 30_000, waiting: { kind: "checkpoint", stage: "apply", nextStage: "verify" } })],

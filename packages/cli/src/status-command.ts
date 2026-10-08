@@ -153,6 +153,13 @@ export async function statusCommand(options: StatusOptions, deps: StatusDeps): P
     const task = taskInHand(report.task, await tasksOf(report, deps));
     if (task) deps.stdout(`    ${describeTaskInHand(task)}`);
     if (report.waiting) deps.stdout(`    ${describeWaiting(report.waiting)}`);
+    // A run held by a question says how to answer it, here, where the
+    // person reading is (the-agent-asks-the-operator, ADR 0042).
+    if (report.waiting?.kind === "question" && report.changeName) {
+      for (const question of report.waiting.questions) {
+        deps.stdout(`    answer with: openspec-ui-cli answer ${report.changeName} ${question.questionId} "<answer>"`);
+      }
+    }
     deps.stdout(
       `    said this ${activitySeconds}s ago, last heard from ${heartbeatSeconds}s ago` +
         (report.gone ? " — gone" : ""),

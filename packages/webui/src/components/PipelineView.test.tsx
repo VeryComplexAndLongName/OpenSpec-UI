@@ -805,6 +805,24 @@ describe("PipelineView — a card's controls (a-change-is-run-from-its-card 5.9)
     expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "deny" });
   });
 
+  // Live on 2026-10-08: an agent asked for four at once, and the card offered
+  // only the latest; once that was answered it offered nothing.
+  it("offers the oldest of several open permission requests, and says how many there are", async () => {
+    const { onRunControl } = renderCard({
+      record: { waiting: { kind: "permission", description: "Edit file" } },
+      held: [heldRun({
+        waiting: true,
+        permissionRequestId: "p1",
+        pendingPermissions: [{ requestId: "p1", description: "Edit file" }, { requestId: "p2", description: "Running command" }],
+      })],
+    });
+
+    const allow = await screen.findByRole("button", { name: "Allow alpha: Edit file (1 of 2)" });
+    expect(allow).toHaveTextContent("Allow (1 of 2)");
+    fireEvent.click(allow);
+    expect(onRunControl).toHaveBeenCalledWith({ changeName: "alpha", runId: "r1", kind: "resolvePermission", permissionRequestId: "p1", permissionOutcome: "allow" });
+  });
+
   it("offers Stop on a running held run, and Stop now once a stop has been asked", async () => {
     const { onRunControl } = renderCard({ held: [heldRun({ stopRequested: { reason: "wrong branch" } })] });
 
@@ -2027,5 +2045,60 @@ describe("PipelineView - a review that asked for changes", () => {
 
     await screen.findByTestId("pipeline-start-alpha");
     expect(screen.queryByTestId("pipeline-update-plan-alpha")).toBeNull();
+  });
+});
+
+// the-agent-asks-the-operator 2.1 (ADR 0042).
+describe("PipelineView - a change with a question for the operator", () => {
+  it("offers Answer..., and sends each answer with where the change is", async () => {
+    const onAnswerQuestion = vi.fn();
+    render(
+      <PipelineView
+        isActive
+        load={async () => report(change("alpha"))}
+        survey={async () => survey(directory({
+          changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [], openQuestions: [{ questionId: "Q-run1-1", text: "Which database?" }] }],
+          runs: [],
+        }))}
+        liveRuns={async () => ({ runs: [] })}
+        onStart={vi.fn()}
+        onAnswerQuestion={onAnswerQuestion}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("pipeline-answer-alpha"));
+    fireEvent.change(screen.getByTestId("pipeline-answer-Q-run1-1"), { target: { value: "PostgreSQL" } });
+    fireEvent.click(screen.getByTestId("pipeline-send-answer"));
+
+    expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ changeName: "alpha", questionId: "Q-run1-1", answer: "PostgreSQL" }));
+    expect(screen.queryByTestId("pipeline-answer-form")).toBeNull();
+  });
+
+  // Live on 2026-10-08: the open form kept the questions it opened with, so a
+  // new one never showed and one answered in the run panel stayed.
+  it("keeps the open form to the change's questions as they are now", async () => {
+    vi.useFakeTimers();
+    let questions = [{ questionId: "Q-run1-1", text: "Which database?" }];
+    const read = vi.fn(async () => survey(directory({
+      changes: [{ changeName: "alpha", tasksDone: 0, tasksTotal: 2, blockers: [], alsoIn: [], openQuestions: questions }],
+      runs: [],
+    })));
+    render(<PipelineView isActive load={async () => report(change("alpha"))} survey={read} liveRuns={async () => ({ runs: [] })} onStart={vi.fn()} onAnswerQuestion={vi.fn()} />);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100);
+    fireEvent.click(screen.getByTestId("pipeline-answer-alpha"));
+    expect(screen.getByTestId("pipeline-answer-Q-run1-1")).toBeInTheDocument();
+
+    // Answered in the run panel, and the agent asked again.
+    questions = [{ questionId: "Q-run1-2", text: "SQLite or PostgreSQL, exactly?" }];
+    await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
+    expect(screen.queryByTestId("pipeline-answer-Q-run1-1")).toBeNull();
+    expect(screen.getByTestId("pipeline-answer-Q-run1-2")).toBeInTheDocument();
+
+    // Answered elsewhere too: nothing is left to answer, and the form goes.
+    questions = [];
+    await vi.advanceTimersByTimeAsync(SURVEY_POLL_INTERVAL_MS);
+    expect(screen.queryByTestId("pipeline-answer-form")).toBeNull();
+    vi.useRealTimers();
   });
 });

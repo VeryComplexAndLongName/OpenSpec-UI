@@ -13,8 +13,10 @@ import type { Command, CheckpointEvent, Event, HarnessBudget, HarnessTimeout } f
 import type { Transport } from "../transport/types.js";
 import {
   collapseStreamEvents,
-  findPendingPermissionRequest,
+  findOpenQuestions,
+  findPendingPermissionRequests,
   isCancelling,
+  OperatorQuestionsPrompt,
   isShownInEventLog,
   isTerminal,
   PermissionRequestPrompt,
@@ -68,8 +70,8 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
   const latestEvent = collapsedEvents[collapsedEvents.length - 1];
   const isRunning = runId !== null && !collapsedEvents.some(isTerminal);
   const pendingCheckpoint = isCheckpointEvent(latestEvent) ? latestEvent : undefined;
-  const pendingPermissionRequest = useMemo(
-    () => findPendingPermissionRequest(collapsedEvents, resolvedPermissionRequestIds),
+  const pendingPermissionRequests = useMemo(
+    () => findPendingPermissionRequests(collapsedEvents, resolvedPermissionRequestIds),
     [collapsedEvents, resolvedPermissionRequestIds],
   );
 
@@ -103,6 +105,17 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
       permissionOutcome: outcome,
     });
     setResolvedPermissionRequestIds((prev) => new Set(prev).add(request.requestId));
+  }
+
+  // The questions a stage's agent asked, answered here as in the AI panel
+  // (the-agent-asks-the-operator, ADR 0042).
+  // Once the run has ended nothing waits on an answer here; a question it
+  // left open is answered from the card, the CLI or decisions.md.
+  const openQuestions = isRunning ? findOpenQuestions(collapsedEvents) : [];
+  function handleAnswerQuestion(questionId: string, answer: string) {
+    const activeRunId = runIdRef.current;
+    if (!activeRunId) return;
+    transport.send({ kind: "answerQuestion", cwd, runId: activeRunId, context: { changeDir }, questionId, answer });
   }
 
   const statusLabel = pendingCheckpoint
@@ -163,12 +176,16 @@ export function HarnessChainPanel({ transport, cwd, changeDir, generateRunId = d
           </div>
         </div>
       ) : null}
-      {pendingPermissionRequest ? (
+      {/* Every request still pending, each answered on its own: an agent
+          running tool calls side by side asks for each at once. */}
+      {isRunning ? pendingPermissionRequests.map((request) => (
         <PermissionRequestPrompt
-          request={pendingPermissionRequest}
-          onResolve={(outcome) => handleResolvePermission(pendingPermissionRequest, outcome)}
+          key={request.requestId}
+          request={request}
+          onResolve={(outcome) => handleResolvePermission(request, outcome)}
         />
-      ) : null}
+      )) : null}
+      <OperatorQuestionsPrompt questions={openQuestions} onAnswer={handleAnswerQuestion} />
       <UsageSummaryView events={collapsedEvents} budget={budget} timeout={timeout} />
       {/* Focusable and named: the log scrolls once a chain has said enough,
           and a region that scrolls has to be reachable by keyboard (axe

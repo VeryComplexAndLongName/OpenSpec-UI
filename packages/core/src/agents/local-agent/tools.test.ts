@@ -24,7 +24,10 @@ describe("the local agent's tools", () => {
   it("offers coding and web research tools with their parameter types", () => {
     expect(TOOL_SCHEMAS.map((tool) => tool.function.name)).toEqual([
       "read_file", "write_file", "replace_text", "list_dir", "search_text", "run_command", "search_web", "fetch_webpage",
+      // the-agent-asks-the-operator, ADR 0042 decision 4.
+      "ask_operator",
     ]);
+    expect(TOOL_PARAMETER_TYPES.get("ask_operator")).toEqual({ question: "string" });
     expect(TOOL_PARAMETER_TYPES.get("replace_text")).toEqual({ path: "string", old_text: "string", new_text: "string", expected_replacements: "integer" });
     expect(TOOL_PARAMETER_TYPES.get("search_web")).toEqual({ query: "string" });
     expect(TOOL_PARAMETER_TYPES.get("fetch_webpage")).toEqual({ url: "string" });

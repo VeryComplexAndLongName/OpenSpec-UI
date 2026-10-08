@@ -136,7 +136,10 @@ export function handleSocketMessage(
   // runner has never heard of a run started on another: it goes to the
   // runner that holds the run. A permission's answer is such a request too
   // (the-standalone-panel-follows-its-run).
-  const held = command.kind === "cancel" || command.kind === "stop" || command.kind === "resolvePermission"
+  // And an answer to a question the run's agent asked: the runner that
+  // waits on it is woken at once rather than at its next reading of
+  // decisions.md (the-agent-asks-the-operator, ADR 0042).
+  const held = command.kind === "cancel" || command.kind === "stop" || command.kind === "resolvePermission" || command.kind === "answerQuestion"
     ? liveRuns.get(command.runId)
     : undefined;
   const routed = held?.agentId !== undefined && command.agentId === undefined ? { ...command, agentId: held.agentId } : command;

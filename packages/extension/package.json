@@ -200,6 +200,11 @@
         "icon": "$(pass)"
       },
       {
+        "command": "openspec-ui.answerQuestion",
+        "title": "OpenSpec Workbench: Answer This Question...",
+        "icon": "$(reply)"
+      },
+      {
         "command": "openspec-ui.joinTheTeam",
         "title": "OpenSpec Workbench: Join the Team..."
       },
@@ -660,6 +665,11 @@
         {
           "command": "openspec-ui.confirmEnrolment",
           "when": "viewItem == openspec-ui.enrolmentRequest",
+          "group": "inline"
+        },
+        {
+          "command": "openspec-ui.answerQuestion",
+          "when": "viewItem == openspec-ui.operatorQuestion",
           "group": "inline"
         },
         {

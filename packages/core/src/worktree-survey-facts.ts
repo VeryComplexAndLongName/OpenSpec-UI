@@ -73,6 +73,10 @@ export interface SurveyedChange {
   /** Every item of the task list, in its order. Absent where there is no
    * task list, or it could not be read. */
   tasks?: SurveyedTask[];
+  /** The questions its agents put to the operator that are not answered
+   * yet, from its `decisions.md`. Absent where there are none
+   * (the-agent-asks-the-operator, ADR 0042). */
+  openQuestions?: Array<{ questionId: string; text: string }>;
 }
 
 /** What one run says it is doing, as its own status record says it.
@@ -241,9 +245,11 @@ export function withSurveyedRuns(standing: ChangeStanding, survey: WorktreeSurve
 
 /** What a waiting run is waiting on. */
 export function describeWaiting(waiting: AgentStatusWaiting): string {
-  return waiting.kind === "checkpoint"
-    ? `waiting to continue to ${waiting.nextStage}`
-    : `waiting for a permission: ${waiting.description}`;
+  if (waiting.kind === "checkpoint") return `waiting to continue to ${waiting.nextStage}`;
+  if (waiting.kind === "question") {
+    return `waiting for your answer: ${waiting.questions.map((question) => `${question.questionId} ${question.text}`).join("; ")}`;
+  }
+  return `waiting for a permission: ${waiting.description}`;
 }
 
 /** One run in the words every surface uses. */

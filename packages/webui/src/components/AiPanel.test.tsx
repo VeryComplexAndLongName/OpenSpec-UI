@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Command, Event } from "@openspec-ui/core";
 import type { Transport } from "../transport/types.js";
@@ -28,6 +28,66 @@ function createFakeTransport() {
 }
 
 describe("AiPanel (direct OpenSpec mode)", () => {
+    // the-agent-asks-the-operator 2.1 (ADR 0042).
+    it("shows a question the run's agent asked, sends the answer, and drops it once answered", () => {
+        const { transport, send, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        emit({ kind: "awaitingAnswers", runId: "run-1", timestamp: "t", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] });
+
+        expect(screen.getByTestId("operator-questions").textContent).toContain("Keep the v1 API?");
+        fireEvent.change(screen.getByTestId("operator-answer-Q-run1-1"), { target: { value: "Yes, keep it" } });
+        fireEvent.click(screen.getByTestId("operator-answer-button-Q-run1-1"));
+
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+            kind: "answerQuestion",
+            runId: "run-1",
+            questionId: "Q-run1-1",
+            answer: "Yes, keep it",
+            context: expect.objectContaining({ changeDir: "/repo/openspec/changes/demo" }),
+        }));
+
+        emit({ kind: "questionAnswered", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", answer: "Yes, keep it", by: "Ada" });
+        expect(screen.queryByTestId("operator-questions")).toBeNull();
+    });
+
+    // Found live on 2026-10-08: the first key typed into the answer field
+    // blanked the whole panel. Two keys inside one event batch are what a
+    // browser does and what a lone fireEvent.change does not.
+    it("keeps the panel and every key typed into an answer field", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        emit({ kind: "awaitingAnswers", runId: "run-1", timestamp: "t", questions: [{ questionId: "Q-run1-1", text: "Keep the v1 API?" }] });
+
+        const field = screen.getByTestId("operator-answer-Q-run1-1") as HTMLTextAreaElement;
+        act(() => {
+            fireEvent.change(field, { target: { value: "Y" } });
+            fireEvent.change(field, { target: { value: "Ye" } });
+        });
+
+        expect(screen.getByTestId("operator-questions").textContent).toContain("Keep the v1 API?");
+        expect((screen.getByTestId("operator-answer-Q-run1-1") as HTMLTextAreaElement).value).toBe("Ye");
+    });
+
+    // Live on 2026-10-08: the field stayed after the run had ended.
+    it("offers no answer field once the run has ended", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="" changeDir="/repo/openspec/changes/demo" initialCommandKind="review" generateRunId={() => "run-1"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "started", runId: "run-1", timestamp: "t", command: "review", cwd: "" });
+        emit({ kind: "question", runId: "run-1", timestamp: "t", questionId: "Q-run1-1", text: "Keep the v1 API?" });
+        expect(screen.getByTestId("operator-questions")).toBeInTheDocument();
+
+        emit({ kind: "completed", runId: "run-1", timestamp: "t" });
+
+        expect(screen.queryByTestId("operator-questions")).toBeNull();
+    });
+
     it("sends a list command with generated runId", () => {
         const { transport, send } = createFakeTransport();
         render(<AiPanel transport={transport} cwd="/repo" changeDir="/repo/openspec/changes/x" generateRunId={() => "run-fixed"} />);
@@ -413,6 +473,65 @@ describe("AiPanel (direct OpenSpec mode)", () => {
             permissionOutcome: "allow",
         } satisfies Command);
         expect(screen.queryByTestId("permission-request")).not.toBeInTheDocument();
+    });
+
+    // Live on 2026-10-08: copilot-cli-acp asked "Edit file" and "Running
+    // command" at once. Showing only the latest left the other's buttons in
+    // place after it was answered, which read as buttons that never went.
+    it("offers each of two requests asked at once, and hides each once answered", () => {
+        const { transport, emit, send } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-two"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-two", timestamp: "t", requestId: "perm-edit", description: "Edit file" });
+        emit({ kind: "permissionRequest", runId: "run-perm-two", timestamp: "t", requestId: "perm-run", description: "Running command" });
+
+        const prompts = () => screen.queryAllByTestId("permission-request");
+        expect(prompts().map((prompt) => prompt.textContent)).toEqual([
+            expect.stringContaining("Edit file"),
+            expect.stringContaining("Running command"),
+        ]);
+
+        fireEvent.click(within(prompts()[1]!).getByTestId("allow-permission-button"));
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ permissionRequestId: "perm-run", permissionOutcome: "allow" }));
+        expect(prompts().map((prompt) => prompt.getAttribute("data-request-id"))).toEqual(["perm-edit"]);
+
+        fireEvent.click(within(prompts()[0]!).getByTestId("allow-permission-button"));
+        expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ permissionRequestId: "perm-edit", permissionOutcome: "allow" }));
+        expect(prompts()).toEqual([]);
+    });
+
+    it("drops a request answered elsewhere, such as on the change's card", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-card"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-card", timestamp: "t", requestId: "perm-card", description: "Running command" });
+        expect(screen.getByTestId("permission-request")).toBeInTheDocument();
+
+        emit({ kind: "permissionSettled", runId: "run-perm-card", timestamp: "t", requestId: "perm-card", outcome: "allow" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
+    });
+
+    it("drops a request the agent withdrew", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-withdrawn"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone", description: "Running command" });
+        expect(screen.getByTestId("permission-request")).toHaveTextContent("Running command");
+
+        emit({ kind: "permissionSettled", runId: "run-perm-withdrawn", timestamp: "t", requestId: "perm-gone", outcome: "withdrawn" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
+    });
+
+    it("offers no request once the run has ended", () => {
+        const { transport, emit } = createFakeTransport();
+        render(<AiPanel transport={transport} cwd="/repo" changeDir="/x" generateRunId={() => "run-perm-end"} />);
+        fireEvent.click(screen.getByTestId("run-button"));
+        emit({ kind: "permissionRequest", runId: "run-perm-end", timestamp: "t", requestId: "perm-left", description: "Edit file" });
+        emit({ kind: "completed", runId: "run-perm-end", timestamp: "t" });
+
+        expect(screen.queryByTestId("permission-request")).toBeNull();
     });
 
     it("sends resolvePermission with outcome deny when Deny is clicked", () => {

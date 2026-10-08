@@ -187,6 +187,10 @@ export interface PipelineViewProps {
   liveRuns?: () => Promise<{ runs: LiveRun[]; myLabel?: string }>;
   /** Sends a control for a held run: the host adds where it runs. */
   onRunControl?: (control: RunControl) => void;
+  /** Answers a question a run's agent put to the operator, wherever the run
+   * is: the host writes it to the change's decisions.md in the run's working
+   * directory (the-agent-asks-the-operator, ADR 0042). Absent, no Answer. */
+  onAnswerQuestion?: (answer: QuestionAnswer) => void;
   /** Starts a change: the host opens its run dialog. Absent, no Start. */
   onStart?: (changeName: string) => void;
   /** Updates a change's plan its last review asked to change: the host opens
@@ -361,6 +365,27 @@ export interface AskToStop {
  * a run elsewhere, by its instance id. */
 type StopTarget = { changeName: string; runId: string } | { changeName: string; instanceId: string };
 
+/** An answer a card gives to a run's question. */
+export interface QuestionAnswer {
+  changeName: string;
+  /** The run's id, where the host holds it: the answer then reaches it at
+   * once rather than at its next reading of decisions.md. */
+  runId?: string;
+  /** The working directory the run works in, whose change holds the
+   * question. */
+  workingDirectory: string;
+  questionId: string;
+  answer: string;
+}
+
+/** The run whose questions the answer form is open for. */
+interface AnswerTarget {
+  changeName: string;
+  runId?: string;
+  workingDirectory: string;
+  questions: Array<{ questionId: string; text: string }>;
+}
+
 /** A control a card sends for a run this host holds. */
 export interface RunControl {
   changeName: string;
@@ -449,6 +474,7 @@ export function PipelineView({
   onArchive,
   liveRuns,
   onRunControl,
+  onAnswerQuestion,
   onStart,
   onUpdatePlan,
   onViewLogs,
@@ -478,6 +504,7 @@ export function PipelineView({
   // only for these (a-change-is-run-from-its-card).
   const held = usePolledReading(liveRuns, isActive, SURVEY_POLL_INTERVAL_MS, { name: "survey", subscribe });
   const [stopFor, setStopFor] = useState<StopTarget | undefined>(undefined);
+  const [answerFor, setAnswerFor] = useState<AnswerTarget | undefined>(undefined);
   /** When this view asked each run elsewhere to stop, by instance id, so its
    * card can say it is waiting for the run to read the request. */
   const [stopsAsked, setStopsAsked] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -572,6 +599,20 @@ export function PipelineView({
     now,
   });
   const cards = new Map(cardList.map((card) => [card.changeName, card]));
+  // The open form follows its card: a question asked after it opened is
+  // added, and one answered anywhere leaves it (live, 2026-10-08: the form
+  // kept the questions it opened with). A card this view does not draw keeps
+  // the questions the form opened with.
+  const answerCard = answerFor !== undefined ? cards.get(answerFor.changeName) : undefined;
+  const answerTarget: AnswerTarget | undefined = answerFor === undefined
+    ? undefined
+    : answerCard === undefined
+      ? answerFor
+      : { ...answerFor, questions: answerCard.openQuestions ?? (answerCard.run?.waiting?.kind === "question" ? answerCard.run.waiting.questions : []) };
+  const nothingLeftToAnswer = answerTarget !== undefined && answerTarget.questions.length === 0;
+  useEffect(() => {
+    if (nothingLeftToAnswer) setAnswerFor(undefined);
+  }, [nothingLeftToAnswer]);
   // What has landed, from the standings rather than from the words on a
   // card: a merged pull request, the change archived on the default
   // branch, or deleted from it after being there
@@ -674,6 +715,7 @@ export function PipelineView({
     ...(copyText !== undefined ? { copyText } : {}),
     onAskStop: setStopFor,
     canAskToStop: onAskToStop !== undefined,
+    ...(onAnswerQuestion !== undefined ? { onAnswer: setAnswerFor } : {}),
   };
   // The cards Open all opens: every card with rows to list, here and in
   // every other working directory.
@@ -942,6 +984,22 @@ export function PipelineView({
       {others.error !== undefined
         ? <p className="openspec-shell-note" data-testid="pipeline-survey-error">The other working directories could not be read: {others.error}</p>
         : null}
+      {answerTarget !== undefined && !nothingLeftToAnswer && onAnswerQuestion !== undefined ? (
+        <AnswerQuestionsForm
+          target={answerTarget}
+          onAnswer={(questionId, answer) => {
+            onAnswerQuestion({
+              changeName: answerTarget.changeName,
+              ...(answerTarget.runId !== undefined ? { runId: answerTarget.runId } : {}),
+              workingDirectory: answerTarget.workingDirectory,
+              questionId,
+              answer,
+            });
+            setTimeout(() => void Promise.all([others.read(), held.read()]), RUN_CONTROL_REREAD_MS);
+          }}
+          onClose={() => setAnswerFor(undefined)}
+        />
+      ) : null}
       {stopFor !== undefined && ("runId" in stopFor ? sendRunControl !== undefined : onAskToStop !== undefined) ? (
         <StopReasonForm
           changeName={stopFor.changeName}
@@ -1614,6 +1672,8 @@ interface CardControlHandlers {
   onAskStop: (target: StopTarget) => void;
   /** The host can ask a run held elsewhere to stop. */
   canAskToStop: boolean;
+  /** Opens the answer form for a run waiting on the operator (ADR 0042). */
+  onAnswer?: (target: AnswerTarget) => void;
 }
 
 /** The buttons a card offers, from its facts alone. Answer, Stop and Stop
@@ -1641,6 +1701,25 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
   const buttons: ReactNode[] = [];
   const run = card.run;
   const forward = "openspec-pipeline-button openspec-pipeline-button--forward";
+  // A run waiting on the operator's answer is answered from its card,
+  // wherever it runs: the answer is written to its change's decisions.md
+  // (the-agent-asks-the-operator, ADR 0042).
+  // The change's open questions as its decisions.md has them, or, before
+  // the survey has read them, those its waiting run names.
+  const questions = card.openQuestions
+    ?? (run?.waiting?.kind === "question" ? run.waiting.questions : undefined);
+  if (questions !== undefined && questions.length > 0 && handlers.onAnswer !== undefined) {
+    const open = handlers.onAnswer;
+    const target: AnswerTarget = {
+      changeName: name,
+      ...(run !== undefined && run.ownedHere && run.runId !== null ? { runId: run.runId } : {}),
+      workingDirectory: card.where.path || run?.workingDirectory || "",
+      questions,
+    };
+    buttons.push(
+      <button key="answer" type="button" className={forward} data-testid={`pipeline-answer-${name}`} aria-label={`Answer ${name}: ${questions.map((question) => question.text).join("; ")}`} onClick={() => open(target)}><Icon meaning="run" />Answer...</button>,
+    );
+  }
   const stopping = "openspec-pipeline-button openspec-pipeline-button--stop";
   const plain = "openspec-pipeline-button";
 
@@ -1703,17 +1782,74 @@ function runControls(card: ChangeCard, handlers: CardControlHandlers): ReactNode
       <button key="continue" type="button" className={forward} data-testid={`pipeline-continue-${name}`} aria-label={`Continue ${name} to ${next}`} onClick={() => send({ changeName: name, runId, kind: "confirmCheckpoint" })}><ForwardIcon />{`Continue to ${next}`}</button>,
     );
   }
-  if (run.waiting?.kind === "permission" && held.permissionRequestId !== null) {
-    const requestId = held.permissionRequestId;
+  // The oldest permission request still open, and how many are: an agent
+  // running tool calls side by side asks for several at once, and a card that
+  // knew only the latest offered nothing once it was answered (live,
+  // 2026-10-08). A host that does not list them names the one it holds.
+  const pendingHere = held.pendingPermissions ?? [];
+  const oldest = pendingHere[0]
+    ?? (run.waiting?.kind === "permission" && held.permissionRequestId !== null
+      ? { requestId: held.permissionRequestId, description: run.waiting.description }
+      : undefined);
+  if (oldest !== undefined) {
+    const { requestId, description } = oldest;
+    const more = pendingHere.length > 1 ? ` (1 of ${pendingHere.length})` : "";
     buttons.push(
-      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />Allow</button>,
-      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${run.waiting.description}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
+      <button key="allow" type="button" className={forward} data-testid={`pipeline-allow-${name}`} aria-label={`Allow ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "allow" })}><CheckIcon />{`Allow${more}`}</button>,
+      <button key="deny" type="button" className={stopping} data-testid={`pipeline-deny-${name}`} aria-label={`Deny ${name}: ${description}${more}`} onClick={() => send({ changeName: name, runId, kind: "resolvePermission", permissionRequestId: requestId, permissionOutcome: "deny" })}><CrossIcon />Deny</button>,
     );
   }
   buttons.push(
     <button key="stop" type="button" className={stopping} data-testid={`pipeline-stop-${name}`} aria-label={`Stop ${name}`} onClick={() => handlers.onAskStop({ changeName: name, runId })}><Icon meaning="stop" />Stop...</button>,
   );
   return buttons;
+}
+
+/** The questions a run waits on, each with its answer (ADR 0042). An answer
+ * is sent as it is given; the form closes once every question has one. */
+function AnswerQuestionsForm({ target, onAnswer, onClose }: {
+  target: AnswerTarget;
+  onAnswer: (questionId: string, answer: string) => void;
+  onClose: () => void;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  return (
+    <form
+      role="dialog"
+      aria-label={`Answer ${target.changeName}`}
+      className="openspec-pipeline-stop-form"
+      data-testid="pipeline-answer-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const given = target.questions.filter((question) => !sent.has(question.questionId) && (drafts[question.questionId] ?? "").trim().length > 0);
+        for (const question of given) onAnswer(question.questionId, (drafts[question.questionId] ?? "").trim());
+        const now = new Set([...sent, ...given.map((question) => question.questionId)]);
+        setSent(now);
+        if (target.questions.every((question) => now.has(question.questionId))) onClose();
+      }}
+    >
+      {target.questions.map((question) => (
+        <label key={question.questionId}>
+          {`${question.questionId}: ${question.text}`}
+          <input
+            type="text"
+            value={drafts[question.questionId] ?? ""}
+            disabled={sent.has(question.questionId)}
+            data-testid={`pipeline-answer-${question.questionId}`}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDrafts((current) => ({ ...current, [question.questionId]: value }));
+            }}
+          />
+        </label>
+      ))}
+      <div className="openspec-pipeline-stop-form-actions">
+        <button type="submit" className="openspec-pipeline-button openspec-pipeline-button--forward" data-testid="pipeline-send-answer">Answer</button>
+        <button className="openspec-pipeline-button" type="button" onClick={onClose}>Close</button>
+      </div>
+    </form>
+  );
 }
 
 /** Asks a held run to stop, with the reason a person gives. A reason is

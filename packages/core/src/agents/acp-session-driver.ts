@@ -184,7 +184,7 @@ function pickOptionId(options: readonly PermissionOption[], outcome: "allow" | "
  * `"resolvePermission"` Command reaches the still-active `run()` generator
  * below that is awaiting an answer for some earlier `runId`. */
 export class AcpSessionDriver {
-  private readonly pending = new Map<string, (outcome: "allow" | "deny") => void>();
+  private readonly pending = new Map<string, (outcome: "allow" | "deny" | "withdrawn") => void>();
 
   /** Resolves a still-pending `session/request_permission` call for
    * `runId`/`requestId`. Returns `false` (a no-op, not an error) if no
@@ -243,7 +243,18 @@ export class AcpSessionDriver {
     // picks the matching overload explicitly instead of widening the
     // parameter type or casting away the distinction.
     const isAgentApp = (value: AcpConnectTarget): value is AgentApp => "connect" in value;
-    app.onRequest(CLIENT_METHODS.session_request_permission, async ({ params }) => {
+    // The requests this run has asked and nobody has answered, so the ones
+    // still open when its turn ends can be said to be withdrawn.
+    const openRequests = new Set<string>();
+    const withdraw = (requestId: string) => {
+      const resolve = this.pending.get(`${runId}:${requestId}`);
+      if (resolve === undefined) return;
+      this.pending.delete(`${runId}:${requestId}`);
+      openRequests.delete(requestId);
+      push({ kind: "permissionSettled", runId, timestamp: nowIso(), requestId, outcome: "withdrawn" });
+      resolve("withdrawn");
+    };
+    app.onRequest(CLIENT_METHODS.session_request_permission, async ({ params, signal: requestSignal }) => {
       const requestId = crypto.randomUUID();
       push({
         kind: "permissionRequest",
@@ -252,9 +263,23 @@ export class AcpSessionDriver {
         requestId,
         description: describeToolCall(params.toolCall),
       });
-      const outcome = await new Promise<"allow" | "deny">((resolve) => {
-        this.pending.set(`${runId}:${requestId}`, resolve);
+      const outcome = await new Promise<"allow" | "deny" | "withdrawn">((resolve) => {
+        this.pending.set(`${runId}:${requestId}`, (answer) => {
+          openRequests.delete(requestId);
+          // Said in this run's stream whichever surface answered, so the
+          // others stop offering it.
+          if (answer !== "withdrawn") push({ kind: "permissionSettled", runId, timestamp: nowIso(), requestId, outcome: answer });
+          resolve(answer);
+        });
+        openRequests.add(requestId);
+        // The agent cancels a request it no longer waits on (`$/cancel_request`):
+        // copilot-cli-acp does when a tool call beside it fails, and goes on.
+        if (requestSignal?.aborted) withdraw(requestId);
+        else requestSignal?.addEventListener("abort", () => withdraw(requestId), { once: true });
       });
+      if (outcome === "withdrawn") {
+        return { outcome: { outcome: "cancelled" as const } };
+      }
       const optionId = pickOptionId(params.options, outcome);
       if (!optionId) {
         return { outcome: { outcome: "cancelled" as const } };
@@ -291,6 +316,8 @@ export class AcpSessionDriver {
           streamedCost,
         );
         if (usage) push({ kind: "usageReported", runId, timestamp: nowIso(), usage });
+        // A request still open when the turn has ended waits on nothing.
+        for (const requestId of [...openRequests]) withdraw(requestId);
         push({ kind: "__stop__", stopReason: response.stopReason });
       });
     };

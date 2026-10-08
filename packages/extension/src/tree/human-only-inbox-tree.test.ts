@@ -9,6 +9,7 @@ vi.mock("vscode", () => vscodeMock);
 // these assert is what this tree does with the answer.
 const collectHumanOnlyInboxMock = vi.fn();
 vi.mock("@openspec-ui/core", () => ({
+  DECISIONS_FILE: "decisions.md",
   collectHumanOnlyInbox: (...args: unknown[]) => collectHumanOnlyInboxMock(...args),
   describeEnrolmentRequest: (request: { label: string; workingDirectory: string; machine: string | null }) =>
     `${request.label} — ${request.workingDirectory}, on ${request.machine}`,
@@ -23,6 +24,8 @@ const {
   EnrolmentRequestTreeItem,
   HumanOnlyInboxItemTreeItem,
   HumanOnlyInboxTreeProvider,
+  OPERATOR_QUESTION_CONTEXT,
+  OperatorQuestionTreeItem,
   RUNNABLE_INBOX_ITEM_CONTEXT,
   WAITING_INBOX_ITEM_CONTEXT,
 } = await import("./human-only-inbox-tree.js");
@@ -66,6 +69,31 @@ describe("HumanOnlyInboxTreeProvider", () => {
       "1.2 **Human-only**: confirm by hand",
       "2.1 **Human-only**: another one",
     ]);
+  });
+
+  it("lists an agent's open question first, answerable from its row, opening decisions.md at it (ADR 0042)", async () => {
+    collectHumanOnlyInboxMock.mockResolvedValue({
+      ...inbox([{ changeName: "change-a", lineNumber: 3, text: "1.2 **Human-only**: confirm by hand" }]),
+      questions: [{
+        changeName: "change-b",
+        changeDir: "/repo/openspec/changes/change-b",
+        questionId: "Q-run1-1",
+        text: "Which database?",
+        lineNumber: 7,
+      }],
+    });
+
+    const items = await new HumanOnlyInboxTreeProvider("/repo").getChildren();
+
+    expect(items).toHaveLength(2);
+    const row = items[0] as InstanceType<typeof OperatorQuestionTreeItem>;
+    expect(row).toBeInstanceOf(OperatorQuestionTreeItem);
+    expect(row.label).toBe("Q-run1-1: Which database?");
+    expect(row.contextValue).toBe(OPERATOR_QUESTION_CONTEXT);
+    expect(row.command?.command).toBe("vscode.open");
+    const [uri, options] = row.command?.arguments ?? [];
+    expect((uri as { fsPath: string }).fsPath.replace(/\\/gu, "/")).toBe("/repo/openspec/changes/change-b/decisions.md");
+    expect((options as { selection: { start: { line: number } } }).selection.start.line).toBe(7);
   });
 
   it("shows the empty note when nothing is waiting", async () => {

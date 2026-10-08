@@ -346,24 +346,46 @@ describe("a run's task and its wait (a-run-says-which-task-it-is-on)", () => {
     await writer.stop();
   });
 
-  it("says the run is waiting on a permission, with its description, before the next event", async () => {
+  it("says the run is waiting on a permission, with its description, until the request is settled", async () => {
     const { writer, read } = await writerIn(await temporaryRoot());
     const events: Event[] = [
       { kind: "permissionRequest", runId: "r1", timestamp: "t", requestId: "p1", description: "Write to src/a.ts" },
       reply(lines("Writing it now")),
+      { kind: "permissionSettled", runId: "r1", timestamp: "t", requestId: "p1", outcome: "allow" },
     ];
 
     for await (const event of reportEventsToAgentStatus(eventsOf(events), writer)) {
       const report = await read();
-      if (event.kind === "permissionRequest") {
+      if (event.kind === "permissionSettled") {
+        expect(report?.waiting).toBeNull();
+      } else {
         expect(report?.waiting).toEqual({ kind: "permission", description: "Write to src/a.ts" });
+      }
+      if (event.kind === "permissionRequest") {
         // the-supervisor-advises: the activity changes, so `activityAt` is
         // when the wait began.
         expect(report?.activity).toBe("waiting for a permission");
-      } else {
-        expect(report?.waiting).toBeNull();
       }
     }
+    await writer.stop();
+  });
+
+  it("names the oldest open permission request while several are open", async () => {
+    const { writer, read } = await writerIn(await temporaryRoot());
+    const events: Event[] = [
+      { kind: "permissionRequest", runId: "r1", timestamp: "t", requestId: "p1", description: "Edit file" },
+      { kind: "permissionRequest", runId: "r1", timestamp: "t", requestId: "p2", description: "Running command" },
+      { kind: "permissionSettled", runId: "r1", timestamp: "t", requestId: "p1", outcome: "allow" },
+      { kind: "permissionSettled", runId: "r1", timestamp: "t", requestId: "p2", outcome: "allow" },
+    ];
+    const waits: unknown[] = [];
+    for await (const _event of reportEventsToAgentStatus(eventsOf(events), writer)) waits.push((await read())?.waiting);
+    expect(waits).toEqual([
+      { kind: "permission", description: "Edit file" },
+      { kind: "permission", description: "Edit file" },
+      { kind: "permission", description: "Running command" },
+      null,
+    ]);
     await writer.stop();
   });
 

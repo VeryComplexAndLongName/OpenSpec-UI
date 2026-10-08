@@ -12,7 +12,7 @@ import type { ArchiveReading, BoardColumnsReading, CatchUpResult, ChangeReadines
 import type { VsCodeApiLike } from "./transport/message-bridge-transport.js";
 import { createBridgeRequester } from "./bridge-request.js";
 import { RunLogsView } from "./components/RunLogsView.js";
-import { PipelineView, type AskToStop, type PipelineReading, type PipelineViewMemory, type RunControl } from "./components/PipelineView.js";
+import { PipelineView, type AskToStop, type PipelineReading, type PipelineViewMemory, type QuestionAnswer, type RunControl } from "./components/PipelineView.js";
 import { shellThemeCss, vscodeThemeCss } from "./shell-ui.js";
 import { metroCss } from "./metro-css.generated.js";
 import { metroIconsCss } from "./metro-icons.generated.js";
@@ -31,6 +31,8 @@ export const OPEN_CHANGE_MESSAGE_TYPE = "openspec-ui/open-change";
 export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
 /** A card asked for its change's plan to be updated (ADR 0041). */
 export const UPDATE_PLAN_MESSAGE_TYPE = "openspec-ui/update-plan";
+/** A card's answer to a run's question (the-agent-asks-the-operator). */
+export const ANSWER_QUESTION_MESSAGE_TYPE = "openspec-ui/answer-question";
 
 /** Posted by the view when a card answers or stops a run. The host acts
  * only on a run it holds. */
@@ -125,6 +127,10 @@ function PipelineApp() {
     (changeName: string) => vscodeApi.postMessage({ type: RUN_CHANGE_MESSAGE_TYPE, changeName }),
     [vscodeApi],
   );
+  const onAnswerQuestion = useCallback(
+    (answer: QuestionAnswer) => vscodeApi.postMessage({ type: ANSWER_QUESTION_MESSAGE_TYPE, answer }),
+    [],
+  );
   const onUpdatePlan = useCallback(
     (changeName: string) => vscodeApi.postMessage({ type: UPDATE_PLAN_MESSAGE_TYPE, changeName }),
     [vscodeApi],
@@ -166,7 +172,7 @@ function PipelineApp() {
         <h2>Pipeline</h2>
         {/* Always active: the panel is not kept alive while hidden, so a
             page that exists is a page being looked at. */}
-        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} />
+        <PipelineView isActive load={load} survey={survey} subscribe={subscribe} onOpenChange={onOpenChange} refresh={refresh} lastRuns={lastRuns} standings={standings} stages={stages} archived={archived} columns={columns} drift={drift} onCatchUp={catchUp} liveRuns={liveRuns} onRunControl={onRunControl} onAnswerQuestion={onAnswerQuestion} onStart={onStart} onUpdatePlan={onUpdatePlan} onViewLogs={setLogsFor} copyText={copyText} viewState={viewState} onAskToStop={onAskToStop} onArchive={onArchive} taskActions={taskActions} />
         {logsFor !== null ? <RunLogsView changeName={logsFor} load={logsLoad} read={logsRead} onClose={() => setLogsFor(null)} /> : null}
       </section>
     </div>

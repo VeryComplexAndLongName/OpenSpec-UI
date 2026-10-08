@@ -28,6 +28,7 @@ it — start there and come back here for the detail.
 | Find out what would stop a run here | — | `openspec-ui-cli doctor`, and `doctor --change <id>` for one change |
 | Learn why a run failed, or whether one has gone quiet | — | [`supervisor`](#supervisor), and `openspec-ui-cli advise` |
 | Close a task, or open a change's tasks, from its card | [How to](docs/how-to/close-a-task-from-its-card.md) | `openspec-ui-cli task` |
+| Answer a question an agent asked | — | [A question for the operator](#a-question-for-the-operator), and `openspec-ui-cli answer` |
 
 The harness sequences CLI-agent runs (or a mechanical action) across the
 stages of one OpenSpec change: `propose → review → apply → verify →
@@ -81,6 +82,41 @@ last completed review (from the audit log) and the operator's notes, keeps
 them coherent, runs `openspec validate <name> --strict`, and changes no
 code. Its reply says what it changed and which findings it left, and why.
 `propose` still writes only the artifacts a change does not have yet.
+
+### A question for the operator
+
+An agent stage (`propose`, `review`, `update`, `apply`, `verify`) is told
+not to decide what the change's files leave open, and to print a line of
+its own for each such decision: `Question for the operator: <question>`
+(ADR 0042). Only that line is read, as the verdict line is; prose is not.
+`local-llm-acp` is told to ask in the middle of its turn instead, with its
+`ask_operator` tool, and goes on with the answer as the tool's result.
+
+- **Where it is kept.** Each question is appended to the change's
+  `decisions.md` - `## Q-<run>-<n>: <question>`, who asked it and when, and
+  `- Answer: (open)` - in the directory the run works in, usually the
+  change's own worktree. The answer replaces `(open)`, with who gave it and
+  when; the audit log records both. The file is committed with the change.
+- **The wait.** A run whose turn ended with a question still open does not
+  complete, under every autonomy level, alone or in a chain: its status
+  says it waits for your answer, and the chain does not start its next
+  stage. The stage's `timeout` does not count the wait. When every
+  question is answered, the stage runs again with the questions and
+  answers in its prompt - `update` after `propose` or `review`, the same
+  command after `apply` or `verify` - and the run or the chain goes on from
+  there. A cancel ends the wait; the questions stay open.
+- **The refusal.** While a change's `decisions.md` holds an open question,
+  in the checkout or in the change's own worktree, an agent run on it is
+  refused, naming the question. Read-only commands are not.
+- **Answering.** On the change's card (**Answer...**), in the AI or chain
+  panel watching the run, in the Human-Only Inbox, with
+  `openspec-ui-cli answer <change> <Q-id> "<answer>"` (`answer <change>`
+  alone lists its open questions), or by replacing `(open)` in
+  `decisions.md` by hand. A waiting run reads the file every few seconds,
+  so an answer from another host or a terminal reaches it too.
+  `openspec-ui-cli status` prints each waiting run's questions with the
+  command that answers them, and the supervisor points out a run that has
+  waited past `supervisor.waitingAfterSeconds`.
 
 ## Two configuration files
 

@@ -66,6 +66,27 @@ export const RUN_CHANGE_MESSAGE_TYPE = "openspec-ui/run-change";
 /** Webview to host: a card asked for its change's plan to be updated, after
  * a review that asked for changes (ADR 0041). */
 export const UPDATE_PLAN_MESSAGE_TYPE = "openspec-ui/update-plan";
+/** A card's answer to a run's question (the-agent-asks-the-operator). */
+export const ANSWER_QUESTION_MESSAGE_TYPE = "openspec-ui/answer-question";
+
+/** An answer a card gave, as the webview sends it. */
+export interface CardQuestionAnswer {
+  changeName: string;
+  runId?: string;
+  workingDirectory: string;
+  questionId: string;
+  answer: string;
+}
+
+function isCardQuestionAnswer(value: unknown): value is CardQuestionAnswer {
+  if (typeof value !== "object" || value === null) return false;
+  const answer = value as Record<string, unknown>;
+  return isValidChangeName(answer.changeName)
+    && (answer.runId === undefined || typeof answer.runId === "string")
+    && typeof answer.workingDirectory === "string"
+    && typeof answer.questionId === "string" && /^Q-[A-Za-z0-9-]+$/u.test(answer.questionId)
+    && typeof answer.answer === "string" && answer.answer.trim().length > 0;
+}
 
 /** Webview to host: a card answered or stopped a run. */
 export const RUN_CONTROL_MESSAGE_TYPE = "openspec-ui/run-control";
@@ -215,6 +236,9 @@ export interface PipelinePanelDeps {
   /** Opens the AI panel on `update` for a change, in its directory
    * (ADR 0041). */
   updatePlan?: (changeName: string, changeDir: string) => Promise<void>;
+  /** Writes a card's answer to a run's question into its change's
+   * decisions.md (ADR 0042). Absent, a card's answer is ignored. */
+  answerQuestion?: (answer: CardQuestionAnswer) => Promise<void>;
   /** Draws the views again after the folded row archived what had landed
    * (what-is-finished-is-tidied-away). */
   refreshTrees?: () => void;
@@ -405,6 +429,11 @@ export class PipelinePanel {
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === RUN_CHANGE_MESSAGE_TYPE) {
       await this.runChange((message as { changeName?: unknown }).changeName);
+      return;
+    }
+    if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === ANSWER_QUESTION_MESSAGE_TYPE) {
+      const answer = (message as { answer?: unknown }).answer;
+      if (isCardQuestionAnswer(answer)) await this.deps.answerQuestion?.(answer);
       return;
     }
     if (typeof message === "object" && message !== null && (message as { type?: unknown }).type === UPDATE_PLAN_MESSAGE_TYPE) {

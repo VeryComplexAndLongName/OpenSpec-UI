@@ -172,7 +172,9 @@ describe("CopilotCliAdapter", () => {
       const call = spawnAndStreamMock.mock.calls[0]?.[0] as { args: string[] };
       const sentPrompt = call.args[1] ?? "";
       expect(sentPrompt).not.toContain(oversizedContent);
-      expect(sentPrompt.length).toBeLessThan(1000);
+      // Short, and far under MAX_ARGV_PROMPT_LENGTH: the stage instruction
+      // and how to ask the operator (ADR 0042), then where to read.
+      expect(sentPrompt.length).toBeLessThan(1500);
       expect(sentPrompt).toContain(command.context.changeDir);
       expect(sentPrompt.toLowerCase()).toContain("read");
       expect(sentPrompt.toLowerCase()).toContain("do not read or modify files under");

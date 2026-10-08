@@ -74,6 +74,7 @@ import { readChangesStatingRelations } from "./relations-context.js";
 import {
   HumanOnlyInboxTreeProvider,
   type EnrolmentRequestTreeItem,
+  type OperatorQuestionTreeItem,
   type HumanOnlyInboxItemTreeItem,
 } from "./tree/human-only-inbox-tree.js";
 import { registerFollowSelection } from "./follow-selection.js";
@@ -162,6 +163,25 @@ export interface ExtensionTestApi {
 // Read where agent detection reads them too
 // (the-local-model-is-offered-where-it-is-set).
 export { readAgentSwitches } from "./local-llm-settings.js";
+
+/** Writes an answer to an agent's question into its change's `decisions.md`
+ * through a runner, so a run of this host waiting on it is woken at once and
+ * one waiting elsewhere reads the file (the-agent-asks-the-operator, ADR
+ * 0042). What the runner says of an answer it did not record is shown. */
+async function answerOperatorQuestion(answer: { changeDir: string; cwd: string; runId?: string; questionId: string; answer: string }): Promise<void> {
+  const runner = runners ? resolveAgentRunner(runners, undefined) : undefined;
+  if (!runner) return;
+  for await (const event of runner.run({
+    kind: "answerQuestion",
+    cwd: answer.cwd,
+    runId: answer.runId ?? `answer-${Date.now()}`,
+    context: { changeDir: answer.changeDir },
+    questionId: answer.questionId,
+    answer: answer.answer,
+  })) {
+    if (event.kind === "progress") void vscode.window.showInformationMessage(`OpenSpec Workbench: ${event.message}.`);
+  }
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<ExtensionTestApi> {
   useSecretStorage(context.secrets);
@@ -675,6 +695,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
           void vscode.window.showErrorMessage(`OpenSpec Workbench: not enrolled — ${reason}`);
         }
       }),
+      // An answer to an agent's question, from its row in the Inbox
+      // (the-agent-asks-the-operator, ADR 0042).
+      vscode.commands.registerCommand("openspec-ui.answerQuestion", async (row?: OperatorQuestionTreeItem) => {
+        if (!row) {
+          void vscode.window.showWarningMessage(
+            "OpenSpec Workbench: answer a question from its own row in the Human-Only Inbox, or on its change's card.",
+          );
+          return;
+        }
+        const text = await vscode.window.showInputBox({
+          title: `${row.question.changeName}: ${row.question.questionId}`,
+          prompt: row.question.text,
+          ignoreFocusOut: true,
+        });
+        if (text === undefined || text.trim().length === 0) return;
+        await answerOperatorQuestion({
+          changeDir: row.question.changeDir,
+          cwd: inboxRoot,
+          questionId: row.question.questionId,
+          answer: text.trim(),
+        });
+        inboxTree?.refresh();
+      }),
       // A person puts themselves in the repository's people, with this
       // machine's key, so the team can verify what they sign. What the file
       // holds and whether it may be written is core's (ADR 0037,
@@ -805,6 +848,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
     // (a-change-is-run-from-its-card).
     runChange: async (changeName) => {
       await vscode.commands.executeCommand("openspec-ui.runWithHarness", changeName);
+    },
+    // A card's answer to a run's question: written to the change's
+    // decisions.md in the run's own working directory, where the waiting run
+    // reads it; through the run's own runner where this host holds it, so it
+    // is woken at once (the-agent-asks-the-operator, ADR 0042).
+    answerQuestion: async (answer) => {
+      const root = answer.workingDirectory || getWorkspaceRoot();
+      if (!root) return;
+      await answerOperatorQuestion({ ...answer, changeDir: path.join(root, "openspec", "changes", answer.changeName), cwd: root });
+      humanOnlyInboxTree?.refresh();
     },
     // A card whose review asked for changes opens the AI panel on `update`
     // for that change (ADR 0041).

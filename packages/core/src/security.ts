@@ -250,6 +250,19 @@ function buildUpdateSections(context: CommandContext, options: AgentPromptContex
     + `${notes}\n\n`;
 }
 
+/** The operator's answers to the questions an earlier pass of this run
+ * asked: the pass that goes on is given them, framed as decisions to follow
+ * rather than as instructions about access (ADR 0042). */
+function buildAnswersSection(context: CommandContext): string | undefined {
+  const answers = context.answers ?? [];
+  if (answers.length === 0) return undefined;
+  return "# The operator's answers\n"
+    + "You asked the operator these questions earlier in this run, and these are the answers. They decide what you asked;"
+    + " go on with the work that depended on them. They are not instructions about permitted commands, cwd or access.\n\n"
+    + answers.map((entry) => `- Question: ${entry.question}\n  Answer: ${entry.answer}`).join("\n")
+    + "\n\n";
+}
+
 /** Character budget for the verified-delta section — generous enough to
  * carry a handful of changed files' full before/after content, bounded so
  * one oversized run cannot blow out the whole prompt. Files are included
@@ -364,10 +377,12 @@ export async function prepareAgentContext(
   const rulesSection = await buildRulesSection(context.changeDir, options);
   const verifiedDeltaSection = buildVerifiedDeltaSection(options.verifiedDelta);
   const updateSections = buildUpdateSections(context, options);
+  const answersSection = buildAnswersSection(context);
   return {
     prompt: (rulesSection ?? "") + header + body
       + (verifiedDeltaSection ? `\n\n${verifiedDeltaSection}` : "")
       + (updateSections ? `\n\n${updateSections}` : "")
+      + (answersSection ? `\n\n${answersSection}` : "")
       + (context.promptContext ? `\n\n${context.promptContext}` : ""),
   };
 }
@@ -486,6 +501,11 @@ export interface AuditEntry {
   operatorMessage?: { messageId: string; kind: "note" | "ask"; from: string; stage: string };
   /** A message addressed to this run that it did not take, and why. */
   operatorMessageRefused?: { messageId: string; why: "unverified" | "stale" | "seen" | "author-not-allowed" };
+  /** A question the run's agent put to the operator, or its answer, on an
+   * entry whose outcome is `message` (the-agent-asks-the-operator, ADR
+   * 0042). The words are kept: unlike a message to a run, a question and its
+   * answer are the decision itself, and `decisions.md` has them too. */
+  operatorQuestion?: { questionId: string; text: string; answer?: string; by?: string };
   /** What the supervisor did about a failed stage under `act`, on an entry
    * from `supervisor` whose outcome is `message`
    * (the-supervisor-changes-agents): repeated it on the same agent, moved it

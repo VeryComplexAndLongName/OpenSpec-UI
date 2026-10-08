@@ -108,19 +108,45 @@ describe("LiveRuns", () => {
   });
 
   // a-change-is-run-from-its-card 5.4
-  it("holds the permission request a run waits on, and lets it go once the run moves on", async () => {
+  it("holds the permission request a run waits on until it is settled, whatever the run says meanwhile", async () => {
     const live = new LiveRuns();
     const events: Event[] = [
       { kind: "started", runId: "chain-1", timestamp: at(0), command: "chain", cwd: "/repo" },
       { kind: "permissionRequest", runId: "chain-1", timestamp: at(1), requestId: "p1", description: "Write to x" },
       { kind: "stdout", runId: "chain-1", timestamp: at(2), chunk: "writing\n" },
-      { kind: "checkpoint", runId: "chain-1", timestamp: at(3), stage: "apply", nextStage: "verify", nextAgentId: "claude-cli" },
+      { kind: "permissionSettled", runId: "chain-1", timestamp: at(3), requestId: "p1", outcome: "allow" },
+      { kind: "checkpoint", runId: "chain-1", timestamp: at(4), stage: "apply", nextStage: "verify", nextAgentId: "claude-cli" },
     ];
     const seen: Array<string | null | undefined> = [];
     for await (const _event of live.track(chain, (async function* () { yield* events; })())) {
       seen.push(live.get("chain-1")?.permissionRequestId);
     }
-    expect(seen).toEqual([null, "p1", null, null]);
+    expect(seen).toEqual([null, "p1", "p1", null, null]);
+  });
+
+  // Live on 2026-10-08: copilot-cli-acp asked for four at once; once the
+  // card answered one it offered nothing, while three held the run.
+  it("holds every open request, oldest first, and waits until the last is settled", async () => {
+    const live = new LiveRuns();
+    const events: Event[] = [
+      { kind: "started", runId: "chain-1", timestamp: at(0), command: "chain", cwd: "/repo" },
+      { kind: "permissionRequest", runId: "chain-1", timestamp: at(1), requestId: "p1", description: "Edit file" },
+      { kind: "permissionRequest", runId: "chain-1", timestamp: at(2), requestId: "p2", description: "Running command" },
+      { kind: "permissionSettled", runId: "chain-1", timestamp: at(3), requestId: "p1", outcome: "allow" },
+      { kind: "permissionSettled", runId: "chain-1", timestamp: at(4), requestId: "p2", outcome: "withdrawn" },
+    ];
+    const seen: Array<{ id: string | null | undefined; waiting: boolean | undefined; open: number }> = [];
+    for await (const _event of live.track(chain, (async function* () { yield* events; })())) {
+      const run = live.get("chain-1");
+      seen.push({ id: run?.permissionRequestId, waiting: run?.waiting, open: run?.pendingPermissions?.length ?? 0 });
+    }
+    expect(seen).toEqual([
+      { id: null, waiting: false, open: 0 },
+      { id: "p1", waiting: true, open: 1 },
+      { id: "p1", waiting: true, open: 2 },
+      { id: "p2", waiting: true, open: 1 },
+      { id: null, waiting: false, open: 0 },
+    ]);
   });
 
   it("stays waiting on a permission through a usage report", async () => {
