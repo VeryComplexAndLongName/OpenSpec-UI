@@ -591,7 +591,7 @@ describe("AiPanel harness process tracking", () => {
         const controller = new AbortController();
         const result = execute({ report: vi.fn(), signal: controller.signal });
 
-        // What "Cancel Process" in the Processes tree does to the entry.
+        // What "Stop Process" in the Processes tree does to the entry.
         controller.abort();
         expect(chainRunner.cancel).toHaveBeenCalledWith("chain-1");
 

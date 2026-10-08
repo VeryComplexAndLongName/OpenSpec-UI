@@ -89,7 +89,7 @@ describe("worktree add", () => {
     expect(git.added[0]).toMatchObject({ branch: "a-change", base: "main" });
     // The path is long and starting the chain is the next thing to
     // happen, so the command is printed rather than described.
-    expect(io.out.join("\n")).toContain("openspec-ui-cli run a-change --cwd");
+    expect(io.out.join("\n")).toContain("openspec-ui-cli run change a-change --cwd");
   });
 
   it("refuses a change that is only uncommitted in the main checkout, and creates nothing", async () => {

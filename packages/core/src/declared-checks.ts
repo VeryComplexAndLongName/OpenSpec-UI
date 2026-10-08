@@ -6,7 +6,7 @@
 // wrote each result straight onto its own checkbox. The two callers now
 // differ in exactly that last step: the `verify` stage runs the checks as
 // part of a run and writes what they found (it is the only writer of
-// those checkboxes), while `openspec-ui-cli check` runs them as a
+// those checkboxes), while `openspec-ui-cli run checks` runs them as a
 // question and writes nothing. A checkbox says "this task's check passed
 // during a run"; asking whether the checks pass right now is not a run,
 // and answering it should not tick anything.

@@ -367,7 +367,7 @@ export async function runDelegatedItem(request: DelegatedItemRunRequest): Promis
   const stderr = new StderrTail();
   let said = "";
   // The same status record every other run keeps, so a delegated run is
-  // seen by `openspec-ui-cli status`, the survey and the Pipeline tab,
+  // seen by `openspec-ui-cli show status`, the survey and the Pipeline tab,
   // whichever host started it. Kept here rather than by each host: both
   // would have to remember, and both had forgotten
   // (a-delegated-run-says-what-happened).

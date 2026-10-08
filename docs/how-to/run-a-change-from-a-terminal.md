@@ -3,7 +3,7 @@
 **1.** Run it.
 
 ```bash
-openspec-ui-cli run my-change
+openspec-ui-cli run change my-change
 ```
 
 **2.** Read the exit code. `0` the chain completed, `1` the change did

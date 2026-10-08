@@ -66,7 +66,7 @@ describe("runDeclaredChecks", () => {
   it("writes nothing back to tasks.md", async () => {
     // The checkbox is the `verify` stage's to write: it records what a
     // check found during a run. Asking the same question outside a run —
-    // which is all `openspec-ui-cli check` does — must not tick anything.
+    // which is all `openspec-ui-cli run checks` does — must not tick anything.
     const root = await temporaryRoot();
     await adoptChangesets(root, true);
     const source = "- [ ] 1.1 A changeset exists. `check(changeset-present)`\n";

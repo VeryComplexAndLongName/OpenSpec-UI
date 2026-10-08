@@ -52,7 +52,7 @@ describe("taskCommand", () => {
 
   it("is reached from the command line with its action, change, number and note", async () => {
     const taskCommandSeam = vi.fn(async () => 0);
-    const code = await runMain(["task", "done", "demo", "6.4", "--note", "seen", "--cwd", "/repo"], {
+    const code = await runMain(["complete", "task", "demo", "6.4", "--note", "seen", "--cwd", "/repo"], {
       stdout: () => undefined,
       stderr: () => undefined,
       taskCommand: taskCommandSeam,

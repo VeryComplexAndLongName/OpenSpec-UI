@@ -123,7 +123,7 @@ function runTogether(sets: string[][], options: HintOptions): Hint[] {
       kind: "too-many-sets",
       subject: `${sets.length} sets of changes could run together`,
       because: "More than one grouping is possible, and which one to take depends on what you want finished first.",
-      commands: ["openspec-ui-cli ready"],
+      commands: ["openspec-ui-cli show readiness"],
     }];
   }
   return sets.map((set) => ({
@@ -132,7 +132,7 @@ function runTogether(sets: string[][], options: HintOptions): Hint[] {
     subject: `${nameSome(set)} can run at the same time`,
     because: "Each is ready, each has a working directory of its own, and no two of them"
       + " declare a blocker, share a spec capability, or have changed the same file.",
-    commands: set.map((changeName) => `openspec-ui-cli run ${changeName} --cwd <${changeName}'s worktree>`),
+    commands: set.map((changeName) => `openspec-ui-cli run change ${changeName} --cwd <${changeName}'s worktree>`),
   }));
 }
 
@@ -191,7 +191,7 @@ export function buildHints(report: ChangeReadinessReport, options: HintOptions =
       subject: `${change.changeName}'s workspace is held by a run that stopped reporting itself`,
       because: `Its holder (${holder.hostname}, pid ${holder.pid}) last reported itself`
         + ` ${Math.round(holder.heartbeatAgeMs / 1000)}s ago.`,
-      commands: [`openspec-ui-cli lease release --cwd ${worktreePath}`],
+      commands: [`openspec-ui-cli remove lease --cwd ${worktreePath}`],
     });
   }
 

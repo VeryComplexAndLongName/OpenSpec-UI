@@ -1354,7 +1354,7 @@ export async function handleChangeStandingsRequest(req: IncomingMessage, res: Se
 /** Every active change, its state, and what it can run alongside.
  *
  * The report travels whole and is not summarised here. The shell draws
- * it and `openspec-ui-cli ready` prints it, and the one thing that must
+ * it and `openspec-ui-cli show readiness` prints it, and the one thing that must
  * not happen is the two disagreeing — which is what a second derivation
  * anywhere on this path would eventually do, invisibly (ADR 0025). */
 export async function handleChangeReadinessRequest(

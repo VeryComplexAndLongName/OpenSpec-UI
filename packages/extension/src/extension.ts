@@ -571,7 +571,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Extens
       ...localLlmSettings,
       ...readAgentSwitches(),
     });
-    // A worktree records its runs in its own log, as `openspec-ui-cli run
+    // A worktree records its runs in its own log, as `openspec-ui-cli run change
     // --cwd` does there.
     runnersFor = (root) => buildDefaultAgentRunners({
       workspaceRoot: root,

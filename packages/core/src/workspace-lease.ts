@@ -23,7 +23,7 @@ export const WORKSPACE_LEASE_RENEW_INTERVAL_MS = 5_000;
 export const WORKSPACE_LEASE_STALE_AFTER_MS = 20_000;
 
 /** Every kind of host that can hold the workspace. `"cli"` is a terminal
- * run (`openspec-ui-cli run`) — ADR 0020 decision 6: a run started from a
+ * run (`openspec-ui-cli run change`) — ADR 0020 decision 6: a run started from a
  * terminal mutates a workspace exactly as the two interactive hosts do,
  * so it takes the same lease rather than a weaker one of its own. */
 export type WorkspaceLeaseHostKind = "vscode-extension" | "standalone-server" | "cli";

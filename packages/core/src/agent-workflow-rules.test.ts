@@ -39,7 +39,7 @@ describe("the workflow rules", () => {
     expect(rules.endsWith(WORKFLOW_SECTION_END)).toBe(true);
     expect(rules).toContain("../.worktrees/shop/<change-id>");
     expect(rules).toContain("OPENSPEC_UI_WORKTREE_ROOT");
-    expect(rules).toContain("openspec-ui-cli worktree add <change-id> --base origin/main");
+    expect(rules).toContain("openspec-ui-cli create worktree <change-id> --base origin/main");
     expect(rules).toContain("git worktree add ../.worktrees/shop/<change-id> -b <change-id> origin/main");
     expect(rules).toContain("Do not create an OpenSpec change, or edit one, in this checkout");
     expect(rules).toContain("openspec/agent-harness.json");

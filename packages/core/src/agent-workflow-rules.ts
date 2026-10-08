@@ -55,7 +55,7 @@ export function renderWorkflowRules(repositoryName: string, defaultBranch = "mai
     "",
     "  ```",
     "  git fetch origin",
-    `  openspec-ui-cli worktree add <change-id> --base ${base}`,
+    `  openspec-ui-cli create worktree <change-id> --base ${base}`,
     "  ```",
     "",
     "  or, without the OpenSpec Workbench CLI:",

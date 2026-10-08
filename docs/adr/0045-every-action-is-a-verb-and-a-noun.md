@@ -50,7 +50,8 @@ the new ones.
    Worktree, Worktrees, Change Copy, Leftover, Template, Specs, Report, Rules,
    Instructions, Scoped Instructions, Dependabot, LLM Key, Key, Team,
    People, Owner, Implementer, Presence, Lock, Lease, Checks, Manifest,
-   Workspace, Pipeline, Dashboard, Views, Filter, Process, Implementation,
+   Workspace, Pipeline, Dashboard, Views, Archive, Archive Filter, Specs
+   Filter, Graph Filter, Changes, Process, Implementation,
    Typecheck, Tests, Lint, CLI View. A noun of two words is one noun.
 4. **VS Code**: the command id is `openspec-ui.<verb><Noun>` in camel case
    (`openspec-ui.configureChangeHarness`); the title is the pair; the
@@ -123,7 +124,7 @@ the new ones.
 | Add Relation... | Add Relation... |
 | Remove Relation... | Remove Relation... |
 | Filter Archive... / Specs... / Change Graph... | Filter Archive... / Filter Specs... / Filter Graph... |
-| Clear Archive / Specs / Change Graph Filter | Clear Filter (one per view) |
+| Clear Archive / Specs / Change Graph Filter | Clear Archive Filter / Clear Specs Filter / Clear Graph Filter |
 | Show / Hide Landed Relations | Show Relations / Hide Relations |
 | Review Diff (tasks.md vs HEAD) | Show Diff |
 | Cancel Process | Stop Process |
@@ -166,6 +167,13 @@ the new ones.
 Where a title names its noun loosely (Show Change in the Graph view means
 "reveal this change in the Changes list"), the action's tooltip says what
 it does; the title stays the pair.
+
+### Amended on 2026-10-08
+
+Carrying this out (every-action-is-a-verb-and-a-noun) showed two gaps, and
+the tables above say what was done: three commands titled "Clear Filter"
+would read alike in the palette, so each names its filter; and the nouns
+gained Archive, the three filters, Changes and Change Copy.
 
 ## Consequences
 

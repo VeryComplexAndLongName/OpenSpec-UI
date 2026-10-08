@@ -24,7 +24,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockResolvedValue(okResult);
 
-    const code = await runMain(["validate"], { validateAll, ...io });
+    const code = await runMain(["validate", "changes"], { validateAll, ...io });
 
     expect(code).toBe(0);
     expect(JSON.parse(io.outLines[0] as string)).toEqual(okResult);
@@ -34,7 +34,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockResolvedValue(failResult);
 
-    const code = await runMain(["validate"], { validateAll, ...io });
+    const code = await runMain(["validate", "changes"], { validateAll, ...io });
 
     expect(code).toBe(1);
     expect(JSON.parse(io.outLines[0] as string)).toEqual(failResult);
@@ -44,7 +44,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockRejectedValue(new Error("openspec CLI not found"));
 
-    const code = await runMain(["validate"], { validateAll, ...io });
+    const code = await runMain(["validate", "changes"], { validateAll, ...io });
 
     expect(code).toBe(2);
     expect(io.outLines).toHaveLength(0);
@@ -63,7 +63,7 @@ describe("runMain", () => {
   it("exits 2 when --cwd is missing its value", async () => {
     const io = collectingIo();
 
-    const code = await runMain(["validate", "--cwd"], { validateAll: vi.fn(), ...io });
+    const code = await runMain(["validate", "changes", "--cwd"], { validateAll: vi.fn(), ...io });
 
     expect(code).toBe(2);
     expect(io.errLines[0]).toContain("--cwd requires a value");
@@ -73,7 +73,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockResolvedValue(okResult);
 
-    await runMain(["validate", "--cwd", "/workspace/repo"], { validateAll, ...io });
+    await runMain(["validate", "changes", "--cwd", "/workspace/repo"], { validateAll, ...io });
 
     expect(validateAll).toHaveBeenCalledWith("/workspace/repo", {});
   });
@@ -83,7 +83,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockResolvedValue(okResult);
 
-    await runMain(["validate", "--cwd", "/workspace/repo", "--change", "the-change"], { validateAll, ...io });
+    await runMain(["validate", "changes", "--cwd", "/workspace/repo", "--change", "the-change"], { validateAll, ...io });
 
     expect(validateAll).toHaveBeenCalledWith("/workspace/repo", { change: "the-change" });
   });
@@ -92,7 +92,7 @@ describe("runMain", () => {
     const io = collectingIo();
     const validateAll = vi.fn().mockResolvedValue(failResult);
 
-    const code = await runMain(["validate", "--format", "text"], { validateAll, ...io });
+    const code = await runMain(["validate", "changes", "--format", "text"], { validateAll, ...io });
 
     expect(code).toBe(1);
     expect(io.outLines[0]).toContain("FAIL  a");
@@ -102,7 +102,7 @@ describe("runMain", () => {
   it("rejects an invalid --format value", async () => {
     const io = collectingIo();
 
-    const code = await runMain(["validate", "--format", "xml"], { validateAll: vi.fn(), ...io });
+    const code = await runMain(["validate", "changes", "--format", "xml"], { validateAll: vi.fn(), ...io });
 
     expect(code).toBe(2);
     expect(io.errLines[0]).toContain("--format must be");
@@ -144,7 +144,7 @@ describe("runMain — lease", () => {
     const io = collectingIo();
     const leaseCommand = vi.fn().mockResolvedValue(0);
 
-    const code = await runMain(["lease", "--cwd", "/repo"], { leaseCommand, ...io });
+    const code = await runMain(["show", "lease", "--cwd", "/repo"], { leaseCommand, ...io });
 
     expect(code).toBe(0);
     expect(leaseCommand).toHaveBeenCalledWith({ workspaceRoot: "/repo", format: "text" }, expect.anything());
@@ -154,7 +154,7 @@ describe("runMain — lease", () => {
     const io = collectingIo();
     const leaseCommand = vi.fn().mockResolvedValue(1);
 
-    const code = await runMain(["lease", "release", "--cwd", "/repo"], { leaseCommand, ...io });
+    const code = await runMain(["remove", "lease", "--cwd", "/repo"], { leaseCommand, ...io });
 
     expect(code).toBe(1);
     expect(leaseCommand.mock.calls[0]?.[0]).toMatchObject({ action: "release" });
@@ -164,7 +164,7 @@ describe("runMain — lease", () => {
     const io = collectingIo();
     const leaseCommand = vi.fn().mockResolvedValue(0);
 
-    await runMain(["lease", "--format", "json"], { leaseCommand, ...io });
+    await runMain(["show", "lease", "--format", "json"], { leaseCommand, ...io });
 
     expect(leaseCommand.mock.calls[0]?.[0]).toMatchObject({ format: "json" });
   });
@@ -175,7 +175,7 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const runChange = vi.fn().mockResolvedValue(0);
 
-    const code = await runMain(["run", "a-change", "--cwd", "/repo"], { runChange, ...io });
+    const code = await runMain(["run", "change", "a-change", "--cwd", "/repo"], { runChange, ...io });
 
     expect(code).toBe(0);
     expect(runChange).toHaveBeenCalledWith(
@@ -190,7 +190,7 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const runChange = vi.fn().mockResolvedValue(0);
 
-    await runMain(["run", "a-change"], { runChange, ...io });
+    await runMain(["run", "change", "a-change"], { runChange, ...io });
 
     expect(runChange.mock.calls[0]?.[0]).toMatchObject({ format: "text" });
   });
@@ -199,7 +199,7 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const runChange = vi.fn().mockResolvedValue(0);
 
-    await runMain(["run", "a-change", "--format", "json"], { runChange, ...io });
+    await runMain(["run", "change", "a-change", "--format", "json"], { runChange, ...io });
 
     expect(runChange.mock.calls[0]?.[0]).toMatchObject({ format: "json" });
   });
@@ -207,8 +207,8 @@ describe("runMain — run and check", () => {
   it("returns run's own exit code unchanged", async () => {
     const io = collectingIo();
 
-    expect(await runMain(["run", "a"], { runChange: vi.fn().mockResolvedValue(2), ...io })).toBe(2);
-    expect(await runMain(["run", "a"], { runChange: vi.fn().mockResolvedValue(1), ...io })).toBe(1);
+    expect(await runMain(["run", "change", "a"], { runChange: vi.fn().mockResolvedValue(2), ...io })).toBe(2);
+    expect(await runMain(["run", "change", "a"], { runChange: vi.fn().mockResolvedValue(1), ...io })).toBe(1);
   });
 
   // the-plan-is-updated-from-its-review: `update` reaches updatePlan.
@@ -216,9 +216,9 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const updatePlan = vi.fn().mockResolvedValue(1);
 
-    expect(await runMain(["update", "a-change", "--note", "keep the API", "--agent", "codex-acp", "--cwd", "/w"], { updatePlan, ...io })).toBe(1);
+    expect(await runMain(["update", "plan", "a-change", "--note", "keep the API", "--agent", "codex-acp", "--cwd", "/w"], { updatePlan, ...io })).toBe(1);
     expect(updatePlan.mock.calls[0]?.[0]).toMatchObject({ workspaceRoot: "/w", changeName: "a-change", note: "keep the API", agent: "codex-acp", format: "text" });
-    expect(await runMain(["update"], { updatePlan, ...io })).toBe(2);
+    expect(await runMain(["update", "plan"], { updatePlan, ...io })).toBe(2);
     expect(updatePlan).toHaveBeenCalledTimes(1);
   });
 
@@ -226,18 +226,18 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const runChange = vi.fn();
 
-    const code = await runMain(["run"], { runChange, ...io });
+    const code = await runMain(["run", "change"], { runChange, ...io });
 
     expect(code).toBe(2);
     expect(runChange).not.toHaveBeenCalled();
-    expect(io.errLines[0]).toContain("run requires a change name");
+    expect(io.errLines[0]).toContain("run change requires a change name");
   });
 
   it("exits 2 when check is given no change", async () => {
     const io = collectingIo();
     const checkChange = vi.fn();
 
-    const code = await runMain(["check"], { checkChange, ...io });
+    const code = await runMain(["run", "checks"], { checkChange, ...io });
 
     expect(code).toBe(2);
     expect(checkChange).not.toHaveBeenCalled();
@@ -247,7 +247,7 @@ describe("runMain — run and check", () => {
     const io = collectingIo();
     const checkChange = vi.fn().mockResolvedValue(1);
 
-    const code = await runMain(["check", "a-change", "--cwd", "/repo"], { checkChange, ...io });
+    const code = await runMain(["run", "checks", "a-change", "--cwd", "/repo"], { checkChange, ...io });
 
     expect(code).toBe(1);
     expect(checkChange).toHaveBeenCalledWith(

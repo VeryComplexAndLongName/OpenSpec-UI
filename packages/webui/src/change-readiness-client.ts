@@ -4,7 +4,7 @@
 // worktrees and peeking at each one's lease, so the browser cannot
 // produce it. It asks, and it derives nothing: the placement it draws
 // comes from `layoutChanges` in core, which the terminal uses too, so
-// the tab and `openspec-ui-cli ready` cannot disagree (ADR 0025).
+// the tab and `openspec-ui-cli show readiness` cannot disagree (ADR 0025).
 
 import type { ChangeReadinessReport } from "@openspec-ui/core/browser";
 

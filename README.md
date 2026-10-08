@@ -212,7 +212,7 @@ testing expertise".
   (Claude, Copilot, Codex, Gemini or a local model) for each stage of a
   change: `propose → review → apply → verify → archive → git`. It runs the
   same way from the standalone app, the VS Code extension, or
-  `openspec-ui-cli run`. See [`HARNESS.md`](HARNESS.md).
+  `openspec-ui-cli run change`. See [`HARNESS.md`](HARNESS.md).
 - **A specification outlives its change.** Archiving a change merges its
   spec deltas into `openspec/specs/`. The next change is proposed against
   what the system does now, not against a document written for an earlier
@@ -576,7 +576,7 @@ declined to start.
 on each, printing an aggregated report.
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
+npm run start --workspace @openspec-ui/cli -- validate changes --cwd . --format text
 ```
 
 - Default output is JSON (`{ ok, results: [...] }`); `--format text`
@@ -602,7 +602,7 @@ npm run start --workspace @openspec-ui/cli -- validate --cwd . --format text
 
 ### `doctor` — what would stop a run here
 
-`openspec-ui-cli doctor` answers, before a run is started, what this
+`openspec-ui-cli diagnose workspace` answers, before a run is started, what this
 machine and this workspace are missing: the runtime against the pinned
 `engines`, the `openspec` CLI, which agents are installed, whether the
 harness configuration reads, who holds the workspace, and whether a git
@@ -610,7 +610,7 @@ identity is configured. `--change <id>` adds the preflight's own answer
 for one change, from the same resolution a run would use.
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- doctor --cwd .
+npm run start --workspace @openspec-ui/cli -- diagnose workspace --cwd .
 ```
 
 Exit codes: `0` nothing found would stop a run, `1` something would, `2`
@@ -620,7 +620,7 @@ already gives.
 
 ### `status` — what every run says it is doing
 
-`openspec-ui-cli status` prints every run of this repository, whichever
+`openspec-ui-cli show status` prints every run of this repository, whichever
 host started it and whichever working directory it runs in: whose it is,
 where, what it last said it was doing, and how long ago. It never says
 whether a run is stuck or healthy: a silent agent and a hung one look
@@ -631,12 +631,12 @@ enrolled person, not verified, or a signature that does not check out. It
 exits `0` whether or not anything is running.
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- status --cwd .
+npm run start --workspace @openspec-ui/cli -- show status --cwd .
 ```
 
 ### `stop` — ask a run to stop
 
-`openspec-ui-cli stop <instanceId> --reason <text>` asks a live run to
+`openspec-ui-cli stop run <instanceId> --reason <text>` asks a live run to
 stop where its work is sound, through a request signed with this
 machine's key. The run reads the request at its next renewal, and acts on
 it only if the request is verified and fresh. It prints the request's
@@ -644,7 +644,7 @@ message id. It exits `1` when no live run reports itself under that
 instance id; `status` lists the instance ids.
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- stop <instanceId> --reason "wrong branch" --cwd .
+npm run start --workspace @openspec-ui/cli -- stop run <instanceId> --reason "wrong branch" --cwd .
 ```
 
 `--after <task>` asks the run to finish that task first: `--after 4.6`
@@ -658,9 +658,9 @@ run from its Pipeline card, in either host.
 
 ### `enrol` — say a run was yours
 
-`openspec-ui-cli enrol` lists the keys that sign a live run's record and
+`openspec-ui-cli confirm key` lists the keys that sign a live run's record and
 are not enrolled, with where the run is, its machine and its git author.
-`openspec-ui-cli enrol <keyId>` says a listed run was yours: its key is
+`openspec-ui-cli confirm key <keyId>` says a listed run was yours: its key is
 enrolled, and its runs then read as signed by you. The same confirmation
 is offered in the Human-Only Inbox of both hosts as "It was me". It exits
 `1` when the confirmation is refused.
@@ -673,7 +673,7 @@ person signs on ([ADR 0037](docs/adr/0037-a-team-works-through-git.md)).
 Every colleague and every machine can then verify what a person, or an
 agent working for them, signs. There is no server and no database.
 
-`openspec-ui-cli join --handle <handle> --name <text> [--email <address>]`
+`openspec-ui-cli join team --handle <handle> --name <text> [--email <address>]`
 writes your file with this machine's key, or adds the key to the file you
 already have. Nothing is committed: joining is the pull request that
 carries the file. The e-mail address is optional, so a public repository
@@ -683,11 +683,11 @@ Team**.
 A key is never taken out, only retired: add `"retiredAt": "<date>"` to it
 when a machine is lost or given up. What it signed before still verifies.
 
-`openspec-ui-cli people` lists the people and what is wrong with their
+`openspec-ui-cli show people` lists the people and what is wrong with their
 files. It exits `1` when anything is.
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- join --handle ada --name "Ada Lovelace" --cwd .
+npm run start --workspace @openspec-ui/cli -- join team --handle ada --name "Ada Lovelace" --cwd .
 ```
 
 ### `history`, `owner`, `implementer`, `send-back`: a change's history
@@ -746,7 +746,7 @@ change is written on its card in either arrangement.
 
 
 ```bash
-npm run start --workspace @openspec-ui/cli -- send-back my-change --stage in-progress --reason "review found a gap" --reopen "2.3:no test for the edge case" --cwd .
+npm run start --workspace @openspec-ui/cli -- reopen change my-change --stage in-progress --reason "review found a gap" --reopen "2.3:no test for the edge case" --cwd .
 ```
 
 ## Getting Started

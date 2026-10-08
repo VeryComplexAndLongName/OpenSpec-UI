@@ -1,0 +1,8 @@
+---
+"@openspec-ui/core": minor
+"@openspec-ui/cli": minor
+"@openspec-ui/webui": minor
+"openspec-ui-vscode": minor
+---
+
+**Breaking: every action is a verb and a noun** (every-action-is-a-verb-and-a-noun, ADR 0045). Every extension command is renamed to `<Verb> <Noun>` from approved lists, with the id `openspec-ui.<verb><Noun>`, the category "OpenSpec Workbench" and its verb's icon: "Configure Harness for this Change" is **Configure Change Harness**, "Run..." is **Run Change...**, "Say Something to This Run..." is **Send Message...**, "It Was Me..." is **Confirm Key...**, "Review Diff (tasks.md vs HEAD)" is **Show Diff**; the full table is in ADR 0045. Former command ids are not kept: a key binding that used one needs the new id. "Validate Change (Strict)" is gone - **Validate Change** is strict and asks for a change when none is selected. Every `openspec-ui-cli` subcommand is a pair too: `validate changes`, `run change`, `update plan`, `run checks`, `show readiness`, `diagnose workspace`, `show advice`, `show lease` / `remove lease`, `show status`, `set presence`, `set lock`, `stop run`, `confirm key`, `join team`, `show people`, `show history`, `show stages`, `set owner`, `set implementer`, `reopen change`, `complete task` / `reopen task` / `commit tasks`, `show questions` / `answer question`, `create worktree` / `show worktrees` / `move worktree` / `delete worktree`, `show graph`, `write manifest`. A former subcommand is refused with `error OSW-CLI-001`, naming its replacement. Core gains `action-vocabulary.ts`, the verbs, their groups and icons, and the nouns, and every hint and message that names a command names it by its pair.

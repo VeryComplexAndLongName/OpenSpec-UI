@@ -1,4 +1,4 @@
-// `openspec-ui-cli enrol` — the keys waiting to be enrolled, and confirming
+// `openspec-ui-cli confirm key` — the keys waiting to be enrolled, and confirming
 // one (a-run-is-signed-by-its-person, ADR 0028 "Enrolment is one
 // confirmation").
 //
@@ -61,7 +61,7 @@ export async function enrolCommand(options: EnrolOptions, deps: EnrolDeps): Prom
       deps.stdout(`    ${describeEnrolmentRequest(request)}`);
     }
     deps.stdout("");
-    deps.stdout("If a run was yours, confirm its key: openspec-ui-cli enrol <keyId> [--label <text>]");
+    deps.stdout("If a run was yours, confirm its key: openspec-ui-cli confirm key <keyId> [--label <text>]");
     return 0;
   }
 

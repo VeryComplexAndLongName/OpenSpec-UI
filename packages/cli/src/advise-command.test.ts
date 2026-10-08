@@ -39,7 +39,7 @@ describe("adviseCommand", () => {
     const text = out.join("\n");
     expect(text).toContain("alpha and beta can run at the same time");
     expect(text).toContain("declare a blocker");
-    expect(text).toContain("$ openspec-ui-cli run alpha");
+    expect(text).toContain("$ openspec-ui-cli run change alpha");
   });
 
   it("says so in words and exits 0 when there is nothing to suggest", async () => {
@@ -95,7 +95,7 @@ describe("adviseCommand", () => {
             kind: "run-says-nothing-new",
             subject: "A run on alpha has said nothing new for 12 minutes",
             because: "Its heartbeat is 3 seconds old, so it is alive.",
-            commands: ["openspec-ui-cli status --cwd /worktrees/alpha"],
+            commands: ["openspec-ui-cli show status --cwd /worktrees/alpha"],
           }];
         },
       },
@@ -103,7 +103,7 @@ describe("adviseCommand", () => {
     expect(code).toBe(0);
     expect(asked).toEqual(["/repo", CONFIG_ON]);
     expect(out.indexOf("alpha and beta can run at the same time")).toBeLessThan(out.indexOf("A run on alpha has said nothing new for 12 minutes"));
-    expect(out).toContain("  $ openspec-ui-cli status --cwd /worktrees/alpha");
+    expect(out).toContain("  $ openspec-ui-cli show status --cwd /worktrees/alpha");
   });
 
   it("does not ask the supervisor where suggestions are off", async () => {

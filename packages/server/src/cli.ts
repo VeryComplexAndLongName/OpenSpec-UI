@@ -22,7 +22,7 @@ const server = createServer({
   auditLog,
   runners: buildDefaultAgentRunners({ workspaceRoot, allowExternalCwd, auditLog, runLogs: createFileRunLogs(workspaceRoot) }),
   // A change's own worktree records its runs in its own log, as
-  // `openspec-ui-cli run --cwd` does there (a-card-works-its-own-tasks).
+  // `openspec-ui-cli run change --cwd` does there (a-card-works-its-own-tasks).
   runnersFor: (root) => buildDefaultAgentRunners({
     workspaceRoot: root,
     auditLog: new FileAuditLog(auditLogPath(root)),

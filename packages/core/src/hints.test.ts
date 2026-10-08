@@ -17,7 +17,7 @@ function ready(changeName: string, canJoin: string[], worktree = true): ChangeRe
     ...(worktree ? { worktreePath: `/worktrees/${changeName}` } : {}),
     canJoin,
     blockedFrom: [],
-    ...(worktree ? {} : { needsWorktree: `openspec-ui-cli worktree add ${changeName}` }),
+    ...(worktree ? {} : { needsWorktree: `openspec-ui-cli create worktree ${changeName}` }),
   } as ChangeReadiness;
 }
 
@@ -67,14 +67,14 @@ describe("buildHints", () => {
     expect(hints).toHaveLength(1);
     expect(hints[0]?.kind).toBe("too-many-sets");
     expect(hints[0]?.subject).toContain("1 sets");
-    expect(hints[0]?.commands).toEqual(["openspec-ui-cli ready"]);
+    expect(hints[0]?.commands).toEqual(["openspec-ui-cli show readiness"]);
   });
 
   it("offers the one command that gives a ready change somewhere to run", () => {
     const hints = buildHints(report(ready("alpha", [], false)));
     expect(hints).toHaveLength(1);
     expect(hints[0]?.kind).toBe("needs-a-worktree");
-    expect(hints[0]?.commands).toEqual(["openspec-ui-cli worktree add alpha"]);
+    expect(hints[0]?.commands).toEqual(["openspec-ui-cli create worktree alpha"]);
   });
 
   it("offers to clear a lease only where the heartbeat is already stale", () => {
@@ -96,7 +96,7 @@ describe("buildHints", () => {
     const stale = buildHints(held(60_000), { staleAfterMs: 20_000 });
     expect(stale).toHaveLength(1);
     expect(stale[0]?.kind).toBe("held-by-a-finished-run");
-    expect(stale[0]?.commands).toEqual(["openspec-ui-cli lease release --cwd /worktrees/alpha"]);
+    expect(stale[0]?.commands).toEqual(["openspec-ui-cli remove lease --cwd /worktrees/alpha"]);
   });
 
   // a-change-is-running-when-its-run-says-so 4.2

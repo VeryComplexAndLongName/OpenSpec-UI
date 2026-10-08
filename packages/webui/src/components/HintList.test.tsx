@@ -14,7 +14,7 @@ const HINT: Hint = {
   kind: "can-run-together",
   subject: "alpha and beta can run at the same time",
   because: "Each is ready, and no two of them collide over anything.",
-  commands: ["openspec-ui-cli run alpha --cwd <alpha's worktree>"],
+  commands: ["openspec-ui-cli run change alpha --cwd <alpha's worktree>"],
 };
 
 describe("HintList", () => {

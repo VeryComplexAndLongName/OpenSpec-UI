@@ -1200,12 +1200,12 @@ describe("PipelineView", () => {
         kind: "needs-a-worktree" as const,
         subject: "beta is ready and has nowhere to run",
         because: "One workspace permits one mutating run.",
-        commands: ["openspec-ui-cli worktree add beta"],
+        commands: ["openspec-ui-cli create worktree beta"],
       }],
     };
     const { unmount } = render(<PipelineView isActive load={async () => withHints} />);
     expect(await screen.findByTestId("hint-list")).toBeTruthy();
-    expect(screen.getByText("openspec-ui-cli worktree add beta")).toBeTruthy();
+    expect(screen.getByText("openspec-ui-cli create worktree beta")).toBeTruthy();
     unmount();
 
     // No `hints` key at all is what a workspace with suggestions turned

@@ -273,7 +273,7 @@ export class AiPanel {
       mutating: command.kind === "implement" || command.kind === "chain",
       execute: ({ report, signal }) =>
         new Promise<string | void>((resolve, reject) => {
-          // "Cancel Process" on a chain's entry cancels the chain itself,
+          // "Stop Process" on a chain's entry cancels the chain itself,
           // not only its row: the scheduler aborts this signal, and nothing
           // else would reach the chain (a-change-is-run-from-its-card).
           if (command.kind === "chain") {

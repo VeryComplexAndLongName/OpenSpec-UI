@@ -1,4 +1,4 @@
-// `openspec-ui-cli doctor` — what would stop a run here, asked before
+// `openspec-ui-cli diagnose workspace` — what would stop a run here, asked before
 // starting one (a-doctor-says-what-would-stop-a-run).
 //
 // Presentation only. What this machine and this workspace have is read

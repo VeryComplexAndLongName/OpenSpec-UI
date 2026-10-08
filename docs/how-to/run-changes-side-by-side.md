@@ -11,7 +11,7 @@ root outside the repository rather than inside it. The root is
 `<root>/<repository>/<change>`.
 
 ```bash
-openspec-ui-cli worktree add my-change
+openspec-ui-cli create worktree my-change
 ```
 
 A change that does not exist yet gets its directory the same way, cut from
@@ -19,7 +19,7 @@ the server's default branch, and is then proposed there:
 
 ```bash
 git fetch origin
-openspec-ui-cli worktree add my-new-change --base origin/main
+openspec-ui-cli create worktree my-new-change --base origin/main
 ```
 
 Only a change that exists as uncommitted files in the main checkout is
@@ -31,7 +31,7 @@ repository" in `CLAUDE.md` and `AGENTS.md` (ADR 0043).
 **2.** Run it there.
 
 ```bash
-openspec-ui-cli run my-change --cwd ../.worktrees/my-repo/my-change
+openspec-ui-cli run change my-change --cwd ../.worktrees/my-repo/my-change
 ```
 
 Each directory takes its own lease, so the two runs cannot collide over
@@ -40,7 +40,7 @@ the same files.
 Which changes can sensibly go at once is not a guess:
 
 ```bash
-openspec-ui-cli ready
+openspec-ui-cli show readiness
 ```
 
 It reports, for each ready change, the others it can be started
@@ -50,12 +50,12 @@ spec deltas name, and the files their branches have already changed.
 To watch both, open the Pipeline, in the standalone app's tab or the
 editor's "OpenSpec Workbench: Open Pipeline" panel. It draws every working
 directory of the repository and what each run last said it was doing.
-`openspec-ui-cli status` prints the same from a terminal. To stop one of
+`openspec-ui-cli show status` prints the same from a terminal. To stop one of
 them, see [stop a run](stop-a-run.md).
 
-When you are done, `openspec-ui-cli worktree remove my-change`. If a run
+When you are done, `openspec-ui-cli delete worktree my-change`. If a run
 in one of those directories was killed rather than stopped,
-`openspec-ui-cli lease` says who holds it and `lease release` clears it
+`openspec-ui-cli show lease` says who holds it and `lease release` clears it
 where the holder can be shown to be gone.
 
 Options, defaults and where a working directory is placed:

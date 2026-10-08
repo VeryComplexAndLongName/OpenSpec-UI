@@ -65,7 +65,7 @@ export const PAGE_HEADS: Readonly<Record<string, PageHeadContent>> = {
     icon: "run",
     title: "Pipeline",
     sentence:
-      "Every active change in the order it declares, what is running right now, and what can be started alongside what. The same report openspec-ui-cli ready prints.",
+      "Every active change in the order it declares, what is running right now, and what can be started alongside what. The same report openspec-ui-cli show readiness prints.",
   },
   "harness-settings": {
     tagline: "Agentic Harness",

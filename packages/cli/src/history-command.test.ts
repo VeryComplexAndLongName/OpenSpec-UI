@@ -78,7 +78,7 @@ describe("recording", () => {
   it("passes the command line through: the stage, the reason, the reopened items and the agent", async () => {
     let seen: unknown;
     const code = await runMain(
-      ["send-back", "demo", "--stage", "planned", "--reason", "scope grew", "--reopen", "1.1:split it", "--agent", "codex-cli", "--cwd", "/repo"],
+      ["reopen", "change", "demo", "--stage", "planned", "--reason", "scope grew", "--reopen", "1.1:split it", "--agent", "codex-cli", "--cwd", "/repo"],
       { ...capture().deps, recordCommand: async (options) => { seen = options; return 0; } },
     );
 
@@ -94,7 +94,7 @@ describe("recording", () => {
   it("refuses a send-back to a stage a change cannot go back to", async () => {
     const { err, deps } = capture();
 
-    expect(await runMain(["send-back", "demo", "--stage", "archived", "--reason", "x"], deps)).toBe(2);
-    expect(err[0]).toContain("send-back requires --stage");
+    expect(await runMain(["reopen", "change", "demo", "--stage", "archived", "--reason", "x"], deps)).toBe(2);
+    expect(err[0]).toContain("reopen change requires --stage");
   });
 });

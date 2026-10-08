@@ -294,7 +294,7 @@ describe("readChangeReadiness — somewhere to run", () => {
 
     for (const change of report.changes) {
       expect(change.canJoin).toEqual([]);
-      expect(change.needsWorktree).toContain("worktree add");
+      expect(change.needsWorktree).toContain("create worktree");
     }
   });
 

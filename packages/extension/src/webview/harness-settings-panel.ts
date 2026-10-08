@@ -3,7 +3,7 @@
 //
 // The settings view used to be mounted inside the AI panel. A newly opened
 // panel learned the change's name only after the view had mounted, so a
-// person who ran "Configure Harness for this Change" on a change saw the
+// person who ran "Configure Change Harness" on a change saw the
 // global defaults, an empty name field, and nothing to configure. Here the
 // scope and the change's name are in the root element the page is rendered
 // with, so the view has them on its first render. See

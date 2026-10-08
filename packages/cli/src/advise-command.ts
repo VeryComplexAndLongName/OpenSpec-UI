@@ -1,4 +1,4 @@
-// `openspec-ui-cli advise` — what the repository already knows, offered
+// `openspec-ui-cli show advice` — what the repository already knows, offered
 // rather than printed (a-hint-says-what-can-run-together).
 //
 // Presentation only. `ready` prints the readiness report; this prints

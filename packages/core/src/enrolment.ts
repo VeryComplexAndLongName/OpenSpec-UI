@@ -2,7 +2,7 @@
 // every host asks (ADR 0028, "Enrolment is one confirmation").
 //
 // The inbox, the standalone route, the editor's command and
-// `openspec-ui-cli enrol` all call these, so which key a confirmation enrols
+// `openspec-ui-cli confirm key` all call these, so which key a confirmation enrols
 // is decided once.
 
 import {

@@ -382,7 +382,7 @@ test.describe("editor documentation screenshots", () => {
 
     // The caption names two actions. Asserting only that a menu opened
     // would let a menu of different entries photograph under this caption.
-    for (const action of ["Customize Template", "Insert Template Into"]) {
+    for (const action of ["Edit Template", "Insert Template..."]) {
       await expect(window.locator(`.context-view .action-label:has-text("${action}")`).first()).toBeVisible();
     }
 

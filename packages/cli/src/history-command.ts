@@ -1,4 +1,4 @@
-// `openspec-ui-cli history`, `owner`, `implementer` and `send-back` - a
+// `openspec-ui-cli show history`, `owner`, `implementer` and `send-back` - a
 // change's history, and the events a person or their agent records in it
 // (a-change-keeps-its-history, ADR 0037).
 //

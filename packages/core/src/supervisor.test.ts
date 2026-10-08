@@ -67,8 +67,8 @@ describe("superviseRuns — a run that says nothing new", () => {
       subject: "A run on demo has said nothing new for 12 minutes",
       because: expect.stringContaining('it last said "running npm test" 12 minutes ago'),
       commands: [
-        "openspec-ui-cli status --cwd /work/demo",
-        'openspec-ui-cli stop i1 --reason "said nothing new for 12 minutes" --cwd /work/demo',
+        "openspec-ui-cli show status --cwd /work/demo",
+        'openspec-ui-cli stop run i1 --reason "said nothing new for 12 minutes" --cwd /work/demo',
       ],
     }]);
     expect(hints[0]?.because).toContain("supervisor.silentAfterSeconds (600s)");
@@ -104,7 +104,7 @@ describe("superviseRuns — a run waiting on a person", () => {
       kind: "run-waits-on-you",
       subject: "A run on demo has waited on a person for 15 minutes",
       because: expect.stringContaining("waiting for a permission: Run npm install"),
-      commands: ["openspec-ui-cli status --cwd /work/demo"],
+      commands: ["openspec-ui-cli show status --cwd /work/demo"],
     }]);
   });
 
@@ -119,8 +119,8 @@ describe("superviseRuns — a run waiting on a person", () => {
       kind: "run-waits-on-you",
       because: expect.stringContaining("waiting for your answer: Q-abc-1 Which database?"),
       commands: [
-        "openspec-ui-cli status --cwd /work/demo",
-        `openspec-ui-cli answer demo Q-abc-1 "<answer>" --cwd /work/demo`,
+        "openspec-ui-cli show status --cwd /work/demo",
+        `openspec-ui-cli answer question demo Q-abc-1 "<answer>" --cwd /work/demo`,
       ],
     })]);
   });

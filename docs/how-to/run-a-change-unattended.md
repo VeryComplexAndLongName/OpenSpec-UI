@@ -28,7 +28,7 @@ Two things it does **not** do:
   that most wants a budget: see
   [cap what a run can spend](cap-what-a-run-can-spend.md).
 - It does not stop you stopping it. Its Pipeline card, or
-  `openspec-ui-cli stop`, still asks it to stop with a reason: see
+  `openspec-ui-cli stop run`, still asks it to stop with a reason: see
   [stop a run](stop-a-run.md).
 
 Accepted values, what each autonomy level means, and why a global file

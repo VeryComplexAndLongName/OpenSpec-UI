@@ -53,7 +53,7 @@ A change with no worktree of its own opens this checkout's copy, read-only.
 ## Run a delegated task
 
 A task marked **Delegated to `<agent>`** offers **Run on `<agent>`**. The
-agent runs in the change's worktree, as `openspec-ui-cli run --cwd` would
+agent runs in the change's worktree, as `openspec-ui-cli run change --cwd` would
 run it there.
 
 ## Hide what is done
@@ -64,11 +64,11 @@ like the open cards.
 ## From a terminal
 
 ```bash
-openspec-ui-cli task done the-change 6.4 --note "seen in the Pipeline"
+openspec-ui-cli complete task the-change 6.4 --note "seen in the Pipeline"
 ```
 
 ```bash
-openspec-ui-cli task commit the-change
+openspec-ui-cli commit tasks the-change
 ```
 
 `task reopen` unticks. Each exits `1` with the reason when refused.

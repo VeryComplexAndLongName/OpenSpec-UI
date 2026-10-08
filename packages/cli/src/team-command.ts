@@ -1,4 +1,4 @@
-// `openspec-ui-cli join` and `openspec-ui-cli people` - the people of a
+// `openspec-ui-cli join team` and `openspec-ui-cli show people` - the people of a
 // repository, in git (a-team-works-through-git, ADR 0037).
 //
 // Presentation only. What a person's file holds, what joining writes and
@@ -80,7 +80,7 @@ export async function peopleCommand(options: PeopleCommandOptions, deps: TeamCom
     return reading.problems.length === 0 ? 0 : 1;
   }
   if (reading.people.length === 0 && reading.problems.length === 0) {
-    deps.stdout("Nobody has joined yet. Join with: openspec-ui-cli join --handle <handle> --name <text>");
+    deps.stdout("Nobody has joined yet. Join with: openspec-ui-cli join team --handle <handle> --name <text>");
     return 0;
   }
   for (const person of reading.people) {

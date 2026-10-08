@@ -54,7 +54,7 @@ async function changeDirectoryOf(repositoryRoot: string, changeName: string, roo
 export async function answerCommand(options: AnswerOptions, deps: AnswerDeps): Promise<number> {
   const root = path.resolve(options.repositoryRoot);
   if (options.changeName === undefined) {
-    deps.stderr("openspec-ui-cli: answer requires a change name");
+    deps.stderr("openspec-ui-cli: show questions and answer question require a change name");
     return 2;
   }
   const changeDir = await changeDirectoryOf(root, options.changeName, deps.rootSources);
@@ -78,13 +78,13 @@ export async function answerCommand(options: AnswerOptions, deps: AnswerDeps): P
       deps.stdout(`    asked ${question.askedAt} by ${question.agent}, stage ${question.stage}, run ${question.runId}`);
     }
     deps.stdout("");
-    deps.stdout(`Answer one with: openspec-ui-cli answer ${options.changeName} <Q-id> "<answer>"`);
+    deps.stdout(`Answer one with: openspec-ui-cli answer question ${options.changeName} <Q-id> "<answer>"`);
     return 0;
   }
 
   const answer = options.answer?.trim();
   if (answer === undefined || answer.length === 0) {
-    deps.stderr(`openspec-ui-cli: answer ${options.changeName} ${options.questionId} needs the answer, in quotes`);
+    deps.stderr(`openspec-ui-cli: answer question ${options.changeName} ${options.questionId} needs the answer, in quotes`);
     return 2;
   }
   let by = "the operator";
